@@ -11,5 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Behavior test suites.
+mod behavior;
+
+use behavior::BehaviorTest;
+
+// All services must pass the behavior test suite.
 mod fs;
 mod s3;

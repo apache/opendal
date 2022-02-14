@@ -11,24 +11,16 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-mod accessor;
-pub use accessor::Accessor;
-pub use accessor::Reader;
 
-mod layer;
-pub use layer::Layer;
+mod header;
+pub use header::HeaderRange;
 
-mod operator;
-pub use operator::Operator;
-
-mod object;
-pub use object::Object;
-
-mod scheme;
-pub use scheme::Scheme;
-
-pub mod credential;
-pub mod error;
-pub mod ops;
-pub mod readers;
-pub mod services;
+// Supported operations
+mod read;
+pub use read::OpRead;
+mod write;
+pub use write::OpWrite;
+mod stat;
+pub use stat::OpStat;
+mod delete;
+pub use delete::OpDelete;

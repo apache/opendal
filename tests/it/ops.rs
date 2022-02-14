@@ -1,4 +1,4 @@
-// Copyright 2021 Datafuse Labs.
+// Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,24 +11,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-mod accessor;
-pub use accessor::Accessor;
-pub use accessor::Reader;
 
-mod layer;
-pub use layer::Layer;
+use opendal::ops::HeaderRange;
 
-mod operator;
-pub use operator::Operator;
+#[test]
+fn test_header_range() {
+    let h = HeaderRange::new(None, Some(1024));
+    assert_eq!(h.to_string(), "bytes=0-1023");
 
-mod object;
-pub use object::Object;
+    let h = HeaderRange::new(Some(1024), None);
+    assert_eq!(h.to_string(), "bytes=1024-");
 
-mod scheme;
-pub use scheme::Scheme;
-
-pub mod credential;
-pub mod error;
-pub mod ops;
-pub mod readers;
-pub mod services;
+    let h = HeaderRange::new(Some(1024), Some(1024));
+    assert_eq!(h.to_string(), "bytes=1024-2047");
+}

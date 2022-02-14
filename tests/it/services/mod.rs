@@ -1,4 +1,4 @@
-// Copyright 2021 Datafuse Labs.
+// Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,24 +11,5 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-mod accessor;
-pub use accessor::Accessor;
-pub use accessor::Reader;
-
-mod layer;
-pub use layer::Layer;
-
-mod operator;
-pub use operator::Operator;
-
-mod object;
-pub use object::Object;
-
-mod scheme;
-pub use scheme::Scheme;
-
-pub mod credential;
-pub mod error;
-pub mod ops;
-pub mod readers;
-pub mod services;
+mod fs;
+mod s3;

@@ -11,24 +11,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-mod accessor;
-pub use accessor::Accessor;
-pub use accessor::Reader;
 
-mod layer;
-pub use layer::Layer;
+use crate::error::Result;
+use crate::Object;
+use crate::Operator;
 
-mod operator;
-pub use operator::Operator;
+pub struct OpStat {
+    op: Operator,
 
-mod object;
-pub use object::Object;
+    pub path: String,
+}
 
-mod scheme;
-pub use scheme::Scheme;
+impl OpStat {
+    pub fn new(op: Operator, path: &str) -> Self {
+        Self {
+            op,
+            path: path.to_string(),
+        }
+    }
 
-pub mod credential;
-pub mod error;
-pub mod ops;
-pub mod readers;
-pub mod services;
+    pub async fn run(&self) -> Result<Object> {
+        self.op.inner().stat(self).await
+    }
+}

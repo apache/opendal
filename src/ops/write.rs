@@ -11,24 +11,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-mod accessor;
-pub use accessor::Accessor;
-pub use accessor::Reader;
 
-mod layer;
-pub use layer::Layer;
+use crate::error::Result;
+use crate::Operator;
+use crate::Reader;
 
-mod operator;
-pub use operator::Operator;
+pub struct OpWrite {
+    op: Operator,
 
-mod object;
-pub use object::Object;
+    pub path: String,
+    pub size: u64,
+}
 
-mod scheme;
-pub use scheme::Scheme;
+impl OpWrite {
+    pub fn new(op: Operator, path: &str, size: u64) -> Self {
+        Self {
+            op,
+            path: path.to_string(),
+            size,
+        }
+    }
 
-pub mod credential;
-pub mod error;
-pub mod ops;
-pub mod readers;
-pub mod services;
+    pub async fn run(&mut self, r: Reader) -> Result<usize> {
+        self.op.inner().write(r, self).await
+    }
+}

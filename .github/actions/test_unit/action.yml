@@ -22,7 +22,6 @@ runs:
         RUST_TEST_THREADS: '2'
         RUST_LOG: ERROR
         RUST_BACKTRACE: full
-        RUSTFLAGS: '-Zprofile'
 
     - name: Install grcov
       if: '{{ matrix.config.target }} == "x86_64-unknown-linux-gnu"'

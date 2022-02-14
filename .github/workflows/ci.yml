@@ -25,9 +25,7 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
+      - uses: ./.github/actions/build
 
   test_unit:
     runs-on: ${{ matrix.os }}
@@ -40,6 +38,3 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/test_unit
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          codecov_token: ${{ secrets.CODECOV_TOKEN }}

@@ -38,3 +38,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/test_unit
+
+  test_fs:
+    runs-on: ${{ matrix.os }}
+    needs: check
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ./.github/actions/test_fs

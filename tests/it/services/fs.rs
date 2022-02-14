@@ -12,37 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::str;
+use std::env;
 
-use futures::io::AsyncReadExt;
-use futures::io::Cursor;
+use anyhow::Result;
 use opendal::services::fs;
 use opendal::Operator;
 
+use super::BehaviorTest;
+
+/// In order to test fs service, please set the following environment variables:
+///
+/// - `OPENDAL_FS_TEST=on`: set to `on` to enable the test.
+/// - `OPENDAL_FS_ROOT=<path>`: set to `<path>` to set the root directory of the test.
 #[tokio::test]
-async fn normal() {
-    let f = Operator::new(fs::Backend::build().finish().await.unwrap());
+async fn test_fs() -> Result<()> {
+    if env::var("OPENDAL_FS_TEST").is_err() {
+        println!("OPENDAL_FS_TEST is not set, skipping.");
+        return Ok(());
+    }
 
-    let path = format!("/tmp/{}", uuid::Uuid::new_v4());
+    let op = Operator::new(
+        fs::Backend::build()
+            .root(&env::var("OPENDAL_FS_ROOT")?)
+            .finish()
+            .await?,
+    );
 
-    // Test write
-    let x = f
-        .write(&path, 13)
-        .run(Box::new(Cursor::new("Hello, world!")))
-        .await
-        .unwrap();
-    assert_eq!(13, x);
-
-    // Test read
-    let mut buf: Vec<u8> = Vec::new();
-    let mut x = f.read(&path).run().await.unwrap();
-    x.read_to_end(&mut buf).await.unwrap();
-    assert_eq!("Hello, world!", str::from_utf8(&buf).unwrap());
-
-    // Test stat
-    let o = f.stat(&path).run().await.unwrap();
-    assert_eq!(13, o.size);
-
-    // Test delete
-    f.delete(&path).run().await.unwrap();
+    BehaviorTest::new(op).run().await
 }

@@ -17,26 +17,26 @@ runs:
       uses: actions-rs/cargo@v1
       with:
         command: test
-        args: --no-fail-fast --target ${{ matrix.config.target }}
+        args: --no-fail-fast
       env:
         RUST_TEST_THREADS: '2'
         RUST_LOG: ERROR
         RUST_BACKTRACE: full
 
     - name: Install grcov
-      if: '{{ matrix.config.target }} == "x86_64-unknown-linux-gnu"'
+      if: '${{ matrix.os }} == "ubuntu-latest"'
       uses: actions-rs/cargo@v1
       with:
         command: install
         args: grcov
 
     - name: Run code coverage
-      if: '{{ matrix.config.target }} == "x86_64-unknown-linux-gnu"'
+      if: '${{ matrix.os }} == "ubuntu-latest"'
       uses: actions-rs/grcov@v0.1.5
       id: coverage
 
     - name: Upload to codecov.io
-      if: '{{ matrix.config.target }} == "x86_64-unknown-linux-gnu"'
+      if: '${{ matrix.os }} == "ubuntu-latest"'
       uses: codecov/codecov-action@v1
       with:
         token: ${{ inputs.codecov_token }}

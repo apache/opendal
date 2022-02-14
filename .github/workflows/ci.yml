@@ -16,32 +16,27 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   build:
-    runs-on: ${{ matrix.config.os }}
+    runs-on: ${{ matrix.os }}
     needs: check
     strategy:
       matrix:
-        config:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-latest, target: aarch64-unknown-linux-gnu }
-          - { os: macos-11, target: x86_64-apple-darwin }
-          - { os: macos-11, target: aarch64-apple-darwin }
+        os:
+          - ubuntu-latest
+          - macos-11
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --target ${{ matrix.config.target }}
 
   test_unit:
-    runs-on: ${{ matrix.config.os }}
+    runs-on: ${{ matrix.os }}
     needs: check
     strategy:
       matrix:
-        config:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-latest, target: aarch64-unknown-linux-gnu }
-          - { os: macos-11, target: x86_64-apple-darwin }
-          - { os: macos-11, target: aarch64-apple-darwin }
+        os:
+          - ubuntu-latest
+          - macos-11
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/test_unit

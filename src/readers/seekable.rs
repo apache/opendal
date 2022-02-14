@@ -50,7 +50,7 @@ pub struct SeekableReader {
 
 enum SeekableReaderState {
     Idle,
-    Starting(Pin<Box<dyn Future<Output=Result<Reader>> + Send>>),
+    Starting(Pin<Box<dyn Future<Output = Result<Reader>> + Send>>),
     Reading(Reader),
 }
 
@@ -98,7 +98,8 @@ impl AsyncRead for SeekableReader {
                     self.state = SeekableReaderState::Starting(f.boxed());
                 }
                 SeekableReaderState::Starting(ref mut fut) => {
-                    let r = ready!(fut.as_mut().poll(cx)).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                    let r = ready!(fut.as_mut().poll(cx))
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
                     self.state = SeekableReaderState::Reading(r);
                 }

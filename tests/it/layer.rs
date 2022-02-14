@@ -14,12 +14,12 @@
 
 use std::sync::Arc;
 
+use futures::lock::Mutex;
 use opendal::ops::OpDelete;
 use opendal::services::fs;
 use opendal::Accessor;
 use opendal::Layer;
 use opendal::Operator;
-use futures::lock::Mutex;
 
 struct Test {
     #[allow(dead_code)]

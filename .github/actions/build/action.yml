@@ -1,0 +1,12 @@
+name: 'Build'
+description: 'Build the project'
+
+runs:
+  using: "composite"
+  steps:
+    - uses: Swatinem/rust-cache@v1
+
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build

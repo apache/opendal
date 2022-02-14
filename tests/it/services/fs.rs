@@ -14,10 +14,10 @@
 
 use std::str;
 
-use opendal::services::fs;
-use opendal::Operator;
 use futures::io::AsyncReadExt;
 use futures::io::Cursor;
+use opendal::services::fs;
+use opendal::Operator;
 
 #[tokio::test]
 async fn normal() {

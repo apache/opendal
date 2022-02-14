@@ -26,7 +26,8 @@ pub struct CallbackReader<F: FnMut(usize)> {
 }
 
 impl<F> CallbackReader<F>
-where F: FnMut(usize)
+where
+    F: FnMut(usize),
 {
     /// # TODO
     ///
@@ -38,7 +39,8 @@ where F: FnMut(usize)
 }
 
 impl<F> futures::AsyncRead for CallbackReader<F>
-where F: FnMut(usize)
+where
+    F: FnMut(usize),
 {
     fn poll_read(
         mut self: Pin<&mut Self>,

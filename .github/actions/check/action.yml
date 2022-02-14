@@ -1,0 +1,42 @@
+name: 'Check'
+description: 'Check will do all essential checks'
+inputs:
+  github_token:
+    description: "Github Token"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: Swatinem/rust-cache@v1
+      with:
+        sharedKey: base-v1
+
+    - name: Format
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all -- --check
+
+    - name: Check License Header
+      uses: apache/skywalking-eyes@main
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      with:
+        log: info
+
+    - name: Install cargo-audit
+      uses: actions-rs/cargo@v1
+      with:
+        command: install
+        args: cargo-audit
+
+    - name: Audit dependencies
+      uses: actions-rs/cargo@v1
+      with:
+        command: audit
+
+    - name: Clippy
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --tests -- -D warnings

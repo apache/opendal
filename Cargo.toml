@@ -1,0 +1,12 @@
+[package]
+name = "opendal"
+version = "0.0.0"
+edition = "2021"
+authors = ["Databend Authors <opensource@datafuselabs.com>"]
+license = "Apache-2.0"
+description = "Open Data Access Layer that connect the whole world together."
+repository = "https://github.com/datafuselabs/opendal"
+keywords = ["storage", "data", "s3"]
+categories = ["filesystem"]
+
+[dependencies]

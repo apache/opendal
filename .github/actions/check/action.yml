@@ -42,10 +42,8 @@ runs:
         args: cargo-udeps --locked
 
     - name: Check udeps
-      uses: actions-rs/cargo@v1
-      with:
-        command: udeps
-        args: +nightly --workspace
+      shell: bash
+      run: cargo +nightly udeps --workspace
 
     - name: Clippy
       uses: actions-rs/cargo@v1

@@ -35,6 +35,9 @@ jobs:
         os:
           - ubuntu-latest
           - macos-11
+    env:
+      OPENDAL_FS_TEST: on
+      OPENDAL_FS_ROOT: /tmp
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/test_unit

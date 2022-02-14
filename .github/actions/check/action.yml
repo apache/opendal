@@ -45,7 +45,7 @@ runs:
       uses: actions-rs/cargo@v1
       with:
         command: udeps
-        args: --workspace
+        args: +nightly --workspace
 
     - name: Clippy
       uses: actions-rs/cargo@v1

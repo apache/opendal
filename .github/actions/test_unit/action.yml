@@ -34,6 +34,8 @@ runs:
       if: '${{ matrix.os }} == "ubuntu-latest"'
       uses: actions-rs/grcov@v0.1.5
       id: coverage
+      with:
+        config: ".github/grcov.yml"
 
     - name: Upload to codecov.io
       if: '${{ matrix.os }} == "ubuntu-latest"'

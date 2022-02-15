@@ -129,7 +129,7 @@ impl Builder {
 
             let mut parts = uri.into_parts();
 
-            // If uri's authority is empty, it's must by a invalid url.
+            // If uri's authority is empty, it's must be an invalid url.
             if parts.authority.is_none() {
                 return Err(Error::BackendConfigurationInvalid {
                     key: "endpoint".to_string(),

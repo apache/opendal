@@ -8,12 +8,7 @@ concurrency:
 
 jobs:
   aws_s3:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-11
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 

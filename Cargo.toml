@@ -9,6 +9,10 @@ repository = "https://github.com/datafuselabs/opendal"
 keywords = ["storage", "data", "s3"]
 categories = ["filesystem"]
 
+[[bench]]
+name = "s3"
+harness = false
+
 [dependencies]
 async-compat = "0.2.1"
 async-trait = "0.1.52"
@@ -30,3 +34,4 @@ uuid = { version = "0.8.2", features = ["serde", "v4"] }
 anyhow = "1.0"
 rand = "0.8.5"
 sha2 = "0.10.1"
+criterion = { version = "0.3", features = ["async", "async_tokio"] }

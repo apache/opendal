@@ -122,12 +122,38 @@ impl Builder {
         // Load users input first, if user not input, we will fallback to aws
         // default load logic.
         if let Some(endpoint) = &self.endpoint {
-            cfg = cfg.endpoint_resolver(AwsS3::Endpoint::immutable(
+            let mut uri =
                 http::Uri::from_str(endpoint).map_err(|_| Error::BackendConfigurationInvalid {
                     key: "endpoint".to_string(),
                     value: endpoint.clone(),
-                })?,
-            ));
+                })?;
+
+            let mut parts = uri.into_parts();
+
+            // If uri's authority is empty, it's must be an invalid url.
+            if parts.authority.is_none() {
+                return Err(Error::BackendConfigurationInvalid {
+                    key: "endpoint".to_string(),
+                    value: endpoint.clone(),
+                });
+            }
+
+            // If user doesn't input scheme, we will use https as default.
+            if parts.scheme.is_none() {
+                parts.scheme = Some(http::uri::Scheme::HTTPS);
+            }
+
+            // If user doesn't input path, we will set it to "/" as default.
+            if parts.path_and_query.is_none() {
+                parts.path_and_query = Some(http::uri::PathAndQuery::from_static("/"));
+            }
+
+            uri = http::Uri::from_parts(parts).map_err(|_| Error::BackendConfigurationInvalid {
+                key: "endpoint".to_string(),
+                value: endpoint.clone(),
+            })?;
+
+            cfg = cfg.endpoint_resolver(AwsS3::Endpoint::immutable(uri));
         }
 
         // Load users input first, if user not input, we will fallback to aws
@@ -148,7 +174,7 @@ impl Builder {
                     return Err(Error::BackendConfigurationInvalid {
                         key: "credential".to_string(),
                         value: "".to_string(),
-                    })
+                    });
                 }
             }
         }

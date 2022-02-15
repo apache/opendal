@@ -122,10 +122,11 @@ impl Builder {
         // Load users input first, if user not input, we will fallback to aws
         // default load logic.
         if let Some(endpoint) = &self.endpoint {
-            let mut uri = http::Uri::from_str(endpoint).map_err(|_| Error::BackendConfigurationInvalid {
-                key: "endpoint".to_string(),
-                value: endpoint.clone(),
-            })?;
+            let mut uri =
+                http::Uri::from_str(endpoint).map_err(|_| Error::BackendConfigurationInvalid {
+                    key: "endpoint".to_string(),
+                    value: endpoint.clone(),
+                })?;
 
             let mut parts = uri.into_parts();
 

@@ -24,7 +24,7 @@ jobs:
         run: cargo test services::s3
         env:
           RUST_BACKTRACE: full
-          OPENDAL_S3_TEST: on
+          OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
           OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
           OPENDAL_S3_REGION: ${{ secrets.OPENDAL_S3_REGION }}
           OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}

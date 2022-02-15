@@ -119,19 +119,46 @@ impl Builder {
             String::new()
         };
 
-        // Load config from environment, including:
+        // Config Loader will load config from environment.
+        //
+        // We will take user's input first if any. If there is no user input, we
+        // will fallback to the aws default load chain like the following:
+        //
         // - Environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION
         // - The default credentials files located in ~/.aws/config and ~/.aws/credentials (location can vary per platform)
         // - Web Identity Token credentials from the environment or container (including EKS)
         // - ECS Container Credentials (IAM roles for tasks)
         // - EC2 Instance Metadata Service (IAM Roles attached to instance)
-        let cfg = aws_config::load_from_env().await;
-
-        let mut cfg = AwsS3::config::Builder::from(&cfg);
+        //
+        // Please keep in mind that the config loader only detect region and credentials.
+        let mut cfg_loader = aws_config::ConfigLoader::default();
 
         if let Some(region) = &self.region {
-            cfg = cfg.region(AwsS3::Region::new(Cow::from(region.clone())));
+            cfg_loader = cfg_loader.region(AwsS3::Region::new(Cow::from(region.clone())));
         }
+
+        if let Some(cred) = &self.credential {
+            match cred {
+                Credential::HMAC {
+                    access_key_id,
+                    secret_access_key,
+                } => {
+                    cfg_loader = cfg_loader.credentials_provider(AwsS3::Credentials::from_keys(
+                        access_key_id,
+                        secret_access_key,
+                        None,
+                    ));
+                }
+                _ => {
+                    return Err(Error::BackendConfigurationInvalid {
+                        key: "credential".to_string(),
+                        value: "".to_string(),
+                    });
+                }
+            }
+        }
+
+        let mut cfg = AwsS3::config::Builder::from(&cfg_loader.load().await);
 
         // Load users input first, if user not input, we will fallback to aws
         // default load logic.
@@ -168,29 +195,6 @@ impl Builder {
             })?;
 
             cfg = cfg.endpoint_resolver(AwsS3::Endpoint::immutable(uri));
-        }
-
-        // Load users input first, if user not input, we will fallback to aws
-        // default load logic.
-        if let Some(cred) = &self.credential {
-            match cred {
-                Credential::HMAC {
-                    access_key_id,
-                    secret_access_key,
-                } => {
-                    cfg = cfg.credentials_provider(AwsS3::Credentials::from_keys(
-                        access_key_id,
-                        secret_access_key,
-                        None,
-                    ));
-                }
-                _ => {
-                    return Err(Error::BackendConfigurationInvalid {
-                        key: "credential".to_string(),
-                        value: "".to_string(),
-                    });
-                }
-            }
         }
 
         Ok(Arc::new(Backend {

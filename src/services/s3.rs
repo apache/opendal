@@ -21,8 +21,10 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use aws_sdk_s3 as AwsS3;
+use aws_sdk_s3::error::{GetObjectError, GetObjectErrorKind, HeadObjectError, HeadObjectErrorKind};
 use aws_smithy_http::body::SdkBody;
 use aws_smithy_http::byte_stream::ByteStream;
+use aws_smithy_http::result::SdkError;
 use futures::TryStreamExt;
 
 use crate::credential::Credential;
@@ -242,8 +244,10 @@ impl Accessor for Backend {
             req = req.range(HeaderRange::new(args.offset, args.size).to_string());
         }
 
-        // TODO: we need a better way to handle errors here.
-        let resp = req.send().await.unwrap();
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| parse_get_object_error(e, &args.path))?;
 
         Ok(Box::new(S3Stream(resp.body).into_async_read()))
     }
@@ -262,7 +266,7 @@ impl Accessor for Backend {
             )))
             .send()
             .await
-            .unwrap(); // TODO: we need a better way to handle errors here.
+            .map_err(|e| parse_unexpect_error(e, &args.path))?;
 
         Ok(args.size as usize)
     }
@@ -277,7 +281,7 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .unwrap(); // TODO: we need a better way to handle errors here.
+            .map_err(|e| parse_head_object_error(e, &args.path))?;
         let o = Object {
             path: args.path.to_string(),
             size: meta.content_length as u64,
@@ -296,7 +300,7 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .unwrap(); // TODO: we need a better way to handle errors here.
+            .map_err(|e| parse_unexpect_error(e, &args.path));
 
         Ok(())
     }
@@ -325,4 +329,31 @@ impl futures::Stream for S3Stream {
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.0.size_hint()
     }
+}
+
+fn parse_get_object_error(err: SdkError<GetObjectError>, path: &str) -> Error {
+    if let SdkError::ServiceError { err, .. } = err {
+        match err.kind {
+            GetObjectErrorKind::NoSuchKey(_) => Error::ObjectNotExist(path.to_string()),
+            _ => Error::Unexpected(path.to_string()),
+        }
+    } else {
+        Error::Unexpected(path.to_string())
+    }
+}
+
+fn parse_head_object_error(err: SdkError<HeadObjectError>, path: &str) -> Error {
+    if let SdkError::ServiceError { err, .. } = err {
+        match err.kind {
+            HeadObjectErrorKind::NotFound(_) => Error::ObjectNotExist(path.to_string()),
+            _ => Error::Unexpected(path.to_string()),
+        }
+    } else {
+        Error::Unexpected(path.to_string())
+    }
+}
+
+// parse_unexpect_error is used to parse SdkError into unexpected.
+fn parse_unexpect_error<E>(_: SdkError<E>, path: &str) -> Error {
+    Error::Unexpected(path.to_string())
 }

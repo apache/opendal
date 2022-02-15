@@ -25,9 +25,13 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v2
-      - uses: ./.github/actions/build
+      - uses: Swatinem/rust-cache@v1
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
 
-  test_unit:
+  unit:
     runs-on: ${{ matrix.os }}
     needs: check
     strategy:
@@ -37,16 +41,13 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v2
-      - uses: ./.github/actions/test_unit
-
-  test_fs:
-    runs-on: ${{ matrix.os }}
-    needs: check
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-11
-    steps:
-      - uses: actions/checkout@v2
-      - uses: ./.github/actions/test_fs
+      - uses: Swatinem/rust-cache@v1
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-fail-fast
+        env:
+          RUST_TEST_THREADS: '2'
+          RUST_LOG: ERROR
+          RUST_BACKTRACE: full

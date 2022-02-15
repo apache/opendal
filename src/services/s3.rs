@@ -48,17 +48,24 @@ pub struct Builder {
     root: Option<String>,
 
     bucket: String,
-    region: String,
+    region: Option<String>,
     credential: Option<Credential>,
-    /// endpoint must be full uri or a uri template, e.g.
+    /// endpoint must be full uri, e.g.
     /// - https://s3.amazonaws.com
     /// - http://127.0.0.1:3000
+    ///
+    /// If user inputs endpoint like "s3.amazonaws.com", we will prepend
+    /// "https://" before it.
     endpoint: Option<String>,
 }
 
 impl Builder {
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
+        self.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -70,7 +77,11 @@ impl Builder {
     }
 
     pub fn region(&mut self, region: &str) -> &mut Self {
-        self.region = region.to_string();
+        self.region = if region.is_empty() {
+            None
+        } else {
+            Some(region.to_string())
+        };
 
         self
     }
@@ -82,13 +93,17 @@ impl Builder {
     }
 
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = Some(endpoint.to_string());
+        self.endpoint = if endpoint.is_empty() {
+            None
+        } else {
+            Some(endpoint.to_string())
+        };
 
         self
     }
 
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        if self.bucket.is_empty() || self.region.is_empty() {
+        if self.bucket.is_empty() {
             return Err(Error::BackendConfigurationInvalid {
                 key: "bucket".to_string(),
                 value: "".to_string(),
@@ -112,12 +127,9 @@ impl Builder {
 
         let mut cfg = AwsS3::config::Builder::from(&cfg);
 
-        // TODO: Maybe we can
-        //
-        // - use "default" as the default region.
-        // - use "us-east-1" as the default region.
-        // - detect the region at runtime via `ListBuckets`.
-        cfg = cfg.region(AwsS3::Region::new(Cow::from(self.region.clone())));
+        if let Some(region) = &self.region {
+            cfg = cfg.region(AwsS3::Region::new(Cow::from(region.clone())));
+        }
 
         // Load users input first, if user not input, we will fallback to aws
         // default load logic.

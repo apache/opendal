@@ -1,0 +1,28 @@
+name: Service Test Fs
+
+on: [ push, pull_request ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  local_fs:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Test
+        shell: bash
+        run: cargo test services::fs
+        env:
+          RUST_BACKTRACE: full
+          OPENDAL_FS_TEST: on
+          OPENDAL_FS_ROOT: /tmp

@@ -11,51 +11,44 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use futures::io::AsyncReadExt;
+
+use std::env;
+
+use anyhow::Result;
 use opendal::credential::Credential;
 use opendal::services::s3;
 use opendal::Operator;
 
+use super::BehaviorTest;
+
+/// In order to test s3 service, please set the following environment variables:
+///
+/// - `OPENDAL_S3_TEST=on`: set to `on` to enable the test.
+/// - `OPENDAL_S3_BUCKET=<bucket>`: set the bucket name.
+/// - `OPENDAL_S3_REGION=<region>`: set the bucket region.
+/// - `OPENDAL_S3_ENDPOINT=<endpoint>`: set the endpoint of the s3 service.
+/// - `OPENDAL_S3_ACCESS_KEY_ID=<access_key_id>`: set the access key id.
+/// - `OPENDAL_S3_SECRET_ACCESS_KEY=<secret_access_key>`: set the secret access key.
 #[tokio::test]
-async fn builder() {
-    let mut builder = s3::Backend::build();
+async fn test_s3() -> Result<()> {
+    if env::var("OPENDAL_S3_TEST").is_err() {
+        println!("OPENDAL_S3_TEST is not set, skipping.");
+        return Ok(());
+    }
 
-    let _ = builder
-        .root("/path-to-file")
-        .bucket("test-bucket")
-        .region("us-east-1")
-        .credential(Credential::hmac("access-key", "secret-key"))
-        .endpoint("http://localhost:9000")
-        .finish()
-        .await
-        .unwrap();
-}
+    let op = Operator::new(
+        s3::Backend::build()
+            .root(&format!("/{}", uuid::Uuid::new_v4()))
+            .bucket(&env::var("OPENDAL_S3_BUCKET")?)
+            .region(&env::var("OPENDAL_S3_REGION")?)
+            .endpoint(&env::var("OPENDAL_S3_ENDPOINT")?)
+            .credential(Credential::hmac(
+                &env::var("OPENDAL_S3_ACCESS_KEY_ID")?,
+                &env::var("OPENDAL_S3_SECRET_ACCESS_KEY")?,
+            ))
+            .finish()
+            .await?,
+    );
 
-#[tokio::test]
-// TODO: we need to add an integration test for it.
-#[ignore]
-async fn test_read() {
-    let mut builder = s3::Backend::build();
-
-    let da = builder
-        .root("tests")
-        .bucket("testbucket")
-        .region("us-east-1")
-        .credential(Credential::hmac("minioadmin", "minioadmin"))
-        .endpoint("http://localhost:9900")
-        .finish()
-        .await
-        .unwrap();
-
-    let op = Operator::new(da);
-
-    let mut r = op
-        .read("data/sample.csv")
-        .size(4 * 1024 * 1024)
-        .run()
-        .await
-        .unwrap();
-
-    let mut buf: Vec<u8> = Vec::new();
-    r.read_to_end(&mut buf).await.unwrap();
+    BehaviorTest::new(op).run().await
 }

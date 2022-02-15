@@ -1,0 +1,69 @@
+name: Service Test S3
+
+on: [ push, pull_request ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  aws_s3:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Test
+        shell: bash
+        run: cargo test services::s3
+        env:
+          RUST_BACKTRACE: full
+          OPENDAL_S3_TEST: on
+          OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
+          OPENDAL_S3_REGION: ${{ secrets.OPENDAL_S3_REGION }}
+          OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
+          OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
+          OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
+
+  minio_s3:
+    runs-on: ubuntu-latest
+
+    # Setup minio server
+    services:
+      minio:
+        image: wktk/minio-server
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ACCESS_KEY: "minioadmin"
+          MINIO_SECRET_KEY: "minioadmin"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Setup test bucket
+        env:
+          AWS_ACCESS_KEY_ID: "minioadmin"
+          AWS_SECRET_ACCESS_KEY: "minioadmin"
+          AWS_EC2_METADATA_DISABLED: "true"
+        run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
+
+      - name: Test
+        shell: bash
+        run: cargo test services::s3
+        env:
+          RUST_BACKTRACE: full
+          OPENDAL_S3_TEST: on
+          OPENDAL_S3_BUCKET: test
+          OPENDAL_S3_REGION: local
+          OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
+          OPENDAL_S3_ACCESS_KEY_ID: minioadmin
+          OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin

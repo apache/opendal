@@ -53,6 +53,9 @@ pub struct Builder {
     /// endpoint must be full uri, e.g.
     /// - https://s3.amazonaws.com
     /// - http://127.0.0.1:3000
+    ///
+    /// If user inputs endpoint like "s3.amazonaws.com", we will prepend
+    /// "https://" before it.
     endpoint: Option<String>,
 }
 

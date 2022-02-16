@@ -1,4 +1,3 @@
-use std::cmp::min;
 // Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,56 +12,84 @@ use std::cmp::min;
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use std::future::Future;
-use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
+use std::{cmp, io};
 
-use futures::pin_mut;
-use futures::ready;
+use futures::future::BoxFuture;
 use futures::AsyncRead;
+use futures::AsyncReadExt;
 use futures::AsyncSeek;
-use futures::FutureExt;
+use pin_project::pin_project;
 
-use crate::error::Result;
-use crate::Reader;
+use crate::Operator;
+
+const DEFAULT_REQUEST_SIZE: usize = 4 * 1024 * 1024; // default to 4mb.
 
 /// If we already know a file's total size, we can implement Seek for it.
 ///
 /// - Every time we call `read` we will send a new http request to fetch data from cloud storage like s3.
 /// - Every time we call `seek` we will update the `pos` field just in memory.
+///
 /// # NOTE
 ///
 /// It's better to use SeekableReader as an inner reader inside BufReader.
 ///
+/// # Acknowledgement
+///
+/// Current implementation is highly inspired by [ranged-reader-rs](https://github.com/DataEngineeringLabs/ranged-reader-rs)
+///
 /// # TODO
 ///
 /// We need use update the metrics.
+#[pin_project]
 pub struct SeekableReader {
-    op: crate::Operator,
+    op: Operator,
     key: String,
     total: u64,
 
     pos: u64,
-    state: SeekableReaderState,
-}
-
-enum SeekableReaderState {
-    Idle,
-    Starting(Pin<Box<dyn Future<Output = Result<Reader>> + Send>>),
-    Reading(Reader),
+    state: State,
 }
 
 impl SeekableReader {
-    pub fn new(da: crate::Operator, key: &str, total: u64) -> Self {
+    pub fn new(op: Operator, key: &str, total: u64) -> Self {
         SeekableReader {
-            op: da,
+            op,
             key: key.to_string(),
             total,
 
             pos: 0,
-            state: SeekableReaderState::Idle,
+            state: State::Chunked(Chunk {
+                offset: 0,
+                data: vec![],
+            }),
+        }
+    }
+
+    fn remaining(&self) -> u64 {
+        self.total - self.pos as u64
+    }
+
+    // Calculate the user requested range.
+    fn request_range(&self, size: usize) -> Range {
+        Range {
+            offset: self.pos,
+            size: cmp::min(size, self.remaining() as usize),
+        }
+    }
+
+    // Calculate the next prefetch range.
+    fn prefetch_range(&self, size: usize) -> Range {
+        // Pick the max size between hint and default size.
+        let size = cmp::max(size, DEFAULT_REQUEST_SIZE);
+
+        Range {
+            offset: self.pos,
+            // Make sure request size will not exceeding the total size.
+            size: cmp::min(size, self.remaining() as usize),
         }
     }
 }
@@ -73,46 +100,58 @@ impl AsyncRead for SeekableReader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        loop {
-            match self.state {
-                SeekableReaderState::Idle => {
+        let request_range = self.request_range(buf.len());
+
+        match &mut self.state {
+            State::Chunked(chunk) => {
+                if request_range.size == 0 {
+                    return Poll::Ready(Ok(0));
+                }
+
+                let exist_range = chunk.as_range();
+                if exist_range.includes(request_range) {
+                    let offset = (request_range.offset - exist_range.offset) as usize;
+                    let length = request_range.size;
+                    let (buf, _) = buf.split_at_mut(length);
+                    buf.copy_from_slice(&chunk.data[offset..offset + length]);
+                    self.pos += length as u64;
+
+                    Poll::Ready(Ok(length))
+                } else {
                     let op = self.op.clone();
                     let key = self.key.clone();
-                    let pos = self.pos;
+                    let prefetch_range = self.prefetch_range(buf.len());
 
-                    // Length should be adjust to minimum of the buffer length and remaining bytes.
-                    let length = min(buf.len() as u64, self.total - self.pos);
-                    if length == 0 {
-                        // If there is no more data to read, return EOF.
-                        return Poll::Ready(Ok(0));
-                    }
+                    let future = async move {
+                        let mut r = op
+                            .read(&key)
+                            .offset(prefetch_range.offset as u64)
+                            .size(prefetch_range.size as u64)
+                            .run()
+                            .await
+                            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                        // TODO: Can we reuse the same slice?
+                        let mut data = vec![];
+                        let _ = r.read_to_end(&mut data).await?;
 
-                    let f = async move {
-                        let mut builder = op.read(key.as_str());
-
-                        let r = builder.offset(pos).size(length).run().await?;
-
-                        Ok(r)
+                        Ok(Chunk {
+                            offset: prefetch_range.offset as u64,
+                            data,
+                        })
                     };
 
-                    self.state = SeekableReaderState::Starting(f.boxed());
-                }
-                SeekableReaderState::Starting(ref mut fut) => {
-                    let r = ready!(fut.as_mut().poll(cx))
-                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-                    self.state = SeekableReaderState::Reading(r);
-                }
-                SeekableReaderState::Reading(ref mut r) => {
-                    pin_mut!(r);
-
-                    let n = ready!(r.poll_read(cx, buf))?;
-                    self.pos += n as u64;
-                    // Reset state to idle so that we can start a new read.
-                    self.state = SeekableReaderState::Idle;
-                    return Poll::Ready(Ok(n));
+                    self.state = State::Reading(Box::pin(future));
+                    self.poll_read(cx, buf)
                 }
             }
+            State::Reading(future) => match Pin::new(future).poll(cx) {
+                Poll::Ready(Ok(chunk)) => {
+                    self.state = State::Chunked(chunk);
+                    self.poll_read(cx, buf)
+                }
+                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                Poll::Pending => Poll::Pending,
+            },
         }
     }
 }
@@ -135,8 +174,63 @@ impl AsyncSeek for SeekableReader {
             }
         }
 
-        self.state = SeekableReaderState::Idle;
-
-        Poll::Ready(Ok(self.pos))
+        Poll::Ready(Ok(self.pos as u64))
     }
+}
+
+#[derive(Debug, Clone)]
+struct Chunk {
+    offset: u64,
+    data: Vec<u8>,
+}
+
+impl Chunk {
+    fn as_range(&self) -> Range {
+        Range {
+            offset: self.offset,
+            size: self.data.len(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Range {
+    offset: u64,
+    size: usize,
+}
+
+impl Range {
+    // Check whether self includes `rhs` or not.
+    fn includes(&self, rhs: Self) -> bool {
+        if rhs.offset < self.offset {
+            return false;
+        }
+        if rhs.offset + rhs.size as u64 > self.offset + self.size as u64 {
+            return false;
+        }
+        true
+    }
+}
+
+impl From<&Chunk> for Range {
+    fn from(chunk: &Chunk) -> Self {
+        Range {
+            offset: chunk.offset,
+            size: chunk.data.len(),
+        }
+    }
+}
+
+impl From<&mut Chunk> for Range {
+    fn from(chunk: &mut Chunk) -> Self {
+        Range {
+            offset: chunk.offset,
+            size: chunk.data.len(),
+        }
+    }
+}
+
+enum State {
+    Chunked(Chunk),
+    Reading(BoxFuture<'static, io::Result<Chunk>>),
 }

@@ -22,7 +22,6 @@ use futures::future::BoxFuture;
 use futures::AsyncRead;
 use futures::AsyncReadExt;
 use futures::AsyncSeek;
-use pin_project::pin_project;
 
 use crate::Operator;
 
@@ -44,7 +43,6 @@ const DEFAULT_REQUEST_SIZE: usize = 4 * 1024 * 1024; // default to 4mb.
 /// # TODO
 ///
 /// We need use update the metrics.
-#[pin_project]
 pub struct SeekableReader {
     op: Operator,
     key: String,

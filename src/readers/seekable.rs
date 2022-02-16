@@ -212,24 +212,6 @@ impl Range {
     }
 }
 
-impl From<&Chunk> for Range {
-    fn from(chunk: &Chunk) -> Self {
-        Range {
-            offset: chunk.offset,
-            size: chunk.data.len(),
-        }
-    }
-}
-
-impl From<&mut Chunk> for Range {
-    fn from(chunk: &mut Chunk) -> Self {
-        Range {
-            offset: chunk.offset,
-            size: chunk.data.len(),
-        }
-    }
-}
-
 enum State {
     Chunked(Chunk),
     Reading(BoxFuture<'static, io::Result<Chunk>>),

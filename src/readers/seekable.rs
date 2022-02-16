@@ -149,7 +149,7 @@ impl AsyncRead for SeekableReader {
                     self.state = State::Chunked(chunk);
                     self.poll_read(cx, buf)
                 }
-                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
                 Poll::Pending => Poll::Pending,
             },
         }

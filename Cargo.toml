@@ -10,7 +10,7 @@ keywords = ["storage", "data", "s3"]
 categories = ["filesystem"]
 
 [[bench]]
-name = "s3"
+name = "ops"
 harness = false
 
 [dependencies]

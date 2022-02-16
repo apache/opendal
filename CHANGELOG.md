@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.0.3] - 2022-02-16
+
+### Added
+
+- benches: Implement benches for ops (#26)
+
+### Changed
+
+- services/s3: Don't load_from_env if users already inputs (#23)
+- readers: Improve seekable performance (#25)
+
 ## [v0.0.2] - 2022-02-15
 
 ### Added
@@ -23,4 +34,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.0.3]: https://github.com/datafuselabs/opendal/compare/v0.0.2...v0.0.3
 [v0.0.2]: https://github.com/datafuselabs/opendal/compare/v0.0.1...v0.0.2

@@ -11,26 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use criterion::{criterion_group, criterion_main, Criterion};
-use opendal::credential::Credential;
+mod fs;
+mod ops;
+mod s3;
 
-async fn init() {
-    opendal::services::s3::Backend::build()
-        .bucket("test")
-        .region("test")
-        .credential(Credential::hmac("test", "test"))
-        .finish()
-        .await
-        .unwrap();
-}
+use criterion::{criterion_group, criterion_main};
 
-fn criterion_benchmark(c: &mut Criterion) {
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    c.bench_function("s3_init", |b| {
-        b.to_async(&runtime).iter(|| init());
-    });
-}
-
-criterion_group!(benches, criterion_benchmark);
+criterion_group!(benches, ops::bench);
 criterion_main!(benches);

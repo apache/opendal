@@ -21,7 +21,7 @@
 //! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
 
 use anyhow::Result;
-use futures::io::Cursor;
+
 use futures::AsyncReadExt;
 use opendal::Operator;
 use rand::prelude::*;
@@ -56,21 +56,18 @@ impl BehaviorTest {
         let (content, size) = self.gen_bytes();
 
         // Step 2: Write this file
-        let n = self
-            .op
-            .write(&path, size as u64)
-            .run(Box::new(Cursor::new(content.clone())))
-            .await?;
+        let n = self.op.object(&path).write_bytes(content.clone()).await?;
         assert_eq!(n, size, "write file");
 
         // Step 3: Stat this file
-        let o = self.op.stat(&path).run().await?;
-        assert_eq!(o.size, size as u64, "stat file");
+        let mut o = self.op.object(&path);
+        let meta = o.metadata().await?;
+        assert_eq!(meta.content_length(), size as u64, "stat file");
 
         // Step 4: Read this file's content
         // Step 4.1: Read the whole file.
         let mut buf = Vec::new();
-        let mut r = self.op.read(&path).run().await?;
+        let mut r = self.op.object(&path).read().await?;
         let n = r.read_to_end(&mut buf).await?;
         assert_eq!(n, size as usize, "check size in read whole file");
         assert_eq!(
@@ -82,13 +79,7 @@ impl BehaviorTest {
         // Step 4.2: Read the file with random offset and length.
         let (offset, length) = self.gen_offset_length(size as usize);
         let mut buf = Vec::new();
-        let mut r = self
-            .op
-            .read(&path)
-            .offset(offset)
-            .size(length)
-            .run()
-            .await?;
+        let mut r = self.op.object(&path).ranged_read(offset, length).await?;
         r.read_to_end(&mut buf).await?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&buf)),
@@ -100,11 +91,12 @@ impl BehaviorTest {
         );
 
         // Step 5: Delete this file
-        let result = self.op.delete(&path).run().await;
+        let result = self.op.object(&path).delete().await;
         assert!(result.is_ok(), "delete file");
 
         // Step 6: Stat this file again to check if it's deleted
-        let result = self.op.stat(&path).run().await;
+        let mut o = self.op.object(&path);
+        let result = o.metadata().await;
         assert!(result.is_err(), "stat file again");
         assert!(
             matches!(

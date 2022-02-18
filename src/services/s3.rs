@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::borrow::Cow;
+use std::ops::Sub;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -27,18 +28,20 @@ use aws_smithy_http::byte_stream::ByteStream;
 use aws_smithy_http::result::SdkError;
 use futures::TryStreamExt;
 
+use crate::accessor::Features;
 use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Result;
-use crate::ops::HeaderRange;
+use crate::object::Metadata;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::ReaderStream;
-use crate::Accessor;
-use crate::Object;
+use crate::ops::{HeaderRange};
+use crate::readers::{ReaderStream};
+
 use crate::Reader;
+use crate::{Accessor};
 
 /// # TODO
 ///
@@ -206,6 +209,7 @@ impl Builder {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Backend {
     bucket: String,
 
@@ -235,6 +239,10 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    fn features(&self) -> Features {
+        Features::all().sub(Features::STATEFUL_READ)
+    }
+
     async fn read(&self, args: &OpRead) -> Result<Reader> {
         let p = self.get_abs_path(&args.path);
 
@@ -253,7 +261,7 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_get_object_error(e, &args.path))?;
 
-        Ok(Box::new(S3Stream(resp.body).into_async_read()))
+        Ok(Reader::new(Box::new(S3Stream(resp.body).into_async_read())))
     }
 
     async fn write(&self, r: Reader, args: &OpWrite) -> Result<usize> {
@@ -275,7 +283,7 @@ impl Accessor for Backend {
         Ok(args.size as usize)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let p = self.get_abs_path(&args.path);
 
         let meta = self
@@ -286,12 +294,11 @@ impl Accessor for Backend {
             .send()
             .await
             .map_err(|e| parse_head_object_error(e, &args.path))?;
-        let o = Object {
-            path: args.path.to_string(),
-            size: meta.content_length as u64,
-        };
 
-        Ok(o)
+        let mut m = Metadata::default();
+        m.set_content_length(meta.content_length as u64);
+
+        Ok(m)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {

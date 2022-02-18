@@ -15,21 +15,29 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::AsyncRead;
+use bitflags::bitflags;
 
 use crate::error::Result;
+use crate::io::Reader;
+use crate::io::StatefulReader;
+use crate::object::Metadata;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
+use crate::ops::OpStatefulRead;
 use crate::ops::OpWrite;
-use crate::Object;
-
-pub type Reader = Box<dyn AsyncRead + Unpin + Send>;
 
 #[async_trait]
 pub trait Accessor: Send + Sync {
+    fn features(&self) -> Features {
+        unimplemented!()
+    }
     /// Read data from the underlying storage into input writer.
     async fn read(&self, args: &OpRead) -> Result<Reader> {
+        let _ = args;
+        unimplemented!()
+    }
+    async fn stateful_read(&self, args: &OpStatefulRead) -> Result<StatefulReader> {
         let _ = args;
         unimplemented!()
     }
@@ -39,7 +47,7 @@ pub trait Accessor: Send + Sync {
         unimplemented!()
     }
     /// Invoke the `stat` operation on the specified path.
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let _ = args;
         unimplemented!()
     }
@@ -58,17 +66,35 @@ pub trait Accessor: Send + Sync {
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
-impl Accessor for Arc<dyn Accessor> {
+impl<T: Accessor> Accessor for Arc<T> {
+    fn features(&self) -> Features {
+        self.as_ref().features()
+    }
     async fn read(&self, args: &OpRead) -> Result<Reader> {
         self.as_ref().read(args).await
+    }
+    async fn stateful_read(&self, args: &OpStatefulRead) -> Result<StatefulReader> {
+        self.as_ref().stateful_read(args).await
     }
     async fn write(&self, r: Reader, args: &OpWrite) -> Result<usize> {
         self.as_ref().write(r, args).await
     }
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         self.as_ref().stat(args).await
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         self.as_ref().delete(args).await
+    }
+}
+
+bitflags! {
+    /// Features supported by the accessor.
+    #[derive(Default)]
+    pub struct Features: u64 {
+        const READ = 1 << 0;
+        const WRITE = 1 << 1;
+        const STAT = 1 << 2;
+        const DELETE = 1 << 3;
+        const STATEFUL_READ = 1 << 4;
     }
 }

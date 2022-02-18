@@ -16,20 +16,21 @@ use std::io::SeekFrom;
 use std::str::from_utf8;
 
 use futures::io::copy;
-use futures::io::BufReader;
+
 use futures::io::Cursor;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
 use opendal::readers::CallbackReader;
 use opendal::readers::ReaderStream;
-use opendal::readers::SeekableReader;
+
 use opendal::services::fs;
 use opendal::Operator;
+use opendal::Reader;
 
 #[tokio::test]
 async fn reader_stream() {
-    let reader = Box::new(Cursor::new("Hello, world!"));
+    let reader = Reader::new(Box::new(Cursor::new("Hello, world!")));
     let mut s = ReaderStream::new(reader);
 
     let mut bs = Vec::new();
@@ -37,14 +38,16 @@ async fn reader_stream() {
         bs.extend_from_slice(&chunk.unwrap());
     }
 
-    assert_eq!(&bs[..], "Hello, world!".as_bytes());
+    assert_eq!(&bs[..], "Hello, world!".to_string().as_bytes());
 }
 
 #[tokio::test]
 async fn callback_reader() {
     let mut size = 0;
 
-    let reader = CallbackReader::new(Box::new(Cursor::new("Hello, world!")), |n| size += n);
+    let reader = CallbackReader::new(Reader::new(Box::new(Cursor::new("Hello, world!"))), |n| {
+        size += n
+    });
 
     let mut bs = Vec::new();
     let n = copy(reader, &mut bs).await.unwrap();
@@ -61,19 +64,13 @@ async fn test_seekable_reader() {
 
     // Create a test file.
     let x = f
-        .write(&path, 13)
-        .run(Box::new(Cursor::new("Hello, world!")))
+        .object(&path)
+        .write_bytes("Hello, world!".to_string().into_bytes())
         .await
         .unwrap();
     assert_eq!(x, 13);
 
-    let o = f.stat(&path).run().await.unwrap();
-    assert_eq!(o.size, 13);
-
-    let mut r = BufReader::with_capacity(
-        4, // Make buffer size small to test seek.
-        SeekableReader::new(f, &path, o.size),
-    );
+    let mut r = f.object(&path).stateful_read().await.unwrap();
 
     // Seek to offset 3.
     let n = r.seek(SeekFrom::Start(3)).await.expect("seek");

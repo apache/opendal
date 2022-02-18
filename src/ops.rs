@@ -1,4 +1,4 @@
-// Copyright 2021 Datafuse Labs.
+// Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,6 +11,37 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+
+
+
+#[derive(Debug, Clone, Default)]
+pub struct OpRead {
+    pub path: String,
+    pub offset: Option<u64>,
+    pub size: Option<u64>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct OpStatefulRead {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct OpStat {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct OpWrite {
+    pub path: String,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct OpDelete {
+    pub path: String,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct HeaderRange(Option<u64>, Option<u64>);

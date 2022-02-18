@@ -13,7 +13,11 @@
 // limitations under the License.
 mod accessor;
 pub use accessor::Accessor;
-pub use accessor::Reader;
+pub use accessor::Features;
+
+mod io;
+pub use io::Reader;
+pub use io::StatefulReader;
 
 mod layer;
 pub use layer::Layer;
@@ -22,6 +26,7 @@ mod operator;
 pub use operator::Operator;
 
 mod object;
+pub use object::Metadata;
 pub use object::Object;
 
 mod scheme;
@@ -29,6 +34,7 @@ pub use scheme::Scheme;
 
 pub mod credential;
 pub mod error;
-pub mod ops;
 pub mod readers;
+
+pub mod ops;
 pub mod services;

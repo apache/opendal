@@ -21,18 +21,19 @@ use async_compat::CompatExt;
 use async_trait::async_trait;
 use tokio::fs;
 use tokio::io;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncSeekExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
+use crate::accessor::Features;
 use crate::error::Error;
 use crate::error::Result;
-use crate::ops::OpDelete;
+use crate::object::Metadata;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{OpDelete, OpStatefulRead};
 use crate::Accessor;
-use crate::Object;
 use crate::Reader;
+use crate::StatefulReader;
 
 #[derive(Default)]
 pub struct Builder {
@@ -75,6 +76,10 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    fn features(&self) -> Features {
+        Features::all()
+    }
+
     async fn read(&self, args: &OpRead) -> Result<Reader> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
@@ -90,12 +95,24 @@ impl Accessor for Backend {
                 .map_err(|e| parse_io_error(&e, &path))?;
         };
 
-        let f: Reader = match args.size {
-            Some(size) => Box::new(f.take(size).compat()),
-            None => Box::new(f.compat()),
+        let r = match args.size {
+            Some(size) => Reader::new(Box::new(f.take(size).compat())),
+            None => Reader::new(Box::new(f.compat())),
         };
 
-        Ok(f)
+        Ok(r)
+    }
+
+    async fn stateful_read(&self, args: &OpStatefulRead) -> Result<StatefulReader> {
+        let path = PathBuf::from(&self.root).join(&args.path);
+
+        let f = fs::OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .await
+            .map_err(|e| parse_io_error(&e, &path))?;
+
+        Ok(StatefulReader::new(Box::new(f.compat())))
     }
 
     async fn write(&self, mut r: Reader, args: &OpWrite) -> Result<usize> {
@@ -135,18 +152,17 @@ impl Accessor for Backend {
         Ok(s as usize)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         let meta = fs::metadata(&path)
             .await
             .map_err(|e| parse_io_error(&e, &path))?;
-        let o = Object {
-            path: path.to_string_lossy().into_owned(),
-            size: meta.len(),
-        };
 
-        Ok(o)
+        let mut m = Metadata::default();
+        m.set_content_length(meta.len() as u64);
+
+        Ok(m)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {

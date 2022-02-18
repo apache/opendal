@@ -23,7 +23,8 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use futures::AsyncSeek;
 
-use crate::Operator;
+use crate::error::Result;
+use crate::{Object};
 
 const DEFAULT_PREFETCH_SIZE: usize = 1024 * 1024; // default to 1mb.
 
@@ -44,33 +45,35 @@ const DEFAULT_PREFETCH_SIZE: usize = 1024 * 1024; // default to 1mb.
 ///
 /// We need use update the metrics.
 pub struct SeekableReader {
-    op: Operator,
-    key: String,
-    total: u64,
+    o: Object,
     prefetch: usize,
 
+    total: u64,
     pos: u64,
     state: State,
 }
 
 impl SeekableReader {
-    pub fn new(op: Operator, key: &str, total: u64) -> Self {
-        Self::with_prefetch(op, key, total, DEFAULT_PREFETCH_SIZE)
+    pub async fn try_new(o: &Object) -> Result<Self> {
+        Self::try_with_prefetch(o, DEFAULT_PREFETCH_SIZE).await
     }
 
-    pub fn with_prefetch(op: Operator, key: &str, total: u64, prefetch: usize) -> Self {
-        SeekableReader {
-            op,
-            key: key.to_string(),
-            total,
+    pub async fn try_with_prefetch(o: &Object, prefetch: usize) -> Result<Self> {
+        let mut o = o.clone();
+        let meta = o.metadata().await?;
+        let total = meta.content_length();
+
+        Ok(SeekableReader {
+            o,
             prefetch,
 
+            total,
             pos: 0,
             state: State::Chunked(Chunk {
                 offset: 0,
                 data: vec![],
             }),
-        }
+        })
     }
 
     fn remaining(&self) -> u64 {
@@ -122,16 +125,12 @@ impl AsyncRead for SeekableReader {
 
                     Poll::Ready(Ok(length))
                 } else {
-                    let op = self.op.clone();
-                    let key = self.key.clone();
+                    let o = self.o.clone();
                     let prefetch_range = self.prefetch_range(buf.len());
 
                     let future = async move {
-                        let mut r = op
-                            .read(&key)
-                            .offset(prefetch_range.offset as u64)
-                            .size(prefetch_range.size as u64)
-                            .run()
+                        let mut r = o
+                            .ranged_read(prefetch_range.offset as u64, prefetch_range.size as u64)
                             .await
                             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                         // TODO: Can we reuse the same slice?

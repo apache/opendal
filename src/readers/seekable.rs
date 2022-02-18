@@ -25,7 +25,7 @@ use futures::AsyncSeek;
 
 use crate::Operator;
 
-const DEFAULT_REQUEST_SIZE: usize = 4 * 1024 * 1024; // default to 4mb.
+const DEFAULT_PREFETCH_SIZE: usize = 1024 * 1024; // default to 1mb.
 
 /// If we already know a file's total size, we can implement Seek for it.
 ///
@@ -47,6 +47,7 @@ pub struct SeekableReader {
     op: Operator,
     key: String,
     total: u64,
+    prefetch: usize,
 
     pos: u64,
     state: State,
@@ -54,10 +55,15 @@ pub struct SeekableReader {
 
 impl SeekableReader {
     pub fn new(op: Operator, key: &str, total: u64) -> Self {
+        Self::with_prefetch(op, key, total, DEFAULT_PREFETCH_SIZE)
+    }
+
+    pub fn with_prefetch(op: Operator, key: &str, total: u64, prefetch: usize) -> Self {
         SeekableReader {
             op,
             key: key.to_string(),
             total,
+            prefetch,
 
             pos: 0,
             state: State::Chunked(Chunk {
@@ -82,7 +88,7 @@ impl SeekableReader {
     // Calculate the next prefetch range.
     fn prefetch_range(&self, size: usize) -> Range {
         // Pick the max size between hint and default size.
-        let size = cmp::max(size, DEFAULT_REQUEST_SIZE);
+        let size = cmp::max(size, self.prefetch);
 
         Range {
             offset: self.pos,
@@ -176,7 +182,7 @@ impl AsyncSeek for SeekableReader {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct Chunk {
     offset: u64,
     data: Vec<u8>,

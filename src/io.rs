@@ -12,18 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{SeekFrom};
+use std::io::SeekFrom;
 use std::pin::Pin;
 
 use std::task::{Context, Poll};
 
-
-
-
 use futures::{AsyncRead, AsyncSeek};
-
-
-
 
 pub trait AsyncReadSeek: AsyncRead + AsyncSeek + Unpin + Send {}
 

@@ -24,7 +24,7 @@ use futures::AsyncReadExt;
 use futures::AsyncSeek;
 
 use crate::error::Result;
-use crate::{Object};
+use crate::Object;
 
 const DEFAULT_PREFETCH_SIZE: usize = 1024 * 1024; // default to 1mb.
 

@@ -28,7 +28,6 @@ aws-smithy-http = "0.36.0"
 hyper = { version = "0.14.16", features = ["stream"] }
 pin-project = "1.0.10"
 aws-config = "0.6.0"
-tokio-util = { version = "0.7.0", features = ["codec"] }
 bitflags = "1.3.2"
 
 [dev-dependencies]

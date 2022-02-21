@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use aws_config::load_from_env;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
@@ -22,110 +21,50 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use futures::{AsyncRead, AsyncSeek};
+use futures::AsyncRead;
+use futures::AsyncSeek;
 
 use crate::error::Result;
-use crate::ops::{OpRandomRead, OpSequentialRead, OpWrite};
-use crate::{Accessor, Object};
+use crate::ops::OpRandomRead;
+use crate::ops::OpWrite;
+use crate::Accessor;
 
 pub type BoxedAsyncRead = Box<dyn AsyncRead + Unpin + Send>;
 pub type BoxedAsyncReadSeek = Box<dyn AsyncReadSeek + Unpin + Send>;
 pub trait AsyncReadSeek: AsyncRead + AsyncSeek + Unpin + Send {}
 impl<T: AsyncRead + AsyncSeek + Unpin + Send> AsyncReadSeek for T {}
 
-pub struct SequentialReader {
+pub struct Reader {
     acc: Arc<dyn Accessor>,
     path: String,
-    offset: Option<u64>,
-    size: Option<u64>,
 
-    state: SequentialState,
+    total_size: Option<u64>,
+
+    state: ReadState,
 }
 
-enum SequentialState {
-    Idle,
-    Sending(BoxFuture<'static, Result<BoxedAsyncRead>>),
-    Reading(BoxedAsyncRead),
-}
-
-impl SequentialReader {
-    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
-        Self {
-            acc,
-            path: path.to_string(),
-            offset: None,
-            size: None,
-            state: SequentialState::Idle,
-        }
-    }
-    pub fn offset(&mut self, offset: u64) -> &mut Self {
-        assert!(matches!(self.state, SequentialState::Idle));
-
-        self.offset = Some(offset);
-        self
-    }
-    pub fn size(&mut self, size: u64) -> &mut Self {
-        assert!(matches!(self.state, SequentialState::Idle));
-
-        self.size = Some(size);
-        self
-    }
-}
-
-impl AsyncRead for SequentialReader {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<std::io::Result<usize>> {
-        loop {
-            match &mut self.state {
-                SequentialState::Idle => {
-                    let acc = self.acc.clone();
-                    let op = OpSequentialRead {
-                        path: self.path.clone(),
-                        offset: self.offset,
-                        size: self.size,
-                    };
-                    let future = async move { acc.sequential_read(&op).await };
-
-                    self.state = SequentialState::Sending(Box::pin(future));
-                }
-                SequentialState::Sending(future) => match Pin::new(future).poll(cx) {
-                    Poll::Ready(Ok(r)) => self.state = SequentialState::Reading(r),
-                    Poll::Ready(Err(e)) => {
-                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
-                    }
-                    Poll::Pending => continue,
-                },
-                SequentialState::Reading(r) => return Pin::new(r).poll_read(cx, buf),
-            }
-        }
-    }
-}
-
-pub struct RandomReader {
-    object: Object,
-
-    state: RandomState,
-}
-
-enum RandomState {
+enum ReadState {
     Idle,
     Sending(BoxFuture<'static, Result<BoxedAsyncReadSeek>>),
     Reading(BoxedAsyncReadSeek),
 }
 
-impl RandomReader {
-    pub fn new(o: &Object) -> Self {
+impl Reader {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         Self {
-            object: o.clone(),
-            state: RandomState::Idle,
+            acc,
+            path: path.to_string(),
+            total_size: None,
+            state: ReadState::Idle,
         }
+    }
+    pub fn total_size(&mut self, size: u64) -> &mut Self {
+        self.total_size = Some(size);
+        self
     }
 }
 
-impl AsyncRead for RandomReader {
+impl AsyncRead for Reader {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -133,30 +72,30 @@ impl AsyncRead for RandomReader {
     ) -> Poll<std::io::Result<usize>> {
         loop {
             match &mut self.state {
-                RandomState::Idle => {
-                    let o = self.object.clone();
-                    let acc = o.accessor();
+                ReadState::Idle => {
+                    let acc = self.acc.clone();
                     let op = OpRandomRead {
-                        object: self.object.clone(),
+                        path: self.path.clone(),
+                        total: self.total_size,
                     };
                     let future = async move { acc.random_read(&op).await };
 
-                    self.state = RandomState::Sending(Box::pin(future));
+                    self.state = ReadState::Sending(Box::pin(future));
                 }
-                RandomState::Sending(future) => match Pin::new(future).poll(cx) {
-                    Poll::Ready(Ok(r)) => self.state = RandomState::Reading(r),
+                ReadState::Sending(future) => match Pin::new(future).poll(cx) {
+                    Poll::Ready(Ok(r)) => self.state = ReadState::Reading(r),
                     Poll::Ready(Err(e)) => {
                         return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
                     }
                     Poll::Pending => continue,
                 },
-                RandomState::Reading(r) => return Pin::new(r).poll_read(cx, buf),
+                ReadState::Reading(r) => return Pin::new(r).poll_read(cx, buf),
             }
         }
     }
 }
 
-impl AsyncSeek for RandomReader {
+impl AsyncSeek for Reader {
     fn poll_seek(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -164,25 +103,58 @@ impl AsyncSeek for RandomReader {
     ) -> Poll<std::io::Result<u64>> {
         loop {
             match &mut self.state {
-                RandomState::Idle => {
-                    let o = self.object.clone();
-                    let acc = o.accessor();
+                ReadState::Idle => {
+                    let acc = self.acc.clone();
                     let op = OpRandomRead {
-                        object: self.object.clone(),
+                        path: self.path.clone(),
+                        total: self.total_size,
                     };
                     let future = async move { acc.random_read(&op).await };
 
-                    self.state = RandomState::Sending(Box::pin(future));
+                    self.state = ReadState::Sending(Box::pin(future));
                 }
-                RandomState::Sending(future) => match Pin::new(future).poll(cx) {
-                    Poll::Ready(Ok(r)) => self.state = RandomState::Reading(r),
+                ReadState::Sending(future) => match Pin::new(future).poll(cx) {
+                    Poll::Ready(Ok(r)) => self.state = ReadState::Reading(r),
                     Poll::Ready(Err(e)) => {
                         return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
                     }
                     Poll::Pending => continue,
                 },
-                RandomState::Reading(r) => return Pin::new(r).poll_seek(cx, pos),
+                ReadState::Reading(r) => return Pin::new(r).poll_seek(cx, pos),
             }
         }
+    }
+}
+
+// TODO: maybe we can implement `AsyncWrite` for `Writer`
+pub struct Writer {
+    acc: Arc<dyn Accessor>,
+    path: String,
+}
+
+impl Writer {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        Self {
+            acc,
+            path: path.to_string(),
+        }
+    }
+
+    pub async fn write_bytes(self, bs: Vec<u8>) -> Result<usize> {
+        let op = &OpWrite {
+            path: self.path.clone(),
+            size: bs.len() as u64,
+        };
+        let r = Box::new(futures::io::Cursor::new(bs));
+
+        self.acc.write(r, op).await
+    }
+    pub async fn write_reader(self, r: BoxedAsyncRead, size: u64) -> Result<usize> {
+        let op = &OpWrite {
+            path: self.path.clone(),
+            size,
+        };
+
+        self.acc.write(r, op).await
     }
 }

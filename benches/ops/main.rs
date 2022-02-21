@@ -15,7 +15,8 @@ mod fs;
 mod ops;
 mod s3;
 
-use criterion::{criterion_group, criterion_main};
+use criterion::criterion_group;
+use criterion::criterion_main;
 
 criterion_group!(benches, ops::bench);
 criterion_main!(benches);

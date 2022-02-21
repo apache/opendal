@@ -15,19 +15,16 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::AsyncRead;
 
 use crate::error::Result;
-use crate::io::AsyncReadSeek;
-use crate::io::RandomReader;
-use crate::io::SequentialReader;
 use crate::object::Metadata;
 use crate::ops::OpDelete;
 use crate::ops::OpRandomRead;
 use crate::ops::OpSequentialRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::{BoxedAsyncRead, BoxedAsyncReadSeek};
+use crate::BoxedAsyncRead;
+use crate::BoxedAsyncReadSeek;
 
 #[async_trait]
 pub trait Accessor: Send + Sync {

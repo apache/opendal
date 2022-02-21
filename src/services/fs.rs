@@ -21,18 +21,20 @@ use async_compat::CompatExt;
 use async_trait::async_trait;
 use tokio::fs;
 use tokio::io;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncSeekExt;
 
 use crate::error::Error;
 use crate::error::Result;
 use crate::object::Metadata;
+use crate::ops::OpDelete;
+use crate::ops::OpRandomRead;
 use crate::ops::OpSequentialRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{OpDelete, OpRandomRead};
-use crate::SequentialReader;
-use crate::{Accessor, BoxedAsyncRead};
-use crate::{BoxedAsyncReadSeek, RandomReader};
+use crate::Accessor;
+use crate::BoxedAsyncRead;
+use crate::BoxedAsyncReadSeek;
 
 #[derive(Default)]
 pub struct Builder {
@@ -99,7 +101,7 @@ impl Accessor for Backend {
     }
 
     async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
-        let path = PathBuf::from(&self.root).join(&args.object.path());
+        let path = PathBuf::from(&self.root).join(&args.path);
 
         let f = fs::OpenOptions::new()
             .read(true)

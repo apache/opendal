@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use criterion::{BenchmarkId, Criterion};
-
+use criterion::BenchmarkId;
+use criterion::Criterion;
 use futures::io;
 use futures::io::BufReader;
-use rand::prelude::*;
-
 use opendal::Operator;
+use rand::prelude::*;
 
 use super::fs;
 use super::s3;
@@ -44,7 +43,7 @@ pub fn bench(c: &mut Criterion) {
 
         // Write file before test.
         runtime
-            .block_on(op.object(&path).write_bytes(content.clone()))
+            .block_on(op.object(&path).new_writer().write_bytes(content.clone()))
             .expect("write failed");
 
         let mut group = c.benchmark_group(case.0);
@@ -62,7 +61,7 @@ pub fn bench(c: &mut Criterion) {
             &(op.clone(), &path),
             |b, input| {
                 b.to_async(&runtime)
-                    .iter(|| bench_seekable_read(input.0.clone(), input.1))
+                    .iter(|| bench_buf_read(input.0.clone(), input.1))
             },
         );
         group.finish();
@@ -77,12 +76,12 @@ fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Vec<u8> {
 }
 
 pub async fn bench_read(op: Operator, path: &str) {
-    let mut r = op.object(path).read().await.unwrap();
+    let mut r = op.object(path).new_reader();
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }
 
-pub async fn bench_seekable_read(op: Operator, path: &str) {
-    let r = op.object(path).stateful_read().await.unwrap();
+pub async fn bench_buf_read(op: Operator, path: &str) {
+    let r = op.object(path).new_reader();
     let mut r = BufReader::with_capacity(1024 * 1024, r);
 
     io::copy(&mut r, &mut io::sink()).await.unwrap();

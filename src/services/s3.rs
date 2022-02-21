@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::borrow::Cow;
-use std::ops::Sub;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -22,7 +21,10 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use aws_sdk_s3 as AwsS3;
-use aws_sdk_s3::error::{GetObjectError, GetObjectErrorKind, HeadObjectError, HeadObjectErrorKind};
+use aws_sdk_s3::error::GetObjectError;
+use aws_sdk_s3::error::GetObjectErrorKind;
+use aws_sdk_s3::error::HeadObjectError;
+use aws_sdk_s3::error::HeadObjectErrorKind;
 use aws_smithy_http::body::SdkBody;
 use aws_smithy_http::byte_stream::ByteStream;
 use aws_smithy_http::result::SdkError;
@@ -32,15 +34,17 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Result;
 use crate::object::Metadata;
+use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
+use crate::ops::OpRandomRead;
 use crate::ops::OpSequentialRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{HeaderRange, OpRandomRead};
-use crate::readers::{ReaderStream, SeekableReader};
-
-use crate::{Accessor, BoxedAsyncRead};
-use crate::{BoxedAsyncReadSeek, SequentialReader};
+use crate::readers::ReaderStream;
+use crate::readers::SeekableReader;
+use crate::Accessor;
+use crate::BoxedAsyncRead;
+use crate::BoxedAsyncReadSeek;
 
 /// # TODO
 ///
@@ -260,7 +264,9 @@ impl Accessor for Backend {
     }
 
     async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
-        Ok(Box::new(SeekableReader::try_new(&args.object).await?))
+        Ok(Box::new(
+            SeekableReader::try_new(Arc::new(self.clone()), &args.path, args.total, None).await?,
+        ))
     }
 
     async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {

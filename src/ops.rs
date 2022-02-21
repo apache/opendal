@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::Object;
-
 #[derive(Debug, Clone, Default)]
 pub struct OpSequentialRead {
     pub path: String,
@@ -21,9 +19,10 @@ pub struct OpSequentialRead {
     pub size: Option<u64>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpRandomRead {
-    pub object: Object,
+    pub path: String,
+    pub total: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default)]

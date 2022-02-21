@@ -17,8 +17,7 @@ pub use accessor::Accessor;
 mod io;
 pub use io::BoxedAsyncRead;
 pub use io::BoxedAsyncReadSeek;
-pub use io::RandomReader;
-pub use io::SequentialReader;
+pub use io::Reader;
 pub use io::Writer;
 
 mod layer;

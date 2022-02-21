@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 // Copyright 2021 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,27 +14,19 @@ use std::fmt::{Debug, Display, Formatter};
 // limitations under the License.
 use std::sync::Arc;
 
-use futures::io::Cursor;
-
 use crate::error::Result;
 use crate::ops::OpDelete;
-use crate::ops::OpRandomRead;
-use crate::ops::OpSequentialRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::SeekableReader;
+use crate::Accessor;
 use crate::BoxedAsyncRead;
-use crate::RandomReader;
+use crate::Reader;
 use crate::Writer;
-use crate::{Accessor, SequentialReader};
 
 #[derive(Clone)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
     path: String,
-
-    complete: bool,
-    meta: Option<Metadata>,
 }
 
 impl Object {
@@ -42,30 +34,6 @@ impl Object {
         Self {
             acc,
             path: path.to_string(),
-            complete: false,
-            meta: None,
-        }
-    }
-    pub async fn open(acc: Arc<dyn Accessor>, path: &str) -> Result<Self> {
-        let meta = acc
-            .stat(&OpStat {
-                path: path.to_string(),
-            })
-            .await?;
-
-        Ok(Object {
-            acc,
-            path: path.to_string(),
-            complete: true,
-            meta: Some(meta),
-        })
-    }
-    pub fn create(acc: Arc<dyn Accessor>, path: &str, meta: Metadata) -> Self {
-        Self {
-            acc,
-            path: path.to_string(),
-            complete: false,
-            meta: Some(meta),
         }
     }
 
@@ -77,27 +45,20 @@ impl Object {
         &self.path
     }
 
-    pub fn metadata(&mut self) -> Option<&Metadata> {
-        self.meta.as_ref()
+    pub fn new_reader(&self) -> Reader {
+        Reader::new(self.acc.clone(), self.path.as_str())
     }
 
-    pub fn sequential_read(&self) -> SequentialReader {
-        SequentialReader::new(self.acc.clone(), self.path.as_str())
+    pub fn new_writer(&self) -> Writer {
+        Writer::new(self.acc.clone(), self.path())
     }
 
-    pub fn random_read(&self) -> RandomReader {
-        RandomReader::new(self)
-    }
-
-    pub async fn stat(&mut self) -> Result<&Metadata> {
+    pub async fn stat(&mut self) -> Result<Metadata> {
         let op = &OpStat {
             path: self.path.to_string(),
         };
 
-        let meta = self.acc.stat(op).await?;
-        self.meta = Some(meta);
-
-        Ok(self.meta.as_ref().expect("unreachable code"))
+        self.acc.stat(op).await
     }
 
     pub async fn delete(&mut self) -> Result<()> {

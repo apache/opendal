@@ -14,7 +14,6 @@
 use std::env;
 
 use anyhow::Result;
-
 use opendal::services::fs;
 use opendal::Operator;
 

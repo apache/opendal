@@ -11,12 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use std::cmp;
 use std::future::Future;
+use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use std::{cmp, io};
 
 use futures::future::BoxFuture;
 use futures::AsyncRead;
@@ -24,7 +26,9 @@ use futures::AsyncReadExt;
 use futures::AsyncSeek;
 
 use crate::error::Result;
-use crate::Object;
+use crate::ops::OpSequentialRead;
+use crate::ops::OpStat;
+use crate::Accessor;
 
 const DEFAULT_PREFETCH_SIZE: usize = 1024 * 1024; // default to 1mb.
 
@@ -45,7 +49,8 @@ const DEFAULT_PREFETCH_SIZE: usize = 1024 * 1024; // default to 1mb.
 ///
 /// We need use update the metrics.
 pub struct SeekableReader {
-    o: Object,
+    acc: Arc<dyn Accessor>,
+    path: String,
     prefetch: usize,
 
     total: u64,
@@ -54,26 +59,34 @@ pub struct SeekableReader {
 }
 
 impl SeekableReader {
-    pub async fn try_new(o: &Object) -> Result<Self> {
-        Self::try_with_prefetch(o, DEFAULT_PREFETCH_SIZE).await
-    }
-
-    pub async fn try_with_prefetch(o: &Object, prefetch: usize) -> Result<Self> {
-        let mut o = o.clone();
-
-        let total = match o.metadata() {
-            Some(meta) => meta.content_length(),
+    pub async fn try_new(
+        acc: Arc<dyn Accessor>,
+        path: &str,
+        total_size: Option<u64>,
+        prefetch: Option<usize>,
+    ) -> Result<Self> {
+        let total = match total_size {
+            Some(size) => size,
             None => {
-                let meta = o.stat().await?;
+                let meta = acc
+                    .stat(&OpStat {
+                        path: path.to_string(),
+                    })
+                    .await?;
                 meta.content_length()
             }
         };
+        let prefetch = match prefetch {
+            Some(v) => v,
+            None => DEFAULT_PREFETCH_SIZE,
+        };
 
         Ok(SeekableReader {
-            o,
+            acc,
+            path: path.to_string(),
             prefetch,
-
             total,
+
             pos: 0,
             state: State::Chunked(Chunk {
                 offset: 0,
@@ -131,13 +144,19 @@ impl AsyncRead for SeekableReader {
 
                     Poll::Ready(Ok(length))
                 } else {
-                    let o = self.o.clone();
+                    let acc = self.acc.clone();
                     let prefetch_range = self.prefetch_range(buf.len());
+                    let op = OpSequentialRead {
+                        path: self.path.to_string(),
+                        size: Some(prefetch_range.size as u64),
+                        offset: Some(prefetch_range.offset as u64),
+                    };
 
                     let future = async move {
-                        let mut r = o.sequential_read();
-                        r.size(prefetch_range.size as u64)
-                            .offset(prefetch_range.offset as u64);
+                        let mut r = acc
+                            .sequential_read(&op)
+                            .await
+                            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
                         // TODO: Can we reuse the same slice?
                         let mut data = vec![];
                         let _ = r.read_to_end(&mut data).await?;

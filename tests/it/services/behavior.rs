@@ -20,12 +20,15 @@
 //!
 //! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
 
-use anyhow::Result;
+use std::io::SeekFrom;
 
+use anyhow::Result;
 use futures::AsyncReadExt;
-use opendal::{Metadata, Operator};
+use futures::AsyncSeekExt;
+use opendal::Operator;
 use rand::prelude::*;
-use sha2::{Digest, Sha256};
+use sha2::Digest;
+use sha2::Sha256;
 
 /// TODO: Implement test files cleanup.
 pub struct BehaviorTest {
@@ -56,18 +59,18 @@ impl BehaviorTest {
         let (content, size) = self.gen_bytes();
 
         // Step 2: Write this file
-        let n = self.op.create(&path).write_bytes(content.clone()).await?;
+        let w = self.op.object(&path).new_writer();
+        let n = w.write_bytes(content.clone()).await?;
         assert_eq!(n, size, "write file");
 
-        // Step 3: Open this file
-        let mut o = self.op.open(&path).await?;
-        let meta = o.metadata();
+        // Step 3: Stat this file
+        let meta = self.op.object(&path).stat().await?;
         assert_eq!(meta.content_length(), size as u64, "stat file");
 
         // Step 4: Read this file's content
         // Step 4.1: Read the whole file.
         let mut buf = Vec::new();
-        let mut r = self.op.object(&path).read().await?;
+        let mut r = self.op.object(&path).new_reader();
         let n = r.read_to_end(&mut buf).await?;
         assert_eq!(n, size as usize, "check size in read whole file");
         assert_eq!(
@@ -78,9 +81,11 @@ impl BehaviorTest {
 
         // Step 4.2: Read the file with random offset and length.
         let (offset, length) = self.gen_offset_length(size as usize);
-        let mut buf = Vec::new();
-        let mut r = self.op.object(&path).ranged_read(offset, length).await?;
-        r.read_to_end(&mut buf).await?;
+        let mut buf: Vec<u8> = vec![0; length as usize];
+        let mut r = self.op.object(&path).new_reader();
+        let off = r.seek(SeekFrom::Current(offset as i64)).await?;
+        assert_eq!(off, offset);
+        r.read_exact(&mut buf).await?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&buf)),
             format!(
@@ -96,7 +101,7 @@ impl BehaviorTest {
 
         // Step 6: Stat this file again to check if it's deleted
         let mut o = self.op.object(&path);
-        let result = o.metadata().await;
+        let result = o.stat().await;
         assert!(result.is_err(), "stat file again");
         assert!(
             matches!(

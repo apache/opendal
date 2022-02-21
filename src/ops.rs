@@ -30,6 +30,14 @@ pub struct OpStat {
     pub path: String,
 }
 
+impl OpStat {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     pub path: String,
@@ -39,6 +47,14 @@ pub struct OpWrite {
 #[derive(Debug, Clone, Default)]
 pub struct OpDelete {
     pub path: String,
+}
+
+impl OpDelete {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

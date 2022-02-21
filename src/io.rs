@@ -58,7 +58,7 @@ impl Reader {
             state: ReadState::Idle,
         }
     }
-    pub fn total_size(&mut self, size: u64) -> &mut Self {
+    pub fn total_size(mut self, size: u64) -> Self {
         self.total_size = Some(size);
         self
     }
@@ -87,7 +87,7 @@ impl AsyncRead for Reader {
                     Poll::Ready(Err(e)) => {
                         return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
                     }
-                    Poll::Pending => continue,
+                    Poll::Pending => return Poll::Pending,
                 },
                 ReadState::Reading(r) => return Pin::new(r).poll_read(cx, buf),
             }
@@ -118,7 +118,7 @@ impl AsyncSeek for Reader {
                     Poll::Ready(Err(e)) => {
                         return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
                     }
-                    Poll::Pending => continue,
+                    Poll::Pending => return Poll::Pending,
                 },
                 ReadState::Reading(r) => return Pin::new(r).poll_seek(cx, pos),
             }

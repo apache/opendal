@@ -50,21 +50,17 @@ impl Object {
     }
 
     pub fn new_writer(&self) -> Writer {
-        Writer::new(self.acc.clone(), self.path())
+        Writer::new(self.acc.clone(), self.path.as_str())
     }
 
     pub async fn stat(&self) -> Result<Metadata> {
-        let op = &OpStat {
-            path: self.path.to_string(),
-        };
+        let op = &OpStat::new(self.path());
 
         self.acc.stat(op).await
     }
 
     pub async fn delete(&self) -> Result<()> {
-        let op = &OpDelete {
-            path: self.path.clone(),
-        };
+        let op = &OpDelete::new(&self.path);
 
         self.acc.delete(op).await
     }

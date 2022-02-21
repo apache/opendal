@@ -264,9 +264,20 @@ impl Accessor for Backend {
     }
 
     async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
-        Ok(Box::new(
-            SeekableReader::try_new(Arc::new(self.clone()), &args.path, args.total, None).await?,
-        ))
+        let total = match args.total {
+            Some(v) => v,
+            None => {
+                let meta = self.stat(&OpStat::new(&args.path)).await?;
+                meta.content_length()
+            }
+        };
+
+        Ok(Box::new(SeekableReader::new(
+            Arc::new(self.clone()),
+            &args.path,
+            total,
+            None,
+        )))
     }
 
     async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {

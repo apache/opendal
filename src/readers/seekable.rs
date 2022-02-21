@@ -25,9 +25,9 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use futures::AsyncSeek;
 
-use crate::error::Result;
+
 use crate::ops::OpSequentialRead;
-use crate::ops::OpStat;
+
 use crate::Accessor;
 
 const DEFAULT_PREFETCH_SIZE: usize = 1024 * 1024; // default to 1mb.
@@ -59,40 +59,29 @@ pub struct SeekableReader {
 }
 
 impl SeekableReader {
-    pub async fn try_new(
+    pub fn new(
         acc: Arc<dyn Accessor>,
         path: &str,
-        total_size: Option<u64>,
+        total_size: u64,
         prefetch: Option<usize>,
-    ) -> Result<Self> {
-        let total = match total_size {
-            Some(size) => size,
-            None => {
-                let meta = acc
-                    .stat(&OpStat {
-                        path: path.to_string(),
-                    })
-                    .await?;
-                meta.content_length()
-            }
-        };
+    ) -> Self {
         let prefetch = match prefetch {
             Some(v) => v,
             None => DEFAULT_PREFETCH_SIZE,
         };
 
-        Ok(SeekableReader {
+        SeekableReader {
             acc,
             path: path.to_string(),
             prefetch,
-            total,
+            total: total_size,
 
             pos: 0,
             state: State::Chunked(Chunk {
                 offset: 0,
                 data: vec![],
             }),
-        })
+        }
     }
 
     fn remaining(&self) -> u64 {

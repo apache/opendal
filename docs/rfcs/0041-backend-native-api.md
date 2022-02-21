@@ -11,9 +11,9 @@ Refactor API in backend native way to archive the performance.
 
 ## Poor performance
 
-`opendal` is quite slow on `fs`: [performance drop 3 times after bump up opendal](https://github.com/datafuselabs/databend/issues/4197)
+`opendal` is relatively slow on `fs`: [performance drop 3 times after bump up opendal](https://github.com/datafuselabs/databend/issues/4197)
 
-First, in every `read` operation, we will do at least three syscall: `open`, `seek`, `read`.
+First, we will do at least three syscalls in every' read' operation: `open`, `seek`, `read`.
 
 ```rust
 let mut f = fs::OpenOptions::new()
@@ -29,9 +29,9 @@ if let Some(offset) = args.offset {
 };
 ```
 
-To make everything worse, our `SeelableReader` is designed for object storage systems, and works much slower on local fs.
+To make everything worse, our `SeelableReader` is designed for object storage systems and works much slower on local fs.
 
-`SeelableReader` will try to prefetch data in memory and maintain an internal pointer to implement `AsyncSeek`. However, due to our poor (nearly no) optimization, `SeekableReader` is much slower than using system call `seek`.
+`SeelableReader` will try to prefetch data in memory and maintain an internal pointer to implement `AsyncSeek`. However, due to our poor (nearly no) optimization, `SeekableReader` is much slower than using a system call `seek`.
 
 ## Ergonomic unfriendly
 
@@ -55,19 +55,19 @@ op.stat(&path).run().await
 
 ## Conclusion
 
-So in this proposal, I expect to address those problems. After this proposal implemented, we have a faster and easier to use `opendal`.
+So in this proposal, I expect to address those problems. After implementing this proposal, we have a faster and easier-to-use `opendal`.
 
 # Guide-level explanation
 
-In order to operate on object, we will use `Operator::object()` to create a new handler:
+To operate on an object, we will use `Operator::object()` to create a new handler:
 
 ```rust
 let o = op.object("path/to/file");
 ```
 
-All operations that available for `Object` for now includes:
+All operations that are available for `Object` for now includes:
 
-- `stat`: get object metadata (return error if not exist).
+- `stat`: get object metadata (return an error if not exist).
 - `delete`: delete an object.
 - `new_reader`: create a new reader to read data from this object.
 - `new_writer`: create a new writer to write data into this object.

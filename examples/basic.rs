@@ -13,7 +13,6 @@
 // limitations under the License.
 use anyhow::Result;
 use futures::AsyncReadExt;
-
 use opendal::services::fs;
 use opendal::Operator;
 

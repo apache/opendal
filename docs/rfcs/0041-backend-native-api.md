@@ -1,6 +1,6 @@
 - Proposal Name: `backend_native_api`
 - Start Date: 2022-02-18
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
+- RFC PR: [datafuselabs/opendal#41](https://github.com/datafuselabs/opendal/pull/41)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary

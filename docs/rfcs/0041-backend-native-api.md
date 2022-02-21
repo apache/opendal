@@ -143,18 +143,15 @@ None.
 
 # Rationale and alternatives
 
-TBD
+None
 
 # Prior art
 
-## API design of beyondstorage/go-storage
-
-TBD
+None
 
 # Unresolved questions
 
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+None
 
 # Future possibilities
 

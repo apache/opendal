@@ -100,7 +100,7 @@ impl BehaviorTest {
         assert!(result.is_ok(), "delete file");
 
         // Step 6: Stat this file again to check if it's deleted
-        let mut o = self.op.object(&path);
+        let o = self.op.object(&path);
         let result = o.stat().await;
         assert!(result.is_err(), "stat file again");
         assert!(

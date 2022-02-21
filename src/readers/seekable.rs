@@ -60,8 +60,14 @@ impl SeekableReader {
 
     pub async fn try_with_prefetch(o: &Object, prefetch: usize) -> Result<Self> {
         let mut o = o.clone();
-        let meta = o.metadata().await?;
-        let total = meta.content_length();
+
+        let total = match o.metadata() {
+            Some(meta) => meta.content_length(),
+            None => {
+                let meta = o.stat().await?;
+                meta.content_length()
+            }
+        };
 
         Ok(SeekableReader {
             o,
@@ -129,10 +135,9 @@ impl AsyncRead for SeekableReader {
                     let prefetch_range = self.prefetch_range(buf.len());
 
                     let future = async move {
-                        let mut r = o
-                            .ranged_read(prefetch_range.offset as u64, prefetch_range.size as u64)
-                            .await
-                            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                        let mut r = o.sequential_read();
+                        r.size(prefetch_range.size as u64)
+                            .offset(prefetch_range.offset as u64);
                         // TODO: Can we reuse the same slice?
                         let mut data = vec![];
                         let _ = r.read_to_end(&mut data).await?;

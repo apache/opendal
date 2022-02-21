@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display, Formatter};
 // Copyright 2021 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,23 +12,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 use std::sync::Arc;
 
 use futures::io::Cursor;
 
-use crate::accessor::Features;
 use crate::error::Result;
-use crate::ops::{OpDelete, OpRead, OpStat, OpStatefulRead, OpWrite};
+use crate::ops::OpDelete;
+use crate::ops::OpRandomRead;
+use crate::ops::OpSequentialRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
 use crate::readers::SeekableReader;
-use crate::Accessor;
-use crate::{Reader, StatefulReader};
+use crate::BoxedAsyncRead;
+use crate::RandomReader;
+use crate::Writer;
+use crate::{Accessor, SequentialReader};
 
 #[derive(Clone)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
     path: String,
 
+    complete: bool,
     meta: Option<Metadata>,
 }
 
@@ -36,78 +42,62 @@ impl Object {
         Self {
             acc,
             path: path.to_string(),
+            complete: false,
             meta: None,
         }
+    }
+    pub async fn open(acc: Arc<dyn Accessor>, path: &str) -> Result<Self> {
+        let meta = acc
+            .stat(&OpStat {
+                path: path.to_string(),
+            })
+            .await?;
+
+        Ok(Object {
+            acc,
+            path: path.to_string(),
+            complete: true,
+            meta: Some(meta),
+        })
+    }
+    pub fn create(acc: Arc<dyn Accessor>, path: &str, meta: Metadata) -> Self {
+        Self {
+            acc,
+            path: path.to_string(),
+            complete: false,
+            meta: Some(meta),
+        }
+    }
+
+    pub fn accessor(&self) -> Arc<dyn Accessor> {
+        self.acc.clone()
     }
 
     pub fn path(&self) -> &str {
         &self.path
     }
 
-    pub async fn metadata(&mut self) -> Result<&Metadata> {
-        if self.meta.is_none() {
-            let op = &OpStat {
-                path: self.path.clone(),
-            };
+    pub fn metadata(&mut self) -> Option<&Metadata> {
+        self.meta.as_ref()
+    }
 
-            let meta = self.acc.stat(op).await?;
-            self.meta = Some(meta);
-        }
+    pub fn sequential_read(&self) -> SequentialReader {
+        SequentialReader::new(self.acc.clone(), self.path.as_str())
+    }
+
+    pub fn random_read(&self) -> RandomReader {
+        RandomReader::new(self)
+    }
+
+    pub async fn stat(&mut self) -> Result<&Metadata> {
+        let op = &OpStat {
+            path: self.path.to_string(),
+        };
+
+        let meta = self.acc.stat(op).await?;
+        self.meta = Some(meta);
 
         Ok(self.meta.as_ref().expect("unreachable code"))
-    }
-
-    pub async fn read(&self) -> Result<Reader> {
-        let op = &OpRead {
-            path: self.path.clone(),
-            ..Default::default()
-        };
-
-        self.acc.read(op).await
-    }
-
-    pub async fn ranged_read(&self, offset: u64, size: u64) -> Result<Reader> {
-        let op = &OpRead {
-            path: self.path.clone(),
-            offset: Some(offset),
-            size: Some(size),
-        };
-
-        self.acc.read(op).await
-    }
-
-    pub async fn stateful_read(&self) -> Result<StatefulReader> {
-        if self.acc.features().contains(Features::STATEFUL_READ) {
-            let op = &OpStatefulRead {
-                path: self.path.clone(),
-            };
-
-            self.acc.stateful_read(op).await
-        } else {
-            Ok(StatefulReader::new(Box::new(
-                SeekableReader::try_new(self).await?,
-            )))
-        }
-    }
-
-    pub async fn write(&self, r: Reader, size: u64) -> Result<usize> {
-        let op = &OpWrite {
-            path: self.path.clone(),
-            size,
-        };
-
-        self.acc.write(r, op).await
-    }
-
-    pub async fn write_bytes(&self, bs: Vec<u8>) -> Result<usize> {
-        let op = &OpWrite {
-            path: self.path.clone(),
-            size: bs.len() as u64,
-        };
-
-        self.acc
-            .write(Reader::new(Box::new(Cursor::new(bs))), op)
-            .await
     }
 
     pub async fn delete(&mut self) -> Result<()> {
@@ -128,8 +118,42 @@ impl Metadata {
     pub fn content_length(&self) -> u64 {
         self.content_length
     }
-    pub(crate) fn set_content_length(&mut self, content_length: u64) -> &mut Self {
+    pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = content_length;
         self
+    }
+}
+
+// TODO: maybe we can implement `AsyncWrite` for it so that we can use `io::copy`?
+pub struct ObjectBuilder {
+    acc: Arc<dyn Accessor>,
+    path: String,
+}
+
+impl ObjectBuilder {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        Self {
+            acc,
+
+            path: path.to_string(),
+        }
+    }
+
+    pub async fn write(self, r: BoxedAsyncRead, size: u64) -> Result<usize> {
+        let op = OpWrite {
+            path: self.path.to_string(),
+            size,
+        };
+
+        self.acc.write(r, &op).await
+    }
+
+    pub async fn write_bytes(self, bs: Vec<u8>) -> Result<usize> {
+        let op = OpWrite {
+            path: self.path.to_string(),
+            size: bs.len() as u64,
+        };
+        let r = Box::new(futures::io::Cursor::new(bs));
+        self.acc.write(r, &op).await
     }
 }

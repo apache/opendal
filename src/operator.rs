@@ -14,8 +14,9 @@
 
 use std::sync::Arc;
 
-use crate::Layer;
-use crate::{Accessor, Object};
+use crate::error::Result;
+use crate::{Accessor, Object, ObjectBuilder};
+use crate::{Layer, Metadata};
 
 #[derive(Clone)]
 pub struct Operator {
@@ -38,7 +39,11 @@ impl Operator {
         self.accessor.clone()
     }
 
-    pub fn object(&self, path: &str) -> Object {
-        Object::new(self.accessor.clone(), path)
+    pub async fn open(&self, path: &str) -> Result<Object> {
+        Object::open(self.inner(), path).await
     }
+    pub fn create(&self, path: &str) -> ObjectBuilder {
+        ObjectBuilder::new(self.inner(), path)
+    }
+    pub fn list() -> () {}
 }

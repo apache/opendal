@@ -23,17 +23,16 @@ use tokio::fs;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-use crate::accessor::Features;
 use crate::error::Error;
 use crate::error::Result;
 use crate::object::Metadata;
-use crate::ops::OpRead;
+use crate::ops::OpSequentialRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{OpDelete, OpStatefulRead};
-use crate::Accessor;
-use crate::Reader;
-use crate::StatefulReader;
+use crate::ops::{OpDelete, OpRandomRead};
+use crate::SequentialReader;
+use crate::{Accessor, BoxedAsyncRead};
+use crate::{BoxedAsyncReadSeek, RandomReader};
 
 #[derive(Default)]
 pub struct Builder {
@@ -76,11 +75,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    fn features(&self) -> Features {
-        Features::all()
-    }
-
-    async fn read(&self, args: &OpRead) -> Result<Reader> {
+    async fn sequential_read(&self, args: &OpSequentialRead) -> Result<BoxedAsyncRead> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         let mut f = fs::OpenOptions::new()
@@ -95,16 +90,16 @@ impl Accessor for Backend {
                 .map_err(|e| parse_io_error(&e, &path))?;
         };
 
-        let r = match args.size {
-            Some(size) => Reader::new(Box::new(f.take(size).compat())),
-            None => Reader::new(Box::new(f.compat())),
+        let r: BoxedAsyncRead = match args.size {
+            Some(size) => Box::new(f.take(size).compat()),
+            None => Box::new(f.compat()),
         };
 
         Ok(r)
     }
 
-    async fn stateful_read(&self, args: &OpStatefulRead) -> Result<StatefulReader> {
-        let path = PathBuf::from(&self.root).join(&args.path);
+    async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
+        let path = PathBuf::from(&self.root).join(&args.object.path());
 
         let f = fs::OpenOptions::new()
             .read(true)
@@ -112,10 +107,10 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_io_error(&e, &path))?;
 
-        Ok(StatefulReader::new(Box::new(f.compat())))
+        Ok(Box::new(f.compat()))
     }
 
-    async fn write(&self, mut r: Reader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, mut r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         // Create dir before write path.

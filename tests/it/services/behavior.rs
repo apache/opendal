@@ -23,7 +23,7 @@
 use anyhow::Result;
 
 use futures::AsyncReadExt;
-use opendal::Operator;
+use opendal::{Metadata, Operator};
 use rand::prelude::*;
 use sha2::{Digest, Sha256};
 
@@ -56,12 +56,12 @@ impl BehaviorTest {
         let (content, size) = self.gen_bytes();
 
         // Step 2: Write this file
-        let n = self.op.object(&path).write_bytes(content.clone()).await?;
+        let n = self.op.create(&path).write_bytes(content.clone()).await?;
         assert_eq!(n, size, "write file");
 
-        // Step 3: Stat this file
-        let mut o = self.op.object(&path);
-        let meta = o.metadata().await?;
+        // Step 3: Open this file
+        let mut o = self.op.open(&path).await?;
+        let meta = o.metadata();
         assert_eq!(meta.content_length(), size as u64, "stat file");
 
         // Step 4: Read this file's content

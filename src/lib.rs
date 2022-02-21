@@ -13,11 +13,13 @@
 // limitations under the License.
 mod accessor;
 pub use accessor::Accessor;
-pub use accessor::Features;
 
 mod io;
-pub use io::Reader;
-pub use io::StatefulReader;
+pub use io::BoxedAsyncRead;
+pub use io::BoxedAsyncReadSeek;
+pub use io::RandomReader;
+pub use io::SequentialReader;
+pub use io::Writer;
 
 mod layer;
 pub use layer::Layer;
@@ -28,6 +30,7 @@ pub use operator::Operator;
 mod object;
 pub use object::Metadata;
 pub use object::Object;
+pub use object::ObjectBuilder;
 
 mod scheme;
 pub use scheme::Scheme;

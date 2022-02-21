@@ -25,12 +25,12 @@ use opendal::readers::CallbackReader;
 use opendal::readers::ReaderStream;
 
 use opendal::services::fs;
+use opendal::BoxedAsyncRead;
 use opendal::Operator;
-use opendal::Reader;
 
 #[tokio::test]
 async fn reader_stream() {
-    let reader = Reader::new(Box::new(Cursor::new("Hello, world!")));
+    let reader = BoxedAsyncRead::new(Box::new(Cursor::new("Hello, world!")));
     let mut s = ReaderStream::new(reader);
 
     let mut bs = Vec::new();
@@ -45,9 +45,10 @@ async fn reader_stream() {
 async fn callback_reader() {
     let mut size = 0;
 
-    let reader = CallbackReader::new(Reader::new(Box::new(Cursor::new("Hello, world!"))), |n| {
-        size += n
-    });
+    let reader = CallbackReader::new(
+        BoxedAsyncRead::new(Box::new(Cursor::new("Hello, world!"))),
+        |n| size += n,
+    );
 
     let mut bs = Vec::new();
     let n = copy(reader, &mut bs).await.unwrap();

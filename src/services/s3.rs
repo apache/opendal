@@ -28,20 +28,19 @@ use aws_smithy_http::byte_stream::ByteStream;
 use aws_smithy_http::result::SdkError;
 use futures::TryStreamExt;
 
-use crate::accessor::Features;
 use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Result;
 use crate::object::Metadata;
-use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
-use crate::ops::OpRead;
+use crate::ops::OpSequentialRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::ReaderStream;
+use crate::ops::{HeaderRange, OpRandomRead};
+use crate::readers::{ReaderStream, SeekableReader};
 
-use crate::Accessor;
-use crate::Reader;
+use crate::{Accessor, BoxedAsyncRead};
+use crate::{BoxedAsyncReadSeek, SequentialReader};
 
 /// # TODO
 ///
@@ -239,11 +238,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    fn features(&self) -> Features {
-        Features::all().sub(Features::STATEFUL_READ)
-    }
-
-    async fn read(&self, args: &OpRead) -> Result<Reader> {
+    async fn sequential_read(&self, args: &OpSequentialRead) -> Result<BoxedAsyncRead> {
         let p = self.get_abs_path(&args.path);
 
         let mut req = self
@@ -261,10 +256,14 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_get_object_error(e, &args.path))?;
 
-        Ok(Reader::new(Box::new(S3Stream(resp.body).into_async_read())))
+        Ok(Box::new(S3Stream(resp.body).into_async_read()))
     }
 
-    async fn write(&self, r: Reader, args: &OpWrite) -> Result<usize> {
+    async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
+        Ok(Box::new(SeekableReader::try_new(&args.object).await?))
+    }
+
+    async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
 
         let _ = self

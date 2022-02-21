@@ -53,7 +53,7 @@ impl Object {
         Writer::new(self.acc.clone(), self.path())
     }
 
-    pub async fn stat(&mut self) -> Result<Metadata> {
+    pub async fn stat(&self) -> Result<Metadata> {
         let op = &OpStat {
             path: self.path.to_string(),
         };
@@ -61,7 +61,7 @@ impl Object {
         self.acc.stat(op).await
     }
 
-    pub async fn delete(&mut self) -> Result<()> {
+    pub async fn delete(&self) -> Result<()> {
         let op = &OpDelete {
             path: self.path.clone(),
         };

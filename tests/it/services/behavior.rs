@@ -71,7 +71,7 @@ impl BehaviorTest {
         // Step 4.1: Read the whole file.
         let mut buf = Vec::new();
         let mut r = self.op.object(&path).reader();
-        let n = r.read_to_end(&mut buf).await?;
+        let n = r.read_to_end(&mut buf).await.expect("read to end");
         assert_eq!(n, size as usize, "check size in read whole file");
         assert_eq!(
             format!("{:x}", Sha256::digest(&buf)),

@@ -16,7 +16,6 @@ pub use accessor::Accessor;
 
 mod io;
 pub use io::BoxedAsyncRead;
-pub use io::BoxedAsyncReadSeek;
 pub use io::Reader;
 pub use io::Writer;
 
@@ -29,7 +28,6 @@ pub use operator::Operator;
 mod object;
 pub use object::Metadata;
 pub use object::Object;
-pub use object::ObjectBuilder;
 
 mod scheme;
 pub use scheme::Scheme;

@@ -15,8 +15,5 @@
 mod callback;
 pub use callback::CallbackReader;
 
-mod seekable;
-pub use seekable::SeekableReader;
-
 mod stream;
 pub use stream::ReaderStream;

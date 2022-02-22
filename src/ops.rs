@@ -13,16 +13,10 @@
 // limitations under the License.
 
 #[derive(Debug, Clone, Default)]
-pub struct OpSequentialRead {
+pub struct OpRead {
     pub path: String,
     pub offset: Option<u64>,
     pub size: Option<u64>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct OpRandomRead {
-    pub path: String,
-    pub total: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default)]

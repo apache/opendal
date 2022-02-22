@@ -19,21 +19,15 @@ use async_trait::async_trait;
 use crate::error::Result;
 use crate::object::Metadata;
 use crate::ops::OpDelete;
-use crate::ops::OpRandomRead;
-use crate::ops::OpSequentialRead;
+use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BoxedAsyncRead;
-use crate::BoxedAsyncReadSeek;
 
 #[async_trait]
 pub trait Accessor: Send + Sync {
     /// Read data from the underlying storage into input writer.
-    async fn sequential_read(&self, args: &OpSequentialRead) -> Result<BoxedAsyncRead> {
-        let _ = args;
-        unimplemented!()
-    }
-    async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         let _ = args;
         unimplemented!()
     }
@@ -63,11 +57,8 @@ pub trait Accessor: Send + Sync {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
-    async fn sequential_read(&self, args: &OpSequentialRead) -> Result<BoxedAsyncRead> {
-        self.as_ref().sequential_read(args).await
-    }
-    async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
-        self.as_ref().random_read(args).await
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
+        self.as_ref().read(args).await
     }
     async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
         self.as_ref().write(r, args).await

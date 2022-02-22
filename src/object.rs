@@ -17,9 +17,7 @@ use std::sync::Arc;
 use crate::error::Result;
 use crate::ops::OpDelete;
 use crate::ops::OpStat;
-use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::BoxedAsyncRead;
 use crate::Reader;
 use crate::Writer;
 
@@ -78,39 +76,5 @@ impl Metadata {
     pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = content_length;
         self
-    }
-}
-
-// TODO: maybe we can implement `AsyncWrite` for it so that we can use `io::copy`?
-pub struct ObjectBuilder {
-    acc: Arc<dyn Accessor>,
-    path: String,
-}
-
-impl ObjectBuilder {
-    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
-        Self {
-            acc,
-
-            path: path.to_string(),
-        }
-    }
-
-    pub async fn write(self, r: BoxedAsyncRead, size: u64) -> Result<usize> {
-        let op = OpWrite {
-            path: self.path.to_string(),
-            size,
-        };
-
-        self.acc.write(r, &op).await
-    }
-
-    pub async fn write_bytes(self, bs: Vec<u8>) -> Result<usize> {
-        let op = OpWrite {
-            path: self.path.to_string(),
-            size: bs.len() as u64,
-        };
-        let r = Box::new(futures::io::Cursor::new(bs));
-        self.acc.write(r, &op).await
     }
 }

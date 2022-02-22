@@ -28,13 +28,11 @@ use crate::error::Error;
 use crate::error::Result;
 use crate::object::Metadata;
 use crate::ops::OpDelete;
-use crate::ops::OpRandomRead;
-use crate::ops::OpSequentialRead;
+use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BoxedAsyncRead;
-use crate::BoxedAsyncReadSeek;
 
 #[derive(Default)]
 pub struct Builder {
@@ -65,6 +63,7 @@ impl Builder {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Backend {
     root: String,
 }
@@ -77,7 +76,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    async fn sequential_read(&self, args: &OpSequentialRead) -> Result<BoxedAsyncRead> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         let mut f = fs::OpenOptions::new()
@@ -98,18 +97,6 @@ impl Accessor for Backend {
         };
 
         Ok(r)
-    }
-
-    async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
-        let path = PathBuf::from(&self.root).join(&args.path);
-
-        let f = fs::OpenOptions::new()
-            .read(true)
-            .open(&path)
-            .await
-            .map_err(|e| parse_io_error(&e, &path))?;
-
-        Ok(Box::new(f.compat()))
     }
 
     async fn write(&self, mut r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {

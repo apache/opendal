@@ -36,15 +36,12 @@ use crate::error::Result;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
-use crate::ops::OpRandomRead;
-use crate::ops::OpSequentialRead;
+use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::readers::ReaderStream;
-use crate::readers::SeekableReader;
 use crate::Accessor;
 use crate::BoxedAsyncRead;
-use crate::BoxedAsyncReadSeek;
 
 /// # TODO
 ///
@@ -242,7 +239,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    async fn sequential_read(&self, args: &OpSequentialRead) -> Result<BoxedAsyncRead> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         let p = self.get_abs_path(&args.path);
 
         let mut req = self
@@ -261,23 +258,6 @@ impl Accessor for Backend {
             .map_err(|e| parse_get_object_error(e, &args.path))?;
 
         Ok(Box::new(S3Stream(resp.body).into_async_read()))
-    }
-
-    async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
-        let total = match args.total {
-            Some(v) => v,
-            None => {
-                let meta = self.stat(&OpStat::new(&args.path)).await?;
-                meta.content_length()
-            }
-        };
-
-        Ok(Box::new(SeekableReader::new(
-            Arc::new(self.clone()),
-            &args.path,
-            total,
-            None,
-        )))
     }
 
     async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {

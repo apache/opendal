@@ -21,32 +21,30 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use futures::AsyncRead;
 use futures::AsyncSeek;
+use futures::{ready, AsyncRead};
 
 use crate::error::Result;
-use crate::ops::OpRandomRead;
-use crate::ops::OpWrite;
-use crate::Accessor;
+use crate::ops::OpRead;
+use crate::ops::{OpStat, OpWrite};
+use crate::{Accessor, Metadata};
 
 pub type BoxedAsyncRead = Box<dyn AsyncRead + Unpin + Send>;
-pub type BoxedAsyncReadSeek = Box<dyn AsyncReadSeek + Unpin + Send>;
-pub trait AsyncReadSeek: AsyncRead + AsyncSeek + Unpin + Send {}
-impl<T: AsyncRead + AsyncSeek + Unpin + Send> AsyncReadSeek for T {}
 
 pub struct Reader {
     acc: Arc<dyn Accessor>,
     path: String,
 
     total_size: Option<u64>,
-
+    pos: u64,
     state: ReadState,
 }
 
 enum ReadState {
     Idle,
-    Sending(BoxFuture<'static, Result<BoxedAsyncReadSeek>>),
-    Reading(BoxedAsyncReadSeek),
+    Sending(BoxFuture<'static, Result<BoxedAsyncRead>>),
+    Seeking(BoxFuture<'static, Result<Metadata>>),
+    Reading(BoxedAsyncRead),
 }
 
 impl Reader {
@@ -55,6 +53,7 @@ impl Reader {
             acc,
             path: path.to_string(),
             total_size: None,
+            pos: 0,
             state: ReadState::Idle,
         }
     }
@@ -70,27 +69,36 @@ impl AsyncRead for Reader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<std::io::Result<usize>> {
-        loop {
-            match &mut self.state {
-                ReadState::Idle => {
-                    let acc = self.acc.clone();
-                    let op = OpRandomRead {
-                        path: self.path.clone(),
-                        total: self.total_size,
-                    };
-                    let future = async move { acc.random_read(&op).await };
+        match &mut self.state {
+            ReadState::Idle => {
+                let acc = self.acc.clone();
+                let pos = self.pos;
+                let op = OpRead {
+                    path: self.path.to_string(),
+                    offset: Some(pos),
+                    size: None,
+                };
 
-                    self.state = ReadState::Sending(Box::pin(future));
-                }
-                ReadState::Sending(future) => match Pin::new(future).poll(cx) {
-                    Poll::Ready(Ok(r)) => self.state = ReadState::Reading(r),
-                    Poll::Ready(Err(e)) => {
-                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
-                    }
-                    Poll::Pending => return Poll::Pending,
-                },
-                ReadState::Reading(r) => return Pin::new(r).poll_read(cx, buf),
+                let future = async move { acc.read(&op).await };
+
+                self.state = ReadState::Sending(Box::pin(future));
+                self.poll_read(cx, buf)
             }
+            ReadState::Sending(future) => match ready!(Pin::new(future).poll(cx)) {
+                Ok(r) => {
+                    self.state = ReadState::Reading(r);
+                    self.poll_read(cx, buf)
+                }
+                Err(e) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
+            },
+            ReadState::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
+                Ok(n) => {
+                    self.pos += n as u64;
+                    Poll::Ready(Ok(n))
+                }
+                Err(e) => Poll::Ready(Err(e)),
+            },
+            _ => unreachable!("read while seeking is invalid"),
         }
     }
 }
@@ -101,28 +109,38 @@ impl AsyncSeek for Reader {
         cx: &mut Context<'_>,
         pos: SeekFrom,
     ) -> Poll<std::io::Result<u64>> {
-        loop {
-            match &mut self.state {
-                ReadState::Idle => {
-                    let acc = self.acc.clone();
-                    let op = OpRandomRead {
-                        path: self.path.clone(),
-                        total: self.total_size,
-                    };
-                    let future = async move { acc.random_read(&op).await };
-
-                    self.state = ReadState::Sending(Box::pin(future));
-                }
-                ReadState::Sending(future) => match Pin::new(future).poll(cx) {
-                    Poll::Ready(Ok(r)) => self.state = ReadState::Reading(r),
-                    Poll::Ready(Err(e)) => {
-                        return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e)))
-                    }
-                    Poll::Pending => return Poll::Pending,
-                },
-                ReadState::Reading(r) => return Pin::new(r).poll_seek(cx, pos),
+        if let ReadState::Seeking(future) = &mut self.state {
+            println!("poll seek");
+            match ready!(Pin::new(future).poll(cx)) {
+                Ok(meta) => self.total_size = Some(meta.content_length()),
+                Err(e) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
             }
         }
+
+        self.pos = match pos {
+            SeekFrom::Start(off) => off,
+            SeekFrom::Current(off) => (self.pos as i64).checked_add(off).expect("overflow") as u64,
+            SeekFrom::End(off) => {
+                // Stat the object to get it's content-length.
+                if self.total_size.is_none() {
+                    let acc = self.acc.clone();
+                    let op = OpStat::new(&self.path);
+
+                    let future = async move { acc.stat(&op).await };
+
+                    println!("into seek state");
+                    self.state = ReadState::Seeking(Box::pin(future));
+                    return self.poll_seek(cx, pos);
+                }
+
+                let total_size = self.total_size.expect("must have valid total_size") as i64;
+
+                (total_size.checked_add(off).expect("overflow")) as u64
+            }
+        };
+
+        self.state = ReadState::Idle;
+        Poll::Ready(Ok(self.pos as u64))
     }
 }
 

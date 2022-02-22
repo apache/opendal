@@ -154,11 +154,6 @@ Benchmarking s3/bench_buf_read/6971c464-15f7-48d6-b69c-c8abc7774802: Collecting 
                         thrpt:  [2.6622 GiB/s 2.7329 GiB/s 2.8103 GiB/s]
 ```
 
-> NOTE
-> 
-> We only bench the continues sequential read here which is the most common case for databend.
-> In this case, read with a buffer will become slower than plain read.
-
 ## Object API
 
 Other changes are just a re-order of APIs.

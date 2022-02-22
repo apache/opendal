@@ -57,7 +57,7 @@ pub fn bench(c: &mut Criterion) {
             },
         );
         group.bench_with_input(
-            BenchmarkId::new("bench_seekable_read", &path),
+            BenchmarkId::new("bench_buf_read", &path),
             &(op.clone(), &path),
             |b, input| {
                 b.to_async(&runtime)

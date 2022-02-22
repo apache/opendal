@@ -88,6 +88,8 @@ async fn main() -> Result<()> {
 
 # Reference-level explanation
 
+## Native Reader support
+
 We will provide a `Reader` (which implement both `AsyncRead + AsyncSeek`) for user instead of just a `AsyncRead`. In this `Reader`, we will:
 
 - Not maintain internal buffer: caller can decide to wrap into `BufReader`.
@@ -151,6 +153,13 @@ Benchmarking s3/bench_buf_read/6971c464-15f7-48d6-b69c-c8abc7774802: Collecting 
                         time:   [5.5598 ms 5.7174 ms 5.8691 ms]
                         thrpt:  [2.6622 GiB/s 2.7329 GiB/s 2.8103 GiB/s]
 ```
+
+> NOTE
+> 
+> We only bench the continues sequential read here which is the most common case for databend.
+> In this case, read with a buffer will become slower than plain read.
+
+## Object API
 
 Other changes are just a re-order of APIs.
 

@@ -60,13 +60,13 @@ async fn test_seekable_reader() {
     // Create a test file.
     let x = f
         .object(&path)
-        .new_writer()
+        .writer()
         .write_bytes("Hello, world!".to_string().into_bytes())
         .await
         .unwrap();
     assert_eq!(x, 13);
 
-    let mut r = f.object(&path).new_reader();
+    let mut r = f.object(&path).reader();
 
     // Seek to offset 3.
     let n = r.seek(SeekFrom::Start(3)).await.expect("seek");

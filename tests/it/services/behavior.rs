@@ -59,18 +59,18 @@ impl BehaviorTest {
         let (content, size) = self.gen_bytes();
 
         // Step 2: Write this file
-        let w = self.op.object(&path).new_writer();
+        let w = self.op.object(&path).writer();
         let n = w.write_bytes(content.clone()).await?;
         assert_eq!(n, size, "write file");
 
         // Step 3: Stat this file
-        let meta = self.op.object(&path).stat().await?;
+        let meta = self.op.object(&path).metadata().await?;
         assert_eq!(meta.content_length(), size as u64, "stat file");
 
         // Step 4: Read this file's content
         // Step 4.1: Read the whole file.
         let mut buf = Vec::new();
-        let mut r = self.op.object(&path).new_reader();
+        let mut r = self.op.object(&path).reader();
         let n = r.read_to_end(&mut buf).await?;
         assert_eq!(n, size as usize, "check size in read whole file");
         assert_eq!(
@@ -82,7 +82,7 @@ impl BehaviorTest {
         // Step 4.2: Read the file with random offset and length.
         let (offset, length) = self.gen_offset_length(size as usize);
         let mut buf: Vec<u8> = vec![0; length as usize];
-        let mut r = self.op.object(&path).new_reader();
+        let mut r = self.op.object(&path).reader();
         let off = r.seek(SeekFrom::Current(offset as i64)).await?;
         assert_eq!(off, offset);
         r.read_exact(&mut buf).await?;
@@ -101,7 +101,7 @@ impl BehaviorTest {
 
         // Step 6: Stat this file again to check if it's deleted
         let o = self.op.object(&path);
-        let result = o.stat().await;
+        let result = o.metadata().await;
         assert!(result.is_err(), "stat file again");
         assert!(
             matches!(

@@ -43,7 +43,7 @@ pub fn bench(c: &mut Criterion) {
 
         // Write file before test.
         runtime
-            .block_on(op.object(&path).new_writer().write_bytes(content.clone()))
+            .block_on(op.object(&path).writer().write_bytes(content.clone()))
             .expect("write failed");
 
         let mut group = c.benchmark_group(case.0);
@@ -76,13 +76,13 @@ fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Vec<u8> {
 }
 
 pub async fn bench_read(op: Operator, path: &str) {
-    let mut r = op.object(path).new_reader();
+    let mut r = op.object(path).reader().total_size(16 * 1024 * 1024);
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }
 
 pub async fn bench_buf_read(op: Operator, path: &str) {
-    let r = op.object(path).new_reader();
-    let mut r = BufReader::with_capacity(1024 * 1024, r);
+    let r = op.object(path).reader().total_size(16 * 1024 * 1024);
+    let mut r = BufReader::with_capacity(4 * 1024 * 1024, r);
 
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }

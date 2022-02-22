@@ -45,15 +45,15 @@ impl Object {
         &self.path
     }
 
-    pub fn new_reader(&self) -> Reader {
+    pub fn reader(&self) -> Reader {
         Reader::new(self.acc.clone(), self.path.as_str())
     }
 
-    pub fn new_writer(&self) -> Writer {
+    pub fn writer(&self) -> Writer {
         Writer::new(self.acc.clone(), self.path.as_str())
     }
 
-    pub async fn stat(&self) -> Result<Metadata> {
+    pub async fn metadata(&self) -> Result<Metadata> {
         let op = &OpStat::new(self.path());
 
         self.acc.stat(op).await

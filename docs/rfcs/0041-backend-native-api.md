@@ -156,3 +156,4 @@ None
 # Future possibilities
 
 - Implement `AsyncWrite` for `Writer` so that we can use `Writer` easier.
+- Implement `Operator::objects()` to return an object iterator.

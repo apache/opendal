@@ -21,7 +21,10 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use aws_sdk_s3 as AwsS3;
-use aws_sdk_s3::error::{GetObjectError, GetObjectErrorKind, HeadObjectError, HeadObjectErrorKind};
+use aws_sdk_s3::error::GetObjectError;
+use aws_sdk_s3::error::GetObjectErrorKind;
+use aws_sdk_s3::error::HeadObjectError;
+use aws_sdk_s3::error::HeadObjectErrorKind;
 use aws_smithy_http::body::SdkBody;
 use aws_smithy_http::byte_stream::ByteStream;
 use aws_smithy_http::result::SdkError;
@@ -30,6 +33,7 @@ use futures::TryStreamExt;
 use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Result;
+use crate::object::Metadata;
 use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
@@ -37,8 +41,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::readers::ReaderStream;
 use crate::Accessor;
-use crate::Object;
-use crate::Reader;
+use crate::BoxedAsyncRead;
 
 /// # TODO
 ///
@@ -206,6 +209,7 @@ impl Builder {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Backend {
     bucket: String,
 
@@ -235,7 +239,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    async fn read(&self, args: &OpRead) -> Result<Reader> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         let p = self.get_abs_path(&args.path);
 
         let mut req = self
@@ -256,7 +260,7 @@ impl Accessor for Backend {
         Ok(Box::new(S3Stream(resp.body).into_async_read()))
     }
 
-    async fn write(&self, r: Reader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
 
         let _ = self
@@ -275,7 +279,7 @@ impl Accessor for Backend {
         Ok(args.size as usize)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let p = self.get_abs_path(&args.path);
 
         let meta = self
@@ -286,12 +290,11 @@ impl Accessor for Backend {
             .send()
             .await
             .map_err(|e| parse_head_object_error(e, &args.path))?;
-        let o = Object {
-            path: args.path.to_string(),
-            size: meta.content_length as u64,
-        };
 
-        Ok(o)
+        let mut m = Metadata::default();
+        m.set_content_length(meta.content_length as u64);
+
+        Ok(m)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {

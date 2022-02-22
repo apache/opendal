@@ -15,31 +15,29 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::AsyncRead;
 
 use crate::error::Result;
+use crate::object::Metadata;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Object;
-
-pub type Reader = Box<dyn AsyncRead + Unpin + Send>;
+use crate::BoxedAsyncRead;
 
 #[async_trait]
 pub trait Accessor: Send + Sync {
     /// Read data from the underlying storage into input writer.
-    async fn read(&self, args: &OpRead) -> Result<Reader> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         let _ = args;
         unimplemented!()
     }
     /// Write data from input reader to the underlying storage.
-    async fn write(&self, r: Reader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
         let (_, _) = (r, args);
         unimplemented!()
     }
     /// Invoke the `stat` operation on the specified path.
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let _ = args;
         unimplemented!()
     }
@@ -58,14 +56,14 @@ pub trait Accessor: Send + Sync {
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
-impl Accessor for Arc<dyn Accessor> {
-    async fn read(&self, args: &OpRead) -> Result<Reader> {
+impl<T: Accessor> Accessor for Arc<T> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         self.as_ref().read(args).await
     }
-    async fn write(&self, r: Reader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
         self.as_ref().write(r, args).await
     }
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         self.as_ref().stat(args).await
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {

@@ -14,12 +14,9 @@
 
 use std::sync::Arc;
 
-use crate::ops::OpDelete;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::Layer;
+use crate::Object;
 
 #[derive(Clone)]
 pub struct Operator {
@@ -42,19 +39,7 @@ impl Operator {
         self.accessor.clone()
     }
 
-    pub fn read(&self, path: &str) -> OpRead {
-        OpRead::new(self.clone(), path)
-    }
-
-    pub fn write(&self, path: &str, size: u64) -> OpWrite {
-        OpWrite::new(self.clone(), path, size)
-    }
-
-    pub fn stat(&self, path: &str) -> OpStat {
-        OpStat::new(self.clone(), path)
-    }
-
-    pub fn delete(&self, path: &str) -> OpDelete {
-        OpDelete::new(self.clone(), path)
+    pub fn object(&self, path: &str) -> Object {
+        Object::new(self.inner(), path)
     }
 }

@@ -26,13 +26,13 @@ use tokio::io::AsyncSeekExt;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::object::Metadata;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::Object;
-use crate::Reader;
+use crate::BoxedAsyncRead;
 
 #[derive(Default)]
 pub struct Builder {
@@ -63,6 +63,7 @@ impl Builder {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Backend {
     root: String,
 }
@@ -75,7 +76,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    async fn read(&self, args: &OpRead) -> Result<Reader> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         let mut f = fs::OpenOptions::new()
@@ -90,15 +91,15 @@ impl Accessor for Backend {
                 .map_err(|e| parse_io_error(&e, &path))?;
         };
 
-        let f: Reader = match args.size {
+        let r: BoxedAsyncRead = match args.size {
             Some(size) => Box::new(f.take(size).compat()),
             None => Box::new(f.compat()),
         };
 
-        Ok(f)
+        Ok(r)
     }
 
-    async fn write(&self, mut r: Reader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, mut r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         // Create dir before write path.
@@ -135,18 +136,17 @@ impl Accessor for Backend {
         Ok(s as usize)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<Object> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         let meta = fs::metadata(&path)
             .await
             .map_err(|e| parse_io_error(&e, &path))?;
-        let o = Object {
-            path: path.to_string_lossy().into_owned(),
-            size: meta.len(),
-        };
 
-        Ok(o)
+        let mut m = Metadata::default();
+        m.set_content_length(meta.len() as u64);
+
+        Ok(m)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {

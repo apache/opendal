@@ -58,7 +58,7 @@ async fn test_layer() {
 
     let op = Operator::new(fs::Backend::build().finish().await.unwrap()).layer(&test);
 
-    op.delete("xxxxx").run().await.unwrap();
+    op.object("xxxxx").delete().await.unwrap();
 
     assert!(*test.deleted.clone().lock().await);
 }

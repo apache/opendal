@@ -109,11 +109,11 @@ With these change, we can improve the `Reader` performance both on local fs and 
 - fs, before
 
 ```shell
-Benchmarking fs/bench_read/64226295-b7a7-416e-94ce-666ac3ab037b: Collecting 100 samples in estimate                                                                                                   fs/bench_read/64226295-b7a7-416e-94ce-666ac3ab037b
+Benchmarking fs/bench_read/64226295-b7a7-416e-94ce-666ac3ab037b:
                         time:   [16.060 ms 17.109 ms 18.124 ms]
                         thrpt:  [882.82 MiB/s 935.20 MiB/s 996.24 MiB/s]
 
-Benchmarking fs/bench_buf_read/64226295-b7a7-416e-94ce-666ac3ab037b: Collecting 100 samples in                                                                                                   fs/bench_seekable_read/64226295-b7a7-416e-94ce-666ac3ab037b
+Benchmarking fs/bench_buf_read/64226295-b7a7-416e-94ce-666ac3ab037b:
                         time:   [14.779 ms 14.857 ms 14.938 ms]
                         thrpt:  [1.0460 GiB/s 1.0517 GiB/s 1.0572 GiB/s]
 ```
@@ -121,11 +121,11 @@ Benchmarking fs/bench_buf_read/64226295-b7a7-416e-94ce-666ac3ab037b: Collecting 
 - fs, after
 
 ```shell
-Benchmarking fs/bench_read/df531bc7-54c8-43b6-b412-e4f7b9589876: Collecting 100 samples in estimate                                                                                                   fs/bench_read/df531bc7-54c8-43b6-b412-e4f7b9589876
+Benchmarking fs/bench_read/df531bc7-54c8-43b6-b412-e4f7b9589876:
                         time:   [14.654 ms 15.452 ms 16.273 ms]
                         thrpt:  [983.20 MiB/s 1.0112 GiB/s 1.0663 GiB/s]
 
-Benchmarking fs/bench_buf_read/df531bc7-54c8-43b6-b412-e4f7b9589876: Collecting 100 samples in                                                                                                   fs/bench_seekable_read/df531bc7-54c8-43b6-b412-e4f7b9589876
+Benchmarking fs/bench_buf_read/df531bc7-54c8-43b6-b412-e4f7b9589876:
                         time:   [5.5589 ms 5.5825 ms 5.6076 ms]
                         thrpt:  [2.7864 GiB/s 2.7989 GiB/s 2.8108 GiB/s]
 ```
@@ -133,11 +133,11 @@ Benchmarking fs/bench_buf_read/df531bc7-54c8-43b6-b412-e4f7b9589876: Collecting 
 - s3, before
 
 ```shell
-Benchmarking s3/bench_read/72025a81-a4b6-46dc-b485-8d875d23c3a5: Collecting 100 samples in estimate                                                                                                   s3/bench_read/72025a81-a4b6-46dc-b485-8d875d23c3a5
+Benchmarking s3/bench_read/72025a81-a4b6-46dc-b485-8d875d23c3a5:
                         time:   [4.8315 ms 4.9331 ms 5.0403 ms]
                         thrpt:  [3.1000 GiB/s 3.1674 GiB/s 3.2340 GiB/s]
 
-Benchmarking s3/bench_buf_read/72025a81-a4b6-46dc-b485-8d875d23c3a5: Collecting 100 samples in                                                                                                   s3/bench_seekable_read/72025a81-a4b6-46dc-b485-8d875d23c3a5
+Benchmarking s3/bench_buf_read/72025a81-a4b6-46dc-b485-8d875d23c3a5:
                         time:   [16.246 ms 16.539 ms 16.833 ms]
                         thrpt:  [950.52 MiB/s 967.39 MiB/s 984.84 MiB/s]
 ```
@@ -145,11 +145,11 @@ Benchmarking s3/bench_buf_read/72025a81-a4b6-46dc-b485-8d875d23c3a5: Collecting 
 - s3, after
 
 ```shell
-Benchmarking s3/bench_read/6971c464-15f7-48d6-b69c-c8abc7774802: Collecting 100 samples in estimate                                                                                                   s3/bench_read/6971c464-15f7-48d6-b69c-c8abc7774802
+Benchmarking s3/bench_read/6971c464-15f7-48d6-b69c-c8abc7774802:
                         time:   [4.4222 ms 4.5685 ms 4.7181 ms]
                         thrpt:  [3.3117 GiB/s 3.4202 GiB/s 3.5333 GiB/s]
 
-Benchmarking s3/bench_buf_read/6971c464-15f7-48d6-b69c-c8abc7774802: Collecting 100 samples in                                                                                                   s3/bench_seekable_read/6971c464-15f7-48d6-b69c-c8abc7774802
+Benchmarking s3/bench_buf_read/6971c464-15f7-48d6-b69c-c8abc7774802:
                         time:   [5.5598 ms 5.7174 ms 5.8691 ms]
                         thrpt:  [2.6622 GiB/s 2.7329 GiB/s 2.8103 GiB/s]
 ```

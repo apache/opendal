@@ -1,41 +1,15 @@
-- Proposal Name: `backend_native_api`
+- Proposal Name: `object_native_api`
 - Start Date: 2022-02-18
 - RFC PR: [datafuselabs/opendal#41](https://github.com/datafuselabs/opendal/pull/41)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary
 
-Refactor API in backend native way to archive the performance.
+Refactor API in object native way to make it easier to user.
 
 # Motivation
 
-## Poor performance
-
-`opendal` is relatively slow on `fs`: [performance drop 3 times after bump up opendal](https://github.com/datafuselabs/databend/issues/4197)
-
-First, we will do at least three syscalls in every' read' operation: `open`, `seek`, `read`.
-
-```rust
-let mut f = fs::OpenOptions::new()
-    .read(true)
-    .open(&path)
-    .await
-    .map_err(|e| parse_io_error(&e, &path))?;
-
-if let Some(offset) = args.offset {
-    f.seek(SeekFrom::Start(offset))
-        .await
-        .map_err(|e| parse_io_error(&e, &path))?;
-};
-```
-
-To make everything worse, our `SeelableReader` is designed for object storage systems and works much slower on local fs.
-
-`SeelableReader` will try to prefetch data in memory and maintain an internal pointer to implement `AsyncSeek`. However, due to our poor (nearly no) optimization, `SeekableReader` is much slower than using a system call `seek`.
-
-## Ergonomic unfriendly
-
-`opendal` is not easy to use either.
+`opendal` is not easy to use.
 
 In our early adoption project `databend`, we can see a lot of code looks like:
 
@@ -114,28 +88,33 @@ async fn main() -> Result<()> {
 
 # Reference-level explanation
 
-To support native `read` and `seek` operation on `fs`, we will split the `Read` operation into `sequential_read` and `random_read`:
+We will provide a `Reader` (which implement both `AsyncRead + AsyncSeek`) for user instead of just a `AsyncRead`. In this `Reader`, we will:
+
+- Not maintain internal buffer: caller can decide to wrap into `BufReader`.
+- Only rely on accessor's `read` and `stat` operations.
+
+To avoid the extra cost for `stat`, we will:
+
+- Allow user specify total_size for `Reader`.
+- Lazily Send `stat` while the first time `SeekFrom::End()`
+
+To avoid the extra cost for `poll_read`, we will:
+
+- Keep the underlying `BoxedAsyncRead` open, so that we can reuse the same connection/fd.
+
+With these change, we can improve the `Reader` performance both on local fs and remote storage:
+
+- fs, before
 
 ```rust
-async fn sequential_read(&self, args: &OpSequentialRead) -> Result<BoxedAsyncRead> {
-    let _ = args;
-    unimplemented!()
-}
-async fn random_read(&self, args: &OpRandomRead) -> Result<BoxedAsyncReadSeek> {
-    let _ = args;
-    unimplemented!()
-}
 ```
 
-- `sequential_read`: returns a `BoxedAsyncRead` which we can only do `read`.
-- `random_read`: returns a `BoxedAsyncReadSeek` which we can do `read` and `seek` on it.
-
-> `BoxedAsyncReadSeek` is just a boxed composition of `AsyncRead` and `AsyncSeek`.
-
-For fs, `random_read` returns the underlying `File` object.
-For object storage services like `s3`, `random_read` returns a `SeekableReader` wrapper.
-
 Other changes are just a re-order of APIs.
+
+- `Operator::read() -> BoxedAsyncRead` => `Object::reader() -> Reader`
+- `Operator::write(r: BoxedAsyncRead, size: u64)` => `Object::writer() -> Writer`
+- `Operator::stat() -> Object` => `Object::stat() -> Metadata`
+- `Operator::delete()` => `Object::delete()`
 
 # Drawbacks
 

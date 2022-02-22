@@ -29,8 +29,15 @@ use crate::ops::OpRead;
 use crate::ops::{OpStat, OpWrite};
 use crate::{Accessor, Metadata};
 
+/// BoxedAsyncRead is a boxed AsyncRead.
 pub type BoxedAsyncRead = Box<dyn AsyncRead + Unpin + Send>;
 
+/// Reader is used for reading data from underlying backend.
+///
+/// # Lazy Stat
+///
+/// We will fetch the object's content-length while the first time
+/// caller try to seek with `SeekFrom::End(pos)` and the total size is `None`.
 pub struct Reader {
     acc: Arc<dyn Accessor>,
     path: String,
@@ -57,6 +64,12 @@ impl Reader {
             state: ReadState::Idle,
         }
     }
+    /// Change the total size of this Reader.
+    ///
+    /// # Note
+    ///
+    /// We consume the whole reader here to indicate that we can't change it
+    /// once we start reading.
     pub fn total_size(mut self, size: u64) -> Self {
         self.total_size = Some(size);
         self
@@ -144,7 +157,11 @@ impl AsyncSeek for Reader {
     }
 }
 
-// TODO: maybe we can implement `AsyncWrite` for `Writer`
+/// Writer is used to write data into underlying backend.
+///
+/// # TODO
+///
+/// maybe we can implement `AsyncWrite` for `Writer`
 pub struct Writer {
     acc: Arc<dyn Accessor>,
     path: String,

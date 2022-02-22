@@ -12,18 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::SeekFrom;
-use std::str::from_utf8;
-
 use futures::io::copy;
 use futures::io::Cursor;
-use futures::AsyncReadExt;
-use futures::AsyncSeekExt;
 use futures::StreamExt;
+
 use opendal::readers::CallbackReader;
 use opendal::readers::ReaderStream;
-use opendal::services::fs;
-use opendal::Operator;
 
 #[tokio::test]
 async fn reader_stream() {
@@ -48,49 +42,5 @@ async fn callback_reader() {
     let n = copy(reader, &mut bs).await.unwrap();
 
     assert_eq!(size, 13);
-    assert_eq!(n, 13);
-}
-
-#[tokio::test]
-async fn test_seekable_reader() {
-    let f = Operator::new(fs::Backend::build().finish().await.unwrap());
-
-    let path = format!("/tmp/{}", uuid::Uuid::new_v4());
-
-    // Create a test file.
-    let x = f
-        .object(&path)
-        .writer()
-        .write_bytes("Hello, world!".to_string().into_bytes())
-        .await
-        .unwrap();
-    assert_eq!(x, 13);
-
-    let mut r = f.object(&path).reader();
-
-    // Seek to offset 3.
-    let n = r.seek(SeekFrom::Start(3)).await.expect("seek");
-    assert_eq!(n, 3);
-
-    // Read only one byte.
-    let mut bs = Vec::new();
-    bs.resize(1, 0);
-    let n = r.read(&mut bs).await.expect("read");
-    assert_eq!("l", from_utf8(&bs).unwrap());
-    assert_eq!(n, 1);
-    let n = r.seek(SeekFrom::Current(0)).await.expect("seek");
-    assert_eq!(n, 4);
-
-    // Seek to end.
-    let n = r.seek(SeekFrom::End(-1)).await.expect("seek");
-    assert_eq!(n, 12);
-
-    // Read only one byte.
-    let mut bs = Vec::new();
-    bs.resize(1, 0);
-    let n = r.read(&mut bs).await.expect("read");
-    assert_eq!("!", from_utf8(&bs).unwrap());
-    assert_eq!(n, 1);
-    let n = r.seek(SeekFrom::Current(0)).await.expect("seek");
     assert_eq!(n, 13);
 }

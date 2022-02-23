@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use crate::error::Kind;
+use anyhow::anyhow;
 use std::str::FromStr;
 
 use super::error::Error;
@@ -37,7 +39,11 @@ impl FromStr for Scheme {
             "local" | "disk" => Ok(Scheme::Fs),
             "azurestorageblob" => Ok(Scheme::Azblob),
 
-            _ => Err(Error::BackendNotSupported(s)),
+            v => Err(Error::Backend {
+                kind: Kind::BackendNotSupported,
+                context: Default::default(),
+                source: anyhow!("{} is not supported", v),
+            }),
         }
     }
 }

@@ -12,34 +12,69 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+
 use thiserror::Error;
 
 // TODO: implement From<Result> for `common_exception::Result`.s
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Kind is all meaningful error kind, that means you can depend on `Kind` to
+/// take some actions instead of just print. For example, you can try check
+/// `ObjectNotExist` before starting a write operation.
+///
+/// # Style
+///
+/// The kind will be named as `noun-adj`. For example, `ObjectNotExist` or
+/// `ObjectPermissionDenied`.
+#[derive(Error, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub enum Kind {
+    #[error("backend not supported")]
+    BackendNotSupported,
+    #[error("backend configuration invalid")]
+    BackendConfigurationInvalid,
+
+    #[error("object not exist")]
+    ObjectNotExist,
+    #[error("object permission denied")]
+    ObjectPermissionDenied,
+
+    #[error("unexpected")]
+    Unexpected,
+}
+
 /// Error is the error type for the dal2 crate.
 ///
 /// ## Style
 ///
-/// The error will be named as `noun-adj`. For example, `ObjectNotExist` or `PermissionDenied`.
-/// The error will be formatted as `description: (keyA valueA, keyB valueB, ...)`.
-/// As an exception, `Error::Unexpected` is used for all unexpected errors.
-///
-/// ## TODO
-///
-/// Maybe it's better to include the operation name in the error message.
+/// The error will be formatted as `description: (keyA: valueA, keyB: valueB, ...)`.
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("backend not supported: (type {0})")]
-    BackendNotSupported(String),
-    #[error("backend configuration invalid: (key {key}, value {value})")]
-    BackendConfigurationInvalid { key: String, value: String },
+    #[error("{kind}: ({context:?})")]
+    Backend {
+        kind: Kind,
+        context: HashMap<String, String>,
+        source: anyhow::Error,
+    },
 
-    #[error("object not exist: (path {0})")]
-    ObjectNotExist(String),
-    #[error("permission denied: (path {0})")]
-    PermissionDenied(String),
+    #[error("{kind}: (op: {op}, path: {path}, source: {source})")]
+    Object {
+        kind: Kind,
+        op: &'static str,
+        path: String,
+        source: anyhow::Error,
+    },
 
-    #[error("unexpected: (cause {0})")]
-    Unexpected(String),
+    #[error("unexpected: {0}")]
+    Unexpected(#[from] anyhow::Error),
+}
+
+impl Error {
+    pub fn kind(&self) -> Kind {
+        match self {
+            Error::Backend { kind, .. } => *kind,
+            Error::Object { kind, .. } => *kind,
+            Error::Unexpected(_) => Kind::Unexpected,
+        }
+    }
 }

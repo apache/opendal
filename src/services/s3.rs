@@ -13,12 +13,14 @@
 // limitations under the License.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use aws_sdk_s3 as AwsS3;
 use aws_sdk_s3::error::GetObjectError;
@@ -32,6 +34,7 @@ use futures::TryStreamExt;
 
 use crate::credential::Credential;
 use crate::error::Error;
+use crate::error::Kind;
 use crate::error::Result;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
@@ -109,9 +112,10 @@ impl Builder {
 
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         if self.bucket.is_empty() {
-            return Err(Error::BackendConfigurationInvalid {
-                key: "bucket".to_string(),
-                value: "".to_string(),
+            return Err(Error::Backend {
+                kind: Kind::BackendConfigurationInvalid,
+                context: HashMap::from([("bucket".to_string(), "".to_string())]),
+                source: anyhow!("bucket is empty"),
             });
         }
 
@@ -153,9 +157,10 @@ impl Builder {
                     ));
                 }
                 _ => {
-                    return Err(Error::BackendConfigurationInvalid {
-                        key: "credential".to_string(),
-                        value: "".to_string(),
+                    return Err(Error::Backend {
+                        kind: Kind::BackendConfigurationInvalid,
+                        context: HashMap::from([("credential".to_string(), "*".to_string())]),
+                        source: anyhow!("credential is invalid"),
                     });
                 }
             }
@@ -166,19 +171,20 @@ impl Builder {
         // Load users input first, if user not input, we will fallback to aws
         // default load logic.
         if let Some(endpoint) = &self.endpoint {
-            let mut uri =
-                http::Uri::from_str(endpoint).map_err(|_| Error::BackendConfigurationInvalid {
-                    key: "endpoint".to_string(),
-                    value: endpoint.clone(),
-                })?;
+            let mut uri = http::Uri::from_str(endpoint).map_err(|e| Error::Backend {
+                kind: Kind::BackendConfigurationInvalid,
+                context: HashMap::from([("endpoint".to_string(), endpoint.clone())]),
+                source: anyhow::Error::from(e),
+            })?;
 
             let mut parts = uri.into_parts();
 
             // If uri's authority is empty, it's must be an invalid url.
             if parts.authority.is_none() {
-                return Err(Error::BackendConfigurationInvalid {
-                    key: "endpoint".to_string(),
-                    value: endpoint.clone(),
+                return Err(Error::Backend {
+                    kind: Kind::BackendConfigurationInvalid,
+                    context: HashMap::from([("endpoint".to_string(), endpoint.clone())]),
+                    source: anyhow!("uri is invalid"),
                 });
             }
 
@@ -192,9 +198,10 @@ impl Builder {
                 parts.path_and_query = Some(http::uri::PathAndQuery::from_static("/"));
             }
 
-            uri = http::Uri::from_parts(parts).map_err(|_| Error::BackendConfigurationInvalid {
-                key: "endpoint".to_string(),
-                value: endpoint.clone(),
+            uri = http::Uri::from_parts(parts).map_err(|e| Error::Backend {
+                kind: Kind::BackendConfigurationInvalid,
+                context: HashMap::from([("endpoint".to_string(), endpoint.clone())]),
+                source: anyhow::Error::from(e),
             })?;
 
             cfg = cfg.endpoint_resolver(AwsS3::Endpoint::immutable(uri));
@@ -255,7 +262,7 @@ impl Accessor for Backend {
         let resp = req
             .send()
             .await
-            .map_err(|e| parse_get_object_error(e, &args.path))?;
+            .map_err(|e| parse_get_object_error(e, "read", &args.path))?;
 
         Ok(Box::new(S3Stream(resp.body).into_async_read()))
     }
@@ -274,7 +281,7 @@ impl Accessor for Backend {
             )))
             .send()
             .await
-            .map_err(|e| parse_unexpect_error(e, &args.path))?;
+            .map_err(|e| parse_unexpect_error(e, "write", &args.path))?;
 
         Ok(args.size as usize)
     }
@@ -289,7 +296,7 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .map_err(|e| parse_head_object_error(e, &args.path))?;
+            .map_err(|e| parse_head_object_error(e, "stat", &args.path))?;
 
         let mut m = Metadata::default();
         m.set_content_length(meta.content_length as u64);
@@ -307,7 +314,7 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .map_err(|e| parse_unexpect_error(e, &args.path));
+            .map_err(|e| parse_unexpect_error(e, "delete", &args.path));
 
         Ok(())
     }
@@ -338,29 +345,58 @@ impl futures::Stream for S3Stream {
     }
 }
 
-fn parse_get_object_error(err: SdkError<GetObjectError>, path: &str) -> Error {
+fn parse_get_object_error(err: SdkError<GetObjectError>, op: &'static str, path: &str) -> Error {
     if let SdkError::ServiceError { err, .. } = err {
         match err.kind {
-            GetObjectErrorKind::NoSuchKey(_) => Error::ObjectNotExist(path.to_string()),
-            _ => Error::Unexpected(path.to_string()),
+            GetObjectErrorKind::NoSuchKey(_) => Error::Object {
+                kind: Kind::ObjectNotExist,
+                op,
+                path: path.to_string(),
+                source: anyhow::Error::from(err),
+            },
+            _ => Error::Object {
+                kind: Kind::Unexpected,
+                op,
+                path: path.to_string(),
+                source: anyhow::Error::from(err),
+            },
         }
     } else {
-        Error::Unexpected(path.to_string())
+        Error::Unexpected(anyhow::Error::from(err))
     }
 }
 
-fn parse_head_object_error(err: SdkError<HeadObjectError>, path: &str) -> Error {
+fn parse_head_object_error(err: SdkError<HeadObjectError>, op: &'static str, path: &str) -> Error {
     if let SdkError::ServiceError { err, .. } = err {
         match err.kind {
-            HeadObjectErrorKind::NotFound(_) => Error::ObjectNotExist(path.to_string()),
-            _ => Error::Unexpected(path.to_string()),
+            HeadObjectErrorKind::NotFound(_) => Error::Object {
+                kind: Kind::ObjectNotExist,
+                op,
+                path: path.to_string(),
+                source: anyhow::Error::from(err),
+            },
+            _ => Error::Object {
+                kind: Kind::Unexpected,
+                op,
+                path: path.to_string(),
+                source: anyhow::Error::from(err),
+            },
         }
     } else {
-        Error::Unexpected(path.to_string())
+        Error::Unexpected(anyhow::Error::from(err))
     }
 }
 
 // parse_unexpect_error is used to parse SdkError into unexpected.
-fn parse_unexpect_error<E>(_: SdkError<E>, path: &str) -> Error {
-    Error::Unexpected(path.to_string())
+fn parse_unexpect_error<E: 'static + Send + Sync + std::error::Error>(
+    err: SdkError<E>,
+    op: &'static str,
+    path: &str,
+) -> Error {
+    Error::Object {
+        kind: Kind::Unexpected,
+        op,
+        path: path.to_string(),
+        source: anyhow::Error::from(err),
+    }
 }

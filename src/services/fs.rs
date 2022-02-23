@@ -150,8 +150,8 @@ impl Accessor for Backend {
 
         // `std::fs::File`'s errors detected on closing are ignored by
         // the implementation of Drop.
-        // So we need to call `sync_all` to make sure all internal metadata
-        // have been flushed to fs successfully.
+        // So we need to call `flush` to make sure all data have been flushed
+        // to fs successfully.
         f.flush().await.map_err(|e| parse_io_error(&e, &path))?;
 
         Ok(s as usize)

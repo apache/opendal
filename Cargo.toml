@@ -15,9 +15,9 @@ harness = false
 
 [dependencies]
 async-trait = "0.1.52"
-bytes = "1.1.0"
+bytes = "1"
 futures = { version = "0.3.21", features = ["alloc"] }
-thiserror = "1.0.30"
+thiserror = "1"
 aws-types = { version = "0.6.0", features = ["hardcoded-credentials"] }
 aws-sdk-s3 = "0.6.0"
 aws-endpoint = "0.6.0"
@@ -27,6 +27,7 @@ hyper = { version = "0.14.16", features = ["stream"] }
 pin-project = "1.0.10"
 aws-config = "0.6.0"
 blocking = "1.1.0"
+anyhow = "1"
 
 [dev-dependencies]
 uuid = { version = "0.8.2", features = ["serde", "v4"] }

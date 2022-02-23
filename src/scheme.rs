@@ -13,7 +13,10 @@
 // limitations under the License.
 use std::str::FromStr;
 
+use anyhow::anyhow;
+
 use super::error::Error;
+use crate::error::Kind;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scheme {
@@ -37,7 +40,11 @@ impl FromStr for Scheme {
             "local" | "disk" => Ok(Scheme::Fs),
             "azurestorageblob" => Ok(Scheme::Azblob),
 
-            _ => Err(Error::BackendNotSupported(s)),
+            v => Err(Error::Backend {
+                kind: Kind::BackendNotSupported,
+                context: Default::default(),
+                source: anyhow!("{} is not supported", v),
+            }),
         }
     }
 }

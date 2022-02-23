@@ -14,10 +14,10 @@
 
 use std::fs;
 use std::io::SeekFrom;
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use blocking::unblock;
 use blocking::Unblock;
@@ -27,6 +27,7 @@ use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
 
 use crate::error::Error;
+use crate::error::Kind;
 use crate::error::Result;
 use crate::object::Metadata;
 use crate::ops::OpDelete;
@@ -59,7 +60,7 @@ impl Builder {
                 let dir_root = root.clone();
                 unblock(|| fs::create_dir_all(dir_root))
                     .await
-                    .map_err(|e| parse_io_error(&e, PathBuf::from(&root).as_path()))?;
+                    .map_err(|e| parse_io_error(e, "build", &root))?;
             }
         }
 
@@ -94,14 +95,14 @@ impl Accessor for Backend {
         let open_path = path.clone();
         let f = unblock(|| fs::OpenOptions::new().read(true).open(open_path))
             .await
-            .map_err(|e| parse_io_error(&e, &path))?;
+            .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
 
         let mut f = Unblock::new(f);
 
         if let Some(offset) = args.offset {
             f.seek(SeekFrom::Start(offset))
                 .await
-                .map_err(|e| parse_io_error(&e, &path))?;
+                .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
         };
 
         let r: BoxedAsyncRead = match args.size {
@@ -123,13 +124,13 @@ impl Accessor for Backend {
         //   - Is it better to check the parent dir exists before call mkdir?
         let parent = path
             .parent()
-            .ok_or_else(|| Error::Unexpected(format!("malformed path: {:?}", path.to_str())))?
+            .ok_or_else(|| anyhow!("malformed path: {:?}", path.to_str()))?
             .to_path_buf();
 
         let capture_parent = parent.clone();
         unblock(|| fs::create_dir_all(capture_parent))
             .await
-            .map_err(|e| parse_io_error(&e, &parent))?;
+            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
 
         let capture_path = path.clone();
         let f = unblock(|| {
@@ -139,20 +140,22 @@ impl Accessor for Backend {
                 .open(capture_path)
         })
         .await
-        .map_err(|e| parse_io_error(&e, &path))?;
+        .map_err(|e| parse_io_error(e, "write", &path.to_string_lossy()))?;
 
         let mut f = Unblock::new(f);
 
         // TODO: we should respect the input size.
         let s = io::copy(&mut r, &mut f)
             .await
-            .map_err(|e| parse_io_error(&e, &path))?;
+            .map_err(|e| parse_io_error(e, "write", &path.to_string_lossy()))?;
 
         // `std::fs::File`'s errors detected on closing are ignored by
         // the implementation of Drop.
         // So we need to call `flush` to make sure all data have been flushed
         // to fs successfully.
-        f.flush().await.map_err(|e| parse_io_error(&e, &path))?;
+        f.flush()
+            .await
+            .map_err(|e| parse_io_error(e, "write", &path.to_string_lossy()))?;
 
         Ok(s as usize)
     }
@@ -163,7 +166,7 @@ impl Accessor for Backend {
         let capture_path = path.clone();
         let meta = unblock(|| fs::metadata(capture_path))
             .await
-            .map_err(|e| parse_io_error(&e, &path))?;
+            .map_err(|e| parse_io_error(e, "stat", &path.to_string_lossy()))?;
 
         let mut m = Metadata::default();
         m.set_content_length(meta.len() as u64);
@@ -195,7 +198,7 @@ impl Accessor for Backend {
             unblock(|| fs::remove_file(capture_path)).await
         };
 
-        f.map_err(|e| parse_io_error(&e, &path))
+        f.map_err(|e| parse_io_error(e, "delete", &path.to_string_lossy()))
     }
 }
 
@@ -204,12 +207,27 @@ impl Accessor for Backend {
 /// ## Notes
 ///
 /// Skip utf-8 check to allow invalid path input.
-fn parse_io_error(err: &std::io::Error, path: &Path) -> Error {
+fn parse_io_error(err: std::io::Error, op: &'static str, path: &str) -> Error {
     use std::io::ErrorKind;
 
     match err.kind() {
-        ErrorKind::NotFound => Error::ObjectNotExist(path.to_string_lossy().into_owned()),
-        ErrorKind::PermissionDenied => Error::PermissionDenied(path.to_string_lossy().into_owned()),
-        _ => Error::Unexpected(err.to_string()),
+        ErrorKind::NotFound => Error::Object {
+            kind: Kind::ObjectNotExist,
+            op,
+            path: path.to_string(),
+            source: anyhow::Error::from(err),
+        },
+        ErrorKind::PermissionDenied => Error::Object {
+            kind: Kind::ObjectPermissionDenied,
+            op,
+            path: path.to_string(),
+            source: anyhow::Error::from(err),
+        },
+        _ => Error::Object {
+            kind: Kind::Unexpected,
+            op,
+            path: path.to_string(),
+            source: anyhow::Error::from(err),
+        },
     }
 }

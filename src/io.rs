@@ -21,13 +21,16 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
+use futures::ready;
+use futures::AsyncRead;
 use futures::AsyncSeek;
-use futures::{ready, AsyncRead};
 
 use crate::error::Result;
 use crate::ops::OpRead;
-use crate::ops::{OpStat, OpWrite};
-use crate::{Accessor, Metadata};
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::Metadata;
 
 /// BoxedAsyncRead is a boxed AsyncRead.
 pub type BoxedAsyncRead = Box<dyn AsyncRead + Unpin + Send>;
@@ -102,7 +105,7 @@ impl AsyncRead for Reader {
                     self.state = ReadState::Reading(r);
                     self.poll_read(cx, buf)
                 }
-                Err(e) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
+                Err(e) => Poll::Ready(Err(io::Error::from(e))),
             },
             ReadState::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
                 Ok(n) => {
@@ -126,7 +129,7 @@ impl AsyncSeek for Reader {
             println!("poll seek");
             match ready!(Pin::new(future).poll(cx)) {
                 Ok(meta) => self.total_size = Some(meta.content_length()),
-                Err(e) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
+                Err(e) => return Poll::Ready(Err(io::Error::from(e))),
             }
         }
 

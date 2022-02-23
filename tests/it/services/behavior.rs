@@ -25,6 +25,7 @@ use std::io::SeekFrom;
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
+use opendal::error::Kind;
 use opendal::Operator;
 use rand::prelude::*;
 use sha2::Digest;
@@ -103,11 +104,9 @@ impl BehaviorTest {
         let o = self.op.object(&path);
         let result = o.metadata().await;
         assert!(result.is_err(), "stat file again");
-        assert!(
-            matches!(
-                result.err().unwrap(),
-                opendal::error::Error::ObjectNotExist(_)
-            ),
+        assert_eq!(
+            result.unwrap_err().kind(),
+            Kind::ObjectNotExist,
             "stat file again"
         );
         Ok(())

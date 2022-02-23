@@ -1,7 +1,7 @@
 - Proposal Name: `error_handle`
 - Start Date: 2022-02-23
 - RFC PR: [datafuselabs/opendal#44](https://github.com/datafuselabs/opendal/pull/44)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- Tracking Issue: [datafuselabs/opendal#43](https://github.com/datafuselabs/opendal/pull/43)
 
 # Summary
 

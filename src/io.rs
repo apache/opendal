@@ -105,7 +105,7 @@ impl AsyncRead for Reader {
                     self.state = ReadState::Reading(r);
                     self.poll_read(cx, buf)
                 }
-                Err(e) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
+                Err(e) => Poll::Ready(Err(io::Error::from(e))),
             },
             ReadState::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
                 Ok(n) => {
@@ -129,7 +129,7 @@ impl AsyncSeek for Reader {
             println!("poll seek");
             match ready!(Pin::new(future).poll(cx)) {
                 Ok(meta) => self.total_size = Some(meta.content_length()),
-                Err(e) => return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
+                Err(e) => return Poll::Ready(Err(io::Error::from(e))),
             }
         }
 

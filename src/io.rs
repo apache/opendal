@@ -126,7 +126,6 @@ impl AsyncSeek for Reader {
         pos: SeekFrom,
     ) -> Poll<std::io::Result<u64>> {
         if let ReadState::Seeking(future) = &mut self.state {
-            println!("poll seek");
             match ready!(Pin::new(future).poll(cx)) {
                 Ok(meta) => self.total_size = Some(meta.content_length()),
                 Err(e) => return Poll::Ready(Err(io::Error::from(e))),
@@ -144,7 +143,6 @@ impl AsyncSeek for Reader {
 
                     let future = async move { acc.stat(&op).await };
 
-                    println!("into seek state");
                     self.state = ReadState::Seeking(Box::pin(future));
                     return self.poll_seek(cx, pos);
                 }

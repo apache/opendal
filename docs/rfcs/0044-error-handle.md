@@ -130,7 +130,7 @@ In `Error`, we will have different struct to carry different contexts:
 
 ```rust
 pub enum Error {
-    #[error("{kind}: ({context:?})")]
+    #[error("{kind}: (context: {context:?}, source: {source})")]
     Backend {
         kind: Kind,
         context: HashMap<String, String>,
@@ -145,7 +145,7 @@ pub enum Error {
         source: anyhow::Error,
     },
 
-    #[error("unexpected: {0}")]
+    #[error("unexpected: (source: {0})")]
     Unexpected(#[from] anyhow::Error),
 }
 ```

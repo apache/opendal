@@ -223,6 +223,11 @@ fn parse_io_error(err: std::io::Error, op: &'static str, path: &str) -> Error {
             path: path.to_string(),
             source: anyhow::Error::from(err),
         },
-        _ => Error::Unexpected(anyhow::Error::from(err)),
+        _ => Error::Object {
+            kind: Kind::Unexpected,
+            op,
+            path: path.to_string(),
+            source: anyhow::Error::from(err),
+        },
     }
 }

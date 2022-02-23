@@ -362,7 +362,12 @@ fn parse_get_object_error(err: SdkError<GetObjectError>, op: &'static str, path:
             },
         }
     } else {
-        Error::Unexpected(anyhow::Error::from(err))
+        Error::Object {
+            kind: Kind::Unexpected,
+            op,
+            path: path.to_string(),
+            source: anyhow::Error::from(err),
+        }
     }
 }
 
@@ -383,7 +388,12 @@ fn parse_head_object_error(err: SdkError<HeadObjectError>, op: &'static str, pat
             },
         }
     } else {
-        Error::Unexpected(anyhow::Error::from(err))
+        Error::Object {
+            kind: Kind::Unexpected,
+            op,
+            path: path.to_string(),
+            source: anyhow::Error::from(err),
+        }
     }
 }
 

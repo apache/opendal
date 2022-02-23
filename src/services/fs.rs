@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fs;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use async_compat::CompatExt;
 use async_trait::async_trait;
-use tokio::fs;
-use tokio::io;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncSeekExt;
+use blocking::unblock;
+use blocking::Unblock;
+use futures::io;
+use futures::AsyncReadExt;
+use futures::AsyncSeekExt;
+use futures::AsyncWriteExt;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -51,9 +53,11 @@ impl Builder {
         let root = self.root.clone().unwrap_or_else(|| "/".to_string());
 
         // If root dir is not exist, we must create it.
-        if let Err(e) = fs::metadata(&root).await {
+        let metadata_root = root.clone();
+        if let Err(e) = unblock(|| fs::metadata(metadata_root)).await {
             if e.kind() == std::io::ErrorKind::NotFound {
-                fs::create_dir_all(&root)
+                let dir_root = root.clone();
+                unblock(|| fs::create_dir_all(dir_root))
                     .await
                     .map_err(|e| parse_io_error(&e, PathBuf::from(&root).as_path()))?;
             }
@@ -63,6 +67,14 @@ impl Builder {
     }
 }
 
+/// Backend is used to serve `Accessor` support for posix alike fs.
+///
+/// # Note
+///
+/// We will use separate dedicated thread pool (powered by `unblocking`)
+/// for better async performance under tokio. All `std::File` will be wrapped
+/// by `Unblock` to gain async support. IO will happen at the separate dedicated
+/// thread pool, so we will not block the tokio runtime.
 #[derive(Debug, Clone)]
 pub struct Backend {
     root: String,
@@ -79,11 +91,12 @@ impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
-        let mut f = fs::OpenOptions::new()
-            .read(true)
-            .open(&path)
+        let open_path = path.clone();
+        let f = unblock(|| fs::OpenOptions::new().read(true).open(open_path))
             .await
             .map_err(|e| parse_io_error(&e, &path))?;
+
+        let mut f = Unblock::new(f);
 
         if let Some(offset) = args.offset {
             f.seek(SeekFrom::Start(offset))
@@ -92,8 +105,8 @@ impl Accessor for Backend {
         };
 
         let r: BoxedAsyncRead = match args.size {
-            Some(size) => Box::new(f.take(size).compat()),
-            None => Box::new(f.compat()),
+            Some(size) => Box::new(f.take(size)),
+            None => Box::new(f),
         };
 
         Ok(r)
@@ -110,28 +123,36 @@ impl Accessor for Backend {
         //   - Is it better to check the parent dir exists before call mkdir?
         let parent = path
             .parent()
-            .ok_or_else(|| Error::Unexpected(format!("malformed path: {:?}", path.to_str())))?;
-        fs::create_dir_all(parent)
-            .await
-            .map_err(|e| parse_io_error(&e, parent))?;
+            .ok_or_else(|| Error::Unexpected(format!("malformed path: {:?}", path.to_str())))?
+            .to_path_buf();
 
-        let mut f = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&path)
+        let capture_parent = parent.clone();
+        unblock(|| fs::create_dir_all(capture_parent))
             .await
-            .map_err(|e| parse_io_error(&e, &path))?;
+            .map_err(|e| parse_io_error(&e, &parent))?;
+
+        let capture_path = path.clone();
+        let f = unblock(|| {
+            fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(capture_path)
+        })
+        .await
+        .map_err(|e| parse_io_error(&e, &path))?;
+
+        let mut f = Unblock::new(f);
 
         // TODO: we should respect the input size.
-        let s = io::copy(&mut r.compat_mut(), &mut f)
+        let s = io::copy(&mut r, &mut f)
             .await
             .map_err(|e| parse_io_error(&e, &path))?;
 
         // `std::fs::File`'s errors detected on closing are ignored by
         // the implementation of Drop.
-        // So we need to call `sync_all` to make sure all internal metadata
-        // have been flushed to fs successfully.
-        f.sync_all().await.map_err(|e| parse_io_error(&e, &path))?;
+        // So we need to call `flush` to make sure all data have been flushed
+        // to fs successfully.
+        f.flush().await.map_err(|e| parse_io_error(&e, &path))?;
 
         Ok(s as usize)
     }
@@ -139,7 +160,8 @@ impl Accessor for Backend {
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
-        let meta = fs::metadata(&path)
+        let capture_path = path.clone();
+        let meta = unblock(|| fs::metadata(capture_path))
             .await
             .map_err(|e| parse_io_error(&e, &path))?;
 
@@ -152,8 +174,9 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
+        let capture_path = path.clone();
         // PathBuf.is_dir() is not free, call metadata directly instead.
-        let meta = fs::metadata(&path).await;
+        let meta = unblock(|| fs::metadata(capture_path)).await;
 
         if let Err(err) = &meta {
             if err.kind() == std::io::ErrorKind::NotFound {
@@ -165,9 +188,11 @@ impl Accessor for Backend {
         let meta = meta.ok().unwrap();
 
         let f = if meta.is_dir() {
-            fs::remove_dir(&path).await
+            let capture_path = path.clone();
+            unblock(|| fs::remove_dir(capture_path)).await
         } else {
-            fs::remove_file(&path).await
+            let capture_path = path.clone();
+            unblock(|| fs::remove_file(capture_path)).await
         };
 
         f.map_err(|e| parse_io_error(&e, &path))

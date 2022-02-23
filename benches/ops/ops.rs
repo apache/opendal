@@ -49,7 +49,7 @@ pub fn bench(c: &mut Criterion) {
         let mut group = c.benchmark_group(case.0);
         group.throughput(criterion::Throughput::Bytes(size as u64));
         group.bench_with_input(
-            BenchmarkId::new("bench_read", &path),
+            BenchmarkId::new("read", &path),
             &(op.clone(), &path),
             |b, input| {
                 b.to_async(&runtime)
@@ -57,11 +57,19 @@ pub fn bench(c: &mut Criterion) {
             },
         );
         group.bench_with_input(
-            BenchmarkId::new("bench_buf_read", &path),
+            BenchmarkId::new("buf_read", &path),
             &(op.clone(), &path),
             |b, input| {
                 b.to_async(&runtime)
                     .iter(|| bench_buf_read(input.0.clone(), input.1))
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("write", &path),
+            &(op.clone(), &path, content.clone()),
+            |b, input| {
+                b.to_async(&runtime)
+                    .iter(|| bench_write(input.0.clone(), input.1, input.2.clone()))
             },
         );
         group.finish();
@@ -85,4 +93,9 @@ pub async fn bench_buf_read(op: Operator, path: &str) {
     let mut r = BufReader::with_capacity(4 * 1024 * 1024, r);
 
     io::copy(&mut r, &mut io::sink()).await.unwrap();
+}
+
+pub async fn bench_write(op: Operator, path: &str, content: Vec<u8>) {
+    let w = op.object(path).writer();
+    w.write_bytes(content).await.unwrap();
 }

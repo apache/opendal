@@ -14,11 +14,9 @@ name = "ops"
 harness = false
 
 [dependencies]
-async-compat = "0.2.1"
 async-trait = "0.1.52"
 bytes = "1.1.0"
 futures = { version = "0.3.21", features = ["alloc"] }
-tokio = { version = "1.16.1", features = ["full"] }
 thiserror = "1.0.30"
 aws-types = { version = "0.6.0", features = ["hardcoded-credentials"] }
 aws-sdk-s3 = "0.6.0"
@@ -28,6 +26,7 @@ aws-smithy-http = "0.36.0"
 hyper = { version = "0.14.16", features = ["stream"] }
 pin-project = "1.0.10"
 aws-config = "0.6.0"
+blocking = "1.1.0"
 
 [dev-dependencies]
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
@@ -35,3 +34,4 @@ anyhow = "1.0"
 rand = "0.8.5"
 sha2 = "0.10.1"
 criterion = { version = "0.3", features = ["async", "async_tokio"] }
+tokio = { version = "1.16.1", features = ["full"] }

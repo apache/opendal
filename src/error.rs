@@ -51,7 +51,7 @@ pub enum Kind {
 /// The error will be formatted as `description: (keyA: valueA, keyB: valueB, ...)`.
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("{kind}: ({context:?})")]
+    #[error("{kind}: (context: {context:?}, source: {source})")]
     Backend {
         kind: Kind,
         context: HashMap<String, String>,
@@ -66,7 +66,7 @@ pub enum Error {
         source: anyhow::Error,
     },
 
-    #[error("unexpected: {0}")]
+    #[error("unexpected: (source: {0})")]
     Unexpected(#[from] anyhow::Error),
 }
 

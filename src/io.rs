@@ -21,13 +21,16 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
+use futures::ready;
+use futures::AsyncRead;
 use futures::AsyncSeek;
-use futures::{ready, AsyncRead};
 
 use crate::error::Result;
 use crate::ops::OpRead;
-use crate::ops::{OpStat, OpWrite};
-use crate::{Accessor, Metadata};
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::Metadata;
 
 /// BoxedAsyncRead is a boxed AsyncRead.
 pub type BoxedAsyncRead = Box<dyn AsyncRead + Unpin + Send>;

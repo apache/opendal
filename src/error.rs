@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::io;
 
 use thiserror::Error;
 
@@ -75,6 +76,23 @@ impl Error {
             Error::Backend { kind, .. } => *kind,
             Error::Object { kind, .. } => *kind,
             Error::Unexpected(_) => Kind::Unexpected,
+        }
+    }
+}
+
+// Make it easier to convert to `std::io::Error`
+impl From<Error> for io::Error {
+    fn from(err: Error) -> Self {
+        match err {
+            Error::Backend { .. } => io::Error::new(io::ErrorKind::Other, err),
+            Error::Object { kind, .. } => match kind {
+                Kind::ObjectNotExist => io::Error::new(io::ErrorKind::NotFound, err),
+                Kind::ObjectPermissionDenied => {
+                    io::Error::new(io::ErrorKind::PermissionDenied, err)
+                }
+                _ => io::Error::new(io::ErrorKind::Other, err),
+            },
+            Error::Unexpected(_) => io::Error::new(io::ErrorKind::Other, err),
         }
     }
 }

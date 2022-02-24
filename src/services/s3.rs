@@ -178,7 +178,7 @@ impl Builder {
                     .ok_or(Error::Backend {
                         kind: Kind::BackendConfigurationInvalid,
                         context: context.clone(),
-                        source: anyhow!("region is empty"),
+                        source: anyhow!("can't detect region automatically, region is empty"),
                     })?
                     .to_str()
                     .map_err(|e| Error::Backend {
@@ -190,7 +190,10 @@ impl Builder {
                 let template = ENDPOINT_TEMPLATES.get(endpoint).ok_or(Error::Backend {
                     kind: Kind::BackendConfigurationInvalid,
                     context: context.clone(),
-                    source: anyhow!("no valid endpoint template for {}", &endpoint),
+                    source: anyhow!(
+                        "can't detect region automatically, no valid endpoint template for {}",
+                        &endpoint
+                    ),
                 })?;
 
                 let endpoint = template.replace("{region}", &region);
@@ -202,7 +205,10 @@ impl Builder {
                 return Err(Error::Backend {
                     kind: Kind::BackendConfigurationInvalid,
                     context: context.clone(),
-                    source: anyhow!("can't detect region automatically, status code: {}", code),
+                    source: anyhow!(
+                        "can't detect region automatically, unexpected response: status code {}",
+                        code
+                    ),
                 });
             }
         };

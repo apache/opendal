@@ -372,7 +372,7 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .map_err(|e| parse_unexpect_error(e, "delete", &args.path));
+            .map_err(|e| parse_unexpect_error(e, "delete", &args.path))?;
 
         Ok(())
     }

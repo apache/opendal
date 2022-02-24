@@ -98,7 +98,7 @@ impl BehaviorTest {
 
         // Step 5: Delete this file
         let result = self.op.object(&path).delete().await;
-        assert!(result.is_ok(), "delete file");
+        assert!(result.is_ok(), "delete file: {}", result.unwrap_err());
 
         // Step 6: Stat this file again to check if it's deleted
         let o = self.op.object(&path);

@@ -16,12 +16,12 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test services::s3
+        run: cargo test s3
         env:
           RUST_BACKTRACE: full
           OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
+          OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
           OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
-          OPENDAL_S3_REGION: ${{ secrets.OPENDAL_S3_REGION }}
           OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
           OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
           OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
@@ -53,12 +53,11 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test services::s3
+        run: cargo test s3
         env:
           RUST_BACKTRACE: full
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test
-          OPENDAL_S3_REGION: local
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin

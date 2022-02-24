@@ -22,6 +22,7 @@ use opendal::Accessor;
 /// In order to test s3 service, please set the following environment variables:
 ///
 /// - `OPENDAL_S3_TEST=on`: set to `on` to enable the test.
+/// - `OPENDAL_S3_ROOT=/path/to/dir`: set the root dir.
 /// - `OPENDAL_S3_BUCKET=<bucket>`: set the bucket name.
 /// - `OPENDAL_S3_ENDPOINT=<endpoint>`: set the endpoint of the s3 service.
 /// - `OPENDAL_S3_ACCESS_KEY_ID=<access_key_id>`: set the access key id.

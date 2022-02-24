@@ -134,12 +134,12 @@ server: Tengine/Aserver
 QingStor Object Storage will return `307` with the `Location` header:
 
 ```shell
-:) curl -I https://qingstor.com/community
+:) curl -I https://s3.qingstor.com/community
 HTTP/1.1 301 Moved Permanently
 Server: nginx/1.13.6
 Date: Thu, 24 Feb 2022 05:33:55 GMT
 Connection: keep-alive
-Location: https://pek3a.qingstor.com/community
+Location: https://pek3a.s3.qingstor.com/community
 X-Qs-Request-Id: 05b83b615c801a3d
 ```
 

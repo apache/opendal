@@ -45,6 +45,10 @@ async fn main() -> Result<()> {
 }
 ```
 
+## Contributing
+
+Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
+
 ## License
 
 OpenDAL is licensed under [Apache 2.0](./LICENSE).

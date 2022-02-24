@@ -23,6 +23,8 @@ use super::fs;
 use super::s3;
 
 pub fn bench(c: &mut Criterion) {
+    dotenv::from_filename(".env").ok();
+
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut rng = thread_rng();
 

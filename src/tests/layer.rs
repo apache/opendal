@@ -15,11 +15,13 @@
 use std::sync::Arc;
 
 use futures::lock::Mutex;
-use opendal::ops::OpDelete;
-use opendal::services::fs;
-use opendal::Accessor;
-use opendal::Layer;
-use opendal::Operator;
+
+use crate::error::Result;
+use crate::ops::OpDelete;
+use crate::services::fs;
+use crate::Accessor;
+use crate::Layer;
+use crate::Operator;
 
 struct Test {
     #[allow(dead_code)]
@@ -38,7 +40,7 @@ impl Layer for &Test {
 
 #[async_trait::async_trait]
 impl Accessor for Test {
-    async fn delete(&self, _args: &OpDelete) -> opendal::error::Result<()> {
+    async fn delete(&self, _args: &OpDelete) -> Result<()> {
         let mut x = self.deleted.lock().await;
         *x = true;
 

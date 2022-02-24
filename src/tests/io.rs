@@ -14,16 +14,11 @@
 use std::io::SeekFrom;
 use std::str::from_utf8;
 
-use futures::io::copy;
-use futures::io::Cursor;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use futures::StreamExt;
 
-use opendal::readers::CallbackReader;
-use opendal::readers::ReaderStream;
-use opendal::services::fs;
-use opendal::Operator;
+use crate::services::fs;
+use crate::Operator;
 
 #[tokio::test]
 async fn test_reader() {

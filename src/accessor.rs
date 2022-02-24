@@ -22,17 +22,17 @@ use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::BoxedAsyncRead;
+use crate::BoxedAsyncReader;
 
 #[async_trait]
 pub trait Accessor: Send + Sync {
     /// Read data from the underlying storage into input writer.
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let _ = args;
         unimplemented!()
     }
     /// Write data from input reader to the underlying storage.
-    async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let (_, _) = (r, args);
         unimplemented!()
     }
@@ -57,10 +57,10 @@ pub trait Accessor: Send + Sync {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         self.as_ref().read(args).await
     }
-    async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         self.as_ref().write(r, args).await
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {

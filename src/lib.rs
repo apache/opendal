@@ -15,7 +15,7 @@ mod accessor;
 pub use accessor::Accessor;
 
 mod io;
-pub use io::BoxedAsyncRead;
+pub use io::BoxedAsyncReader;
 pub use io::Reader;
 pub use io::Writer;
 

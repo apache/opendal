@@ -32,7 +32,7 @@ use aws_smithy_http::byte_stream::ByteStream;
 use aws_smithy_http::result::SdkError;
 use futures::TryStreamExt;
 use http::{HeaderValue, StatusCode};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use crate::credential::Credential;
 use crate::error::Error;
@@ -48,17 +48,15 @@ use crate::readers::ReaderStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
 
-lazy_static! {
-    static ref ENDPOINT_TEMPLATES: HashMap<&'static str, &'static str> = {
-        let mut m = HashMap::new();
-        // AWS S3 Service.
-        m.insert(
-            "https://s3.amazonaws.com",
-            "https://s3.{region}.amazonaws.com",
-        );
-        m
-    };
-}
+static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+    let mut m = HashMap::new();
+    // AWS S3 Service.
+    m.insert(
+        "https://s3.amazonaws.com",
+        "https://s3.{region}.amazonaws.com",
+    );
+    m
+});
 
 /// # TODO
 ///

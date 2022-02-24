@@ -35,11 +35,25 @@ cargo test
 
 Behavior Tests are used to make sure every service works correctly.
 
+```shell
+# Setup env
+cp .env.example .env
+# Run tests
+cargo test
+```
+
 Please visit [Behavior Test README](./tests/behavior/README.md) for more details.
 
 ## Benchmark
 
 We use Ops Benchmark Tests to measure every operation's performance on the target platform.
+
+```shell
+# Setup env
+cp .env.example .env
+# Run benches
+cargo bench
+```
 
 Please visit [Ops Benchmark README](./benches/ops/README.md) for more details.
 

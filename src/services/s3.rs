@@ -44,7 +44,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::readers::ReaderStream;
 use crate::Accessor;
-use crate::BoxedAsyncRead;
+use crate::BoxedAsyncReader;
 
 /// # TODO
 ///
@@ -246,7 +246,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let p = self.get_abs_path(&args.path);
 
         let mut req = self
@@ -267,7 +267,7 @@ impl Accessor for Backend {
         Ok(Box::new(S3Stream(resp.body).into_async_read()))
     }
 
-    async fn write(&self, r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
 
         let _ = self

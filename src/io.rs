@@ -32,8 +32,8 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::Metadata;
 
-/// BoxedAsyncRead is a boxed AsyncRead.
-pub type BoxedAsyncRead = Box<dyn AsyncRead + Unpin + Send>;
+/// BoxedAsyncReader is a boxed AsyncRead.
+pub type BoxedAsyncReader = Box<dyn AsyncRead + Unpin + Send>;
 
 /// Reader is used for reading data from underlying backend.
 ///
@@ -52,9 +52,9 @@ pub struct Reader {
 
 enum ReadState {
     Idle,
-    Sending(BoxFuture<'static, Result<BoxedAsyncRead>>),
+    Sending(BoxFuture<'static, Result<BoxedAsyncReader>>),
     Seeking(BoxFuture<'static, Result<Metadata>>),
-    Reading(BoxedAsyncRead),
+    Reading(BoxedAsyncReader),
 }
 
 impl Reader {
@@ -185,7 +185,7 @@ impl Writer {
 
         self.acc.write(r, op).await
     }
-    pub async fn write_reader(self, r: BoxedAsyncRead, size: u64) -> Result<usize> {
+    pub async fn write_reader(self, r: BoxedAsyncReader, size: u64) -> Result<usize> {
         let op = &OpWrite {
             path: self.path.clone(),
             size,

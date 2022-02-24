@@ -35,7 +35,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::BoxedAsyncRead;
+use crate::BoxedAsyncReader;
 
 #[derive(Default)]
 pub struct Builder {
@@ -89,7 +89,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncRead> {
+    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         let open_path = path.clone();
@@ -105,7 +105,7 @@ impl Accessor for Backend {
                 .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
         };
 
-        let r: BoxedAsyncRead = match args.size {
+        let r: BoxedAsyncReader = match args.size {
             Some(size) => Box::new(f.take(size)),
             None => Box::new(f),
         };
@@ -113,7 +113,7 @@ impl Accessor for Backend {
         Ok(r)
     }
 
-    async fn write(&self, mut r: BoxedAsyncRead, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let path = PathBuf::from(&self.root).join(&args.path);
 
         // Create dir before write path.

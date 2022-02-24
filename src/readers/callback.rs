@@ -16,12 +16,12 @@ use std::task::Poll;
 
 use pin_project::pin_project;
 
-use crate::BoxedAsyncRead;
+use crate::BoxedAsyncReader;
 
 #[pin_project]
 pub struct CallbackReader<F: FnMut(usize)> {
     #[pin]
-    inner: BoxedAsyncRead,
+    inner: BoxedAsyncReader,
     f: F,
 }
 
@@ -33,7 +33,7 @@ where
     ///
     /// Mark as dead_code for now, we will use it sooner while implement streams support.
     #[allow(dead_code)]
-    pub fn new(r: BoxedAsyncRead, f: F) -> Self {
+    pub fn new(r: BoxedAsyncReader, f: F) -> Self {
         CallbackReader { inner: r, f }
     }
 }

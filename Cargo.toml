@@ -9,6 +9,11 @@ repository = "https://github.com/datafuselabs/opendal"
 keywords = ["storage", "data", "s3"]
 categories = ["filesystem"]
 
+[workspace]
+members = [
+    "opendal_test",
+]
+
 [lib]
 bench = false
 
@@ -35,10 +40,11 @@ reqwest = "0.11"
 lazy_static = "1"
 
 [dev-dependencies]
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
+uuid = { version = "0.8", features = ["serde", "v4"] }
 anyhow = "1.0"
 rand = "0.8.5"
 sha2 = "0.10.1"
 criterion = { version = "0.3", features = ["async", "async_tokio", "html_reports"] }
 tokio = { version = "1.16.1", features = ["full"] }
 dotenv = "0.15.0"
+opendal_test = { path = "./opendal_test" }

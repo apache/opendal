@@ -11,22 +11,4 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::env;
-
-use anyhow::Result;
-use opendal::services::fs;
-use opendal::Operator;
-
-pub async fn init() -> Result<Operator> {
-    if env::var("OPENDAL_FS_TEST").is_err() || env::var("OPENDAL_FS_TEST").unwrap() != "on" {
-        return Err(anyhow::anyhow!("OPENDAL_FS_TEST is not set, skipping."));
-    }
-
-    Ok(Operator::new(
-        fs::Backend::build()
-            .root(&env::var("OPENDAL_FS_ROOT")?)
-            .finish()
-            .await
-            .expect("init fs"),
-    ))
-}
+pub mod services;

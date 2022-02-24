@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.1.0] - 2022-02-24
+
+### Added
+
+- docs: Add README for behavior test and ops benchmarks (#53)
+- RFC-0057: Auto Region (#57)
+- backend/s3: Implement RFC-57 Auto Region (#59)
+
+### Changed
+
+- io: Rename BoxedAsyncRead to BoxedAsyncReader (#55)
+- *: Refactor tests (#60)
+
 ## [v0.0.5] - 2022-02-23
 
 ### Fixed
@@ -54,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.1.0]: https://github.com/datafuselabs/opendal/compare/v0.0.5...v0.1.0
 [v0.0.5]: https://github.com/datafuselabs/opendal/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/datafuselabs/opendal/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/datafuselabs/opendal/compare/v0.0.2...v0.0.3

@@ -16,7 +16,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test services::s3
+        run: cargo test s3
         env:
           RUST_BACKTRACE: full
           OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
@@ -53,7 +53,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test services::s3
+        run: cargo test s3
         env:
           RUST_BACKTRACE: full
           OPENDAL_S3_TEST: on

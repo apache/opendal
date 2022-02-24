@@ -31,6 +31,8 @@ pin-project = "1.0.10"
 aws-config = "0.6.0"
 blocking = "1.1.0"
 anyhow = "1"
+reqwest = "0.11"
+lazy_static = "1"
 
 [dev-dependencies]
 uuid = { version = "0.8.2", features = ["serde", "v4"] }

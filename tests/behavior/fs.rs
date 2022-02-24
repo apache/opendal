@@ -26,6 +26,8 @@ use super::BehaviorTest;
 /// - `OPENDAL_FS_ROOT=<path>`: set the root directory of the test.
 #[tokio::test]
 async fn test_fs() -> Result<()> {
+    dotenv::from_filename(".env").ok();
+
     if env::var("OPENDAL_FS_TEST").is_err() || env::var("OPENDAL_FS_TEST").unwrap() != "on" {
         println!("OPENDAL_FS_TEST is not set, skipping.");
         return Ok(());

@@ -1,2 +1,5 @@
 /target
 Cargo.lock
+
+# env files for backends
+.env

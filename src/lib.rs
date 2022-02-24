@@ -38,3 +38,6 @@ pub mod readers;
 
 pub mod ops;
 pub mod services;
+
+#[cfg(test)]
+mod tests;

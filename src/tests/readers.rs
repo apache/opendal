@@ -16,8 +16,8 @@ use futures::io::copy;
 use futures::io::Cursor;
 use futures::StreamExt;
 
-use opendal::readers::CallbackReader;
-use opendal::readers::ReaderStream;
+use crate::readers::CallbackReader;
+use crate::readers::ReaderStream;
 
 #[tokio::test]
 async fn reader_stream() {

@@ -31,6 +31,8 @@ use super::BehaviorTest;
 /// - `OPENDAL_S3_SECRET_ACCESS_KEY=<secret_access_key>`: set the secret access key.
 #[tokio::test]
 async fn test_s3() -> Result<()> {
+    dotenv::from_filename(".env").ok();
+
     if env::var("OPENDAL_S3_TEST").is_err() || env::var("OPENDAL_S3_TEST").unwrap() != "on" {
         println!("OPENDAL_S3_TEST is not set, skipping.");
         return Ok(());

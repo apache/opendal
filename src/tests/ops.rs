@@ -1,4 +1,4 @@
-// Copyright 2021 Datafuse Labs.
+// Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod layer;
-mod ops;
-mod readers;
-mod services;
+use crate::ops::HeaderRange;
+
+#[test]
+fn test_header_range() {
+    let h = HeaderRange::new(None, Some(1024));
+    assert_eq!(h.to_string(), "bytes=0-1023");
+
+    let h = HeaderRange::new(Some(1024), None);
+    assert_eq!(h.to_string(), "bytes=1024-");
+
+    let h = HeaderRange::new(Some(1024), Some(1024));
+    assert_eq!(h.to_string(), "bytes=1024-2047");
+}

@@ -11,7 +11,7 @@ Automatically detecting user's s3 region.
 
 Current behavior for `region` and `endpoint` is buggy. `endpoint=https://s3.amazonaws.com` and `endpoint=""` are expected to be the same, because `endpoint=""` means take the default value `https://s3.amazonaws.com`. However, they aren't.
 
-S3 SDK have a mechanism to construct the correct API endpoint. It works like `format!("s3.{}.amazonaws.com", region)` internally. But if we specify the endpoint to `https://s3.amazonaws.com`, SDK will take this endpoint static.
+S3 SDK has a mechanism to construct the correct API endpoint. It works like `format!("s3.{}.amazonaws.com", region)` internally. But if we specify the endpoint to `https://s3.amazonaws.com`, SDK will take this endpoint static.
 
 So users could meet errors like:
 
@@ -19,11 +19,11 @@ So users could meet errors like:
 attempting to access must be addressed using the specified endpoint
 ```
 
-Automatically detecting user's s3 region will help resolve this problem. Users don't need to care about region anymore, `OpenDAL` will figure it our. No matter the input is `s3.amazonaws.com` or `s3.us-east-1.amazonaws.com`, everything just works.
+Automatically detecting the user's s3 region will help resolve this problem. Users don't need to care about the region anymore, `OpenDAL` will figure it out. Everything works regardless of whether the input is `s3.amazonaws.com` or `s3.us-east-1.amazonaws.com`.
 
 # Guide-level explanation
 
-`region` option will be removed and users only need to set `endpoint` now.
+`OpenDAL` will remove `region` option, and users only need to set the `endpoint` now.
 
 Valid input including:
 
@@ -38,7 +38,7 @@ Valid input including:
 
 S3 services support mechanism to indicate the correct region on itself.
 
-Sending a `HEAD` request to `<endpoint>/<bucket>` will get response like:
+Sending a `HEAD` request to `<endpoint>/<bucket>` will get a response like:
 
 ```shell
 :) curl -I https://s3.amazonaws.com/databend-shared
@@ -86,17 +86,17 @@ X-Xss-Protection: 1; mode=block
 Date: Thu, 24 Feb 2022 05:18:51 GMT
 ```
 
-We can use this mechanism to detect `region` automatically, the algorithm works as following:
+We can use this mechanism to detect `region` automatically. The algorithm works as follows:
 
 - If `endpoint` is empty, fill it will `https://s3.amazonaws.com` and the corresponding template: `https://s3.{region}.amazonaws.com`.
 - Sending a `HEAD` request to `<endpoint>/<bucket>`.
-- If got `200` or `403` response, the endpoint just works.
-  - We can use this endpoint directly without fill template.
+- If got `200` or `403` response, the endpoint works.
+  - We can use this endpoint directly without filling the template.
   - We can use the fallback value `us-east-1` to make SDK happy.
-- If got `301` response, the endpoint need construction. 
-  - we can take header `x-amz-bucket-region` as region to fill the endpoint.
-- If got `404`, the bucket could be not exist or the endpoint is incorrect.
-  - we can return an error to user.
+- If got a `301` response, the endpoint needs construction.
+  - we can take the header `x-amz-bucket-region` as the region to fill the endpoint.
+- If got `404`, the bucket could not exist, or the endpoint is incorrect.
+  - we can return an error to the user.
 
 # Drawbacks
 
@@ -104,17 +104,21 @@ None.
 
 # Rationale and alternatives
 
-## Why not use virtual style `<bucket>.<endpoint>`?
+## Use virtual style `<bucket>.<endpoint>`?
 
-Virtual style works too. But not all services support this kind of API endpoint. For example, use `http://testbucket.127.0.0.1` is wrong and we need to do extra checks.
+The virtual style works too. But not all services support this kind of API endpoint. For example, using `http://testbucket.127.0.0.1` is wrong, and we need to do extra checks.
 
 Using `<endpoint>/<bucket>` makes everything easier.
 
+## Use `ListBuckets` API?
+
+`ListBuckets` requires higher permission than normal bucket read and write operations. It's better to finish the job without requesting more permission. 
+
 ## Misbehavior S3 Compilable Services
 
-There are many services that didn't implement S3 API correctly.
+Many services didn't implement S3 API correctly.
 
-Aliyun OSS will return `404` for every buckets:
+Aliyun OSS will return `404` for every bucket:
 
 ```shell
 :) curl -I https://aliyuncs.com/<my-existing-bucket>
@@ -127,7 +131,7 @@ set-cookie: thw=cn; Path=/; Domain=.taobao.com; Expires=Fri, 24-Feb-23 05:32:57 
 server: Tengine/Aserver
 ```
 
-QingStor Object Storage will return `307` with `Location` header:
+QingStor Object Storage will return `307` with the `Location` header:
 
 ```shell
 :) curl -I https://qingstor.com/community
@@ -139,7 +143,7 @@ Location: https://pek3a.qingstor.com/community
 X-Qs-Request-Id: 05b83b615c801a3d
 ```
 
-In this proposal, we will not figure them out. It's easier for user to fill the correct endpoint instead of automatically detecting for them.
+In this proposal, we will not figure them out. It's easier for the user to fill the correct endpoint instead of automatically detecting them.
 
 # Prior art
 

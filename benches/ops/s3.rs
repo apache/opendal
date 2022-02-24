@@ -27,7 +27,6 @@ pub async fn init() -> Result<Operator> {
         s3::Backend::build()
             .root(&format!("/{}", uuid::Uuid::new_v4()))
             .bucket(&env::var("OPENDAL_S3_BUCKET")?)
-            .region(&env::var("OPENDAL_S3_REGION")?)
             .endpoint(&env::var("OPENDAL_S3_ENDPOINT")?)
             .credential(Credential::hmac(
                 &env::var("OPENDAL_S3_ACCESS_KEY_ID")?,

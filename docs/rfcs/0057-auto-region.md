@@ -91,12 +91,14 @@ We can use this mechanism to detect `region` automatically. The algorithm works 
 - If `endpoint` is empty, fill it will `https://s3.amazonaws.com` and the corresponding template: `https://s3.{region}.amazonaws.com`.
 - Sending a `HEAD` request to `<endpoint>/<bucket>`.
 - If got `200` or `403` response, the endpoint works.
-  - We can use this endpoint directly without filling the template.
-  - We can use the fallback value `us-east-1` to make SDK happy.
+  - Use this endpoint directly without filling the template.
+  - Take the header `x-amz-bucket-region` as the region to fill the endpoint.
+  - Use the fallback value `us-east-1` to make SDK happy if the header not exists.
 - If got a `301` response, the endpoint needs construction.
-  - we can take the header `x-amz-bucket-region` as the region to fill the endpoint.
+  - Take the header `x-amz-bucket-region` as the region to fill the endpoint.
+  - Return an error to the user if not exist.
 - If got `404`, the bucket could not exist, or the endpoint is incorrect.
-  - we can return an error to the user.
+  - Return an error to the user.
 
 # Drawbacks
 

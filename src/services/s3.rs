@@ -190,7 +190,7 @@ impl Builder {
                 let template = ENDPOINT_TEMPLATES.get(endpoint).ok_or(Error::Backend {
                     kind: Kind::BackendConfigurationInvalid,
                     context: context.clone(),
-                    source: anyhow!("no valid template for this endpoint"),
+                    source: anyhow!("no valid endpoint template for {}", &endpoint),
                 })?;
 
                 let endpoint = template.replace("{region}", &region);

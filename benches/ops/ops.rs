@@ -16,31 +16,32 @@ use criterion::BenchmarkId;
 use criterion::Criterion;
 use futures::io;
 use futures::io::BufReader;
-use opendal::Operator;
 use rand::prelude::*;
 
-use super::fs;
-use super::s3;
+use opendal::Operator;
+use opendal_test::services::fs;
+use opendal_test::services::s3;
 
 pub fn bench(c: &mut Criterion) {
-    dotenv::from_filename(".env").ok();
-
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut rng = thread_rng();
 
     let size = 16 * 1024 * 1024; // Test with 16MB.
     let content = gen_bytes(&mut rng, size);
 
-    let cases = vec![
-        ("fs", runtime.block_on(fs::init())),
-        ("s3", runtime.block_on(s3::init())),
-    ];
+    let cases = runtime.block_on(async {
+        vec![
+            ("fs", fs::new().await.expect("init fs")),
+            ("s3", s3::new().await.expect("init s3")),
+        ]
+    });
 
     for case in cases {
-        if case.1.is_err() {
+        if case.1.is_none() {
+            println!("{} not set, ignore", case.0);
             continue;
         }
-        let op = case.1.unwrap();
+        let op = Operator::new(case.1.unwrap());
         let path = uuid::Uuid::new_v4().to_string();
 
         // Write file before test.

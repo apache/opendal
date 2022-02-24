@@ -12,43 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::env;
-
 use anyhow::Result;
-use opendal::credential::Credential;
-use opendal::services::s3;
+
 use opendal::Operator;
+use opendal_test::services::s3;
 
 use super::BehaviorTest;
 
-/// In order to test s3 service, please set the following environment variables:
-///
-/// - `OPENDAL_S3_TEST=on`: set to `on` to enable the test.
-/// - `OPENDAL_S3_BUCKET=<bucket>`: set the bucket name.
-/// - `OPENDAL_S3_ENDPOINT=<endpoint>`: set the endpoint of the s3 service.
-/// - `OPENDAL_S3_ACCESS_KEY_ID=<access_key_id>`: set the access key id.
-/// - `OPENDAL_S3_SECRET_ACCESS_KEY=<secret_access_key>`: set the secret access key.
 #[tokio::test]
 async fn test_s3() -> Result<()> {
-    dotenv::from_filename(".env").ok();
-
-    if env::var("OPENDAL_S3_TEST").is_err() || env::var("OPENDAL_S3_TEST").unwrap() != "on" {
-        println!("OPENDAL_S3_TEST is not set, skipping.");
+    let acc = s3::new().await?;
+    if acc.is_none() {
+        println!("OPENDAL_S3_TEST not set, ignore");
         return Ok(());
     }
 
-    let op = Operator::new(
-        s3::Backend::build()
-            .root(&format!("/{}", uuid::Uuid::new_v4()))
-            .bucket(&env::var("OPENDAL_S3_BUCKET")?)
-            .endpoint(&env::var("OPENDAL_S3_ENDPOINT").unwrap_or_default())
-            .credential(Credential::hmac(
-                &env::var("OPENDAL_S3_ACCESS_KEY_ID")?,
-                &env::var("OPENDAL_S3_SECRET_ACCESS_KEY")?,
-            ))
-            .finish()
-            .await?,
-    );
-
-    BehaviorTest::new(op).run().await
+    BehaviorTest::new(Operator::new(acc.unwrap())).run().await
 }

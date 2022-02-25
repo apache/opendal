@@ -12,20 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
 use crate::error::Result;
+use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::OpDelete;
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BoxedAsyncReader;
 
 #[async_trait]
-pub trait Accessor: Send + Sync {
+pub trait Accessor: Send + Sync + Debug {
     /// Read data from the underlying storage into input writer.
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let _ = args;
@@ -51,6 +54,11 @@ pub trait Accessor: Send + Sync {
         let _ = args;
         unimplemented!()
     }
+
+    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        let _ = args;
+        unimplemented!()
+    }
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
@@ -68,5 +76,8 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         self.as_ref().delete(args).await
+    }
+    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        self.as_ref().list(args).await
     }
 }

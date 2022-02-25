@@ -14,28 +14,31 @@
 
 use std::fs;
 use std::io::SeekFrom;
+use std::mem::transmute;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use blocking::unblock;
 use blocking::Unblock;
-use futures::io;
-use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
+use futures::{io, StreamExt};
+use futures::{ready, AsyncReadExt};
 
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::object::Metadata;
-use crate::ops::OpDelete;
+use crate::object::{BoxedObjectStream, Metadata, ObjectMode};
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
+use crate::ops::{OpDelete, OpList};
 use crate::BoxedAsyncReader;
+use crate::{Accessor, Object};
 
 #[derive(Default)]
 pub struct Builder {
@@ -199,6 +202,62 @@ impl Accessor for Backend {
         };
 
         f.map_err(|e| parse_io_error(e, "delete", &path.to_string_lossy()))
+    }
+
+    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        let path = PathBuf::from(&self.root).join(&args.path);
+
+        let open_path = path.clone();
+        let f = fs::read_dir(open_path)
+            .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
+
+        let rd = Readdir {
+            acc: Arc::new(self.clone()),
+            path: args.path.clone(),
+            rd: Unblock::new(f),
+        };
+
+        Ok(Box::new(rd))
+    }
+}
+
+struct Readdir {
+    acc: Arc<dyn Accessor>,
+    path: String,
+
+    rd: Unblock<std::fs::ReadDir>,
+}
+
+impl futures::Stream for Readdir {
+    type Item = Result<Object>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match ready!(Pin::new(&mut self.rd).poll_next(cx)) {
+            None => Poll::Ready(None),
+            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path)))),
+            Some(Ok(de)) => {
+                let de_path = de.path();
+                let path = de_path.to_string_lossy();
+
+                // NOTE: metadata is syscall.
+                let de_meta = de
+                    .metadata()
+                    .map_err(|e| parse_io_error(e, "list", &path))?;
+
+                let mut o = Object::new(self.acc.clone(), &path);
+
+                let mut meta = o.metadata_mut();
+                meta.set_complete();
+                if de_meta.is_dir() {
+                    meta.set_mode(ObjectMode::DIR);
+                } else {
+                    meta.set_mode(ObjectMode::FILE);
+                }
+                meta.set_content_length(de_meta.len());
+
+                Poll::Ready(Some(Ok(o)))
+            }
+        }
     }
 }
 

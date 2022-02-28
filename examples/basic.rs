@@ -38,7 +38,7 @@ async fn main() -> Result<()> {
 
     // Get file's Metadata
     let meta = o.metadata().await?;
-    assert_eq!(meta.content_length(), 13);
+    assert_eq!(meta.content_length(), Some(13));
 
     // Delete file.
     o.delete().await?;

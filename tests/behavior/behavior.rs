@@ -25,7 +25,6 @@ use std::io::SeekFrom;
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use opendal::error::Kind;
 use opendal::Operator;
 use rand::prelude::*;
 use sha2::Digest;
@@ -66,7 +65,7 @@ impl BehaviorTest {
 
         // Step 3: Stat this file
         let meta = self.op.object(&path).metadata().await?;
-        assert_eq!(meta.content_length(), size as u64, "stat file");
+        assert_eq!(meta.content_length().unwrap(), size as u64, "stat file");
 
         // Step 4: Read this file's content
         // Step 4.1: Read the whole file.
@@ -102,13 +101,8 @@ impl BehaviorTest {
 
         // Step 6: Stat this file again to check if it's deleted
         let o = self.op.object(&path);
-        let result = o.metadata().await;
-        assert!(result.is_err(), "stat file again");
-        assert_eq!(
-            result.unwrap_err().kind(),
-            Kind::ObjectNotExist,
-            "stat file again"
-        );
+        let exist = o.is_exist().await?;
+        assert!(!exist, "stat file again");
         Ok(())
     }
 

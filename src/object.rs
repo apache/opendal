@@ -22,7 +22,7 @@ use bitflags::bitflags;
 use futures::future::BoxFuture;
 use futures::ready;
 
-use crate::error::Result;
+use crate::error::{Kind, Result};
 use crate::ops::OpStat;
 use crate::ops::{OpDelete, OpList};
 use crate::Accessor;
@@ -47,65 +47,50 @@ impl Object {
     }
 
     pub fn reader(&self) -> Reader {
-        Reader::new(self.acc.clone(), &self.path())
+        Reader::new(self.acc.clone(), self.meta.path())
     }
 
     pub fn writer(&self) -> Writer {
-        Writer::new(self.acc.clone(), &self.path())
+        Writer::new(self.acc.clone(), self.meta.path())
     }
 
     pub async fn delete(&self) -> Result<()> {
-        let op = &OpDelete::new(&self.path());
+        let op = &OpDelete::new(self.meta.path());
 
         self.acc.delete(op).await
+    }
+
+    pub async fn metadata(&self) -> Result<Metadata> {
+        let op = &OpStat::new(self.meta.path());
+
+        self.acc.stat(op).await
+    }
+
+    /// Use local cached metadata if possible.
+    pub async fn metadata_cached(&mut self) -> Result<&Metadata> {
+        if self.meta.complete() {
+            return Ok(&self.meta);
+        }
+
+        let op = &OpStat::new(self.meta.path());
+        self.meta = self.acc.stat(op).await?;
+
+        Ok(&self.meta)
     }
 
     pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
         &mut self.meta
     }
 
-    /// # Note for implementor
-    ///
-    /// metadata should never be called insides backend.
-    pub async fn metadata(&mut self) -> Result<&Metadata> {
-        if self.meta.complete {
-            return Ok(&self.meta);
+    pub async fn is_exist(&self) -> Result<bool> {
+        let r = self.metadata().await;
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                Kind::ObjectNotExist => Ok(false),
+                _ => Err(err),
+            },
         }
-
-        let op = &OpStat::new(&self.path());
-        self.meta = self.acc.stat(op).await?;
-
-        Ok(&self.meta)
-    }
-
-    pub fn path(&self) -> &str {
-        &self.meta.path
-    }
-
-    pub async fn mode(&mut self) -> Result<ObjectMode> {
-        if let Some(v) = self.meta.mode {
-            return Ok(v);
-        }
-
-        let meta = self.metadata().await?;
-        if let Some(v) = meta.mode {
-            return Ok(v);
-        }
-
-        unreachable!("object meta should have mode, but it's not")
-    }
-
-    pub async fn content_length(&mut self) -> Result<u64> {
-        if let Some(v) = self.meta.content_length {
-            return Ok(v);
-        }
-
-        let meta = self.metadata().await?;
-        if let Some(v) = meta.content_length {
-            return Ok(v);
-        }
-
-        unreachable!("object meta should have content length, but it's not")
     }
 }
 
@@ -120,33 +105,38 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn set_complete(&mut self) -> &mut Self {
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    pub(crate) fn set_path(&mut self, path: &str) -> &mut Self {
+        self.path = path.to_string();
+        self
+    }
+
+    pub fn complete(&self) -> bool {
+        self.complete
+    }
+
+    pub(crate) fn set_complete(&mut self) -> &mut Self {
         self.complete = true;
         self
     }
 
-    pub fn mode(&self) -> ObjectMode {
-        if let Some(v) = self.mode {
-            return v;
-        }
-
-        unreachable!("object meta should have mode, but it's not")
+    pub fn mode(&self) -> Option<ObjectMode> {
+        self.mode
     }
 
-    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+    pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
         self.mode = Some(mode);
         self
     }
 
-    pub fn content_length(&self) -> u64 {
-        if let Some(v) = self.content_length {
-            return v;
-        }
-
-        unreachable!("object meta should have content length, but it's not")
+    pub fn content_length(&self) -> Option<u64> {
+        self.content_length
     }
 
-    pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
+    pub(crate) fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = Some(content_length);
         self
     }

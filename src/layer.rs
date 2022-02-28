@@ -31,6 +31,7 @@ use crate::Accessor;
 /// use std::sync::Arc;
 /// use opendal::{Accessor, Layer};
 ///
+/// #[derive(Debug)]
 /// struct Trace {
 ///     inner: Arc<dyn Accessor>,
 /// }

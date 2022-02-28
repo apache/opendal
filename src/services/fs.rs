@@ -14,7 +14,6 @@
 
 use std::fs;
 use std::io::SeekFrom;
-use std::mem::transmute;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -24,9 +23,9 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use blocking::unblock;
 use blocking::Unblock;
+use futures::io;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
-use futures::{io, StreamExt};
 use futures::{ready, AsyncReadExt};
 
 use crate::error::Error;
@@ -172,6 +171,7 @@ impl Accessor for Backend {
             .map_err(|e| parse_io_error(e, "stat", &path.to_string_lossy()))?;
 
         let mut m = Metadata::default();
+        m.set_path(&args.path);
         m.set_content_length(meta.len() as u64);
 
         Ok(m)
@@ -246,7 +246,7 @@ impl futures::Stream for Readdir {
 
                 let mut o = Object::new(self.acc.clone(), &path);
 
-                let mut meta = o.metadata_mut();
+                let meta = o.metadata_mut();
                 meta.set_complete();
                 if de_meta.is_dir() {
                     meta.set_mode(ObjectMode::DIR);

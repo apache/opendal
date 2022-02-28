@@ -16,11 +16,10 @@ use criterion::BenchmarkId;
 use criterion::Criterion;
 use futures::io;
 use futures::io::BufReader;
-use rand::prelude::*;
-
 use opendal::Operator;
 use opendal_test::services::fs;
 use opendal_test::services::s3;
+use rand::prelude::*;
 
 pub fn bench(c: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();

@@ -13,7 +13,9 @@
 // limitations under the License.
 use anyhow::Result;
 use futures::AsyncReadExt;
+use futures::StreamExt;
 use opendal::services::fs;
+use opendal::ObjectMode;
 use opendal::Operator;
 
 #[tokio::main]
@@ -38,7 +40,21 @@ async fn main() -> Result<()> {
 
     // Get file's Metadata
     let meta = o.metadata().await?;
-    assert_eq!(meta.content_length(), 13);
+    assert_eq!(meta.content_length(), Some(13));
+
+    // List current dir.
+    let mut obs = op.objects("").map(|o| o.expect("list object"));
+    let mut found = false;
+    while let Some(o) = obs.next().await {
+        let meta = o.metadata().await?;
+        if meta.path().contains("test_file") {
+            let mode = meta.mode().expect("object mode");
+            assert!(mode.contains(ObjectMode::FILE));
+
+            found = true
+        }
+    }
+    assert!(found, "tset_file should be found in iterator");
 
     // Delete file.
     o.delete().await?;

@@ -23,6 +23,7 @@ use crate::Accessor;
 use crate::Layer;
 use crate::Operator;
 
+#[derive(Debug)]
 struct Test {
     #[allow(dead_code)]
     inner: Option<Arc<dyn Accessor>>,

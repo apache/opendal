@@ -51,6 +51,19 @@ impl OpDelete {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct OpList {
+    pub path: String,
+}
+
+impl OpList {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct HeaderRange(Option<u64>, Option<u64>);
 

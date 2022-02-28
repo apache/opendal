@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use anyhow::Result;
-
 use opendal::Operator;
 use opendal_test::services::s3;
 

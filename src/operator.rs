@@ -17,6 +17,7 @@ use std::sync::Arc;
 use crate::Accessor;
 use crate::Layer;
 use crate::Object;
+use crate::ObjectStream;
 
 #[derive(Clone)]
 pub struct Operator {
@@ -41,5 +42,8 @@ impl Operator {
 
     pub fn object(&self, path: &str) -> Object {
         Object::new(self.inner(), path)
+    }
+    pub fn objects(&self, path: &str) -> ObjectStream {
+        ObjectStream::new(self.inner(), path)
     }
 }

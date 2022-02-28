@@ -15,13 +15,17 @@
 use std::fs;
 use std::io::SeekFrom;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use blocking::unblock;
 use blocking::Unblock;
 use futures::io;
+use futures::ready;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
@@ -29,13 +33,17 @@ use futures::AsyncWriteExt;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
+use crate::object::ObjectMode;
 use crate::ops::OpDelete;
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
+use crate::Object;
 
 #[derive(Default)]
 pub struct Builder {
@@ -169,6 +177,7 @@ impl Accessor for Backend {
             .map_err(|e| parse_io_error(e, "stat", &path.to_string_lossy()))?;
 
         let mut m = Metadata::default();
+        m.set_path(&args.path);
         m.set_content_length(meta.len() as u64);
 
         Ok(m)
@@ -199,6 +208,72 @@ impl Accessor for Backend {
         };
 
         f.map_err(|e| parse_io_error(e, "delete", &path.to_string_lossy()))
+    }
+
+    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        let path = PathBuf::from(&self.root).join(&args.path);
+
+        let open_path = path.clone();
+        let f = fs::read_dir(open_path)
+            .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
+
+        let rd = Readdir {
+            acc: Arc::new(self.clone()),
+            root: self.root.clone(),
+            path: args.path.clone(),
+            rd: Unblock::new(f),
+        };
+
+        Ok(Box::new(rd))
+    }
+}
+
+struct Readdir {
+    acc: Arc<dyn Accessor>,
+    root: String,
+    path: String,
+
+    rd: Unblock<std::fs::ReadDir>,
+}
+
+impl futures::Stream for Readdir {
+    type Item = Result<Object>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match ready!(Pin::new(&mut self.rd).poll_next(cx)) {
+            None => Poll::Ready(None),
+            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path)))),
+            Some(Ok(de)) => {
+                // NOTE: metadata is syscall.
+                let de_meta = de
+                    .metadata()
+                    .map_err(|e| parse_io_error(e, "list", &self.path))?;
+
+                let de_path = de.path();
+                let de_path = de_path
+                    .strip_prefix(&self.root)
+                    .map_err(|e| Error::Object {
+                        kind: Kind::Unexpected,
+                        op: "list",
+                        path: de.path().to_string_lossy().to_string(),
+                        source: anyhow::Error::from(e),
+                    })?;
+                let path = de_path.to_string_lossy();
+
+                let mut o = Object::new(self.acc.clone(), &path);
+
+                let meta = o.metadata_mut();
+                meta.set_complete();
+                if de_meta.is_dir() {
+                    meta.set_mode(ObjectMode::DIR);
+                } else {
+                    meta.set_mode(ObjectMode::FILE);
+                }
+                meta.set_content_length(de_meta.len());
+
+                Poll::Ready(Some(Ok(o)))
+            }
+        }
     }
 }
 

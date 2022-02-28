@@ -22,9 +22,11 @@ use bitflags::bitflags;
 use futures::future::BoxFuture;
 use futures::ready;
 
-use crate::error::{Kind, Result};
+use crate::error::Kind;
+use crate::error::Result;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
 use crate::ops::OpStat;
-use crate::ops::{OpDelete, OpList};
 use crate::Accessor;
 use crate::Reader;
 use crate::Writer;
@@ -105,6 +107,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Returns object path that relative to corresponding backend's root.
     pub fn path(&self) -> &str {
         &self.path
     }

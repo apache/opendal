@@ -42,7 +42,6 @@ let meta = o.metadata_cached().await?;
 
 `o.metadata_cached()` will return local cached metadata if available.
 
-
 # Reference-level explanation
 
 First, we will add a new API in `Accessor`:

@@ -14,9 +14,9 @@
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::StreamExt;
-
 use opendal::services::fs;
-use opendal::{ObjectMode, Operator};
+use opendal::ObjectMode;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

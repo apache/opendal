@@ -17,27 +17,33 @@ use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use blocking::unblock;
 use blocking::Unblock;
 use futures::io;
+use futures::ready;
+use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
-use futures::{ready, AsyncReadExt};
 
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::object::{BoxedObjectStream, Metadata, ObjectMode};
+use crate::object::BoxedObjectStream;
+use crate::object::Metadata;
+use crate::object::ObjectMode;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{OpDelete, OpList};
+use crate::Accessor;
 use crate::BoxedAsyncReader;
-use crate::{Accessor, Object};
+use crate::Object;
 
 #[derive(Default)]
 pub struct Builder {
@@ -213,6 +219,7 @@ impl Accessor for Backend {
 
         let rd = Readdir {
             acc: Arc::new(self.clone()),
+            root: self.root.clone(),
             path: args.path.clone(),
             rd: Unblock::new(f),
         };
@@ -223,6 +230,7 @@ impl Accessor for Backend {
 
 struct Readdir {
     acc: Arc<dyn Accessor>,
+    root: String,
     path: String,
 
     rd: Unblock<std::fs::ReadDir>,
@@ -236,13 +244,21 @@ impl futures::Stream for Readdir {
             None => Poll::Ready(None),
             Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path)))),
             Some(Ok(de)) => {
-                let de_path = de.path();
-                let path = de_path.to_string_lossy();
-
                 // NOTE: metadata is syscall.
                 let de_meta = de
                     .metadata()
-                    .map_err(|e| parse_io_error(e, "list", &path))?;
+                    .map_err(|e| parse_io_error(e, "list", &self.path))?;
+
+                let de_path = de.path();
+                let de_path = de_path
+                    .strip_prefix(&self.root)
+                    .map_err(|e| Error::Object {
+                        kind: Kind::Unexpected,
+                        op: "list",
+                        path: de.path().to_string_lossy().to_string(),
+                        source: anyhow::Error::from(e),
+                    })?;
+                let path = de_path.to_string_lossy();
 
                 let mut o = Object::new(self.acc.clone(), &path);
 

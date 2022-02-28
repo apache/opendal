@@ -9,17 +9,11 @@ Allow user read dir via `ObjectStream`.
 
 # Motivation
 
-Users need `readdir` support in `OpenDAL`: [Implement List support](https://github.com/datafuselabs/opendal/issues/12). Take [databend] for example, with `List` support, we can implement `COPY from `s3://bucket/
+Users need `readdir` support in `OpenDAL`: [Implement List support](https://github.com/datafuselabs/opendal/issues/12). Take [databend] for example, with `List` support, we can implement copy from `s3://bucket/path/to/dir` instead of only `s3://bucket/path/to/file`.
 
 # Guide-level explanation
 
-Explain the proposal as if it was already included in the opendal and you were teaching it to other opendal users. That generally means:
-
-- Introducing new named concepts.
-- Explaining the feature mainly in terms of examples.
-- Explaining how opendal users should *think* about the feature and how it should impact the way they use opendal. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, describe the differences between teaching this to exist opendal users and new opendal users.
+`Operator` supports new action called `objects("path/to/dir")` which returns a `ObjectStream`, we can iterator current dir like `std::fs::ReadDir`:
 
 # Reference-level explanation
 

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.1.1] - 2022-03-01
+
+### Added
+
+- RFC and implementation of feature Object Stream (#69)
+- services/s3: Implement List support (#76)
+- credential: Add Plain variant to allow more input (#78)
+
+### Changed
+
+- backend/s3: Change from lazy_static to once_cell (#62)
+- backend/s3: Enable test on AWS S3 (#64)
+
 ## [v0.1.0] - 2022-02-24
 
 ### Added
@@ -67,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.1.1]: https://github.com/datafuselabs/opendal/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/datafuselabs/opendal/compare/v0.0.5...v0.1.0
 [v0.0.5]: https://github.com/datafuselabs/opendal/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/datafuselabs/opendal/compare/v0.0.3...v0.0.4

@@ -1,16 +1,16 @@
 [package]
-name = "opendal_test"
-version = "0.0.0"
-edition = "2021"
 authors = ["Databend Authors <opensource@datafuselabs.com>"]
-license = "Apache-2.0"
-description = "Open Data Access Layer that connect the whole world together."
-repository = "https://github.com/datafuselabs/opendal"
-keywords = ["storage", "data", "s3"]
 categories = ["filesystem"]
+description = "Open Data Access Layer that connect the whole world together."
+edition = "2021"
+keywords = ["storage", "data", "s3"]
+license = "Apache-2.0"
+name = "opendal_test"
 publish = false
+repository = "https://github.com/datafuselabs/opendal"
+version = "0.0.0"
 
 [dependencies]
-opendal = { path = ".." }
 dotenv = "0.15.0"
+opendal = { path = ".." }
 uuid = { version = "0.8", features = ["serde", "v4"] }

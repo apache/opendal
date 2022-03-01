@@ -1,6 +1,6 @@
 [package]
 name = "opendal"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Databend Authors <opensource@datafuselabs.com>"]
 license = "Apache-2.0"
@@ -20,7 +20,6 @@ bench = false
 [[bench]]
 name = "ops"
 harness = false
-
 
 [dependencies]
 async-trait = "0.1"

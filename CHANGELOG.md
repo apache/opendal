@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.1.2] - 2022-03-01
+
+### Changed
+
+- object: Polish API for Metadata (#80)
+
 ## [v0.1.1] - 2022-03-01
 
 ### Added
@@ -80,6 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.1.2]: https://github.com/datafuselabs/opendal/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/datafuselabs/opendal/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/datafuselabs/opendal/compare/v0.0.5...v0.1.0
 [v0.0.5]: https://github.com/datafuselabs/opendal/compare/v0.0.4...v0.0.5

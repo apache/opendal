@@ -178,7 +178,14 @@ impl Accessor for Backend {
 
         let mut m = Metadata::default();
         m.set_path(&args.path);
+        if meta.is_dir() {
+            m.set_mode(ObjectMode::DIR);
+        } else {
+            // TODO: we should handle LINK or other types here.
+            m.set_mode(ObjectMode::FILE);
+        }
         m.set_content_length(meta.len() as u64);
+        m.set_complete();
 
         Ok(m)
     }
@@ -270,6 +277,7 @@ impl futures::Stream for Readdir {
                     meta.set_mode(ObjectMode::FILE);
                 }
                 meta.set_content_length(de_meta.len());
+                meta.set_complete();
 
                 Poll::Ready(Some(Ok(o)))
             }

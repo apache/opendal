@@ -23,9 +23,11 @@
 use std::io::SeekFrom;
 
 use anyhow::Result;
+use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use futures::{AsyncReadExt, StreamExt};
-use opendal::{ObjectMode, Operator};
+use futures::StreamExt;
+use opendal::ObjectMode;
+use opendal::Operator;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;

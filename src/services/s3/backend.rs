@@ -48,8 +48,9 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::readers::ReaderStream;
+use crate::Accessor;
 use crate::BoxedAsyncReader;
-use crate::{Accessor, ObjectMode};
+use crate::ObjectMode;
 
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut m = HashMap::new();

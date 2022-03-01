@@ -1,4 +1,4 @@
-// Copyright 2021 Datafuse Labs.
+// Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,34 +22,35 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use aws_sdk_s3 as AwsS3;
-use aws_sdk_s3::error::GetObjectError;
-use aws_sdk_s3::error::GetObjectErrorKind;
-use aws_sdk_s3::error::HeadObjectError;
-use aws_sdk_s3::error::HeadObjectErrorKind;
+use aws_sdk_s3;
+use aws_sdk_s3::Client;
 use aws_smithy_http::body::SdkBody;
 use aws_smithy_http::byte_stream::ByteStream;
-use aws_smithy_http::result::SdkError;
 use futures::TryStreamExt;
 use http::HeaderValue;
 use http::StatusCode;
 use once_cell::sync::Lazy;
 
+use super::error::parse_get_object_error;
+use super::error::parse_head_object_error;
+use super::error::parse_unexpect_error;
+use super::object_stream::S3ObjectStream;
 use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-
+use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
-
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::readers::ReaderStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
+use crate::ObjectMode;
 
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut m = HashMap::new();
@@ -115,11 +116,18 @@ impl Builder {
     }
 
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        // strip the prefix of "/" in root only once.
-        let root = if let Some(root) = &self.root {
-            root.strip_prefix('/').unwrap_or(root).to_string()
-        } else {
-            String::new()
+        let root = match &self.root {
+            // Use "/" as root if user not specified.
+            None => "/".to_string(),
+            Some(v) => {
+                debug_assert!(!v.is_empty(), "root must not be empty");
+
+                // If root not startswith or endswith "/", we should append it.
+                let prepend = if v.starts_with('/') { "" } else { "/" };
+                let append = if v.ends_with('/') { "" } else { "/" };
+
+                format!("{prepend}{v}{append}")
+            }
         };
 
         // Handle endpoint, region and bucket name.
@@ -227,11 +235,11 @@ impl Builder {
         //
         // Please keep in mind that the config loader only detect region and credentials.
         let cfg_loader = aws_config::ConfigLoader::default();
-        let mut cfg = AwsS3::config::Builder::from(&cfg_loader.load().await);
+        let mut cfg = aws_sdk_s3::config::Builder::from(&cfg_loader.load().await);
 
         {
             // Set region.
-            cfg = cfg.region(AwsS3::Region::new(Cow::from(region.clone())));
+            cfg = cfg.region(aws_sdk_s3::Region::new(Cow::from(region.clone())));
         }
 
         {
@@ -242,7 +250,7 @@ impl Builder {
                 source: anyhow::Error::from(e),
             })?;
 
-            cfg = cfg.endpoint_resolver(AwsS3::Endpoint::immutable(uri));
+            cfg = cfg.endpoint_resolver(aws_sdk_s3::Endpoint::immutable(uri));
         }
 
         if let Some(cred) = &self.credential {
@@ -252,7 +260,7 @@ impl Builder {
                     access_key_id,
                     secret_access_key,
                 } => {
-                    cfg = cfg.credentials_provider(AwsS3::Credentials::from_keys(
+                    cfg = cfg.credentials_provider(aws_sdk_s3::Credentials::from_keys(
                         access_key_id,
                         secret_access_key,
                         None,
@@ -269,10 +277,9 @@ impl Builder {
         }
 
         Ok(Arc::new(Backend {
-            // Make `/` as the default of root.
             root,
             bucket: self.bucket.clone(),
-            client: AwsS3::Client::from_conf(cfg.build()),
+            client: aws_sdk_s3::Client::from_conf(cfg.build()),
         }))
     }
 }
@@ -281,7 +288,8 @@ impl Builder {
 pub struct Backend {
     bucket: String,
 
-    client: AwsS3::Client,
+    client: aws_sdk_s3::Client,
+    // root will be "/" or "/abc/"
     root: String,
 }
 
@@ -290,18 +298,30 @@ impl Backend {
         Builder::default()
     }
 
+    pub(crate) fn inner(&self) -> Client {
+        self.client.clone()
+    }
+
     /// get_abs_path will return the absolute path of the given path in the s3 format.
     /// If user input an absolute path, we will return it as it is with the prefix `/` striped.
     /// If user input a relative path, we will calculate the absolute path with the root.
-    fn get_abs_path(&self, path: &str) -> String {
+    pub(crate) fn get_abs_path(&self, path: &str) -> String {
         if path.starts_with('/') {
             return path.strip_prefix('/').unwrap().to_string();
         }
-        if self.root.is_empty() {
-            return path.to_string();
-        }
 
-        format!("{}/{}", self.root, path)
+        let abs_path = format!("{}{}", self.root, path);
+        return abs_path.strip_prefix('/').unwrap().to_string();
+    }
+
+    /// get_rel_path will return the relative path of the given path in the s3 format.
+    pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        let path = format!("/{}", path);
+
+        match path.strip_prefix(&self.root) {
+            None => unreachable!("invalid input that not start with backend root"),
+            Some(v) => v.to_string(),
+        }
     }
 }
 
@@ -325,7 +345,7 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_get_object_error(e, "read", &args.path))?;
 
-        Ok(Box::new(S3Stream(resp.body).into_async_read()))
+        Ok(Box::new(S3ByteStream(resp.body).into_async_read()))
     }
 
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
@@ -360,7 +380,10 @@ impl Accessor for Backend {
             .map_err(|e| parse_head_object_error(e, "stat", &args.path))?;
 
         let mut m = Metadata::default();
-        m.set_content_length(meta.content_length as u64);
+        m.set_path(&args.path)
+            .set_content_length(meta.content_length as u64)
+            .set_mode(ObjectMode::FILE)
+            .set_complete();
 
         Ok(m)
     }
@@ -379,11 +402,21 @@ impl Accessor for Backend {
 
         Ok(())
     }
+
+    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        let path = self.get_abs_path(&args.path);
+
+        Ok(Box::new(S3ObjectStream::new(
+            self.clone(),
+            self.bucket.clone(),
+            path,
+        )))
+    }
 }
 
-struct S3Stream(aws_smithy_http::byte_stream::ByteStream);
+struct S3ByteStream(aws_smithy_http::byte_stream::ByteStream);
 
-impl futures::Stream for S3Stream {
+impl futures::Stream for S3ByteStream {
     type Item = std::result::Result<bytes::Bytes, std::io::Error>;
 
     /// ## TODO
@@ -403,71 +436,5 @@ impl futures::Stream for S3Stream {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.0.size_hint()
-    }
-}
-
-fn parse_get_object_error(err: SdkError<GetObjectError>, op: &'static str, path: &str) -> Error {
-    if let SdkError::ServiceError { err, .. } = err {
-        match err.kind {
-            GetObjectErrorKind::NoSuchKey(_) => Error::Object {
-                kind: Kind::ObjectNotExist,
-                op,
-                path: path.to_string(),
-                source: anyhow::Error::from(err),
-            },
-            _ => Error::Object {
-                kind: Kind::Unexpected,
-                op,
-                path: path.to_string(),
-                source: anyhow::Error::from(err),
-            },
-        }
-    } else {
-        Error::Object {
-            kind: Kind::Unexpected,
-            op,
-            path: path.to_string(),
-            source: anyhow::Error::from(err),
-        }
-    }
-}
-
-fn parse_head_object_error(err: SdkError<HeadObjectError>, op: &'static str, path: &str) -> Error {
-    if let SdkError::ServiceError { err, .. } = err {
-        match err.kind {
-            HeadObjectErrorKind::NotFound(_) => Error::Object {
-                kind: Kind::ObjectNotExist,
-                op,
-                path: path.to_string(),
-                source: anyhow::Error::from(err),
-            },
-            _ => Error::Object {
-                kind: Kind::Unexpected,
-                op,
-                path: path.to_string(),
-                source: anyhow::Error::from(err),
-            },
-        }
-    } else {
-        Error::Object {
-            kind: Kind::Unexpected,
-            op,
-            path: path.to_string(),
-            source: anyhow::Error::from(err),
-        }
-    }
-}
-
-// parse_unexpect_error is used to parse SdkError into unexpected.
-fn parse_unexpect_error<E: 'static + Send + Sync + std::error::Error>(
-    err: SdkError<E>,
-    op: &'static str,
-    path: &str,
-) -> Error {
-    Error::Object {
-        kind: Kind::Unexpected,
-        op,
-        path: path.to_string(),
-        source: anyhow::Error::from(err),
     }
 }

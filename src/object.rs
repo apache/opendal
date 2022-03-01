@@ -126,8 +126,10 @@ impl Metadata {
         self
     }
 
-    pub fn mode(&self) -> Option<ObjectMode> {
-        self.mode
+    pub fn mode(&self) -> ObjectMode {
+        debug_assert!(self.mode.is_some(), "mode must exist");
+
+        self.mode.unwrap_or_default()
     }
 
     pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
@@ -135,8 +137,10 @@ impl Metadata {
         self
     }
 
-    pub fn content_length(&self) -> Option<u64> {
-        self.content_length
+    pub fn content_length(&self) -> u64 {
+        debug_assert!(self.content_length.is_some(), "content length must exist");
+
+        self.content_length.unwrap_or_default()
     }
 
     pub(crate) fn set_content_length(&mut self, content_length: u64) -> &mut Self {

@@ -159,7 +159,6 @@ pub type BoxedObjectStream = Box<dyn futures::Stream<Item = Result<Object>> + Un
 pub struct ObjectStream {
     acc: Arc<dyn Accessor>,
     path: String,
-
     state: State,
 }
 

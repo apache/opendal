@@ -23,9 +23,9 @@
 use std::io::SeekFrom;
 
 use anyhow::Result;
-use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use opendal::Operator;
+use futures::{AsyncReadExt, StreamExt};
+use opendal::{ObjectMode, Operator};
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
@@ -94,6 +94,25 @@ impl BehaviorTest {
             ),
             "read part file"
         );
+
+        // Step 4.3: List this dir, we should get this file.
+        let mut obs = self.op.objects("").map(|o| o.expect("list object"));
+        let mut found = false;
+        while let Some(o) = obs.next().await {
+            let meta = o.metadata().await?;
+            if meta.path() == path {
+                let mode = meta.mode().expect("object mode");
+                assert!(
+                    mode.contains(ObjectMode::FILE),
+                    "expected: {:?}, actual: {:?}",
+                    ObjectMode::FILE,
+                    mode
+                );
+
+                found = true
+            }
+        }
+        assert!(found, "file should be found in iterator");
 
         // Step 5: Delete this file
         let result = self.op.object(&path).delete().await;

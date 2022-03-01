@@ -36,14 +36,35 @@ pub struct S3ObjectStream {
 
     token: String,
     done: bool,
-    // s3 list_object futures.
-    list_object_future: Option<BoxFuture<'static, Result<ListObjectsV2Output>>>,
-    // s3 prefixes.
-    common_prefixes: Vec<aws_sdk_s3::model::CommonPrefix>,
-    common_prefixes_idx: usize,
-    // s3 objects.
-    objects: Vec<aws_sdk_s3::model::Object>,
-    objects_idx: usize,
+    state: State,
+}
+
+#[allow(clippy::large_enum_variant)]
+enum State {
+    Idle,
+    Sending(BoxFuture<'static, Result<ListObjectsV2Output>>),
+    /// # TODO
+    ///
+    /// It's better to move this large struct to heap as suggested by clippy.
+    ///
+    ///   --> src/services/s3/object_stream.rs:45:5
+    ///    |
+    /// 45 |     Listing((ListObjectsV2Output, usize, usize)),
+    ///    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this variant is 256 bytes
+    ///    |
+    ///    = note: `-D clippy::large-enum-variant` implied by `-D warnings`
+    /// note: and the second-largest variant is 16 bytes:
+    ///   --> src/services/s3/object_stream.rs:44:5
+    ///    |
+    /// 44 |     Sending(BoxFuture<'static, Result<ListObjectsV2Output>>),
+    ///    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ///    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
+    /// help: consider boxing the large fields to reduce the total size of the enum
+    ///    |
+    /// 45 |     Listing(Box<(ListObjectsV2Output, usize, usize)>),
+    ///
+    /// Better stable rust doesn't support `State::Listing(box (output, common_prefixes_idx, objects_idx))` so far, let's wait a bit.
+    Listing((ListObjectsV2Output, usize, usize)),
 }
 
 impl S3ObjectStream {
@@ -55,11 +76,7 @@ impl S3ObjectStream {
 
             token: "".to_string(),
             done: false,
-            list_object_future: None,
-            common_prefixes: vec![],
-            common_prefixes_idx: 0,
-            objects: vec![],
-            objects_idx: 0,
+            state: State::Idle,
         }
     }
 }
@@ -68,80 +85,80 @@ impl futures::Stream for S3ObjectStream {
     type Item = Result<Object>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.common_prefixes_idx < self.common_prefixes.len() {
-            self.common_prefixes_idx += 1;
-            let prefix = &self.common_prefixes[self.common_prefixes_idx - 1].prefix();
+        let backend = self.backend.clone();
 
-            let mut o = Object::new(
-                Arc::new(self.backend.clone()),
-                &self
-                    .backend
-                    .get_rel_path(prefix.expect("prefix should not be None")),
-            );
-            let meta = o.metadata_mut();
-            meta.set_mode(ObjectMode::DIR)
-                .set_content_length(0)
-                .set_complete();
+        match &mut self.state {
+            State::Idle => {
+                let client = self.backend.inner();
+                let bucket = self.bucket.clone();
+                let path = self.path.clone();
+                let token = self.token.clone();
+                let fut = async move {
+                    let mut req = client
+                        .list_objects_v2()
+                        .bucket(bucket)
+                        .prefix(&path)
+                        .delimiter("/");
+                    if !token.is_empty() {
+                        req = req.continuation_token(token);
+                    }
+                    req.send()
+                        .await
+                        .map_err(|e| parse_unexpect_error(e, "list", &path))
+                };
+                self.state = State::Sending(Box::pin(fut));
+                self.poll_next(cx)
+            }
+            State::Sending(fut) => {
+                let output = ready!(Pin::new(fut).poll(cx))?;
 
-            return Poll::Ready(Some(Ok(o)));
-        }
-        if self.objects_idx < self.objects.len() {
-            self.objects_idx += 1;
-            let object = &self.objects[self.objects_idx - 1];
+                self.done = !output.is_truncated;
+                self.token = output.continuation_token.clone().unwrap_or_default();
+                self.state = State::Listing((output, 0, 0));
+                self.poll_next(cx)
+            }
+            State::Listing((output, common_prefixes_idx, objects_idx)) => {
+                if let Some(prefixes) = &output.common_prefixes {
+                    if *common_prefixes_idx < prefixes.len() {
+                        *common_prefixes_idx += 1;
+                        let prefix = &prefixes[*common_prefixes_idx - 1].prefix();
 
-            let mut o = Object::new(
-                Arc::new(self.backend.clone()),
-                &self
-                    .backend
-                    .get_rel_path(object.key().expect("key should not be None")),
-            );
-            let meta = o.metadata_mut();
-            meta.set_mode(ObjectMode::FILE)
-                .set_content_length(object.size as u64);
+                        let mut o = Object::new(
+                            Arc::new(backend.clone()),
+                            &backend.get_rel_path(prefix.expect("prefix should not be None")),
+                        );
+                        let meta = o.metadata_mut();
+                        meta.set_mode(ObjectMode::DIR)
+                            .set_content_length(0)
+                            .set_complete();
 
-            return Poll::Ready(Some(Ok(o)));
-        }
+                        return Poll::Ready(Some(Ok(o)));
+                    }
+                }
+                if let Some(objects) = &output.contents {
+                    if *objects_idx < objects.len() {
+                        *objects_idx += 1;
+                        let object = &objects[*objects_idx - 1];
 
-        if let Some(fut) = &mut self.list_object_future {
-            let output = ready!(Pin::new(fut).poll(cx))?;
-            // Set future to None once it's ready.
-            self.list_object_future = None;
-            // Set done to true once response returns is_truncated=false;
-            self.done = !output.is_truncated;
-            self.token = output.next_continuation_token.unwrap_or_default();
-            self.common_prefixes_idx = 0;
-            self.common_prefixes = output.common_prefixes.unwrap_or_default();
-            self.objects_idx = 0;
-            self.objects = output.contents.unwrap_or_default();
+                        let mut o = Object::new(
+                            Arc::new(backend.clone()),
+                            &backend.get_rel_path(object.key().expect("key should not be None")),
+                        );
+                        let meta = o.metadata_mut();
+                        meta.set_mode(ObjectMode::FILE)
+                            .set_content_length(object.size as u64);
 
-            // Make sure all common_prefixes and objects are consumed.
-            if !self.common_prefixes.is_empty() || !self.objects.is_empty() {
-                return self.poll_next(cx);
+                        return Poll::Ready(Some(Ok(o)));
+                    }
+                }
+
+                if self.done {
+                    return Poll::Ready(None);
+                }
+
+                self.state = State::Idle;
+                self.poll_next(cx)
             }
         }
-
-        if self.done {
-            return Poll::Ready(None);
-        }
-
-        let client = self.backend.inner();
-        let bucket = self.bucket.clone();
-        let path = self.path.clone();
-        let token = self.token.clone();
-        let fut = async move {
-            let mut req = client
-                .list_objects_v2()
-                .bucket(bucket)
-                .prefix(&path)
-                .delimiter("/");
-            if !token.is_empty() {
-                req = req.continuation_token(token);
-            }
-            req.send()
-                .await
-                .map_err(|e| parse_unexpect_error(e, "list", &path))
-        };
-        self.list_object_future = Some(Box::pin(fut));
-        self.poll_next(cx)
     }
 }

@@ -127,12 +127,7 @@ impl AsyncSeek for Reader {
     ) -> Poll<std::io::Result<u64>> {
         if let ReadState::Seeking(future) = &mut self.state {
             match ready!(Pin::new(future).poll(cx)) {
-                Ok(meta) => {
-                    self.total_size = Some(
-                        meta.content_length()
-                            .expect("object doesn't have content length"),
-                    )
-                }
+                Ok(meta) => self.total_size = Some(meta.content_length()),
                 Err(e) => return Poll::Ready(Err(io::Error::from(e))),
             }
         }

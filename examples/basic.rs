@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 
     // Get file's Metadata
     let meta = o.metadata().await?;
-    assert_eq!(meta.content_length(), Some(13));
+    assert_eq!(meta.content_length(), 13);
 
     // List current dir.
     let mut obs = op.objects("").map(|o| o.expect("list object"));
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
     while let Some(o) = obs.next().await {
         let meta = o.metadata().await?;
         if meta.path().contains("test_file") {
-            let mode = meta.mode().expect("object mode");
+            let mode = meta.mode();
             assert!(mode.contains(ObjectMode::FILE));
 
             found = true

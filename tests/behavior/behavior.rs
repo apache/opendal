@@ -67,7 +67,7 @@ impl BehaviorTest {
 
         // Step 3: Stat this file
         let meta = self.op.object(&path).metadata().await?;
-        assert_eq!(meta.content_length().unwrap(), size as u64, "stat file");
+        assert_eq!(meta.content_length(), size as u64, "stat file");
 
         // Step 4: Read this file's content
         // Step 4.1: Read the whole file.
@@ -103,7 +103,7 @@ impl BehaviorTest {
         while let Some(o) = obs.next().await {
             let meta = o.metadata().await?;
             if meta.path() == path {
-                let mode = meta.mode().expect("object mode");
+                let mode = meta.mode();
                 assert!(
                     mode.contains(ObjectMode::FILE),
                     "expected: {:?}, actual: {:?}",

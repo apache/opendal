@@ -258,6 +258,8 @@ impl Builder {
                         None,
                     ));
                 }
+                // We don't need to do anything if user tries to read credential from env.
+                Credential::Plain => {}
                 _ => {
                     return Err(Error::Backend {
                         kind: Kind::BackendConfigurationInvalid,

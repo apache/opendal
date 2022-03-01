@@ -14,6 +14,9 @@
 
 #[derive(Debug, Clone)]
 pub enum Credential {
+    /// Plain refers to no credential has been provided, fallback to services'
+    /// default logic.
+    Plain,
     /// Basic refers to HTTP Basic Authentication.
     Basic { username: String, password: String },
     /// HMAC, also known as Access Key/Secret Key authentication.
@@ -33,6 +36,10 @@ pub enum Credential {
 
 impl Credential {
     pub fn basic(username: &str, password: &str) -> Credential {
+        if username.is_empty() && password.is_empty() {
+            return Credential::Plain;
+        }
+
         Credential::Basic {
             username: username.to_string(),
             password: password.to_string(),
@@ -40,6 +47,10 @@ impl Credential {
     }
 
     pub fn hmac(access_key_id: &str, secret_access_key: &str) -> Credential {
+        if access_key_id.is_empty() && secret_access_key.is_empty() {
+            return Credential::Plain;
+        }
+
         Credential::HMAC {
             access_key_id: access_key_id.to_string(),
             secret_access_key: secret_access_key.to_string(),
@@ -47,6 +58,10 @@ impl Credential {
     }
 
     pub fn token(token: &str) -> Credential {
+        if token.is_empty() {
+            return Credential::Plain;
+        }
+
         Credential::Token(token.to_string())
     }
 }

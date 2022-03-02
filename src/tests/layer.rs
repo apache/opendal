@@ -20,6 +20,7 @@ use crate::error::Result;
 use crate::ops::OpDelete;
 use crate::services::fs;
 use crate::Accessor;
+use crate::AccessorMetrics;
 use crate::Layer;
 use crate::Operator;
 
@@ -28,6 +29,7 @@ struct Test {
     #[allow(dead_code)]
     inner: Option<Arc<dyn Accessor>>,
     deleted: Arc<Mutex<bool>>,
+    metrics: Arc<AccessorMetrics>,
 }
 
 impl Layer for &Test {
@@ -35,6 +37,7 @@ impl Layer for &Test {
         Arc::new(Test {
             inner: Some(inner.clone()),
             deleted: self.deleted.clone(),
+            metrics: Arc::new(AccessorMetrics::default()),
         })
     }
 }
@@ -50,6 +53,10 @@ impl Accessor for Test {
         // We will not call anything here to test the layer.
         Ok(())
     }
+
+    fn metrics(&self) -> &AccessorMetrics {
+        self.metrics.as_ref()
+    }
 }
 
 #[tokio::test]
@@ -57,6 +64,7 @@ async fn test_layer() {
     let test = Test {
         inner: None,
         deleted: Arc::new(Mutex::new(false)),
+        metrics: Arc::new(AccessorMetrics::default()),
     };
 
     let op = Operator::new(fs::Backend::build().finish().await.unwrap()).layer(&test);

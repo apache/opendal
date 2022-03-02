@@ -29,18 +29,23 @@ use crate::Accessor;
 ///
 /// ```
 /// use std::sync::Arc;
-/// use opendal::{Accessor, Layer};
+/// use opendal::{Accessor, AccessorMetrics, Layer};
 ///
 /// #[derive(Debug)]
 /// struct Trace {
 ///     inner: Arc<dyn Accessor>,
+///     metrics: Arc<AccessorMetrics>,
 /// }
 ///
-/// impl Accessor for Trace {}
+/// impl Accessor for Trace {
+///   fn metrics(&self) -> &AccessorMetrics {
+///         self.metrics.as_ref()
+///   }
+/// }
 ///
 /// impl Layer for Trace {
 ///     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-///         Arc::new(Trace { inner })
+///         Arc::new(Trace { inner, metrics: Arc::new(AccessorMetrics::default()) })
 ///     }
 /// }
 /// ```

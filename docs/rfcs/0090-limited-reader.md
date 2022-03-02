@@ -5,7 +5,7 @@
 
 # Summary
 
-Native support for limited reader.
+Native support for the limited reader.
 
 # Motivation
 
@@ -19,9 +19,9 @@ let op = OpRead {
 };
 ```
 
-In this implementation, we depend on http client to drop the request as soon as we stop reading. However, we always read too much extra data which decrease our reading performance.
+In this implementation, we depend on the HTTP client to drop the request when we stop reading. However, we always read too much extra data, which decreases our reading performance.
 
-Here is a benchmark around reading whole file and only read half:
+Here is a benchmark around reading the whole file and only reading half:
 
 ```rust
 s3/read/1c741003-40ef-43a9-b23f-b6a32ed7c4c6
@@ -32,11 +32,11 @@ s3/read_half/1c741003-40ef-43a9-b23f-b6a32ed7c4c6
                         thrpt:  [1.0780 GiB/s 1.0923 GiB/s 1.1059 GiB/s]
 ```
 
-So our current behavior is buggy, and need more clear API to address that.
+So our current behavior is buggy, and we need more clear API to address that.
 
 # Guide-level explanation
 
-We will remove `Reader::total_size()` from public API, instead of adding the following APIs for `Object`:
+We will remove `Reader::total_size()` from public API instead of adding the following APIs for `Object`:
 
 ```rust
 pub fn reader(&self) -> Reader {}
@@ -45,12 +45,12 @@ pub fn offset_reader(&self, offset: u64) -> Reader {}
 pub fn limited_reader(&self, size: u64) -> Reader {}
 ```
 
-- `reader`: returns a new reader which can read the whole file.
+- `reader`: returns a new reader who can read the whole file.
 - `range_reader`: returns a ranged reader which read `[offset, offset+size)`.
 - `offset_reader`: returns a reader from offset `[offset:]`
 - `limited_reader`: returns a limited reader `[:size]`
 
-Take `parquet`'s read logic as example, we can rewrite:
+Take `parquet`'s actual logic as an example. We can rewrite:
 
 ```rust
 async fn _read_single_column_async<'b, R, F>(
@@ -92,11 +92,11 @@ where
 So that:
 
 - No extra data will be read.
-- No extra `seek`/`stat` operation needed.
+- No extra `seek`/`stat` operation is needed.
 
 # Reference-level explanation
 
-Inside `Reader`, we will maintain `offset`, `size` and `pos` correctly.
+Inside `Reader`, we will correctly maintain `offset`, `size`, and `pos`.
 
 - If `offset` is `None`, we will use `0` instead.
 - If `size` is `None`, we will use `meta.content_length() - self.offset.unwrap_or_default()` instead.
@@ -113,7 +113,7 @@ fn current_size(&self) -> Option<u64> {
 }
 ```
 
-Instead of always requesting the whole object content, we will set the size:
+Instead of constantly requesting the entire object content, we will set the size:
 
 ```rust
 let op = OpRead {
@@ -123,7 +123,7 @@ let op = OpRead {
 };
 ```
 
-After this change, we will have the similar throughput for `read_all` and `read_half`:
+After this change, we will have a similar throughput for `read_all` and `read_half`:
 
 ```rust
 s3/read/6dd40f8d-7455-451e-b510-3b7ac23e0468
@@ -152,4 +152,4 @@ None
 
 # Future possibilities
 
-- Refactor the parquet reading logic to make most use of `range_reader`.
+- Refactor the parquet reading logic to make the most use of `range_reader`.

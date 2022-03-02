@@ -134,9 +134,10 @@ impl AsyncSeek for Reader {
             }
         }
 
-        self.pos = match pos {
-            SeekFrom::Start(off) => off,
-            SeekFrom::Current(off) => self.pos + off as u64,
+        let cur = self.pos as i64;
+        let cur = match pos {
+            SeekFrom::Start(off) => off as i64,
+            SeekFrom::Current(off) => cur + off,
             SeekFrom::End(off) => {
                 // Stat the object to get it's content-length.
                 if self.size.is_none() {
@@ -151,12 +152,14 @@ impl AsyncSeek for Reader {
 
                 let total_size = self.size.expect("must have valid total_size");
 
-                total_size + off as u64
+                total_size as i64 + off
             }
         };
 
+        self.pos = cur as u64;
+
         self.state = ReadState::Idle;
-        Poll::Ready(Ok(self.pos as u64))
+        Poll::Ready(Ok(self.pos))
     }
 }
 

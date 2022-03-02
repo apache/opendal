@@ -19,10 +19,10 @@ use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 
 use crate::services::fs;
-use crate::{Operator, Reader};
+use crate::Operator;
 
 #[tokio::test]
-async fn test_reader() {
+async fn test_reader() -> Result<()> {
     let f = Operator::new(fs::Backend::build().finish().await.unwrap());
 
     let path = format!("/tmp/{}", uuid::Uuid::new_v4());
@@ -39,30 +39,32 @@ async fn test_reader() {
     let mut r = f.object(&path).reader();
 
     // Seek to offset 3.
-    let n = r.seek(SeekFrom::Start(3)).await.expect("seek");
+    let n = r.seek(SeekFrom::Start(3)).await?;
     assert_eq!(n, 3);
 
     // Read only one byte.
     let mut bs = Vec::new();
     bs.resize(1, 0);
-    let n = r.read(&mut bs).await.expect("read");
+    let n = r.read(&mut bs).await?;
     assert_eq!("l", from_utf8(&bs).unwrap());
     assert_eq!(n, 1);
-    let n = r.seek(SeekFrom::Current(0)).await.expect("seek");
+    let n = r.seek(SeekFrom::Current(0)).await?;
     assert_eq!(n, 4);
 
     // Seek to end.
-    let n = r.seek(SeekFrom::End(-1)).await.expect("seek");
+    let n = r.seek(SeekFrom::End(-1)).await?;
     assert_eq!(n, 12);
 
     // Read only one byte.
     let mut bs = Vec::new();
     bs.resize(1, 0);
-    let n = r.read(&mut bs).await.expect("read");
-    assert_eq!("!", from_utf8(&bs).unwrap());
+    let n = r.read(&mut bs).await?;
+    assert_eq!("!", from_utf8(&bs)?);
     assert_eq!(n, 1);
-    let n = r.seek(SeekFrom::Current(0)).await.expect("seek");
+    let n = r.seek(SeekFrom::Current(0)).await?;
     assert_eq!(n, 13);
+
+    Ok(())
 }
 
 #[tokio::test]

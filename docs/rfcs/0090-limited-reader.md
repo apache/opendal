@@ -23,67 +23,133 @@ In this implementation, we depend on http client to drop the request as soon as 
 
 Here is a benchmark around reading whole file and only read half:
 
+```rust
+s3/read/1c741003-40ef-43a9-b23f-b6a32ed7c4c6
+                        time:   [7.2697 ms 7.3521 ms 7.4378 ms]
+                        thrpt:  [2.1008 GiB/s 2.1252 GiB/s 2.1493 GiB/s]
+s3/read_half/1c741003-40ef-43a9-b23f-b6a32ed7c4c6
+                        time:   [7.0645 ms 7.1524 ms 7.2473 ms]
+                        thrpt:  [1.0780 GiB/s 1.0923 GiB/s 1.1059 GiB/s]
+```
 
-
+So our current behavior is buggy, and need more clear API to address that.
 
 # Guide-level explanation
 
-Explain the proposal as if it was already included in the opendal and you were teaching it to other opendal users. That generally means:
+We will remove `Reader::total_size()` from public API, instead of adding the following APIs for `Object`:
 
-- Introducing new named concepts.
-- Explaining the feature mainly in terms of examples.
-- Explaining how opendal users should *think* about the feature and how it should impact the way they use opendal. It should explain the impact as concretely as possible.
-- If applicable, provide sample error messages, deprecation warnings, or migration guidance.
-- If applicable, describe the differences between teaching this to exist opendal users and new opendal users.
+```rust
+pub fn reader(&self) -> Reader {}
+pub fn range_reader(&self, offset: u64, size: u64) -> Reader {}
+pub fn offset_reader(&self, offset: u64) -> Reader {}
+pub fn limited_reader(&self, size: u64) -> Reader {}
+```
+
+- `reader`: returns a new reader which can read the whole file.
+- `range_reader`: returns a ranged reader which read `[offset, offset+size)`.
+- `offset_reader`: returns a reader from offset `[offset:]`
+- `limited_reader`: returns a limited reader `[:size]`
+
+Take `parquet`'s read logic as example, we can rewrite:
+
+```rust
+async fn _read_single_column_async<'b, R, F>(
+    factory: F,
+    meta: &ColumnChunkMetaData,
+) -> Result<(&ColumnChunkMetaData, Vec<u8>)>
+where
+    R: AsyncRead + AsyncSeek + Send + Unpin,
+    F: Fn() -> BoxFuture<'b, std::io::Result<R>>,
+{
+    let mut reader = factory().await?;
+    let (start, len) = meta.byte_range();
+    reader.seek(std::io::SeekFrom::Start(start)).await?;
+    let mut chunk = vec![0; len as usize];
+    reader.read_exact(&mut chunk).await?;
+    Result::Ok((meta, chunk))
+}
+```
+
+into
+
+```rust
+async fn _read_single_column_async<'b, R, F>(
+    factory: F,
+    meta: &ColumnChunkMetaData,
+) -> Result<(&ColumnChunkMetaData, Vec<u8>)>
+where
+    R: AsyncRead + AsyncSeek + Send + Unpin,
+    F: Fn(usize, usize) -> BoxFuture<'b, std::io::Result<R>>,
+{
+    let (start, len) = meta.byte_range();
+    let mut reader = factory(start, len).await?;
+    let mut chunk = vec![0; len as usize];
+    reader.read_exact(&mut chunk).await?;
+    Result::Ok((meta, chunk))
+}
+```
+
+So that:
+
+- No extra data will be read.
+- No extra `seek`/`stat` operation needed.
 
 # Reference-level explanation
 
-This is the technical portion of the RFC. Explain the design in sufficient detail that:
+Inside `Reader`, we will maintain `offset`, `size` and `pos` correctly.
 
-- Its interaction with other features is clear.
-- It is reasonably clear how the feature would be implemented.
-- Corner cases are dissected by example.
+- If `offset` is `None`, we will use `0` instead.
+- If `size` is `None`, we will use `meta.content_length() - self.offset.unwrap_or_default()` instead.
 
-The section should return to the examples given in the previous section and explain more fully how the detailed proposal makes those examples work.
+We will calculate `Reader` current offset and size easily:
+
+```rust
+fn current_offset(&self) -> u64 {
+    self.offset.unwrap_or_default() + self.pos
+}
+
+fn current_size(&self) -> Option<u64> {
+    self.size.map(|v| v - self.pos)
+}
+```
+
+Instead of always requesting the whole object content, we will set the size:
+
+```rust
+let op = OpRead {
+    path: self.path.to_string(),
+    offset: Some(self.current_offset()),
+    size: self.current_size(),
+};
+```
+
+After this change, we will have the similar throughput for `read_all` and `read_half`:
+
+```rust
+s3/read/6dd40f8d-7455-451e-b510-3b7ac23e0468
+                        time:   [4.9554 ms 5.0888 ms 5.2282 ms]
+                        thrpt:  [2.9886 GiB/s 3.0704 GiB/s 3.1532 GiB/s]
+s3/read_half/6dd40f8d-7455-451e-b510-3b7ac23e0468
+                        time:   [3.1868 ms 3.2494 ms 3.3052 ms]
+                        thrpt:  [2.3637 GiB/s 2.4043 GiB/s 2.4515 GiB/s]
+```
 
 # Drawbacks
 
-Why should we *not* do this?
+None
 
 # Rationale and alternatives
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered, and what is the rationale for not choosing them?
-- What is the impact of not doing this?
+None
 
 # Prior art
 
-Discuss prior art, both the good and the bad, in relation to this proposal.
-A few examples of what this can include are:
-
-- What lessons can we learn from what other communities have done here?
-
-This section is intended to encourage you as an author to think about the lessons from other communities provide readers of your RFC with a fuller picture.
-If there is no prior art, that is fine - your ideas are interesting to us, whether they are brand new or an adaptation from other projects.
+None
 
 # Unresolved questions
 
-- What parts of the design do you expect to resolve through the RFC process before this gets merged?
-- What related issues do you consider out of scope for this RFC that could be addressed in the future independently of the solution that comes out of this RFC?
+None
 
 # Future possibilities
 
-Think about what the natural extension and evolution of your proposal would be and how it would affect the opendal. Try to use this section as a tool to more fully consider all possible interactions with the project in your proposal.
-
-Also, consider how this all fits into the roadmap for the project.
-
-This is also a good place to "dump ideas", if they are out of scope for the
-RFC, you are writing but otherwise related.
-
-If you have tried and cannot think of any future possibilities,
-you may state that you cannot think of anything.
-
-Note that having something written down in the future-possibilities section
-is not a reason to accept the current or a future RFC; such notes should be
-in the section on motivation or rationale in this or subsequent RFCs.
-The section merely provides additional information.
+- Refactor the parquet reading logic to make most use of `range_reader`.

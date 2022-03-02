@@ -49,7 +49,19 @@ impl Object {
     }
 
     pub fn reader(&self) -> Reader {
-        Reader::new(self.acc.clone(), self.meta.path())
+        Reader::new(self.acc.clone(), self.meta.path(), None, None)
+    }
+
+    pub fn range_reader(&self, offset: u64, size: u64) -> Reader {
+        Reader::new(self.acc.clone(), self.meta.path(), Some(offset), Some(size))
+    }
+
+    pub fn offset_reader(&self, offset: u64) -> Reader {
+        Reader::new(self.acc.clone(), self.meta.path(), Some(offset), None)
+    }
+
+    pub fn limited_reader(&self, size: u64) -> Reader {
+        Reader::new(self.acc.clone(), self.meta.path(), None, Some(size))
     }
 
     pub fn writer(&self) -> Writer {

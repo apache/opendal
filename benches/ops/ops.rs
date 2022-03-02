@@ -111,26 +111,26 @@ fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Vec<u8> {
 }
 
 pub async fn bench_read(op: Operator, path: &str) {
-    let mut r = op.object(path).reader().total_size(TOTAL_SIZE as u64);
+    let mut r = op.object(path).limited_reader(TOTAL_SIZE as u64);
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }
 
 pub async fn bench_seek_read(op: Operator, path: &str, pos: u64) {
-    let mut r = op.object(path).reader().total_size(TOTAL_SIZE as u64);
+    let mut r = op.object(path).limited_reader(TOTAL_SIZE as u64);
     r.seek(SeekFrom::Start(pos)).await.expect("seek");
     r.seek(SeekFrom::Start(0)).await.expect("seek");
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }
 
 pub async fn bench_buf_read(op: Operator, path: &str) {
-    let r = op.object(path).reader().total_size(TOTAL_SIZE as u64);
+    let r = op.object(path).limited_reader(TOTAL_SIZE as u64);
     let mut r = BufReader::with_capacity(BATCH_SIZE, r);
 
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }
 
 pub async fn bench_read_half(op: Operator, path: &str) {
-    let mut r = op.object(path).reader().total_size((TOTAL_SIZE / 2) as u64);
+    let mut r = op.object(path).limited_reader((TOTAL_SIZE / 2) as u64);
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }
 

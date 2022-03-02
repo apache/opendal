@@ -14,11 +14,12 @@
 use std::io::SeekFrom;
 use std::str::from_utf8;
 
+use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 
 use crate::services::fs;
-use crate::Operator;
+use crate::{Operator, Reader};
 
 #[tokio::test]
 async fn test_reader() {
@@ -62,4 +63,91 @@ async fn test_reader() {
     assert_eq!(n, 1);
     let n = r.seek(SeekFrom::Current(0)).await.expect("seek");
     assert_eq!(n, 13);
+}
+
+#[tokio::test]
+async fn test_range_reader() -> Result<()> {
+    let f = Operator::new(fs::Backend::build().finish().await.unwrap());
+
+    let path = format!("/tmp/{}", uuid::Uuid::new_v4());
+
+    // Create a test file.
+    let x = f
+        .object(&path)
+        .writer()
+        .write_bytes("Hello, world!".to_string().into_bytes())
+        .await
+        .unwrap();
+    assert_eq!(x, 13);
+
+    let mut r = f.object(&path).range_reader(1, 10);
+    let mut buf = vec![];
+    let n = r.read_to_end(&mut buf).await?;
+    assert_eq!(n, 10);
+    assert_eq!("ello, worl", from_utf8(&buf).unwrap());
+
+    let n = r.seek(SeekFrom::Start(0)).await?;
+    assert_eq!(n, 0);
+    let n = r.seek(SeekFrom::End(0)).await?;
+    assert_eq!(n, 10);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_offset_reader() -> Result<()> {
+    let f = Operator::new(fs::Backend::build().finish().await.unwrap());
+
+    let path = format!("/tmp/{}", uuid::Uuid::new_v4());
+
+    // Create a test file.
+    let x = f
+        .object(&path)
+        .writer()
+        .write_bytes("Hello, world!".to_string().into_bytes())
+        .await
+        .unwrap();
+    assert_eq!(x, 13);
+
+    let mut r = f.object(&path).offset_reader(1);
+    let mut buf = vec![];
+    let n = r.read_to_end(&mut buf).await?;
+    assert_eq!(n, 12);
+    assert_eq!("ello, world!", from_utf8(&buf).unwrap());
+
+    let n = r.seek(SeekFrom::Start(0)).await?;
+    assert_eq!(n, 0);
+    let n = r.seek(SeekFrom::End(0)).await?;
+    assert_eq!(n, 12);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_limited_reader() -> Result<()> {
+    let f = Operator::new(fs::Backend::build().finish().await.unwrap());
+
+    let path = format!("/tmp/{}", uuid::Uuid::new_v4());
+
+    // Create a test file.
+    let x = f
+        .object(&path)
+        .writer()
+        .write_bytes("Hello, world!".to_string().into_bytes())
+        .await
+        .unwrap();
+    assert_eq!(x, 13);
+
+    let mut r = f.object(&path).limited_reader(5);
+    let mut buf = vec![];
+    let n = r.read_to_end(&mut buf).await?;
+    assert_eq!(n, 5);
+    assert_eq!("Hello", from_utf8(&buf).unwrap());
+
+    let n = r.seek(SeekFrom::Start(0)).await?;
+    assert_eq!(n, 0);
+    let n = r.seek(SeekFrom::End(0)).await?;
+    assert_eq!(n, 5);
+
+    Ok(())
 }

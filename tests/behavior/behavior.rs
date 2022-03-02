@@ -97,7 +97,7 @@ impl BehaviorTest {
             "read part file"
         );
 
-        // Step 4.3: List this dir, we should get this file.
+        // Step 5: List this dir, we should get this file.
         let mut obs = self.op.objects("").map(|o| o.expect("list object"));
         let mut found = false;
         while let Some(o) = obs.next().await {
@@ -116,11 +116,11 @@ impl BehaviorTest {
         }
         assert!(found, "file should be found in iterator");
 
-        // Step 5: Delete this file
+        // Step 6: Delete this file
         let result = self.op.object(&path).delete().await;
         assert!(result.is_ok(), "delete file: {}", result.unwrap_err());
 
-        // Step 6: Stat this file again to check if it's deleted
+        // Step 7: Stat this file again to check if it's deleted
         let o = self.op.object(&path);
         let exist = o.is_exist().await?;
         assert!(!exist, "stat file again");

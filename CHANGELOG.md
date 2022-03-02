@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.1.3] - 2022-03-02
+
+### Added
+
+- RFC and implementations for limited reader (#90)
+- readers: Implement observe reader support (#92)
+
+### Changed
+
+- deps: Bump s3 sdk to 0.8 (#87)
+- bench: Improve logic (#89)
+
+### New RFCs
+
+- [limited_reader](https://github.com/datafuselabs/opendal/blob/main/docs/rfcs/0090-limited-reader.md)
+
 ## [v0.1.2] - 2022-03-01
 
 ### Changed
@@ -86,6 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.1.3]: https://github.com/datafuselabs/opendal/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/datafuselabs/opendal/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/datafuselabs/opendal/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/datafuselabs/opendal/compare/v0.0.5...v0.1.0

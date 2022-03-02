@@ -17,3 +17,7 @@ pub use callback::CallbackReader;
 
 mod stream;
 pub use stream::ReaderStream;
+
+mod observer;
+pub use observer::ObserveReader;
+pub use observer::ReadEvent;

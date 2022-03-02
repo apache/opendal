@@ -71,7 +71,6 @@ pub fn bench(c: &mut Criterion) {
                     .iter(|| bench_buf_read(input.0.clone(), input.1))
             },
         );
-
         group.bench_with_input(
             BenchmarkId::new("seek_read", &path),
             &(op.clone(), &path),
@@ -81,7 +80,17 @@ pub fn bench(c: &mut Criterion) {
                     .iter(|| bench_seek_read(input.0.clone(), input.1, pos))
             },
         );
+        group.throughput(criterion::Throughput::Bytes((TOTAL_SIZE / 2) as u64));
+        group.bench_with_input(
+            BenchmarkId::new("read_half", &path),
+            &(op.clone(), &path),
+            |b, input| {
+                b.to_async(&runtime)
+                    .iter(|| bench_read_half(input.0.clone(), input.1))
+            },
+        );
 
+        group.throughput(criterion::Throughput::Bytes(TOTAL_SIZE as u64));
         group.bench_with_input(
             BenchmarkId::new("write", &path),
             &(op.clone(), &path, content.clone()),
@@ -117,6 +126,11 @@ pub async fn bench_buf_read(op: Operator, path: &str) {
     let r = op.object(path).reader().total_size(TOTAL_SIZE as u64);
     let mut r = BufReader::with_capacity(BATCH_SIZE, r);
 
+    io::copy(&mut r, &mut io::sink()).await.unwrap();
+}
+
+pub async fn bench_read_half(op: Operator, path: &str) {
+    let mut r = op.object(path).reader().total_size((TOTAL_SIZE / 2) as u64);
     io::copy(&mut r, &mut io::sink()).await.unwrap();
 }
 

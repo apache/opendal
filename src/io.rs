@@ -88,11 +88,10 @@ impl AsyncRead for Reader {
         match &mut self.state {
             ReadState::Idle => {
                 let acc = self.acc.clone();
-                let pos = self.pos;
                 let op = OpRead {
                     path: self.path.to_string(),
-                    offset: Some(pos),
-                    size: None,
+                    offset: Some(self.pos),
+                    size: self.total_size,
                 };
 
                 let future = async move { acc.read(&op).await };

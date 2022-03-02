@@ -154,6 +154,7 @@ impl AsyncSeek for Reader {
         };
 
         self.state = ReadState::Idle;
+        self.acc.metrics().incr_seek();
         Poll::Ready(Ok(self.pos as u64))
     }
 }

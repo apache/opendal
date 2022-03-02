@@ -21,11 +21,13 @@
 //! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
 
 use std::io::SeekFrom;
+use std::sync::atomic::AtomicU64;
 
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
+use opendal::AccessorMetrics;
 use opendal::ObjectMode;
 use opendal::Operator;
 use rand::prelude::*;
@@ -34,7 +36,7 @@ use sha2::Sha256;
 
 /// TODO: Implement test files cleanup.
 pub struct BehaviorTest {
-    op: Operator,
+    pub(crate) op: Operator,
 
     rng: ThreadRng,
 }
@@ -47,18 +49,16 @@ impl BehaviorTest {
         }
     }
 
-    pub async fn run(&mut self) -> Result<()> {
-        self.test_normal().await?;
-
-        Ok(())
+    pub async fn run(&mut self) -> Result<AccessorMetrics> {
+        self.test_normal().await
     }
 
     /// This case is use to test service's normal behavior.
-    async fn test_normal(&mut self) -> Result<()> {
+    async fn test_normal(&mut self) -> Result<AccessorMetrics> {
         // Step 1: Generate a random file with random size (under 4 MB).
         let path = uuid::Uuid::new_v4().to_string();
-        println!("Generate a random file: {}", &path);
         let (content, size) = self.gen_bytes();
+        println!("Generate a random file: {}, size: {size}", &path);
 
         // Step 2: Write this file
         let w = self.op.object(&path).writer();
@@ -124,7 +124,17 @@ impl BehaviorTest {
         let o = self.op.object(&path);
         let exist = o.is_exist().await?;
         assert!(!exist, "stat file again");
-        Ok(())
+
+        Ok(AccessorMetrics {
+            read_bytes: AtomicU64::new(size as u64 + length),
+            read_count: AtomicU64::new(2), // read + seek read
+            write_bytes: AtomicU64::new(size as u64),
+            write_count: AtomicU64::new(1),
+            seek_count: AtomicU64::new(1),
+            delete_count: AtomicU64::new(1),
+            list_count: AtomicU64::new(1),
+            stat_count: AtomicU64::new(2), // seek + stat
+        })
     }
 
     fn gen_bytes(&mut self) -> (Vec<u8>, usize) {

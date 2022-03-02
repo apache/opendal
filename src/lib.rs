@@ -13,6 +13,7 @@
 // limitations under the License.
 mod accessor;
 pub use accessor::Accessor;
+pub use accessor::AccessorMetrics;
 
 mod io;
 pub use io::BoxedAsyncReader;

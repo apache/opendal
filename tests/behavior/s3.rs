@@ -25,6 +25,15 @@ async fn test_s3() -> Result<()> {
         println!("OPENDAL_S3_TEST not set, ignore");
         return Ok(());
     }
+    let mut bh = BehaviorTest::new(Operator::new(acc.unwrap()));
+    let metrics = bh.run().await?;
 
-    BehaviorTest::new(Operator::new(acc.unwrap())).run().await
+    let acc = bh.op.inner();
+    let acc_metrics = acc.metrics();
+
+    println!("{:?}, {:?}", metrics, acc_metrics);
+
+    // TODO: after https://github.com/datafuselabs/opendal/issues/86 is fixed
+    // assert_eq!(format!("{:?}", metrics), format!("{:?}", acc_metrics));
+    Ok(())
 }

@@ -30,6 +30,7 @@ use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
 
+use crate::accessor::AccessorMetrics;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
@@ -72,7 +73,10 @@ impl Builder {
             }
         }
 
-        Ok(Arc::new(Backend { root }))
+        Ok(Arc::new(Backend {
+            root,
+            metrics: Arc::new(AccessorMetrics::default()),
+        }))
     }
 }
 
@@ -87,6 +91,7 @@ impl Builder {
 #[derive(Debug, Clone)]
 pub struct Backend {
     root: String,
+    metrics: Arc<AccessorMetrics>,
 }
 
 impl Backend {
@@ -232,6 +237,10 @@ impl Accessor for Backend {
         };
 
         Ok(Box::new(rd))
+    }
+
+    fn metrics(&self) -> &AccessorMetrics {
+        self.metrics.as_ref()
     }
 }
 

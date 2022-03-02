@@ -13,6 +13,8 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -59,6 +61,8 @@ pub trait Accessor: Send + Sync + Debug {
         let _ = args;
         unimplemented!()
     }
+
+    fn metrics(&self) -> &AccessorMetrics;
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
@@ -79,5 +83,50 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         self.as_ref().list(args).await
+    }
+
+    fn metrics(&self) -> &AccessorMetrics {
+        self.as_ref().metrics()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct AccessorMetrics {
+    pub read_count: AtomicU64,
+    pub read_bytes: AtomicU64,
+    pub write_count: AtomicU64,
+    pub write_bytes: AtomicU64,
+
+    pub seek_count: AtomicU64,
+    pub stat_count: AtomicU64,
+    pub delete_count: AtomicU64,
+    pub list_count: AtomicU64,
+}
+
+impl AccessorMetrics {
+    pub fn incr_read(&self, read_bytes: u64) {
+        self.read_count.fetch_add(1, Ordering::Relaxed);
+        self.read_bytes.fetch_add(read_bytes, Ordering::Relaxed);
+    }
+
+    pub fn incr_write(&self, write_bytes: u64) {
+        self.write_count.fetch_add(1, Ordering::Relaxed);
+        self.write_bytes.fetch_add(write_bytes, Ordering::Relaxed);
+    }
+
+    pub fn incr_seek(&self) {
+        self.seek_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn incr_stat(&self) {
+        self.stat_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn incr_delete(&self) {
+        self.delete_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn incr_list(&self) {
+        self.list_count.fetch_add(1, Ordering::Relaxed);
     }
 }

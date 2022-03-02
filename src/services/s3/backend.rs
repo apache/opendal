@@ -35,6 +35,7 @@ use super::error::parse_get_object_error;
 use super::error::parse_head_object_error;
 use super::error::parse_unexpect_error;
 use super::object_stream::S3ObjectStream;
+use crate::accessor::AccessorMetrics;
 use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
@@ -282,6 +283,7 @@ impl Builder {
             root,
             bucket: self.bucket.clone(),
             client: aws_sdk_s3::Client::from_conf(cfg.build()),
+            metrics: Arc::new(AccessorMetrics::default()),
         }))
     }
 }
@@ -293,6 +295,8 @@ pub struct Backend {
     client: aws_sdk_s3::Client,
     // root will be "/" or "/abc/"
     root: String,
+
+    metrics: Arc<AccessorMetrics>,
 }
 
 impl Backend {
@@ -347,6 +351,7 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_get_object_error(e, "read", &args.path))?;
 
+        self.metrics().incr_read(resp.content_length() as u64);
         Ok(Box::new(S3ByteStream(resp.body).into_async_read()))
     }
 
@@ -366,6 +371,7 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_unexpect_error(e, "write", &args.path))?;
 
+        self.metrics().incr_write(args.size as u64);
         Ok(args.size as usize)
     }
 
@@ -387,6 +393,7 @@ impl Accessor for Backend {
             .set_mode(ObjectMode::FILE)
             .set_complete();
 
+        self.metrics().incr_stat();
         Ok(m)
     }
 
@@ -402,17 +409,23 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_unexpect_error(e, "delete", &args.path))?;
 
+        self.metrics().incr_delete();
         Ok(())
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         let path = self.get_abs_path(&args.path);
 
+        self.metrics().incr_list();
         Ok(Box::new(S3ObjectStream::new(
             self.clone(),
             self.bucket.clone(),
             path,
         )))
+    }
+
+    fn metrics(&self) -> &AccessorMetrics {
+        self.metrics.as_ref()
     }
 }
 

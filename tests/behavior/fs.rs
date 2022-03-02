@@ -26,5 +26,7 @@ async fn test_fs() -> Result<()> {
         return Ok(());
     }
 
-    BehaviorTest::new(Operator::new(acc.unwrap())).run().await
+    let _ = BehaviorTest::new(Operator::new(acc.unwrap())).run().await?;
+
+    Ok(())
 }

@@ -102,6 +102,7 @@ impl futures::Stream for S3ObjectStream {
                     if !token.is_empty() {
                         req = req.continuation_token(token);
                     }
+
                     req.send()
                         .await
                         .map_err(|e| parse_unexpect_error(e, "list", &path))

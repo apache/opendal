@@ -19,14 +19,23 @@ use std::task::Poll;
 use futures::AsyncRead;
 use pin_project::pin_project;
 
+/// ReadEvent will emitted by `ObserveReader`.
 #[derive(Copy, Clone, Debug)]
 pub enum ReadEvent {
+    /// `poll_read` has been called.
     Started,
+    /// `poll_read` returns `Pending`, we are back to the runtime.
     Pending,
+    /// `poll_read` returns `Ready(Ok(n))`, we have read `n` bytes of data.
     Read(usize),
+    /// `poll_read` returns `Ready(Err(e))`, we will have an `ErrorKind` here.
     Error(std::io::ErrorKind),
 }
 
+/// ObserveReader is used to observe state inside Reader.
+///
+/// We will emit `ReadEvent` in different stages that the inner Reader reach.
+/// Caller need to handle `ReadEvent` correctly and quickly.
 #[pin_project]
 pub struct ObserveReader<R, F: FnMut(ReadEvent)> {
     r: R,

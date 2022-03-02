@@ -31,6 +31,7 @@ use crate::Accessor;
 use crate::Reader;
 use crate::Writer;
 
+/// `Object` is a handler for all object related operations.
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
@@ -38,6 +39,7 @@ pub struct Object {
 }
 
 impl Object {
+    /// Creates a new Object.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         Self {
             acc,
@@ -48,20 +50,52 @@ impl Object {
         }
     }
 
+    /// Create a new reader which can read the whole object.
     pub fn reader(&self) -> Reader {
-        Reader::new(self.acc.clone(), self.meta.path())
+        Reader::new(self.acc.clone(), self.meta.path(), None, None)
     }
 
+    /// Create a new ranged reader which can only read data between [offset, offset+size).
+    ///
+    /// # Note
+    ///
+    /// The input offset and size are not checked, callers could meet error
+    /// while reading.
+    pub fn range_reader(&self, offset: u64, size: u64) -> Reader {
+        Reader::new(self.acc.clone(), self.meta.path(), Some(offset), Some(size))
+    }
+
+    /// Create a new offset reader which can read data since offset.
+    ///
+    /// # Note
+    ///
+    /// The input offset is not checked, callers could meet error while reading.
+    pub fn offset_reader(&self, offset: u64) -> Reader {
+        Reader::new(self.acc.clone(), self.meta.path(), Some(offset), None)
+    }
+
+    /// Create a new limited reader which can only read limited data.
+    ///
+    /// # Note
+    ///
+    /// The input size is not checked, callers could meet error while reading.
+    pub fn limited_reader(&self, size: u64) -> Reader {
+        Reader::new(self.acc.clone(), self.meta.path(), None, Some(size))
+    }
+
+    /// Create a new writer which can write data into the object.
     pub fn writer(&self) -> Writer {
         Writer::new(self.acc.clone(), self.meta.path())
     }
 
+    /// Delete current object.
     pub async fn delete(&self) -> Result<()> {
         let op = &OpDelete::new(self.meta.path());
 
         self.acc.delete(op).await
     }
 
+    /// Get current object's metadata.
     pub async fn metadata(&self) -> Result<Metadata> {
         let op = &OpStat::new(self.meta.path());
 
@@ -84,6 +118,7 @@ impl Object {
         &mut self.meta
     }
 
+    /// Check if this object exist or not.
     pub async fn is_exist(&self) -> Result<bool> {
         let r = self.metadata().await;
         match r {
@@ -96,6 +131,7 @@ impl Object {
     }
 }
 
+/// Metadata carries all object metadata.
 #[derive(Debug, Clone, Default)]
 pub struct Metadata {
     complete: bool,
@@ -160,6 +196,7 @@ bitflags! {
 
 pub type BoxedObjectStream = Box<dyn futures::Stream<Item = Result<Object>> + Unpin + Send>;
 
+/// `ObjectStream` is a handler for listing object under a dir.
 pub struct ObjectStream {
     acc: Arc<dyn Accessor>,
     path: String,
@@ -173,6 +210,7 @@ enum State {
 }
 
 impl ObjectStream {
+    /// Creates a new object stream.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         Self {
             acc,

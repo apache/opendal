@@ -38,6 +38,13 @@ async fn main() -> Result<()> {
     assert_eq!(n, 13);
     assert_eq!(String::from_utf8_lossy(&buf), "Hello, World!");
 
+    // Read range from file;
+    let mut r = o.range_reader(10, 1);
+    let mut buf = vec![];
+    let n = r.read_to_end(&mut buf).await?;
+    assert_eq!(n, 1);
+    assert_eq!(String::from_utf8_lossy(&buf), "l");
+
     // Get file's Metadata
     let meta = o.metadata().await?;
     assert_eq!(meta.content_length(), 13);

@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::time::Duration;
+use std::time::Instant;
+
 use futures::io::copy;
 use futures::io::Cursor;
 use futures::StreamExt;
 
-use crate::readers::CallbackReader;
-use crate::readers::ReaderStream;
+use crate::readers::*;
 
 #[tokio::test]
 async fn reader_stream() {
@@ -43,4 +45,35 @@ async fn callback_reader() {
 
     assert_eq!(size, 13);
     assert_eq!(n, 13);
+}
+
+#[tokio::test]
+async fn observe_reader() {
+    let mut last_pending = None;
+    let mut read_cost = Duration::default();
+    let mut size = 0;
+
+    let reader = ObserveReader::new(Box::new(Cursor::new("Hello, world!")), |e| {
+        let start = match last_pending {
+            None => Instant::now(),
+            Some(t) => t,
+        };
+        match e {
+            ReadEvent::Pending => last_pending = Some(start),
+            ReadEvent::Read(n) => {
+                last_pending = None;
+                size += n;
+            }
+            _ => {}
+        }
+        read_cost += start.elapsed().to_owned();
+    });
+
+    let mut bs = Vec::new();
+    let n = copy(reader, &mut bs).await.unwrap();
+
+    println!("read time: {:?}", read_cost);
+    assert_eq!(size, 13);
+    assert_eq!(n, 13);
+    assert!(!read_cost.is_zero());
 }

@@ -86,7 +86,6 @@ jobs:
           chmod +x mc
           ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
           ./mc mb local/test
-          ./mc mb local/test
           ./mc anonymous set public local/test
 
       - name: Test

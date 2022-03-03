@@ -15,9 +15,10 @@
 use std::io::SeekFrom;
 
 use criterion::Criterion;
+use futures::io;
 use futures::io::BufReader;
+use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use futures::{io, AsyncReadExt};
 use opendal::Operator;
 use opendal_test::services::fs;
 use opendal_test::services::s3;

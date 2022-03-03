@@ -19,7 +19,6 @@ use aws_http::auth::CredentialsStage;
 use aws_http::recursion_detection::RecursionDetectionStage;
 use aws_http::user_agent::UserAgentStage;
 use aws_sig_auth::signer::SigV4Signer;
-use aws_smithy_client::retry::Config as RetryConfig;
 use aws_smithy_http_tower::map_request::AsyncMapRequestLayer;
 use aws_smithy_http_tower::map_request::MapRequestLayer;
 use tower::layer::util::Identity;

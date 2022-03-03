@@ -149,7 +149,7 @@ impl AsyncRead for Reader {
                     self.pos += n as u64;
                     self.remaining = self.remaining.map(|v| v - n as u64);
                     // If all remaining data has been consumed, reset stat to Idle
-                    // to start a new reading.
+                    // to allow starting a new reading.
                     if let Some(0) = self.remaining {
                         self.state = ReadState::Idle;
                     }

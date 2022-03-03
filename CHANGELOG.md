@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.1.4] - 2022-03-03
+
+### Added
+
+- services/s3: Implement anonymous read support (#97)
+
 ## [v0.1.3] - 2022-03-02
 
 ### Added
@@ -102,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.1.4]: https://github.com/datafuselabs/opendal/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/datafuselabs/opendal/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/datafuselabs/opendal/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/datafuselabs/opendal/compare/v0.1.0...v0.1.1

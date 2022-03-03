@@ -14,7 +14,6 @@
 
 use std::io::SeekFrom;
 
-use criterion::BenchmarkId;
 use criterion::Criterion;
 use futures::io::BufReader;
 use futures::AsyncSeekExt;
@@ -55,53 +54,33 @@ pub fn bench(c: &mut Criterion) {
 
         let mut group = c.benchmark_group(case.0);
         group.throughput(criterion::Throughput::Bytes(TOTAL_SIZE as u64));
-        group.bench_with_input(
-            BenchmarkId::new("read", &path),
-            &(op.clone(), &path),
-            |b, input| {
-                b.to_async(&runtime)
-                    .iter(|| bench_read(input.0.clone(), input.1))
-            },
-        );
-        group.bench_with_input(
-            BenchmarkId::new("buf_read", &path),
-            &(op.clone(), &path),
-            |b, input| {
-                b.to_async(&runtime)
-                    .iter(|| bench_buf_read(input.0.clone(), input.1))
-            },
-        );
-        group.bench_with_input(
-            BenchmarkId::new("seek_read", &path),
-            &(op.clone(), &path),
-            |b, input| {
-                let pos = rng.gen_range(0..TOTAL_SIZE - BATCH_SIZE) as u64;
-                b.to_async(&runtime)
-                    .iter(|| bench_seek_read(input.0.clone(), input.1, pos))
-            },
-        );
+        group.bench_with_input("read", &(op.clone(), &path), |b, input| {
+            b.to_async(&runtime)
+                .iter(|| bench_read(input.0.clone(), input.1))
+        });
+        group.bench_with_input("buf_read", &(op.clone(), &path), |b, input| {
+            b.to_async(&runtime)
+                .iter(|| bench_buf_read(input.0.clone(), input.1))
+        });
+        group.bench_with_input("seek_read", &(op.clone(), &path), |b, input| {
+            let pos = rng.gen_range(0..TOTAL_SIZE - BATCH_SIZE) as u64;
+            b.to_async(&runtime)
+                .iter(|| bench_seek_read(input.0.clone(), input.1, pos))
+        });
         group.throughput(criterion::Throughput::Bytes((TOTAL_SIZE / 2) as u64));
-        group.bench_with_input(
-            BenchmarkId::new("read_half", &path),
-            &(op.clone(), &path),
-            |b, input| {
-                b.to_async(&runtime)
-                    .iter(|| bench_read_half(input.0.clone(), input.1))
-            },
-        );
+        group.bench_with_input("read_half", &(op.clone(), &path), |b, input| {
+            b.to_async(&runtime)
+                .iter(|| bench_read_half(input.0.clone(), input.1))
+        });
         group.throughput(criterion::Throughput::Bytes((TOTAL_SIZE / 4) as u64));
-        group.bench_with_input(
-            BenchmarkId::new("read_exact", &path),
-            &(op.clone(), &path),
-            |b, input| {
-                b.to_async(&runtime)
-                    .iter(|| bench_read_exact(input.0.clone(), input.1))
-            },
-        );
+        group.bench_with_input("read_exact", &(op.clone(), &path), |b, input| {
+            b.to_async(&runtime)
+                .iter(|| bench_read_exact(input.0.clone(), input.1))
+        });
 
         group.throughput(criterion::Throughput::Bytes(TOTAL_SIZE as u64));
         group.bench_with_input(
-            BenchmarkId::new("write", &path),
+            "write",
             &(op.clone(), &path, content.clone()),
             |b, input| {
                 b.to_async(&runtime)

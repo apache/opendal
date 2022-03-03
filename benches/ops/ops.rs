@@ -16,9 +16,9 @@ use std::io::SeekFrom;
 
 use criterion::BenchmarkId;
 use criterion::Criterion;
-use futures::io;
 use futures::io::BufReader;
 use futures::AsyncSeekExt;
+use futures::{io, AsyncReadExt};
 use opendal::Operator;
 use opendal_test::services::fs;
 use opendal_test::services::s3;
@@ -89,6 +89,15 @@ pub fn bench(c: &mut Criterion) {
                     .iter(|| bench_read_half(input.0.clone(), input.1))
             },
         );
+        group.throughput(criterion::Throughput::Bytes((TOTAL_SIZE / 4) as u64));
+        group.bench_with_input(
+            BenchmarkId::new("read_exact", &path),
+            &(op.clone(), &path),
+            |b, input| {
+                b.to_async(&runtime)
+                    .iter(|| bench_read_exact(input.0.clone(), input.1))
+            },
+        );
 
         group.throughput(criterion::Throughput::Bytes(TOTAL_SIZE as u64));
         group.bench_with_input(
@@ -132,6 +141,12 @@ pub async fn bench_buf_read(op: Operator, path: &str) {
 pub async fn bench_read_half(op: Operator, path: &str) {
     let mut r = op.object(path).limited_reader((TOTAL_SIZE / 2) as u64);
     io::copy(&mut r, &mut io::sink()).await.unwrap();
+}
+
+pub async fn bench_read_exact(op: Operator, path: &str) {
+    let mut r = op.object(path).limited_reader(TOTAL_SIZE as u64);
+    let mut buf = vec![0; 4 * 1024 * 1024];
+    r.read_exact(&mut buf).await.unwrap();
 }
 
 pub async fn bench_write(op: Operator, path: &str, content: Vec<u8>) {

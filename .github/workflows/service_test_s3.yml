@@ -81,13 +81,13 @@ jobs:
       - uses: Swatinem/rust-cache@v1
 
       - name: Setup test bucket
-        env:
-          AWS_ACCESS_KEY_ID: "minioadmin"
-          AWS_SECRET_ACCESS_KEY: "minioadmin"
-          AWS_EC2_METADATA_DISABLED: "true"
         run: |
-          aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
-          aws --endpoint-url http://127.0.0.1:9000/ s3api put-bucket-acl --acl public-read-write --bucket test
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
+          ./mc mb local/test
+          ./mc mb local/test
+          ./mc anonymous set public local/test
 
       - name: Test
         shell: bash

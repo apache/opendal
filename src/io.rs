@@ -27,7 +27,6 @@ use futures::AsyncRead;
 use futures::AsyncSeek;
 
 use crate::error::Result;
-use crate::io::ReadState::Idle;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
@@ -152,7 +151,7 @@ impl AsyncRead for Reader {
                     // If all remaining data has been consumed, reset stat to Idle
                     // to start a new reading.
                     if let Some(0) = self.remaining {
-                        self.state = Idle;
+                        self.state = ReadState::Idle;
                     }
 
                     Poll::Ready(Ok(n))

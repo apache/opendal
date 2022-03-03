@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::min;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
@@ -26,6 +27,7 @@ use futures::AsyncRead;
 use futures::AsyncSeek;
 
 use crate::error::Result;
+use crate::io::ReadState::Idle;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
@@ -46,9 +48,24 @@ pub struct Reader {
     path: String,
     offset: Option<u64>,
     size: Option<u64>,
+    mode: ReadMode,
 
+    remaining: Option<u64>,
     pos: u64,
     state: ReadState,
+}
+
+/// ReadMode is used to indicate which read pattern we will take for reading.
+///
+/// - `ReadMode::Random`: read part of data, the default mode. In this mode, we
+///   will try our best to fit the buffer size, only starting read while existing
+///   data has been consumed.
+/// - `ReadMode::Sequential`: read all data at once. In this mode, we will only start
+///   reading once to consume the whole reader.
+#[derive(Copy, Clone)]
+pub enum ReadMode {
+    Random,
+    Sequential,
 }
 
 enum ReadState {
@@ -65,18 +82,37 @@ impl Reader {
             path: path.to_string(),
             offset,
             size,
+            mode: ReadMode::Random,
 
+            remaining: None,
             pos: 0,
             state: ReadState::Idle,
         }
+    }
+
+    pub fn mode(mut self, mode: ReadMode) -> Self {
+        self.mode = mode;
+        self
     }
 
     fn current_offset(&self) -> u64 {
         self.offset.unwrap_or_default() + self.pos
     }
 
-    fn current_size(&self) -> Option<u64> {
-        self.size.map(|v| v - self.pos)
+    /// Calculate read size based on current states:
+    ///
+    /// - If we don't know the reader size, return `None` to read all remaining data.
+    /// - If the reader size is known
+    ///   - Return `current_size` on `ReadMode::Sequential`
+    ///   - Return the minimum of `current_size` and `buf_size` on `ReadMode::Random`
+    fn read_size(&self, buf_size: usize) -> Option<u64> {
+        match self.size {
+            None => None,
+            Some(v) => match self.mode {
+                ReadMode::Sequential => Some(v - self.pos),
+                ReadMode::Random => Some(min(v - self.pos, buf_size as u64)),
+            },
+        }
     }
 }
 
@@ -89,14 +125,16 @@ impl AsyncRead for Reader {
         match &mut self.state {
             ReadState::Idle => {
                 let acc = self.acc.clone();
+                let size = self.read_size(buf.len());
                 let op = OpRead {
                     path: self.path.to_string(),
                     offset: Some(self.current_offset()),
-                    size: self.current_size(),
+                    size,
                 };
 
                 let future = async move { acc.read(&op).await };
 
+                self.remaining = size;
                 self.state = ReadState::Sending(Box::pin(future));
                 self.poll_read(cx, buf)
             }
@@ -110,6 +148,13 @@ impl AsyncRead for Reader {
             ReadState::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
                 Ok(n) => {
                     self.pos += n as u64;
+                    self.remaining = self.remaining.map(|v| v - n as u64);
+                    // If all remaining data has been consumed, reset stat to Idle
+                    // to start a new reading.
+                    if let Some(0) = self.remaining {
+                        self.state = Idle;
+                    }
+
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => Poll::Ready(Err(e)),

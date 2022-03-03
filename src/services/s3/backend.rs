@@ -34,6 +34,7 @@ use once_cell::sync::Lazy;
 use super::error::parse_get_object_error;
 use super::error::parse_head_object_error;
 use super::error::parse_unexpect_error;
+use super::middleware::DefaultMiddleware;
 use super::object_stream::S3ObjectStream;
 use crate::credential::Credential;
 use crate::error::Error;
@@ -278,10 +279,20 @@ impl Builder {
             }
         }
 
+        let hyper_connector = aws_smithy_client::hyper_ext::Adapter::builder()
+            .build(aws_smithy_client::conns::https());
+
+        let aws_client = aws_smithy_client::Builder::new()
+            .connector(hyper_connector)
+            .middleware(aws_smithy_client::erase::DynMiddleware::new(
+                DefaultMiddleware::new(),
+            ))
+            .build();
+
         Ok(Arc::new(Backend {
             root,
             bucket: self.bucket.clone(),
-            client: aws_sdk_s3::Client::from_conf(cfg.build()),
+            client: aws_sdk_s3::Client::with_config(aws_client.into_dyn(), cfg.build()),
         }))
     }
 }

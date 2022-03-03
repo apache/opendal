@@ -42,8 +42,8 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     builder.bucket(&env::var("OPENDAL_S3_BUCKET").expect("OPENDAL_S3_BUCKET must set"));
     builder.endpoint(&env::var("OPENDAL_S3_ENDPOINT").unwrap_or_default());
     builder.credential(Credential::hmac(
-        &env::var("OPENDAL_S3_ACCESS_KEY_ID").expect("OPENDAL_S3_ACCESS_KEY_ID must set"),
-        &env::var("OPENDAL_S3_SECRET_ACCESS_KEY").expect("OPENDAL_S3_SECRET_ACCESS_KEY must set"),
+        &env::var("OPENDAL_S3_ACCESS_KEY_ID").unwrap_or_default(),
+        &env::var("OPENDAL_S3_SECRET_ACCESS_KEY").unwrap_or_default(),
     ));
 
     Ok(Some(builder.finish().await?))

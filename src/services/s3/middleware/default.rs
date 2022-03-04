@@ -15,7 +15,6 @@
 use std::fmt::Debug;
 
 use aws_endpoint::AwsEndpointStage;
-use aws_http::auth::CredentialsStage;
 use aws_http::recursion_detection::RecursionDetectionStage;
 use aws_http::user_agent::UserAgentStage;
 use aws_sig_auth::signer::SigV4Signer;
@@ -25,6 +24,7 @@ use tower::layer::util::Identity;
 use tower::layer::util::Stack;
 use tower::ServiceBuilder;
 
+use super::credentials::CredentialsStage;
 use super::signer::SigningStage;
 
 type DefaultMiddlewareStack = Stack<

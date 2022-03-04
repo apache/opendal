@@ -61,3 +61,38 @@ jobs:
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
           OPENDAL_S3_ACCESS_KEY_ID: minioadmin
           OPENDAL_S3_SECRET_ACCESS_KEY: minioadmin
+
+  anonymous_minio_s3:
+    runs-on: ubuntu-latest
+
+    # Setup minio server
+    services:
+      minio:
+        image: wktk/minio-server
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ACCESS_KEY: "minioadmin"
+          MINIO_SECRET_KEY: "minioadmin"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Setup test bucket
+        run: |
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
+          ./mc mb local/test
+          ./mc anonymous set public local/test
+
+      - name: Test
+        shell: bash
+        run: cargo test s3
+        env:
+          RUST_BACKTRACE: full
+          OPENDAL_S3_TEST: on
+          OPENDAL_S3_BUCKET: test
+          OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"

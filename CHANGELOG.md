@@ -5,11 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [v0.1.4] - 2022-03-03
+## [v0.1.4] - 2022-03-04
 
 ### Added
 
 - services/s3: Implement anonymous read support (#97)
+- bench: Add parallel_read bench (#100)
+- services/s3: Add test for anonymous support (#99)
 
 ## [v0.1.3] - 2022-03-02
 

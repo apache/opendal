@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use aws_smithy_http::middleware::AsyncMapRequest;
-use aws_smithy_http::operation::Request;
-
-use aws_types::credentials::{ProvideCredentials, SharedCredentialsProvider};
 use std::future::Future;
 use std::pin::Pin;
+
+use aws_smithy_http::middleware::AsyncMapRequest;
+use aws_smithy_http::operation::Request;
+use aws_types::credentials::ProvideCredentials;
+use aws_types::credentials::SharedCredentialsProvider;
 
 #[derive(Clone, Debug, Default)]
 pub struct CredentialsStage;

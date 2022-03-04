@@ -11,10 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-mod ops;
+mod normal;
+mod parallel;
+mod utils;
 
 use criterion::criterion_group;
 use criterion::criterion_main;
 
-criterion_group!(benches, ops::bench);
+criterion_group!(benches, normal::bench, parallel::bench);
 criterion_main!(benches);

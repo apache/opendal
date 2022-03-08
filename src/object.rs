@@ -11,7 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;

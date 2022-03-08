@@ -19,4 +19,5 @@
 /// - Builder: responsible for building the service backend.
 /// - Backend: the service backend which implements the `Accessor` trait.
 pub mod fs;
+pub mod memory;
 pub mod s3;

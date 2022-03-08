@@ -346,8 +346,8 @@ impl futures::Stream for Readdir {
                     error!("object {:?} metadata: {:?}", &de.path(), e);
                     e
                 });
-                if de_meta.is_err() {
-                    return Poll::Ready(Some(Err(de_meta.unwrap_err())));
+                if let Err(e) = de_meta {
+                    return Poll::Ready(Some(Err(e)));
                 }
                 let de_meta = de_meta.unwrap();
 

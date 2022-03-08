@@ -121,13 +121,14 @@ impl Builder {
             // Use "/" as root if user not specified.
             None => "/".to_string(),
             Some(v) => {
-                debug_assert!(!v.is_empty(), "root must not be empty");
-
-                // If root not startswith or endswith "/", we should append it.
-                let prepend = if v.starts_with('/') { "" } else { "/" };
-                let append = if v.ends_with('/') { "" } else { "/" };
-
-                format!("{prepend}{v}{append}")
+                let mut v = Backend::normalize_path(v);
+                if !v.starts_with('/') {
+                    v.insert(0, '/');
+                }
+                if !v.ends_with('/') {
+                    v.push('/')
+                }
+                v
             }
         };
 
@@ -315,16 +316,32 @@ impl Backend {
         self.client.clone()
     }
 
-    /// get_abs_path will return the absolute path of the given path in the s3 format.
-    /// If user input an absolute path, we will return it as it is with the prefix `/` striped.
-    /// If user input a relative path, we will calculate the absolute path with the root.
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path.starts_with('/') {
-            return path.strip_prefix('/').unwrap().to_string();
+    // normalize_path removes all internal `//` inside path.
+    pub(crate) fn normalize_path(path: &str) -> String {
+        let has_trailing = path.ends_with('/');
+
+        let mut p = path
+            .split('/')
+            .filter(|v| !v.is_empty())
+            .collect::<Vec<&str>>()
+            .join("/");
+
+        if has_trailing && !p.eq("/") {
+            p.push('/')
         }
 
-        let abs_path = format!("{}{}", self.root, path);
-        return abs_path.strip_prefix('/').unwrap().to_string();
+        p
+    }
+
+    /// get_abs_path will return the absolute path of the given path in the s3 format.
+    ///
+    /// Read [RFC-112](https://github.com/datafuselabs/opendal/pull/112) for more details.
+    pub(crate) fn get_abs_path(&self, path: &str) -> String {
+        let path = Backend::normalize_path(path);
+        // root must be normalized like `/abc/`
+        format!("{}{}", self.root, path)
+            .trim_start_matches('/')
+            .to_string()
     }
 
     /// get_rel_path will return the relative path of the given path in the s3 format.
@@ -332,8 +349,11 @@ impl Backend {
         let path = format!("/{}", path);
 
         match path.strip_prefix(&self.root) {
-            None => unreachable!("invalid input that not start with backend root"),
             Some(v) => v.to_string(),
+            None => unreachable!(
+                "invalid path {} that not start with backend root {}",
+                &path, &self.root
+            ),
         }
     }
 }
@@ -356,7 +376,7 @@ impl Accessor for Backend {
         let resp = req
             .send()
             .await
-            .map_err(|e| parse_get_object_error(e, "read", &args.path))?;
+            .map_err(|e| parse_get_object_error(e, "read", &p))?;
 
         Ok(Box::new(S3ByteStream(resp.body).into_async_read()))
     }
@@ -375,7 +395,7 @@ impl Accessor for Backend {
             )))
             .send()
             .await
-            .map_err(|e| parse_unexpect_error(e, "write", &args.path))?;
+            .map_err(|e| parse_unexpect_error(e, "write", &p))?;
 
         Ok(args.size as usize)
     }
@@ -390,15 +410,37 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .map_err(|e| parse_head_object_error(e, "stat", &args.path))?;
+            .map_err(|e| parse_head_object_error(e, "stat", &p));
 
-        let mut m = Metadata::default();
-        m.set_path(&args.path)
-            .set_content_length(meta.content_length as u64)
-            .set_mode(ObjectMode::FILE)
-            .set_complete();
+        match meta {
+            Ok(meta) => {
+                let mut m = Metadata::default();
+                m.set_path(&args.path);
+                m.set_content_length(meta.content_length as u64);
 
-        Ok(m)
+                if p.ends_with('/') {
+                    m.set_mode(ObjectMode::DIR);
+                } else {
+                    m.set_mode(ObjectMode::FILE);
+                };
+
+                m.set_complete();
+
+                Ok(m)
+            }
+            // Always returns empty dir object if path is endswith "/" and we got an
+            // ObjectNotExist error.
+            Err(e) if (e.kind() == Kind::ObjectNotExist && p.ends_with('/')) => {
+                let mut m = Metadata::default();
+                m.set_path(&args.path);
+                m.set_content_length(0);
+                m.set_mode(ObjectMode::DIR);
+                m.set_complete();
+
+                Ok(m)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
@@ -411,13 +453,17 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .map_err(|e| parse_unexpect_error(e, "delete", &args.path))?;
+            .map_err(|e| parse_unexpect_error(e, "delete", &p))?;
 
         Ok(())
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        let path = self.get_abs_path(&args.path);
+        let mut path = self.get_abs_path(&args.path);
+        // Make sure list path is endswith '/'
+        if !path.ends_with('/') && !path.is_empty() {
+            path.push('/')
+        }
 
         Ok(Box::new(S3ObjectStream::new(
             self.clone(),

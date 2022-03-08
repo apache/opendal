@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::SeekFrom;
 use std::path::PathBuf;
@@ -59,7 +60,19 @@ impl Builder {
 
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         // Make `/` as the default of root.
-        let root = self.root.clone().unwrap_or_else(|| "/".to_string());
+        let root = match &self.root {
+            None => "/".to_string(),
+            Some(v) => {
+                if !v.starts_with('/') {
+                    return Err(Error::Backend {
+                        kind: Kind::BackendConfigurationInvalid,
+                        context: HashMap::from([("root".to_string(), v.clone())]),
+                        source: anyhow!("Root must start with /"),
+                    });
+                }
+                v.to_string()
+            }
+        };
 
         // If root dir is not exist, we must create it.
         let metadata_root = root.clone();
@@ -93,24 +106,39 @@ impl Backend {
     pub fn build() -> Builder {
         Builder::default()
     }
+
+    pub(crate) fn get_abs_path(&self, path: &str) -> String {
+        // Joining an absolute path replaces the existing path, we need to
+        // normalize it before.
+        let path = path
+            .split('/')
+            .filter(|v| !v.is_empty())
+            .collect::<Vec<&str>>()
+            .join("/");
+
+        PathBuf::from(&self.root)
+            .join(path)
+            .to_string_lossy()
+            .to_string()
+    }
 }
 
 #[async_trait]
 impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
-        let path = PathBuf::from(&self.root).join(&args.path);
+        let path = self.get_abs_path(&args.path);
 
         let open_path = path.clone();
         let f = unblock(|| fs::OpenOptions::new().read(true).open(open_path))
             .await
-            .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
+            .map_err(|e| parse_io_error(e, "read", &path))?;
 
         let mut f = Unblock::new(f);
 
         if let Some(offset) = args.offset {
             f.seek(SeekFrom::Start(offset))
                 .await
-                .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
+                .map_err(|e| parse_io_error(e, "read", &path))?;
         };
 
         let r: BoxedAsyncReader = match args.size {
@@ -122,7 +150,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
-        let path = PathBuf::from(&self.root).join(&args.path);
+        let path = self.get_abs_path(&args.path);
 
         // Create dir before write path.
         //
@@ -130,9 +158,9 @@ impl Accessor for Backend {
         //   - Is it safe to create dir concurrently?
         //   - Do we need to extract this logic as new util functions?
         //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = path
+        let parent = PathBuf::from(&path)
             .parent()
-            .ok_or_else(|| anyhow!("malformed path: {:?}", path.to_str()))?
+            .ok_or_else(|| anyhow!("malformed path: {:?}", &path))?
             .to_path_buf();
 
         let capture_parent = parent.clone();
@@ -148,14 +176,14 @@ impl Accessor for Backend {
                 .open(capture_path)
         })
         .await
-        .map_err(|e| parse_io_error(e, "write", &path.to_string_lossy()))?;
+        .map_err(|e| parse_io_error(e, "write", &path))?;
 
         let mut f = Unblock::new(f);
 
         // TODO: we should respect the input size.
         let s = io::copy(&mut r, &mut f)
             .await
-            .map_err(|e| parse_io_error(e, "write", &path.to_string_lossy()))?;
+            .map_err(|e| parse_io_error(e, "write", &path))?;
 
         // `std::fs::File`'s errors detected on closing are ignored by
         // the implementation of Drop.
@@ -163,18 +191,18 @@ impl Accessor for Backend {
         // to fs successfully.
         f.flush()
             .await
-            .map_err(|e| parse_io_error(e, "write", &path.to_string_lossy()))?;
+            .map_err(|e| parse_io_error(e, "write", &path))?;
 
         Ok(s as usize)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
-        let path = PathBuf::from(&self.root).join(&args.path);
+        let path = self.get_abs_path(&args.path);
 
         let capture_path = path.clone();
         let meta = unblock(|| fs::metadata(capture_path))
             .await
-            .map_err(|e| parse_io_error(e, "stat", &path.to_string_lossy()))?;
+            .map_err(|e| parse_io_error(e, "stat", &path))?;
 
         let mut m = Metadata::default();
         m.set_path(&args.path);
@@ -191,7 +219,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = PathBuf::from(&self.root).join(&args.path);
+        let path = self.get_abs_path(&args.path);
 
         let capture_path = path.clone();
         // PathBuf.is_dir() is not free, call metadata directly instead.
@@ -214,15 +242,14 @@ impl Accessor for Backend {
             unblock(|| fs::remove_file(capture_path)).await
         };
 
-        f.map_err(|e| parse_io_error(e, "delete", &path.to_string_lossy()))
+        f.map_err(|e| parse_io_error(e, "delete", &path))
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        let path = PathBuf::from(&self.root).join(&args.path);
+        let path = self.get_abs_path(&args.path);
 
         let open_path = path.clone();
-        let f = fs::read_dir(open_path)
-            .map_err(|e| parse_io_error(e, "read", &path.to_string_lossy()))?;
+        let f = fs::read_dir(open_path).map_err(|e| parse_io_error(e, "read", &path))?;
 
         let rd = Readdir {
             acc: Arc::new(self.clone()),

@@ -63,7 +63,7 @@ enum State {
     ///    |
     /// 45 |     Listing(Box<(ListObjectsV2Output, usize, usize)>),
     ///
-    /// Better stable rust doesn't support `State::Listing(box (output, common_prefixes_idx, objects_idx))` so far, let's wait a bit.
+    /// But stable rust doesn't support `State::Listing(box (output, common_prefixes_idx, objects_idx))` so far, let's wait a bit.
     Listing((ListObjectsV2Output, usize, usize)),
 }
 

@@ -69,6 +69,10 @@ impl BehaviorTest {
         let meta = self.op.object(&path).metadata().await?;
         assert_eq!(meta.content_length(), size as u64, "stat file");
 
+        // Step 3.1: Stat this file start with "//" should works
+        let meta = self.op.object(&format!("//{}", &path)).metadata().await?;
+        assert_eq!(meta.content_length(), size as u64, "stat file");
+
         // Step 4: Read this file's content
         // Step 4.1: Read the whole file.
         let mut buf = Vec::new();

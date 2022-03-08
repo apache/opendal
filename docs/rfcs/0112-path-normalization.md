@@ -38,14 +38,6 @@ The following rules will be applied (so far):
 
 Other rules still need more consideration to leave them for the future.
 
-For s3, `abc//def` is different from `abc/def` indeed. To make it possible to access not normalized path, we will provide a new flag for the builder:
-
-```rust
-let builder = Backend::build().disable_path_normalization()
-```
-
-In this way, the user can control the path more precisely.
-
 # Reference-level explanation
 
 We will build the absolute path via `{root}/{path}` and replace all `//` into `/` instead.
@@ -63,6 +55,16 @@ If we build an actual path via `{root}/{path}`, the link object may be inaccessi
 I don't have good ideas so far. Maybe we can add a new flag to control the link behavior. For now, there's no feature request for link support.
 
 Let's leave for the future to resolve.
+
+## S3 URI Clean
+
+For s3, `abc//def` is different from `abc/def` indeed. To make it possible to access not normalized path, we can provide a new flag for the builder:
+
+```rust
+let builder = Backend::build().disable_path_normalization()
+```
+
+In this way, the user can control the path more precisely.
 
 # Prior art
 

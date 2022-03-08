@@ -20,6 +20,8 @@ use super::BehaviorTest;
 
 #[tokio::test]
 async fn test_s3() -> Result<()> {
+    super::init_logger();
+
     let acc = s3::new().await?;
     if acc.is_none() {
         println!("OPENDAL_S3_TEST not set, ignore");

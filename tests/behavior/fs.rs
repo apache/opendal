@@ -20,6 +20,8 @@ use super::BehaviorTest;
 
 #[tokio::test]
 async fn test_fs() -> Result<()> {
+    super::init_logger();
+
     let acc = fs::new().await?;
     if acc.is_none() {
         println!("OPENDAL_FS_TEST not set, ignore");

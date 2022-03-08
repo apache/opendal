@@ -22,6 +22,7 @@ use aws_sdk_s3;
 use aws_sdk_s3::output::ListObjectsV2Output;
 use futures::future::BoxFuture;
 use futures::ready;
+use log::debug;
 
 use super::error::parse_unexpect_error;
 use super::Backend;
@@ -132,6 +133,12 @@ impl futures::Stream for S3ObjectStream {
                             .set_content_length(0)
                             .set_complete();
 
+                        debug!(
+                            "object {} got entry, path: {}, mode: {}",
+                            &self.path,
+                            meta.path(),
+                            meta.mode()
+                        );
                         return Poll::Ready(Some(Ok(o)));
                     }
                 }
@@ -148,11 +155,18 @@ impl futures::Stream for S3ObjectStream {
                         meta.set_mode(ObjectMode::FILE)
                             .set_content_length(object.size as u64);
 
+                        debug!(
+                            "object {} got entry, path: {}, mode: {}",
+                            &self.path,
+                            meta.path(),
+                            meta.mode()
+                        );
                         return Poll::Ready(Some(Ok(o)));
                     }
                 }
 
                 if self.done {
+                    debug!("object {} list done", &self.path);
                     return Poll::Ready(None);
                 }
 

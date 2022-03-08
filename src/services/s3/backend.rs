@@ -29,6 +29,10 @@ use aws_smithy_http::byte_stream::ByteStream;
 use futures::TryStreamExt;
 use http::HeaderValue;
 use http::StatusCode;
+use log::debug;
+use log::error;
+use log::info;
+use log::warn;
 use once_cell::sync::Lazy;
 
 use super::error::parse_get_object_error;
@@ -117,6 +121,8 @@ impl Builder {
     }
 
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+        info!("backend build started: {:?}", &self);
+
         let root = match &self.root {
             // Use "/" as root if user not specified.
             None => "/".to_string(),
@@ -131,6 +137,7 @@ impl Builder {
                 v
             }
         };
+        info!("backend use root {}", &root);
 
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
@@ -141,11 +148,13 @@ impl Builder {
                 source: anyhow!("bucket is empty"),
             }),
         }?;
+        debug!("backend use bucket {}", &bucket);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => endpoint,
             None => "https://s3.amazonaws.com",
         };
+        debug!("backend use endpoint {} to detect region", &endpoint);
 
         // Setup error context so that we don't need to construct many times.
         let mut context: HashMap<String, String> = HashMap::from([
@@ -223,6 +232,7 @@ impl Builder {
                 });
             }
         };
+        debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
         // Config Loader will load config from environment.
         //
@@ -269,7 +279,9 @@ impl Builder {
                     ));
                 }
                 // We don't need to do anything if user tries to read credential from env.
-                Credential::Plain => {}
+                Credential::Plain => {
+                    warn!("backend got empty credential, fallback to read from env.")
+                }
                 _ => {
                     return Err(Error::Backend {
                         kind: Kind::BackendConfigurationInvalid,
@@ -288,8 +300,10 @@ impl Builder {
             .middleware(aws_smithy_client::erase::DynMiddleware::new(
                 DefaultMiddleware::new(),
             ))
+            .default_async_sleep()
             .build();
 
+        info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
             root,
             bucket: self.bucket.clone(),
@@ -362,6 +376,10 @@ impl Backend {
 impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let p = self.get_abs_path(&args.path);
+        info!(
+            "object {} read start: offset {:?}, size {:?}",
+            &p, args.offset, args.size
+        );
 
         let mut req = self
             .client
@@ -373,16 +391,22 @@ impl Accessor for Backend {
             req = req.range(HeaderRange::new(args.offset, args.size).to_string());
         }
 
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| parse_get_object_error(e, "read", &p))?;
+        let resp = req.send().await.map_err(|e| {
+            let e = parse_get_object_error(e, "read", &p);
+            error!("object {} get_object: {:?}", &p, e);
+            e
+        })?;
 
+        info!(
+            "object {} reader created: offset {:?}, size {:?}",
+            &p, args.offset, args.size
+        );
         Ok(Box::new(S3ByteStream(resp.body).into_async_read()))
     }
 
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
+        info!("object {} write start: size {}", &p, args.size);
 
         let _ = self
             .client
@@ -395,13 +419,19 @@ impl Accessor for Backend {
             )))
             .send()
             .await
-            .map_err(|e| parse_unexpect_error(e, "write", &p))?;
+            .map_err(|e| {
+                let e = parse_unexpect_error(e, "write", &p);
+                error!("object {} put_object: {:?}", &p, e);
+                e
+            })?;
 
+        info!("object {} write finished: size {:?}", &p, args.size);
         Ok(args.size as usize)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let p = self.get_abs_path(&args.path);
+        info!("object {} stat start", &p);
 
         let meta = self
             .client
@@ -426,6 +456,7 @@ impl Accessor for Backend {
 
                 m.set_complete();
 
+                info!("object {} stat finished", &p);
                 Ok(m)
             }
             // Always returns empty dir object if path is endswith "/" and we got an
@@ -437,14 +468,19 @@ impl Accessor for Backend {
                 m.set_mode(ObjectMode::DIR);
                 m.set_complete();
 
+                info!("object {} stat finished", &p);
                 Ok(m)
             }
-            Err(e) => Err(e),
+            Err(e) => {
+                error!("object {} head_object: {:?}", &p, e);
+                Err(e)
+            }
         }
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let p = self.get_abs_path(&args.path);
+        info!("object {} delete start", &p);
 
         let _ = self
             .client
@@ -455,6 +491,7 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_unexpect_error(e, "delete", &p))?;
 
+        info!("object {} delete finished", &p);
         Ok(())
     }
 
@@ -464,6 +501,7 @@ impl Accessor for Backend {
         if !path.ends_with('/') && !path.is_empty() {
             path.push('/')
         }
+        info!("object {} list start", &path);
 
         Ok(Box::new(S3ObjectStream::new(
             self.clone(),

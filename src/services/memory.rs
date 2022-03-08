@@ -1,4 +1,4 @@
-// Copyright 2021 Datafuse Labs.
+// Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::TryStreamExt;
 
+use crate::error::Error;
+use crate::error::Kind;
 use crate::error::Result;
 use crate::ops::OpRead;
 use crate::Accessor;
@@ -28,13 +33,12 @@ use crate::BoxedAsyncReader;
 
 #[derive(Default)]
 pub struct Builder {
-    data: Bytes,
+    data: HashMap<String, Bytes>,
 }
 
 impl Builder {
-    pub fn data(&mut self, data: Bytes) -> &mut Self {
-        self.data = data;
-
+    pub fn add_bytes(&mut self, key: &str, data: Bytes) -> &mut Self {
+        self.data.insert(key.to_string(), data);
         self
     }
 
@@ -47,7 +51,7 @@ impl Builder {
 
 #[derive(Debug, Clone)]
 pub struct Backend {
-    data: Bytes,
+    data: HashMap<String, Bytes>,
 }
 
 impl Backend {
@@ -59,13 +63,26 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
-        let mut data = self.data.clone();
+        let data = self
+            .data
+            .get(&args.path)
+            .ok_or_else(|| anyhow!("malformed path: {:?}", args.path))?;
+
+        let mut data = data.clone();
         if let Some(offset) = args.offset {
+            if offset >= data.len() as u64 {
+                return Err(Error::Backend {
+                    kind: Kind::BackendConfigurationInvalid,
+                    context: HashMap::from([("offset".to_string(), offset.to_string())]),
+                    source: anyhow!("Offset out of bound {} >= {}", offset, data.len()),
+                });
+            }
             data = data.slice(offset as usize..data.len());
         };
 
         if let Some(size) = args.size {
-            data = data.slice(0..size as usize);
+            let size = (size as usize).min(data.len());
+            data = data.slice(0..size);
         };
 
         let r: BoxedAsyncReader = Box::new(BytesStream(data).into_async_read());

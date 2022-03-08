@@ -161,12 +161,12 @@ async fn test_memory_reader() -> Result<()> {
     let data = "Hello, world!";
     let f = Operator::new(
         memory::Backend::build()
-            .data(Bytes::from(data))
+            .add_bytes("test", Bytes::from(data))
             .finish()
             .await
             .unwrap(),
     );
-    let mut r = f.object("").limited_reader(5);
+    let mut r = f.object("test").limited_reader(5);
     let mut buf = vec![];
 
     let n = r.read_to_end(&mut buf).await?;
@@ -177,6 +177,11 @@ async fn test_memory_reader() -> Result<()> {
     assert_eq!(n, 0);
     let n = r.seek(SeekFrom::End(0)).await?;
     assert_eq!(n, 5);
+
+    // offset out of bound
+    let mut r = f.object("test").range_reader(100, 5);
+    let n = r.read_to_end(&mut buf).await;
+    assert!(n.is_err());
 
     Ok(())
 }

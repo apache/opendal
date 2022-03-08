@@ -30,6 +30,9 @@ use futures::ready;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
+use log::debug;
+use log::error;
+use log::info;
 
 use crate::error::Error;
 use crate::error::Kind;
@@ -46,7 +49,7 @@ use crate::Accessor;
 use crate::BoxedAsyncReader;
 use crate::Object;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Builder {
     root: Option<String>,
 }
@@ -59,6 +62,8 @@ impl Builder {
     }
 
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+        info!("backend build started: {:?}", &self);
+
         // Make `/` as the default of root.
         let root = match &self.root {
             None => "/".to_string(),
@@ -85,6 +90,7 @@ impl Builder {
             }
         }
 
+        info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend { root }))
     }
 }
@@ -127,18 +133,28 @@ impl Backend {
 impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let path = self.get_abs_path(&args.path);
+        info!(
+            "object {} read start: offset {:?}, size {:?}",
+            &path, args.offset, args.size
+        );
 
         let open_path = path.clone();
         let f = unblock(|| fs::OpenOptions::new().read(true).open(open_path))
             .await
-            .map_err(|e| parse_io_error(e, "read", &path))?;
+            .map_err(|e| {
+                let e = parse_io_error(e, "read", &path);
+                error!("object {} open: {:?}", &path, e);
+                e
+            })?;
 
         let mut f = Unblock::new(f);
 
         if let Some(offset) = args.offset {
-            f.seek(SeekFrom::Start(offset))
-                .await
-                .map_err(|e| parse_io_error(e, "read", &path))?;
+            f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
+                let e = parse_io_error(e, "read", &path);
+                error!("object {} seek: {:?}", &path, e);
+                e
+            })?;
         };
 
         let r: BoxedAsyncReader = match args.size {
@@ -146,11 +162,16 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
+        info!(
+            "object {} reader created: offset {:?}, size {:?}",
+            &path, args.offset, args.size
+        );
         Ok(r)
     }
 
     async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let path = self.get_abs_path(&args.path);
+        info!("object {} write start: size {}", &path, args.size);
 
         // Create dir before write path.
         //
@@ -166,7 +187,16 @@ impl Accessor for Backend {
         let capture_parent = parent.clone();
         unblock(|| fs::create_dir_all(capture_parent))
             .await
-            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
+            .map_err(|e| {
+                let e = parse_io_error(e, "write", &parent.to_string_lossy());
+                error!(
+                    "object {} create_dir_all for parent {}: {:?}",
+                    &path,
+                    &parent.to_string_lossy(),
+                    e
+                );
+                e
+            })?;
 
         let capture_path = path.clone();
         let f = unblock(|| {
@@ -176,33 +206,45 @@ impl Accessor for Backend {
                 .open(capture_path)
         })
         .await
-        .map_err(|e| parse_io_error(e, "write", &path))?;
+        .map_err(|e| {
+            let e = parse_io_error(e, "write", &path);
+            error!("object {} open: {:?}", &path, e);
+            e
+        })?;
 
         let mut f = Unblock::new(f);
 
         // TODO: we should respect the input size.
-        let s = io::copy(&mut r, &mut f)
-            .await
-            .map_err(|e| parse_io_error(e, "write", &path))?;
+        let s = io::copy(&mut r, &mut f).await.map_err(|e| {
+            let e = parse_io_error(e, "write", &path);
+            error!("object {} copy: {:?}", &path, e);
+            e
+        })?;
 
         // `std::fs::File`'s errors detected on closing are ignored by
         // the implementation of Drop.
         // So we need to call `flush` to make sure all data have been flushed
         // to fs successfully.
-        f.flush()
-            .await
-            .map_err(|e| parse_io_error(e, "write", &path))?;
+        f.flush().await.map_err(|e| {
+            let e = parse_io_error(e, "write", &path);
+            error!("object {} flush: {:?}", &path, e);
+            e
+        })?;
 
+        info!("object {} write finished: size {:?}", &path, args.size);
         Ok(s as usize)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = self.get_abs_path(&args.path);
+        info!("object {} stat start", &path);
 
         let capture_path = path.clone();
-        let meta = unblock(|| fs::metadata(capture_path))
-            .await
-            .map_err(|e| parse_io_error(e, "stat", &path))?;
+        let meta = unblock(|| fs::metadata(capture_path)).await.map_err(|e| {
+            let e = parse_io_error(e, "stat", &path);
+            error!("object {} stat: {:?}", &path, e);
+            e
+        })?;
 
         let mut m = Metadata::default();
         m.set_path(&args.path);
@@ -215,20 +257,26 @@ impl Accessor for Backend {
         m.set_content_length(meta.len() as u64);
         m.set_complete();
 
+        info!("object {} stat finished", &path);
         Ok(m)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = self.get_abs_path(&args.path);
+        info!("object {} delete start", &path);
 
         let capture_path = path.clone();
         // PathBuf.is_dir() is not free, call metadata directly instead.
         let meta = unblock(|| fs::metadata(capture_path)).await;
 
-        if let Err(err) = &meta {
-            if err.kind() == std::io::ErrorKind::NotFound {
-                return Ok(());
-            }
+        if let Err(err) = meta {
+            return if err.kind() == std::io::ErrorKind::NotFound {
+                Ok(())
+            } else {
+                let e = parse_io_error(err, "delete", &path);
+                error!("object {} delete: {:?}", &path, e);
+                Err(e)
+            };
         }
 
         // Safety: Err branch has been checked, it's OK to unwrap.
@@ -242,14 +290,22 @@ impl Accessor for Backend {
             unblock(|| fs::remove_file(capture_path)).await
         };
 
-        f.map_err(|e| parse_io_error(e, "delete", &path))
+        f.map_err(|e| parse_io_error(e, "delete", &path))?;
+
+        info!("object {} delete finished", &path);
+        Ok(())
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         let path = self.get_abs_path(&args.path);
+        info!("object {} list start", &path);
 
         let open_path = path.clone();
-        let f = fs::read_dir(open_path).map_err(|e| parse_io_error(e, "read", &path))?;
+        let f = fs::read_dir(open_path).map_err(|e| {
+            let e = parse_io_error(e, "read", &path);
+            error!("object {} list: {:?}", &path, e);
+            e
+        })?;
 
         let rd = Readdir {
             acc: Arc::new(self.clone()),
@@ -275,23 +331,37 @@ impl futures::Stream for Readdir {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match ready!(Pin::new(&mut self.rd).poll_next(cx)) {
-            None => Poll::Ready(None),
-            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path)))),
+            None => {
+                debug!("object {} list done", &self.path);
+                Poll::Ready(None)
+            }
+            Some(Err(e)) => {
+                error!("object {} stream poll_next: {:?}", &self.path, e);
+                Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path))))
+            }
             Some(Ok(de)) => {
                 // NOTE: metadata is syscall.
-                let de_meta = de
-                    .metadata()
-                    .map_err(|e| parse_io_error(e, "list", &self.path))?;
+                let de_meta = de.metadata().map_err(|e| {
+                    let e = parse_io_error(e, "list", &de.path().to_string_lossy());
+                    error!("object {:?} metadata: {:?}", &de.path(), e);
+                    e
+                });
+                if de_meta.is_err() {
+                    return Poll::Ready(Some(Err(de_meta.unwrap_err())));
+                }
+                let de_meta = de_meta.unwrap();
 
                 let de_path = de.path();
-                let de_path = de_path
-                    .strip_prefix(&self.root)
-                    .map_err(|e| Error::Object {
+                let de_path = de_path.strip_prefix(&self.root).map_err(|e| {
+                    let e = Error::Object {
                         kind: Kind::Unexpected,
                         op: "list",
                         path: de.path().to_string_lossy().to_string(),
                         source: anyhow::Error::from(e),
-                    })?;
+                    };
+                    error!("object {:?} path strip_prefix: {:?}", &de.path(), e);
+                    e
+                })?;
                 let path = de_path.to_string_lossy();
 
                 let mut o = Object::new(self.acc.clone(), &path);
@@ -306,6 +376,12 @@ impl futures::Stream for Readdir {
                 meta.set_content_length(de_meta.len());
                 meta.set_complete();
 
+                debug!(
+                    "object {} got entry, path: {}, mode: {}",
+                    &self.path,
+                    meta.path(),
+                    meta.mode()
+                );
                 Poll::Ready(Some(Ok(o)))
             }
         }

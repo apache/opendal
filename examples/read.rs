@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::SeekFrom;
+
 use anyhow::Result;
+use futures::io;
 use futures::AsyncReadExt;
-use futures::{io, AsyncSeekExt};
+use futures::AsyncSeekExt;
 use opendal::Operator;
 use opendal_test::services::fs;
-use std::io::SeekFrom;
 
 #[tokio::main]
 async fn main() -> Result<()> {

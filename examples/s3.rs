@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::Arc;
+
 /// Example for initiating a s3 backend.
 use anyhow::Result;
 use opendal::credential::Credential;
 use opendal::services::s3;
 use opendal::services::s3::Builder;
-use opendal::{Accessor, Object, Operator};
-use std::sync::Arc;
+use opendal::Accessor;
+use opendal::Object;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

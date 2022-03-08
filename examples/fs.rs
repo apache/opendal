@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::Arc;
+
 /// Example for initiating a fs backend.
 use anyhow::Result;
 use opendal::services::fs;
 use opendal::services::fs::Builder;
-use opendal::{Accessor, Object, Operator};
-use std::sync::Arc;
+use opendal::Accessor;
+use opendal::Object;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

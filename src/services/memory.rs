@@ -63,10 +63,12 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
-        let data = self
-            .data
-            .get(&args.path)
-            .ok_or_else(|| anyhow!("malformed path: {:?}", args.path))?;
+        let data = self.data.get(&args.path).ok_or_else(|| Error::Object {
+            kind: Kind::ObjectNotExist,
+            op: "read",
+            path: args.path.to_string(),
+            source: anyhow!("key not exists in map"),
+        })?;
 
         let mut data = data.clone();
         if let Some(offset) = args.offset {

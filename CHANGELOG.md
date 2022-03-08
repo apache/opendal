@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.2.0] - 2022-03-08
+
+### Added
+
+- RFC-112: Path Normalization (#112)
+- examples: Add more examples for services and operations (#113)
+
+### Changed
+
+- benches: Refactor to make code more readable (#104)
+- object: Refactor ObjectMode into enum (#114)
+
 ## [v0.1.4] - 2022-03-04
 
 ### Added
@@ -110,6 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.2.0]: https://github.com/datafuselabs/opendal/compare/v0.1.4...v0.2.0
 [v0.1.4]: https://github.com/datafuselabs/opendal/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/datafuselabs/opendal/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/datafuselabs/opendal/compare/v0.1.1...v0.1.2

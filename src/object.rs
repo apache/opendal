@@ -184,10 +184,14 @@ impl Metadata {
     }
 }
 
+/// ObjectMode represents the corresponding object's mode.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ObjectMode {
+    /// FILE means the object has data to read.
     FILE,
+    /// DIR means the object can be listed.
     DIR,
+    /// Unknown means we don't know what we can do on thi object.
     Unknown,
 }
 

@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
         let meta = o.metadata().await?;
         if meta.path().contains("test_file") {
             let mode = meta.mode();
-            assert!(mode.contains(ObjectMode::FILE));
+            assert_eq!(mode, ObjectMode::FILE);
 
             found = true
         }

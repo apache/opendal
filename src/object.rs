@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use bitflags::bitflags;
 use futures::future::BoxFuture;
 use futures::ready;
 
@@ -185,12 +186,30 @@ impl Metadata {
     }
 }
 
-bitflags! {
-    #[derive(Default)]
-    pub struct ObjectMode: u32 {
-        const FILE =1<<0;
-        const DIR = 1<<1;
-        const LINK = 1<<2;
+/// ObjectMode represents the corresponding object's mode.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum ObjectMode {
+    /// FILE means the object has data to read.
+    FILE,
+    /// DIR means the object can be listed.
+    DIR,
+    /// Unknown means we don't know what we can do on thi object.
+    Unknown,
+}
+
+impl Default for ObjectMode {
+    fn default() -> Self {
+        Self::Unknown
+    }
+}
+
+impl Display for ObjectMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ObjectMode::FILE => write!(f, "file"),
+            ObjectMode::DIR => write!(f, "dir"),
+            ObjectMode::Unknown => write!(f, "unknown"),
+        }
     }
 }
 

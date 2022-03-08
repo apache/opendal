@@ -108,12 +108,7 @@ impl BehaviorTest {
             let meta = o.metadata().await?;
             if meta.path() == path {
                 let mode = meta.mode();
-                assert!(
-                    mode.contains(ObjectMode::FILE),
-                    "expected: {:?}, actual: {:?}",
-                    ObjectMode::FILE,
-                    mode
-                );
+                assert_eq!(mode, ObjectMode::FILE);
 
                 found = true
             }

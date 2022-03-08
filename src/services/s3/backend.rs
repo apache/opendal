@@ -121,12 +121,14 @@ impl Builder {
             // Use "/" as root if user not specified.
             None => "/".to_string(),
             Some(v) => {
-                let v = Backend::normalize_path(v);
-                if v.is_empty() {
-                    "/".to_string()
-                } else {
-                    format!("/{}/", v)
+                let mut v = Backend::normalize_path(v);
+                if !v.starts_with('/') {
+                    v.insert(0, '/');
                 }
+                if !v.ends_with('/') {
+                    v.push('/')
+                }
+                v
             }
         };
 
@@ -316,10 +318,19 @@ impl Backend {
 
     // normalize_path removes all internal `//` inside path.
     pub(crate) fn normalize_path(path: &str) -> String {
-        path.split('/')
+        let has_trailing = path.ends_with("/");
+
+        let mut p = path
+            .split('/')
             .filter(|v| !v.is_empty())
             .collect::<Vec<&str>>()
-            .join("/")
+            .join("/");
+
+        if has_trailing && !p.eq("/") {
+            p.push('/')
+        }
+
+        p
     }
 
     /// get_abs_path will return the absolute path of the given path in the s3 format.
@@ -399,15 +410,37 @@ impl Accessor for Backend {
             .key(&p)
             .send()
             .await
-            .map_err(|e| parse_head_object_error(e, "stat", &p))?;
+            .map_err(|e| parse_head_object_error(e, "stat", &p));
 
-        let mut m = Metadata::default();
-        m.set_path(&args.path)
-            .set_content_length(meta.content_length as u64)
-            .set_mode(ObjectMode::FILE)
-            .set_complete();
+        match meta {
+            Ok(meta) => {
+                let mut m = Metadata::default();
+                m.set_path(&args.path);
+                m.set_content_length(meta.content_length as u64);
 
-        Ok(m)
+                if p.ends_with('/') {
+                    m.set_mode(ObjectMode::DIR);
+                } else {
+                    m.set_mode(ObjectMode::FILE);
+                };
+
+                m.set_complete();
+
+                Ok(m)
+            }
+            // Always returns empty dir object if path is endswith "/" and we got an
+            // ObjectNotExist error.
+            Err(e) if (e.kind() == Kind::ObjectNotExist && p.ends_with("/")) => {
+                let mut m = Metadata::default();
+                m.set_path(&args.path);
+                m.set_content_length(0);
+                m.set_mode(ObjectMode::DIR);
+                m.set_complete();
+
+                Ok(m)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
@@ -426,7 +459,11 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        let path = self.get_abs_path(&args.path);
+        let mut path = self.get_abs_path(&args.path);
+        // Make sure list path is endswith '/'
+        if !path.ends_with("/") && !path.is_empty() {
+            path.push('/')
+        }
 
         Ok(Box::new(S3ObjectStream::new(
             self.clone(),

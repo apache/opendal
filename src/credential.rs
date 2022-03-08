@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[derive(Debug, Clone)]
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+
+#[derive(Clone)]
 pub enum Credential {
     /// Plain refers to no credential has been provided, fallback to services'
     /// default logic.
@@ -32,6 +36,30 @@ pub enum Credential {
     },
     /// Token refers to static API token.
     Token(String),
+}
+
+// Credential has sensitive data, we should not print it out in anyway.
+impl Debug for Credential {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Credential::Plain => write!(f, "Credential::Plain"),
+            Credential::Basic { .. } => write!(f, "Credential::Basic"),
+            Credential::HMAC { .. } => write!(f, "Credential::HMAC"),
+            Credential::Token(_) => write!(f, "Credential::Token"),
+        }
+    }
+}
+
+// Credential has sensitive data, we should not print it out in anyway.
+impl Display for Credential {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Credential::Plain => write!(f, "plain"),
+            Credential::Basic { .. } => write!(f, "basic"),
+            Credential::HMAC { .. } => write!(f, "hmac"),
+            Credential::Token(_) => write!(f, "token"),
+        }
+    }
 }
 
 impl Credential {

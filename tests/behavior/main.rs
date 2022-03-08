@@ -20,3 +20,7 @@ use behavior::BehaviorTest;
 // All services must pass the behavior test suite.
 mod fs;
 mod s3;
+
+pub fn init_logger() {
+    let _ = env_logger::builder().is_test(true).try_init();
+}

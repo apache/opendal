@@ -318,7 +318,7 @@ impl Backend {
 
     // normalize_path removes all internal `//` inside path.
     pub(crate) fn normalize_path(path: &str) -> String {
-        let has_trailing = path.ends_with("/");
+        let has_trailing = path.ends_with('/');
 
         let mut p = path
             .split('/')
@@ -340,7 +340,7 @@ impl Backend {
         let path = Backend::normalize_path(path);
         // root must be normalized like `/abc/`
         format!("{}{}", self.root, path)
-            .trim_start_matches("/")
+            .trim_start_matches('/')
             .to_string()
     }
 
@@ -430,7 +430,7 @@ impl Accessor for Backend {
             }
             // Always returns empty dir object if path is endswith "/" and we got an
             // ObjectNotExist error.
-            Err(e) if (e.kind() == Kind::ObjectNotExist && p.ends_with("/")) => {
+            Err(e) if (e.kind() == Kind::ObjectNotExist && p.ends_with('/')) => {
                 let mut m = Metadata::default();
                 m.set_path(&args.path);
                 m.set_content_length(0);
@@ -461,7 +461,7 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         let mut path = self.get_abs_path(&args.path);
         // Make sure list path is endswith '/'
-        if !path.ends_with("/") && !path.is_empty() {
+        if !path.ends_with('/') && !path.is_empty() {
             path.push('/')
         }
 

@@ -1,6 +1,13 @@
-# OpenDAL
+# OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io]
 
-Open **D**ata **A**ccess **L**ayer that connect the whole world together.
+[Build Status]: https://img.shields.io/github/workflow/status/datafuselabs/opendal/CI/main
+[actions]: https://github.com/datafuselabs/opendal/actions?query=branch%3Amaster
+[Latest Version]: https://img.shields.io/crates/v/opendal.svg
+[crates.io]: https://crates.io/crates/opendal
+
+**Open **D**ata **A**ccess **L**ayer that connect the whole world together.**
+
+---
 
 ## Status
 

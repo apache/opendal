@@ -33,6 +33,7 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
+use metrics::increment_counter;
 use once_cell::sync::Lazy;
 
 use super::error::parse_get_object_error;
@@ -375,6 +376,8 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
+        increment_counter!("opendal_s3_read_requests");
+
         let p = self.get_abs_path(&args.path);
         info!(
             "object {} read start: offset {:?}, size {:?}",
@@ -430,6 +433,8 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+        increment_counter!("opendal_s3_stat_requests");
+
         let p = self.get_abs_path(&args.path);
         info!("object {} stat start", &p);
 
@@ -479,6 +484,8 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
+        increment_counter!("opendal_s3_delete_requests");
+
         let p = self.get_abs_path(&args.path);
         info!("object {} delete start", &p);
 
@@ -496,6 +503,8 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        increment_counter!("opendal_s3_list_requests");
+
         let mut path = self.get_abs_path(&args.path);
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {

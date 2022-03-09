@@ -43,6 +43,7 @@ pin-project = "1"
 reqwest = "0.11"
 thiserror = "1"
 tower = "0.4"
+metrics = "0.18"
 
 [dev-dependencies]
 anyhow = "1.0"

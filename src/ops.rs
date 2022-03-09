@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Operations used by [`Accessor`][crate::Accessor]
+
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     pub path: String,

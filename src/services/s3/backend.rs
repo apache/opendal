@@ -68,11 +68,13 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
+/// Builder for s3 services
+///
 /// # TODO
 ///
 /// enable_path_style and enable_signature_v2 need sdk support.
 ///
-/// ref: https://github.com/awslabs/aws-sdk-rust/issues/390
+/// ref: <https://github.com/awslabs/aws-sdk-rust/issues/390>
 #[derive(Default, Debug, Clone)]
 pub struct Builder {
     root: Option<String>,
@@ -80,8 +82,8 @@ pub struct Builder {
     bucket: String,
     credential: Option<Credential>,
     /// endpoint must be full uri, e.g.
-    /// - https://s3.amazonaws.com
-    /// - http://127.0.0.1:3000
+    /// - <https://s3.amazonaws.com>
+    /// - <http://127.0.0.1:3000>
     ///
     /// If user inputs endpoint like "s3.amazonaws.com", we will prepend
     /// "https://" before it.
@@ -313,6 +315,7 @@ impl Builder {
     }
 }
 
+/// Backend for s3 services.
 #[derive(Debug, Clone)]
 pub struct Backend {
     bucket: String,

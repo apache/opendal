@@ -32,7 +32,7 @@ use crate::Accessor;
 use crate::Reader;
 use crate::Writer;
 
-/// `Object` is a handler for all object related operations.
+/// Handler for all object related operations.
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
@@ -215,7 +215,7 @@ impl Display for ObjectMode {
 
 pub type BoxedObjectStream = Box<dyn futures::Stream<Item = Result<Object>> + Unpin + Send>;
 
-/// `ObjectStream` is a handler for listing object under a dir.
+/// Handler for listing object under a dir.
 pub struct ObjectStream {
     acc: Arc<dyn Accessor>,
     path: String,

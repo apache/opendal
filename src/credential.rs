@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Different credential types that used to signing requests.
+
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;

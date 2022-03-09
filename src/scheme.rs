@@ -18,6 +18,7 @@ use anyhow::anyhow;
 use super::error::Error;
 use crate::error::Kind;
 
+/// Backends that OpenDAL supports
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scheme {
     // TODO: Although we don't have azblob support for now, but we need to add it for compatibility. We will implement azblob support as soon as possible.

@@ -27,6 +27,12 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BoxedAsyncReader;
 
+/// Underlying trait of all backends for implementors.
+///
+/// # Note
+///
+/// Only service implementor should care about this trait, users need to
+/// use [`Operator`][crate::Operator] instead.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
     /// Read data from the underlying storage into input writer.

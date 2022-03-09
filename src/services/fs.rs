@@ -33,6 +33,7 @@ use futures::AsyncWriteExt;
 use log::debug;
 use log::error;
 use log::info;
+use metrics::increment_counter;
 
 use crate::error::Error;
 use crate::error::Kind;
@@ -132,6 +133,8 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
+        increment_counter!("opendal_fs_read_requests");
+
         let path = self.get_abs_path(&args.path);
         info!(
             "object {} read start: offset {:?}, size {:?}",
@@ -170,6 +173,8 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
+        increment_counter!("opendal_fs_write_requests");
+
         let path = self.get_abs_path(&args.path);
         info!("object {} write start: size {}", &path, args.size);
 
@@ -236,6 +241,8 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+        increment_counter!("opendal_fs_stat_requests");
+
         let path = self.get_abs_path(&args.path);
         info!("object {} stat start", &path);
 
@@ -262,6 +269,8 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
+        increment_counter!("opendal_fs_delete_requests");
+
         let path = self.get_abs_path(&args.path);
         info!("object {} delete start", &path);
 
@@ -297,6 +306,8 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        increment_counter!("opendal_fs_list_requests");
+
         let path = self.get_abs_path(&args.path);
         info!("object {} list start", &path);
 

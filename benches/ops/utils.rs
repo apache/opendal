@@ -45,6 +45,13 @@ pub struct TempData {
 }
 
 impl TempData {
+    pub fn existing(op: Operator, path: &str) -> Self {
+        Self {
+            op,
+            path: path.to_string(),
+        }
+    }
+
     pub fn generate(op: Operator, path: &str, content: Vec<u8>) -> Self {
         TOKIO.block_on(async {
             op.object(path)

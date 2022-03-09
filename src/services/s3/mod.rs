@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Aws S3 and compatible services (including minio, digitalocean space and so on) support
+
 mod backend;
 pub use backend::Backend;
 pub use backend::Builder;

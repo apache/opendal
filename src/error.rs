@@ -12,6 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Errors that returned by OpenDAL
+//!
+//! # Examples
+//!
+//! ```
+//! use anyhow::Result;
+//! use opendal::ObjectMode;
+//! use opendal::Operator;
+//! use opendal::error::Kind;
+//! use opendal::services::fs;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
+//!
+//!     // Get metadata of an object.
+//!     let meta = op.object("test_file").metadata().await;
+//!     if let Err(e) = op.object("test_file").metadata().await {
+//!         if e.kind() == Kind::ObjectNotExist {
+//!             println!("object not exist")
+//!         }
+//!     }
+//!     Ok(())
+//! }
+//! ```
+
 use std::collections::HashMap;
 use std::io;
 

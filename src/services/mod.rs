@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Every mod represents a service.
-///
-/// In order to implement a service, we need the following things:
-///
-/// - Builder: responsible for building the service backend.
-/// - Backend: the service backend which implements the `Accessor` trait.
+//! Providing specific services support.
+//!
+//! In order to implement a service, we need the following things:
+//!
+//! - Builder: responsible for building the service backend.
+//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
+
 pub mod fs;
 pub mod memory;
 pub mod s3;

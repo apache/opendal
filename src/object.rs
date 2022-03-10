@@ -52,6 +52,29 @@ impl Object {
     }
 
     /// Create a new reader which can read the whole object.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///
+    ///     let bs = "Hello, World!".as_bytes().to_vec();
+    ///     op.object("test").writer().write_bytes(bs).await?;
+    ///
+    ///     // Read whole file.
+    ///     let mut r = op.object("test").reader();
+    ///     io::copy(&mut r, &mut io::sink()).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn reader(&self) -> Reader {
         Reader::new(self.acc.clone(), self.meta.path(), None, None)
     }
@@ -62,6 +85,29 @@ impl Object {
     ///
     /// The input offset and size are not checked, callers could meet error
     /// while reading.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///
+    ///     let bs = "Hello, World!".as_bytes().to_vec();
+    ///     op.object("test").writer().write_bytes(bs).await?;
+    ///
+    ///     // Read within [1, 2) bytes.
+    ///     let mut r = op.object("test").range_reader(1, 1);
+    ///     io::copy(&mut r, &mut io::sink()).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn range_reader(&self, offset: u64, size: u64) -> Reader {
         Reader::new(self.acc.clone(), self.meta.path(), Some(offset), Some(size))
     }
@@ -71,6 +117,29 @@ impl Object {
     /// # Note
     ///
     /// The input offset is not checked, callers could meet error while reading.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///
+    ///     let bs = "Hello, World!".as_bytes().to_vec();
+    ///     op.object("test").writer().write_bytes(bs).await?;
+    ///
+    ///     // Read start offset 4.
+    ///     let mut r = op.object("test").offset_reader(4);
+    ///     io::copy(&mut r, &mut io::sink()).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn offset_reader(&self, offset: u64) -> Reader {
         Reader::new(self.acc.clone(), self.meta.path(), Some(offset), None)
     }
@@ -80,16 +149,77 @@ impl Object {
     /// # Note
     ///
     /// The input size is not checked, callers could meet error while reading.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///
+    ///     let bs = "Hello, World!".as_bytes().to_vec();
+    ///     op.object("test").writer().write_bytes(bs).await?;
+    ///
+    ///     // Read within 8 bytes.
+    ///     let mut r = op.object("test").limited_reader(8);
+    ///     io::copy(&mut r, &mut io::sink()).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn limited_reader(&self, size: u64) -> Reader {
         Reader::new(self.acc.clone(), self.meta.path(), None, Some(size))
     }
 
     /// Create a new writer which can write data into the object.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///
+    ///     let bs = "Hello, World!".as_bytes().to_vec();
+    ///     op.object("test").writer().write_bytes(bs).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn writer(&self) -> Writer {
         Writer::new(self.acc.clone(), self.meta.path())
     }
 
     /// Delete current object.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///
+    ///     let bs = "Hello, World!".as_bytes().to_vec();
+    ///     op.object("test").delete().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn delete(&self) -> Result<()> {
         let op = &OpDelete::new(self.meta.path());
 
@@ -97,6 +227,29 @@ impl Object {
     }
 
     /// Get current object's metadata.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use opendal::error::Kind;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///
+    ///     if let Err(e) =  op.object("test").metadata().await {
+    ///         if e.kind() == Kind::ObjectNotExist {
+    ///             println!("object not exist")
+    ///         }
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn metadata(&self) -> Result<Metadata> {
         let op = &OpStat::new(self.meta.path());
 
@@ -104,6 +257,28 @@ impl Object {
     }
 
     /// Use local cached metadata if possible.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use opendal::error::Kind;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///     let mut o = op.object("test");
+    ///
+    ///     o.metadata_cached().await;
+    ///     // The second call to metadata_cached will have no cost.
+    ///     o.metadata_cached().await;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn metadata_cached(&mut self) -> Result<&Metadata> {
         if self.meta.complete() {
             return Ok(&self.meta);
@@ -120,6 +295,24 @@ impl Object {
     }
 
     /// Check if this object exist or not.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use opendal::services::memory;
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    /// use opendal::error::Kind;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///     let _ = op.object("test").is_exist().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn is_exist(&self) -> Result<bool> {
         let r = self.metadata().await;
         match r {

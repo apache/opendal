@@ -35,8 +35,14 @@ async fn main() -> Result<()> {
     builder.bucket("bucket_name");
     // Set the endpoint.
     //
+    // For examples:
+    // - "https://s3.amazonaws.com"
+    // - "http://127.0.0.1:9000"
+    // - "https://oss-ap-northeast-1.aliyuncs.com"
+    // - "https://cos.ap-seoul.myqcloud.com"
+    //
     // Default to "https://s3.amazonaws.com"
-    builder.endpoint("http://127.0.0.1:9090");
+    builder.endpoint("https://s3.amazonaws.com");
     // Set the credential.
     //
     // OpenDAL will try load credential from the env.

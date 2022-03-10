@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.2.1] - 2022-03-10
+
+### Added
+
+- *: Implement logging support (#122)
+- feat(service): Add service memory read support (#121)
+- services: Add basic metrics (#127)
+- services: Add full memory support (#134)
+
+### Changed
+
+- benches: Refactor to support more read pattern (#126)
+- services: Refactor into directories (#131)
+
+### Docs
+
+- docs: Cover all public types and functions (#128)
+- docs: Update README (#129)
+- ci: Generate main docs to <opendal.databend.rs> (#132)
+- docs: Enrich README (#133)
+- Add examples for object (#135)
+
 ## [v0.2.0] - 2022-03-08
 
 ### Added
@@ -122,6 +144,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.2.1]: https://github.com/datafuselabs/opendal/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/datafuselabs/opendal/compare/v0.1.4...v0.2.0
 [v0.1.4]: https://github.com/datafuselabs/opendal/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/datafuselabs/opendal/compare/v0.1.2...v0.1.3

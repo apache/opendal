@@ -15,12 +15,10 @@ use std::io::SeekFrom;
 use std::str::from_utf8;
 
 use anyhow::Result;
-use bytes::Bytes;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 
 use crate::services::fs;
-use crate::services::memory;
 use crate::Operator;
 
 #[tokio::test]
@@ -152,36 +150,6 @@ async fn test_limited_reader() -> Result<()> {
     assert_eq!(n, 0);
     let n = r.seek(SeekFrom::End(0)).await?;
     assert_eq!(n, 5);
-
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_memory_reader() -> Result<()> {
-    let data = "Hello, world!";
-    let f = Operator::new(
-        memory::Backend::build()
-            .add_bytes("test", Bytes::from(data))
-            .finish()
-            .await
-            .unwrap(),
-    );
-    let mut r = f.object("test").limited_reader(5);
-    let mut buf = vec![];
-
-    let n = r.read_to_end(&mut buf).await?;
-    assert_eq!(n, 5);
-    assert_eq!("Hello", from_utf8(&buf).unwrap());
-
-    let n = r.seek(SeekFrom::Start(0)).await?;
-    assert_eq!(n, 0);
-    let n = r.seek(SeekFrom::End(0)).await?;
-    assert_eq!(n, 5);
-
-    // offset out of bound
-    let mut r = f.object("test").range_reader(100, 5);
-    let n = r.read_to_end(&mut buf).await;
-    assert!(n.is_err());
 
     Ok(())
 }

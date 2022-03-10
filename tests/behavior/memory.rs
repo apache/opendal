@@ -15,7 +15,7 @@
 use anyhow::Result;
 use log::warn;
 use opendal::Operator;
-use opendal_test::services::s3;
+use opendal_test::services::memory;
 
 use super::BehaviorTest;
 
@@ -23,9 +23,9 @@ use super::BehaviorTest;
 async fn behavior() -> Result<()> {
     super::init_logger();
 
-    let acc = s3::new().await?;
+    let acc = memory::new().await?;
     if acc.is_none() {
-        warn!("OPENDAL_S3_TEST not set, ignore");
+        warn!("OPENDAL_MEMORY_TEST not set, ignore");
         return Ok(());
     }
 

@@ -19,6 +19,7 @@ use behavior::BehaviorTest;
 
 // All services must pass the behavior test suite.
 mod fs;
+mod memory;
 mod s3;
 
 pub fn init_logger() {

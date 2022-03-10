@@ -1,0 +1,27 @@
+name: Service Test Memory
+
+on: [ push, pull_request ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  memory:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Test
+        shell: bash
+        run: cargo test memory
+        env:
+          RUST_BACKTRACE: full
+          OPENDAL_MEMORY_TEST: on

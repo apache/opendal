@@ -11,23 +11,23 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use std::env;
+use std::sync::Arc;
 
-use anyhow::Result;
-use log::warn;
-use opendal::Operator;
-use opendal_test::services::s3;
+use opendal::error::Result;
+use opendal::services::memory;
+use opendal::Accessor;
 
-use super::BehaviorTest;
+/// In order to test memory service, please set the following environment variables:
+///
+/// - `OPENDAL_MEMORY_TEST=on`: set to `on` to enable the test.
+pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
+    dotenv::from_filename(".env").ok();
 
-#[tokio::test]
-async fn behavior() -> Result<()> {
-    super::init_logger();
-
-    let acc = s3::new().await?;
-    if acc.is_none() {
-        warn!("OPENDAL_S3_TEST not set, ignore");
-        return Ok(());
+    if env::var("OPENDAL_MEMORY_TEST").is_err() || env::var("OPENDAL_MEMORY_TEST").unwrap() != "on"
+    {
+        return Ok(None);
     }
 
-    BehaviorTest::new(Operator::new(acc.unwrap())).run().await
+    Ok(Some(memory::Backend::build().finish().await?))
 }

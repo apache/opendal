@@ -13,18 +13,19 @@
 // limitations under the License.
 
 use anyhow::Result;
+use log::warn;
 use opendal::Operator;
 use opendal_test::services::fs;
 
 use super::BehaviorTest;
 
 #[tokio::test]
-async fn test_fs() -> Result<()> {
+async fn behavior() -> Result<()> {
     super::init_logger();
 
     let acc = fs::new().await?;
     if acc.is_none() {
-        println!("OPENDAL_FS_TEST not set, ignore");
+        warn!("OPENDAL_FS_TEST not set, ignore");
         return Ok(());
     }
 

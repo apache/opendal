@@ -1,0 +1,34 @@
+name: Docs
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: base-v1
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --no-deps
+
+      - name: Deploy to vercel
+        env:
+          VERCEL_ORG_ID: ${{secrets.VERCEL_ORG_ID}}
+          VERCEL_PROJECT_ID: ${{secrets.VERCEL_PROJECT_ID}}
+        run: |
+          npm i -g vercel
+          vercel --token=${{ secrets.VERCEL_TOKEN }} --prod --scope databend ./target/doc

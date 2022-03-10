@@ -9,6 +9,12 @@
 
 ---
 
+You may be looking for:
+
+- [Examples](./examples)
+- [API documentation](https://opendal.databend.rs/opendal/)
+- [Release notes](https://github.com/datafuselabs/opendal/releases)
+
 ## Status
 
 OpenDAL is in **alpha** stage and has been early adopted by [databend](https://github.com/datafuselabs/databend/). Welcome any feedback at [Discussions](https://github.com/datafuselabs/opendal/discussions)!
@@ -70,6 +76,12 @@ More examples could be found at [examples](./examples).
 
 Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) guide for more details on getting started with contributing to this project.
 
-## License
+## Getting help
 
-OpenDAL is licensed under [Apache 2.0](./LICENSE).
+Submit [issues](https://github.com/datafuselabs/opendal/issues/new/choose) for bug report or asking questions in [discussion](https://github.com/datafuselabs/opendal/discussions/new?category=q-a). 
+
+#### License
+
+<sup>
+Licensed under <a href="./LICENSE">Apache License, Version 2.0</a>.
+</sup>

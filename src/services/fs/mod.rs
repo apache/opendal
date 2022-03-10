@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Aws S3 and compatible services (including minio, digitalocean space and so on) support
+//! POSIX file system support.
 //!
 //! # Example
 //!
@@ -20,39 +20,20 @@
 //! use std::sync::Arc;
 //!
 //! use anyhow::Result;
-//! use opendal::credential::Credential;
-//! use opendal::services::s3;
-//! use opendal::services::s3::Builder;
+//! use opendal::services::fs;
+//! use opendal::services::fs::Builder;
 //! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     // Create s3 backend builder.
-//!     let mut builder: Builder = s3::Backend::build();
-//!     // Set the root for s3, all operations will happen under this root.
+//!     // Create fs backend builder.
+//!     let mut builder: Builder = fs::Backend::build();
+//!     // Set the root for fs, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.
-//!     builder.root("/path/to/dir");
-//!     // Set the bucket name, this is required.
-//!     builder.bucket("test");
-//!     // Set the endpoint.
-//!     //
-//!     // For examples:
-//!     // - "https://s3.amazonaws.com"
-//!     // - "http://127.0.0.1:9000"
-//!     // - "https://oss-ap-northeast-1.aliyuncs.com"
-//!     // - "https://cos.ap-seoul.myqcloud.com"
-//!     //
-//!     // Default to "https://s3.amazonaws.com"
-//!     builder.endpoint("https://s3.amazonaws.com");
-//!     // Set the credential.
-//!     //
-//!     // OpenDAL will try load credential from the env.
-//!     // If credential not set and no valid credential in env, OpenDAL will
-//!     // send request without signing like anonymous user.
-//!     builder.credential(Credential::hmac("access_key_id", "secret_access_key"));
+//!     builder.root("/tmp");
 //!     // Build the `Accessor`.
 //!     let accessor: Arc<dyn Accessor> = builder.finish().await?;
 //!
@@ -71,5 +52,4 @@ pub use backend::Backend;
 pub use backend::Builder;
 
 mod error;
-mod middleware;
 mod object_stream;

@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Example for initiating a fs backend.
+
 use std::sync::Arc;
 
-/// Example for initiating a fs backend.
 use anyhow::Result;
 use opendal::services::fs;
 use opendal::services::fs::Builder;

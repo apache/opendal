@@ -83,5 +83,5 @@ Submit [issues](https://github.com/datafuselabs/opendal/issues/new/choose) for b
 #### License
 
 <sup>
-Licensed under [Apache License, Version 2.0](./LICENSE).
+Licensed under <a href="./LICENSE">Apache License, Version 2.0</a>.
 </sup>

@@ -13,6 +13,39 @@
 // limitations under the License.
 
 //! POSIX file system support.
+//!
+//! # Example
+//!
+//! ```
+//! use std::sync::Arc;
+//!
+//! use anyhow::Result;
+//! use opendal::services::fs;
+//! use opendal::services::fs::Builder;
+//! use opendal::Accessor;
+//! use opendal::Object;
+//! use opendal::Operator;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     // Create fs backend builder.
+//!     let mut builder: Builder = fs::Backend::build();
+//!     // Set the root for fs, all operations will happen under this root.
+//!     //
+//!     // NOTE: the root must be absolute path.
+//!     builder.root("/tmp");
+//!     // Build the `Accessor`.
+//!     let accessor: Arc<dyn Accessor> = builder.finish().await?;
+//!
+//!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
+//!     let op: Operator = Operator::new(accessor);
+//!
+//!     // Create an object handle to start operation on object.
+//!     let _: Object = op.object("test_file");
+//!
+//!     Ok(())
+//! }
+//! ```
 
 mod backend;
 pub use backend::Backend;

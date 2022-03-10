@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Example for initiating a s3 backend.
 use std::sync::Arc;
 
-/// Example for initiating a s3 backend.
 use anyhow::Result;
 use opendal::credential::Credential;
 use opendal::services::s3;

@@ -28,6 +28,7 @@ pub fn services() -> Vec<(&'static str, Option<Arc<dyn Accessor>>)> {
         vec![
             ("fs", fs::new().await.expect("init fs")),
             ("s3", s3::new().await.expect("init s3")),
+            ("memory", memory::new().await.expect("init memory")),
         ]
     })
 }

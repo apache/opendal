@@ -18,6 +18,7 @@ use std::time::Instant;
 use futures::io::copy;
 use futures::io::Cursor;
 use futures::StreamExt;
+use log::debug;
 
 use crate::readers::*;
 
@@ -49,11 +50,13 @@ async fn callback_reader() {
 
 #[tokio::test]
 async fn observe_reader() {
+    let _ = env_logger::builder().is_test(true).try_init();
+
     let mut last_pending = None;
     let mut read_cost = Duration::default();
     let mut size = 0;
 
-    let reader = ObserveReader::new(Box::new(Cursor::new("Hello, world!")), |e| {
+    let reader = ObserveReader::new(Box::new(Cursor::new(vec![0; 4 * 1024 * 1024])), |e| {
         let start = match last_pending {
             None => Instant::now(),
             Some(t) => t,
@@ -72,8 +75,8 @@ async fn observe_reader() {
     let mut bs = Vec::new();
     let n = copy(reader, &mut bs).await.unwrap();
 
-    println!("read time: {:?}", read_cost);
-    assert_eq!(size, 13);
-    assert_eq!(n, 13);
+    debug!("read time: {:?}", read_cost);
+    assert_eq!(size, 4 * 1024 * 1024);
+    assert_eq!(n, 4 * 1024 * 1024);
     assert!(!read_cost.is_zero());
 }

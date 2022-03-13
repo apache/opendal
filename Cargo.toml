@@ -33,7 +33,6 @@ aws-smithy-client = "0.38"
 aws-smithy-http = "0.38"
 aws-smithy-http-tower = "0.38"
 aws-types = { version = "0.8", features = ["hardcoded-credentials"] }
-blocking = "1"
 bytes = "1"
 futures = { version = "0.3", features = ["alloc"] }
 http = "0.2"

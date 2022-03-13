@@ -21,6 +21,7 @@ name = "ops"
 
 [dependencies]
 anyhow = "1"
+async-compat = "0.2"
 async-trait = "0.1"
 aws-config = "0.8"
 aws-endpoint = "0.8"
@@ -43,6 +44,7 @@ once_cell = "1"
 pin-project = "1"
 reqwest = "0.11"
 thiserror = "1"
+tokio = { version = "1.17", features = ["full"] }
 tower = "0.4"
 
 [dev-dependencies]
@@ -59,5 +61,4 @@ opendal_test = { path = "./opendal_test" }
 rand = "0.8"
 sha2 = "0.10"
 size = "0.1"
-tokio = { version = "1.16", features = ["full"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }

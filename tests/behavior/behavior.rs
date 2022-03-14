@@ -49,6 +49,7 @@ impl BehaviorTest {
 
     pub async fn run(&mut self) -> Result<()> {
         self.test_normal().await?;
+        self.test_stat_root().await?;
 
         Ok(())
     }
@@ -123,6 +124,17 @@ impl BehaviorTest {
         let o = self.op.object(&path);
         let exist = o.is_exist().await?;
         assert!(!exist, "stat file again");
+        Ok(())
+    }
+
+    /// Root should be able to stat and returns DIR.
+    async fn test_stat_root(&mut self) -> Result<()> {
+        let meta = self.op.object("").metadata().await?;
+        assert_eq!(meta.mode(), ObjectMode::DIR);
+
+        let meta = self.op.object("/").metadata().await?;
+        assert_eq!(meta.mode(), ObjectMode::DIR);
+
         Ok(())
     }
 

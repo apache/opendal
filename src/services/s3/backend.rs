@@ -364,6 +364,7 @@ impl Backend {
 
     /// get_rel_path will return the relative path of the given path in the s3 format.
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        let path = Backend::normalize_path(path);
         let path = format!("/{}", path);
 
         match path.strip_prefix(&self.root) {
@@ -440,6 +441,18 @@ impl Accessor for Backend {
 
         let p = self.get_abs_path(&args.path);
         info!("object {} stat start", &p);
+
+        // Stat root always returns a DIR.
+        if self.get_rel_path(&p).is_empty() {
+            let mut m = Metadata::default();
+            m.set_path(&args.path);
+            m.set_content_length(0);
+            m.set_mode(ObjectMode::DIR);
+            m.set_complete();
+
+            info!("backed root object stat finished");
+            return Ok(m);
+        }
 
         let meta = self
             .client

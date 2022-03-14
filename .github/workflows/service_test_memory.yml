@@ -24,4 +24,5 @@ jobs:
         run: cargo test memory
         env:
           RUST_BACKTRACE: full
+          RUST_LOG: debug
           OPENDAL_MEMORY_TEST: on

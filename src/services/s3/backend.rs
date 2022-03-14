@@ -438,6 +438,18 @@ impl Accessor for Backend {
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_s3_stat_requests");
 
+        // Stat root always returns a DIR.
+        if args.path.is_empty() {
+            let mut m = Metadata::default();
+            m.set_path(&args.path);
+            m.set_content_length(0);
+            m.set_mode(ObjectMode::DIR);
+            m.set_complete();
+
+            info!("backed root object stat finished");
+            return Ok(m);
+        }
+
         let p = self.get_abs_path(&args.path);
         info!("object {} stat start", &p);
 

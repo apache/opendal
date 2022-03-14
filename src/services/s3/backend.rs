@@ -364,6 +364,7 @@ impl Backend {
 
     /// get_rel_path will return the relative path of the given path in the s3 format.
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        let path = Backend::normalize_path(path);
         let path = format!("/{}", path);
 
         match path.strip_prefix(&self.root) {

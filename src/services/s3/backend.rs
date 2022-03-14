@@ -442,7 +442,7 @@ impl Accessor for Backend {
         info!("object {} stat start", &p);
 
         // Stat root always returns a DIR.
-        if p == self.get_abs_path(&self.root) {
+        if self.get_rel_path(&p).is_empty() {
             let mut m = Metadata::default();
             m.set_path(&args.path);
             m.set_content_length(0);

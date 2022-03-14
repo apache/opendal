@@ -18,14 +18,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::object::BoxedObjectStream;
-use crate::object::Metadata;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BoxedAsyncReader;
+use crate::BoxedObjectStream;
+use crate::Metadata;
 
 /// Underlying trait of all backends for implementors.
 ///

@@ -79,6 +79,7 @@ mod operator;
 pub use operator::Operator;
 
 mod object;
+pub use object::BoxedObjectStream;
 pub use object::Metadata;
 pub use object::Object;
 pub use object::ObjectMode;

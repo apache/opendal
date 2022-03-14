@@ -132,6 +132,9 @@ impl BehaviorTest {
         let meta = self.op.object("").metadata().await?;
         assert_eq!(meta.mode(), ObjectMode::DIR);
 
+        let meta = self.op.object("/").metadata().await?;
+        assert_eq!(meta.mode(), ObjectMode::DIR);
+
         Ok(())
     }
 

@@ -64,6 +64,8 @@
 //!     Ok(())
 //! }
 //! ```
+extern crate core;
+
 mod accessor;
 pub use accessor::Accessor;
 

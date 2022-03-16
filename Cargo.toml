@@ -23,16 +23,6 @@ name = "ops"
 anyhow = "1"
 async-compat = "0.2"
 async-trait = "0.1"
-aws-config = "0.8"
-aws-endpoint = "0.8"
-aws-http = "0.8"
-aws-sdk-s3 = "0.8"
-aws-sig-auth = "0.8"
-aws-sigv4 = "0.8"
-aws-smithy-client = "0.38"
-aws-smithy-http = "0.38"
-aws-smithy-http-tower = "0.38"
-aws-types = { version = "0.8", features = ["hardcoded-credentials"] }
 bytes = "1"
 futures = { version = "0.3", features = ["alloc"] }
 http = "0.2"
@@ -41,17 +31,20 @@ log = "0.4"
 metrics = "0.18"
 once_cell = "1"
 pin-project = "1"
-reqwest = "0.11"
+reqwest = { version = "0.11", features = ["stream"] }
 thiserror = "1"
 tokio = { version = "1.17", features = ["full"] }
 tower = "0.4"
+reqsign = { git = "https://github.com/Xuanwo/reqsign", rev = "44d7bb37dfa543487d4d5286d64abd3f2fe12bf7" }
+roxmltree = "0.14"
+bstr = "0.2"
 
 [dev-dependencies]
 anyhow = "1.0"
 criterion = { version = "0.3", features = [
-  "async",
-  "async_tokio",
-  "html_reports",
+    "async",
+    "async_tokio",
+    "html_reports",
 ] }
 dotenv = "0.15"
 env_logger = "0.9"

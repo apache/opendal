@@ -32,6 +32,13 @@ aws-smithy-client = "0.38"
 aws-smithy-http = "0.38"
 aws-smithy-http-tower = "0.38"
 aws-types = { version = "0.8", features = ["hardcoded-credentials"] }
+
+azure_core = {version="0.1",default-features=false,git = "https://github.com/Azure/azure-sdk-for-rust"}
+azure_storage = { version = "0.1.0", default-features=false, features=["account"], git = "https://github.com/Azure/azure-sdk-for-rust" }
+azure_storage_blobs = { version = "0.1.0", git = "https://github.com/Azure/azure-sdk-for-rust" }
+azure_identity = {git = "https://github.com/Azure/azure-sdk-for-rust", version = "0.1" }
+
+oauth2 = { version = "4.0.0", default-features = false }
 blocking = "1"
 bytes = "1"
 futures = { version = "0.3", features = ["alloc"] }

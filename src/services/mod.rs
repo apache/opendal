@@ -21,4 +21,6 @@
 
 pub mod fs;
 pub mod memory;
+pub mod azblob;
+
 pub mod s3;

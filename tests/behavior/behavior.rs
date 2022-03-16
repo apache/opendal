@@ -26,6 +26,7 @@ use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
+
 use opendal::ObjectMode;
 use opendal::Operator;
 use rand::prelude::*;
@@ -49,6 +50,7 @@ impl BehaviorTest {
 
     pub async fn run(&mut self) -> Result<()> {
         self.test_normal().await?;
+        self.test_stat_root().await?;
 
         Ok(())
     }
@@ -102,7 +104,7 @@ impl BehaviorTest {
         );
 
         // Step 5: List this dir, we should get this file.
-        let mut obs = self.op.objects("").map(|o| o.expect("list object"));
+        let mut obs = self.op.objects("").map(|o| o.expect("list object: {}"));
         let mut found = false;
         while let Some(o) = obs.next().await {
             let meta = o.metadata().await?;
@@ -123,6 +125,17 @@ impl BehaviorTest {
         let o = self.op.object(&path);
         let exist = o.is_exist().await?;
         assert!(!exist, "stat file again");
+        Ok(())
+    }
+
+    /// Root should be able to stat and returns DIR.
+    async fn test_stat_root(&mut self) -> Result<()> {
+        let meta = self.op.object("").metadata().await?;
+        assert_eq!(meta.mode(), ObjectMode::DIR);
+
+        let meta = self.op.object("/").metadata().await?;
+        assert_eq!(meta.mode(), ObjectMode::DIR);
+
         Ok(())
     }
 

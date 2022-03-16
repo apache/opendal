@@ -141,20 +141,13 @@ impl Operator {
     /// use opendal::ObjectMode;
     /// use opendal::ObjectStream;
     /// use opendal::Operator;
-    /// use opendal_test::services::fs;
+    /// use opendal::services::fs;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
-    ///     // Using opendal internal test framework for example.
-    ///     // Don't use this in production.
-    ///     // Please init your backend via related example instead.
-    ///     let acc = fs::new().await?;
-    ///     if acc.is_none() {
-    ///         return Ok(());
-    ///     }
-    ///     let op = Operator::new(acc.unwrap());
+    ///     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
     ///
-    ///     // Real example starts from here.
+    ///     op.object("test_dir/test_file").writer().write_bytes("Hello, World!".to_string().into_bytes()).await?;
     ///
     ///     // Start listing a dir.
     ///     let mut obs: ObjectStream = op.objects("test_dir");

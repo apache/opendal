@@ -18,14 +18,14 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::object::BoxedObjectStream;
-use crate::object::Metadata;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BoxedAsyncReader;
+use crate::BoxedObjectStream;
+use crate::Metadata;
 
 /// Underlying trait of all backends for implementors.
 ///
@@ -46,6 +46,13 @@ pub trait Accessor: Send + Sync + Debug {
         unimplemented!()
     }
     /// Invoke the `stat` operation on the specified path.
+    ///
+    /// ## Behavior
+    ///
+    /// - `Stat` empty path means stat backend's root path.
+    /// - `Stat` a path endswith "/" means stating a dir.
+    ///   - On fs, an error could return if not a dir.
+    ///   - On s3 alike backends, a dir object will return no matter it exist or not.
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let _ = args;
         unimplemented!()

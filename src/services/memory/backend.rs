@@ -149,7 +149,7 @@ impl Accessor for Backend {
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = Backend::normalize_path(&args.path);
 
-        if path.ends_with('/') {
+        if path.ends_with('/') || path.is_empty() {
             let mut meta = Metadata::default();
             meta.set_path(&path)
                 .set_mode(ObjectMode::DIR)

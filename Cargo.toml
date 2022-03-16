@@ -7,7 +7,7 @@ keywords = ["storage", "data", "s3"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.2.1"
+version = "0.2.3"
 
 [workspace]
 members = ["opendal_test"]
@@ -21,17 +21,8 @@ name = "ops"
 
 [dependencies]
 anyhow = "1"
+async-compat = "0.2"
 async-trait = "0.1"
-aws-config = "0.8"
-aws-endpoint = "0.8"
-aws-http = "0.8"
-aws-sdk-s3 = "0.8"
-aws-sig-auth = "0.8"
-aws-sigv4 = "0.8"
-aws-smithy-client = "0.38"
-aws-smithy-http = "0.38"
-aws-smithy-http-tower = "0.38"
-aws-types = { version = "0.8", features = ["hardcoded-credentials"] }
 
 azure_core = {version="0.1",default-features=false,git = "https://github.com/Azure/azure-sdk-for-rust"}
 azure_storage = { version = "0.1.0", default-features=false, features=["account"], git = "https://github.com/Azure/azure-sdk-for-rust" }
@@ -40,6 +31,7 @@ azure_identity = {git = "https://github.com/Azure/azure-sdk-for-rust", version =
 
 oauth2 = { version = "4.0.0", default-features = false }
 blocking = "1"
+bstr = "0.2"
 bytes = "1"
 futures = { version = "0.3", features = ["alloc"] }
 http = "0.2"
@@ -48,8 +40,11 @@ log = "0.4"
 metrics = "0.18"
 once_cell = "1"
 pin-project = "1"
-reqwest = "0.11"
+reqsign = { git = "https://github.com/Xuanwo/reqsign", rev = "44d7bb37dfa543487d4d5286d64abd3f2fe12bf7" }
+reqwest = { version = "0.11", features = ["stream"] }
+roxmltree = "0.14"
 thiserror = "1"
+tokio = { version = "1.17", features = ["full"] }
 tower = "0.4"
 
 [dev-dependencies]
@@ -66,5 +61,4 @@ opendal_test = { path = "./opendal_test" }
 rand = "0.8"
 sha2 = "0.10"
 size = "0.1"
-tokio = { version = "1.16", features = ["full"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }

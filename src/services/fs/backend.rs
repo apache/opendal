@@ -13,15 +13,13 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::fs;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use async_compat::Compat;
 use async_trait::async_trait;
-use blocking::unblock;
-use blocking::Unblock;
 use futures::io;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
@@ -29,6 +27,7 @@ use futures::AsyncWriteExt;
 use log::error;
 use log::info;
 use metrics::increment_counter;
+use tokio::fs;
 
 use super::error::parse_io_error;
 use super::object_stream::Readdir;
@@ -77,11 +76,9 @@ impl Builder {
         };
 
         // If root dir is not exist, we must create it.
-        let metadata_root = root.clone();
-        if let Err(e) = unblock(|| fs::metadata(metadata_root)).await {
+        if let Err(e) = fs::metadata(&root).await {
             if e.kind() == std::io::ErrorKind::NotFound {
-                let dir_root = root.clone();
-                unblock(|| fs::create_dir_all(dir_root))
+                fs::create_dir_all(&root)
                     .await
                     .map_err(|e| parse_io_error(e, "build", &root))?;
             }
@@ -137,8 +134,9 @@ impl Accessor for Backend {
             &path, args.offset, args.size
         );
 
-        let open_path = path.clone();
-        let f = unblock(|| fs::OpenOptions::new().read(true).open(open_path))
+        let f = fs::OpenOptions::new()
+            .read(true)
+            .open(&path)
             .await
             .map_err(|e| {
                 let e = parse_io_error(e, "read", &path);
@@ -146,7 +144,7 @@ impl Accessor for Backend {
                 e
             })?;
 
-        let mut f = Unblock::new(f);
+        let mut f = Compat::new(f);
 
         if let Some(offset) = args.offset {
             f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
@@ -185,35 +183,29 @@ impl Accessor for Backend {
             .ok_or_else(|| anyhow!("malformed path: {:?}", &path))?
             .to_path_buf();
 
-        let capture_parent = parent.clone();
-        unblock(|| fs::create_dir_all(capture_parent))
-            .await
-            .map_err(|e| {
-                let e = parse_io_error(e, "write", &parent.to_string_lossy());
-                error!(
-                    "object {} create_dir_all for parent {}: {:?}",
-                    &path,
-                    &parent.to_string_lossy(),
-                    e
-                );
+        fs::create_dir_all(&parent).await.map_err(|e| {
+            let e = parse_io_error(e, "write", &parent.to_string_lossy());
+            error!(
+                "object {} create_dir_all for parent {}: {:?}",
+                &path,
+                &parent.to_string_lossy(),
                 e
-            })?;
-
-        let capture_path = path.clone();
-        let f = unblock(|| {
-            fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(capture_path)
-        })
-        .await
-        .map_err(|e| {
-            let e = parse_io_error(e, "write", &path);
-            error!("object {} open: {:?}", &path, e);
+            );
             e
         })?;
 
-        let mut f = Unblock::new(f);
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&path)
+            .await
+            .map_err(|e| {
+                let e = parse_io_error(e, "write", &path);
+                error!("object {} open: {:?}", &path, e);
+                e
+            })?;
+
+        let mut f = Compat::new(f);
 
         // TODO: we should respect the input size.
         let s = io::copy(&mut r, &mut f).await.map_err(|e| {
@@ -242,8 +234,7 @@ impl Accessor for Backend {
         let path = self.get_abs_path(&args.path);
         info!("object {} stat start", &path);
 
-        let capture_path = path.clone();
-        let meta = unblock(|| fs::metadata(capture_path)).await.map_err(|e| {
+        let meta = fs::metadata(&path).await.map_err(|e| {
             let e = parse_io_error(e, "stat", &path);
             error!("object {} stat: {:?}", &path, e);
             e
@@ -270,9 +261,8 @@ impl Accessor for Backend {
         let path = self.get_abs_path(&args.path);
         info!("object {} delete start", &path);
 
-        let capture_path = path.clone();
         // PathBuf.is_dir() is not free, call metadata directly instead.
-        let meta = unblock(|| fs::metadata(capture_path)).await;
+        let meta = fs::metadata(&path).await;
 
         if let Err(err) = meta {
             return if err.kind() == std::io::ErrorKind::NotFound {
@@ -288,11 +278,9 @@ impl Accessor for Backend {
         let meta = meta.ok().unwrap();
 
         let f = if meta.is_dir() {
-            let capture_path = path.clone();
-            unblock(|| fs::remove_dir(capture_path)).await
+            fs::remove_dir(&path).await
         } else {
-            let capture_path = path.clone();
-            unblock(|| fs::remove_file(capture_path)).await
+            fs::remove_file(&path).await
         };
 
         f.map_err(|e| parse_io_error(e, "delete", &path))?;
@@ -307,8 +295,7 @@ impl Accessor for Backend {
         let path = self.get_abs_path(&args.path);
         info!("object {} list start", &path);
 
-        let open_path = path.clone();
-        let f = fs::read_dir(open_path).map_err(|e| {
+        let f = fs::read_dir(&path).await.map_err(|e| {
             let e = parse_io_error(e, "read", &path);
             error!("object {} list: {:?}", &path, e);
             e

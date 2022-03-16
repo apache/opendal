@@ -12,20 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::borrow::Cow;
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use aws_sdk_s3;
-use aws_sdk_s3::Client;
-use aws_smithy_http::body::SdkBody;
-use aws_smithy_http::byte_stream::ByteStream;
 use futures::TryStreamExt;
 use http::HeaderValue;
 use http::StatusCode;
@@ -35,11 +27,9 @@ use log::info;
 use log::warn;
 use metrics::increment_counter;
 use once_cell::sync::Lazy;
+use reqsign::services::aws::v4::Signer;
+use reqwest::{Body, Response, Url};
 
-use super::error::parse_get_object_error;
-use super::error::parse_head_object_error;
-use super::error::parse_unexpect_error;
-use super::middleware::DefaultMiddleware;
 use super::object_stream::S3ObjectStream;
 use crate::credential::Credential;
 use crate::error::Error;
@@ -165,8 +155,8 @@ impl Builder {
             ("bucket".to_string(), bucket.to_string()),
         ]);
 
-        let hc = reqwest::Client::new();
-        let res = hc
+        let client = reqwest::Client::new();
+        let res = client
             .head(format!("{endpoint}/{bucket}"))
             .send()
             .await
@@ -237,36 +227,10 @@ impl Builder {
         };
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
-        // Config Loader will load config from environment.
-        //
-        // We will take user's input first if any. If there is no user input, we
-        // will fallback to the aws default load chain like the following:
-        //
-        // - Environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION
-        // - The default credentials files located in ~/.aws/config and ~/.aws/credentials (location can vary per platform)
-        // - Web Identity Token credentials from the environment or container (including EKS)
-        // - ECS Container Credentials (IAM roles for tasks)
-        // - EC2 Instance Metadata Service (IAM Roles attached to instance)
-        //
-        // Please keep in mind that the config loader only detect region and credentials.
-        let cfg_loader = aws_config::ConfigLoader::default();
-        let mut cfg = aws_sdk_s3::config::Builder::from(&cfg_loader.load().await);
-
-        {
-            // Set region.
-            cfg = cfg.region(aws_sdk_s3::Region::new(Cow::from(region.clone())));
-        }
-
-        {
-            // Set endpoint
-            let uri = http::Uri::from_str(&endpoint).map_err(|e| Error::Backend {
-                kind: Kind::BackendConfigurationInvalid,
-                context: context.clone(),
-                source: anyhow::Error::from(e),
-            })?;
-
-            cfg = cfg.endpoint_resolver(aws_sdk_s3::Endpoint::immutable(uri));
-        }
+        let mut signer_builder = reqsign::services::aws::v4::Signer::builder();
+        signer_builder.service("s3");
+        signer_builder.region(&region);
+        signer_builder.allow_anonymous();
 
         if let Some(cred) = &self.credential {
             context.insert("credential".to_string(), "*".to_string());
@@ -275,11 +239,8 @@ impl Builder {
                     access_key_id,
                     secret_access_key,
                 } => {
-                    cfg = cfg.credentials_provider(aws_sdk_s3::Credentials::from_keys(
-                        access_key_id,
-                        secret_access_key,
-                        None,
-                    ));
+                    signer_builder.access_key(access_key_id);
+                    signer_builder.secret_key(secret_access_key);
                 }
                 // We don't need to do anything if user tries to read credential from env.
                 Credential::Plain => {
@@ -295,22 +256,15 @@ impl Builder {
             }
         }
 
-        let hyper_connector = aws_smithy_client::hyper_ext::Adapter::builder()
-            .build(aws_smithy_client::conns::https());
-
-        let aws_client = aws_smithy_client::Builder::new()
-            .connector(hyper_connector)
-            .middleware(aws_smithy_client::erase::DynMiddleware::new(
-                DefaultMiddleware::new(),
-            ))
-            .default_async_sleep()
-            .build();
+        let signer = signer_builder.build().await?;
 
         info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
             root,
+            endpoint,
+            signer: Arc::new(signer),
             bucket: self.bucket.clone(),
-            client: aws_sdk_s3::Client::with_config(aws_client.into_dyn(), cfg.build()),
+            client,
         }))
     }
 }
@@ -319,8 +273,9 @@ impl Builder {
 #[derive(Debug, Clone)]
 pub struct Backend {
     bucket: String,
-
-    client: aws_sdk_s3::Client,
+    endpoint: String,
+    signer: Arc<Signer>,
+    client: reqwest::Client,
     // root will be "/" or "/abc/"
     root: String,
 }
@@ -328,10 +283,6 @@ pub struct Backend {
 impl Backend {
     pub fn build() -> Builder {
         Builder::default()
-    }
-
-    pub(crate) fn inner(&self) -> Client {
-        self.client.clone()
     }
 
     // normalize_path removes all internal `//` inside path.
@@ -364,6 +315,7 @@ impl Backend {
 
     /// get_rel_path will return the relative path of the given path in the s3 format.
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        let path = Backend::normalize_path(path);
         let path = format!("/{}", path);
 
         match path.strip_prefix(&self.root) {
@@ -387,52 +339,36 @@ impl Accessor for Backend {
             &p, args.offset, args.size
         );
 
-        let mut req = self
-            .client
-            .get_object()
-            .bucket(&self.bucket.clone())
-            .key(&p);
-
-        if args.offset.is_some() || args.size.is_some() {
-            req = req.range(HeaderRange::new(args.offset, args.size).to_string());
-        }
-
-        let resp = req.send().await.map_err(|e| {
-            let e = parse_get_object_error(e, "read", &p);
-            error!("object {} get_object: {:?}", &p, e);
-            e
-        })?;
+        let resp = self.get_object(&p, args.offset, args.size).await?;
 
         info!(
             "object {} reader created: offset {:?}, size {:?}",
             &p, args.offset, args.size
         );
-        Ok(Box::new(S3ByteStream(resp.body).into_async_read()))
+        Ok(Box::new(
+            resp.bytes_stream()
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                .into_async_read(),
+        ))
     }
 
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
         info!("object {} write start: size {}", &p, args.size);
 
-        let _ = self
-            .client
-            .put_object()
-            .bucket(&self.bucket.clone())
-            .key(&p)
-            .content_length(args.size as i64)
-            .body(ByteStream::from(SdkBody::from(
-                hyper::body::Body::wrap_stream(ReaderStream::new(r)),
-            )))
-            .send()
-            .await
-            .map_err(|e| {
-                let e = parse_unexpect_error(e, "write", &p);
-                error!("object {} put_object: {:?}", &p, e);
-                e
-            })?;
-
-        info!("object {} write finished: size {:?}", &p, args.size);
-        Ok(args.size as usize)
+        let resp = self.put_object(&p, r, args.size).await?;
+        match resp.status() {
+            http::StatusCode::CREATED | http::StatusCode::OK => {
+                info!("object {} write finished: size {:?}", &p, args.size);
+                Ok(args.size as usize)
+            }
+            _ => Err(Error::Object {
+                kind: Kind::Unexpected,
+                op: "write",
+                path: p.to_string(),
+                source: anyhow!("{:?}", resp),
+            }),
+        }
     }
 
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
@@ -441,20 +377,32 @@ impl Accessor for Backend {
         let p = self.get_abs_path(&args.path);
         info!("object {} stat start", &p);
 
-        let meta = self
-            .client
-            .head_object()
-            .bucket(&self.bucket.clone())
-            .key(&p)
-            .send()
-            .await
-            .map_err(|e| parse_head_object_error(e, "stat", &p));
+        // Stat root always returns a DIR.
+        if self.get_rel_path(&p).is_empty() {
+            let mut m = Metadata::default();
+            m.set_path(&args.path);
+            m.set_content_length(0);
+            m.set_mode(ObjectMode::DIR);
+            m.set_complete();
 
-        match meta {
-            Ok(meta) => {
+            info!("backed root object stat finished");
+            return Ok(m);
+        }
+
+        let resp = self.head_object(&p).await?;
+
+        match resp.status() {
+            http::StatusCode::OK => {
                 let mut m = Metadata::default();
                 m.set_path(&args.path);
-                m.set_content_length(meta.content_length as u64);
+
+                // Parse content_length
+                if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
+                    m.set_content_length(
+                        u64::from_str(v.to_str().expect("header must not contain non-ascii value"))
+                            .expect("content length header must contain valid length"),
+                    );
+                }
 
                 if p.ends_with('/') {
                     m.set_mode(ObjectMode::DIR);
@@ -467,21 +415,34 @@ impl Accessor for Backend {
                 info!("object {} stat finished", &p);
                 Ok(m)
             }
-            // Always returns empty dir object if path is endswith "/" and we got an
-            // ObjectNotExist error.
-            Err(e) if (e.kind() == Kind::ObjectNotExist && p.ends_with('/')) => {
-                let mut m = Metadata::default();
-                m.set_path(&args.path);
-                m.set_content_length(0);
-                m.set_mode(ObjectMode::DIR);
-                m.set_complete();
+            http::StatusCode::NOT_FOUND => {
+                // Always returns empty dir object if path is endswith "/"
+                if p.ends_with('/') {
+                    let mut m = Metadata::default();
+                    m.set_path(&args.path);
+                    m.set_content_length(0);
+                    m.set_mode(ObjectMode::DIR);
+                    m.set_complete();
 
-                info!("object {} stat finished", &p);
-                Ok(m)
+                    info!("object {} stat finished", &p);
+                    Ok(m)
+                } else {
+                    Err(Error::Object {
+                        kind: Kind::ObjectNotExist,
+                        op: "stat",
+                        path: p.to_string(),
+                        source: anyhow!("{:?}", resp),
+                    })
+                }
             }
-            Err(e) => {
-                error!("object {} head_object: {:?}", &p, e);
-                Err(e)
+            _ => {
+                error!("object {} head_object: {:?}", &p, resp);
+                Err(Error::Object {
+                    kind: Kind::Unexpected,
+                    op: "stat",
+                    path: p.to_string(),
+                    source: anyhow!("{:?}", resp),
+                })
             }
         }
     }
@@ -492,14 +453,7 @@ impl Accessor for Backend {
         let p = self.get_abs_path(&args.path);
         info!("object {} delete start", &p);
 
-        let _ = self
-            .client
-            .delete_object()
-            .bucket(&self.bucket.clone())
-            .key(&p)
-            .send()
-            .await
-            .map_err(|e| parse_unexpect_error(e, "delete", &p))?;
+        let _ = self.delete_object(&p).await?;
 
         info!("object {} delete finished", &p);
         Ok(())
@@ -515,35 +469,132 @@ impl Accessor for Backend {
         }
         info!("object {} list start", &path);
 
-        Ok(Box::new(S3ObjectStream::new(
-            self.clone(),
-            self.bucket.clone(),
-            path,
-        )))
+        Ok(Box::new(S3ObjectStream::new(self.clone(), path)))
     }
 }
 
-struct S3ByteStream(aws_smithy_http::byte_stream::ByteStream);
+impl Backend {
+    pub(crate) async fn get_object(
+        &self,
+        path: &str,
+        offset: Option<u64>,
+        size: Option<u64>,
+    ) -> Result<Response> {
+        let mut req = reqwest::Request::new(
+            http::Method::GET,
+            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
+                .expect("url must be valid"),
+        );
 
-impl futures::Stream for S3ByteStream {
-    type Item = std::result::Result<bytes::Bytes, std::io::Error>;
+        if offset.is_some() || size.is_some() {
+            req.headers_mut().insert(
+                http::header::RANGE,
+                HeaderRange::new(offset, size)
+                    .to_string()
+                    .parse()
+                    .expect("header must be valid"),
+            );
+        }
 
-    /// ## TODO
-    ///
-    /// This hack is ugly, we should find a better way to do this.
-    ///
-    /// The problem is `into_async_read` requires the stream returning
-    /// `std::io::Error`, the the `ByteStream` returns
-    /// `aws_smithy_http::byte_stream::Error` instead.
-    ///
-    /// I don't know why aws sdk should wrap the error into their own type...
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.0)
-            .poll_next(cx)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.execute(req).await.map_err(|e| {
+            error!("object {} get_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        })
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.0.size_hint()
+    pub(crate) async fn put_object(
+        &self,
+        path: &str,
+        r: BoxedAsyncReader,
+        size: u64,
+    ) -> Result<Response> {
+        let mut req = reqwest::Request::new(
+            http::Method::PUT,
+            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
+                .expect("url must be valid"),
+        );
+
+        // Set content length.
+        req.headers_mut().insert(
+            http::header::CONTENT_LENGTH,
+            size.to_string()
+                .parse()
+                .expect("content length must be valid"),
+        );
+        req.headers_mut()
+            .insert(http::header::CONTENT_TYPE, HeaderValue::from_static("test"));
+        *req.body_mut() = Some(Body::from(hyper::body::Body::wrap_stream(
+            ReaderStream::new(r),
+        )));
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.execute(req).await.map_err(|e| {
+            error!("object {} put_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        })
+    }
+
+    pub(crate) async fn head_object(&self, path: &str) -> Result<Response> {
+        let mut req = reqwest::Request::new(
+            http::Method::HEAD,
+            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
+                .expect("url must be valid"),
+        );
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.execute(req).await.map_err(|e| {
+            error!("object {} head_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        })
+    }
+
+    pub(crate) async fn delete_object(&self, path: &str) -> Result<Response> {
+        let mut req = reqwest::Request::new(
+            http::Method::DELETE,
+            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
+                .expect("url must be valid"),
+        );
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.execute(req).await.map_err(|e| {
+            error!("object {} delete_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        })
+    }
+
+    pub(crate) async fn list_object(
+        &self,
+        path: &str,
+        continuation_token: &str,
+    ) -> Result<Response> {
+        let mut req = reqwest::Request::new(
+            http::Method::GET,
+            Url::from_str(&format!("{}/{}", self.endpoint, self.bucket))
+                .expect("url must be valid"),
+        );
+
+        {
+            let mut query_pairs = req.url_mut().query_pairs_mut();
+
+            query_pairs
+                .append_pair("list-type", "2")
+                .append_pair("delimiter", "/")
+                .append_pair("prefix", path);
+            if !continuation_token.is_empty() {
+                query_pairs.append_pair("continuation-token", continuation_token);
+            }
+        }
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.execute(req).await.map_err(|e| {
+            error!("object {} list_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        })
     }
 }

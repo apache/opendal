@@ -406,6 +406,7 @@ impl Display for ObjectMode {
     }
 }
 
+/// Boxed `futures::Stream<Item = Result<Object>>` returned by underlying backend.
 pub type BoxedObjectStream = Box<dyn futures::Stream<Item = Result<Object>> + Unpin + Send>;
 
 /// Handler for listing object under a dir.

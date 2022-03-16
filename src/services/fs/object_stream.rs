@@ -17,16 +17,15 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use blocking::Unblock;
 use futures::ready;
 use log::debug;
 use log::error;
+use tokio::fs;
 
 use super::error::parse_io_error;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::object::ObjectMode;
 use crate::Accessor;
 use crate::Object;
 
@@ -35,16 +34,16 @@ pub struct Readdir {
     root: String,
     path: String,
 
-    rd: Unblock<std::fs::ReadDir>,
+    rd: fs::ReadDir,
 }
 
 impl Readdir {
-    pub fn new(acc: Arc<dyn Accessor>, root: &str, path: &str, rd: std::fs::ReadDir) -> Self {
+    pub fn new(acc: Arc<dyn Accessor>, root: &str, path: &str, rd: fs::ReadDir) -> Self {
         Self {
             acc,
             root: root.to_string(),
             path: path.to_string(),
-            rd: Unblock::new(rd),
+            rd,
         }
     }
 }
@@ -53,27 +52,16 @@ impl futures::Stream for Readdir {
     type Item = Result<Object>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match ready!(Pin::new(&mut self.rd).poll_next(cx)) {
-            None => {
-                debug!("object {} list done", &self.path);
-                Poll::Ready(None)
-            }
-            Some(Err(e)) => {
+        match ready!(Pin::new(&mut self.rd).poll_next_entry(cx)) {
+            Err(e) => {
                 error!("object {} stream poll_next: {:?}", &self.path, e);
                 Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path))))
             }
-            Some(Ok(de)) => {
-                // NOTE: metadata is syscall.
-                let de_meta = de.metadata().map_err(|e| {
-                    let e = parse_io_error(e, "list", &de.path().to_string_lossy());
-                    error!("object {:?} metadata: {:?}", &de.path(), e);
-                    e
-                });
-                if let Err(e) = de_meta {
-                    return Poll::Ready(Some(Err(e)));
-                }
-                let de_meta = de_meta.unwrap();
-
+            Ok(None) => {
+                debug!("object {} list done", &self.path);
+                Poll::Ready(None)
+            }
+            Ok(Some(de)) => {
                 let de_path = de.path();
                 let de_path = de_path.strip_prefix(&self.root).map_err(|e| {
                     let e = Error::Object {
@@ -90,21 +78,9 @@ impl futures::Stream for Readdir {
                 let mut o = Object::new(self.acc.clone(), &path);
 
                 let meta = o.metadata_mut();
-                meta.set_complete();
-                if de_meta.is_dir() {
-                    meta.set_mode(ObjectMode::DIR);
-                } else {
-                    meta.set_mode(ObjectMode::FILE);
-                }
-                meta.set_content_length(de_meta.len());
-                meta.set_complete();
+                meta.set_path(&path);
 
-                debug!(
-                    "object {} got entry, path: {}, mode: {}",
-                    &self.path,
-                    meta.path(),
-                    meta.mode()
-                );
+                debug!("object {} got entry, path: {}", &self.path, meta.path());
                 Poll::Ready(Some(Ok(o)))
             }
         }

@@ -19,6 +19,7 @@ jobs:
         run: cargo test s3
         env:
           RUST_BACKTRACE: full
+          RUST_LOG: debug
           OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
           OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
           OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
@@ -56,6 +57,7 @@ jobs:
         run: cargo test s3
         env:
           RUST_BACKTRACE: full
+          RUST_LOG: debug
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"
@@ -93,6 +95,7 @@ jobs:
         run: cargo test s3
         env:
           RUST_BACKTRACE: full
+          RUST_LOG: debug
           OPENDAL_S3_TEST: on
           OPENDAL_S3_BUCKET: test
           OPENDAL_S3_ENDPOINT: "http://127.0.0.1:9000"

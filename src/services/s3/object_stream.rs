@@ -20,9 +20,11 @@ use std::task::Context;
 use std::task::Poll;
 
 use bstr::ByteSlice;
+use bytes::BufMut;
 use futures::future::BoxFuture;
 use futures::ready;
-use log::{debug, error};
+use futures::{Stream, StreamExt};
+use log::debug;
 
 use super::Backend;
 use crate::error::{Error, Kind, Result};
@@ -91,7 +93,7 @@ impl futures::Stream for S3ObjectStream {
                 let path = self.path.clone();
                 let token = self.token.clone();
                 let fut = async move {
-                    let resp = backend.list_object(&path, &token).await?;
+                    let mut resp = backend.list_object(&path, &token).await?;
 
                     if resp.status() != http::StatusCode::OK {
                         let e = Err(Error::Object {
@@ -100,14 +102,18 @@ impl futures::Stream for S3ObjectStream {
                             path: path.clone(),
                             source: anyhow!("{:?}", resp),
                         });
-                        debug!("error response: {}", resp.text().await.expect("must valid"));
+                        debug!("error response: {:?}", resp);
                         return e;
                     }
 
-                    resp.bytes().await.map_err(|e| {
-                        error!("object {} put_object: {:?}", path, e);
-                        Error::Unexpected(anyhow::Error::from(e))
-                    })
+                    let body = resp.body_mut();
+                    let mut bs = bytes::BytesMut::new();
+                    while let Some(b) = body.next().await {
+                        let b = b.unwrap();
+                        bs.put_slice(&b)
+                    }
+
+                    Ok(bs.freeze())
                 };
                 self.state = State::Sending(Box::pin(fut));
                 self.poll_next(cx)

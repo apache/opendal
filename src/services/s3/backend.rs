@@ -13,12 +13,15 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::TryStreamExt;
+use futures::{Stream, TryStreamExt};
 use http::HeaderValue;
 use http::StatusCode;
 use log::debug;
@@ -28,7 +31,6 @@ use log::warn;
 use metrics::increment_counter;
 use once_cell::sync::Lazy;
 use reqsign::services::aws::v4::Signer;
-use reqwest::{Body, Response, Url};
 
 use super::object_stream::S3ObjectStream;
 use crate::credential::Credential;
@@ -58,6 +60,18 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
+#[derive(Debug, Clone)]
+struct Execute(tokio::runtime::Handle);
+
+impl<Fut> hyper::rt::Executor<Fut> for Execute
+where
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    fn execute(&self, fut: Fut) {
+        self.0.spawn(fut);
+    }
+}
+
 /// Builder for s3 services
 ///
 /// # TODO
@@ -70,6 +84,7 @@ pub struct Builder {
     root: Option<String>,
 
     bucket: String,
+    executor: Option<Execute>,
     credential: Option<Credential>,
     /// endpoint must be full uri, e.g.
     /// - <https://s3.amazonaws.com>
@@ -94,6 +109,12 @@ impl Builder {
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.bucket = bucket.to_string();
 
+        self
+    }
+
+    // TODO: We need to polish the API here.
+    pub fn runtime(&mut self, handle: tokio::runtime::Handle) -> &mut Self {
+        self.executor = Some(Execute(handle));
         self
     }
 
@@ -155,16 +176,21 @@ impl Builder {
             ("bucket".to_string(), bucket.to_string()),
         ]);
 
-        let client = reqwest::Client::new();
-        let res = client
-            .head(format!("{endpoint}/{bucket}"))
-            .send()
-            .await
-            .map_err(|e| Error::Backend {
-                kind: Kind::BackendConfigurationInvalid,
-                context: context.clone(),
-                source: anyhow::Error::new(e),
-            })?;
+        let mut builder = hyper::Client::builder();
+        if let Some(executor) = self.executor.clone() {
+            builder.executor(executor);
+        }
+
+        let client = builder.build(hyper_tls::HttpsConnector::new());
+
+        let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
+            .body(hyper::Body::empty())
+            .unwrap();
+        let res = client.request(req).await.map_err(|e| Error::Backend {
+            kind: Kind::BackendConfigurationInvalid,
+            context: context.clone(),
+            source: anyhow::Error::new(e),
+        })?;
         // Read RFC-0057: Auto Region for detailed behavior.
         let (endpoint, region) = match res.status() {
             // The endpoint works, return with not changed endpoint and
@@ -275,7 +301,7 @@ pub struct Backend {
     bucket: String,
     endpoint: String,
     signer: Arc<Signer>,
-    client: reqwest::Client,
+    client: hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
     // root will be "/" or "/abc/"
     root: String,
 }
@@ -345,11 +371,8 @@ impl Accessor for Backend {
             "object {} reader created: offset {:?}, size {:?}",
             &p, args.offset, args.size
         );
-        Ok(Box::new(
-            resp.bytes_stream()
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-                .into_async_read(),
-        ))
+
+        Ok(Box::new(ByteStream(resp).into_async_read()))
     }
 
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
@@ -479,26 +502,20 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::GET,
-            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
-                .expect("url must be valid"),
-        );
+    ) -> Result<hyper::Response<hyper::Body>> {
+        let mut req = hyper::Request::get(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
 
         if offset.is_some() || size.is_some() {
-            req.headers_mut().insert(
+            req = req.header(
                 http::header::RANGE,
-                HeaderRange::new(offset, size)
-                    .to_string()
-                    .parse()
-                    .expect("header must be valid"),
+                HeaderRange::new(offset, size).to_string(),
             );
         }
+        let mut req = req.body(hyper::Body::empty()).unwrap();
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.execute(req).await.map_err(|e| {
+        self.client.request(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
         })
@@ -509,59 +526,45 @@ impl Backend {
         path: &str,
         r: BoxedAsyncReader,
         size: u64,
-    ) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::PUT,
-            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
-                .expect("url must be valid"),
-        );
+    ) -> Result<hyper::Response<hyper::Body>> {
+        let mut req = hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
 
         // Set content length.
-        req.headers_mut().insert(
-            http::header::CONTENT_LENGTH,
-            size.to_string()
-                .parse()
-                .expect("content length must be valid"),
-        );
-        req.headers_mut()
-            .insert(http::header::CONTENT_TYPE, HeaderValue::from_static("test"));
-        *req.body_mut() = Some(Body::from(hyper::body::Body::wrap_stream(
-            ReaderStream::new(r),
-        )));
+        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+        let mut req = req
+            .body(hyper::body::Body::wrap_stream(ReaderStream::new(r)))
+            .unwrap();
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.execute(req).await.map_err(|e| {
+        self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
         })
     }
 
-    pub(crate) async fn head_object(&self, path: &str) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::HEAD,
-            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
-                .expect("url must be valid"),
-        );
+    pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+        let mut req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
+            .body(hyper::Body::empty())
+            .unwrap();
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.execute(req).await.map_err(|e| {
+        self.client.request(req).await.map_err(|e| {
             error!("object {} head_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
         })
     }
 
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::DELETE,
-            Url::from_str(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
-                .expect("url must be valid"),
-        );
+    pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+        let mut req =
+            hyper::Request::delete(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
+                .body(hyper::Body::empty())
+                .unwrap();
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.execute(req).await.map_err(|e| {
+        self.client.request(req).await.map_err(|e| {
             error!("object {} delete_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
         })
@@ -571,30 +574,34 @@ impl Backend {
         &self,
         path: &str,
         continuation_token: &str,
-    ) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::GET,
-            Url::from_str(&format!("{}/{}", self.endpoint, self.bucket))
-                .expect("url must be valid"),
+    ) -> Result<hyper::Response<hyper::Body>> {
+        let mut uri = format!(
+            "{}/{}?list-type=2&delimiter=/&prefix={}",
+            self.endpoint, self.bucket, path
         );
-
-        {
-            let mut query_pairs = req.url_mut().query_pairs_mut();
-
-            query_pairs
-                .append_pair("list-type", "2")
-                .append_pair("delimiter", "/")
-                .append_pair("prefix", path);
-            if !continuation_token.is_empty() {
-                query_pairs.append_pair("continuation-token", continuation_token);
-            }
+        if !continuation_token.is_empty() {
+            uri.push_str(&format!("&continuation-token={}", continuation_token))
         }
+
+        let mut req = hyper::Request::get(uri).body(hyper::Body::empty()).unwrap();
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.execute(req).await.map_err(|e| {
+        self.client.request(req).await.map_err(|e| {
             error!("object {} list_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
         })
+    }
+}
+
+struct ByteStream(hyper::Response<hyper::Body>);
+
+impl Stream for ByteStream {
+    type Item = std::io::Result<bytes::Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(self.0.body_mut())
+            .poll_next(cx)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
     }
 }

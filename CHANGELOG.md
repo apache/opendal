@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.2.4] - 2022-03-18
+
+### Added
+
+- feat: Add content_md5 and last_modified in metadata (#158)
+
+### Changed
+
+- refactor: Say goodbye to aws-s3-sdk (#152)
+
 ## [v0.2.3] - 2022-03-14
 
 ### Added
@@ -157,6 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.2.4]: https://github.com/datafuselabs/opendal/compare/v0.2.3...v0.2.4
 [v0.2.3]: https://github.com/datafuselabs/opendal/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/datafuselabs/opendal/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/datafuselabs/opendal/compare/v0.2.0...v0.2.1

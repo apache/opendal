@@ -249,6 +249,10 @@ impl Accessor for Backend {
             m.set_mode(ObjectMode::FILE);
         }
         m.set_content_length(meta.len() as u64);
+        m.set_last_modified(
+            meta.modified()
+                .map_err(|e| parse_io_error(e, "stat", &path))?,
+        );
         m.set_complete();
 
         info!("object {} stat finished", &path);

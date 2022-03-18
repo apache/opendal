@@ -70,6 +70,4 @@ mod backend;
 pub use backend::Backend;
 pub use backend::Builder;
 
-mod error;
-mod middleware;
 mod object_stream;

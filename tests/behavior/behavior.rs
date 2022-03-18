@@ -26,6 +26,7 @@ use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
+
 use opendal::ObjectMode;
 use opendal::Operator;
 use rand::prelude::*;
@@ -103,7 +104,7 @@ impl BehaviorTest {
         );
 
         // Step 5: List this dir, we should get this file.
-        let mut obs = self.op.objects("").map(|o| o.expect("list object"));
+        let mut obs = self.op.objects("").map(|o| o.expect("list object: {}"));
         let mut found = false;
         while let Some(o) = obs.next().await {
             let meta = o.metadata().await?;

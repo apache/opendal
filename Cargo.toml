@@ -39,6 +39,7 @@ roxmltree = "0.14"
 thiserror = "1"
 tokio = { version = "1.17", features = ["full"] }
 tower = "0.4"
+time = "0.3.7"
 
 [dev-dependencies]
 anyhow = "1.0"

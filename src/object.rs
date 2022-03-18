@@ -19,6 +19,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::time::SystemTime;
 
 use futures::future::BoxFuture;
 use futures::ready;
@@ -334,9 +335,20 @@ pub struct Metadata {
     mode: Option<ObjectMode>,
 
     content_length: Option<u64>,
+    content_md5: Option<String>,
+    last_modified: Option<SystemTime>,
 }
 
 impl Metadata {
+    pub fn complete(&self) -> bool {
+        self.complete
+    }
+
+    pub(crate) fn set_complete(&mut self) -> &mut Self {
+        self.complete = true;
+        self
+    }
+
     /// Returns object path that relative to corresponding backend's root.
     pub fn path(&self) -> &str {
         &self.path
@@ -347,15 +359,7 @@ impl Metadata {
         self
     }
 
-    pub fn complete(&self) -> bool {
-        self.complete
-    }
-
-    pub(crate) fn set_complete(&mut self) -> &mut Self {
-        self.complete = true;
-        self
-    }
-
+    /// Object mode represent this object' mode.
     pub fn mode(&self) -> ObjectMode {
         debug_assert!(self.mode.is_some(), "mode must exist");
 
@@ -367,6 +371,7 @@ impl Metadata {
         self
     }
 
+    /// Content length of this object
     pub fn content_length(&self) -> u64 {
         debug_assert!(self.content_length.is_some(), "content length must exist");
 
@@ -375,6 +380,26 @@ impl Metadata {
 
     pub(crate) fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = Some(content_length);
+        self
+    }
+
+    /// Content MD5 of this object.
+    pub fn content_md5(&self) -> Option<String> {
+        self.content_md5.clone()
+    }
+
+    pub(crate) fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
+        self.content_md5 = Some(content_md5.to_string());
+        self
+    }
+
+    /// Last modified of this object.
+    pub fn last_modified(&self) -> Option<SystemTime> {
+        self.last_modified
+    }
+
+    pub(crate) fn set_last_modified(&mut self, last_modified: SystemTime) -> &mut Self {
+        self.last_modified = Some(last_modified);
         self
     }
 }

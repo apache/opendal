@@ -21,6 +21,7 @@ use std::task::{Context, Poll};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use http::header::HeaderName;
 use http::HeaderValue;
 use http::StatusCode;
 use log::debug;
@@ -30,6 +31,8 @@ use log::warn;
 use metrics::increment_counter;
 use once_cell::sync::Lazy;
 use reqsign::services::aws::v4::Signer;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 
 use super::object_stream::S3ObjectStream;
 use crate::credential::Credential;
@@ -396,10 +399,25 @@ impl Accessor for Backend {
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
-                    m.set_content_length(
+                    let v =
                         u64::from_str(v.to_str().expect("header must not contain non-ascii value"))
-                            .expect("content length header must contain valid length"),
-                    );
+                            .expect("content length header must contain valid length");
+
+                    m.set_content_length(v);
+                }
+
+                // Parse content_md5
+                if let Some(v) = resp.headers().get(HeaderName::from_static("content-md5")) {
+                    let v = v.to_str().expect("header must not contain non-ascii value");
+                    m.set_content_md5(v);
+                }
+
+                // Parse last_modified
+                if let Some(v) = resp.headers().get(http::header::LAST_MODIFIED) {
+                    let v = v.to_str().expect("header must not contain non-ascii value");
+                    let t =
+                        OffsetDateTime::parse(v, &Rfc2822).expect("must contain valid time format");
+                    m.set_last_modified(t.into());
                 }
 
                 if p.ends_with('/') {
@@ -410,7 +428,7 @@ impl Accessor for Backend {
 
                 m.set_complete();
 
-                info!("object {} stat finished", &p);
+                info!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             http::StatusCode::NOT_FOUND => {

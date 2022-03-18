@@ -23,7 +23,7 @@ use bstr::ByteSlice;
 use bytes::BufMut;
 use futures::future::BoxFuture;
 use futures::ready;
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use log::debug;
 
 use super::Backend;
@@ -109,7 +109,12 @@ impl futures::Stream for S3ObjectStream {
                     let body = resp.body_mut();
                     let mut bs = bytes::BytesMut::new();
                     while let Some(b) = body.next().await {
-                        let b = b.unwrap();
+                        let b = b.map_err(|e| Error::Object {
+                            kind: Kind::Unexpected,
+                            op: "list",
+                            path: path.clone(),
+                            source: anyhow!("read body: {:?}", e),
+                        })?;
                         bs.put_slice(&b)
                     }
 
@@ -197,6 +202,7 @@ struct ListOutputContent {
 }
 
 impl ListOutput {
+    // TODO: we need a better XML deserialize.
     fn parse(bs: bytes::Bytes) -> Result<ListOutput> {
         let root = roxmltree::Document::parse(
             bs.as_bytes().to_str().expect("content must be valid utf-8"),

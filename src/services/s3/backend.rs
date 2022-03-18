@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::future::Future;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -21,7 +20,7 @@ use std::task::{Context, Poll};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::{Stream, TryStreamExt};
+use futures::TryStreamExt;
 use http::HeaderValue;
 use http::StatusCode;
 use log::debug;
@@ -60,18 +59,6 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
-#[derive(Debug, Clone)]
-struct Execute(tokio::runtime::Handle);
-
-impl<Fut> hyper::rt::Executor<Fut> for Execute
-where
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    fn execute(&self, fut: Fut) {
-        self.0.spawn(fut);
-    }
-}
-
 /// Builder for s3 services
 ///
 /// # TODO
@@ -84,7 +71,6 @@ pub struct Builder {
     root: Option<String>,
 
     bucket: String,
-    executor: Option<Execute>,
     credential: Option<Credential>,
     /// endpoint must be full uri, e.g.
     /// - <https://s3.amazonaws.com>
@@ -109,12 +95,6 @@ impl Builder {
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.bucket = bucket.to_string();
 
-        self
-    }
-
-    // TODO: We need to polish the API here.
-    pub fn runtime(&mut self, handle: tokio::runtime::Handle) -> &mut Self {
-        self.executor = Some(Execute(handle));
         self
     }
 
@@ -176,16 +156,11 @@ impl Builder {
             ("bucket".to_string(), bucket.to_string()),
         ]);
 
-        let mut builder = hyper::Client::builder();
-        if let Some(executor) = self.executor.clone() {
-            builder.executor(executor);
-        }
-
-        let client = builder.build(hyper_tls::HttpsConnector::new());
+        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
         let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
             .body(hyper::Body::empty())
-            .unwrap();
+            .expect("must be valid request");
         let res = client.request(req).await.map_err(|e| Error::Backend {
             kind: Kind::BackendConfigurationInvalid,
             context: context.clone(),
@@ -511,7 +486,9 @@ impl Backend {
                 HeaderRange::new(offset, size).to_string(),
             );
         }
-        let mut req = req.body(hyper::Body::empty()).unwrap();
+        let mut req = req
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
@@ -531,9 +508,11 @@ impl Backend {
 
         // Set content length.
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+
+        // Set body
         let mut req = req
             .body(hyper::body::Body::wrap_stream(ReaderStream::new(r)))
-            .unwrap();
+            .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
@@ -546,7 +525,7 @@ impl Backend {
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let mut req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
             .body(hyper::Body::empty())
-            .unwrap();
+            .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
@@ -560,7 +539,7 @@ impl Backend {
         let mut req =
             hyper::Request::delete(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
                 .body(hyper::Body::empty())
-                .unwrap();
+                .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
@@ -583,7 +562,9 @@ impl Backend {
             uri.push_str(&format!("&continuation-token={}", continuation_token))
         }
 
-        let mut req = hyper::Request::get(uri).body(hyper::Body::empty()).unwrap();
+        let mut req = hyper::Request::get(uri)
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
@@ -596,7 +577,7 @@ impl Backend {
 
 struct ByteStream(hyper::Response<hyper::Body>);
 
-impl Stream for ByteStream {
+impl futures::Stream for ByteStream {
     type Item = std::io::Result<bytes::Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

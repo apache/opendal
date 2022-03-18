@@ -16,7 +16,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test s3
+        run: cargo test s3 -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -54,7 +54,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test s3
+        run: cargo test s3 -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -92,7 +92,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test s3
+        run: cargo test s3 -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

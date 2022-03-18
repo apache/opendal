@@ -40,31 +40,9 @@ pub struct S3ObjectStream {
     state: State,
 }
 
-// #[allow(clippy::large_enum_variant)]
 enum State {
     Idle,
     Sending(BoxFuture<'static, Result<bytes::Bytes>>),
-    /// # TODO
-    ///
-    /// It's better to move this large struct to heap as suggested by clippy.
-    ///
-    ///   --> src/services/s3/object_stream.rs:45:5
-    ///    |
-    /// 45 |     Listing((ListObjectsV2Output, usize, usize)),
-    ///    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this variant is 256 bytes
-    ///    |
-    ///    = note: `-D clippy::large-enum-variant` implied by `-D warnings`
-    /// note: and the second-largest variant is 16 bytes:
-    ///   --> src/services/s3/object_stream.rs:44:5
-    ///    |
-    /// 44 |     Sending(BoxFuture<'static, Result<ListObjectsV2Output>>),
-    ///    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    ///    = help: for further information visit https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant
-    /// help: consider boxing the large fields to reduce the total size of the enum
-    ///    |
-    /// 45 |     Listing(Box<(ListObjectsV2Output, usize, usize)>),
-    ///
-    /// But stable rust doesn't support `State::Listing(box (output, common_prefixes_idx, objects_idx))` so far, let's wait a bit.
     Listing((ListOutput, usize, usize)),
 }
 

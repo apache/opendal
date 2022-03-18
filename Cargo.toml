@@ -40,7 +40,7 @@ log = "0.4"
 metrics = "0.18"
 once_cell = "1"
 pin-project = "1"
-reqsign = { git = "https://github.com/Xuanwo/reqsign", rev = "44d7bb37dfa543487d4d5286d64abd3f2fe12bf7" }
+reqsign = { git = "https://github.com/D2Lark/reqsign", branch = "Implement-azblob-support" }
 reqwest = { version = "0.11", features = ["stream"] }
 roxmltree = "0.14"
 thiserror = "1"

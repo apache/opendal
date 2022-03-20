@@ -1,6 +1,22 @@
+use std::collections::HashMap;
+use std::pin::Pin;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+
+use anyhow::anyhow;
+use async_trait::async_trait;
 use futures::TryStreamExt;
-use http::HeaderValue;
-// use super::object_stream::AzureObjectStream;
+use http::header::HeaderName;
+use log::debug;
+use log::error;
+use log::info;
+use log::warn;
+use metrics::increment_counter;
+use reqsign::services::azure::signer::Signer;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
+
 use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
@@ -13,26 +29,13 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::readers::ReaderStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
-use anyhow::anyhow;
-use async_trait::async_trait;
-use http::header::HeaderName;
-use log::debug;
-use log::error;
-use log::info;
-use log::warn;
-use metrics::increment_counter;
-use reqsign::services::azure::signer::Signer;
-use reqwest::{Body, Response, Url};
-use std::collections::HashMap;
-use std::str::FromStr;
-use time::format_description::well_known::Rfc2822;
-use time::OffsetDateTime;
-pub const DELETE_SNAPSHOTS: &str = "x-ms-delete-snapshots";
-use crate::readers::ReaderStream;
 use crate::ObjectMode;
-use std::sync::Arc;
+
+pub const DELETE_SNAPSHOTS: &str = "x-ms-delete-snapshots";
+pub const BLOB_TYPE: &str = "x-ms-blob-type";
 
 #[derive(Default, Debug, Clone)]
 pub struct Builder {
@@ -135,7 +138,7 @@ impl Builder {
                 }
             }
         }
-        let client = reqwest::Client::new();
+        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
         let mut signer_builder = Signer::builder();
         signer_builder
@@ -159,7 +162,7 @@ impl Builder {
 #[derive(Debug, Clone)]
 pub struct Backend {
     bucket: String,
-    client: reqwest::Client,
+    client: hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
     root: String, // root will be "/" or /abc/
     endpoint: String,
     signer: Arc<Signer>,
@@ -223,11 +226,7 @@ impl Accessor for Backend {
             "object {} reader created: offset {:?}, size {:?}",
             &p, args.offset, args.size
         );
-        Ok(Box::new(
-            resp.bytes_stream()
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-                .into_async_read(),
-        ))
+        Ok(Box::new(ByteStream(resp).into_async_read()))
     }
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
@@ -371,140 +370,127 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::GET,
-            Url::from_str(&format!(
-                "https://{}.{}/{}/{}",
-                self.access_name, self.endpoint, self.bucket, path
-            ))
-            .expect("url must be valid"),
-        );
+    ) -> Result<hyper::Response<hyper::Body>> {
+        let mut req = hyper::Request::get(&format!(
+            "https://{}.{}/{}/{}",
+            self.access_name, self.endpoint, self.bucket, path
+        ));
 
         if offset.is_some() || size.is_some() {
-            req.headers_mut().insert(
+            req = req.header(
                 http::header::RANGE,
-                HeaderRange::new(offset, size)
-                    .to_string()
-                    .parse()
-                    .expect("header must be valid"),
+                HeaderRange::new(offset, size).to_string(),
             );
         }
 
+        let mut req = req
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
+
         self.signer.sign(&mut req).await.expect("sign must success");
-        println!("req: {req:?}");
-        let resp = self.client.execute(req).await.map_err(|e| {
+
+        self.client.request(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
-        });
-        println!("resp: {resp:?}");
-        resp
+        })
     }
     pub(crate) async fn put_object(
         &self,
         path: &str,
         r: BoxedAsyncReader,
         size: u64,
-    ) -> Result<Response> {
+    ) -> Result<hyper::Response<hyper::Body>> {
         // let hash = md5::compute(&data[..]).into();
 
-        let mut req = reqwest::Request::new(
-            http::Method::PUT,
-            Url::from_str(&format!(
-                "https://{}.{}/{}/{}",
-                self.access_name, self.endpoint, self.bucket, path
-            ))
-            .expect("url must be valid"),
-        );
+        let mut req = hyper::Request::put(&format!(
+            "https://{}.{}/{}/{}",
+            self.access_name, self.endpoint, self.bucket, path
+        ));
 
-        // Set content length.
-        req.headers_mut().insert(
-            http::header::CONTENT_LENGTH,
-            size.to_string()
-                .parse()
-                .expect("content length must be valid"),
-        );
-        req.headers_mut().insert(
-            http::header::CONTENT_TYPE,
-            HeaderValue::from_static("text/plain"),
-        );
+        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
-        req.headers_mut()
-            .insert("x-ms-blob-type", HeaderValue::from_static("BlockBlob"));
+        req = req.header(HeaderName::from_static(BLOB_TYPE), "BlockBlob");
 
-        *req.body_mut() = Some(Body::from(hyper::body::Body::wrap_stream(
-            ReaderStream::new(r),
-        )));
+        // Set body
+        let mut req = req
+            .body(hyper::body::Body::wrap_stream(ReaderStream::new(r)))
+            .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.execute(req).await.map_err(|e| {
+        self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
         })
     }
 
     #[warn(dead_code)]
-    pub(crate) async fn head_object(&self, path: &str) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::HEAD,
-            Url::from_str(&format!(
-                "https://{}.{}/{}/{}",
-                self.access_name, self.endpoint, self.bucket, path
-            ))
-            .expect("url must be valid"),
-        );
-
-        req.headers_mut()
-            .insert(DELETE_SNAPSHOTS, HeaderValue::from_static("include"));
+    pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+        let req = hyper::Request::head(&format!(
+            "https://{}.{}/{}/{}",
+            self.access_name, self.endpoint, self.bucket, path
+        ));
+        let mut req = req
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
-        println!("req: {req:?}");
-        self.client.execute(req).await.map_err(|e| {
-            error!("object {} delete_object: {:?}", path, e);
+
+        println!("req : {req:?}");
+        self.client.request(req).await.map_err(|e| {
+            error!("object {} get_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
         })
     }
 
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<Response> {
-        let mut req = reqwest::Request::new(
-            http::Method::DELETE,
-            Url::from_str(&format!(
-                "https://{}.{}/{}/{}",
-                self.access_name, self.endpoint, self.bucket, path
-            ))
-            .expect("url must be valid"),
-        );
+    pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+        let req = hyper::Request::delete(&format!(
+            "https://{}.{}/{}/{}",
+            self.access_name, self.endpoint, self.bucket, path
+        ));
 
-        req.headers_mut()
-            .insert(DELETE_SNAPSHOTS, HeaderValue::from_static("include"));
+        let mut req = req
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
-        println!("req: {req:?}");
-        let resp = self.client.execute(req).await.map_err(|e| {
-            error!("object {} delete_object: {:?}", path, e);
+
+        self.client.request(req).await.map_err(|e| {
+            error!("object {} get_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
-        });
-        println!("resp: {resp:?}");
-        resp
+        })
     }
     #[warn(unused)]
     pub(crate) async fn list_object(
         &self,
         path: &str,
         continuation_token: &str,
-    ) -> Result<Response> {
-        let _ = path;
+    ) -> Result<hyper::Response<hyper::Body>> {
         let _ = continuation_token;
-        // let mut req = reqwest::Request::new(
-        //     http::Method::GET,
-        //     Url::from_str(&format!(
-        //         "https://{}.{}/{}/{}",
-        //         self.access_name, self.endpoint, self.bucket, path
-        //     ))
-        //     .expect("url must be valid"),
-        // );
+        let uri = format!(
+            "https://{}.{}/{}?restype=container&comp=list&delimiter=/&prefix={}",
+            self.access_name, self.endpoint, self.bucket, path
+        );
+        let mut req = hyper::Request::get(uri)
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
 
-        todo!()
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.request(req).await.map_err(|e| {
+            error!("object {} get_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        })
+    }
+}
+struct ByteStream(hyper::Response<hyper::Body>);
+
+impl futures::Stream for ByteStream {
+    type Item = std::io::Result<bytes::Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(self.0.body_mut())
+            .poll_next(cx)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
     }
 }

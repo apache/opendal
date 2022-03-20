@@ -9,9 +9,9 @@ use super::BehaviorTest;
 async fn behavior() -> Result<()> {
     super::init_logger();
 
-    let acc = s3::new().await?;
+    let acc = azblob::new().await?;
     if acc.is_none() {
-        warn!("OPENDAL_S3_TEST not set, ignore");
+        warn!("OPENDAL_AZBLOB_TEST not set, ignore");
         return Ok(());
     }
 

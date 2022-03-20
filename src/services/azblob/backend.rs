@@ -1,22 +1,13 @@
 use futures::TryStreamExt;
 use http::HeaderValue;
-
-use std::collections::HashMap;
-
-use crate::ops::HeaderRange;
-use anyhow::anyhow;
-use async_trait::async_trait;
-use metrics::increment_counter;
-use reqsign::services::azure::signer::Signer;
-use reqwest::{Body, Response, Url};
-use std::str::FromStr;
-
+// use super::object_stream::AzureObjectStream;
 use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
+use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -24,12 +15,23 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
+use anyhow::anyhow;
+use async_trait::async_trait;
+use http::header::HeaderName;
 use log::debug;
 use log::error;
 use log::info;
 use log::warn;
+use metrics::increment_counter;
+use reqsign::services::azure::signer::Signer;
+use reqwest::{Body, Response, Url};
+use std::collections::HashMap;
+use std::str::FromStr;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 pub const DELETE_SNAPSHOTS: &str = "x-ms-delete-snapshots";
 use crate::readers::ReaderStream;
+use crate::ObjectMode;
 use std::sync::Arc;
 
 #[derive(Default, Debug, Clone)]
@@ -144,7 +146,7 @@ impl Builder {
 
         info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
-            root: root,
+            root,
             endpoint,
             signer: Arc::new(signer),
             bucket: self.bucket.clone(),
@@ -247,8 +249,93 @@ impl Accessor for Backend {
         }
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
-        let _ = args;
-        unimplemented!()
+        increment_counter!("opendal_azure_stat_requests");
+
+        let p = self.get_abs_path(&args.path);
+        info!("object {} stat start", &p);
+
+        // Stat root always returns a DIR.
+        if self.get_rel_path(&p).is_empty() {
+            let mut m = Metadata::default();
+            m.set_path(&args.path);
+            m.set_content_length(0);
+            m.set_mode(ObjectMode::DIR);
+            m.set_complete();
+
+            info!("backed root object stat finished");
+            return Ok(m);
+        }
+
+        let resp = self.head_object(&p).await?;
+        match resp.status() {
+            http::StatusCode::OK => {
+                let mut m = Metadata::default();
+                m.set_path(&args.path);
+
+                // Parse content_length
+                if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
+                    let v =
+                        u64::from_str(v.to_str().expect("header must not contain non-ascii value"))
+                            .expect("content length header must contain valid length");
+
+                    m.set_content_length(v);
+                }
+
+                // Parse content_md5
+                if let Some(v) = resp.headers().get(HeaderName::from_static("content-md5")) {
+                    let v = v.to_str().expect("header must not contain non-ascii value");
+                    m.set_content_md5(v);
+                }
+
+                // Parse last_modified
+                if let Some(v) = resp.headers().get(http::header::LAST_MODIFIED) {
+                    let v = v.to_str().expect("header must not contain non-ascii value");
+                    let t =
+                        OffsetDateTime::parse(v, &Rfc2822).expect("must contain valid time format");
+                    m.set_last_modified(t.into());
+                }
+
+                if p.ends_with('/') {
+                    m.set_mode(ObjectMode::DIR);
+                } else {
+                    m.set_mode(ObjectMode::FILE);
+                };
+
+                m.set_complete();
+
+                info!("object {} stat finished: {:?}", &p, m);
+                Ok(m)
+            }
+            http::StatusCode::NOT_FOUND => {
+                // Always returns empty dir object if path is endswith "/"
+                if p.ends_with('/') {
+                    let mut m = Metadata::default();
+                    m.set_path(&args.path);
+                    m.set_content_length(0);
+                    m.set_mode(ObjectMode::DIR);
+                    m.set_complete();
+
+                    info!("object {} stat finished", &p);
+                    Ok(m)
+                } else {
+                    Err(Error::Object {
+                        kind: Kind::ObjectNotExist,
+                        op: "stat",
+                        path: p.to_string(),
+                        source: anyhow!("{:?}", resp),
+                    })
+                }
+            }
+            _ => {
+                error!("object {} head_object: {:?}", &p, resp);
+                Err(Error::Object {
+                    kind: Kind::Unexpected,
+                    op: "stat",
+                    path: p.to_string(),
+                    source: anyhow!("{:?}", resp),
+                })
+            }
+        }
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_azure_delete_requests");
@@ -262,8 +349,19 @@ impl Accessor for Backend {
         Ok(())
     }
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        let _ = args;
-        unimplemented!()
+        increment_counter!("opendal_s3_list_requests");
+
+        let mut path = self.get_abs_path(&args.path);
+        // Make sure list path is endswith '/'
+        if !path.ends_with('/') && !path.is_empty() {
+            path.push('/')
+        }
+
+        let _ = self.list_object("", "");
+        todo!()
+        // info!("object {} list start", &path);
+
+        // Ok(Box::new(S3ObjectStream::new(self.clone(), path)))
     }
 }
 
@@ -345,10 +443,27 @@ impl Backend {
             Error::Unexpected(anyhow::Error::from(e))
         })
     }
+
     #[warn(dead_code)]
     pub(crate) async fn head_object(&self, path: &str) -> Result<Response> {
-        let _ = path;
-        unimplemented!()
+        let mut req = reqwest::Request::new(
+            http::Method::HEAD,
+            Url::from_str(&format!(
+                "https://{}.{}/{}/{}",
+                self.access_name, self.endpoint, self.bucket, path
+            ))
+            .expect("url must be valid"),
+        );
+
+        req.headers_mut()
+            .insert(DELETE_SNAPSHOTS, HeaderValue::from_static("include"));
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+        println!("req: {req:?}");
+        self.client.execute(req).await.map_err(|e| {
+            error!("object {} delete_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        })
     }
 
     pub(crate) async fn delete_object(&self, path: &str) -> Result<Response> {
@@ -373,7 +488,7 @@ impl Backend {
         println!("resp: {resp:?}");
         resp
     }
-    #[warn(dead_code)]
+    #[warn(unused)]
     pub(crate) async fn list_object(
         &self,
         path: &str,
@@ -381,63 +496,15 @@ impl Backend {
     ) -> Result<Response> {
         let _ = path;
         let _ = continuation_token;
-        unimplemented!()
-    }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::operator::Operator;
-    use futures::AsyncReadExt;
-    use std::env;
+        // let mut req = reqwest::Request::new(
+        //     http::Method::GET,
+        //     Url::from_str(&format!(
+        //         "https://{}.{}/{}/{}",
+        //         self.access_name, self.endpoint, self.bucket, path
+        //     ))
+        //     .expect("url must be valid"),
+        // );
 
-    async fn azblob_new_access() -> Result<Arc<dyn Accessor>> {
-        dotenv::from_filename(".env").ok();
-
-        let root = &env::var("OPENDAL_AZBLOB_ROOT")
-            .unwrap_or_else(|_| format!("/{}", uuid::Uuid::new_v4()));
-
-        let mut builder = Backend::build();
-
-        builder.root(root);
-        builder.bucket(&env::var("OPENDAL_AZBLOB_BUCKET").expect("OPENDAL_AZBLOB_BUCKET must set"));
-        builder.endpoint(&env::var("OPENDAL_AZBLOB_ENDPOINT").unwrap_or_default());
-        builder.credential(Credential::hmac(
-            &env::var("OPENDAL_AZBLOB_ACCESS_KEY_ID").unwrap_or_default(),
-            &env::var("OPENDAL_AZBLOB_SECRET_ACCESS_KEY").unwrap_or_default(),
-        ));
-
-        let acc = builder.finish().await;
-
-        acc
-    }
-
-    #[tokio::test]
-    async fn test_write_read_delete() -> Result<()> {
-        let acc = azblob_new_access().await?;
-
-        let operator = Operator::new(acc);
-
-        let path = "put_blob_object1";
-        println!("Generate a file: {}", &path);
-
-        //content of object is a vec of b'a' size = 1024
-        let size: usize = 1024;
-        let content = vec![97; size];
-        // first step: write content to azblob
-        let w = operator.object(&path).writer();
-        let n = w.write_bytes(content.clone()).await?;
-        assert_eq!(n, size, "write to azblob success");
-
-        // // second step: read content from azblob
-        // let mut buf = Vec::new();
-        // let mut r = operator.object(&path).reader();
-        // let n = r.read_to_end(&mut buf).await.expect("read to end");
-        // assert_eq!(n, buf.len(), "read to azblob success");
-
-        // // thrid setp: delete azblob
-        // let _ = operator.object(&path).delete().await?;
-
-        Ok(())
+        todo!()
     }
 }

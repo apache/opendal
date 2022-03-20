@@ -24,11 +24,6 @@ anyhow = "1"
 async-compat = "0.2"
 async-trait = "0.1"
 
-azure_core = {version="0.1",default-features=false,git = "https://github.com/Azure/azure-sdk-for-rust"}
-azure_storage = { version = "0.1.0", default-features=false, features=["account"], git = "https://github.com/Azure/azure-sdk-for-rust" }
-azure_storage_blobs = { version = "0.1.0", git = "https://github.com/Azure/azure-sdk-for-rust" }
-azure_identity = {git = "https://github.com/Azure/azure-sdk-for-rust", version = "0.1" }
-
 oauth2 = { version = "4.0.0", default-features = false }
 blocking = "1"
 bstr = "0.2"
@@ -40,12 +35,13 @@ log = "0.4"
 metrics = "0.18"
 once_cell = "1"
 pin-project = "1"
-reqsign = { git = "https://github.com/D2Lark/reqsign", branch = "Implement-azblob-support" }
+reqsign = { git = "https://github.com/D2Lark/reqsign", branch = "main" }
 reqwest = { version = "0.11", features = ["stream"] }
 roxmltree = "0.14"
 thiserror = "1"
 tokio = { version = "1.17", features = ["full"] }
 tower = "0.4"
+md5 = "0.7"
 
 [dev-dependencies]
 anyhow = "1.0"

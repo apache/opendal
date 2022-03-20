@@ -1,15 +1,15 @@
+use futures::TryStreamExt;
+use http::HeaderValue;
 
 use std::collections::HashMap;
 
 use crate::ops::HeaderRange;
-use reqsign::services::azure::azblob::Signer;
-use std::num::NonZeroU32;
-use reqwest::{Body, Response, Url};
 use anyhow::anyhow;
 use async_trait::async_trait;
-use std::str::FromStr;
 use metrics::increment_counter;
-use futures::TryStreamExt;
+use reqsign::services::azure::azblob::Signer;
+use reqwest::{Body, Response, Url};
+use std::str::FromStr;
 
 use crate::credential::Credential;
 use crate::error::Error;
@@ -22,18 +22,15 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::BoxedAsyncReader;
 use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use crate::Accessor;
-use crate::BoxedAsyncReader;
-use crate::ObjectMode;
+pub const DELETE_SNAPSHOTS: &str = "x-ms-delete-snapshots";
+use crate::readers::ReaderStream;
 use std::sync::Arc;
-
-use azure_core::prelude::*;
-use azure_storage::core::prelude::*;
-use azure_storage_blobs::prelude::*;
 
 #[derive(Default, Debug, Clone)]
 pub struct Builder {
@@ -41,7 +38,6 @@ pub struct Builder {
     bucket: String, // in Azure, bucket =  container
     credential: Option<Credential>,
     endpoint: Option<String>,
-
 }
 
 impl Builder {
@@ -59,7 +55,7 @@ impl Builder {
 
         self
     }
-    pub fn endpoint(&mut self,endpoint:&str) -> &mut Self{
+    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = Some(endpoint.to_string());
 
         self
@@ -70,9 +66,8 @@ impl Builder {
         self
     }
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        
         info!("backend build started: {:?}", &self);
-        
+
         let root = match &self.root {
             // Use "/" as root if user not specified.
             None => "/".to_string(),
@@ -108,13 +103,10 @@ impl Builder {
 
         debug!("backend use endpoint {} to detect region", &endpoint);
 
-
         let mut context: HashMap<String, String> = HashMap::from([
             ("endpoint".to_string(), endpoint.to_string()),
             ("bucket".to_string(), bucket.to_string()),
         ]);
-
-
 
         let mut azure_storage_account = String::new();
         let mut azure_storage_key = String::new();
@@ -145,38 +137,31 @@ impl Builder {
 
         let mut signer_builder = Signer::builder();
         signer_builder
-        .access_acount(&azure_storage_account)
-        .access_key(&azure_storage_key);
+            .access_acount(&azure_storage_account)
+            .access_key(&azure_storage_key);
 
         let signer = signer_builder.build().await?;
-        
-        // let http_client = azure_core::new_http_client();
-        // let storage_client = StorageAccountClient::new_access_key(
-        //     http_client.clone(),
-        //     azure_storage_account,
-        //     azure_storage_key,
-        // ).as_storage_client();
+
         info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
-            root:root,
+            root: root,
             endpoint,
             signer: Arc::new(signer),
             bucket: self.bucket.clone(),
             client,
-            azure_storage_account
+            azure_storage_account,
         }))
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Backend {
     bucket: String,
     client: reqwest::Client,
     root: String, // root will be "/" or /abc/
-    endpoint:String,
-    signer:Arc<Signer>,
-    azure_storage_account:String,
+    endpoint: String,
+    signer: Arc<Signer>,
+    azure_storage_account: String,
 }
 
 impl Backend {
@@ -206,6 +191,7 @@ impl Backend {
             .trim_start_matches('/')
             .to_string()
     }
+    #[warn(dead_code)]
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
         let path = format!("/{}", path);
 
@@ -240,19 +226,44 @@ impl Accessor for Backend {
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
                 .into_async_read(),
         ))
-
     }
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
-        todo!()
+        let p = self.get_abs_path(&args.path);
+        info!("object {} write start: size {}", &p, args.size);
+
+        let resp = self.put_object(&p, r, args.size).await?;
+        println!("resp :{resp:?}");
+        match resp.status() {
+            http::StatusCode::CREATED | http::StatusCode::OK => {
+                info!("object {} write finished: size {:?}", &p, args.size);
+                Ok(args.size as usize)
+            }
+            _ => Err(Error::Object {
+                kind: Kind::Unexpected,
+                op: "write",
+                path: p.to_string(),
+                source: anyhow!("{:?}", resp),
+            }),
+        }
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
-        todo!()
+        let _ = args;
+        unimplemented!()
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        todo!()
+        increment_counter!("opendal_azure_delete_requests");
+
+        let p = self.get_abs_path(&args.path);
+        info!("object {} delete start", &p);
+
+        let _ = self.delete_object(&p).await?;
+
+        info!("object {} delete finished", &p);
+        Ok(())
     }
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        todo!()
+        let _ = args;
+        unimplemented!()
     }
 }
 
@@ -265,11 +276,10 @@ impl Backend {
     ) -> Result<Response> {
         let mut req = reqwest::Request::new(
             http::Method::GET,
-            Url::from_str(&format!("https://{}.{}/{}/{}", 
-            self.azure_storage_account,
-            self.endpoint,
-            self.bucket,
-            path))
+            Url::from_str(&format!(
+                "https://{}.{}/{}/{}",
+                self.azure_storage_account, self.endpoint, self.bucket, path
+            ))
             .expect("url must be valid"),
         );
 
@@ -284,32 +294,111 @@ impl Backend {
         }
 
         self.signer.sign(&mut req).await.expect("sign must success");
-
-        self.client.execute(req).await.map_err(|e| {
+        println!("req: {req:?}");
+        let resp = self.client.execute(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);
             Error::Unexpected(anyhow::Error::from(e))
+        });
+        println!("resp: {resp:?}");
+        resp
+    }
+    pub(crate) async fn put_object(
+        &self,
+        path: &str,
+        r: BoxedAsyncReader,
+        size: u64,
+    ) -> Result<Response> {
+        // let hash = md5::compute(&data[..]).into();
+
+        let mut req = reqwest::Request::new(
+            http::Method::PUT,
+            Url::from_str(&format!(
+                "https://{}.{}/{}/{}",
+                self.azure_storage_account, self.endpoint, self.bucket, path
+            ))
+            .expect("url must be valid"),
+        );
+
+        // Set content length.
+        req.headers_mut().insert(
+            http::header::CONTENT_LENGTH,
+            size.to_string()
+                .parse()
+                .expect("content length must be valid"),
+        );
+        req.headers_mut().insert(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static("text/plain"),
+        );
+
+        req.headers_mut()
+            .insert("x-ms-blob-type", HeaderValue::from_static("BlockBlob"));
+
+        *req.body_mut() = Some(Body::from(hyper::body::Body::wrap_stream(
+            ReaderStream::new(r),
+        )));
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.execute(req).await.map_err(|e| {
+            error!("object {} put_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
         })
+    }
+    #[warn(dead_code)]
+    pub(crate) async fn head_object(&self, path: &str) -> Result<Response> {
+        let _ = path;
+        unimplemented!()
+    }
+
+    pub(crate) async fn delete_object(&self, path: &str) -> Result<Response> {
+        let mut req = reqwest::Request::new(
+            http::Method::DELETE,
+            Url::from_str(&format!(
+                "https://{}.{}/{}/{}",
+                self.azure_storage_account, self.endpoint, self.bucket, path
+            ))
+            .expect("url must be valid"),
+        );
+
+        req.headers_mut()
+            .insert(DELETE_SNAPSHOTS, HeaderValue::from_static("include"));
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+        println!("req: {req:?}");
+        let resp = self.client.execute(req).await.map_err(|e| {
+            error!("object {} delete_object: {:?}", path, e);
+            Error::Unexpected(anyhow::Error::from(e))
+        });
+        println!("resp: {resp:?}");
+        resp
+    }
+    #[warn(dead_code)]
+    pub(crate) async fn list_object(
+        &self,
+        path: &str,
+        continuation_token: &str,
+    ) -> Result<Response> {
+        let _ = path;
+        let _ = continuation_token;
+        unimplemented!()
     }
 }
 #[cfg(test)]
 mod tests {
-    use std::env;
     use super::*;
-    use anyhow::Result;
     use crate::operator::Operator;
     use futures::AsyncReadExt;
-    #[tokio::test]
-    async fn azblob_new() -> Result<()> {
-        dotenv::from_filename(".env").ok();
-            
-        if env::var("OPENDAL_AZBLOB_TEST").is_err() || env::var("OPENDAL_AZBLOB_TEST").unwrap() != "on" {
-            return Ok(());
-        }
+    use std::env;
 
-        let root =
-            &env::var("OPENDAL_AZBLOB_ROOT").unwrap_or_else(|_| format!("/{}", uuid::Uuid::new_v4()));
+    async fn azblob_new_access() -> Result<Arc<dyn Accessor>> {
+        dotenv::from_filename(".env").ok();
+
+        let root = &env::var("OPENDAL_AZBLOB_ROOT")
+            .unwrap_or_else(|_| format!("/{}", uuid::Uuid::new_v4()));
 
         let mut builder = Backend::build();
+
         builder.root(root);
         builder.bucket(&env::var("OPENDAL_AZBLOB_BUCKET").expect("OPENDAL_AZBLOB_BUCKET must set"));
         builder.endpoint(&env::var("OPENDAL_AZBLOB_ENDPOINT").unwrap_or_default());
@@ -317,15 +406,38 @@ mod tests {
             &env::var("OPENDAL_AZBLOB_ACCESS_KEY_ID").unwrap_or_default(),
             &env::var("OPENDAL_AZBLOB_SECRET_ACCESS_KEY").unwrap_or_default(),
         ));
-        let acc = builder.finish().await?;
-        
-        println!("{acc:?}");
-        let path = "1.txt";
+
+        let acc = builder.finish().await;
+
+        acc
+    }
+
+    #[tokio::test]
+    async fn test_write_read_delete() -> Result<()> {
+        let acc = azblob_new_access().await?;
+
         let operator = Operator::new(acc);
+
+        let path = "put_blob_object1";
+        println!("Generate a file: {}", &path);
+
+        //content of object is a vec of b'a' size = 1024
+        let size: usize = 1024;
+        let content = vec![97; size];
+        // first step: write content to azblob
+        let w = operator.object(&path).writer();
+        let n = w.write_bytes(content.clone()).await?;
+        assert_eq!(n, size, "write to azblob success");
+
+        // second step: read content from azblob
         let mut buf = Vec::new();
         let mut r = operator.object(&path).reader();
         let n = r.read_to_end(&mut buf).await.expect("read to end");
-        println!("{buf:?}");
+        assert_eq!(n, buf.len(), "read to azblob success");
+
+        // thrid setp: delete azblob
+        let _ = operator.object(&path).delete().await?;
+
         Ok(())
     }
 }

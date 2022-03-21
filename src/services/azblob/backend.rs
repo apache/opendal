@@ -1,3 +1,16 @@
+// Copyright 2022 Datafuse Labs.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -8,6 +21,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use http::header::HeaderName;
+use hyper::body::HttpBody as _;
 use log::debug;
 use log::error;
 use log::info;
@@ -348,19 +362,28 @@ impl Accessor for Backend {
         Ok(())
     }
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        increment_counter!("opendal_s3_list_requests");
-
+        increment_counter!("opendal_azblob_list_requests");
         let mut path = self.get_abs_path(&args.path);
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {
             path.push('/')
         }
 
-        let _ = self.list_object("", "");
-        todo!()
-        // info!("object {} list start", &path);
+        // url query part will conver "/" to "%2F" like that query: Some("restype=container&comp=list&prefix=%2Fdir")
+        path = str::replace(&path, "/", "%2F");
 
-        // Ok(Box::new(S3ObjectStream::new(self.clone(), path)))
+        info!("object {} list start", &path);
+
+        let mut resp = self.list_object(&path, "").await?;
+        while let Some(next) = resp.data().await {
+            let chunk = next.map_err(|e| {
+                error!("object {} get_object: {:?}", path, e);
+                Error::Unexpected(anyhow::Error::from(e))
+            });
+            println!("chunk : {chunk:?}");
+        }
+
+        todo!()
     }
 }
 
@@ -467,15 +490,20 @@ impl Backend {
         continuation_token: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
         let _ = continuation_token;
-        let uri = format!(
-            "https://{}.{}/{}?restype=container&comp=list&delimiter=/&prefix={}",
+        let mut req = hyper::Request::get(&format!(
+            "https://{}.{}/{}?restype=container&comp=list&prefix={}",
             self.access_name, self.endpoint, self.bucket, path
-        );
-        let mut req = hyper::Request::get(uri)
+        ));
+
+        req = req.header(http::header::CONTENT_LENGTH, "0");
+
+        let mut req = req
             .body(hyper::Body::empty())
             .expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
+
+        println!("resq : {req:?}");
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);

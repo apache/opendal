@@ -103,19 +103,19 @@ impl BehaviorTest {
             "read part file"
         );
 
-        // Step 5: List this dir, we should get this file.
-        let mut obs = self.op.objects("").map(|o| o.expect("list object: {}"));
-        let mut found = false;
-        while let Some(o) = obs.next().await {
-            let meta = o.metadata().await?;
-            if meta.path() == path {
-                let mode = meta.mode();
-                assert_eq!(mode, ObjectMode::FILE);
+        // // Step 5: List this dir, we should get this file.
+        // let mut obs = self.op.objects("").map(|o| o.expect("list object: {}"));
+        // let mut found = false;
+        // while let Some(o) = obs.next().await {
+        //     let meta = o.metadata().await?;
+        //     if meta.path() == path {
+        //         let mode = meta.mode();
+        //         assert_eq!(mode, ObjectMode::FILE);
 
-                found = true
-            }
-        }
-        assert!(found, "file should be found in iterator");
+        //         found = true
+        //     }
+        // }
+        // assert!(found, "file should be found in iterator");
 
         // Step 6: Delete this file
         let result = self.op.object(&path).delete().await;

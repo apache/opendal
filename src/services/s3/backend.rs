@@ -25,7 +25,6 @@ use async_trait::async_trait;
 use bytes::BufMut;
 use futures::TryStreamExt;
 use http::header::HeaderName;
-use http::response::Parts;
 use http::HeaderValue;
 use http::Response;
 use http::StatusCode;
@@ -400,27 +399,7 @@ impl Accessor for Backend {
 
                 Ok(Box::new(ByteStream(resp).into_async_read()))
             }
-            StatusCode::NOT_FOUND => Err(Error::Object {
-                kind: Kind::ObjectNotExist,
-                op: "read",
-                path: p.clone(),
-                source: anyhow!("object not found: {:?}", parse_error_response(resp).await?),
-            }),
-            StatusCode::FORBIDDEN => Err(Error::Object {
-                kind: Kind::ObjectPermissionDenied,
-                op: "read",
-                path: p.clone(),
-                source: anyhow!(
-                    "object permission denied: {:?}",
-                    parse_error_response(resp).await?
-                ),
-            }),
-            _ => Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "read",
-                path: p.clone(),
-                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
-            }),
+            _ => Err(parse_error_response(resp, "read", &p).await),
         }
     }
 
@@ -434,21 +413,7 @@ impl Accessor for Backend {
                 info!("object {} write finished: size {:?}", &p, args.size);
                 Ok(args.size as usize)
             }
-            StatusCode::FORBIDDEN => Err(Error::Object {
-                kind: Kind::ObjectPermissionDenied,
-                op: "write",
-                path: p.clone(),
-                source: anyhow!(
-                    "object permission denied: {:?}",
-                    parse_error_response(resp).await?
-                ),
-            }),
-            _ => Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: p.to_string(),
-                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
-            }),
+            _ => Err(parse_error_response(resp, "write", &p).await),
         }
     }
 
@@ -511,35 +476,17 @@ impl Accessor for Backend {
                 info!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
-            StatusCode::NOT_FOUND => {
-                // Always returns empty dir object if path is endswith "/"
-                if p.ends_with('/') {
-                    let mut m = Metadata::default();
-                    m.set_path(&args.path);
-                    m.set_content_length(0);
-                    m.set_mode(ObjectMode::DIR);
-                    m.set_complete();
+            StatusCode::NOT_FOUND if p.ends_with('/') => {
+                let mut m = Metadata::default();
+                m.set_path(&args.path);
+                m.set_content_length(0);
+                m.set_mode(ObjectMode::DIR);
+                m.set_complete();
 
-                    info!("object {} stat finished", &p);
-                    Ok(m)
-                } else {
-                    Err(Error::Object {
-                        kind: Kind::ObjectNotExist,
-                        op: "stat",
-                        path: p.to_string(),
-                        source: anyhow!(
-                            "object not exist: {:?}",
-                            parse_error_response(resp).await?
-                        ),
-                    })
-                }
+                info!("object {} stat finished", &p);
+                Ok(m)
             }
-            _ => Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "stat",
-                path: p.to_string(),
-                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
-            }),
+            _ => Err(parse_error_response(resp, "stat", &p).await),
         }
     }
 
@@ -556,21 +503,7 @@ impl Accessor for Backend {
                 info!("object {} delete finished", &p);
                 Ok(())
             }
-            StatusCode::FORBIDDEN => Err(Error::Object {
-                kind: Kind::ObjectPermissionDenied,
-                op: "delete",
-                path: p.to_string(),
-                source: anyhow!(
-                    "object permission denied: {:?}",
-                    parse_error_response(resp).await?
-                ),
-            }),
-            _ => Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "delete",
-                path: p.to_string(),
-                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
-            }),
+            _ => Err(parse_error_response(resp, "delete", &p).await),
         }
     }
 
@@ -729,35 +662,40 @@ impl futures::Stream for ByteStream {
     }
 }
 
-/// We only use this struct for constructing errors.
-#[derive(Debug)]
-struct ErrorResponse {
-    #[allow(dead_code)]
-    part: Parts,
-    #[allow(dead_code)]
-    body: String,
-}
-
 // Read and decode whole error response.
-async fn parse_error_response(resp: Response<Body>) -> Result<ErrorResponse> {
+async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str) -> Error {
     let (part, mut body) = resp.into_parts();
+    let kind = match part.status {
+        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
+        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
+        _ => Kind::Unexpected,
+    };
 
     // Only read 4KiB from the response to avoid broken services.
     let mut bs = Vec::new();
     let mut limit = 4 * 1024;
 
     while let Some(b) = body.data().await {
-        let b = b.map_err(|e| Error::Unexpected(anyhow!("parse error response parse: {:?}", e)))?;
-        bs.put_slice(&b[..min(b.len(), limit)]);
-        limit -= b.len();
-        if limit == 0 {
-            break;
+        match b {
+            Ok(b) => {
+                bs.put_slice(&b[..min(b.len(), limit)]);
+                limit -= b.len();
+                if limit == 0 {
+                    break;
+                }
+            }
+            Err(e) => return Error::Unexpected(anyhow!("parse error response parse: {:?}", e)),
         }
     }
 
-    let s = String::from_utf8_lossy(&bs);
-    Ok(ErrorResponse {
-        part,
-        body: s.to_string(),
-    })
+    Error::Object {
+        kind,
+        op,
+        path: path.to_string(),
+        source: anyhow!(
+            "response part: {:?}, body: {:?}",
+            part,
+            String::from_utf8_lossy(&bs)
+        ),
+    }
 }

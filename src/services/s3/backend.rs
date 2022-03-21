@@ -75,13 +75,8 @@ pub struct Builder {
 
     bucket: String,
     credential: Option<Credential>,
-    /// endpoint must be full uri, e.g.
-    /// - <https://s3.amazonaws.com>
-    /// - <http://127.0.0.1:3000>
-    ///
-    /// If user inputs endpoint like "s3.amazonaws.com", we will prepend
-    /// "https://" before it.
     endpoint: Option<String>,
+    region: Option<String>,
 }
 
 impl Builder {
@@ -107,6 +102,12 @@ impl Builder {
         self
     }
 
+    /// endpoint must be full uri, e.g.
+    /// - <https://s3.amazonaws.com>
+    /// - <http://127.0.0.1:3000>
+    ///
+    /// If user inputs endpoint like "s3.amazonaws.com", we will prepend
+    /// "https://" before it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
             None
@@ -115,6 +116,105 @@ impl Builder {
         };
 
         self
+    }
+
+    /// region represent the region of this endpoint.
+    ///
+    /// If region is not filled, we will try to detect region via
+    /// RFC-0057: Auto Region
+    pub fn region(&mut self, region: &str) -> &mut Self {
+        self.region = if region.is_empty() {
+            None
+        } else {
+            Some(region.to_string())
+        };
+
+        self
+    }
+
+    // Read RFC-0057: Auto Region for detailed behavior.
+    async fn detect_region(
+        &self,
+        client: &hyper::Client<
+            hyper_tls::HttpsConnector<hyper::client::HttpConnector>,
+            hyper::Body,
+        >,
+        endpoint: &str,
+        bucket: &str,
+        context: &HashMap<String, String>,
+    ) -> Result<(String, String)> {
+        if let Some(region) = &self.region {
+            return Ok((endpoint.to_string(), region.to_string()));
+        }
+
+        let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
+        let res = client.request(req).await.map_err(|e| Error::Backend {
+            kind: Kind::BackendConfigurationInvalid,
+            context: context.clone(),
+            source: anyhow::Error::new(e),
+        })?;
+
+        match res.status() {
+            // The endpoint works, return with not changed endpoint and
+            // default region.
+            StatusCode::OK | StatusCode::FORBIDDEN => {
+                let region = res
+                    .headers()
+                    .get("x-amz-bucket-region")
+                    .unwrap_or(&HeaderValue::from_static("us-east-1"))
+                    .to_str()
+                    .map_err(|e| Error::Backend {
+                        kind: Kind::BackendConfigurationInvalid,
+                        context: context.clone(),
+                        source: anyhow::Error::new(e),
+                    })?
+                    .to_string();
+                Ok((endpoint.to_string(), region))
+            }
+            // The endpoint should move, return with constructed endpoint
+            StatusCode::MOVED_PERMANENTLY => {
+                let region = res
+                    .headers()
+                    .get("x-amz-bucket-region")
+                    .ok_or(Error::Backend {
+                        kind: Kind::BackendConfigurationInvalid,
+                        context: context.clone(),
+                        source: anyhow!("can't detect region automatically, region is empty"),
+                    })?
+                    .to_str()
+                    .map_err(|e| Error::Backend {
+                        kind: Kind::BackendConfigurationInvalid,
+                        context: context.clone(),
+                        source: anyhow::Error::new(e),
+                    })?
+                    .to_string();
+                let template = ENDPOINT_TEMPLATES.get(endpoint).ok_or(Error::Backend {
+                    kind: Kind::BackendConfigurationInvalid,
+                    context: context.clone(),
+                    source: anyhow!(
+                        "can't detect region automatically, no valid endpoint template for {}",
+                        &endpoint
+                    ),
+                })?;
+
+                let endpoint = template.replace("{region}", &region);
+
+                Ok((endpoint, region))
+            }
+            // Unexpected status code
+            code => {
+                return Err(Error::Backend {
+                    kind: Kind::BackendConfigurationInvalid,
+                    context: context.clone(),
+                    source: anyhow!(
+                        "can't detect region automatically, unexpected response: status code {}",
+                        code
+                    ),
+                });
+            }
+        }
     }
 
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
@@ -147,88 +247,22 @@ impl Builder {
         }?;
         debug!("backend use bucket {}", &bucket);
 
+        // Setup error context so that we don't need to construct many times.
+        let mut context: HashMap<String, String> =
+            HashMap::from([("bucket".to_string(), bucket.to_string())]);
+
+        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+
         let endpoint = match &self.endpoint {
             Some(endpoint) => endpoint,
             None => "https://s3.amazonaws.com",
         };
-        debug!("backend use endpoint {} to detect region", &endpoint);
 
-        // Setup error context so that we don't need to construct many times.
-        let mut context: HashMap<String, String> = HashMap::from([
-            ("endpoint".to_string(), endpoint.to_string()),
-            ("bucket".to_string(), bucket.to_string()),
-        ]);
-
-        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
-
-        let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
-            .body(hyper::Body::empty())
-            .expect("must be valid request");
-        let res = client.request(req).await.map_err(|e| Error::Backend {
-            kind: Kind::BackendConfigurationInvalid,
-            context: context.clone(),
-            source: anyhow::Error::new(e),
-        })?;
-        // Read RFC-0057: Auto Region for detailed behavior.
-        let (endpoint, region) = match res.status() {
-            // The endpoint works, return with not changed endpoint and
-            // default region.
-            StatusCode::OK | StatusCode::FORBIDDEN => {
-                let region = res
-                    .headers()
-                    .get("x-amz-bucket-region")
-                    .unwrap_or(&HeaderValue::from_static("us-east-1"))
-                    .to_str()
-                    .map_err(|e| Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow::Error::new(e),
-                    })?
-                    .to_string();
-                (endpoint.to_string(), region)
-            }
-            // The endpoint should move, return with constructed endpoint
-            StatusCode::MOVED_PERMANENTLY => {
-                let region = res
-                    .headers()
-                    .get("x-amz-bucket-region")
-                    .ok_or(Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow!("can't detect region automatically, region is empty"),
-                    })?
-                    .to_str()
-                    .map_err(|e| Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow::Error::new(e),
-                    })?
-                    .to_string();
-                let template = ENDPOINT_TEMPLATES.get(endpoint).ok_or(Error::Backend {
-                    kind: Kind::BackendConfigurationInvalid,
-                    context: context.clone(),
-                    source: anyhow!(
-                        "can't detect region automatically, no valid endpoint template for {}",
-                        &endpoint
-                    ),
-                })?;
-
-                let endpoint = template.replace("{region}", &region);
-
-                (endpoint, region)
-            }
-            // Unexpected status code
-            code => {
-                return Err(Error::Backend {
-                    kind: Kind::BackendConfigurationInvalid,
-                    context: context.clone(),
-                    source: anyhow!(
-                        "can't detect region automatically, unexpected response: status code {}",
-                        code
-                    ),
-                });
-            }
-        };
+        let (endpoint, region) = self
+            .detect_region(&client, endpoint, bucket, &context)
+            .await?;
+        context.insert("endpoint".to_string(), endpoint.clone());
+        context.insert("region".to_string(), region.clone());
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
         let mut signer_builder = reqsign::services::aws::v4::Signer::builder();

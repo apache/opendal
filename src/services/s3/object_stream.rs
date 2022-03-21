@@ -19,7 +19,8 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
-use bytes::{Buf, BufMut};
+use bytes::Buf;
+use bytes::BufMut;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::StreamExt;
@@ -28,7 +29,9 @@ use quick_xml::de;
 use serde::Deserialize;
 
 use super::Backend;
-use crate::error::{Error, Kind, Result};
+use crate::error::Error;
+use crate::error::Kind;
+use crate::error::Result;
 use crate::Object;
 use crate::ObjectMode;
 

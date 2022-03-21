@@ -392,7 +392,7 @@ impl Accessor for Backend {
         let resp = self.get_object(&p, args.offset, args.size).await?;
 
         match resp.status() {
-            http::StatusCode::OK | http::StatusCode::PARTIAL_CONTENT => {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 info!(
                     "object {} reader created: offset {:?}, size {:?}",
                     &p, args.offset, args.size
@@ -400,13 +400,13 @@ impl Accessor for Backend {
 
                 Ok(Box::new(ByteStream(resp).into_async_read()))
             }
-            http::StatusCode::NOT_FOUND => Err(Error::Object {
+            StatusCode::NOT_FOUND => Err(Error::Object {
                 kind: Kind::ObjectNotExist,
                 op: "read",
                 path: p.clone(),
                 source: anyhow!("object not found: {:?}", parse_error_response(resp).await?),
             }),
-            http::StatusCode::FORBIDDEN => Err(Error::Object {
+            StatusCode::FORBIDDEN => Err(Error::Object {
                 kind: Kind::ObjectPermissionDenied,
                 op: "read",
                 path: p.clone(),
@@ -430,11 +430,11 @@ impl Accessor for Backend {
 
         let resp = self.put_object(&p, r, args.size).await?;
         match resp.status() {
-            http::StatusCode::CREATED | http::StatusCode::OK => {
+            StatusCode::CREATED | StatusCode::OK => {
                 info!("object {} write finished: size {:?}", &p, args.size);
                 Ok(args.size as usize)
             }
-            http::StatusCode::FORBIDDEN => Err(Error::Object {
+            StatusCode::FORBIDDEN => Err(Error::Object {
                 kind: Kind::ObjectPermissionDenied,
                 op: "write",
                 path: p.clone(),
@@ -473,7 +473,7 @@ impl Accessor for Backend {
         let resp = self.head_object(&p).await?;
 
         match resp.status() {
-            http::StatusCode::OK => {
+            StatusCode::OK => {
                 let mut m = Metadata::default();
                 m.set_path(&args.path);
 
@@ -511,7 +511,7 @@ impl Accessor for Backend {
                 info!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
-            http::StatusCode::NOT_FOUND => {
+            StatusCode::NOT_FOUND => {
                 // Always returns empty dir object if path is endswith "/"
                 if p.ends_with('/') {
                     let mut m = Metadata::default();
@@ -552,11 +552,11 @@ impl Accessor for Backend {
         let resp = self.delete_object(&p).await?;
 
         match resp.status() {
-            http::StatusCode::NO_CONTENT => {
+            StatusCode::NO_CONTENT => {
                 info!("object {} delete finished", &p);
                 Ok(())
             }
-            http::StatusCode::FORBIDDEN => Err(Error::Object {
+            StatusCode::FORBIDDEN => Err(Error::Object {
                 kind: Kind::ObjectPermissionDenied,
                 op: "delete",
                 path: p.to_string(),

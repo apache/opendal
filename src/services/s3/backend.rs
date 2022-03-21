@@ -379,12 +379,34 @@ impl Accessor for Backend {
 
         let resp = self.get_object(&p, args.offset, args.size).await?;
 
-        info!(
-            "object {} reader created: offset {:?}, size {:?}",
-            &p, args.offset, args.size
-        );
+        match resp.status() {
+            http::StatusCode::OK | http::StatusCode::PARTIAL_CONTENT => {
+                info!(
+                    "object {} reader created: offset {:?}, size {:?}",
+                    &p, args.offset, args.size
+                );
 
-        Ok(Box::new(ByteStream(resp).into_async_read()))
+                Ok(Box::new(ByteStream(resp).into_async_read()))
+            }
+            http::StatusCode::NOT_FOUND => Err(Error::Object {
+                kind: Kind::ObjectNotExist,
+                op: "read",
+                path: p.clone(),
+                source: anyhow!("object not found: {:?}", resp),
+            }),
+            http::StatusCode::FORBIDDEN => Err(Error::Object {
+                kind: Kind::ObjectPermissionDenied,
+                op: "read",
+                path: p.clone(),
+                source: anyhow!("object permission denied: {:?}", resp),
+            }),
+            _ => Err(Error::Object {
+                kind: Kind::Unexpected,
+                op: "read",
+                path: p.clone(),
+                source: anyhow!("object unexpected: {:?}", resp),
+            }),
+        }
     }
 
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
@@ -397,11 +419,17 @@ impl Accessor for Backend {
                 info!("object {} write finished: size {:?}", &p, args.size);
                 Ok(args.size as usize)
             }
+            http::StatusCode::FORBIDDEN => Err(Error::Object {
+                kind: Kind::ObjectPermissionDenied,
+                op: "write",
+                path: p.clone(),
+                source: anyhow!("object permission denied: {:?}", resp),
+            }),
             _ => Err(Error::Object {
                 kind: Kind::Unexpected,
                 op: "write",
                 path: p.to_string(),
-                source: anyhow!("{:?}", resp),
+                source: anyhow!("object unexpected: {:?}", resp),
             }),
         }
     }
@@ -481,19 +509,16 @@ impl Accessor for Backend {
                         kind: Kind::ObjectNotExist,
                         op: "stat",
                         path: p.to_string(),
-                        source: anyhow!("{:?}", resp),
+                        source: anyhow!("object not exist: {:?}", resp),
                     })
                 }
             }
-            _ => {
-                error!("object {} head_object: {:?}", &p, resp);
-                Err(Error::Object {
-                    kind: Kind::Unexpected,
-                    op: "stat",
-                    path: p.to_string(),
-                    source: anyhow!("{:?}", resp),
-                })
-            }
+            _ => Err(Error::Object {
+                kind: Kind::Unexpected,
+                op: "stat",
+                path: p.to_string(),
+                source: anyhow!("object unexpected: {:?}", resp),
+            }),
         }
     }
 
@@ -503,10 +528,26 @@ impl Accessor for Backend {
         let p = self.get_abs_path(&args.path);
         info!("object {} delete start", &p);
 
-        let _ = self.delete_object(&p).await?;
+        let resp = self.delete_object(&p).await?;
 
-        info!("object {} delete finished", &p);
-        Ok(())
+        match resp.status() {
+            http::StatusCode::NO_CONTENT => {
+                info!("object {} delete finished", &p);
+                Ok(())
+            }
+            http::StatusCode::FORBIDDEN => Err(Error::Object {
+                kind: Kind::ObjectPermissionDenied,
+                op: "delete",
+                path: p.to_string(),
+                source: anyhow!("object permission denied: {:?}", resp),
+            }),
+            _ => Err(Error::Object {
+                kind: Kind::Unexpected,
+                op: "delete",
+                path: p.to_string(),
+                source: anyhow!("object unexpected: {:?}", resp),
+            }),
+        }
     }
 
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
@@ -546,7 +587,12 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "read",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
 
@@ -570,7 +616,12 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "write",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
 
@@ -583,7 +634,12 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} head_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "stat",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
 
@@ -597,7 +653,12 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} delete_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "delete",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
 
@@ -622,7 +683,12 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} list_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "list",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
 }

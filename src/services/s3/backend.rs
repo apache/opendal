@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::min;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -20,10 +21,14 @@ use std::task::{Context, Poll};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::BufMut;
 use futures::TryStreamExt;
 use http::header::HeaderName;
-use http::HeaderValue;
+use http::response::Parts;
 use http::StatusCode;
+use http::{HeaderValue, Response};
+use hyper::body::HttpBody;
+use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
@@ -156,6 +161,11 @@ impl Builder {
             source: anyhow::Error::new(e),
         })?;
 
+        debug!(
+            "auto detect region got response: status {:?}, header: {:?}",
+            res.status(),
+            res.headers()
+        );
         match res.status() {
             // The endpoint works, return with not changed endpoint and
             // default region.
@@ -392,19 +402,22 @@ impl Accessor for Backend {
                 kind: Kind::ObjectNotExist,
                 op: "read",
                 path: p.clone(),
-                source: anyhow!("object not found: {:?}", resp),
+                source: anyhow!("object not found: {:?}", parse_error_response(resp).await?),
             }),
             http::StatusCode::FORBIDDEN => Err(Error::Object {
                 kind: Kind::ObjectPermissionDenied,
                 op: "read",
                 path: p.clone(),
-                source: anyhow!("object permission denied: {:?}", resp),
+                source: anyhow!(
+                    "object permission denied: {:?}",
+                    parse_error_response(resp).await?
+                ),
             }),
             _ => Err(Error::Object {
                 kind: Kind::Unexpected,
                 op: "read",
                 path: p.clone(),
-                source: anyhow!("object unexpected: {:?}", resp),
+                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
             }),
         }
     }
@@ -423,13 +436,16 @@ impl Accessor for Backend {
                 kind: Kind::ObjectPermissionDenied,
                 op: "write",
                 path: p.clone(),
-                source: anyhow!("object permission denied: {:?}", resp),
+                source: anyhow!(
+                    "object permission denied: {:?}",
+                    parse_error_response(resp).await?
+                ),
             }),
             _ => Err(Error::Object {
                 kind: Kind::Unexpected,
                 op: "write",
                 path: p.to_string(),
-                source: anyhow!("object unexpected: {:?}", resp),
+                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
             }),
         }
     }
@@ -509,7 +525,10 @@ impl Accessor for Backend {
                         kind: Kind::ObjectNotExist,
                         op: "stat",
                         path: p.to_string(),
-                        source: anyhow!("object not exist: {:?}", resp),
+                        source: anyhow!(
+                            "object not exist: {:?}",
+                            parse_error_response(resp).await?
+                        ),
                     })
                 }
             }
@@ -517,7 +536,7 @@ impl Accessor for Backend {
                 kind: Kind::Unexpected,
                 op: "stat",
                 path: p.to_string(),
-                source: anyhow!("object unexpected: {:?}", resp),
+                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
             }),
         }
     }
@@ -539,13 +558,16 @@ impl Accessor for Backend {
                 kind: Kind::ObjectPermissionDenied,
                 op: "delete",
                 path: p.to_string(),
-                source: anyhow!("object permission denied: {:?}", resp),
+                source: anyhow!(
+                    "object permission denied: {:?}",
+                    parse_error_response(resp).await?
+                ),
             }),
             _ => Err(Error::Object {
                 kind: Kind::Unexpected,
                 op: "delete",
                 path: p.to_string(),
-                source: anyhow!("object unexpected: {:?}", resp),
+                source: anyhow!("object unexpected: {:?}", parse_error_response(resp).await?),
             }),
         }
     }
@@ -703,4 +725,37 @@ impl futures::Stream for ByteStream {
             .poll_next(cx)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
     }
+}
+
+/// We only use this struct for constructing errors.
+#[derive(Debug)]
+struct ErrorResponse {
+    #[allow(dead_code)]
+    part: Parts,
+    #[allow(dead_code)]
+    body: String,
+}
+
+// Read and decode whole error response.
+async fn parse_error_response(resp: Response<Body>) -> Result<ErrorResponse> {
+    let (part, mut body) = resp.into_parts();
+
+    // Only read 4KiB from the response to avoid broken services.
+    let mut bs = Vec::new();
+    let mut limit = 4 * 1024;
+
+    while let Some(b) = body.data().await {
+        let b = b.map_err(|e| Error::Unexpected(anyhow!("parse error response parse: {:?}", e)))?;
+        bs.put_slice(&b[..min(b.len(), limit)]);
+        limit -= b.len();
+        if limit == 0 {
+            break;
+        }
+    }
+
+    let s = String::from_utf8_lossy(&bs);
+    Ok(ErrorResponse {
+        part,
+        body: s.to_string(),
+    })
 }

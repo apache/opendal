@@ -26,7 +26,7 @@ use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
-
+use opendal::error::Kind;
 use opendal::ObjectMode;
 use opendal::Operator;
 use rand::prelude::*;
@@ -51,6 +51,7 @@ impl BehaviorTest {
     pub async fn run(&mut self) -> Result<()> {
         self.test_normal().await?;
         self.test_stat_root().await?;
+        self.test_stat_non_exist().await?;
 
         Ok(())
     }
@@ -136,6 +137,19 @@ impl BehaviorTest {
         let meta = self.op.object("/").metadata().await?;
         assert_eq!(meta.mode(), ObjectMode::DIR);
 
+        Ok(())
+    }
+
+    /// Stat non exist object should return ObjectNotExist.
+    async fn test_stat_non_exist(&mut self) -> Result<()> {
+        let meta = self
+            .op
+            .object(&uuid::Uuid::new_v4().to_string())
+            .metadata()
+            .await;
+        assert!(meta.is_err());
+        let err = meta.unwrap_err();
+        assert_eq!(err.kind(), Kind::ObjectNotExist);
         Ok(())
     }
 

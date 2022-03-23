@@ -26,13 +26,13 @@ use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
+use minitrace::prelude::*;
 use opendal::error::Kind;
 use opendal::ObjectMode;
 use opendal::Operator;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
-
 /// TODO: Implement test files cleanup.
 pub struct BehaviorTest {
     op: Operator,
@@ -49,9 +49,26 @@ impl BehaviorTest {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        self.test_normal().await?;
-        self.test_stat_root().await?;
-        self.test_stat_non_exist().await?;
+        let collector = {
+            let (span, collector) = Span::root("root");
+
+            let _sg1 = span.set_local_parent();
+            let mut sg2 = LocalSpan::enter_with_local_parent("a span");
+
+
+            self.test_normal().await?;
+            self.test_stat_root().await?;
+            self.test_stat_non_exist().await?;
+
+            collector
+        };
+        let spans = collector.collect().await;
+
+        // Report to Jaeger
+        let bytes =
+            minitrace_jaeger::encode("behaviour_test".to_owned(), rand::random(), 0, 0, &spans)
+                .unwrap();
+        minitrace_jaeger::report_blocking("127.0.0.1:6831".parse().unwrap(), &bytes).ok();
 
         Ok(())
     }

@@ -39,6 +39,7 @@ use once_cell::sync::Lazy;
 use reqsign::services::aws::v4::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
+use minitrace::prelude::*;
 
 use super::object_stream::S3ObjectStream;
 use crate::credential::Credential;
@@ -379,6 +380,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         increment_counter!("opendal_s3_read_requests");
 
@@ -402,7 +404,7 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "read", &p).await),
         }
     }
-
+    #[trace("write")]
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
         info!("object {} write start: size {}", &p, args.size);
@@ -416,7 +418,7 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "write", &p).await),
         }
     }
-
+    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_s3_stat_requests");
 
@@ -489,7 +491,7 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "stat", &p).await),
         }
     }
-
+    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_s3_delete_requests");
 
@@ -506,7 +508,7 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "delete", &p).await),
         }
     }
-
+    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         increment_counter!("opendal_s3_list_requests");
 

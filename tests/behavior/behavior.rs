@@ -54,7 +54,9 @@ impl BehaviorTest {
 
             let _sg1 = span.set_local_parent();
             let mut sg2 = LocalSpan::enter_with_local_parent("a span");
-
+            
+            // if not using tracing macro, user can insert a keyvalue entry into span
+            sg2.add_property(|| ("a property", "a value".to_owned()));
 
             self.test_normal().await?;
             self.test_stat_root().await?;

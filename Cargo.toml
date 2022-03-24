@@ -42,6 +42,8 @@ thiserror = "1"
 time = "0.3.7"
 tokio = { version = "1.17", features = ["full"] }
 tower = "0.4"
+minitrace = "0.4.0"
+
 
 [dev-dependencies]
 anyhow = "1.0"
@@ -58,3 +60,4 @@ rand = "0.8"
 sha2 = "0.10"
 size = "0.1"
 uuid = { version = "0.8", features = ["serde", "v4"] }
+

@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.2.5] - 2022-03-22
+
+### Added
+
+- feat: Adopt quick_xml to parse xml (#164)
+- test: Add behavior test for not exist object (#166)
+- feat: Allow user input region (#168)
+
+## Changed
+
+- feat: Improve error handle for s3 service (#169)
+- feat: Read error response for better debugging (#170)
+- examples: Improve examples for s3 (#171)
+
 ## [v0.2.4] - 2022-03-18
 
 ### Added
@@ -167,6 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.2.5]: https://github.com/datafuselabs/opendal/compare/v0.2.4...v0.2.5
 [v0.2.4]: https://github.com/datafuselabs/opendal/compare/v0.2.3...v0.2.4
 [v0.2.3]: https://github.com/datafuselabs/opendal/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/datafuselabs/opendal/compare/v0.2.1...v0.2.2

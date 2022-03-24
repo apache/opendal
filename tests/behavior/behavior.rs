@@ -26,7 +26,6 @@ use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
-
 use opendal::error::Kind;
 use opendal::ObjectMode;
 use opendal::Operator;

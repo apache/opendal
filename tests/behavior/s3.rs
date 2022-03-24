@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+
+
 use anyhow::Result;
 use log::warn;
 use opendal::Operator;
 use opendal_test::services::s3;
 
 use super::BehaviorTest;
-
+use super::trace::jaeger_tracing;
 #[tokio::test]
 async fn behavior() -> Result<()> {
     super::init_logger();
@@ -29,5 +31,11 @@ async fn behavior() -> Result<()> {
         return Ok(());
     }
 
-    BehaviorTest::new(Operator::new(acc.unwrap())).run().await
+    jaeger_tracing(
+        BehaviorTest::new(Operator::new(acc.unwrap())).run(),
+        "127.0.0.1:6831",
+        "opendal_trace",
+    )
+    .await?;
+    Ok(())
 }

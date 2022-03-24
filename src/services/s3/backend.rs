@@ -35,11 +35,11 @@ use log::error;
 use log::info;
 use log::warn;
 use metrics::increment_counter;
+use minitrace::prelude::*;
 use once_cell::sync::Lazy;
 use reqsign::services::aws::v4::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
-use minitrace::prelude::*;
 
 use super::object_stream::S3ObjectStream;
 use crate::credential::Credential;

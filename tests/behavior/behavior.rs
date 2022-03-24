@@ -26,7 +26,7 @@ use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::StreamExt;
-use minitrace::prelude::*;
+
 use opendal::error::Kind;
 use opendal::ObjectMode;
 use opendal::Operator;
@@ -49,28 +49,9 @@ impl BehaviorTest {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let collector = {
-            let (span, collector) = Span::root("root");
-
-            let _sg1 = span.set_local_parent();
-            let mut sg2 = LocalSpan::enter_with_local_parent("a span");
-            
-            // if not using tracing macro, user can insert a keyvalue entry into span
-            sg2.add_property(|| ("a property", "a value".to_owned()));
-
-            self.test_normal().await?;
-            self.test_stat_root().await?;
-            self.test_stat_non_exist().await?;
-
-            collector
-        };
-        let spans = collector.collect().await;
-
-        // Report to Jaeger
-        let bytes =
-            minitrace_jaeger::encode("behaviour_test".to_owned(), rand::random(), 0, 0, &spans)
-                .unwrap();
-        minitrace_jaeger::report_blocking("127.0.0.1:6831".parse().unwrap(), &bytes).ok();
+        self.test_normal().await?;
+        self.test_stat_root().await?;
+        self.test_stat_non_exist().await?;
 
         Ok(())
     }

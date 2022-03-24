@@ -105,7 +105,7 @@ impl BehaviorTest {
         );
 
         // Step 5: List this dir, we should get this file.
-        let mut obs = self.op.objects("").map(|o| o.expect("list object: {}"));
+        let mut obs = self.op.objects("").map(|o| o.expect("list object"));
         let mut found = false;
         while let Some(o) = obs.next().await {
             let meta = o.metadata().await?;

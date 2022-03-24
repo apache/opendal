@@ -11,31 +11,40 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use std::env;
+use std::sync::Arc;
 
+use opendal::credential::Credential;
+use opendal::error::Result;
+use opendal::services::s3;
+use opendal::Accessor;
 
+/// In order to test s3 service, please set the following environment variables:
+///
+/// - `OPENDAL_S3_TEST=on`: set to `on` to enable the test.
+/// - `OPENDAL_S3_ROOT=/path/to/dir`: set the root dir.
+/// - `OPENDAL_S3_BUCKET=<bucket>`: set the bucket name.
+/// - `OPENDAL_S3_ENDPOINT=<endpoint>`: set the endpoint of the s3 service.
+/// - `OPENDAL_S3_ACCESS_KEY_ID=<access_key_id>`: set the access key id.
+/// - `OPENDAL_S3_SECRET_ACCESS_KEY=<secret_access_key>`: set the secret access key.
+pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
+    dotenv::from_filename(".env").ok();
 
-use anyhow::Result;
-use log::warn;
-use opendal::Operator;
-use opendal_test::services::s3;
-
-use super::BehaviorTest;
-use super::trace::jaeger_tracing;
-#[tokio::test]
-async fn behavior() -> Result<()> {
-    super::init_logger();
-
-    let acc = s3::new().await?;
-    if acc.is_none() {
-        warn!("OPENDAL_S3_TEST not set, ignore");
-        return Ok(());
+    if env::var("OPENDAL_S3_TEST").is_err() || env::var("OPENDAL_S3_TEST").unwrap() != "on" {
+        return Ok(None);
     }
 
-    jaeger_tracing(
-        BehaviorTest::new(Operator::new(acc.unwrap())).run(),
-        "127.0.0.1:6831",
-        "opendal_trace",
-    )
-    .await?;
-    Ok(())
+    let root =
+        &env::var("OPENDAL_S3_ROOT").unwrap_or_else(|_| format!("/{}", uuid::Uuid::new_v4()));
+
+    let mut builder = s3::Backend::build();
+    builder.root(root);
+    builder.bucket(&env::var("OPENDAL_S3_BUCKET").expect("OPENDAL_S3_BUCKET must set"));
+    builder.endpoint(&env::var("OPENDAL_S3_ENDPOINT").unwrap_or_default());
+    builder.credential(Credential::hmac(
+        &env::var("OPENDAL_S3_ACCESS_KEY_ID").unwrap_or_default(),
+        &env::var("OPENDAL_S3_SECRET_ACCESS_KEY").unwrap_or_default(),
+    ));
+
+    Ok(Some(builder.finish().await?))
 }

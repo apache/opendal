@@ -11,16 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+pub mod backend;
+pub use backend::Backend;
+pub use backend::Builder;
 
-//! Providing specific services support.
-//!
-//! In order to implement a service, we need the following things:
-//!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
-
-pub mod fs;
-pub mod memory;
-
-pub mod azblob;
-pub mod s3;
+mod object_stream;

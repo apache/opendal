@@ -21,7 +21,6 @@ use behavior::BehaviorTest;
 mod fs;
 mod memory;
 mod s3;
-
 mod azblob;
 
 pub fn init_logger() {

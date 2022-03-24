@@ -27,7 +27,7 @@ use log::error;
 use log::info;
 use log::warn;
 use metrics::increment_counter;
-use reqsign::services::azure::signer::Signer;
+use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
@@ -127,8 +127,8 @@ impl Builder {
             ("bucket".to_string(), bucket.to_string()),
         ]);
 
-        let mut access_name = String::new();
-        let mut shared_key = String::new();
+        let mut account_name = String::new();
+        let mut account_key = String::new();
         if let Some(cred) = &self.credential {
             context.insert("credential".to_string(), "*".to_string());
             match cred {
@@ -136,8 +136,8 @@ impl Builder {
                     access_key_id,
                     secret_access_key,
                 } => {
-                    access_name = access_key_id.to_string();
-                    shared_key = secret_access_key.to_string();
+                    account_name = access_key_id.to_string();
+                    account_key = secret_access_key.to_string();
                 }
                 // We don't need to do anything if user tries to read credential from env.
                 Credential::Plain => {
@@ -156,8 +156,8 @@ impl Builder {
 
         let mut signer_builder = Signer::builder();
         signer_builder
-            .access_name(&access_name)
-            .shared_key(&shared_key);
+            .account_name(&account_name)
+            .account_key(&account_key);
 
         let signer = signer_builder.build().await?;
 
@@ -168,7 +168,7 @@ impl Builder {
             signer: Arc::new(signer),
             bucket: self.bucket.clone(),
             client,
-            access_name,
+            account_name,
         }))
     }
 }
@@ -180,7 +180,7 @@ pub struct Backend {
     root: String, // root will be "/" or /abc/
     endpoint: String,
     signer: Arc<Signer>,
-    access_name: String,
+    account_name: String,
 }
 
 impl Backend {
@@ -396,7 +396,7 @@ impl Backend {
     ) -> Result<hyper::Response<hyper::Body>> {
         let mut req = hyper::Request::get(&format!(
             "https://{}.{}/{}/{}",
-            self.access_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.bucket, path
         ));
 
         if offset.is_some() || size.is_some() {
@@ -427,7 +427,7 @@ impl Backend {
 
         let mut req = hyper::Request::put(&format!(
             "https://{}.{}/{}/{}",
-            self.access_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.bucket, path
         ));
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
@@ -451,7 +451,7 @@ impl Backend {
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::head(&format!(
             "https://{}.{}/{}/{}",
-            self.access_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.bucket, path
         ));
         let mut req = req
             .body(hyper::Body::empty())
@@ -469,7 +469,7 @@ impl Backend {
     pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::delete(&format!(
             "https://{}.{}/{}/{}",
-            self.access_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.bucket, path
         ));
 
         let mut req = req
@@ -492,7 +492,7 @@ impl Backend {
         let _ = continuation_token;
         let mut req = hyper::Request::get(&format!(
             "https://{}.{}/{}?restype=container&comp=list&prefix={}",
-            self.access_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.bucket, path
         ));
 
         req = req.header(http::header::CONTENT_LENGTH, "0");

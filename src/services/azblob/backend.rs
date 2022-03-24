@@ -11,17 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use std::cmp::min;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::BufMut;
 use futures::TryStreamExt;
 use http::header::HeaderName;
-use hyper::body::HttpBody as _;
+use http::Response;
+use http::StatusCode;
+use hyper::body::HttpBody;
+use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
@@ -54,7 +61,7 @@ pub const BLOB_TYPE: &str = "x-ms-blob-type";
 #[derive(Default, Debug, Clone)]
 pub struct Builder {
     root: Option<String>,
-    bucket: String, // in Azure, bucket =  container
+    container: String,
     credential: Option<Credential>,
     endpoint: Option<String>,
 }
@@ -69,8 +76,8 @@ impl Builder {
 
         self
     }
-    pub fn bucket(&mut self, bucket: &str) -> &mut Self {
-        self.bucket = bucket.to_string();
+    pub fn container(&mut self, container: &str) -> &mut Self {
+        self.container = container.to_string();
 
         self
     }
@@ -104,27 +111,25 @@ impl Builder {
 
         info!("backend use root {}", root);
 
-        // Handle endpoint, region and bucket name.
-        let bucket = match self.bucket.is_empty() {
-            false => Ok(&self.bucket),
+        // Handle endpoint, region and container name.
+        let container = match self.container.is_empty() {
+            false => Ok(&self.container),
             true => Err(Error::Backend {
                 kind: Kind::BackendConfigurationInvalid,
-                context: HashMap::from([("bucket".to_string(), "".to_string())]),
-                source: anyhow!("bucket is empty"),
+                context: HashMap::from([("container".to_string(), "".to_string())]),
+                source: anyhow!("container is empty"),
             }),
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use container {}", &container);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => endpoint.clone(),
             None => "blob.core.windows.net".to_string(),
         };
 
-        debug!("backend use endpoint {} to detect region", &endpoint);
-
         let mut context: HashMap<String, String> = HashMap::from([
             ("endpoint".to_string(), endpoint.to_string()),
-            ("bucket".to_string(), bucket.to_string()),
+            ("container".to_string(), container.to_string()),
         ]);
 
         let mut account_name = String::new();
@@ -166,7 +171,7 @@ impl Builder {
             root,
             endpoint,
             signer: Arc::new(signer),
-            bucket: self.bucket.clone(),
+            container: self.container.clone(),
             client,
             account_name,
         }))
@@ -175,7 +180,7 @@ impl Builder {
 
 #[derive(Debug, Clone)]
 pub struct Backend {
-    bucket: String,
+    container: String,
     client: hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
     root: String, // root will be "/" or /abc/
     endpoint: String,
@@ -210,7 +215,7 @@ impl Backend {
             .trim_start_matches('/')
             .to_string()
     }
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
         let path = format!("/{}", path);
 
@@ -235,30 +240,30 @@ impl Accessor for Backend {
         );
 
         let resp = self.get_object(&p, args.offset, args.size).await?;
+        match resp.status() {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                info!(
+                    "object {} reader created: offset {:?}, size {:?}",
+                    &p, args.offset, args.size
+                );
 
-        info!(
-            "object {} reader created: offset {:?}, size {:?}",
-            &p, args.offset, args.size
-        );
-        Ok(Box::new(ByteStream(resp).into_async_read()))
+                Ok(Box::new(ByteStream(resp).into_async_read()))
+            }
+            _ => Err(parse_error_response(resp, "read", &p).await),
+        }
     }
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
         info!("object {} write start: size {}", &p, args.size);
 
         let resp = self.put_object(&p, r, args.size).await?;
-        println!("resp :{resp:?}");
+
         match resp.status() {
             http::StatusCode::CREATED | http::StatusCode::OK => {
                 info!("object {} write finished: size {:?}", &p, args.size);
                 Ok(args.size as usize)
             }
-            _ => Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: p.to_string(),
-                source: anyhow!("{:?}", resp),
-            }),
+            _ => Err(parse_error_response(resp, "write", &p).await),
         }
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
@@ -319,35 +324,17 @@ impl Accessor for Backend {
                 info!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
-            http::StatusCode::NOT_FOUND => {
-                // Always returns empty dir object if path is endswith "/"
-                if p.ends_with('/') {
-                    let mut m = Metadata::default();
-                    m.set_path(&args.path);
-                    m.set_content_length(0);
-                    m.set_mode(ObjectMode::DIR);
-                    m.set_complete();
+            StatusCode::NOT_FOUND if p.ends_with('/') => {
+                let mut m = Metadata::default();
+                m.set_path(&args.path);
+                m.set_content_length(0);
+                m.set_mode(ObjectMode::DIR);
+                m.set_complete();
 
-                    info!("object {} stat finished", &p);
-                    Ok(m)
-                } else {
-                    Err(Error::Object {
-                        kind: Kind::ObjectNotExist,
-                        op: "stat",
-                        path: p.to_string(),
-                        source: anyhow!("{:?}", resp),
-                    })
-                }
+                info!("object {} stat finished", &p);
+                Ok(m)
             }
-            _ => {
-                error!("object {} head_object: {:?}", &p, resp);
-                Err(Error::Object {
-                    kind: Kind::Unexpected,
-                    op: "stat",
-                    path: p.to_string(),
-                    source: anyhow!("{:?}", resp),
-                })
-            }
+            _ => Err(parse_error_response(resp, "stat", &p).await),
         }
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {
@@ -356,34 +343,19 @@ impl Accessor for Backend {
         let p = self.get_abs_path(&args.path);
         info!("object {} delete start", &p);
 
-        let _ = self.delete_object(&p).await?;
-
-        info!("object {} delete finished", &p);
-        Ok(())
+        let resp = self.delete_object(&p).await?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => {
+                info!("object {} delete finished", &p);
+                Ok(())
+            }
+            _ => Err(parse_error_response(resp, "delete", &p).await),
+        }
     }
+    #[warn(dead_code)]
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        increment_counter!("opendal_azblob_list_requests");
-        let mut path = self.get_abs_path(&args.path);
-        // Make sure list path is endswith '/'
-        if !path.ends_with('/') && !path.is_empty() {
-            path.push('/')
-        }
-
-        // url query part will conver "/" to "%2F" like that query: Some("restype=container&comp=list&prefix=%2Fdir")
-        path = str::replace(&path, "/", "%2F");
-
-        info!("object {} list start", &path);
-
-        let mut resp = self.list_object(&path, "").await?;
-        while let Some(next) = resp.data().await {
-            let chunk = next.map_err(|e| {
-                error!("object {} get_object: {:?}", path, e);
-                Error::Unexpected(anyhow::Error::from(e))
-            });
-            println!("chunk : {chunk:?}");
-        }
-
-        todo!()
+        let _ = args;
+        unimplemented!()
     }
 }
 
@@ -396,7 +368,7 @@ impl Backend {
     ) -> Result<hyper::Response<hyper::Body>> {
         let mut req = hyper::Request::get(&format!(
             "https://{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.container, path
         ));
 
         if offset.is_some() || size.is_some() {
@@ -414,7 +386,12 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "read",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
     pub(crate) async fn put_object(
@@ -423,11 +400,9 @@ impl Backend {
         r: BoxedAsyncReader,
         size: u64,
     ) -> Result<hyper::Response<hyper::Body>> {
-        // let hash = md5::compute(&data[..]).into();
-
         let mut req = hyper::Request::put(&format!(
             "https://{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.container, path
         ));
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
@@ -443,7 +418,12 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "write",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
 
@@ -451,7 +431,7 @@ impl Backend {
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::head(&format!(
             "https://{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.container, path
         ));
         let mut req = req
             .body(hyper::Body::empty())
@@ -459,17 +439,21 @@ impl Backend {
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        println!("req : {req:?}");
         self.client.request(req).await.map_err(|e| {
-            error!("object {} get_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            error!("object {} head_object: {:?}", path, e);
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "stat",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
 
     pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::delete(&format!(
             "https://{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.bucket, path
+            self.account_name, self.endpoint, self.container, path
         ));
 
         let mut req = req
@@ -479,36 +463,24 @@ impl Backend {
         self.signer.sign(&mut req).await.expect("sign must success");
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} get_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
+            error!("object {} delete_object: {:?}", path, e);
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "delete",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
         })
     }
-    #[warn(unused)]
+    #[allow(dead_code)]
     pub(crate) async fn list_object(
         &self,
         path: &str,
         continuation_token: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
+        let _ = path;
         let _ = continuation_token;
-        let mut req = hyper::Request::get(&format!(
-            "https://{}.{}/{}?restype=container&comp=list&prefix={}",
-            self.account_name, self.endpoint, self.bucket, path
-        ));
-
-        req = req.header(http::header::CONTENT_LENGTH, "0");
-
-        let mut req = req
-            .body(hyper::Body::empty())
-            .expect("must be valid request");
-
-        self.signer.sign(&mut req).await.expect("sign must success");
-
-        println!("resq : {req:?}");
-
-        self.client.request(req).await.map_err(|e| {
-            error!("object {} get_object: {:?}", path, e);
-            Error::Unexpected(anyhow::Error::from(e))
-        })
+        unimplemented!()
     }
 }
 struct ByteStream(hyper::Response<hyper::Body>);
@@ -520,5 +492,43 @@ impl futures::Stream for ByteStream {
         Pin::new(self.0.body_mut())
             .poll_next(cx)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+    }
+}
+
+// Read and decode whole error response.
+async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+    let (part, mut body) = resp.into_parts();
+    let kind = match part.status {
+        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
+        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
+        _ => Kind::Unexpected,
+    };
+
+    // Only read 4KiB from the response to avoid broken services.
+    let mut bs = Vec::new();
+    let mut limit = 4 * 1024;
+
+    while let Some(b) = body.data().await {
+        match b {
+            Ok(b) => {
+                bs.put_slice(&b[..min(b.len(), limit)]);
+                limit -= b.len();
+                if limit == 0 {
+                    break;
+                }
+            }
+            Err(e) => return Error::Unexpected(anyhow!("parse error response parse: {:?}", e)),
+        }
+    }
+
+    Error::Object {
+        kind,
+        op,
+        path: path.to_string(),
+        source: anyhow!(
+            "response part: {:?}, body: {:?}",
+            part,
+            String::from_utf8_lossy(&bs)
+        ),
     }
 }

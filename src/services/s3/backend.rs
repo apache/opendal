@@ -107,7 +107,6 @@ mod constants {
 /// - Use S3 managed key
 ///   - `server_side_encryption="AES256"`
 /// - Use customer key
-///   - `server_side_encryption="AES256"`
 ///   - `server_side_encryption_customer_algorithm="AES256"`
 ///   - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
 ///   - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
@@ -376,7 +375,6 @@ impl Builder {
         algorithm: &str,
         key: &[u8],
     ) -> &mut Self {
-        self.server_side_encryption = Some("AES256".to_string());
         self.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
         self.server_side_encryption_customer_key = Some(base64::encode(key));
         self.server_side_encryption_customer_key_md5 =

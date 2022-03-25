@@ -24,9 +24,11 @@ use futures::io;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
+use log::debug;
 use log::error;
 use log::info;
 use metrics::increment_counter;
+use minitrace::trace;
 use tokio::fs;
 
 use super::error::parse_io_error;
@@ -125,11 +127,12 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         increment_counter!("opendal_fs_read_requests");
 
         let path = self.get_abs_path(&args.path);
-        info!(
+        debug!(
             "object {} read start: offset {:?}, size {:?}",
             &path, args.offset, args.size
         );
@@ -159,18 +162,19 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
-        info!(
+        debug!(
             "object {} reader created: offset {:?}, size {:?}",
             &path, args.offset, args.size
         );
         Ok(r)
     }
 
+    #[trace("write")]
     async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         increment_counter!("opendal_fs_write_requests");
 
         let path = self.get_abs_path(&args.path);
-        info!("object {} write start: size {}", &path, args.size);
+        debug!("object {} write start: size {}", &path, args.size);
 
         // Create dir before write path.
         //
@@ -224,15 +228,16 @@ impl Accessor for Backend {
             e
         })?;
 
-        info!("object {} write finished: size {:?}", &path, args.size);
+        debug!("object {} write finished: size {:?}", &path, args.size);
         Ok(s as usize)
     }
 
+    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_fs_stat_requests");
 
         let path = self.get_abs_path(&args.path);
-        info!("object {} stat start", &path);
+        debug!("object {} stat start", &path);
 
         let meta = fs::metadata(&path).await.map_err(|e| {
             let e = parse_io_error(e, "stat", &path);
@@ -255,15 +260,16 @@ impl Accessor for Backend {
         );
         m.set_complete();
 
-        info!("object {} stat finished", &path);
+        debug!("object {} stat finished", &path);
         Ok(m)
     }
 
+    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_fs_delete_requests");
 
         let path = self.get_abs_path(&args.path);
-        info!("object {} delete start", &path);
+        debug!("object {} delete start", &path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
         let meta = fs::metadata(&path).await;
@@ -289,15 +295,16 @@ impl Accessor for Backend {
 
         f.map_err(|e| parse_io_error(e, "delete", &path))?;
 
-        info!("object {} delete finished", &path);
+        debug!("object {} delete finished", &path);
         Ok(())
     }
 
+    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         increment_counter!("opendal_fs_list_requests");
 
         let path = self.get_abs_path(&args.path);
-        info!("object {} list start", &path);
+        debug!("object {} list start", &path);
 
         let f = fs::read_dir(&path).await.map_err(|e| {
             let e = parse_io_error(e, "read", &path);

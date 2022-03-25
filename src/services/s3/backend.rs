@@ -14,6 +14,8 @@
 
 use std::cmp::min;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+use std::mem;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -70,14 +72,49 @@ static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new
     m
 });
 
+mod constants {
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
+        "x-amz-server-side-encryption-customer-algorithm";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: &str =
+        "x-amz-server-side-encryption-customer-key";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: &str =
+        "x-amz-server-side-encryption-customer-key-md5";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
+        "x-amz-server-side-encryption-aws-kms-key-id";
+}
+
 /// Builder for s3 services
 ///
-/// # TODO
+/// # Server Side Encryption
 ///
-/// enable_path_style and enable_signature_v2 need sdk support.
+/// OpenDAL provides full support of S3 Server Side Encryption(SSE) features.
 ///
-/// ref: <https://github.com/awslabs/aws-sdk-rust/issues/390>
-#[derive(Default, Debug, Clone)]
+/// The easiest way to configure them is to use helper functions like
+///
+/// - SSE-KMS: `server_side_encryption_with_aws_managed_kms_key`
+/// - SSE-KMS: `server_side_encryption_with_customer_managed_kms_key`
+/// - SSE-S3: `server_side_encryption_with_s3_key`
+/// - SSE-C: `server_side_encryption_with_customer_key`
+///
+/// If those functions don't fulfill need, low-level options are also provided:
+///
+/// - Use service managed kms key
+///   - `server_side_encryption="aws:kms"`
+/// - Use customer provided kms key
+///   - `server_side_encryption="aws:kms"`
+///   - `server_side_encryption_aws_kms_key_id="your-kms-key"`
+/// - Use S3 managed key
+///   - `server_side_encryption="AES256"`
+/// - Use customer key
+///   - `server_side_encryption_customer_algorithm="AES256"`
+///   - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
+///   - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
+///
+/// After SSE have been configured, all requests send by this backed will attach those headers.
+///
+/// Reference: [Protecting data using server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html)
+#[derive(Default, Clone)]
 pub struct Builder {
     root: Option<String>,
 
@@ -85,6 +122,41 @@ pub struct Builder {
     credential: Option<Credential>,
     endpoint: Option<String>,
     region: Option<String>,
+    server_side_encryption: Option<String>,
+    server_side_encryption_aws_kms_key_id: Option<String>,
+    server_side_encryption_customer_algorithm: Option<String>,
+    server_side_encryption_customer_key: Option<String>,
+    server_side_encryption_customer_key_md5: Option<String>,
+}
+
+impl Debug for Builder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut d = f.debug_struct("Builder");
+
+        d.field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("credential", &self.credential)
+            .field("endpoint", &self.endpoint)
+            .field("region", &self.region);
+
+        if self.server_side_encryption.is_some() {
+            d.field("server_side_encryption", &"<redacted>");
+        }
+        if self.server_side_encryption_aws_kms_key_id.is_some() {
+            d.field("server_side_encryption_aws_kms_key_id", &"<redacted>");
+        }
+        if self.server_side_encryption_customer_algorithm.is_some() {
+            d.field("server_side_encryption_customer_algorithm", &"<redacted>");
+        }
+        if self.server_side_encryption_customer_key.is_some() {
+            d.field("server_side_encryption_customer_key", &"<redacted>");
+        }
+        if self.server_side_encryption_customer_key_md5.is_some() {
+            d.field("server_side_encryption_customer_key_md5", &"<redacted>");
+        }
+
+        d.finish()
+    }
 }
 
 impl Builder {
@@ -149,6 +221,164 @@ impl Builder {
             Some(region.to_string())
         };
 
+        self
+    }
+
+    /// Set server_side_encryption for this backend.
+    ///
+    /// Available values: `AES256`, `aws:kms`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
+        self.server_side_encryption = if v.is_empty() {
+            None
+        } else {
+            Some(v.to_string())
+        };
+        self
+    }
+
+    /// Set server_side_encryption_aws_kms_key_id for this backend
+    ///
+    /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
+    /// is not set, S3 will use aws managed kms key to encrypt data.
+    /// - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id`
+    /// is a valid kms key id, S3 will use the provided kms key to encrypt data.
+    /// - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be
+    /// returned.
+    /// - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id`
+    /// is a noop.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn server_side_encryption_aws_kms_key_id(&mut self, v: &str) -> &mut Self {
+        self.server_side_encryption_aws_kms_key_id = if v.is_empty() {
+            None
+        } else {
+            Some(v.to_string())
+        };
+        self
+    }
+
+    /// Set server_side_encryption_customer_algorithm for this backend.
+    ///
+    /// Available values: `AES256`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn server_side_encryption_customer_algorithm(&mut self, v: &str) -> &mut Self {
+        self.server_side_encryption_customer_algorithm = if v.is_empty() {
+            None
+        } else {
+            Some(v.to_string())
+        };
+        self
+    }
+
+    /// Set server_side_encryption_customer_key for this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: base64 encoded key that matches algorithm specified in
+    /// `server_side_encryption_customer_algorithm`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn server_side_encryption_customer_key(&mut self, v: &str) -> &mut Self {
+        self.server_side_encryption_customer_key = if v.is_empty() {
+            None
+        } else {
+            Some(v.to_string())
+        };
+        self
+    }
+
+    /// Set server_side_encryption_customer_key_md5 for this backend.
+    ///
+    /// # Args
+    ///
+    /// `v`: MD5 digest of key specified in `server_side_encryption_customer_key`.
+    ///
+    /// # Note
+    ///
+    /// This function is the low-level setting for SSE related features.
+    ///
+    /// SSE related options should be set carefully to make them works.
+    /// Please use `server_side_encryption_with_*` helpers if even possible.
+    pub fn server_side_encryption_customer_key_md5(&mut self, v: &str) -> &mut Self {
+        self.server_side_encryption_customer_key_md5 = if v.is_empty() {
+            None
+        } else {
+            Some(v.to_string())
+        };
+        self
+    }
+
+    /// Enable server side encryption with aws managed kms key
+    ///
+    /// As known as: SSE-KMS
+    ///
+    /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
+    pub fn server_side_encryption_with_aws_managed_kms_key(&mut self) -> &mut Self {
+        self.server_side_encryption = Some("aws:kms".to_string());
+        self
+    }
+
+    /// Enable server side encryption with customer managed kms key
+    ///
+    /// As known as: SSE-KMS
+    ///
+    /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
+    pub fn server_side_encryption_with_customer_managed_kms_key(
+        &mut self,
+        aws_kms_key_id: &str,
+    ) -> &mut Self {
+        self.server_side_encryption = Some("aws:kms".to_string());
+        self.server_side_encryption_aws_kms_key_id = Some(aws_kms_key_id.to_string());
+        self
+    }
+
+    /// Enable server side encryption with s3 managed key
+    ///
+    /// As known as: SSE-S3
+    ///
+    /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
+    pub fn server_side_encryption_with_s3_key(&mut self) -> &mut Self {
+        self.server_side_encryption = Some("AES256".to_string());
+        self
+    }
+
+    /// Enable server side encryption with customer key.
+    ///
+    /// As known as: SSE-C
+    ///
+    /// NOTE: This function should not be used along with other `server_side_encryption_with_` functions.
+    pub fn server_side_encryption_with_customer_key(
+        &mut self,
+        algorithm: &str,
+        key: &[u8],
+    ) -> &mut Self {
+        self.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
+        self.server_side_encryption_customer_key = Some(base64::encode(key));
+        self.server_side_encryption_customer_key_md5 =
+            Some(base64::encode(md5::compute(key).as_slice()));
         self
     }
 
@@ -330,6 +560,20 @@ impl Builder {
             signer: Arc::new(signer),
             bucket: self.bucket.clone(),
             client,
+
+            server_side_encryption: mem::take(&mut self.server_side_encryption),
+            server_side_encryption_aws_kms_key_id: mem::take(
+                &mut self.server_side_encryption_aws_kms_key_id,
+            ),
+            server_side_encryption_customer_algorithm: mem::take(
+                &mut self.server_side_encryption_customer_algorithm,
+            ),
+            server_side_encryption_customer_key: mem::take(
+                &mut self.server_side_encryption_customer_key,
+            ),
+            server_side_encryption_customer_key_md5: mem::take(
+                &mut self.server_side_encryption_customer_key_md5,
+            ),
         }))
     }
 }
@@ -343,6 +587,12 @@ pub struct Backend {
     client: hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
     // root will be "/" or "/abc/"
     root: String,
+
+    server_side_encryption: Option<String>,
+    server_side_encryption_aws_kms_key_id: Option<String>,
+    server_side_encryption_customer_algorithm: Option<String>,
+    server_side_encryption_customer_key: Option<String>,
+    server_side_encryption_customer_key_md5: Option<String>,
 }
 
 impl Backend {
@@ -390,6 +640,67 @@ impl Backend {
                 &path, &self.root
             ),
         }
+    }
+
+    /// # Note
+    ///
+    /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
+    //  get or stat.
+    pub(crate) fn insert_sse_headers(
+        &self,
+        mut req: http::request::Builder,
+        is_write: bool,
+    ) -> http::request::Builder {
+        if is_write {
+            if let Some(v) = &self.server_side_encryption {
+                let mut v: HeaderValue = v.parse().expect("must be valid header value");
+                v.set_sensitive(true);
+
+                req = req.header(
+                    HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION),
+                    v,
+                )
+            }
+            if let Some(v) = &self.server_side_encryption_aws_kms_key_id {
+                let mut v: HeaderValue = v.parse().expect("must be valid header value");
+                v.set_sensitive(true);
+
+                req = req.header(
+                    HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID),
+                    v,
+                )
+            }
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+            let mut v: HeaderValue = v.parse().expect("must be valid header value");
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM),
+                v,
+            )
+        }
+        if let Some(v) = &self.server_side_encryption_customer_key {
+            let mut v: HeaderValue = v.parse().expect("must be valid header value");
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY),
+                v,
+            )
+        }
+        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
+            let mut v: HeaderValue = v.parse().expect("must be valid header value");
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5),
+                v,
+            )
+        }
+
+        req
     }
 }
 
@@ -554,6 +865,10 @@ impl Backend {
                 HeaderRange::new(offset, size).to_string(),
             );
         }
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, false);
+
         let mut req = req
             .body(hyper::Body::empty())
             .expect("must be valid request");
@@ -583,6 +898,9 @@ impl Backend {
         // Set content length.
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
         // Set body
         let mut req = req
             .body(hyper::body::Body::wrap_stream(ReaderStream::new(r)))
@@ -603,7 +921,12 @@ impl Backend {
 
     #[trace("head_object")]
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let mut req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
+        let mut req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, false);
+
+        let mut req = req
             .body(hyper::Body::empty())
             .expect("must be valid request");
 

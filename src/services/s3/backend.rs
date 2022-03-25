@@ -169,7 +169,7 @@ impl Builder {
 
         if let Some(region) = &self.region {
             return if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint) {
-                let endpoint = template.replace("{region}", &region);
+                let endpoint = template.replace("{region}", region);
                 Ok((endpoint, region.to_string()))
             } else {
                 Ok((endpoint.to_string(), region.to_string()))

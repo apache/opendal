@@ -59,6 +59,7 @@ use crate::Accessor;
 use crate::BoxedAsyncReader;
 use crate::ObjectMode;
 
+/// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     let mut m = HashMap::new();
     // AWS S3 Service.
@@ -87,6 +88,9 @@ pub struct Builder {
 }
 
 impl Builder {
+    /// Set root of this backend.
+    ///
+    /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
             None
@@ -97,24 +101,31 @@ impl Builder {
         self
     }
 
+    /// Set bucket name of this backend.
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.bucket = bucket.to_string();
 
         self
     }
 
+    /// Set credential of this backend.
     pub fn credential(&mut self, credential: Credential) -> &mut Self {
         self.credential = Some(credential);
 
         self
     }
 
-    /// endpoint must be full uri, e.g.
-    /// - <https://s3.amazonaws.com>
-    /// - <http://127.0.0.1:3000>
+    /// Set endpoint of this backend.
     ///
-    /// If user inputs endpoint like "s3.amazonaws.com", we will prepend
-    /// "https://" before it.
+    /// Endpoint must be full uri, e.g.
+    ///
+    /// - AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com`
+    /// - Aliyun OSS: `https://{region}.aliyuncs.com`
+    /// - Tencent COS: `https://cos.{region}.myqcloud.com`
+    /// - Minio: `http://127.0.0.1:9000`
+    ///
+    /// If user inputs endpoint without scheme like "s3.amazonaws.com", we
+    /// will prepend "https://" before it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
             None
@@ -125,10 +136,12 @@ impl Builder {
         self
     }
 
-    /// region represent the region of this endpoint.
+    /// Region represent the signing region of this endpoint.
     ///
-    /// If region is not filled, we will try to detect region via
-    /// RFC-0057: Auto Region
+    /// - If region is set, we will take user's input first.
+    /// - If not, We will try to detect region via [RFC-0057: Auto Region](https://github.com/datafuselabs/opendal/blob/main/docs/rfcs/0057-auto-region.md).
+    ///
+    /// Most of time, region is not need to be set, especially for AWS S3 and minio.
     pub fn region(&mut self, region: &str) -> &mut Self {
         self.region = if region.is_empty() {
             None
@@ -146,12 +159,21 @@ impl Builder {
             hyper_tls::HttpsConnector<hyper::client::HttpConnector>,
             hyper::Body,
         >,
-        endpoint: &str,
         bucket: &str,
         context: &HashMap<String, String>,
     ) -> Result<(String, String)> {
+        let endpoint = match &self.endpoint {
+            Some(endpoint) => endpoint,
+            None => "https://s3.amazonaws.com",
+        };
+
         if let Some(region) = &self.region {
-            return Ok((endpoint.to_string(), region.to_string()));
+            return if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint) {
+                let endpoint = template.replace("{region}", region);
+                Ok((endpoint, region.to_string()))
+            } else {
+                Ok((endpoint.to_string(), region.to_string()))
+            };
         }
 
         let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
@@ -265,14 +287,7 @@ impl Builder {
 
         let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
-        let endpoint = match &self.endpoint {
-            Some(endpoint) => endpoint,
-            None => "https://s3.amazonaws.com",
-        };
-
-        let (endpoint, region) = self
-            .detect_region(&client, endpoint, bucket, &context)
-            .await?;
+        let (endpoint, region) = self.detect_region(&client, bucket, &context).await?;
         context.insert("endpoint".to_string(), endpoint.clone());
         context.insert("region".to_string(), region.clone());
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
@@ -699,5 +714,56 @@ async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str
             part,
             String::from_utf8_lossy(&bs)
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_detect_region() {
+        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+
+        // endpoint = `https://s3.amazonaws.com`, region = None
+        let b = Builder::default();
+        let (endpoint, region) = b
+            .detect_region(&client, "test", &HashMap::new())
+            .await
+            .expect("detect region must success");
+        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
+        assert_eq!(region, "us-east-2");
+
+        // endpoint = `https://s3.amazonaws.com`, region = `us-east-2`
+        let mut b = Builder::default();
+        b.region("us-east-2");
+        let (endpoint, region) = b
+            .detect_region(&client, "test", &HashMap::new())
+            .await
+            .expect("detect region must success");
+        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
+        assert_eq!(region, "us-east-2");
+
+        // endpoint = `https://s3.amazonaws.com`, region = `us-east-2`
+        let mut b = Builder::default();
+        b.endpoint("https://s3.amazonaws.com");
+        b.region("us-east-2");
+        let (endpoint, region) = b
+            .detect_region(&client, "test", &HashMap::new())
+            .await
+            .expect("detect region must success");
+        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
+        assert_eq!(region, "us-east-2");
+
+        // endpoint = `https://s3.us-east-2.amazonaws.com`, region = `us-east-2`
+        let mut b = Builder::default();
+        b.endpoint("https://s3.us-east-2.amazonaws.com");
+        b.region("us-east-2");
+        let (endpoint, region) = b
+            .detect_region(&client, "test", &HashMap::new())
+            .await
+            .expect("detect region must success");
+        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
+        assert_eq!(region, "us-east-2");
     }
 }

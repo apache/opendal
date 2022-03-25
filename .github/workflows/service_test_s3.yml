@@ -27,6 +27,29 @@ jobs:
           OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
           OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
 
+  aws_s3_with_sse_c:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Test
+        shell: bash
+        run: cargo test s3 -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
+          OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
+          OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
+          OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
+          OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
+          OPENDAL_S3_SERVER_SIDE_ENCRYPTION: AES256
+          OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: AES256
+          OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==
+          OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5: W4VVTaFgayWC6+k4pF3TvQ==
+
   minio_s3:
     runs-on: ubuntu-latest
 

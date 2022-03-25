@@ -43,6 +43,8 @@ thiserror = "1"
 time = "0.3.7"
 tokio = { version = "1.17", features = ["full"] }
 tower = "0.4"
+base64="0.13.0"
+md5 = "0.7.0"
 
 [dev-dependencies]
 anyhow = "1.0"

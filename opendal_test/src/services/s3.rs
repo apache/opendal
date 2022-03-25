@@ -45,6 +45,19 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
         &env::var("OPENDAL_S3_ACCESS_KEY_ID").unwrap_or_default(),
         &env::var("OPENDAL_S3_SECRET_ACCESS_KEY").unwrap_or_default(),
     ));
-
+    builder
+        .server_side_encryption(&env::var("OPENDAL_S3_SERVER_SIDE_ENCRYPTION").unwrap_or_default());
+    builder.server_side_encryption_customer_algorithm(
+        &env::var("OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM").unwrap_or_default(),
+    );
+    builder.server_side_encryption_customer_key(
+        &env::var("OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY").unwrap_or_default(),
+    );
+    builder.server_side_encryption_customer_key_md5(
+        &env::var("OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5").unwrap_or_default(),
+    );
+    builder.server_side_encryption_aws_kms_key_id(
+        &env::var("OPENDAL_S3_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID").unwrap_or_default(),
+    );
     Ok(Some(builder.finish().await?))
 }

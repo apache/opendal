@@ -34,6 +34,7 @@ use log::error;
 use log::info;
 use log::warn;
 use metrics::increment_counter;
+use minitrace::trace;
 use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
@@ -42,11 +43,9 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
-use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
@@ -230,19 +229,20 @@ impl Backend {
 }
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         increment_counter!("opendal_azure_read_requests");
 
         let p = self.get_abs_path(&args.path);
-        info!(
+        debug!(
             "object {} read start: offset {:?}, size {:?}",
             &p, args.offset, args.size
         );
 
-        let resp = self.get_object(&p, args.offset, args.size).await?;
+        let resp = self.get_blob(&p, args.offset, args.size).await?;
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                info!(
+                debug!(
                     "object {} reader created: offset {:?}, size {:?}",
                     &p, args.offset, args.size
                 );
@@ -252,25 +252,27 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "read", &p).await),
         }
     }
+    #[trace("write")]
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
-        info!("object {} write start: size {}", &p, args.size);
+        debug!("object {} write start: size {}", &p, args.size);
 
-        let resp = self.put_object(&p, r, args.size).await?;
+        let resp = self.put_blob(&p, r, args.size).await?;
 
         match resp.status() {
             http::StatusCode::CREATED | http::StatusCode::OK => {
-                info!("object {} write finished: size {:?}", &p, args.size);
+                debug!("object {} write finished: size {:?}", &p, args.size);
                 Ok(args.size as usize)
             }
             _ => Err(parse_error_response(resp, "write", &p).await),
         }
     }
+    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_azure_stat_requests");
 
         let p = self.get_abs_path(&args.path);
-        info!("object {} stat start", &p);
+        debug!("object {} stat start", &p);
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
@@ -280,11 +282,11 @@ impl Accessor for Backend {
             m.set_mode(ObjectMode::DIR);
             m.set_complete();
 
-            info!("backed root object stat finished");
+            debug!("backed root object stat finished");
             return Ok(m);
         }
 
-        let resp = self.head_object(&p).await?;
+        let resp = self.get_blob_properties(&p).await?;
         match resp.status() {
             http::StatusCode::OK => {
                 let mut m = Metadata::default();
@@ -321,7 +323,7 @@ impl Accessor for Backend {
 
                 m.set_complete();
 
-                info!("object {} stat finished: {:?}", &p, m);
+                debug!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
@@ -331,36 +333,33 @@ impl Accessor for Backend {
                 m.set_mode(ObjectMode::DIR);
                 m.set_complete();
 
-                info!("object {} stat finished", &p);
+                debug!("object {} stat finished", &p);
                 Ok(m)
             }
             _ => Err(parse_error_response(resp, "stat", &p).await),
         }
     }
+    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_azure_delete_requests");
 
         let p = self.get_abs_path(&args.path);
-        info!("object {} delete start", &p);
+        debug!("object {} delete start", &p);
 
-        let resp = self.delete_object(&p).await?;
+        let resp = self.delete_blob(&p).await?;
         match resp.status() {
             StatusCode::NO_CONTENT => {
-                info!("object {} delete finished", &p);
+                debug!("object {} delete finished", &p);
                 Ok(())
             }
             _ => Err(parse_error_response(resp, "delete", &p).await),
         }
     }
-    #[warn(dead_code)]
-    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
-        let _ = args;
-        unimplemented!()
-    }
 }
 
 impl Backend {
-    pub(crate) async fn get_object(
+    #[trace("get_blob")]
+    pub(crate) async fn get_blob(
         &self,
         path: &str,
         offset: Option<u64>,
@@ -394,7 +393,8 @@ impl Backend {
             }
         })
     }
-    pub(crate) async fn put_object(
+    #[trace("put_blob")]
+    pub(crate) async fn put_blob(
         &self,
         path: &str,
         r: BoxedAsyncReader,
@@ -427,8 +427,11 @@ impl Backend {
         })
     }
 
-    #[warn(dead_code)]
-    pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+    #[trace("get_blob_properties")]
+    pub(crate) async fn get_blob_properties(
+        &self,
+        path: &str,
+    ) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::head(&format!(
             "https://{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
@@ -450,7 +453,8 @@ impl Backend {
         })
     }
 
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+    #[trace("delete_blob")]
+    pub(crate) async fn delete_blob(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::delete(&format!(
             "https://{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
@@ -471,16 +475,6 @@ impl Backend {
                 source: anyhow::Error::from(e),
             }
         })
-    }
-    #[allow(dead_code)]
-    pub(crate) async fn list_object(
-        &self,
-        path: &str,
-        continuation_token: &str,
-    ) -> Result<hyper::Response<hyper::Body>> {
-        let _ = path;
-        let _ = continuation_token;
-        unimplemented!()
     }
 }
 struct ByteStream(hyper::Response<hyper::Body>);

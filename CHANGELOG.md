@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.3.0] - 2022-03-25
+
+### Added
+
+- feat: Add azure blob support (#165)
+- feat: Add tracing support via minitrace (#175)
+- feat(service/s3): Implement server side encryption support (#182)
+
+### Changed
+
+- chore: Level down some log entry to debug (#181)
+
+### Fixed
+
+- fix(service/s3): Endpoint template should be applied if region exists (#180)
+
 ## [v0.2.5] - 2022-03-22
 
 ### Added
@@ -181,6 +197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.3.0]: https://github.com/datafuselabs/opendal/compare/v0.2.5...v0.3.0
 [v0.2.5]: https://github.com/datafuselabs/opendal/compare/v0.2.4...v0.2.5
 [v0.2.4]: https://github.com/datafuselabs/opendal/compare/v0.2.3...v0.2.4
 [v0.2.3]: https://github.com/datafuselabs/opendal/compare/v0.2.2...v0.2.3

@@ -18,6 +18,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::error::Result;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -35,6 +36,11 @@ use crate::Metadata;
 /// use [`Operator`][crate::Operator] instead.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
+    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
+        let _ = args;
+        unimplemented!()
+    }
+
     /// Read data from the underlying storage into input writer.
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let _ = args;
@@ -78,6 +84,9 @@ pub trait Accessor: Send + Sync + Debug {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
+    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
+        self.as_ref().create(args).await
+    }
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         self.as_ref().read(args).await
     }

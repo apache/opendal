@@ -14,6 +14,14 @@
 
 //! Operations used by [`Accessor`][crate::Accessor]
 
+use crate::ObjectMode;
+
+#[derive(Debug, Clone, Default)]
+pub struct OpCreate {
+    pub path: String,
+    pub mode: ObjectMode,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     pub path: String,

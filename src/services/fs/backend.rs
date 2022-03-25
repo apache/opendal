@@ -39,11 +39,11 @@ use crate::error::Result;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
-use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{OpCreate, OpDelete};
 use crate::Accessor;
 use crate::BoxedAsyncReader;
 
@@ -127,6 +127,58 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace(create)]
+    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
+        increment_counter!("opendal_fs_create_requests");
+
+        let path = self.get_abs_path(&args.path);
+        let meta = fs::metadata(&path).await;
+        match meta {
+            Ok(meta) => {
+                if meta.is_dir() && args.mode.is_dir() {
+                    let mut m = Metadata::default();
+                    m.set_path(&args.path);
+                    m.set_mode(ObjectMode::DIR);
+                    m.set_content_length(0);
+                    m.set_last_modified(
+                        meta.modified()
+                            .map_err(|e| parse_io_error(e, "create", &path))?,
+                    );
+                    m.set_complete();
+                } else if meta.is_file() && args.mode.is_file() {
+                    m.set_path(&args.path);
+                    m.set_mode(ObjectMode::FILE);
+                    m.set_content_length(meta.len());
+                    m.set_last_modified(
+                        meta.modified()
+                            .map_err(|e| parse_io_error(e, "create", &path))?,
+                    );
+                    m.set_complete();
+                } else {
+                    return Err(Error::Object {
+                        kind: Kind::ObjectModeUnknown,
+                        op: "create",
+                        path,
+                        source: anyhow!("object exist, but mode is unknown"),
+                    });
+                }
+            }
+            Err(e) => {
+                if e.kind() == io::ErrorKind::NotFound {
+                } else {
+                    return Err(Error::Object {
+                        kind: Kind::Unexpected,
+                        op: "create",
+                        path,
+                        source: anyhow::Error::from(e),
+                    });
+                }
+            }
+        }
+
+        todo!()
+    }
+
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         increment_counter!("opendal_fs_read_requests");

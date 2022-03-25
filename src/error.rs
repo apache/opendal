@@ -65,6 +65,12 @@ pub enum Kind {
     ObjectNotExist,
     #[error("object permission denied")]
     ObjectPermissionDenied,
+    #[error("object mode not file")]
+    ObjectModeNotFile,
+    #[error("object mode not dir")]
+    ObjectModeNotDir,
+    #[error("object mode unknown")]
+    ObjectModeUnknown,
 
     #[error("unexpected")]
     Unexpected,

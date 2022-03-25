@@ -26,9 +26,9 @@ use futures::ready;
 
 use crate::error::Kind;
 use crate::error::Result;
-use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpStat;
+use crate::ops::{OpCreate, OpDelete};
 use crate::Accessor;
 use crate::Reader;
 use crate::Writer;
@@ -50,6 +50,24 @@ impl Object {
                 ..Default::default()
             },
         }
+    }
+
+    pub async fn create_dir(&self) -> Result<Metadata> {
+        let op = &OpCreate {
+            path: self.meta.path().to_string(),
+            mode: ObjectMode::DIR,
+        };
+
+        self.acc.create(op).await
+    }
+
+    pub async fn create_file(&self) -> Result<Metadata> {
+        let op = &OpCreate {
+            path: self.meta.path().to_string(),
+            mode: ObjectMode::FILE,
+        };
+
+        self.acc.create(op).await
     }
 
     /// Create a new reader which can read the whole object.
@@ -413,6 +431,16 @@ pub enum ObjectMode {
     DIR,
     /// Unknown means we don't know what we can do on thi object.
     Unknown,
+}
+
+impl ObjectMode {
+    pub fn is_file(&self) -> bool {
+        self == ObjectMode::FILE
+    }
+
+    pub fn is_dir(&self) -> bool {
+        self == ObjectMode::DIR
+    }
 }
 
 impl Default for ObjectMode {

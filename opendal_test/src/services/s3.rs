@@ -34,11 +34,11 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
         return Ok(None);
     }
 
-    let root =
-        &env::var("OPENDAL_S3_ROOT").unwrap_or_else(|_| format!("/{}", uuid::Uuid::new_v4()));
+    let root = &env::var("OPENDAL_S3_ROOT").unwrap_or_else(|_| "/".to_string());
+    let root = format!("/{}/{}", root, uuid::Uuid::new_v4());
 
     let mut builder = s3::Backend::build();
-    builder.root(root);
+    builder.root(&root);
     builder.bucket(&env::var("OPENDAL_S3_BUCKET").expect("OPENDAL_S3_BUCKET must set"));
     builder.endpoint(&env::var("OPENDAL_S3_ENDPOINT").unwrap_or_default());
     builder.credential(Credential::hmac(

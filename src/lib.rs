@@ -64,6 +64,12 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Supported Services
+//!
+//! - [fs][crate::services::fs]: POSIX alike file system.
+//! - [memory][crate::services::memory]: In memory backend support.
+//! - [s3][crate::services::s3]: AWS services like S3.
 extern crate core;
 
 mod accessor;

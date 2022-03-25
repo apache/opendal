@@ -159,10 +159,14 @@ impl Builder {
             hyper_tls::HttpsConnector<hyper::client::HttpConnector>,
             hyper::Body,
         >,
-        endpoint: &str,
         bucket: &str,
         context: &HashMap<String, String>,
     ) -> Result<(String, String)> {
+        let endpoint = match &self.endpoint {
+            Some(endpoint) => endpoint,
+            None => "https://s3.amazonaws.com",
+        };
+
         if let Some(region) = &self.region {
             return if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint) {
                 let endpoint = template.replace("{region}", &region);
@@ -283,14 +287,7 @@ impl Builder {
 
         let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
-        let endpoint = match &self.endpoint {
-            Some(endpoint) => endpoint,
-            None => "https://s3.amazonaws.com",
-        };
-
-        let (endpoint, region) = self
-            .detect_region(&client, endpoint, bucket, &context)
-            .await?;
+        let (endpoint, region) = self.detect_region(&client, bucket, &context).await?;
         context.insert("endpoint".to_string(), endpoint.clone());
         context.insert("region".to_string(), region.clone());
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
@@ -731,17 +728,39 @@ mod tests {
         // endpoint = `https://s3.amazonaws.com`, region = None
         let b = Builder::default();
         let (endpoint, region) = b
-            .detect_region(&client, "https://s3.amazonaws.com", "test", &HashMap::new())
+            .detect_region(&client, "test", &HashMap::new())
             .await
             .expect("detect region must success");
         assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
         assert_eq!(region, "us-east-2");
 
-        // endpoint = `https://s3.amazonaws.com`, region = "us-east-2"
+        // endpoint = `https://s3.amazonaws.com`, region = `us-east-2`
         let mut b = Builder::default();
         b.region("us-east-2");
         let (endpoint, region) = b
-            .detect_region(&client, "https://s3.amazonaws.com", "test", &HashMap::new())
+            .detect_region(&client, "test", &HashMap::new())
+            .await
+            .expect("detect region must success");
+        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
+        assert_eq!(region, "us-east-2");
+
+        // endpoint = `https://s3.amazonaws.com`, region = `us-east-2`
+        let mut b = Builder::default();
+        b.endpoint("https://s3.amazonaws.com");
+        b.region("us-east-2");
+        let (endpoint, region) = b
+            .detect_region(&client, "test", &HashMap::new())
+            .await
+            .expect("detect region must success");
+        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
+        assert_eq!(region, "us-east-2");
+
+        // endpoint = `https://s3.us-east-2.amazonaws.com`, region = `us-east-2`
+        let mut b = Builder::default();
+        b.endpoint("https://s3.us-east-2.amazonaws.com");
+        b.region("us-east-2");
+        let (endpoint, region) = b
+            .detect_region(&client, "test", &HashMap::new())
             .await
             .expect("detect region must success");
         assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");

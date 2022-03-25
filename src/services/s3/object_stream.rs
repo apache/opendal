@@ -75,7 +75,7 @@ impl futures::Stream for S3ObjectStream {
                 let path = self.path.clone();
                 let token = self.token.clone();
                 let fut = async move {
-                    let mut resp = backend.list_object(&path, &token).await?;
+                    let mut resp = backend.list_objects(&path, &token).await?;
 
                     if resp.status() != http::StatusCode::OK {
                         let e = Err(Error::Object {

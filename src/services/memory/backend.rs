@@ -24,6 +24,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::io;
 use futures::TryStreamExt;
+use minitrace::trace;
 
 use crate::error::Error;
 use crate::error::Kind;
@@ -79,6 +80,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
         let path = Backend::normalize_path(&args.path);
 
@@ -119,6 +121,7 @@ impl Accessor for Backend {
         let r: BoxedAsyncReader = Box::new(BytesStream(data).into_async_read());
         Ok(r)
     }
+    #[trace("write")]
     async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let path = Backend::normalize_path(&args.path);
 
@@ -146,6 +149,7 @@ impl Accessor for Backend {
 
         Ok(n as usize)
     }
+    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = Backend::normalize_path(&args.path);
 
@@ -176,6 +180,7 @@ impl Accessor for Backend {
 
         Ok(meta)
     }
+    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = Backend::normalize_path(&args.path);
 
@@ -184,6 +189,7 @@ impl Accessor for Backend {
 
         Ok(())
     }
+    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         let path = Backend::normalize_path(&args.path);
 

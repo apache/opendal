@@ -35,7 +35,7 @@ use log::error;
 use log::info;
 use log::warn;
 use metrics::increment_counter;
-use minitrace::prelude::*;
+use minitrace::trace;
 use once_cell::sync::Lazy;
 use reqsign::services::aws::v4::Signer;
 use time::format_description::well_known::Rfc2822;
@@ -400,7 +400,7 @@ impl Accessor for Backend {
         increment_counter!("opendal_s3_read_requests");
 
         let p = self.get_abs_path(&args.path);
-        info!(
+        debug!(
             "object {} read start: offset {:?}, size {:?}",
             &p, args.offset, args.size
         );
@@ -409,7 +409,7 @@ impl Accessor for Backend {
 
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                info!(
+                debug!(
                     "object {} reader created: offset {:?}, size {:?}",
                     &p, args.offset, args.size
                 );
@@ -422,12 +422,12 @@ impl Accessor for Backend {
     #[trace("write")]
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
-        info!("object {} write start: size {}", &p, args.size);
+        debug!("object {} write start: size {}", &p, args.size);
 
         let resp = self.put_object(&p, r, args.size).await?;
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
-                info!("object {} write finished: size {:?}", &p, args.size);
+                debug!("object {} write finished: size {:?}", &p, args.size);
                 Ok(args.size as usize)
             }
             _ => Err(parse_error_response(resp, "write", &p).await),
@@ -438,7 +438,7 @@ impl Accessor for Backend {
         increment_counter!("opendal_s3_stat_requests");
 
         let p = self.get_abs_path(&args.path);
-        info!("object {} stat start", &p);
+        debug!("object {} stat start", &p);
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
@@ -448,7 +448,7 @@ impl Accessor for Backend {
             m.set_mode(ObjectMode::DIR);
             m.set_complete();
 
-            info!("backed root object stat finished");
+            debug!("backed root object stat finished");
             return Ok(m);
         }
 
@@ -490,7 +490,7 @@ impl Accessor for Backend {
 
                 m.set_complete();
 
-                info!("object {} stat finished: {:?}", &p, m);
+                debug!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
@@ -500,7 +500,7 @@ impl Accessor for Backend {
                 m.set_mode(ObjectMode::DIR);
                 m.set_complete();
 
-                info!("object {} stat finished", &p);
+                debug!("object {} stat finished", &p);
                 Ok(m)
             }
             _ => Err(parse_error_response(resp, "stat", &p).await),
@@ -511,13 +511,13 @@ impl Accessor for Backend {
         increment_counter!("opendal_s3_delete_requests");
 
         let p = self.get_abs_path(&args.path);
-        info!("object {} delete start", &p);
+        debug!("object {} delete start", &p);
 
         let resp = self.delete_object(&p).await?;
 
         match resp.status() {
             StatusCode::NO_CONTENT => {
-                info!("object {} delete finished", &p);
+                debug!("object {} delete finished", &p);
                 Ok(())
             }
             _ => Err(parse_error_response(resp, "delete", &p).await),
@@ -532,13 +532,14 @@ impl Accessor for Backend {
         if !path.ends_with('/') && !path.is_empty() {
             path.push('/')
         }
-        info!("object {} list start", &path);
+        debug!("object {} list start", &path);
 
         Ok(Box::new(S3ObjectStream::new(self.clone(), path)))
     }
 }
 
 impl Backend {
+    #[trace("get_object")]
     pub(crate) async fn get_object(
         &self,
         path: &str,
@@ -570,6 +571,7 @@ impl Backend {
         })
     }
 
+    #[trace("put_object")]
     pub(crate) async fn put_object(
         &self,
         path: &str,
@@ -599,6 +601,7 @@ impl Backend {
         })
     }
 
+    #[trace("head_object")]
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let mut req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
             .body(hyper::Body::empty())
@@ -617,6 +620,7 @@ impl Backend {
         })
     }
 
+    #[trace("delete_object")]
     pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let mut req =
             hyper::Request::delete(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
@@ -636,7 +640,8 @@ impl Backend {
         })
     }
 
-    pub(crate) async fn list_object(
+    #[trace("list_objects")]
+    pub(crate) async fn list_objects(
         &self,
         path: &str,
         continuation_token: &str,

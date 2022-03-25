@@ -24,6 +24,7 @@ pub enum Scheme {
     // TODO: Although we don't have azblob support for now, but we need to add it for compatibility. We will implement azblob support as soon as possible.
     Azblob,
     Fs,
+    Memory,
     S3,
 }
 
@@ -35,6 +36,7 @@ impl FromStr for Scheme {
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
             "fs" => Ok(Scheme::Fs),
+            "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
 
             // TODO: it's used for compatibility with dal1, should be removed in the future

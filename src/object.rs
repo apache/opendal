@@ -26,9 +26,10 @@ use futures::ready;
 
 use crate::error::Kind;
 use crate::error::Result;
-use crate::ops::OpDelete;
+use crate::io::BytesStream;
 use crate::ops::OpList;
 use crate::ops::OpStat;
+use crate::ops::{OpDelete, OpRead};
 use crate::Accessor;
 use crate::Reader;
 use crate::Writer;
@@ -50,6 +51,16 @@ impl Object {
                 ..Default::default()
             },
         }
+    }
+
+    pub async fn stream(&self, offset: Option<u64>, size: Option<u64>) -> Result<BytesStream> {
+        self.acc
+            .read2(&OpRead {
+                path: self.meta.path().to_string(),
+                offset,
+                size,
+            })
+            .await
     }
 
     /// Create a new reader which can read the whole object.

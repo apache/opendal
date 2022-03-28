@@ -48,6 +48,7 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
@@ -730,6 +731,39 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "read", &p).await),
         }
     }
+
+    #[trace("read")]
+    async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
+        increment_counter!("opendal_s3_read_requests");
+
+        let p = self.get_abs_path(&args.path);
+        debug!(
+            "object {} read start: offset {:?}, size {:?}",
+            &p, args.offset, args.size
+        );
+
+        let resp = self.get_object(&p, args.offset, args.size).await?;
+
+        match resp.status() {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                debug!(
+                    "object {} reader created: offset {:?}, size {:?}",
+                    &p, args.offset, args.size
+                );
+
+                Ok(Box::new(resp.into_body().into_stream().map_err(move |e| {
+                    Error::Object {
+                        kind: Kind::Unexpected,
+                        op: "read",
+                        path: p.to_string(),
+                        source: anyhow::Error::from(e),
+                    }
+                })))
+            }
+            _ => Err(parse_error_response(resp, "read", &p).await),
+        }
+    }
+
     #[trace("write")]
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);

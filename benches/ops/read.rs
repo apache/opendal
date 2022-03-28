@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use criterion::Criterion;
-use futures::AsyncReadExt;
+use futures::{io, AsyncReadExt, AsyncWriteExt, StreamExt};
 use opendal::Operator;
 use rand::prelude::*;
 use size::Base;
@@ -49,18 +49,26 @@ fn bench_read_full(c: &mut Criterion, op: Operator) {
     ] {
         let content = gen_bytes(&mut rng, size.bytes() as usize);
         let path = uuid::Uuid::new_v4().to_string();
-        let buf = vec![0; size.bytes() as usize];
         let temp_data = TempData::generate(op.clone(), &path, content.clone());
 
         group.throughput(criterion::Throughput::Bytes(size.bytes()));
         group.bench_with_input(
             size.to_string(Base::Base2, Style::Abbreviated),
-            &(op.clone(), &path, buf.clone()),
-            |b, (op, path, buf)| {
+            &(op.clone(), &path),
+            |b, (op, path)| {
                 b.to_async(&*TOKIO).iter(|| async {
-                    let mut buf = buf.clone();
-                    let mut r = op.object(path).limited_reader(size.bytes());
-                    r.read_exact(&mut buf).await.unwrap();
+                    // let mut r = op.object(path).limited_reader(size.bytes());
+                    // io::copy(r, &mut io::sink()).await.unwrap();
+
+                    let mut s = op
+                        .object(path)
+                        .stream(None, Some(size.bytes()))
+                        .await
+                        .unwrap();
+                    let mut w = io::sink();
+                    while let Some(Ok(v)) = s.next().await {
+                        w.write_all(&v).await.unwrap();
+                    }
                 })
             },
         );

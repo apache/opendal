@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bytes::Bytes;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
@@ -21,9 +22,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
+use futures::{ready, Stream};
 
 use crate::error::Result;
 use crate::ops::OpRead;
@@ -34,6 +35,8 @@ use crate::Metadata;
 
 /// BoxedAsyncReader is a boxed AsyncRead.
 pub type BoxedAsyncReader = Box<dyn AsyncRead + Unpin + Send>;
+/// BytesStream represents a stream of bytes.
+pub type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Unpin + Send>;
 
 /// Reader is used for reading data from underlying backend.
 ///

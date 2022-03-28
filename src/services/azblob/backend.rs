@@ -14,11 +14,8 @@
 
 use std::cmp::min;
 use std::collections::HashMap;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -230,29 +227,6 @@ impl Backend {
 }
 #[async_trait]
 impl Accessor for Backend {
-    #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
-        increment_counter!("opendal_azure_read_requests");
-
-        let p = self.get_abs_path(&args.path);
-        debug!(
-            "object {} read start: offset {:?}, size {:?}",
-            &p, args.offset, args.size
-        );
-
-        let resp = self.get_blob(&p, args.offset, args.size).await?;
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                debug!(
-                    "object {} reader created: offset {:?}, size {:?}",
-                    &p, args.offset, args.size
-                );
-
-                Ok(Box::new(ByteStream(resp).into_async_read()))
-            }
-            _ => Err(parse_error_response(resp, "read", &p).await),
-        }
-    }
     #[trace("read")]
     async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
         increment_counter!("opendal_azure_read_requests");
@@ -506,17 +480,6 @@ impl Backend {
                 source: anyhow::Error::from(e),
             }
         })
-    }
-}
-struct ByteStream(hyper::Response<hyper::Body>);
-
-impl futures::Stream for ByteStream {
-    type Item = std::io::Result<bytes::Bytes>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(self.0.body_mut())
-            .poll_next(cx)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
     }
 }
 

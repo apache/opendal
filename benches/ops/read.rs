@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use criterion::Criterion;
-use futures::{io, AsyncReadExt, AsyncWriteExt, StreamExt};
+use futures::io;
+use futures::AsyncReadExt;
+use futures::AsyncWriteExt;
+use futures::StreamExt;
 use opendal::Operator;
 use rand::prelude::*;
 use size::Base;

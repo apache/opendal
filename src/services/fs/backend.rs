@@ -20,10 +20,11 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
+use futures::io;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
-use futures::{io, TryStreamExt};
+use futures::TryStreamExt;
 use log::debug;
 use log::error;
 use log::info;
@@ -129,48 +130,6 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
-        increment_counter!("opendal_fs_read_requests");
-
-        let path = self.get_abs_path(&args.path);
-        debug!(
-            "object {} read start: offset {:?}, size {:?}",
-            &path, args.offset, args.size
-        );
-
-        let f = fs::OpenOptions::new()
-            .read(true)
-            .open(&path)
-            .await
-            .map_err(|e| {
-                let e = parse_io_error(e, "read", &path);
-                error!("object {} open: {:?}", &path, e);
-                e
-            })?;
-
-        let mut f = Compat::new(f);
-
-        if let Some(offset) = args.offset {
-            f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
-                let e = parse_io_error(e, "read", &path);
-                error!("object {} seek: {:?}", &path, e);
-                e
-            })?;
-        };
-
-        let r: BoxedAsyncReader = match args.size {
-            Some(size) => Box::new(f.take(size)),
-            None => Box::new(f),
-        };
-
-        debug!(
-            "object {} reader created: offset {:?}, size {:?}",
-            &path, args.offset, args.size
-        );
-        Ok(r)
-    }
-
     #[trace("read")]
     async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
         increment_counter!("opendal_fs_read_requests");

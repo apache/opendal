@@ -22,8 +22,8 @@ use std::task::Poll;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::TryStreamExt;
-use futures::{io, stream};
+use futures::io;
+use futures::stream;
 use minitrace::trace;
 
 use crate::error::Error;
@@ -81,48 +81,6 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
-        let path = Backend::normalize_path(&args.path);
-
-        let map = self.inner.lock().expect("lock poisoned");
-
-        let data = map.get(&path).ok_or_else(|| Error::Object {
-            kind: Kind::ObjectNotExist,
-            op: "read",
-            path: path.to_string(),
-            source: anyhow!("key not exists in map"),
-        })?;
-
-        let mut data = data.clone();
-        if let Some(offset) = args.offset {
-            if offset >= data.len() as u64 {
-                return Err(Error::Object {
-                    kind: Kind::Unexpected,
-                    op: "read",
-                    path: path.to_string(),
-                    source: anyhow!("offset out of bound {} >= {}", offset, data.len()),
-                });
-            }
-            data = data.slice(offset as usize..data.len());
-        };
-
-        if let Some(size) = args.size {
-            if size > data.len() as u64 {
-                return Err(Error::Object {
-                    kind: Kind::Unexpected,
-                    op: "read",
-                    path: path.to_string(),
-                    source: anyhow!("size out of bound {} > {}", size, data.len()),
-                });
-            }
-            data = data.slice(0..size as usize);
-        };
-
-        let r: BoxedAsyncReader = Box::new(BytesStreamInner(data).into_async_read());
-        Ok(r)
-    }
-
     #[trace("read")]
     async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
         let path = Backend::normalize_path(&args.path);
@@ -250,25 +208,6 @@ impl Accessor for Backend {
             paths,
             idx: 0,
         }))
-    }
-}
-
-struct BytesStreamInner(Bytes);
-
-impl futures::Stream for BytesStreamInner {
-    type Item = std::result::Result<bytes::Bytes, std::io::Error>;
-
-    // Always poll the entire stream.
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let size = self.0.len();
-        match self.0.len() {
-            0 => Poll::Ready(None),
-            _ => Poll::Ready(Some(Ok(self.0.split_to(size)))),
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.0.len(), Some(self.0.len()))
     }
 }
 

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bytes::Bytes;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
@@ -21,10 +20,13 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Bytes;
 use futures::future::BoxFuture;
+use futures::ready;
+use futures::AsyncRead;
 use futures::AsyncSeek;
-use futures::{ready, Stream};
-use futures::{AsyncRead, TryStreamExt};
+use futures::Stream;
+use futures::TryStreamExt;
 
 use crate::error::Result;
 use crate::ops::OpRead;

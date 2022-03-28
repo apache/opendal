@@ -82,7 +82,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
         let path = Backend::normalize_path(&args.path);
 
         let map = self.inner.lock().expect("lock poisoned");

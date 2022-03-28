@@ -100,7 +100,7 @@ impl AsyncRead for Reader {
                     size: self.current_size(),
                 };
 
-                let future = async move { acc.read2(&op).await };
+                let future = async move { acc.read(&op).await };
 
                 self.state = ReadState::Sending(Box::pin(future));
                 self.poll_read(cx, buf)

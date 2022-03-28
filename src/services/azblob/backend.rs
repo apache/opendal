@@ -228,7 +228,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
         increment_counter!("opendal_azure_read_requests");
 
         let p = self.get_abs_path(&args.path);

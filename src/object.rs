@@ -56,7 +56,7 @@ impl Object {
 
     pub async fn stream(&self, offset: Option<u64>, size: Option<u64>) -> Result<BytesStream> {
         self.acc
-            .read2(&OpRead {
+            .read(&OpRead {
                 path: self.meta.path().to_string(),
                 offset,
                 size,

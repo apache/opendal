@@ -24,6 +24,7 @@ use futures::io;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
+use futures::TryStreamExt;
 use log::debug;
 use log::error;
 use log::info;
@@ -36,6 +37,7 @@ use super::object_stream::Readdir;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
@@ -44,6 +46,7 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::readers::ReaderStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
 
@@ -128,7 +131,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
         increment_counter!("opendal_fs_read_requests");
 
         let path = self.get_abs_path(&args.path);
@@ -162,11 +165,14 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
+        // TODO: we need a better way to convert a file into stream.
+        let s = ReaderStream::new(r).map_err(|e| crate::error::Error::Unexpected(anyhow!(e)));
+
         debug!(
             "object {} reader created: offset {:?}, size {:?}",
             &path, args.offset, args.size
         );
-        Ok(r)
+        Ok(Box::new(s))
     }
 
     #[trace("write")]

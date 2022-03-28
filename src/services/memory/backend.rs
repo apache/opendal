@@ -23,12 +23,13 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::io;
-use futures::TryStreamExt;
+use futures::stream;
 use minitrace::trace;
 
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -81,7 +82,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
         let path = Backend::normalize_path(&args.path);
 
         let map = self.inner.lock().expect("lock poisoned");
@@ -118,8 +119,9 @@ impl Accessor for Backend {
             data = data.slice(0..size as usize);
         };
 
-        let r: BoxedAsyncReader = Box::new(BytesStream(data).into_async_read());
-        Ok(r)
+        Ok(Box::new(Box::pin(stream::once(async {
+            Ok::<_, Error>(data)
+        }))))
     }
     #[trace("write")]
     async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
@@ -206,25 +208,6 @@ impl Accessor for Backend {
             paths,
             idx: 0,
         }))
-    }
-}
-
-struct BytesStream(Bytes);
-
-impl futures::Stream for BytesStream {
-    type Item = std::result::Result<bytes::Bytes, std::io::Error>;
-
-    // Always poll the entire stream.
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let size = self.0.len();
-        match self.0.len() {
-            0 => Poll::Ready(None),
-            _ => Poll::Ready(Some(Ok(self.0.split_to(size)))),
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.0.len(), Some(self.0.len()))
     }
 }
 

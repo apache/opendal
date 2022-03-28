@@ -25,7 +25,7 @@ async-compat = "0.2"
 async-trait = "0.1"
 base64 = "0.13.0"
 bstr = "0.2"
-bytes = "1"
+bytes = "1.1.0"
 futures = { version = "0.3", features = ["alloc"] }
 http = "0.2"
 hyper = { version = "0.14", features = ["full"] }

@@ -22,13 +22,14 @@ use std::task::Poll;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::io;
 use futures::TryStreamExt;
+use futures::{io, stream};
 use minitrace::trace;
 
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -118,8 +119,51 @@ impl Accessor for Backend {
             data = data.slice(0..size as usize);
         };
 
-        let r: BoxedAsyncReader = Box::new(BytesStream(data).into_async_read());
+        let r: BoxedAsyncReader = Box::new(BytesStreamInner(data).into_async_read());
         Ok(r)
+    }
+
+    #[trace("read")]
+    async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
+        let path = Backend::normalize_path(&args.path);
+
+        let map = self.inner.lock().expect("lock poisoned");
+
+        let data = map.get(&path).ok_or_else(|| Error::Object {
+            kind: Kind::ObjectNotExist,
+            op: "read",
+            path: path.to_string(),
+            source: anyhow!("key not exists in map"),
+        })?;
+
+        let mut data = data.clone();
+        if let Some(offset) = args.offset {
+            if offset >= data.len() as u64 {
+                return Err(Error::Object {
+                    kind: Kind::Unexpected,
+                    op: "read",
+                    path: path.to_string(),
+                    source: anyhow!("offset out of bound {} >= {}", offset, data.len()),
+                });
+            }
+            data = data.slice(offset as usize..data.len());
+        };
+
+        if let Some(size) = args.size {
+            if size > data.len() as u64 {
+                return Err(Error::Object {
+                    kind: Kind::Unexpected,
+                    op: "read",
+                    path: path.to_string(),
+                    source: anyhow!("size out of bound {} > {}", size, data.len()),
+                });
+            }
+            data = data.slice(0..size as usize);
+        };
+
+        Ok(Box::new(Box::pin(stream::once(async {
+            Ok::<_, Error>(data)
+        }))))
     }
     #[trace("write")]
     async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
@@ -209,9 +253,9 @@ impl Accessor for Backend {
     }
 }
 
-struct BytesStream(Bytes);
+struct BytesStreamInner(Bytes);
 
-impl futures::Stream for BytesStream {
+impl futures::Stream for BytesStreamInner {
     type Item = std::result::Result<bytes::Bytes, std::io::Error>;
 
     // Always poll the entire stream.

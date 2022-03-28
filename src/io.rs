@@ -22,9 +22,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use futures::future::BoxFuture;
-use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::{ready, Stream};
+use futures::{AsyncRead, TryStreamExt};
 
 use crate::error::Result;
 use crate::ops::OpRead;
@@ -56,7 +56,7 @@ pub struct Reader {
 
 enum ReadState {
     Idle,
-    Sending(BoxFuture<'static, Result<BoxedAsyncReader>>),
+    Sending(BoxFuture<'static, Result<BytesStream>>),
     Seeking(BoxFuture<'static, Result<Metadata>>),
     Reading(BoxedAsyncReader),
 }
@@ -98,14 +98,16 @@ impl AsyncRead for Reader {
                     size: self.current_size(),
                 };
 
-                let future = async move { acc.read(&op).await };
+                let future = async move { acc.read2(&op).await };
 
                 self.state = ReadState::Sending(Box::pin(future));
                 self.poll_read(cx, buf)
             }
             ReadState::Sending(future) => match ready!(Pin::new(future).poll(cx)) {
                 Ok(r) => {
-                    self.state = ReadState::Reading(r);
+                    self.state = ReadState::Reading(Box::new(
+                        r.map_err(std::io::Error::from).into_async_read(),
+                    ));
                     self.poll_read(cx, buf)
                 }
                 Err(e) => Poll::Ready(Err(io::Error::from(e))),

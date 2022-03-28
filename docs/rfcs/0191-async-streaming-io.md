@@ -1,7 +1,7 @@
 - Proposal Name: `async_streaming_io`
 - Start Date: 2022-03-28
 - RFC PR: [datafuselabs/opendal#191](https://github.com/datafuselabs/opendal/pull/191)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- Tracking Issue: [datafuselabs/opendal#190](https://github.com/datafuselabs/opendal/issues/190)
 
 # Summary
 

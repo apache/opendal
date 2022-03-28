@@ -14,13 +14,11 @@
 
 use std::cmp::min;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::mem;
-use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -48,6 +46,7 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
@@ -707,7 +706,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BoxedAsyncReader> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
         increment_counter!("opendal_s3_read_requests");
 
         let p = self.get_abs_path(&args.path);
@@ -725,11 +724,19 @@ impl Accessor for Backend {
                     &p, args.offset, args.size
                 );
 
-                Ok(Box::new(ByteStream(resp).into_async_read()))
+                Ok(Box::new(resp.into_body().into_stream().map_err(move |e| {
+                    Error::Object {
+                        kind: Kind::Unexpected,
+                        op: "read",
+                        path: p.to_string(),
+                        source: anyhow::Error::from(e),
+                    }
+                })))
             }
             _ => Err(parse_error_response(resp, "read", &p).await),
         }
     }
+
     #[trace("write")]
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let p = self.get_abs_path(&args.path);
@@ -992,18 +999,6 @@ impl Backend {
                 source: anyhow::Error::from(e),
             }
         })
-    }
-}
-
-struct ByteStream(hyper::Response<hyper::Body>);
-
-impl futures::Stream for ByteStream {
-    type Item = std::io::Result<bytes::Bytes>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(self.0.body_mut())
-            .poll_next(cx)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
     }
 }
 

@@ -20,10 +20,10 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
-use futures::io;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
+use futures::{io, TryStreamExt};
 use log::debug;
 use log::error;
 use log::info;
@@ -36,6 +36,7 @@ use super::object_stream::Readdir;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
@@ -44,6 +45,7 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::readers::ReaderStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
 
@@ -167,6 +169,51 @@ impl Accessor for Backend {
             &path, args.offset, args.size
         );
         Ok(r)
+    }
+
+    #[trace("read")]
+    async fn read2(&self, args: &OpRead) -> Result<BytesStream> {
+        increment_counter!("opendal_fs_read_requests");
+
+        let path = self.get_abs_path(&args.path);
+        debug!(
+            "object {} read start: offset {:?}, size {:?}",
+            &path, args.offset, args.size
+        );
+
+        let f = fs::OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .await
+            .map_err(|e| {
+                let e = parse_io_error(e, "read", &path);
+                error!("object {} open: {:?}", &path, e);
+                e
+            })?;
+
+        let mut f = Compat::new(f);
+
+        if let Some(offset) = args.offset {
+            f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
+                let e = parse_io_error(e, "read", &path);
+                error!("object {} seek: {:?}", &path, e);
+                e
+            })?;
+        };
+
+        let r: BoxedAsyncReader = match args.size {
+            Some(size) => Box::new(f.take(size)),
+            None => Box::new(f),
+        };
+
+        // TODO: we need a better way to convert a file into stream.
+        let s = ReaderStream::new(r).map_err(|e| crate::error::Error::Unexpected(anyhow!(e)));
+
+        debug!(
+            "object {} reader created: offset {:?}, size {:?}",
+            &path, args.offset, args.size
+        );
+        Ok(Box::new(s))
     }
 
     #[trace("write")]

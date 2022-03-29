@@ -18,7 +18,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::io::BytesStream;
+use crate::io::{BytesSink, BytesStream};
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -43,6 +43,10 @@ pub trait Accessor: Send + Sync + Debug {
     /// Write data from input reader to the underlying storage.
     async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
         let (_, _) = (r, args);
+        unimplemented!()
+    }
+    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+        let _ = args;
         unimplemented!()
     }
     /// Invoke the `stat` operation on the specified path.

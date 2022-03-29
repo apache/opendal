@@ -22,13 +22,13 @@ use std::task::Poll;
 
 use bytes::Bytes;
 use futures::future::BoxFuture;
-use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
 use futures::TryStreamExt;
+use futures::{ready, Sink};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
@@ -39,6 +39,8 @@ use crate::Metadata;
 pub type BoxedAsyncReader = Box<dyn AsyncRead + Unpin + Send>;
 /// BytesStream represents a stream of bytes.
 pub type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Unpin + Send>;
+/// BytesSink represents a sink of bytes.
+pub type BytesSink = Box<dyn Sink<Bytes, Error = Error> + Unpin + Send>;
 
 /// Reader is used for reading data from underlying backend.
 ///

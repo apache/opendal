@@ -98,6 +98,7 @@ pub use scheme::Scheme;
 
 pub mod credential;
 pub mod error;
+pub mod http;
 pub mod readers;
 
 pub mod ops;

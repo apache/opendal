@@ -35,12 +35,26 @@ pub fn new_channel() -> (Sender<Bytes>, Body) {
 
 pub struct BodySinker {
     op: OpWrite,
+    tx: Sender<Bytes>,
     fut: ResponseFuture,
     handle: fn(&OpWrite, Response<Body>) -> Result<()>,
-    tx: Sender<Bytes>,
 }
 
 impl BodySinker {
+    pub fn new(
+        op: &OpWrite,
+        tx: Sender<Bytes>,
+        fut: ResponseFuture,
+        handle: fn(&OpWrite, Response<Body>) -> Result<()>,
+    ) -> BodySinker {
+        BodySinker {
+            op: op.clone(),
+            tx,
+            fut,
+            handle,
+        }
+    }
+
     fn poll_response(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,

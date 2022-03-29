@@ -46,7 +46,8 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesStream;
+use crate::http::{new_channel, BodySinker};
+use crate::io::{BytesSink, BytesStream};
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
@@ -751,6 +752,29 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "write", &p).await),
         }
     }
+
+    #[trace("write")]
+    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+        let p = self.get_abs_path(&args.path);
+        debug!("object {} write start: size {}", &p, args.size);
+
+        let (tx, body) = new_channel();
+
+        let req = self.put_object2(&p, args.size, body).await;
+
+        let bs = BodySinker::new(args, tx, self.client.request(req), |op, resp| {
+            match resp.status() {
+                StatusCode::CREATED | StatusCode::OK => {
+                    debug!("object {} write finished: size {:?}", op.path, op.size);
+                    Ok(())
+                }
+                _ => Err(parse_error_response2(resp, "write", &op.path)),
+            }
+        });
+
+        Ok(Box::new(bs))
+    }
+
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_s3_stat_requests");
@@ -926,6 +950,29 @@ impl Backend {
         })
     }
 
+    #[trace("put_object")]
+    pub(crate) async fn put_object2(
+        &self,
+        path: &str,
+        size: u64,
+        body: hyper::Body,
+    ) -> hyper::Request<hyper::Body> {
+        let mut req = hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
+
+        // Set content length.
+        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        // Set body
+        let mut req = req.body(body).expect("must be valid request");
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        req
+    }
+
     #[trace("head_object")]
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let mut req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
@@ -999,6 +1046,23 @@ impl Backend {
                 source: anyhow::Error::from(e),
             }
         })
+    }
+}
+
+// Read and decode whole error response.
+fn parse_error_response2(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+    let (part, _) = resp.into_parts();
+    let kind = match part.status {
+        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
+        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
+        _ => Kind::Unexpected,
+    };
+
+    Error::Object {
+        kind,
+        op,
+        path: path.to_string(),
+        source: anyhow!("response part: {:?}", part),
     }
 }
 

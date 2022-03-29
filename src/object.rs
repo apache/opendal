@@ -26,11 +26,11 @@ use futures::ready;
 
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesStream;
-use crate::ops::OpDelete;
+use crate::io::{BytesSink, BytesStream};
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
+use crate::ops::{OpDelete, OpWrite};
 use crate::Accessor;
 use crate::Reader;
 use crate::Writer;
@@ -59,6 +59,15 @@ impl Object {
             .read(&OpRead {
                 path: self.meta.path().to_string(),
                 offset,
+                size,
+            })
+            .await
+    }
+
+    pub async fn sink(&self, size: u64) -> Result<BytesSink> {
+        self.acc
+            .write2(&OpWrite {
+                path: self.meta.path().to_string(),
                 size,
             })
             .await

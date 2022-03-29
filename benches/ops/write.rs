@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use criterion::Criterion;
+use futures::SinkExt;
 use opendal::Operator;
 use rand::prelude::*;
 use size::Base;
@@ -54,8 +55,11 @@ fn bench_write_once(c: &mut Criterion, op: Operator) {
             &(op.clone(), &path, content),
             |b, (op, path, content)| {
                 b.to_async(&*TOKIO).iter(|| async {
-                    let w = op.object(path).writer();
-                    w.write_bytes(content.clone()).await.unwrap();
+                    // let w = op.object(path).writer();
+                    // w.write_bytes(content.clone()).await.unwrap();
+                    let mut w = op.object(path).sink(size.bytes()).await.unwrap();
+                    w.feed(bytes::Bytes::from(content.clone())).await.unwrap();
+                    w.close().await.unwrap();
                 })
             },
         );

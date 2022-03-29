@@ -507,8 +507,7 @@ impl Backend {
         if !next_marker.is_empty() {
             uri.push_str(&format!("&marker={}", next_marker))
         }
-
-        println!("uri: {}", &uri);
+        
         let mut req = hyper::Request::get(uri)
             .body(hyper::Body::empty())
             .expect("must be valid request");

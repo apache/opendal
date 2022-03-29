@@ -261,7 +261,6 @@ mod tests {
         );
         let out: Output = de::from_reader(bs.reader()).expect("must success");
 
-        println!("{:?}", out);
         assert!(out.nextmarker.is_some());
         assert_eq!(
             out.blobs

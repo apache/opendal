@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::anyhow;
 use std::future::Future;
 use std::io;
 use std::io::SeekFrom;
@@ -20,13 +21,13 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::future::BoxFuture;
-use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
 use futures::TryStreamExt;
 use futures::{ready, Sink};
+use futures::{AsyncRead, AsyncWrite};
 
 use crate::error::{Error, Result};
 use crate::ops::OpRead;
@@ -206,5 +207,66 @@ impl Writer {
         };
 
         self.acc.write(r, op).await
+    }
+}
+
+pub fn into_sink<W: AsyncWrite + Send + Unpin>(w: W) -> IntoSink<W> {
+    IntoSink {
+        w,
+        b: bytes::Bytes::new(),
+    }
+}
+
+pub struct IntoSink<W: AsyncWrite + Send + Unpin> {
+    w: W,
+    b: bytes::Bytes,
+}
+
+impl<W> Sink<Bytes> for IntoSink<W>
+where
+    W: AsyncWrite + Send + Unpin,
+{
+    type Error = Error;
+
+    fn poll_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        while !self.b.is_empty() {
+            let b = &self.b.clone();
+            let n = ready!(Pin::new(&mut self.w).poll_write(cx, b))
+                .map_err(|e| Error::Unexpected(anyhow!(e)))?;
+            self.b.advance(n);
+        }
+
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> std::result::Result<(), Self::Error> {
+        self.b = item;
+        Ok(())
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        while !self.b.is_empty() {
+            let b = &self.b.clone();
+            let n = ready!(Pin::new(&mut self.w).poll_write(cx, b))
+                .map_err(|e| Error::Unexpected(anyhow!(e)))?;
+            self.b.advance(n);
+        }
+
+        Pin::new(&mut self.w)
+            .poll_flush(cx)
+            .map_err(|e| Error::Unexpected(anyhow!(e)))
+    }
+
+    fn poll_close(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        self.poll_flush(cx)
     }
 }

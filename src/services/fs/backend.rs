@@ -37,7 +37,7 @@ use super::object_stream::Readdir;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesStream;
+use crate::io::{into_sink, BytesSink, BytesStream};
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
@@ -236,6 +236,52 @@ impl Accessor for Backend {
 
         debug!("object {} write finished: size {:?}", &path, args.size);
         Ok(s as usize)
+    }
+
+    #[trace("write")]
+    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+        increment_counter!("opendal_fs_write_requests");
+
+        let path = self.get_abs_path(&args.path);
+        debug!("object {} write start: size {}", &path, args.size);
+
+        // Create dir before write path.
+        //
+        // TODO(xuanwo): There are many works to do here:
+        //   - Is it safe to create dir concurrently?
+        //   - Do we need to extract this logic as new util functions?
+        //   - Is it better to check the parent dir exists before call mkdir?
+        let parent = PathBuf::from(&path)
+            .parent()
+            .ok_or_else(|| anyhow!("malformed path: {:?}", &path))?
+            .to_path_buf();
+
+        fs::create_dir_all(&parent).await.map_err(|e| {
+            let e = parse_io_error(e, "write", &parent.to_string_lossy());
+            error!(
+                "object {} create_dir_all for parent {}: {:?}",
+                &path,
+                &parent.to_string_lossy(),
+                e
+            );
+            e
+        })?;
+
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&path)
+            .await
+            .map_err(|e| {
+                let e = parse_io_error(e, "write", &path);
+                error!("object {} open: {:?}", &path, e);
+                e
+            })?;
+
+        let f = Compat::new(f);
+
+        debug!("object {} write finished: size {:?}", &path, args.size);
+        Ok(Box::new(into_sink(f)))
     }
 
     #[trace("stat")]

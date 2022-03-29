@@ -350,7 +350,7 @@ impl Accessor for Backend {
 
         let resp = self.delete_blob(&p).await?;
         match resp.status() {
-            StatusCode::NO_CONTENT => {
+            StatusCode::NO_CONTENT | StatusCode::ACCEPTED => {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
@@ -498,14 +498,17 @@ impl Backend {
         next_marker: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
         let mut uri = format!(
-            "https://{}.{}/{}?restype=container&comp=list&delimiter=/&prefix={}",
-            self.account_name, self.endpoint, self.container, path
+            "https://{}.{}/{}?restype=container&comp=list&delimiter=/",
+            self.account_name, self.endpoint, self.container
         );
-
+        if !path.is_empty() {
+            uri.push_str(&format!("&prefix={}", path))
+        }
         if !next_marker.is_empty() {
             uri.push_str(&format!("&marker={}", next_marker))
         }
 
+        println!("uri: {}", &uri);
         let mut req = hyper::Request::get(uri)
             .body(hyper::Body::empty())
             .expect("must be valid request");
@@ -570,44 +573,5 @@ async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str
             part,
             String::from_utf8_lossy(&bs)
         ),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::credential::Credential;
-    use crate::error::Result;
-    use crate::services::azblob;
-    use crate::services::azblob::backend::OpList;
-    use crate::Accessor;
-    use std::env;
-    use std::sync::Arc;
-    pub async fn new() -> Result<Arc<dyn Accessor>> {
-        dotenv::from_filename(".env").ok();
-
-        let root = &env::var("OPENDAL_AZBLOB_ROOT")
-            .unwrap_or_else(|_| format!("/{}", uuid::Uuid::new_v4()));
-
-        let mut builder = azblob::Backend::build();
-
-        builder
-            .root(root)
-            .container(
-                &env::var("OPENDAL_AZBLOB_CONTAINER").expect("OPENDAL_AZBLOB_CONTAINER must set"),
-            )
-            .endpoint(&env::var("OPENDAL_AZBLOB_ENDPOINT").unwrap_or_default())
-            .credential(Credential::hmac(
-                &env::var("OPENDAL_AZBLOB_ACCOUNT_NAME").unwrap_or_default(),
-                &env::var("OPENDAL_AZBLOB_ACCOUNT_KEY").unwrap_or_default(),
-            ));
-
-        builder.finish().await
-    }
-    #[tokio::test]
-    async fn test_list_req() -> Result<()> {
-        let acc = new().await?;
-        let listOp = OpList::new("");
-        let s = acc.list(&listOp).await.unwrap();
-        Ok(())
     }
 }

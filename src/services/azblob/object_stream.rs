@@ -32,7 +32,7 @@ pub struct AzblobObjectStream {
 enum State {
     Idle,
     Sending(BoxFuture<'static, Result<bytes::Bytes>>),
-    Listing((Output, usize)),
+    Listing((Output, usize, usize)),
 }
 impl AzblobObjectStream {
     pub fn new(backend: Backend, path: String) -> Self {
@@ -105,20 +105,44 @@ impl futures::Stream for AzblobObjectStream {
                     self.done = nextmarker.is_empty();
                 };
                 self.next_marker = output.nextmarker.clone().unwrap_or_default();
-                self.state = State::Listing((output, 0));
+                self.state = State::Listing((output, 0, 0));
                 self.poll_next(cx)
             }
-            State::Listing((output, blob_idx)) => {
-                let blobs = &output.blobs.blob;
-                if *blob_idx < blobs.len() {
-                    *blob_idx += 1;
-                    let blob = &blobs[*blob_idx - 1];
+            State::Listing((output, common_prefixes_idx, objects_idx)) => {
+                if let Some(prefixes) = &output.blobs.blob_prefix {
+                    if *common_prefixes_idx < prefixes.len() {
+                        *common_prefixes_idx += 1;
+                        let prefix = &prefixes[*common_prefixes_idx - 1].name;
 
-                    let mut o =
-                        Object::new(Arc::new(backend.clone()), &backend.get_rel_path(&blob.name));
+                        let mut o =
+                            Object::new(Arc::new(backend.clone()), &backend.get_rel_path(prefix));
+                        let meta = o.metadata_mut();
+                        meta.set_mode(ObjectMode::DIR)
+                            .set_content_length(0)
+                            .set_complete();
+
+                        debug!(
+                            "object {} got entry, path: {}, mode: {}",
+                            &self.path,
+                            meta.path(),
+                            meta.mode()
+                        );
+                        return Poll::Ready(Some(Ok(o)));
+                    }
+                };
+
+                let objects = &output.blobs.blob;
+                if *objects_idx < objects.len() {
+                    *objects_idx += 1;
+                    let object = &objects[*objects_idx - 1];
+
+                    let mut o = Object::new(
+                        Arc::new(backend.clone()),
+                        &backend.get_rel_path(&object.name),
+                    );
                     let meta = o.metadata_mut();
                     meta.set_mode(ObjectMode::FILE)
-                        .set_content_length(blob.properties.content_length as u64);
+                        .set_content_length(object.properties.content_length as u64);
 
                     debug!(
                         "object {} got entry, path: {}, mode: {}",
@@ -142,7 +166,7 @@ impl futures::Stream for AzblobObjectStream {
 }
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-struct Output {
+pub struct Output {
     blobs: Blobs,
     #[serde(rename = "NextMarker")]
     nextmarker: Option<String>,
@@ -150,19 +174,26 @@ struct Output {
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-struct Blobs {
+pub struct Blobs {
+    #[serde(rename = "Blob", default = "Vec::new")]
     blob: Vec<Blob>,
+    pub blob_prefix: Option<Vec<BlobPrefix>>,
 }
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-struct Blob {
+pub struct BlobPrefix {
+    pub name: String,
+}
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct Blob {
     properties: Properties,
     name: String,
 }
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-struct Properties {
+pub struct Properties {
     #[serde(rename = "Content-Length")]
     content_length: u64,
 }

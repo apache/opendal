@@ -20,10 +20,13 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
+use futures::Stream;
+use futures::TryStreamExt;
 
 use crate::error::Result;
 use crate::ops::OpRead;
@@ -34,6 +37,8 @@ use crate::Metadata;
 
 /// BoxedAsyncReader is a boxed AsyncRead.
 pub type BoxedAsyncReader = Box<dyn AsyncRead + Unpin + Send>;
+/// BytesStream represents a stream of bytes.
+pub type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Unpin + Send>;
 
 /// Reader is used for reading data from underlying backend.
 ///
@@ -53,7 +58,7 @@ pub struct Reader {
 
 enum ReadState {
     Idle,
-    Sending(BoxFuture<'static, Result<BoxedAsyncReader>>),
+    Sending(BoxFuture<'static, Result<BytesStream>>),
     Seeking(BoxFuture<'static, Result<Metadata>>),
     Reading(BoxedAsyncReader),
 }
@@ -102,7 +107,9 @@ impl AsyncRead for Reader {
             }
             ReadState::Sending(future) => match ready!(Pin::new(future).poll(cx)) {
                 Ok(r) => {
-                    self.state = ReadState::Reading(r);
+                    self.state = ReadState::Reading(Box::new(
+                        r.map_err(std::io::Error::from).into_async_read(),
+                    ));
                     self.poll_read(cx, buf)
                 }
                 Err(e) => Poll::Ready(Err(io::Error::from(e))),

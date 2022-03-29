@@ -166,7 +166,7 @@ impl futures::Stream for AzblobObjectStream {
 }
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct Output {
+struct Output {
     blobs: Blobs,
     #[serde(rename = "NextMarker")]
     nextmarker: Option<String>,
@@ -174,26 +174,26 @@ pub struct Output {
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct Blobs {
+struct Blobs {
     #[serde(rename = "Blob", default = "Vec::new")]
     blob: Vec<Blob>,
-    pub blob_prefix: Option<Vec<BlobPrefix>>,
+    blob_prefix: Option<Vec<BlobPrefix>>,
 }
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct BlobPrefix {
-    pub name: String,
+struct BlobPrefix {
+    name: String,
 }
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct Blob {
+struct Blob {
     properties: Properties,
     name: String,
 }
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
-pub struct Properties {
+struct Properties {
     #[serde(rename = "Content-Length")]
     content_length: u64,
 }

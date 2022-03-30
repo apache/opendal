@@ -40,7 +40,8 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesStream;
+use crate::http::{new_channel, BodySinker};
+use crate::io::{BytesSink, BytesStream};
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
@@ -272,6 +273,27 @@ impl Accessor for Backend {
             _ => Err(parse_error_response(resp, "write", &p).await),
         }
     }
+    #[trace("write")]
+    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+        let p = self.get_abs_path(&args.path);
+        debug!("object {} write start: size {}", &p, args.size);
+
+        let (tx, body) = new_channel();
+
+        let req = self.put_blob2(&p, args.size, body).await;
+
+        let bs = BodySinker::new(args, tx, self.client.request(req), |op, resp| {
+            match resp.status() {
+                http::StatusCode::CREATED | http::StatusCode::OK => {
+                    debug!("object {} write finished: size {:?}", &op.path, op.size);
+                    Ok(())
+                }
+                _ => Err(parse_error_response2(resp, "write", &op.path)),
+            }
+        });
+
+        Ok(Box::new(bs))
+    }
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_azure_stat_requests");
@@ -431,6 +453,29 @@ impl Backend {
             }
         })
     }
+    #[trace("put_blob")]
+    pub(crate) async fn put_blob2(
+        &self,
+        path: &str,
+        size: u64,
+        body: Body,
+    ) -> hyper::Request<hyper::Body> {
+        let mut req = hyper::Request::put(&format!(
+            "https://{}.{}/{}/{}",
+            self.account_name, self.endpoint, self.container, path
+        ));
+
+        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+
+        req = req.header(HeaderName::from_static(BLOB_TYPE), "BlockBlob");
+
+        // Set body
+        let mut req = req.body(body).expect("must be valid request");
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        req
+    }
 
     #[trace("get_blob_properties")]
     pub(crate) async fn get_blob_properties(
@@ -480,6 +525,22 @@ impl Backend {
                 source: anyhow::Error::from(e),
             }
         })
+    }
+}
+
+fn parse_error_response2(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+    let (part, _) = resp.into_parts();
+    let kind = match part.status {
+        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
+        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
+        _ => Kind::Unexpected,
+    };
+
+    Error::Object {
+        kind,
+        op,
+        path: path.to_string(),
+        source: anyhow!("response part: {:?}", part),
     }
 }
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -21,15 +22,15 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::Bytes;
-use futures::io;
+use bytes::{BufMut, Bytes};
 use futures::stream;
+use futures::{io, Sink};
 use minitrace::trace;
 
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesStream;
+use crate::io::{BytesSink, BytesStream};
 use crate::object::BoxedObjectStream;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -151,6 +152,18 @@ impl Accessor for Backend {
 
         Ok(n as usize)
     }
+
+    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+        let path = Backend::normalize_path(&args.path);
+
+        Ok(Box::new(MapSink {
+            path,
+            size: args.size,
+            map: self.inner.clone(),
+            buf: Default::default(),
+        }))
+    }
+
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = Backend::normalize_path(&args.path);
@@ -208,6 +221,61 @@ impl Accessor for Backend {
             paths,
             idx: 0,
         }))
+    }
+}
+
+struct MapSink {
+    path: String,
+    size: u64,
+    map: Arc<Mutex<HashMap<String, bytes::Bytes>>>,
+
+    buf: bytes::BytesMut,
+}
+
+impl Sink<Bytes> for MapSink {
+    type Error = Error;
+
+    fn poll_ready(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> std::result::Result<(), Self::Error> {
+        self.buf.put_slice(&item);
+        Ok(())
+    }
+
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        if self.buf.len() != self.size as usize {
+            return Poll::Ready(Err(Error::Object {
+                kind: Kind::Unexpected,
+                op: "write",
+                path: self.path.clone(),
+                source: anyhow!(
+                    "write short, expect {} actual {}",
+                    self.size,
+                    self.buf.len()
+                ),
+            }));
+        }
+
+        let buf = mem::take(&mut self.buf);
+        let mut map = self.map.lock().expect("lock poisoned");
+        map.insert(self.path.clone(), buf.freeze());
+
+        Poll::Ready(Ok(()))
     }
 }
 

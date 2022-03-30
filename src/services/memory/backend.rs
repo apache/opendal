@@ -156,6 +156,8 @@ impl Accessor for Backend {
     async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
         let path = Backend::normalize_path(&args.path);
 
+        let x: BoxedAsyncReader;
+
         Ok(Box::new(MapSink {
             path,
             size: args.size,

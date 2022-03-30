@@ -15,7 +15,7 @@
 use anyhow::anyhow;
 use std::future::Future;
 use std::io;
-use std::io::SeekFrom;
+use std::io::{Read, SeekFrom};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -23,11 +23,11 @@ use std::task::Poll;
 
 use bytes::{Buf, Bytes};
 use futures::future::BoxFuture;
-use futures::AsyncSeek;
 use futures::Stream;
 use futures::TryStreamExt;
 use futures::{ready, Sink};
 use futures::{AsyncRead, AsyncWrite};
+use futures::{AsyncSeek, SinkExt};
 
 use crate::error::{Error, Result};
 use crate::ops::OpRead;
@@ -196,17 +196,22 @@ impl Writer {
             path: self.path.clone(),
             size: bs.len() as u64,
         };
-        let r = Box::new(futures::io::Cursor::new(bs));
+        let mut s = self.acc.write2(op).await?;
+        s.feed(Bytes::from(bs)).await?;
+        s.close().await?;
 
-        self.acc.write(r, op).await
+        Ok(op.size as usize)
     }
-    pub async fn write_reader(self, r: BoxedAsyncReader, size: u64) -> Result<usize> {
+    pub async fn write_reader(self, mut r: BoxedAsyncReader, size: u64) -> Result<usize> {
         let op = &OpWrite {
             path: self.path.clone(),
             size,
         };
-
-        self.acc.write(r, op).await
+        let mut s = self.acc.write2(op).await?;
+        let mut w = into_write(s);
+        Ok(futures::io::copy(&mut r, &mut w)
+            .await
+            .map_err(|e| Error::Unexpected(anyhow!(e)))? as usize)
     }
 }
 
@@ -268,5 +273,34 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<(), Self::Error>> {
         self.poll_flush(cx)
+    }
+}
+
+pub fn into_write<S: Sink<Bytes> + Send + Unpin>(s: S) -> IntoWrite<S> {
+    IntoWrite { s }
+}
+
+pub struct IntoWrite<S: Sink<Bytes> + Send + Unpin> {
+    s: S,
+}
+
+impl<S> AsyncWrite for IntoWrite<S>
+where
+    S: Sink<Bytes> + Send + Unpin,
+{
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        todo!()
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        todo!()
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        todo!()
     }
 }

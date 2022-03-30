@@ -188,7 +188,6 @@ struct Output {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 struct Blobs {
-    #[serde(rename = "Blob", default = "Vec::new")]
     blob: Vec<Blob>,
     blob_prefix: Option<Vec<BlobPrefix>>,
 }

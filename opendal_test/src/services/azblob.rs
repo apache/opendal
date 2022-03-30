@@ -29,7 +29,8 @@ use opendal::Accessor;
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     dotenv::from_filename(".env").ok();
 
-    if env::var("OPENDAL_AZBLOB_TEST").is_err() || env::var("OPENDAL_AZBLOB_TEST").unwrap() != "on" {
+    if env::var("OPENDAL_AZBLOB_TEST").is_err() || env::var("OPENDAL_AZBLOB_TEST").unwrap() != "on"
+    {
         return Ok(None);
     }
 

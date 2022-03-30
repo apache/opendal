@@ -321,7 +321,7 @@ mod tests {
             out.blobs
                 .blob
                 .iter()
-                .map(|v| v.properties.content_length.clone())
+                .map(|v| v.properties.content_length)
                 .collect::<Vec<u64>>(),
             [3485277, 2471869, 1259677]
         );

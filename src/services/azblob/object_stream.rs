@@ -101,10 +101,10 @@ impl futures::Stream for AzblobObjectStream {
                 // Try our best to check whether this list is done.
                 //
                 // - Check `next_marker`
-                if let Some(nextmarker) = output.nextmarker.as_ref() {
-                    self.done = nextmarker.is_empty();
+                if let Some(next_marker) = output.next_marker.as_ref() {
+                    self.done = next_marker.is_empty();
                 };
-                self.next_marker = output.nextmarker.clone().unwrap_or_default();
+                self.next_marker = output.next_marker.clone().unwrap_or_default();
                 self.state = State::Listing((output, 0, 0));
                 self.poll_next(cx)
             }
@@ -169,7 +169,7 @@ impl futures::Stream for AzblobObjectStream {
 struct Output {
     blobs: Blobs,
     #[serde(rename = "NextMarker")]
-    nextmarker: Option<String>,
+    next_marker: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]

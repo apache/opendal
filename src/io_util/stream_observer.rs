@@ -13,39 +13,73 @@
 // limitations under the License.
 
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use bytes::Bytes;
 use futures::Stream;
 use pin_project::pin_project;
 
-use crate::error::{Kind, Result};
+use crate::error::Kind;
+use crate::error::Result;
 use crate::io::BytesStream;
 
+/// Create an observer over BytesStream.
+///
+/// `observe_stream` will accept a `FnMut(StreamEvent)` which handles
+/// [`StreamEvent`] triggered by [`StreamObserver`]
+///
+/// # Example
+///
+/// ```rust
+/// use opendal::io_util::observe_stream;
+/// use opendal::io_util::StreamEvent;
+/// # use opendal::io_util::into_stream;
+/// # use opendal::error::Result;
+/// # use futures::io;
+/// # use bytes::Bytes;
+/// # use futures::StreamExt;
+/// # use futures::AsyncWriteExt;
+/// # use futures::SinkExt;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let stream = Box::new(into_stream(io::Cursor::new(vec![0; 1024]), 1024));
+/// let mut read_size = 0;
+/// let mut s = observe_stream(stream, |e| match e {
+///     StreamEvent::Next(n) => read_size += n,
+///     _ => {}
+/// });
+/// s.next().await;
+/// # Ok(())
+/// # }
+/// ```
 pub fn observe_stream<F: FnMut(StreamEvent)>(s: BytesStream, f: F) -> StreamObserver<F> {
-    StreamObserver::new(s, f)
+    StreamObserver { s, f }
 }
 
+/// Event that sent by [`StreamObserver`], should be handled via
+/// `FnMut(StreamEvent)`.
 pub enum StreamEvent {
+    /// Emit while meeting `Poll::Pending`.
     Pending,
+    /// Emit the sent bytes length while `poll_next` got `Poll::Ready(Some(Ok(_)))`.
     Next(usize),
+    /// Emit while meeting `Poll::Ok(None)`.
     Terminated,
+    /// Emit the error kind while meeting error.
+    ///
+    /// # Note
+    ///
+    /// We only emit the error kind here so that we don't need clone the whole error.
     Error(Kind),
 }
 
+/// Observer that created via [`observe_stream`].
 #[pin_project]
 pub struct StreamObserver<F: FnMut(StreamEvent)> {
     s: BytesStream,
     f: F,
-}
-
-impl<F> StreamObserver<F>
-where
-    F: FnMut(StreamEvent),
-{
-    pub fn new(s: BytesStream, f: F) -> Self {
-        Self { s, f }
-    }
 }
 
 impl<F> Stream for StreamObserver<F>
@@ -78,7 +112,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::io_util::into_stream;
     use futures::io;
     use futures::StreamExt;
     use rand::rngs::ThreadRng;
@@ -86,6 +119,7 @@ mod tests {
     use rand::RngCore;
 
     use super::*;
+    use crate::io_util::into_stream;
 
     #[tokio::test]
     async fn test_stream_observer() {
@@ -100,7 +134,7 @@ mod tests {
 
         let mut stream_size = 0;
         let mut is_terminated = false;
-        let s = StreamObserver::new(Box::new(s), |e| match e {
+        let s = observe_stream(Box::new(s), |e| match e {
             StreamEvent::Next(n) => stream_size += n,
             StreamEvent::Terminated => is_terminated = true,
             _ => {}

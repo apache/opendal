@@ -12,41 +12,79 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use bytes::Bytes;
 use futures::Sink;
 use pin_project::pin_project;
 
-use crate::error::{Error, Kind, Result};
+use crate::error::Error;
+use crate::error::Kind;
+use crate::error::Result;
 use crate::io::BytesSink;
 
+/// Create an observer over BytesSink.
+///
+/// `observe_sink` will accept a `FnMut(SinkEvent)` which handles [`SinkEvent`]
+/// triggered by [`SinkObserver`].
+///
+/// # Example
+///
+/// ```rust
+/// use opendal::io_util::observe_sink;
+/// use opendal::io_util::SinkEvent;
+/// # use opendal::io_util::into_sink;
+/// # use opendal::error::Result;
+/// # use futures::io;
+/// # use bytes::Bytes;
+/// # use futures::StreamExt;
+/// # use futures::AsyncWriteExt;
+/// # use futures::SinkExt;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let sink = Box::new(into_sink(Vec::new()));
+/// let mut written_size = 0;
+/// let mut s = observe_sink(sink, |e| match e {
+///     SinkEvent::Sent(n) => written_size += n,
+///     _ => {}
+/// });
+/// s.send(Bytes::from(vec![0; 1024])).await?;
+/// s.close().await?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn observe_sink<F: FnMut(SinkEvent)>(s: BytesSink, f: F) -> SinkObserver<F> {
-    SinkObserver::new(s, f)
+    SinkObserver { s, f }
 }
 
+/// Event that sent by [`SinkObserver`], should be handled via `FnMut(SinkEvent)`.
+#[derive(Copy, Clone, Debug)]
 pub enum SinkEvent {
+    /// Emit while meeting `Poll::Pending`.
     Pending,
+    /// Emit while `poll_ready` got `Poll::Ready(Ok(_))`.
     Ready,
+    /// Emit the sent bytes length while `start_send` got `Ok(_)`.
     Sent(usize),
+    /// Emit while `poll_flush` got `Poll::Ready(Ok(_))`.
     Flushed,
+    /// Emit while `poll_flush` got `Poll::Ready(Ok(_))`.
     Closed,
+    /// Emit the error kind while meeting error.
+    ///
+    /// # Note
+    ///
+    /// We only emit the error kind here so that we don't need clone the whole error.
     Error(Kind),
 }
 
+/// Observer that created via [`observe_sink`].
 #[pin_project]
 pub struct SinkObserver<F: FnMut(SinkEvent)> {
     s: BytesSink,
     f: F,
-}
-
-impl<F> SinkObserver<F>
-where
-    F: FnMut(SinkEvent),
-{
-    pub fn new(s: BytesSink, f: F) -> Self {
-        Self { s, f }
-    }
 }
 
 impl<F> Sink<Bytes> for SinkObserver<F>
@@ -123,13 +161,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::io_util::into_sink;
     use futures::SinkExt;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
 
     use super::*;
+    use crate::io_util::into_sink;
 
     #[tokio::test]
     async fn test_sink_observer() {
@@ -143,7 +181,7 @@ mod tests {
 
         let mut sink_size = 0;
         let mut is_closed = false;
-        let mut s = SinkObserver::new(Box::new(s), |e| match e {
+        let mut s = observe_sink(Box::new(s), |e| match e {
             SinkEvent::Sent(n) => sink_size += n,
             SinkEvent::Closed => is_closed = true,
             _ => {}

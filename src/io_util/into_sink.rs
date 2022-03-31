@@ -27,6 +27,28 @@ use pin_project::pin_project;
 use crate::error::Error;
 use crate::error::Result;
 
+/// Convert AsyncWrite into Sink.
+///
+/// # Note
+///
+/// This conversion is **zero cost**.
+///
+/// # Example
+///
+/// ```rust
+/// use opendal::io_util::into_sink;
+/// # use opendal::error::Result;
+/// # use bytes::Bytes;
+/// # use futures::SinkExt;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let mut s = into_sink(Vec::new());
+/// s.feed(Bytes::from(vec![0;1024])).await?;
+/// s.close().await?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn into_sink<W: AsyncWrite + Send + Unpin>(w: W) -> IntoSink<W> {
     IntoSink {
         w,

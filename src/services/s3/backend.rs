@@ -46,8 +46,10 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::http::{new_channel, BodySinker};
-use crate::io::{BytesSink, BytesStream};
+use crate::http::new_channel;
+use crate::http::BodySinker;
+use crate::io::BytesSink;
+use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
@@ -56,9 +58,7 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::ReaderStream;
 use crate::Accessor;
-use crate::BoxedAsyncReader;
 use crate::ObjectMode;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -745,7 +745,7 @@ impl Accessor for Backend {
 
         let (tx, body) = new_channel();
 
-        let req = self.put_object2(&p, args.size, body).await;
+        let req = self.put_object(&p, args.size, body).await;
 
         let bs = BodySinker::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
@@ -904,39 +904,6 @@ impl Backend {
 
     #[trace("put_object")]
     pub(crate) async fn put_object(
-        &self,
-        path: &str,
-        r: BoxedAsyncReader,
-        size: u64,
-    ) -> Result<hyper::Response<hyper::Body>> {
-        let mut req = hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
-
-        // Set content length.
-        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
-
-        // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
-
-        // Set body
-        let mut req = req
-            .body(hyper::body::Body::wrap_stream(ReaderStream::new(r)))
-            .expect("must be valid request");
-
-        self.signer.sign(&mut req).await.expect("sign must success");
-
-        self.client.request(req).await.map_err(|e| {
-            error!("object {} put_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
-        })
-    }
-
-    #[trace("put_object")]
-    pub(crate) async fn put_object2(
         &self,
         path: &str,
         size: u64,

@@ -26,11 +26,13 @@ use futures::ready;
 
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::{BytesSink, BytesStream};
+use crate::io::BytesSink;
+use crate::io::BytesStream;
+use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
-use crate::ops::{OpDelete, OpWrite};
+use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::Reader;
 use crate::Writer;

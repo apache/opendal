@@ -21,15 +21,20 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::future::BoxFuture;
+use futures::ready;
+use futures::AsyncRead;
+use futures::AsyncSeek;
+use futures::AsyncWrite;
+use futures::Sink;
+use futures::SinkExt;
 use futures::Stream;
 use futures::TryStreamExt;
-use futures::{ready, Sink};
-use futures::{AsyncRead, AsyncWrite};
-use futures::{AsyncSeek, SinkExt};
 
-use crate::error::{Error, Result};
+use crate::error::Error;
+use crate::error::Result;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;

@@ -14,17 +14,22 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use anyhow::anyhow;
 use bytes::Bytes;
-use futures::channel::mpsc::{self, Sender};
-use futures::{ready, Sink, StreamExt};
+use futures::channel::mpsc::Sender;
+use futures::channel::mpsc::{self};
+use futures::ready;
+use futures::Sink;
+use futures::StreamExt;
 use http::Response;
 use hyper::client::ResponseFuture;
 use hyper::Body;
 
-use crate::error::{Error, Result};
+use crate::error::Error;
+use crate::error::Result;
 use crate::ops::OpWrite;
 
 pub fn new_channel() -> (Sender<Bytes>, Body) {

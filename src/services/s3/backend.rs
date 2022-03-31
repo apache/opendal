@@ -46,10 +46,10 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::http::new_channel;
-use crate::http::BodySinker;
 use crate::io::BytesSink;
 use crate::io::BytesStream;
+use crate::io_util::new_http_channel;
+use crate::io_util::HttpBodySinker;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
@@ -743,11 +743,11 @@ impl Accessor for Backend {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 
-        let (tx, body) = new_channel();
+        let (tx, body) = new_http_channel();
 
         let req = self.put_object(&p, args.size, body).await;
 
-        let bs = BodySinker::new(args, tx, self.client.request(req), |op, resp| {
+        let bs = HttpBodySinker::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
                 StatusCode::CREATED | StatusCode::OK => {
                     debug!("object {} write finished: size {:?}", op.path, op.size);

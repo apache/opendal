@@ -27,6 +27,30 @@ use pin_project::pin_project;
 use crate::error::Error;
 use crate::error::Result;
 
+/// Convert AsyncRead into Stream.
+///
+/// # Note
+///
+/// This conversion is **not zero cost**.
+///
+/// # Example
+///
+/// ```rust
+/// use opendal::io_util::into_stream;
+/// # use opendal::error::Result;
+/// # use futures::io;
+/// # use bytes::Bytes;
+/// # use futures::StreamExt;
+/// # use futures::SinkExt;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let r = io::Cursor::new(vec![0; 1024]);
+/// let mut s = into_stream(r, 8 * 1024);
+/// s.next().await;
+/// # Ok(())
+/// # }
+/// ```
 pub fn into_stream<R: AsyncRead + Send + Unpin>(r: R, capacity: usize) -> IntoStream<R> {
     IntoStream {
         r,

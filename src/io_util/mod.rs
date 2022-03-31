@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+//! Providing IO utils like `into_sink`, `into_stream`.
+
 mod into_sink;
 pub use into_sink::into_sink;
 
@@ -29,3 +32,7 @@ mod sink_observer;
 pub use sink_observer::observe_sink;
 pub use sink_observer::SinkEvent;
 pub use sink_observer::SinkObserver;
+
+mod http_body;
+pub use http_body::new_http_channel;
+pub use http_body::HttpBodySinker;

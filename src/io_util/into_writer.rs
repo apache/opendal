@@ -24,6 +24,32 @@ use futures::Sink;
 
 use crate::error::Error;
 
+/// Convert Sink into AsyncWrite.
+///
+/// # Note
+///
+/// This conversion is **zero cost**.
+///
+/// # Example
+///
+/// ```rust
+/// use opendal::io_util::into_writer;
+/// # use opendal::io_util::into_sink;
+/// # use opendal::error::Result;
+/// # use futures::io;
+/// # use bytes::Bytes;
+/// # use futures::StreamExt;
+/// # use futures::AsyncWriteExt;
+/// # use futures::SinkExt;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// # let sink = into_sink(Vec::new());
+/// let mut s = into_writer(sink);
+/// s.write(&vec![0;1024]).await;
+/// # Ok(())
+/// # }
+/// ```
 pub fn into_writer<S: Sink<Bytes, Error = Error> + Send + Unpin>(s: S) -> IntoWriter<S> {
     IntoWriter { s }
 }

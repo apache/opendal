@@ -70,8 +70,6 @@
 //! - [fs][crate::services::fs]: POSIX alike file system.
 //! - [memory][crate::services::memory]: In memory backend support.
 //! - [s3][crate::services::s3]: AWS services like S3.
-extern crate core;
-
 mod accessor;
 pub use accessor::Accessor;
 
@@ -98,13 +96,12 @@ pub use scheme::Scheme;
 
 pub mod credential;
 pub mod error;
-pub mod http;
 pub mod io_util;
-#[deprecated]
-pub mod readers;
-
 pub mod ops;
 pub mod services;
+
+#[deprecated]
+pub mod readers;
 
 #[cfg(test)]
 pub mod tests;

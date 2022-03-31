@@ -45,17 +45,19 @@ use crate::io::{BytesSink, BytesStream};
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::readers::ReaderStream;
+use crate::services::azblob::object_stream::AzblobObjectStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
+use crate::BoxedObjectStream;
 use crate::ObjectMode;
 
 pub const DELETE_SNAPSHOTS: &str = "x-ms-delete-snapshots";
 pub const BLOB_TYPE: &str = "x-ms-blob-type";
-
 #[derive(Default, Debug, Clone)]
 pub struct Builder {
     root: Option<String>,
@@ -360,12 +362,25 @@ impl Accessor for Backend {
 
         let resp = self.delete_blob(&p).await?;
         match resp.status() {
-            StatusCode::NO_CONTENT => {
+            StatusCode::NO_CONTENT | StatusCode::ACCEPTED => {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
             _ => Err(parse_error_response(resp, "delete", &p).await),
         }
+    }
+    #[trace("list")]
+    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        increment_counter!("opendal_azblob_list_requests");
+
+        let mut path = self.get_abs_path(&args.path);
+        // Make sure list path is endswith '/'
+        if !path.ends_with('/') && !path.is_empty() {
+            path.push('/')
+        }
+        debug!("object {} list start", &path);
+
+        Ok(Box::new(AzblobObjectStream::new(self.clone(), path)))
     }
 }
 
@@ -506,6 +521,39 @@ impl Backend {
             Error::Object {
                 kind: Kind::Unexpected,
                 op: "delete",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
+        })
+    }
+
+    pub(crate) async fn list_objects(
+        &self,
+        path: &str,
+        next_marker: &str,
+    ) -> Result<hyper::Response<hyper::Body>> {
+        let mut uri = format!(
+            "https://{}.{}/{}?restype=container&comp=list&delimiter=/",
+            self.account_name, self.endpoint, self.container
+        );
+        if !path.is_empty() {
+            uri.push_str(&format!("&prefix={}", path))
+        }
+        if !next_marker.is_empty() {
+            uri.push_str(&format!("&marker={}", next_marker))
+        }
+
+        let mut req = hyper::Request::get(uri)
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.request(req).await.map_err(|e| {
+            error!("object {} list_object: {:?}", path, e);
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "list",
                 path: path.to_string(),
                 source: anyhow::Error::from(e),
             }

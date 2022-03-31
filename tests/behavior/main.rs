@@ -18,6 +18,7 @@ mod behavior;
 use behavior::BehaviorTest;
 
 // All services must pass the behavior test suite.
+mod azblob;
 mod fs;
 mod memory;
 mod s3;

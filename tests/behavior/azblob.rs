@@ -11,7 +11,22 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-pub mod azblob;
-pub mod fs;
-pub mod memory;
-pub mod s3;
+use anyhow::Result;
+use log::warn;
+use opendal::Operator;
+use opendal_test::services::azblob;
+
+use super::BehaviorTest;
+
+#[tokio::test]
+async fn behavior() -> Result<()> {
+    super::init_logger();
+
+    let acc = azblob::new().await?;
+    if acc.is_none() {
+        warn!("OPENDAL_AZBLOB_TEST not set, ignore");
+        return Ok(());
+    }
+
+    BehaviorTest::new(Operator::new(acc.unwrap())).run().await
+}

@@ -20,11 +20,8 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
-use futures::io;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use futures::AsyncWriteExt;
-use futures::TryStreamExt;
 use log::debug;
 use log::error;
 use log::info;
@@ -37,7 +34,10 @@ use super::object_stream::Readdir;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesSink;
 use crate::io::BytesStream;
+use crate::io_util::into_sink;
+use crate::io_util::into_stream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
@@ -46,7 +46,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::ReaderStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
 
@@ -165,8 +164,7 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
-        // TODO: we need a better way to convert a file into stream.
-        let s = ReaderStream::new(r).map_err(|e| crate::error::Error::Unexpected(anyhow!(e)));
+        let s = into_stream(r, 8 * 1024);
 
         debug!(
             "object {} reader created: offset {:?}, size {:?}",
@@ -176,7 +174,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         increment_counter!("opendal_fs_write_requests");
 
         let path = self.get_abs_path(&args.path);
@@ -215,27 +213,10 @@ impl Accessor for Backend {
                 e
             })?;
 
-        let mut f = Compat::new(f);
-
-        // TODO: we should respect the input size.
-        let s = io::copy(&mut r, &mut f).await.map_err(|e| {
-            let e = parse_io_error(e, "write", &path);
-            error!("object {} copy: {:?}", &path, e);
-            e
-        })?;
-
-        // `std::fs::File`'s errors detected on closing are ignored by
-        // the implementation of Drop.
-        // So we need to call `flush` to make sure all data have been flushed
-        // to fs successfully.
-        f.flush().await.map_err(|e| {
-            let e = parse_io_error(e, "write", &path);
-            error!("object {} flush: {:?}", &path, e);
-            e
-        })?;
+        let f = Compat::new(f);
 
         debug!("object {} write finished: size {:?}", &path, args.size);
-        Ok(s as usize)
+        Ok(Box::new(into_sink(f)))
     }
 
     #[trace("stat")]

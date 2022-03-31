@@ -15,4 +15,3 @@
 mod io;
 mod layer;
 mod ops;
-mod readers;

@@ -19,6 +19,10 @@ bench = false
 harness = false
 name = "ops"
 
+[[bench]]
+harness = false
+name = "io"
+
 [dependencies]
 anyhow = "1"
 async-compat = "0.2"

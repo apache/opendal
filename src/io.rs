@@ -20,15 +20,20 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
+use futures::Sink;
+use futures::SinkExt;
 use futures::Stream;
 use futures::TryStreamExt;
 
+use crate::error::Error;
 use crate::error::Result;
+use crate::io_util::into_writer;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
@@ -39,6 +44,8 @@ use crate::Metadata;
 pub type BoxedAsyncReader = Box<dyn AsyncRead + Unpin + Send>;
 /// BytesStream represents a stream of bytes.
 pub type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Unpin + Send>;
+/// BytesSink represents a sink of bytes.
+pub type BytesSink = Box<dyn Sink<Bytes, Error = Error> + Unpin + Send>;
 
 /// Reader is used for reading data from underlying backend.
 ///
@@ -193,16 +200,21 @@ impl Writer {
             path: self.path.clone(),
             size: bs.len() as u64,
         };
-        let r = Box::new(futures::io::Cursor::new(bs));
+        let mut s = self.acc.write(op).await?;
+        s.feed(Bytes::from(bs)).await?;
+        s.close().await?;
 
-        self.acc.write(r, op).await
+        Ok(op.size as usize)
     }
-    pub async fn write_reader(self, r: BoxedAsyncReader, size: u64) -> Result<usize> {
+    pub async fn write_reader(self, mut r: BoxedAsyncReader, size: u64) -> Result<usize> {
         let op = &OpWrite {
             path: self.path.clone(),
             size,
         };
-
-        self.acc.write(r, op).await
+        let s = self.acc.write(op).await?;
+        let mut w = into_writer(s);
+        Ok(futures::io::copy(&mut r, &mut w)
+            .await
+            .map_err(|e| Error::Unexpected(anyhow!(e)))? as usize)
     }
 }

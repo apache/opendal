@@ -40,20 +40,23 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::http::new_channel;
+use crate::http::BodySinker;
+use crate::io::BytesSink;
 use crate::io::BytesStream;
 use crate::object::Metadata;
 use crate::ops::HeaderRange;
 use crate::ops::OpDelete;
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::ReaderStream;
+use crate::services::azblob::object_stream::AzblobObjectStream;
 use crate::Accessor;
-use crate::BoxedAsyncReader;
+use crate::BoxedObjectStream;
 use crate::ObjectMode;
 
-pub const DELETE_SNAPSHOTS: &str = "x-ms-delete-snapshots";
-pub const BLOB_TYPE: &str = "x-ms-blob-type";
+pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
 #[derive(Default, Debug, Clone)]
 pub struct Builder {
@@ -73,6 +76,7 @@ impl Builder {
 
         self
     }
+
     pub fn container(&mut self, container: &str) -> &mut Self {
         self.container = container.to_string();
 
@@ -212,7 +216,7 @@ impl Backend {
             .trim_start_matches('/')
             .to_string()
     }
-    #[allow(dead_code)]
+
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
         let path = format!("/{}", path);
 
@@ -254,24 +258,32 @@ impl Accessor for Backend {
                     }
                 })))
             }
-            _ => Err(parse_error_response(resp, "read", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "read", &p).await),
         }
     }
+
     #[trace("write")]
-    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 
-        let resp = self.put_blob(&p, r, args.size).await?;
+        let (tx, body) = new_channel();
 
-        match resp.status() {
-            http::StatusCode::CREATED | http::StatusCode::OK => {
-                debug!("object {} write finished: size {:?}", &p, args.size);
-                Ok(args.size as usize)
+        let req = self.put_blob(&p, args.size, body).await;
+
+        let bs = BodySinker::new(args, tx, self.client.request(req), |op, resp| {
+            match resp.status() {
+                http::StatusCode::CREATED | http::StatusCode::OK => {
+                    debug!("object {} write finished: size {:?}", &op.path, op.size);
+                    Ok(())
+                }
+                _ => Err(parse_error_response_without_body(resp, "write", &op.path)),
             }
-            _ => Err(parse_error_response(resp, "write", &p).await),
-        }
+        });
+
+        Ok(Box::new(bs))
     }
+
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_azure_stat_requests");
@@ -341,9 +353,10 @@ impl Accessor for Backend {
                 debug!("object {} stat finished", &p);
                 Ok(m)
             }
-            _ => Err(parse_error_response(resp, "stat", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "stat", &p).await),
         }
     }
+
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_azure_delete_requests");
@@ -353,12 +366,26 @@ impl Accessor for Backend {
 
         let resp = self.delete_blob(&p).await?;
         match resp.status() {
-            StatusCode::NO_CONTENT => {
+            StatusCode::NO_CONTENT | StatusCode::ACCEPTED => {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
-            _ => Err(parse_error_response(resp, "delete", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "delete", &p).await),
         }
+    }
+
+    #[trace("list")]
+    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+        increment_counter!("opendal_azblob_list_requests");
+
+        let mut path = self.get_abs_path(&args.path);
+        // Make sure list path is endswith '/'
+        if !path.ends_with('/') && !path.is_empty() {
+            path.push('/')
+        }
+        debug!("object {} list start", &path);
+
+        Ok(Box::new(AzblobObjectStream::new(self.clone(), path)))
     }
 }
 
@@ -398,13 +425,14 @@ impl Backend {
             }
         })
     }
+
     #[trace("put_blob")]
     pub(crate) async fn put_blob(
         &self,
         path: &str,
-        r: BoxedAsyncReader,
         size: u64,
-    ) -> Result<hyper::Response<hyper::Body>> {
+        body: Body,
+    ) -> hyper::Request<hyper::Body> {
         let mut req = hyper::Request::put(&format!(
             "https://{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
@@ -412,24 +440,14 @@ impl Backend {
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
-        req = req.header(HeaderName::from_static(BLOB_TYPE), "BlockBlob");
+        req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
-        let mut req = req
-            .body(hyper::body::Body::wrap_stream(ReaderStream::new(r)))
-            .expect("must be valid request");
+        let mut req = req.body(body).expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.request(req).await.map_err(|e| {
-            error!("object {} put_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
-        })
+        req
     }
 
     #[trace("get_blob_properties")]
@@ -481,10 +499,64 @@ impl Backend {
             }
         })
     }
+
+    #[trace("list_blobs")]
+    pub(crate) async fn list_blobs(
+        &self,
+        path: &str,
+        next_marker: &str,
+    ) -> Result<hyper::Response<hyper::Body>> {
+        let mut uri = format!(
+            "https://{}.{}/{}?restype=container&comp=list&delimiter=/",
+            self.account_name, self.endpoint, self.container
+        );
+        if !path.is_empty() {
+            uri.push_str(&format!("&prefix={}", path))
+        }
+        if !next_marker.is_empty() {
+            uri.push_str(&format!("&marker={}", next_marker))
+        }
+
+        let mut req = hyper::Request::get(uri)
+            .body(hyper::Body::empty())
+            .expect("must be valid request");
+
+        self.signer.sign(&mut req).await.expect("sign must success");
+
+        self.client.request(req).await.map_err(|e| {
+            error!("object {} list_object: {:?}", path, e);
+            Error::Object {
+                kind: Kind::Unexpected,
+                op: "list",
+                path: path.to_string(),
+                source: anyhow::Error::from(e),
+            }
+        })
+    }
+}
+
+fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+    let (part, _) = resp.into_parts();
+    let kind = match part.status {
+        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
+        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
+        _ => Kind::Unexpected,
+    };
+
+    Error::Object {
+        kind,
+        op,
+        path: path.to_string(),
+        source: anyhow!("response part: {:?}", part),
+    }
 }
 
 // Read and decode whole error response.
-async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+async fn parse_error_response_with_body(
+    resp: Response<Body>,
+    op: &'static str,
+    path: &str,
+) -> Error {
     let (part, mut body) = resp.into_parts();
     let kind = match part.status {
         StatusCode::NOT_FOUND => Kind::ObjectNotExist,

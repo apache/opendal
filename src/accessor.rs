@@ -18,13 +18,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::error::Result;
+use crate::io::BytesSink;
 use crate::io::BytesStream;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::BoxedAsyncReader;
 use crate::BoxedObjectStream;
 use crate::Metadata;
 
@@ -40,9 +40,8 @@ pub trait Accessor: Send + Sync + Debug {
         let _ = args;
         unimplemented!()
     }
-    /// Write data from input reader to the underlying storage.
-    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
-        let (_, _) = (r, args);
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
+        let _ = args;
         unimplemented!()
     }
     /// Invoke the `stat` operation on the specified path.
@@ -81,8 +80,8 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn read(&self, args: &OpRead) -> Result<BytesStream> {
         self.as_ref().read(args).await
     }
-    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
-        self.as_ref().write(r, args).await
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
+        self.as_ref().write(args).await
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         self.as_ref().stat(args).await

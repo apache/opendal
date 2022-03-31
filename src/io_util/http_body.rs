@@ -190,9 +190,10 @@ impl Sink<Bytes> for HttpBodySinker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use futures::SinkExt;
     use serde::Deserialize;
+
+    use super::*;
 
     #[derive(Deserialize, Default)]
     #[serde(default)]

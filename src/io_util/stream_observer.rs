@@ -13,13 +13,15 @@
 // limitations under the License.
 
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use bytes::Bytes;
 use futures::Stream;
 use pin_project::pin_project;
 
-use crate::error::{Kind, Result};
+use crate::error::Kind;
+use crate::error::Result;
 use crate::io::BytesStream;
 
 /// Create an observer over BytesStream.
@@ -110,7 +112,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::io_util::into_stream;
     use futures::io;
     use futures::StreamExt;
     use rand::rngs::ThreadRng;
@@ -118,6 +119,7 @@ mod tests {
     use rand::RngCore;
 
     use super::*;
+    use crate::io_util::into_stream;
 
     #[tokio::test]
     async fn test_stream_observer() {

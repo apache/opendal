@@ -62,7 +62,7 @@ env_logger = "0.9"
 num-traits = "0.2"
 opendal_test = { path = "./opendal_test" }
 rand = "0.8"
+serde_json = "1.0.79"
 sha2 = "0.10"
 size = "0.1"
 uuid = { version = "0.8", features = ["serde", "v4"] }
-serde_json = "1.0.79"

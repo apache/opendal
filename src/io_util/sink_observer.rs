@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use bytes::Bytes;
 use futures::Sink;
 use pin_project::pin_project;
 
-use crate::error::{Error, Kind, Result};
+use crate::error::Error;
+use crate::error::Kind;
+use crate::error::Result;
 use crate::io::BytesSink;
 
 /// Create an observer over BytesSink.
@@ -158,13 +161,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::io_util::into_sink;
     use futures::SinkExt;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
 
     use super::*;
+    use crate::io_util::into_sink;
 
     #[tokio::test]
     async fn test_sink_observer() {

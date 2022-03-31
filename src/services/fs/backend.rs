@@ -22,7 +22,6 @@ use async_compat::Compat;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use futures::TryStreamExt;
 use log::debug;
 use log::error;
 use log::info;
@@ -35,9 +34,10 @@ use super::object_stream::Readdir;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::into_sink;
 use crate::io::BytesSink;
 use crate::io::BytesStream;
+use crate::io_util::into_sink;
+use crate::io_util::into_stream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
@@ -46,7 +46,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::ReaderStream;
 use crate::Accessor;
 use crate::BoxedAsyncReader;
 
@@ -165,8 +164,7 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
-        // TODO: we need a better way to convert a file into stream.
-        let s = ReaderStream::new(r).map_err(|e| crate::error::Error::Unexpected(anyhow!(e)));
+        let s = into_stream(r, 8 * 1024);
 
         debug!(
             "object {} reader created: offset {:?}, size {:?}",

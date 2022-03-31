@@ -99,6 +99,8 @@ pub use scheme::Scheme;
 pub mod credential;
 pub mod error;
 pub mod http;
+pub mod io_util;
+#[deprecated]
 pub mod readers;
 
 pub mod ops;

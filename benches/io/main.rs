@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod io;
-mod layer;
-mod ops;
+mod into_stream;
+
+use criterion::criterion_group;
+use criterion::criterion_main;
+
+criterion_group!(benches, into_stream::bench);
+criterion_main!(benches);

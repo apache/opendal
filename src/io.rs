@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
 use std::future::Future;
 use std::io;
-use std::io::{Read, SeekFrom};
+use std::io::SeekFrom;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
 use bytes::{Buf, Bytes};
 use futures::future::BoxFuture;
 use futures::Stream;
@@ -207,7 +207,7 @@ impl Writer {
             path: self.path.clone(),
             size,
         };
-        let mut s = self.acc.write(op).await?;
+        let s = self.acc.write(op).await?;
         let mut w = into_write(s);
         Ok(futures::io::copy(&mut r, &mut w)
             .await

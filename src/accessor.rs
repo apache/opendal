@@ -24,7 +24,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::BoxedAsyncReader;
 use crate::BoxedObjectStream;
 use crate::Metadata;
 

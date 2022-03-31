@@ -24,7 +24,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::{BufMut, Bytes};
 use futures::stream;
-use futures::{io, Sink};
+use futures::Sink;
 use minitrace::trace;
 
 use crate::error::Error;
@@ -38,7 +38,6 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::BoxedAsyncReader;
 use crate::Metadata;
 use crate::Object;
 use crate::ObjectMode;
@@ -127,8 +126,6 @@ impl Accessor for Backend {
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let path = Backend::normalize_path(&args.path);
-
-        let x: BoxedAsyncReader;
 
         Ok(Box::new(MapSink {
             path,

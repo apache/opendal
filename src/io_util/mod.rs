@@ -19,3 +19,13 @@ pub use into_writer::into_writer;
 
 mod into_stream;
 pub use into_stream::into_stream;
+
+mod stream_observer;
+pub use stream_observer::observe_stream;
+pub use stream_observer::StreamEvent;
+pub use stream_observer::StreamObserver;
+
+mod sink_observer;
+pub use sink_observer::observe_sink;
+pub use sink_observer::SinkEvent;
+pub use sink_observer::SinkObserver;

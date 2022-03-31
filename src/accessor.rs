@@ -36,17 +36,21 @@ use crate::Metadata;
 /// use [`Operator`][crate::Operator] instead.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
+    /// Invoke the `read` operation on the specified path, returns a [`BytesStream`]
+    /// if operate successful.
     async fn read(&self, args: &OpRead) -> Result<BytesStream> {
         let _ = args;
         unimplemented!()
     }
+    /// Invoke the `write` operation on the specified path, returns a [`BytesSink`]
+    /// if operate successful.
     async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let _ = args;
         unimplemented!()
     }
     /// Invoke the `stat` operation on the specified path.
     ///
-    /// ## Behavior
+    /// # Behavior
     ///
     /// - `Stat` empty path means stat backend's root path.
     /// - `Stat` a path endswith "/" means stating a dir.
@@ -58,7 +62,7 @@ pub trait Accessor: Send + Sync + Debug {
     }
     /// `Delete` will invoke the `delete` operation.
     ///
-    /// ## Behavior
+    /// # Behavior
     ///
     /// - `Delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
     /// - `Delete` will return `Ok(())` if the path is deleted successfully or not exist.

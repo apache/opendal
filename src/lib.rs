@@ -75,6 +75,8 @@ pub use accessor::Accessor;
 
 mod io;
 pub use io::BoxedAsyncReader;
+pub use io::BytesSink;
+pub use io::BytesStream;
 pub use io::Reader;
 pub use io::Writer;
 

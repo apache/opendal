@@ -56,8 +56,8 @@ use crate::BoxedAsyncReader;
 use crate::BoxedObjectStream;
 use crate::ObjectMode;
 
-pub const DELETE_SNAPSHOTS: &str = "x-ms-delete-snapshots";
-pub const BLOB_TYPE: &str = "x-ms-blob-type";
+pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
+
 #[derive(Default, Debug, Clone)]
 pub struct Builder {
     root: Option<String>,
@@ -76,6 +76,7 @@ impl Builder {
 
         self
     }
+
     pub fn container(&mut self, container: &str) -> &mut Self {
         self.container = container.to_string();
 
@@ -215,7 +216,7 @@ impl Backend {
             .trim_start_matches('/')
             .to_string()
     }
-    #[allow(dead_code)]
+
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
         let path = format!("/{}", path);
 
@@ -257,9 +258,10 @@ impl Accessor for Backend {
                     }
                 })))
             }
-            _ => Err(parse_error_response(resp, "read", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "read", &p).await),
         }
     }
+
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let p = self.get_abs_path(&args.path);
@@ -275,12 +277,13 @@ impl Accessor for Backend {
                     debug!("object {} write finished: size {:?}", &op.path, op.size);
                     Ok(())
                 }
-                _ => Err(parse_error_response2(resp, "write", &op.path)),
+                _ => Err(parse_error_response_without_body(resp, "write", &op.path)),
             }
         });
 
         Ok(Box::new(bs))
     }
+
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_azure_stat_requests");
@@ -350,9 +353,10 @@ impl Accessor for Backend {
                 debug!("object {} stat finished", &p);
                 Ok(m)
             }
-            _ => Err(parse_error_response(resp, "stat", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "stat", &p).await),
         }
     }
+
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_azure_delete_requests");
@@ -366,9 +370,10 @@ impl Accessor for Backend {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
-            _ => Err(parse_error_response(resp, "delete", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "delete", &p).await),
         }
     }
+
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
         increment_counter!("opendal_azblob_list_requests");
@@ -420,6 +425,7 @@ impl Backend {
             }
         })
     }
+
     #[trace("put_blob")]
     pub(crate) async fn put_blob(
         &self,
@@ -434,7 +440,7 @@ impl Backend {
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
-        req = req.header(HeaderName::from_static(BLOB_TYPE), "BlockBlob");
+        req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
         let mut req = req
@@ -453,6 +459,7 @@ impl Backend {
             }
         })
     }
+
     #[trace("put_blob")]
     pub(crate) async fn put_blob2(
         &self,
@@ -467,7 +474,7 @@ impl Backend {
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
-        req = req.header(HeaderName::from_static(BLOB_TYPE), "BlockBlob");
+        req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
         let mut req = req.body(body).expect("must be valid request");
@@ -527,7 +534,8 @@ impl Backend {
         })
     }
 
-    pub(crate) async fn list_objects(
+    #[trace("list_blobs")]
+    pub(crate) async fn list_blobs(
         &self,
         path: &str,
         next_marker: &str,
@@ -561,7 +569,7 @@ impl Backend {
     }
 }
 
-fn parse_error_response2(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
     let (part, _) = resp.into_parts();
     let kind = match part.status {
         StatusCode::NOT_FOUND => Kind::ObjectNotExist,
@@ -578,7 +586,11 @@ fn parse_error_response2(resp: Response<Body>, op: &'static str, path: &str) -> 
 }
 
 // Read and decode whole error response.
-async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+async fn parse_error_response_with_body(
+    resp: Response<Body>,
+    op: &'static str,
+    path: &str,
+) -> Error {
     let (part, mut body) = resp.into_parts();
     let kind = match part.status {
         StatusCode::NOT_FOUND => Kind::ObjectNotExist,

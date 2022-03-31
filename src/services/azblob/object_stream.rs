@@ -72,7 +72,7 @@ impl futures::Stream for AzblobObjectStream {
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
                 let fut = async move {
-                    let mut resp = backend.list_objects(&path, &next_marker).await?;
+                    let mut resp = backend.list_blobs(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
                         let e = Err(Error::Object {

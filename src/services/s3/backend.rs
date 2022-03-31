@@ -734,7 +734,7 @@ impl Accessor for Backend {
                     }
                 })))
             }
-            _ => Err(parse_error_response(resp, "read", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "read", &p).await),
         }
     }
 
@@ -753,7 +753,7 @@ impl Accessor for Backend {
                     debug!("object {} write finished: size {:?}", op.path, op.size);
                     Ok(())
                 }
-                _ => Err(parse_error_response2(resp, "write", &op.path)),
+                _ => Err(parse_error_response_without_body(resp, "write", &op.path)),
             }
         });
 
@@ -830,7 +830,7 @@ impl Accessor for Backend {
                 debug!("object {} stat finished", &p);
                 Ok(m)
             }
-            _ => Err(parse_error_response(resp, "stat", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "stat", &p).await),
         }
     }
     #[trace("delete")]
@@ -847,7 +847,7 @@ impl Accessor for Backend {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
-            _ => Err(parse_error_response(resp, "delete", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "delete", &p).await),
         }
     }
     #[trace("list")]
@@ -1035,7 +1035,7 @@ impl Backend {
 }
 
 // Read and decode whole error response.
-fn parse_error_response2(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
     let (part, _) = resp.into_parts();
     let kind = match part.status {
         StatusCode::NOT_FOUND => Kind::ObjectNotExist,
@@ -1052,7 +1052,11 @@ fn parse_error_response2(resp: Response<Body>, op: &'static str, path: &str) -> 
 }
 
 // Read and decode whole error response.
-async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+async fn parse_error_response_with_body(
+    resp: Response<Body>,
+    op: &'static str,
+    path: &str,
+) -> Error {
     let (part, mut body) = resp.into_parts();
     let kind = match part.status {
         StatusCode::NOT_FOUND => Kind::ObjectNotExist,

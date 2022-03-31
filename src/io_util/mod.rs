@@ -11,7 +11,11 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+mod into_sink;
+pub use into_sink::into_sink;
 
-mod io;
-mod layer;
-mod ops;
+mod into_writer;
+pub use into_writer::into_writer;
+
+mod into_stream;
+pub use into_stream::into_stream;

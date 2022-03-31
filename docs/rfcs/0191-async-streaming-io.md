@@ -130,9 +130,64 @@ struct BodySinker {
 
 # Drawbacks
 
-None.
+## Performance regression on fs
+
+`fs` is not stream based backend, and convert from `Reader` to `Stream` is not zero cost. Based on benchmark over `IntoStream`, we can get nearly 70% performance drawback (pure memory):
+
+```rust
+into_stream/into_stream time:   [1.3046 ms 1.3056 ms 1.3068 ms]
+                        thrpt:  [2.9891 GiB/s 2.9919 GiB/s 2.9942 GiB/s]
+into_stream/raw_reader  time:   [382.10 us 383.52 us 385.16 us]
+                        thrpt:  [10.142 GiB/s 10.185 GiB/s 10.223 GiB/s]
+```
+
+However, real fs is not as fast as memory and most overhead will happen at disk side, so that performance regression is allowed (at least at this time).
 
 # Rationale and alternatives
+
+## Performance for switching from Reader to Stream
+
+Before
+
+```rust
+read_full/4.00 KiB      time:   [455.70 us 466.18 us 476.93 us]
+                        thrpt:  [8.1904 MiB/s 8.3794 MiB/s 8.5719 MiB/s]
+read_full/256 KiB       time:   [530.63 us 544.30 us 557.84 us]
+                        thrpt:  [448.16 MiB/s 459.30 MiB/s 471.14 MiB/s]
+read_full/4.00 MiB      time:   [1.5569 ms 1.6152 ms 1.6743 ms]
+                        thrpt:  [2.3330 GiB/s 2.4184 GiB/s 2.5090 GiB/s]
+read_full/16.0 MiB      time:   [5.7337 ms 5.9087 ms 6.0813 ms]
+                        thrpt:  [2.5693 GiB/s 2.6444 GiB/s 2.7251 GiB/s]
+```
+
+After
+
+```rust
+read_full/4.00 KiB      time:   [455.67 us 466.03 us 476.21 us]
+                        thrpt:  [8.2027 MiB/s 8.3819 MiB/s 8.5725 MiB/s]
+                 change:
+                        time:   [-2.1168% +0.6241% +3.8735%] (p = 0.68 > 0.05)
+                        thrpt:  [-3.7291% -0.6203% +2.1625%]
+                        No change in performance detected.
+read_full/256 KiB       time:   [521.04 us 535.20 us 548.74 us]
+                        thrpt:  [455.59 MiB/s 467.11 MiB/s 479.81 MiB/s]
+                 change:
+                        time:   [-7.8470% -4.7987% -1.4955%] (p = 0.01 < 0.05)
+                        thrpt:  [+1.5182% +5.0406% +8.5152%]
+                        Performance has improved.
+read_full/4.00 MiB      time:   [1.4571 ms 1.5184 ms 1.5843 ms]
+                        thrpt:  [2.4655 GiB/s 2.5725 GiB/s 2.6808 GiB/s]
+                 change:
+                        time:   [-5.4403% -1.5696% +2.3719%] (p = 0.44 > 0.05)
+                        thrpt:  [-2.3170% +1.5946% +5.7533%]
+                        No change in performance detected.
+read_full/16.0 MiB      time:   [5.0201 ms 5.2105 ms 5.3986 ms]
+                        thrpt:  [2.8943 GiB/s 2.9988 GiB/s 3.1125 GiB/s]
+                 change:
+                        time:   [-15.917% -11.816% -7.5219%] (p = 0.00 < 0.05)
+                        thrpt:  [+8.1337% +13.400% +18.930%]
+                        Performance has improved.
+```
 
 ## Performance for the extra channel in `write`
 
@@ -258,6 +313,8 @@ pub trait Accessor: Send + Sync + Debug {
 ```
 
 This API design addressed all concerns but made it hard for users to use. Primarily, we can't support `futures::AsyncRead` and `tokio::AsyncRead` simultaneously.
+
+For example, we can't accept a `Box::new(Vec::new())`, user can't get this vec from OpenDAL.
 
 # Unresolved questions
 

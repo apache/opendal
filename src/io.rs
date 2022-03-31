@@ -276,31 +276,39 @@ where
     }
 }
 
-pub fn into_write<S: Sink<Bytes> + Send + Unpin>(s: S) -> IntoWrite<S> {
+pub fn into_write<S: Sink<Bytes, Error = Error> + Send + Unpin>(s: S) -> IntoWrite<S> {
     IntoWrite { s }
 }
 
-pub struct IntoWrite<S: Sink<Bytes> + Send + Unpin> {
+pub struct IntoWrite<S: Sink<Bytes, Error = Error> + Send + Unpin> {
     s: S,
 }
 
 impl<S> AsyncWrite for IntoWrite<S>
 where
-    S: Sink<Bytes> + Send + Unpin,
+    S: Sink<Bytes, Error = Error> + Send + Unpin,
 {
     fn poll_write(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        todo!()
+        ready!(Pin::new(&mut self.s).poll_ready(cx))?;
+
+        let size = buf.len();
+        Pin::new(&mut self.s).start_send(Bytes::copy_from_slice(buf))?;
+        Poll::Ready(Ok(size))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        todo!()
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.s)
+            .poll_flush(cx)
+            .map_err(io::Error::from)
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        todo!()
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.s)
+            .poll_close(cx)
+            .map_err(io::Error::from)
     }
 }

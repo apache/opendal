@@ -20,14 +20,20 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
+use bytes::Buf;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
+use futures::AsyncWrite;
+use futures::Sink;
+use futures::SinkExt;
 use futures::Stream;
 use futures::TryStreamExt;
 
+use crate::error::Error;
 use crate::error::Result;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -39,6 +45,8 @@ use crate::Metadata;
 pub type BoxedAsyncReader = Box<dyn AsyncRead + Unpin + Send>;
 /// BytesStream represents a stream of bytes.
 pub type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Unpin + Send>;
+/// BytesSink represents a sink of bytes.
+pub type BytesSink = Box<dyn Sink<Bytes, Error = Error> + Unpin + Send>;
 
 /// Reader is used for reading data from underlying backend.
 ///
@@ -193,16 +201,119 @@ impl Writer {
             path: self.path.clone(),
             size: bs.len() as u64,
         };
-        let r = Box::new(futures::io::Cursor::new(bs));
+        let mut s = self.acc.write(op).await?;
+        s.feed(Bytes::from(bs)).await?;
+        s.close().await?;
 
-        self.acc.write(r, op).await
+        Ok(op.size as usize)
     }
-    pub async fn write_reader(self, r: BoxedAsyncReader, size: u64) -> Result<usize> {
+    pub async fn write_reader(self, mut r: BoxedAsyncReader, size: u64) -> Result<usize> {
         let op = &OpWrite {
             path: self.path.clone(),
             size,
         };
+        let s = self.acc.write(op).await?;
+        let mut w = into_write(s);
+        Ok(futures::io::copy(&mut r, &mut w)
+            .await
+            .map_err(|e| Error::Unexpected(anyhow!(e)))? as usize)
+    }
+}
 
-        self.acc.write(r, op).await
+pub fn into_sink<W: AsyncWrite + Send + Unpin>(w: W) -> IntoSink<W> {
+    IntoSink {
+        w,
+        b: bytes::Bytes::new(),
+    }
+}
+
+pub struct IntoSink<W: AsyncWrite + Send + Unpin> {
+    w: W,
+    b: bytes::Bytes,
+}
+
+impl<W> Sink<Bytes> for IntoSink<W>
+where
+    W: AsyncWrite + Send + Unpin,
+{
+    type Error = Error;
+
+    fn poll_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        while !self.b.is_empty() {
+            let b = &self.b.clone();
+            let n = ready!(Pin::new(&mut self.w).poll_write(cx, b))
+                .map_err(|e| Error::Unexpected(anyhow!(e)))?;
+            self.b.advance(n);
+        }
+
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> std::result::Result<(), Self::Error> {
+        self.b = item;
+        Ok(())
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        while !self.b.is_empty() {
+            let b = &self.b.clone();
+            let n = ready!(Pin::new(&mut self.w).poll_write(cx, b))
+                .map_err(|e| Error::Unexpected(anyhow!(e)))?;
+            self.b.advance(n);
+        }
+
+        Pin::new(&mut self.w)
+            .poll_flush(cx)
+            .map_err(|e| Error::Unexpected(anyhow!(e)))
+    }
+
+    fn poll_close(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        self.poll_flush(cx)
+    }
+}
+
+pub fn into_write<S: Sink<Bytes, Error = Error> + Send + Unpin>(s: S) -> IntoWrite<S> {
+    IntoWrite { s }
+}
+
+pub struct IntoWrite<S: Sink<Bytes, Error = Error> + Send + Unpin> {
+    s: S,
+}
+
+impl<S> AsyncWrite for IntoWrite<S>
+where
+    S: Sink<Bytes, Error = Error> + Send + Unpin,
+{
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        ready!(Pin::new(&mut self.s).poll_ready(cx))?;
+
+        let size = buf.len();
+        Pin::new(&mut self.s).start_send(Bytes::copy_from_slice(buf))?;
+        Poll::Ready(Ok(size))
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.s)
+            .poll_flush(cx)
+            .map_err(io::Error::from)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.s)
+            .poll_close(cx)
+            .map_err(io::Error::from)
     }
 }

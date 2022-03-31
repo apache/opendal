@@ -46,6 +46,9 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::http::new_channel;
+use crate::http::BodySinker;
+use crate::io::BytesSink;
 use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
@@ -55,9 +58,7 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::readers::ReaderStream;
 use crate::Accessor;
-use crate::BoxedAsyncReader;
 use crate::ObjectMode;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -733,24 +734,32 @@ impl Accessor for Backend {
                     }
                 })))
             }
-            _ => Err(parse_error_response(resp, "read", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "read", &p).await),
         }
     }
 
     #[trace("write")]
-    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 
-        let resp = self.put_object(&p, r, args.size).await?;
-        match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => {
-                debug!("object {} write finished: size {:?}", &p, args.size);
-                Ok(args.size as usize)
+        let (tx, body) = new_channel();
+
+        let req = self.put_object(&p, args.size, body).await;
+
+        let bs = BodySinker::new(args, tx, self.client.request(req), |op, resp| {
+            match resp.status() {
+                StatusCode::CREATED | StatusCode::OK => {
+                    debug!("object {} write finished: size {:?}", op.path, op.size);
+                    Ok(())
+                }
+                _ => Err(parse_error_response_without_body(resp, "write", &op.path)),
             }
-            _ => Err(parse_error_response(resp, "write", &p).await),
-        }
+        });
+
+        Ok(Box::new(bs))
     }
+
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_s3_stat_requests");
@@ -821,7 +830,7 @@ impl Accessor for Backend {
                 debug!("object {} stat finished", &p);
                 Ok(m)
             }
-            _ => Err(parse_error_response(resp, "stat", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "stat", &p).await),
         }
     }
     #[trace("delete")]
@@ -838,7 +847,7 @@ impl Accessor for Backend {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
-            _ => Err(parse_error_response(resp, "delete", &p).await),
+            _ => Err(parse_error_response_with_body(resp, "delete", &p).await),
         }
     }
     #[trace("list")]
@@ -897,9 +906,9 @@ impl Backend {
     pub(crate) async fn put_object(
         &self,
         path: &str,
-        r: BoxedAsyncReader,
         size: u64,
-    ) -> Result<hyper::Response<hyper::Body>> {
+        body: hyper::Body,
+    ) -> hyper::Request<hyper::Body> {
         let mut req = hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
 
         // Set content length.
@@ -909,21 +918,11 @@ impl Backend {
         req = self.insert_sse_headers(req, true);
 
         // Set body
-        let mut req = req
-            .body(hyper::body::Body::wrap_stream(ReaderStream::new(r)))
-            .expect("must be valid request");
+        let mut req = req.body(body).expect("must be valid request");
 
         self.signer.sign(&mut req).await.expect("sign must success");
 
-        self.client.request(req).await.map_err(|e| {
-            error!("object {} put_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
-        })
+        req
     }
 
     #[trace("head_object")]
@@ -1003,7 +1002,28 @@ impl Backend {
 }
 
 // Read and decode whole error response.
-async fn parse_error_response(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+    let (part, _) = resp.into_parts();
+    let kind = match part.status {
+        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
+        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
+        _ => Kind::Unexpected,
+    };
+
+    Error::Object {
+        kind,
+        op,
+        path: path.to_string(),
+        source: anyhow!("response part: {:?}", part),
+    }
+}
+
+// Read and decode whole error response.
+async fn parse_error_response_with_body(
+    resp: Response<Body>,
+    op: &'static str,
+    path: &str,
+) -> Error {
     let (part, mut body) = resp.into_parts();
     let kind = match part.status {
         StatusCode::NOT_FOUND => Kind::ObjectNotExist,

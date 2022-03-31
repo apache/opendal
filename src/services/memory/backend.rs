@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -21,14 +22,16 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::BufMut;
 use bytes::Bytes;
-use futures::io;
 use futures::stream;
+use futures::Sink;
 use minitrace::trace;
 
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
+use crate::io::BytesSink;
 use crate::io::BytesStream;
 use crate::object::BoxedObjectStream;
 use crate::ops::OpDelete;
@@ -37,7 +40,6 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::BoxedAsyncReader;
 use crate::Metadata;
 use crate::Object;
 use crate::ObjectMode;
@@ -124,33 +126,17 @@ impl Accessor for Backend {
         }))))
     }
     #[trace("write")]
-    async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let path = Backend::normalize_path(&args.path);
 
-        let bs = vec![0; args.size as usize];
-        let mut cursor = io::Cursor::new(bs);
-        let n = io::copy(&mut r, &mut cursor)
-            .await
-            .map_err(|e| Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: path.clone(),
-                source: anyhow::Error::from(e),
-            })?;
-        if n < args.size {
-            return Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: path.clone(),
-                source: anyhow!("write short  {} M {}", n, args.size),
-            });
-        }
-
-        let mut map = self.inner.lock().expect("lock poisoned");
-        map.insert(path.to_string(), Bytes::from(cursor.into_inner()));
-
-        Ok(n as usize)
+        Ok(Box::new(MapSink {
+            path,
+            size: args.size,
+            map: self.inner.clone(),
+            buf: Default::default(),
+        }))
     }
+
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = Backend::normalize_path(&args.path);
@@ -208,6 +194,61 @@ impl Accessor for Backend {
             paths,
             idx: 0,
         }))
+    }
+}
+
+struct MapSink {
+    path: String,
+    size: u64,
+    map: Arc<Mutex<HashMap<String, bytes::Bytes>>>,
+
+    buf: bytes::BytesMut,
+}
+
+impl Sink<Bytes> for MapSink {
+    type Error = Error;
+
+    fn poll_ready(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> std::result::Result<(), Self::Error> {
+        self.buf.put_slice(&item);
+        Ok(())
+    }
+
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(
+        mut self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        if self.buf.len() != self.size as usize {
+            return Poll::Ready(Err(Error::Object {
+                kind: Kind::Unexpected,
+                op: "write",
+                path: self.path.clone(),
+                source: anyhow!(
+                    "write short, expect {} actual {}",
+                    self.size,
+                    self.buf.len()
+                ),
+            }));
+        }
+
+        let buf = mem::take(&mut self.buf);
+        let mut map = self.map.lock().expect("lock poisoned");
+        map.insert(self.path.clone(), buf.freeze());
+
+        Poll::Ready(Ok(()))
     }
 }
 

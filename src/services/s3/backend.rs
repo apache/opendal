@@ -739,22 +739,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
-        let p = self.get_abs_path(&args.path);
-        debug!("object {} write start: size {}", &p, args.size);
-
-        let resp = self.put_object(&p, r, args.size).await?;
-        match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => {
-                debug!("object {} write finished: size {:?}", &p, args.size);
-                Ok(args.size as usize)
-            }
-            _ => Err(parse_error_response(resp, "write", &p).await),
-        }
-    }
-
-    #[trace("write")]
-    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 

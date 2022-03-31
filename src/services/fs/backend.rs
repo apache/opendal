@@ -176,70 +176,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
-        increment_counter!("opendal_fs_write_requests");
-
-        let path = self.get_abs_path(&args.path);
-        debug!("object {} write start: size {}", &path, args.size);
-
-        // Create dir before write path.
-        //
-        // TODO(xuanwo): There are many works to do here:
-        //   - Is it safe to create dir concurrently?
-        //   - Do we need to extract this logic as new util functions?
-        //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&path)
-            .parent()
-            .ok_or_else(|| anyhow!("malformed path: {:?}", &path))?
-            .to_path_buf();
-
-        fs::create_dir_all(&parent).await.map_err(|e| {
-            let e = parse_io_error(e, "write", &parent.to_string_lossy());
-            error!(
-                "object {} create_dir_all for parent {}: {:?}",
-                &path,
-                &parent.to_string_lossy(),
-                e
-            );
-            e
-        })?;
-
-        let f = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&path)
-            .await
-            .map_err(|e| {
-                let e = parse_io_error(e, "write", &path);
-                error!("object {} open: {:?}", &path, e);
-                e
-            })?;
-
-        let mut f = Compat::new(f);
-
-        // TODO: we should respect the input size.
-        let s = io::copy(&mut r, &mut f).await.map_err(|e| {
-            let e = parse_io_error(e, "write", &path);
-            error!("object {} copy: {:?}", &path, e);
-            e
-        })?;
-
-        // `std::fs::File`'s errors detected on closing are ignored by
-        // the implementation of Drop.
-        // So we need to call `flush` to make sure all data have been flushed
-        // to fs successfully.
-        f.flush().await.map_err(|e| {
-            let e = parse_io_error(e, "write", &path);
-            error!("object {} flush: {:?}", &path, e);
-            e
-        })?;
-
-        debug!("object {} write finished: size {:?}", &path, args.size);
-        Ok(s as usize)
-    }
-
-    #[trace("write")]
-    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         increment_counter!("opendal_fs_write_requests");
 
         let path = self.get_abs_path(&args.path);

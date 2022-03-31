@@ -196,7 +196,7 @@ impl Writer {
             path: self.path.clone(),
             size: bs.len() as u64,
         };
-        let mut s = self.acc.write2(op).await?;
+        let mut s = self.acc.write(op).await?;
         s.feed(Bytes::from(bs)).await?;
         s.close().await?;
 
@@ -207,7 +207,7 @@ impl Writer {
             path: self.path.clone(),
             size,
         };
-        let mut s = self.acc.write2(op).await?;
+        let mut s = self.acc.write(op).await?;
         let mut w = into_write(s);
         Ok(futures::io::copy(&mut r, &mut w)
             .await

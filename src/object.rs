@@ -66,7 +66,7 @@ impl Object {
 
     pub async fn sink(&self, size: u64) -> Result<BytesSink> {
         self.acc
-            .write2(&OpWrite {
+            .write(&OpWrite {
                 path: self.meta.path().to_string(),
                 size,
             })

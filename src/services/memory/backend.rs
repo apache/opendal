@@ -125,35 +125,7 @@ impl Accessor for Backend {
         }))))
     }
     #[trace("write")]
-    async fn write(&self, mut r: BoxedAsyncReader, args: &OpWrite) -> Result<usize> {
-        let path = Backend::normalize_path(&args.path);
-
-        let bs = vec![0; args.size as usize];
-        let mut cursor = io::Cursor::new(bs);
-        let n = io::copy(&mut r, &mut cursor)
-            .await
-            .map_err(|e| Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: path.clone(),
-                source: anyhow::Error::from(e),
-            })?;
-        if n < args.size {
-            return Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: path.clone(),
-                source: anyhow!("write short  {} M {}", n, args.size),
-            });
-        }
-
-        let mut map = self.inner.lock().expect("lock poisoned");
-        map.insert(path.to_string(), Bytes::from(cursor.into_inner()));
-
-        Ok(n as usize)
-    }
-
-    async fn write2(&self, args: &OpWrite) -> Result<BytesSink> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
         let path = Backend::normalize_path(&args.path);
 
         let x: BoxedAsyncReader;

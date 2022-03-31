@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use anyhow::anyhow;
 use bytes::Bytes;
 use futures::channel::mpsc::{self, Sender};
 use futures::{ready, Sink, StreamExt};

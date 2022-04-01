@@ -28,7 +28,6 @@ anyhow = "1"
 async-compat = "0.2"
 async-trait = "0.1"
 base64 = "0.13.0"
-bstr = "0.2"
 bytes = "1.1.0"
 futures = { version = "0.3", features = ["alloc"] }
 http = "0.2"
@@ -41,14 +40,13 @@ minitrace = "0.4.0"
 once_cell = "1"
 pin-project = "1"
 quick-xml = { version = "0.22.0", features = ["serialize"] }
-reqsign = "0.0.2"
+reqsign = "0.0.3"
 reqwest = { version = "0.11", features = ["stream"] }
 roxmltree = "0.14"
 serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1"
 time = "0.3.7"
 tokio = { version = "1.17", features = ["full"] }
-tower = "0.4"
 
 [dev-dependencies]
 anyhow = "1.0"

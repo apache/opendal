@@ -29,14 +29,16 @@ async fn main() -> Result<()> {
 
     // Real example starts from here.
 
-    // Get a file writer.
-    let w = op.object("test_file").writer();
-    w.write_bytes(vec![0; 1024]).await?;
+    // Write from slice.
+    let _ = op
+        .object("test_file")
+        .write_from_slice("Hello, World!")
+        .await?;
 
-    // Or write data from a readers.
-    let w = op.object("test_file").writer();
-    let r = io::Cursor::new(vec![0; 1024]);
-    w.write_reader(Box::new(r), 1024).await?;
+    // Or write data via a writer.
+    let mut w = op.object("test_file").writer(1024).await?;
+    let mut r = io::Cursor::new(vec![0; 1024]);
+    io::copy(&mut r, &mut w).await?;
 
     Ok(())
 }

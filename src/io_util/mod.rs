@@ -14,14 +14,17 @@
 
 //! Providing IO utils like `into_sink`, `into_stream`.
 
+mod into_stream;
+pub use into_stream::into_stream;
+
 mod into_sink;
 pub use into_sink::into_sink;
 
+mod into_reader;
+pub use into_reader::into_reader;
+
 mod into_writer;
 pub use into_writer::into_writer;
-
-mod into_stream;
-pub use into_stream::into_stream;
 
 mod stream_observer;
 pub use stream_observer::observe_stream;
@@ -36,3 +39,6 @@ pub use sink_observer::SinkObserver;
 mod http_body;
 pub use http_body::new_http_channel;
 pub use http_body::HttpBodySinker;
+
+mod seekable_reader;
+pub use seekable_reader::seekable_read;

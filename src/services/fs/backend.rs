@@ -34,20 +34,20 @@ use super::object_stream::Readdir;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesSink;
-use crate::io::BytesStream;
+use crate::io::BytesSinker;
+use crate::io::BytesStreamer;
 use crate::io_util::into_sink;
 use crate::io_util::into_stream;
-use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
+use crate::object::ObjectStreamer;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::BoxedAsyncReader;
+use crate::BytesReader;
 
 #[derive(Default, Debug)]
 pub struct Builder {
@@ -130,7 +130,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
         increment_counter!("opendal_fs_read_requests");
 
         let path = self.get_abs_path(&args.path);
@@ -159,7 +159,7 @@ impl Accessor for Backend {
             })?;
         };
 
-        let r: BoxedAsyncReader = match args.size {
+        let r: BytesReader = match args.size {
             Some(size) => Box::new(f.take(size)),
             None => Box::new(f),
         };
@@ -174,7 +174,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
         increment_counter!("opendal_fs_write_requests");
 
         let path = self.get_abs_path(&args.path);
@@ -287,7 +287,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_fs_list_requests");
 
         let path = self.get_abs_path(&args.path);

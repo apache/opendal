@@ -20,14 +20,14 @@ use anyhow::anyhow;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::ready;
-use futures::AsyncRead;
 use futures::Stream;
 use pin_project::pin_project;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::BytesRead;
 
-/// Convert AsyncRead into Stream.
+/// Convert [`BytesRead`][crate::BytesRead] into [`BytesStream`][crate::BytesStream].
 ///
 /// # Note
 ///
@@ -51,7 +51,7 @@ use crate::error::Result;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_stream<R: AsyncRead + Send + Unpin>(r: R, capacity: usize) -> IntoStream<R> {
+pub fn into_stream<R: BytesRead>(r: R, capacity: usize) -> IntoStream<R> {
     IntoStream {
         r,
         cap: capacity,
@@ -60,7 +60,7 @@ pub fn into_stream<R: AsyncRead + Send + Unpin>(r: R, capacity: usize) -> IntoSt
 }
 
 #[pin_project]
-pub struct IntoStream<R: AsyncRead + Send + Unpin> {
+pub struct IntoStream<R: BytesRead> {
     #[pin]
     r: R,
     cap: usize,
@@ -69,7 +69,7 @@ pub struct IntoStream<R: AsyncRead + Send + Unpin> {
 
 impl<R> Stream for IntoStream<R>
 where
-    R: AsyncRead + Send + Unpin,
+    R: BytesRead,
 {
     type Item = Result<Bytes>;
 
@@ -97,9 +97,7 @@ mod tests {
     use bytes::BufMut;
     use futures::io;
     use futures::StreamExt;
-    use rand::rngs::ThreadRng;
-    use rand::Rng;
-    use rand::RngCore;
+    use rand::prelude::*;
 
     use super::*;
 

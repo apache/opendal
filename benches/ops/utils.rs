@@ -14,6 +14,7 @@
 
 use std::sync::Arc;
 
+use bytes::Bytes;
 use once_cell::sync::Lazy;
 use opendal::Accessor;
 use opendal::Operator;
@@ -56,8 +57,7 @@ impl TempData {
     pub fn generate(op: Operator, path: &str, content: Vec<u8>) -> Self {
         TOKIO.block_on(async {
             op.object(path)
-                .writer()
-                .write_bytes(content)
+                .write(Bytes::from(content))
                 .await
                 .expect("create test data")
         });

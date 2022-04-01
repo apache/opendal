@@ -14,10 +14,12 @@
 
 use std::sync::Arc;
 
+use crate::error::Result;
+use crate::ops::OpList;
 use crate::Accessor;
 use crate::Layer;
 use crate::Object;
-use crate::ObjectStream;
+use crate::ObjectStreamer;
 
 /// User-facing APIs for object and object streams.
 #[derive(Clone)]
@@ -79,59 +81,12 @@ impl Operator {
         self.accessor.clone()
     }
 
-    /// Create a new object handle to take operations.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use anyhow::Result;
-    /// use futures::AsyncReadExt;
-    /// use opendal::services::fs;
-    /// use opendal::ObjectMode;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
-    ///
-    ///     let o = op.object("test_file");
-    ///
-    ///     // Write data info file;
-    ///     let w = o.writer();
-    ///     let n = w
-    ///         .write_bytes("Hello, World!".to_string().into_bytes())
-    ///         .await?;
-    ///     assert_eq!(n, 13);
-    ///
-    ///     // Read data from file;
-    ///     let mut r = o.reader();
-    ///     let mut buf = vec![];
-    ///     let n = r.read_to_end(&mut buf).await?;
-    ///     assert_eq!(n, 13);
-    ///     assert_eq!(String::from_utf8_lossy(&buf), "Hello, World!");
-    ///
-    ///     // Read range from file;
-    ///     let mut r = o.range_reader(10, 1);
-    ///     let mut buf = vec![];
-    ///     let n = r.read_to_end(&mut buf).await?;
-    ///     assert_eq!(n, 1);
-    ///     assert_eq!(String::from_utf8_lossy(&buf), "l");
-    ///
-    ///     // Get file's Metadata
-    ///     let meta = o.metadata().await?;
-    ///     assert_eq!(meta.content_length(), 13);
-    ///
-    ///     // Delete file.
-    ///     o.delete().await?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
+    /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
         Object::new(self.inner(), path)
     }
 
-    /// Create a new object stream handle to list objects.
+    /// Create a new [`ObjectStreamer`][crate::ObjectStreamer] handle to list objects.
     ///
     /// # Example
     ///
@@ -147,10 +102,10 @@ impl Operator {
     /// async fn main() -> Result<()> {
     ///     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
     ///
-    ///     op.object("test_dir/test_file").writer().write_bytes("Hello, World!".to_string().into_bytes()).await?;
+    ///     op.object("test_dir/test_file").write_from_slice("Hello, World!").await?;
     ///
     ///     // Start listing a dir.
-    ///     let mut obs: ObjectStream = op.objects("test_dir");
+    ///     let mut obs = op.objects("test_dir").await?;
     ///     // ObjectStream implements `futures::Stream`
     ///     while let Some(o) = obs.next().await {
     ///         let mut o = o?;
@@ -171,7 +126,8 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn objects(&self, path: &str) -> ObjectStream {
-        ObjectStream::new(self.inner(), path)
+    pub async fn objects(&self, path: &str) -> Result<ObjectStreamer> {
+        let op = OpList::new(path);
+        self.inner().list(&op).await
     }
 }

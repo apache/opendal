@@ -20,11 +20,8 @@
 //!
 //! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
 
-use std::io::SeekFrom;
-
 use anyhow::Result;
 use futures::AsyncReadExt;
-use futures::AsyncSeekExt;
 use futures::StreamExt;
 use opendal::error::Kind;
 use opendal::ObjectMode;
@@ -64,9 +61,7 @@ impl BehaviorTest {
         let (content, size) = self.gen_bytes();
 
         // Step 2: Write this file
-        let w = self.op.object(&path).writer();
-        let n = w.write_bytes(content.clone()).await?;
-        assert_eq!(n, size, "write file");
+        let _ = self.op.object(&path).write_from_slice(&content).await?;
 
         // Step 3: Stat this file
         let meta = self.op.object(&path).metadata().await?;
@@ -79,7 +74,7 @@ impl BehaviorTest {
         // Step 4: Read this file's content
         // Step 4.1: Read the whole file.
         let mut buf = Vec::new();
-        let mut r = self.op.object(&path).reader();
+        let mut r = self.op.object(&path).reader().await?;
         let n = r.read_to_end(&mut buf).await.expect("read to end");
         assert_eq!(n, size as usize, "check size in read whole file");
         assert_eq!(
@@ -91,9 +86,7 @@ impl BehaviorTest {
         // Step 4.2: Read the file with random offset and length.
         let (offset, length) = self.gen_offset_length(size as usize);
         let mut buf: Vec<u8> = vec![0; length as usize];
-        let mut r = self.op.object(&path).reader();
-        let off = r.seek(SeekFrom::Current(offset as i64)).await?;
-        assert_eq!(off, offset);
+        let mut r = self.op.object(&path).range_reader(offset..).await?;
         r.read_exact(&mut buf).await?;
         assert_eq!(
             format!("{:x}", Sha256::digest(&buf)),
@@ -105,7 +98,7 @@ impl BehaviorTest {
         );
 
         // Step 5: List this dir, we should get this file.
-        let mut obs = self.op.objects("").map(|o| o.expect("list object"));
+        let mut obs = self.op.objects("").await?.map(|o| o.expect("list object"));
         let mut found = false;
         while let Some(o) = obs.next().await {
             let meta = o.metadata().await?;

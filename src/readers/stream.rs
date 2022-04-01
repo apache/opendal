@@ -20,7 +20,7 @@ use futures::ready;
 use futures::AsyncRead;
 use pin_project::pin_project;
 
-use crate::BoxedAsyncReader;
+use crate::BytesReader;
 
 const CAPACITY: usize = 4096;
 
@@ -30,12 +30,12 @@ const CAPACITY: usize = 4096;
 #[pin_project]
 pub struct ReaderStream {
     #[pin]
-    reader: Option<BoxedAsyncReader>,
+    reader: Option<BytesReader>,
     buf: bytes::BytesMut,
 }
 
 impl ReaderStream {
-    pub fn new(r: BoxedAsyncReader) -> Self {
+    pub fn new(r: BytesReader) -> Self {
         ReaderStream {
             reader: Some(r),
             buf: bytes::BytesMut::new(),

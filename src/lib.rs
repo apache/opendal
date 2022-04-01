@@ -31,26 +31,19 @@
 //!     let o = op.object("test_file");
 //!
 //!     // Write data info file;
-//!     let w = o.writer();
-//!     let n = w
-//!        .write_bytes("Hello, World!".to_string().into_bytes())
-//!         .await?;
+//!     let _ = o.write_from_slice("Hello, World!").await?;
 //!
 //!     // Read data from file;
-//!     let mut r = o.reader();
-//!     let mut buf = vec![];
-//!     let n = r.read_to_end(&mut buf).await?;
+//!     let bs = o.read().await?;
 //!
 //!     // Read range from file;
-//!     let mut r = o.range_reader(10, 1);
-//!     let mut buf = vec![];
-//!     let n = r.read_to_end(&mut buf).await?;
+//!     let bs = o.range_read(1..=11).await?;
 //!
 //!     // Get file's Metadata
 //!    let meta = o.metadata().await?;
 //!
-//!     // List current dir.
-//!     let mut obs = op.objects("").map(|o| o.expect("list object"));
+//!     // List dir.
+//!     let mut obs = op.objects("").await?.map(|o| o.expect("list object"));
 //!     while let Some(o) = obs.next().await {
 //!         let meta = o.metadata().await?;
 //!         let path = meta.path();
@@ -74,11 +67,14 @@ mod accessor;
 pub use accessor::Accessor;
 
 mod io;
-pub use io::BoxedAsyncReader;
+pub use io::BytesRead;
+pub use io::BytesReader;
 pub use io::BytesSink;
+pub use io::BytesSinker;
 pub use io::BytesStream;
-pub use io::Reader;
-pub use io::Writer;
+pub use io::BytesStreamer;
+pub use io::BytesWrite;
+pub use io::BytesWriter;
 
 mod layer;
 pub use layer::Layer;
@@ -87,11 +83,11 @@ mod operator;
 pub use operator::Operator;
 
 mod object;
-pub use object::BoxedObjectStream;
 pub use object::Metadata;
 pub use object::Object;
 pub use object::ObjectMode;
 pub use object::ObjectStream;
+pub use object::ObjectStreamer;
 
 mod scheme;
 pub use scheme::Scheme;
@@ -104,6 +100,3 @@ pub mod services;
 
 #[deprecated]
 pub mod readers;
-
-#[cfg(test)]
-pub mod tests;

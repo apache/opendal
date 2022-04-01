@@ -14,7 +14,6 @@
 use anyhow::Result;
 use futures::StreamExt;
 use opendal::ObjectMode;
-use opendal::ObjectStream;
 use opendal::Operator;
 use opendal_test::services::fs;
 
@@ -32,7 +31,7 @@ async fn main() -> Result<()> {
     // Real example starts from here.
 
     // Start listing a dir.
-    let mut obs: ObjectStream = op.objects("test_dir");
+    let mut obs = op.objects("test_dir").await?;
     // ObjectStream implements `futures::Stream`
     while let Some(o) = obs.next().await {
         let mut o = o?;

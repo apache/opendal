@@ -20,11 +20,10 @@ use bytes::Bytes;
 use futures::io;
 use futures::ready;
 use futures::AsyncWrite;
-use futures::Sink;
 
-use crate::error::Error;
+use crate::BytesSink;
 
-/// Convert Sink into AsyncWrite.
+/// Convert [`BytesSink`][crate::BytesSink] into [`BytesWrite`][crate::BytesWrite].
 ///
 /// # Note
 ///
@@ -50,17 +49,17 @@ use crate::error::Error;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_writer<S: Sink<Bytes, Error = Error> + Send + Unpin>(s: S) -> IntoWriter<S> {
+pub fn into_writer<S: BytesSink>(s: S) -> IntoWriter<S> {
     IntoWriter { s }
 }
 
-pub struct IntoWriter<S: Sink<Bytes, Error = Error> + Send + Unpin> {
+pub struct IntoWriter<S: BytesSink> {
     s: S,
 }
 
 impl<S> IntoWriter<S>
 where
-    S: Sink<Bytes, Error = Error> + Send + Unpin,
+    S: BytesSink,
 {
     pub fn into_inner(self) -> S {
         self.s
@@ -69,7 +68,7 @@ where
 
 impl<S> AsyncWrite for IntoWriter<S>
 where
-    S: Sink<Bytes, Error = Error> + Send + Unpin,
+    S: BytesSink,
 {
     fn poll_write(
         mut self: Pin<&mut Self>,

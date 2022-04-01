@@ -54,8 +54,7 @@ fn bench_write_once(c: &mut Criterion, op: Operator) {
             &(op.clone(), &path, content),
             |b, (op, path, content)| {
                 b.to_async(&*TOKIO).iter(|| async {
-                    let w = op.object(path).writer();
-                    w.write_bytes(content.clone()).await.unwrap();
+                    op.object(path).write_from_slice(&content).await.unwrap();
                 })
             },
         );

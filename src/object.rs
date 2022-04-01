@@ -14,28 +14,29 @@
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::future::Future;
-use std::pin::Pin;
+use std::ops::RangeBounds;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 use std::time::SystemTime;
 
-use futures::future::BoxFuture;
-use futures::ready;
+use bytes::BufMut;
+use bytes::Bytes;
+use bytes::BytesMut;
+use futures::SinkExt;
+use futures::StreamExt;
 
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesSink;
-use crate::io::BytesStream;
+use crate::io::BytesRead;
+use crate::io::BytesSinker;
+use crate::io::BytesStreamer;
+use crate::io_util::into_reader;
+use crate::io_util::into_writer;
 use crate::ops::OpDelete;
-use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::Reader;
-use crate::Writer;
+use crate::BytesWrite;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -56,193 +57,391 @@ impl Object {
         }
     }
 
-    pub async fn stream(&self, offset: Option<u64>, size: Option<u64>) -> Result<BytesStream> {
-        self.acc
-            .read(&OpRead {
-                path: self.meta.path().to_string(),
-                offset,
-                size,
-            })
-            .await
+    pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
+        self.acc.clone()
     }
 
-    pub async fn sink(&self, size: u64) -> Result<BytesSink> {
-        self.acc
-            .write(&OpWrite {
-                path: self.meta.path().to_string(),
-                size,
-            })
-            .await
+    /// Create a bytes stream from object.
+    ///
+    /// The stream is generated via underlying storage backend directly without
+    /// any extra allocation. `stream` is the most efficient way to read large data.
+    ///
+    /// # Examples
+    ///
+    /// ## Read all
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// use bytes::{BufMut, BytesMut};
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let mut s = o.stream(..).await?;
+    ///     
+    /// let mut content = BytesMut::new();
+    /// while let Some(bs) = s.next().await {
+    ///     content.put_slice(&bs?)
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Read with offset
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let mut s = o.stream(1024..).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Read with limited size
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let mut s = o.stream(..1024).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Read with range
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let mut s = o.stream(1024..2048).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub async fn stream(&self, range: impl RangeBounds<u64>) -> Result<BytesStreamer> {
+        let op = OpRead::new(self.meta.path(), range);
+
+        self.acc.read(&op).await
+    }
+
+    /// Read the whole object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::stream`] or [`Object::reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let bs = o.read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn read(&self) -> Result<Bytes> {
+        self.range_read(..).await
+    }
+
+    /// Read the specified range of object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::stream`] or [`Object::range_reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let bs = o.range_read(1024..2048).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Bytes> {
+        let op = OpRead::new(self.meta.path(), range);
+        let mut s = self.acc.read(&op).await?;
+
+        let mut bs = BytesMut::new();
+
+        while let Some(b) = s.next().await {
+            let b = b?;
+            bs.put_slice(&b);
+        }
+
+        Ok(bs.freeze())
     }
 
     /// Create a new reader which can read the whole object.
     ///
-    /// # Example
+    /// This function adopt a zero cost conversion from [`BytesStream`][crate::BytesStream] to [`BytesRead`][crate::BytesRead].
+    ///
+    /// # Examples
     ///
     /// ```
-    /// use opendal::services::memory;
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///
-    ///     let bs = "Hello, World!".as_bytes().to_vec();
-    ///     op.object("test").writer().write_bytes(bs).await?;
-    ///
-    ///     // Read whole file.
-    ///     let mut r = op.object("test").reader();
-    ///     io::copy(&mut r, &mut io::sink()).await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let r = o.reader().await?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn reader(&self) -> Reader {
-        Reader::new(self.acc.clone(), self.meta.path(), None, None)
+    pub async fn reader(&self) -> Result<impl BytesRead> {
+        self.range_reader(..).await
     }
 
-    /// Create a new ranged reader which can only read data between [offset, offset+size).
+    /// Create a new reader which can read the whole object.
     ///
-    /// # Note
+    /// This function adopt a zero cost conversion from [`BytesStream`][crate::BytesStream] to [`BytesRead`][crate::BytesRead].
     ///
-    /// The input offset and size are not checked, callers could meet error
-    /// while reading.
-    ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
-    /// use opendal::services::memory;
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///
-    ///     let bs = "Hello, World!".as_bytes().to_vec();
-    ///     op.object("test").writer().write_bytes(bs).await?;
-    ///
-    ///     // Read within [1, 2) bytes.
-    ///     let mut r = op.object("test").range_reader(1, 1);
-    ///     io::copy(&mut r, &mut io::sink()).await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// let r = o.range_reader(1024..2048).await?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn range_reader(&self, offset: u64, size: u64) -> Reader {
-        Reader::new(self.acc.clone(), self.meta.path(), Some(offset), Some(size))
+    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
+        let op = OpRead::new(self.meta.path(), range);
+        Ok(into_reader(self.acc.read(&op).await?))
     }
 
-    /// Create a new offset reader which can read data since offset.
+    /// Create a bytes sink into object.
     ///
-    /// # Note
     ///
-    /// The input offset is not checked, callers could meet error while reading.
+    /// The sink is generated via underlying storage backend directly without
+    /// any extra allocation. `sink` is the most efficient way to write large data.
     ///
-    /// # Example
+    /// # Notes
+    ///
+    /// `size` MUST be specified before start a sink, and user MUST provide
+    /// exactly the same size of bytes. Or, backend could return errors while
+    /// closing.
+    ///
+    /// # Examples
     ///
     /// ```
-    /// use opendal::services::memory;
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
     ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///
-    ///     let bs = "Hello, World!".as_bytes().to_vec();
-    ///     op.object("test").writer().write_bytes(bs).await?;
-    ///
-    ///     // Read start offset 4.
-    ///     let mut r = op.object("test").offset_reader(4);
-    ///     io::copy(&mut r, &mut io::sink()).await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file");
+    /// let mut s = o.sink(4096).await?;
+    /// s.feed(Bytes::from(vec![0; 4096])).await?;
+    /// s.close().await?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn offset_reader(&self, offset: u64) -> Reader {
-        Reader::new(self.acc.clone(), self.meta.path(), Some(offset), None)
+    #[inline]
+    pub async fn sink(&self, size: u64) -> Result<BytesSinker> {
+        let op = OpWrite::new(self.meta.path(), size);
+
+        self.acc.write(&op).await
     }
 
-    /// Create a new limited reader which can only read limited data.
+    /// Write bytes into object.
     ///
-    /// # Note
+    /// # Notes
     ///
-    /// The input size is not checked, callers could meet error while reading.
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// - Input bytes will be sent directly without extra copy.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
-    /// use opendal::services::memory;
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
     ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///
-    ///     let bs = "Hello, World!".as_bytes().to_vec();
-    ///     op.object("test").writer().write_bytes(bs).await?;
-    ///
-    ///     // Read within 8 bytes.
-    ///     let mut r = op.object("test").limited_reader(8);
-    ///     io::copy(&mut r, &mut io::sink()).await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file");
+    /// let _ = o.write(Bytes::from(vec![0; 4096])).await?;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn limited_reader(&self, size: u64) -> Reader {
-        Reader::new(self.acc.clone(), self.meta.path(), None, Some(size))
+    pub async fn write(&self, bs: Bytes) -> Result<()> {
+        let op = OpWrite::new(self.meta.path(), bs.len() as u64);
+        let mut s = self.acc.write(&op).await?;
+        s.feed(bs).await?;
+        s.close().await?;
+
+        Ok(())
+    }
+
+    /// Write from slice into object.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// - Input bytes will be sent directly without extra copy.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file");
+    /// let _ = o.write_from_slice("Hello, World!").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn write_from_vec(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+        let bs = Bytes::from(bs.into());
+        self.write(bs).await?;
+
+        Ok(())
+    }
+
+    /// Write from slice into object.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    /// - Input bytes will be copied once.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file");
+    /// let _ = o.write_from_slice("Hello, World!").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn write_from_slice(&self, bs: impl AsRef<[u8]>) -> Result<()> {
+        let bs = Bytes::copy_from_slice(bs.as_ref());
+        self.write(bs).await?;
+
+        Ok(())
     }
 
     /// Create a new writer which can write data into the object.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
-    /// use opendal::services::memory;
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
+    /// # use opendal::services::memory;
+    /// # use opendal::error::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
     ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///
-    ///     let bs = "Hello, World!".as_bytes().to_vec();
-    ///     op.object("test").writer().write_bytes(bs).await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # use futures::AsyncWriteExt;
+    /// let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file");
+    /// let mut w = o.writer(4096).await?;
+    /// w.write(&[1; 4096]);
+    /// w.close();
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn writer(&self) -> Writer {
-        Writer::new(self.acc.clone(), self.meta.path())
+    pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
+        let op = OpWrite::new(self.meta.path(), size);
+        let s = self.acc.write(&op).await?;
+
+        Ok(into_writer(s))
     }
 
-    /// Delete current object.
+    /// Delete object.
     ///
-    /// # Example
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
+    ///
+    /// # Examples
     ///
     /// ```
-    /// use opendal::services::memory;
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///
-    ///     let bs = "Hello, World!".as_bytes().to_vec();
-    ///     op.object("test").delete().await?;
-    ///
-    ///     Ok(())
-    /// }
+    /// # use opendal::services::memory;
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// op.object("test").delete().await?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn delete(&self) -> Result<()> {
         let op = &OpDelete::new(self.meta.path());
@@ -250,29 +449,34 @@ impl Object {
         self.acc.delete(op).await
     }
 
+    pub(crate) fn metadata_ref(&self) -> &Metadata {
+        &self.meta
+    }
+
+    pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
+    }
+
     /// Get current object's metadata.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
-    /// use opendal::services::memory;
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
-    /// use opendal::error::Kind;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///
-    ///     if let Err(e) =  op.object("test").metadata().await {
-    ///         if e.kind() == Kind::ObjectNotExist {
-    ///             println!("object not exist")
-    ///         }
+    /// # use opendal::services::memory;
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::error::Kind;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// if let Err(e) = op.object("test").metadata().await {
+    ///     if e.kind() == Kind::ObjectNotExist {
+    ///         println!("object not exist")
     ///     }
-    ///
-    ///     Ok(())
     /// }
+    /// # Ok(())
+    /// # }
     /// ```
     pub async fn metadata(&self) -> Result<Metadata> {
         let op = &OpStat::new(self.meta.path());
@@ -312,10 +516,6 @@ impl Object {
         self.meta = self.acc.stat(op).await?;
 
         Ok(&self.meta)
-    }
-
-    pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
-        &mut self.meta
     }
 
     /// Check if this object exist or not.
@@ -454,55 +654,9 @@ impl Display for ObjectMode {
     }
 }
 
-/// Boxed `futures::Stream<Item = Result<Object>>` returned by underlying backend.
-pub type BoxedObjectStream = Box<dyn futures::Stream<Item = Result<Object>> + Unpin + Send>;
+/// ObjectStream represents a stream of object.
+pub trait ObjectStream: futures::Stream<Item = Result<Object>> + Unpin + Send {}
+impl<T> ObjectStream for T where T: futures::Stream<Item = Result<Object>> + Unpin + Send {}
 
-/// Handler for listing object under a dir.
-pub struct ObjectStream {
-    acc: Arc<dyn Accessor>,
-    path: String,
-    state: State,
-}
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<BoxedObjectStream>>),
-    Listing(BoxedObjectStream),
-}
-
-impl ObjectStream {
-    /// Creates a new object stream.
-    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
-        Self {
-            acc,
-            path: path.to_string(),
-            state: State::Idle,
-        }
-    }
-}
-
-impl futures::Stream for ObjectStream {
-    type Item = Result<Object>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match &mut self.state {
-            State::Idle => {
-                let acc = self.acc.clone();
-                let op = OpList::new(&self.path);
-
-                let future = async move { acc.list(&op).await };
-
-                self.state = State::Sending(Box::pin(future));
-                self.poll_next(cx)
-            }
-            State::Sending(future) => match ready!(Pin::new(future).poll(cx)) {
-                Ok(obs) => {
-                    self.state = State::Listing(obs);
-                    self.poll_next(cx)
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            State::Listing(obs) => Pin::new(obs).poll_next(cx),
-        }
-    }
-}
+/// ObjectStreamer is a boxed dyn [`ObjectStream`]
+pub type ObjectStreamer = Box<dyn ObjectStream>;

@@ -25,21 +25,17 @@ async fn main() -> Result<()> {
     let o = op.object("test_file");
 
     // Write data info file;
-    let w = o.writer();
-    let n = w
-        .write_bytes("Hello, World!".to_string().into_bytes())
-        .await?;
-    assert_eq!(n, 13);
+    let _ = o.write_from_slice("Hello, World!").await?;
 
     // Read data from file;
-    let mut r = o.reader();
+    let mut r = o.reader().await?;
     let mut buf = vec![];
     let n = r.read_to_end(&mut buf).await?;
     assert_eq!(n, 13);
     assert_eq!(String::from_utf8_lossy(&buf), "Hello, World!");
 
     // Read range from file;
-    let mut r = o.range_reader(10, 1);
+    let mut r = o.range_reader(10..=10).await?;
     let mut buf = vec![];
     let n = r.read_to_end(&mut buf).await?;
     assert_eq!(n, 1);
@@ -50,9 +46,10 @@ async fn main() -> Result<()> {
     assert_eq!(meta.content_length(), 13);
 
     // List current dir.
-    let mut obs = op.objects("").map(|o| o.expect("list object"));
+    let mut obs = op.objects("").await?;
     let mut found = false;
     while let Some(o) = obs.next().await {
+        let o = o?;
         let meta = o.metadata().await?;
         if meta.path().contains("test_file") {
             let mode = meta.mode();

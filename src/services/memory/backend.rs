@@ -31,9 +31,9 @@ use minitrace::trace;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesSink;
-use crate::io::BytesStream;
-use crate::object::BoxedObjectStream;
+use crate::io::BytesSinker;
+use crate::io::BytesStreamer;
+use crate::object::ObjectStreamer;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -84,7 +84,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
         let path = Backend::normalize_path(&args.path);
 
         let map = self.inner.lock().expect("lock poisoned");
@@ -126,7 +126,7 @@ impl Accessor for Backend {
         }))))
     }
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
         let path = Backend::normalize_path(&args.path);
 
         Ok(Box::new(MapSink {
@@ -178,7 +178,7 @@ impl Accessor for Backend {
         Ok(())
     }
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         let path = Backend::normalize_path(&args.path);
 
         let map = self.inner.lock().expect("lock poisoned");

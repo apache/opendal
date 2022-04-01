@@ -18,15 +18,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::io::BytesSink;
-use crate::io::BytesStream;
+use crate::io::BytesSinker;
+use crate::io::BytesStreamer;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::BoxedObjectStream;
 use crate::Metadata;
+use crate::ObjectStreamer;
 
 /// Underlying trait of all backends for implementors.
 ///
@@ -36,15 +36,15 @@ use crate::Metadata;
 /// use [`Operator`][crate::Operator] instead.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
-    /// Invoke the `read` operation on the specified path, returns a [`BytesStream`]
-    /// if operate successful.
-    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
+    /// Invoke the `read` operation on the specified path, returns a
+    /// [`BytesStream`][crate::BytesStream] if operate successful.
+    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
         let _ = args;
         unimplemented!()
     }
-    /// Invoke the `write` operation on the specified path, returns a [`BytesSink`]
-    /// if operate successful.
-    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
+    /// Invoke the `write` operation on the specified path, returns a
+    /// [`BytesSink`][crate::BytesSink] if operate successful.
+    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
         let _ = args;
         unimplemented!()
     }
@@ -71,7 +71,7 @@ pub trait Accessor: Send + Sync + Debug {
         unimplemented!()
     }
 
-    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         let _ = args;
         unimplemented!()
     }
@@ -81,10 +81,10 @@ pub trait Accessor: Send + Sync + Debug {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
-    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
         self.as_ref().read(args).await
     }
-    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
         self.as_ref().write(args).await
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
@@ -93,7 +93,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         self.as_ref().delete(args).await
     }
-    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         self.as_ref().list(args).await
     }
 }

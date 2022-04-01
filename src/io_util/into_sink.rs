@@ -20,14 +20,14 @@ use anyhow::anyhow;
 use bytes::Buf;
 use bytes::Bytes;
 use futures::ready;
-use futures::AsyncWrite;
 use futures::Sink;
 use pin_project::pin_project;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::BytesWrite;
 
-/// Convert AsyncWrite into Sink.
+/// Convert [`BytesWrite`][crate::BytesWrite] into [`BytesSink`][crate::BytesSink].
 ///
 /// # Note
 ///
@@ -49,7 +49,7 @@ use crate::error::Result;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_sink<W: AsyncWrite + Send + Unpin>(w: W) -> IntoSink<W> {
+pub fn into_sink<W: BytesWrite>(w: W) -> IntoSink<W> {
     IntoSink {
         w,
         buf: bytes::Bytes::new(),
@@ -57,7 +57,7 @@ pub fn into_sink<W: AsyncWrite + Send + Unpin>(w: W) -> IntoSink<W> {
 }
 
 #[pin_project]
-pub struct IntoSink<W: AsyncWrite + Send + Unpin> {
+pub struct IntoSink<W: BytesWrite> {
     #[pin]
     w: W,
     buf: bytes::Bytes,
@@ -65,7 +65,7 @@ pub struct IntoSink<W: AsyncWrite + Send + Unpin> {
 
 impl<W> IntoSink<W>
 where
-    W: AsyncWrite + Send + Unpin,
+    W: BytesWrite,
 {
     pub fn into_inner(self) -> W {
         self.w
@@ -89,7 +89,7 @@ where
 
 impl<W> Sink<Bytes> for IntoSink<W>
 where
-    W: AsyncWrite + Send + Unpin,
+    W: BytesWrite,
 {
     type Error = Error;
 

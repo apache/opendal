@@ -46,13 +46,13 @@ use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesSink;
-use crate::io::BytesStream;
+use crate::io::BytesSinker;
+use crate::io::BytesStreamer;
 use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodySinker;
-use crate::object::BoxedObjectStream;
 use crate::object::Metadata;
-use crate::ops::HeaderRange;
+use crate::object::ObjectStreamer;
+use crate::ops::BytesRange;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -707,7 +707,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStream> {
+    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
         increment_counter!("opendal_s3_read_requests");
 
         let p = self.get_abs_path(&args.path);
@@ -739,7 +739,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSink> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 
@@ -851,7 +851,7 @@ impl Accessor for Backend {
         }
     }
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<BoxedObjectStream> {
+    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_s3_list_requests");
 
         let mut path = self.get_abs_path(&args.path);
@@ -878,7 +878,7 @@ impl Backend {
         if offset.is_some() || size.is_some() {
             req = req.header(
                 http::header::RANGE,
-                HeaderRange::new(offset, size).to_string(),
+                BytesRange::new(offset, size).to_string(),
             );
         }
 

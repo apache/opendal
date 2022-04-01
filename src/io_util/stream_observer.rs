@@ -22,7 +22,7 @@ use pin_project::pin_project;
 
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesStream;
+use crate::BytesStreamer;
 
 /// Create an observer over BytesStream.
 ///
@@ -54,7 +54,7 @@ use crate::io::BytesStream;
 /// # Ok(())
 /// # }
 /// ```
-pub fn observe_stream<F: FnMut(StreamEvent)>(s: BytesStream, f: F) -> StreamObserver<F> {
+pub fn observe_stream<F: FnMut(StreamEvent)>(s: BytesStreamer, f: F) -> StreamObserver<F> {
     StreamObserver { s, f }
 }
 
@@ -78,7 +78,7 @@ pub enum StreamEvent {
 /// Observer that created via [`observe_stream`].
 #[pin_project]
 pub struct StreamObserver<F: FnMut(StreamEvent)> {
-    s: BytesStream,
+    s: BytesStreamer,
     f: F,
 }
 

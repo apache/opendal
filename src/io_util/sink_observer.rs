@@ -22,7 +22,7 @@ use pin_project::pin_project;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
-use crate::io::BytesSink;
+use crate::io::BytesSinker;
 
 /// Create an observer over BytesSink.
 ///
@@ -55,7 +55,7 @@ use crate::io::BytesSink;
 /// # Ok(())
 /// # }
 /// ```
-pub fn observe_sink<F: FnMut(SinkEvent)>(s: BytesSink, f: F) -> SinkObserver<F> {
+pub fn observe_sink<F: FnMut(SinkEvent)>(s: BytesSinker, f: F) -> SinkObserver<F> {
     SinkObserver { s, f }
 }
 
@@ -83,7 +83,7 @@ pub enum SinkEvent {
 /// Observer that created via [`observe_sink`].
 #[pin_project]
 pub struct SinkObserver<F: FnMut(SinkEvent)> {
-    s: BytesSink,
+    s: BytesSinker,
     f: F,
 }
 

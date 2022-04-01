@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::SeekFrom;
-
 use anyhow::Result;
 use futures::io;
 use futures::AsyncReadExt;
-use futures::AsyncSeekExt;
 use opendal::Operator;
 use opendal_test::services::fs;
 
@@ -35,24 +32,15 @@ async fn main() -> Result<()> {
     // Real example starts from here.
 
     // Get a while file reader.
-    let mut r = op.object("test_file").reader();
+    let mut r = op.object("test_file").reader().await?;
     io::copy(&mut r, &mut io::sink()).await?;
 
     // Get file reader in range [1024, 2048).
-    let mut r = op.object("test_file").range_reader(1024, 1024);
-    io::copy(&mut r, &mut io::sink()).await?;
-
-    // Get a file reader from offset 1024.
-    let mut r = op.object("test_file").offset_reader(1024);
-    io::copy(&mut r, &mut io::sink()).await?;
-
-    // Get a file reader inside limit 1024.
-    let mut r = op.object("test_file").limited_reader(1024);
+    let mut r = op.object("test_file").range_reader(1024..=2048).await?;
     io::copy(&mut r, &mut io::sink()).await?;
 
     // Our reader implement `futures::AsyncRead`.
-    let mut r = op.object("test_file").reader();
-    r.seek(SeekFrom::End(-1024)).await?;
+    let mut r = op.object("test_file").reader().await?;
     r.read_exact(&mut vec![0; 1024]).await?;
 
     Ok(())

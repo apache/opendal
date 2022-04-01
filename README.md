@@ -36,26 +36,19 @@ async fn main() -> Result<()> {
     let o = op.object("test_file");
 
     // Write data info file;
-    let w = o.writer();
-    let n = w
-        .write_bytes("Hello, World!".to_string().into_bytes())
-        .await?;
+    let _ = o.write_from_slice("Hello, World!").await?;
 
     // Read data from file;
-    let mut r = o.reader();
-    let mut buf = vec![];
-    let n = r.read_to_end(&mut buf).await?;
+    let bs = o.read().await?;
 
     // Read range from file;
-    let mut r = o.range_reader(10, 1);
-    let mut buf = vec![];
-    let n = r.read_to_end(&mut buf).await?;
+    let bs = o.range_read(1..=11).await?;
 
     // Get file's Metadata
     let meta = o.metadata().await?;
 
-    // List current dir.
-    let mut obs = op.objects("").map(|o| o.expect("list object"));
+    // List dir.
+    let mut obs = op.objects("").await?.map(|o| o.expect("list object"));
     while let Some(o) = obs.next().await {
         let meta = o.metadata().await?;
         let path = meta.path();

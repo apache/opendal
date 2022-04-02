@@ -95,7 +95,7 @@ Since v0.4, mod `io_util` will replace `readers`. In `io_utils`, OpenDAL provide
 
 ### New type alias
 
-For better naming, types that are returned by OpenDAL have been renamed:
+For better naming, types that OpenDAL returns have been renamed:
 
 - `AsyncRead + Unpin + Send` => `BytesRead`
 - `BoxedAsyncReader` => `BytesReader`

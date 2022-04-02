@@ -3,6 +3,8 @@
 - RFC PR: [datafuselabs/opendal#191](https://github.com/datafuselabs/opendal/pull/191)
 - Tracking Issue: [datafuselabs/opendal#190](https://github.com/datafuselabs/opendal/issues/190)
 
+**Reverted**
+
 # Summary
 
 Use `Stream`/`Sink` instead of `AsyncRead` in `Accessor`.

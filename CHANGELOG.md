@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.4.0] - 2022-04-02
+
+**Refer to [./docs/upgrade.md] `From v0.3 to v0.4` section for more upgrade details.**
+
+### Added
+
+- feat(services/azblob): Implement list support (#193)
+- feat: Implement io_util like into_sink and into_stream (#197)
+- docs: Add docs for all newly added public functions (#199)
+- feat(io_util): Implement observer for sink and stream (#198)
+- docs: Add docs for public types (#206)
+
+### Changed
+
+- refactor: Make read return BytesStream instead (#192)
+- RFC-0191: Async Streaming IO (#191)
+- refactor: New public API design (#201)
+- refactor: Adopt io::Result instead (#204)
+- refactor: Rollback changes around async streaming io (#205)
+- refactor: Refactor behavior tests with macro_rules  (#207)
+
+### Fixed
+
+- deps: Bump to reqsign to fix s3 url encode issue (#202)
+
+### Removed
+
+- RFC-0203: Remove Credential (#203)
+
 ## [v0.3.0] - 2022-03-25
 
 ### Added
@@ -197,6 +226,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.4.0]: https://github.com/datafuselabs/opendal/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/datafuselabs/opendal/compare/v0.2.5...v0.3.0
 [v0.2.5]: https://github.com/datafuselabs/opendal/compare/v0.2.4...v0.2.5
 [v0.2.4]: https://github.com/datafuselabs/opendal/compare/v0.2.3...v0.2.4

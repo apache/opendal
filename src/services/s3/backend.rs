@@ -220,6 +220,10 @@ impl Builder {
         self
     }
 
+    /// Set access_key_id of this backend.
+    ///
+    /// - If access_key_id is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
     pub fn access_key_id(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.access_key_id = Some(v.to_string())
@@ -228,6 +232,10 @@ impl Builder {
         self
     }
 
+    /// Set secret_access_key of this backend.
+    ///
+    /// - If secret_access_key is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
     pub fn secret_access_key(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.secret_access_key = Some(v.to_string())

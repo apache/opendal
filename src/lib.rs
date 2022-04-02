@@ -72,9 +72,7 @@ mod io;
 pub use io::BytesRead;
 pub use io::BytesReader;
 pub use io::BytesSink;
-pub use io::BytesSinker;
 pub use io::BytesStream;
-pub use io::BytesStreamer;
 pub use io::BytesWrite;
 pub use io::BytesWriter;
 

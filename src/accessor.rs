@@ -37,11 +37,13 @@ use crate::ObjectStreamer;
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
     /// Invoke the `read` operation on the specified path, returns a
-    /// [`BytesStream`][crate::BytesStream] if operate successful.
+    /// [`BytesReader`][crate::BytesReader] if operate successful.
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let _ = args;
         unimplemented!()
     }
+    /// Invoke the `write` operation on the specified path, returns a
+    /// [`BytesWriter`][crate::BytesWriter] if operate successful.
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let _ = args;
         unimplemented!()

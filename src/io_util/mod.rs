@@ -26,15 +26,15 @@ pub use into_reader::into_reader;
 mod into_writer;
 pub use into_writer::into_writer;
 
-mod stream_observer;
-pub use stream_observer::observe_stream;
-pub use stream_observer::StreamEvent;
-pub use stream_observer::StreamObserver;
+mod read_observer;
+pub use read_observer::observe_read;
+pub use read_observer::ReadEvent;
+pub use read_observer::ReadObserver;
 
-mod sink_observer;
-pub use sink_observer::observe_sink;
-pub use sink_observer::SinkEvent;
-pub use sink_observer::SinkObserver;
+mod write_observer;
+pub use write_observer::observe_write;
+pub use write_observer::WriteEvent;
+pub use write_observer::WriteObserver;
 
 mod http_body;
 pub use http_body::new_http_channel;

@@ -14,6 +14,14 @@
 
 //! OpenDAL is the Open Data Access Layer that connect the whole world together.
 //!
+//! # Supported Services
+//!
+//! | Services | Description |
+//! | -------- | ----------- |
+//! | [fs][crate::services::fs] | POSIX alike file system. |
+//! | [memory][crate::services::memory] | In memory backend support. |
+//! | [s3][crate::services::s3] | AWS S3 alike services. |
+//!
 //! # Example
 //!
 //! ```
@@ -57,14 +65,8 @@
 //!     Ok(())
 //! }
 //! ```
-//!
-//! ## Supported Services
-//!
-//! - [fs][crate::services::fs]: POSIX alike file system.
-//! - [memory][crate::services::memory]: In memory backend support.
-//! - [s3][crate::services::s3]: AWS services like S3.
 
-/// Private module with public types, they will be accessed via `opendal::Xxxx`
+// Private module with public types, they will be accessed via `opendal::Xxxx`
 mod accessor;
 pub use accessor::Accessor;
 
@@ -92,14 +94,14 @@ pub use object::ObjectStreamer;
 mod scheme;
 pub use scheme::Scheme;
 
-/// Public modules, they will be accessed via `opendal::io_util::Xxxx`
+// Public modules, they will be accessed via `opendal::io_util::Xxxx`
 pub mod io_util;
 pub mod ops;
 pub mod services;
 
-/// Private modules, internal use only.
-///
-/// Please don't export any type from this module.
+// Private modules, internal use only.
+//
+// Please don't export any type from this module.
 mod error;
 
 #[deprecated]

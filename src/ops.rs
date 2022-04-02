@@ -17,6 +17,7 @@
 use std::collections::Bound;
 use std::ops::RangeBounds;
 
+/// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     pub path: String,
@@ -36,6 +37,7 @@ impl OpRead {
     }
 }
 
+/// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {
     pub path: String,
@@ -49,6 +51,7 @@ impl OpStat {
     }
 }
 
+/// Args for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     pub path: String,
@@ -64,6 +67,7 @@ impl OpWrite {
     }
 }
 
+/// Args for `delete` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpDelete {
     pub path: String,
@@ -77,6 +81,7 @@ impl OpDelete {
     }
 }
 
+/// Args for `list` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpList {
     pub path: String,
@@ -90,10 +95,16 @@ impl OpList {
     }
 }
 
+/// BytesRange(offset, size) carries a range of content.
+///
+/// BytesRange implements `ToString` which can be used as `Range` HTTP header directly.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BytesRange(Option<u64>, Option<u64>);
 
 impl BytesRange {
+    /// Create a new `BytesRange`
+    ///
+    /// It better to use `BytesRange::from(1024..2048)` to construct.
     pub fn new(offset: Option<u64>, size: Option<u64>) -> Self {
         BytesRange(offset, size)
     }

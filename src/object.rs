@@ -58,7 +58,7 @@ impl Object {
     /// Read the whole object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::stream`] or [`Object::reader`]
+    /// reading data lazily, please use [`Object::reader`]
     ///
     /// # Examples
     ///
@@ -83,7 +83,7 @@ impl Object {
     /// Read the specified range of object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::stream`] or [`Object::range_reader`]
+    /// reading data lazily, please use [`Object::range_reader`]
     ///
     /// # Examples
     ///
@@ -114,8 +114,6 @@ impl Object {
 
     /// Create a new reader which can read the whole object.
     ///
-    /// This function adopt a zero cost conversion from [`BytesStream`][crate::BytesStream] to [`BytesRead`][crate::BytesRead].
-    ///
     /// # Examples
     ///
     /// ```
@@ -137,8 +135,6 @@ impl Object {
     }
 
     /// Create a new reader which can read the whole object.
-    ///
-    /// This function adopt a zero cost conversion from [`BytesStream`][crate::BytesStream] to [`BytesRead`][crate::BytesRead].
     ///
     /// # Examples
     ///
@@ -166,7 +162,6 @@ impl Object {
     /// # Notes
     ///
     /// - Write will make sure all bytes has been written, or an error will be returned.
-    /// - Input bytes will be sent directly without extra copy.
     ///
     /// # Examples
     ///

@@ -57,9 +57,9 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::services::azblob::object_stream::AzblobObjectStream;
-use crate::Accessor;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+use crate::{Accessor, BytesReader};
 
 pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
@@ -244,7 +244,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_azure_read_requests");
 
         let p = self.get_abs_path(&args.path);
@@ -264,7 +264,8 @@ impl Accessor for Backend {
                 Ok(Box::new(
                     resp.into_body()
                         .into_stream()
-                        .map_err(move |e| other(ObjectError::new("read", &p, e))),
+                        .map_err(move |e| other(ObjectError::new("read", &p, e)))
+                        .into_async_read(),
                 ))
             }
             _ => Err(parse_error_response_with_body(resp, "read", &p).await),

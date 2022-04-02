@@ -27,6 +27,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::BufMut;
 use bytes::Bytes;
+use futures::io::Cursor;
 use futures::stream;
 use futures::Sink;
 use minitrace::trace;
@@ -41,10 +42,10 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
 use crate::Metadata;
 use crate::Object;
 use crate::ObjectMode;
+use crate::{Accessor, BytesReader};
 
 #[derive(Default)]
 pub struct Builder {}
@@ -86,7 +87,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
         let path = Backend::normalize_path(&args.path);
 
         let map = self.inner.lock().expect("lock poisoned");
@@ -121,10 +122,9 @@ impl Accessor for Backend {
             data = data.slice(0..size as usize);
         };
 
-        Ok(Box::new(Box::pin(stream::once(async {
-            Ok::<_, Error>(data)
-        }))))
+        Ok(Box::new(Cursor::new(data)))
     }
+
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
         let path = Backend::normalize_path(&args.path);

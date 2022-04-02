@@ -25,14 +25,14 @@ use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
-use futures::TryStreamExt;
+
 
 use crate::ops::BytesRange;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::BytesStreamer;
+
 use crate::Metadata;
 use crate::Object;
 
@@ -84,7 +84,7 @@ pub struct SeekableReader {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<BytesStreamer>>),
+    Sending(BoxFuture<'static, Result<BytesReader>>),
     Seeking(BoxFuture<'static, Result<Metadata>>),
     Reading(BytesReader),
 }
@@ -114,15 +114,14 @@ impl AsyncRead for SeekableReader {
                     size: self.current_size(),
                 };
 
-                let future = async move { acc.read(&op).await };
+                let future = async move { acc.read2(&op).await };
 
                 self.state = State::Sending(Box::pin(future));
                 self.poll_read(cx, buf)
             }
             State::Sending(future) => match ready!(Pin::new(future).poll(cx)) {
                 Ok(r) => {
-                    self.state =
-                        State::Reading(Box::new(r.map_err(std::io::Error::from).into_async_read()));
+                    self.state = State::Reading(Box::new(r));
                     self.poll_read(cx, buf)
                 }
                 Err(e) => Poll::Ready(Err(e)),

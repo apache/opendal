@@ -59,8 +59,8 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
 use crate::ObjectMode;
+use crate::{Accessor, BytesReader};
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -688,8 +688,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_s3_read_requests");
 
         let p = self.get_abs_path(&args.path);
@@ -710,7 +709,8 @@ impl Accessor for Backend {
                 Ok(Box::new(
                     resp.into_body()
                         .into_stream()
-                        .map_err(move |e| other(ObjectError::new("read", &p, e))),
+                        .map_err(move |e| other(ObjectError::new("read", &p, e)))
+                        .into_async_read(),
                 ))
             }
             _ => Err(parse_error_response_with_body(resp, "read", &p).await),

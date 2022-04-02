@@ -23,8 +23,9 @@ use std::time::SystemTime;
 use bytes::BufMut;
 use bytes::Bytes;
 use bytes::BytesMut;
-use futures::SinkExt;
-use futures::StreamExt;
+use futures::io::Cursor;
+use futures::{io, StreamExt};
+use futures::{AsyncReadExt, SinkExt};
 
 use crate::io::BytesRead;
 use crate::io::BytesSinker;
@@ -59,94 +60,6 @@ impl Object {
 
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
         self.acc.clone()
-    }
-
-    /// Create a bytes stream from object.
-    ///
-    /// The stream is generated via underlying storage backend directly without
-    /// any extra allocation. `stream` is the most efficient way to read large data.
-    ///
-    /// # Examples
-    ///
-    /// ## Read all
-    ///
-    /// ```
-    /// # use opendal::services::memory;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// use bytes::{BufMut, BytesMut};
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::new(memory::Backend::build().finish().await?);
-    /// let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
-    /// let mut s = o.stream(..).await?;
-    ///     
-    /// let mut content = BytesMut::new();
-    /// while let Some(bs) = s.next().await {
-    ///     content.put_slice(&bs?)
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Read with offset
-    ///
-    /// ```
-    /// # use opendal::services::memory;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::new(memory::Backend::build().finish().await?);
-    /// # let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
-    /// let mut s = o.stream(1024..).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Read with limited size
-    ///
-    /// ```
-    /// # use opendal::services::memory;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::new(memory::Backend::build().finish().await?);
-    /// # let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
-    /// let mut s = o.stream(..1024).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Read with range
-    ///
-    /// ```
-    /// # use opendal::services::memory;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::new(memory::Backend::build().finish().await?);
-    /// # let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
-    /// let mut s = o.stream(1024..2048).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[inline]
-    pub async fn stream(&self, range: impl RangeBounds<u64>) -> Result<BytesStreamer> {
-        let op = OpRead::new(self.meta.path(), range);
-
-        self.acc.read(&op).await
     }
 
     /// Read the whole object into a bytes.
@@ -197,16 +110,13 @@ impl Object {
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Bytes> {
         let op = OpRead::new(self.meta.path(), range);
-        let mut s = self.acc.read(&op).await?;
+        let mut s = self.acc.read2(&op).await?;
 
-        let mut bs = BytesMut::new();
+        let mut bs = Cursor::new(Vec::new());
 
-        while let Some(b) = s.next().await {
-            let b = b?;
-            bs.put_slice(&b);
-        }
+        io::copy(s, &mut bs).await?;
 
-        Ok(bs.freeze())
+        Ok(Bytes::from(bs.into_inner()))
     }
 
     /// Create a new reader which can read the whole object.
@@ -255,7 +165,7 @@ impl Object {
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
         let op = OpRead::new(self.meta.path(), range);
-        Ok(into_reader(self.acc.read(&op).await?))
+        Ok(self.acc.read2(&op).await?)
     }
 
     /// Create a bytes sink into object.

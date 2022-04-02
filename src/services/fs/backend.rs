@@ -130,7 +130,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_fs_read_requests");
 
         let path = self.get_abs_path(&args.path);
@@ -164,13 +164,11 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
-        let s = into_stream(r, 8 * 1024);
-
         debug!(
             "object {} reader created: offset {:?}, size {:?}",
             &path, args.offset, args.size
         );
-        Ok(Box::new(s))
+        Ok(Box::new(r))
     }
 
     #[trace("write")]

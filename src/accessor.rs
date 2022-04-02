@@ -25,8 +25,8 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ObjectStreamer;
-use crate::{BytesReader, Metadata};
+use crate::{BytesReader, BytesWriter, Metadata};
+use crate::{BytesWrite, ObjectStreamer};
 
 /// Underlying trait of all backends for implementors.
 ///
@@ -42,9 +42,7 @@ pub trait Accessor: Send + Sync + Debug {
         let _ = args;
         unimplemented!()
     }
-    /// Invoke the `write` operation on the specified path, returns a
-    /// [`BytesSink`][crate::BytesSink] if operate successful.
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
         let _ = args;
         unimplemented!()
     }
@@ -84,8 +82,8 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
         self.as_ref().read2(args).await
     }
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
-        self.as_ref().write(args).await
+    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
+        self.as_ref().write2(args).await
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         self.as_ref().stat(args).await

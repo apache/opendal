@@ -47,8 +47,8 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
 use crate::BytesReader;
+use crate::{Accessor, BytesWriter};
 
 #[derive(Default, Debug)]
 pub struct Builder {
@@ -172,7 +172,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
         increment_counter!("opendal_fs_write_requests");
 
         let path = self.get_abs_path(&args.path);
@@ -217,10 +217,8 @@ impl Accessor for Backend {
                 e
             })?;
 
-        let f = Compat::new(f);
-
         debug!("object {} write finished: size {:?}", &path, args.size);
-        Ok(Box::new(into_sink(f)))
+        Ok(Box::new(Compat::new(f)))
     }
 
     #[trace("stat")]

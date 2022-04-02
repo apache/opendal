@@ -47,8 +47,8 @@ use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
-use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodySinker;
+use crate::io_util::{new_http_channel, HttpBodyWriter};
 use crate::object::Metadata;
 use crate::ops::BytesRange;
 use crate::ops::OpDelete;
@@ -57,9 +57,9 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::services::azblob::object_stream::AzblobObjectStream;
-use crate::ObjectMode;
 use crate::ObjectStreamer;
 use crate::{Accessor, BytesReader};
+use crate::{BytesWriter, ObjectMode};
 
 pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
@@ -273,7 +273,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 
@@ -281,7 +281,7 @@ impl Accessor for Backend {
 
         let req = self.put_blob(&p, args.size, body).await;
 
-        let bs = HttpBodySinker::new(args, tx, self.client.request(req), |op, resp| {
+        let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
                 http::StatusCode::CREATED | http::StatusCode::OK => {
                     debug!("object {} write finished: size {:?}", &op.path, op.size);

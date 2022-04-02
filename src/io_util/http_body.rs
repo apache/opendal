@@ -22,12 +22,14 @@ use std::task::Poll;
 use bytes::Bytes;
 use futures::channel::mpsc::Sender;
 use futures::channel::mpsc::{self};
-use futures::ready;
+use futures::future::err;
 use futures::Sink;
 use futures::StreamExt;
+use futures::{ready, AsyncWrite};
 use http::Response;
 use hyper::client::ResponseFuture;
 use hyper::Body;
+use pin_project::pin_project;
 
 use crate::error::other;
 use crate::ops::OpWrite;
@@ -178,6 +180,75 @@ impl Sink<Bytes> for HttpBodySinker {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<(), Self::Error>> {
+        if let Err(e) = ready!(Pin::new(&mut self.tx).poll_close(cx)) {
+            return Poll::Ready(Err(other(e)));
+        }
+
+        self.poll_response(cx)
+    }
+}
+
+#[pin_project]
+pub struct HttpBodyWriter {
+    op: OpWrite,
+    tx: Sender<Bytes>,
+    fut: ResponseFuture,
+    handle: fn(&OpWrite, Response<Body>) -> Result<()>,
+}
+
+impl HttpBodyWriter {
+    pub fn new(
+        op: &OpWrite,
+        tx: Sender<Bytes>,
+        fut: ResponseFuture,
+        handle: fn(&OpWrite, Response<Body>) -> Result<()>,
+    ) -> HttpBodyWriter {
+        HttpBodyWriter {
+            op: op.clone(),
+            tx,
+            fut,
+            handle,
+        }
+    }
+
+    fn poll_response(
+        mut self: &mut Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Error>> {
+        match Pin::new(&mut self.fut).poll(cx) {
+            Poll::Ready(Ok(resp)) => Poll::Ready((self.handle)(&self.op, resp)),
+            // TODO: we need to inject an object error here.
+            Poll::Ready(Err(e)) => Poll::Ready(Err(other(e))),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl AsyncWrite for HttpBodyWriter {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        if let Poll::Ready(v) = Pin::new(&mut *self).poll_response(cx) {
+            unreachable!("response returned too early: {:?}", v)
+        }
+
+        ready!(self.tx.poll_ready(cx).map_err(other))?;
+
+        let size = buf.len();
+        self.tx
+            .start_send(Bytes::from(buf.to_vec()))
+            .map_err(other)?;
+
+        Poll::Ready(Ok(size))
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        Pin::new(&mut self.tx).poll_flush(cx).map_err(other)
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         if let Err(e) = ready!(Pin::new(&mut self.tx).poll_close(cx)) {
             return Poll::Ready(Err(other(e)));
         }

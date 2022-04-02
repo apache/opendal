@@ -39,6 +39,7 @@ pub use sink_observer::SinkObserver;
 mod http_body;
 pub use http_body::new_http_channel;
 pub use http_body::HttpBodySinker;
+pub use http_body::HttpBodyWriter;
 
 mod seekable_reader;
 pub use seekable_reader::seekable_read;

@@ -49,8 +49,8 @@ use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
-use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodySinker;
+use crate::io_util::{new_http_channel, HttpBodyWriter};
 use crate::object::Metadata;
 use crate::object::ObjectStreamer;
 use crate::ops::BytesRange;
@@ -59,8 +59,8 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ObjectMode;
 use crate::{Accessor, BytesReader};
+use crate::{BytesWriter, ObjectMode};
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -718,7 +718,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 
@@ -726,7 +726,7 @@ impl Accessor for Backend {
 
         let req = self.put_object(&p, args.size, body).await;
 
-        let bs = HttpBodySinker::new(args, tx, self.client.request(req), |op, resp| {
+        let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
                 StatusCode::CREATED | StatusCode::OK => {
                     debug!("object {} write finished: size {:?}", op.path, op.size);

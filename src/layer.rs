@@ -56,12 +56,12 @@ impl<T: Layer> Layer for Arc<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Result;
     use std::sync::Arc;
 
     use futures::lock::Mutex;
 
     use super::*;
-    use crate::error::Result;
     use crate::ops::OpDelete;
     use crate::services::fs;
     use crate::Accessor;

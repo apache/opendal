@@ -34,7 +34,7 @@ use crate::BytesSink;
 /// ```rust
 /// use opendal::io_util::into_writer;
 /// # use opendal::io_util::into_sink;
-/// # use opendal::error::Result;
+/// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
 /// # use futures::StreamExt;
@@ -83,15 +83,11 @@ where
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.s)
-            .poll_flush(cx)
-            .map_err(io::Error::from)
+        Pin::new(&mut self.s).poll_flush(cx)
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.s)
-            .poll_close(cx)
-            .map_err(io::Error::from)
+        Pin::new(&mut self.s).poll_close(cx)
     }
 }
 

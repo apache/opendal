@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Error;
+use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bytes::Buf;
 use bytes::Bytes;
 use futures::ready;
 use futures::Sink;
 use pin_project::pin_project;
 
-use crate::error::Error;
-use crate::error::Result;
 use crate::BytesWrite;
 
 /// Convert [`BytesWrite`][crate::BytesWrite] into [`BytesSink`][crate::BytesSink].
@@ -37,7 +36,7 @@ use crate::BytesWrite;
 ///
 /// ```rust
 /// use opendal::io_util::into_sink;
-/// # use opendal::error::Result;
+/// # use std::io::Result;
 /// # use bytes::Bytes;
 /// # use futures::SinkExt;
 ///
@@ -78,8 +77,7 @@ where
             if this.buf.is_empty() {
                 break;
             }
-            let n = ready!(this.w.as_mut().poll_write(cx, this.buf))
-                .map_err(|e| Error::Unexpected(anyhow!(e)))?;
+            let n = ready!(this.w.as_mut().poll_write(cx, this.buf))?;
             this.buf.advance(n);
         }
 
@@ -113,10 +111,7 @@ where
     ) -> Poll<std::result::Result<(), Self::Error>> {
         ready!(self.as_mut().poll_flush_buffer(cx))?;
 
-        self.project()
-            .w
-            .poll_flush(cx)
-            .map_err(|e| Error::Unexpected(anyhow!(e)))
+        self.project().w.poll_flush(cx)
     }
 
     fn poll_close(
@@ -125,10 +120,7 @@ where
     ) -> Poll<std::result::Result<(), Self::Error>> {
         ready!(self.as_mut().poll_flush_buffer(cx))?;
 
-        self.project()
-            .w
-            .poll_close(cx)
-            .map_err(|e| Error::Unexpected(anyhow!(e)))
+        self.project().w.poll_close(cx)
     }
 }
 

@@ -13,11 +13,11 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::error::Result;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
 use crate::ops::OpDelete;

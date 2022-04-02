@@ -13,6 +13,9 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -28,9 +31,8 @@ use futures::stream;
 use futures::Sink;
 use minitrace::trace;
 
-use crate::error::Error;
-use crate::error::Kind;
-use crate::error::Result;
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
 use crate::object::ObjectStreamer;
@@ -89,34 +91,32 @@ impl Accessor for Backend {
 
         let map = self.inner.lock().expect("lock poisoned");
 
-        let data = map.get(&path).ok_or_else(|| Error::Object {
-            kind: Kind::ObjectNotExist,
-            op: "read",
-            path: path.to_string(),
-            source: anyhow!("key not exists in map"),
+        let data = map.get(&path).ok_or_else(|| {
+            Error::new(
+                ErrorKind::NotFound,
+                ObjectError::new("read", &path, anyhow!("key not exists in map")),
+            )
         })?;
 
         let mut data = data.clone();
         if let Some(offset) = args.offset {
             if offset >= data.len() as u64 {
-                return Err(Error::Object {
-                    kind: Kind::Unexpected,
-                    op: "read",
-                    path: path.to_string(),
-                    source: anyhow!("offset out of bound {} >= {}", offset, data.len()),
-                });
+                return Err(other(ObjectError::new(
+                    "read",
+                    &path,
+                    anyhow!("offset out of bound {} >= {}", offset, data.len()),
+                )));
             }
             data = data.slice(offset as usize..data.len());
         };
 
         if let Some(size) = args.size {
             if size > data.len() as u64 {
-                return Err(Error::Object {
-                    kind: Kind::Unexpected,
-                    op: "read",
-                    path: path.to_string(),
-                    source: anyhow!("size out of bound {} > {}", size, data.len()),
-                });
+                return Err(other(ObjectError::new(
+                    "read",
+                    &path,
+                    anyhow!("size out of bound {} > {}", size, data.len()),
+                )));
             }
             data = data.slice(0..size as usize);
         };
@@ -153,11 +153,11 @@ impl Accessor for Backend {
 
         let map = self.inner.lock().expect("lock poisoned");
 
-        let data = map.get(&path).ok_or_else(|| Error::Object {
-            kind: Kind::ObjectNotExist,
-            op: "stat",
-            path: path.to_string(),
-            source: anyhow!("key not exists in map"),
+        let data = map.get(&path).ok_or_else(|| {
+            Error::new(
+                ErrorKind::NotFound,
+                ObjectError::new("read", &path, anyhow!("key not exists in map")),
+            )
         })?;
 
         let mut meta = Metadata::default();
@@ -232,16 +232,15 @@ impl Sink<Bytes> for MapSink {
         _cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<(), Self::Error>> {
         if self.buf.len() != self.size as usize {
-            return Poll::Ready(Err(Error::Object {
-                kind: Kind::Unexpected,
-                op: "write",
-                path: self.path.clone(),
-                source: anyhow!(
+            return Poll::Ready(Err(other(ObjectError::new(
+                "write",
+                &self.path,
+                anyhow!(
                     "write short, expect {} actual {}",
                     self.size,
                     self.buf.len()
                 ),
-            }));
+            ))));
         }
 
         let buf = mem::take(&mut self.buf);

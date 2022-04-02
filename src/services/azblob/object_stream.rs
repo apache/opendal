@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use std::future::Future;
+use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -28,9 +29,8 @@ use quick_xml::de;
 use serde::Deserialize;
 
 use super::Backend;
-use crate::error::Error;
-use crate::error::Kind;
-use crate::error::Result;
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::Object;
 use crate::ObjectMode;
 
@@ -75,25 +75,15 @@ impl futures::Stream for AzblobObjectStream {
                     let mut resp = backend.list_blobs(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
-                        let e = Err(Error::Object {
-                            kind: Kind::Unexpected,
-                            op: "list",
-                            path: path.clone(),
-                            source: anyhow!("{:?}", resp),
-                        });
+                        let e = other(ObjectError::new("list", &path, anyhow!("{:?}", resp)));
                         debug!("error response: {:?}", resp);
-                        return e;
+                        return Err(e);
                     }
 
                     let body = resp.body_mut();
                     let mut bs = bytes::BytesMut::new();
                     while let Some(b) = body.next().await {
-                        let b = b.map_err(|e| Error::Object {
-                            kind: Kind::Unexpected,
-                            op: "list",
-                            path: path.clone(),
-                            source: anyhow!("read body: {:?}", e),
-                        })?;
+                        let b = b.map_err(|e| other(ObjectError::new("list", &path, e)))?;
                         bs.put_slice(&b)
                     }
 
@@ -104,12 +94,8 @@ impl futures::Stream for AzblobObjectStream {
             }
             State::Sending(fut) => {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
-                let output: Output = de::from_reader(bs.reader()).map_err(|e| Error::Object {
-                    kind: Kind::Unexpected,
-                    op: "list",
-                    path: self.path.clone(),
-                    source: anyhow!("deserialize list_bucket output: {:?}", e),
-                })?;
+                let output: Output = de::from_reader(bs.reader())
+                    .map_err(|e| other(ObjectError::new("list", &self.path, e)))?;
 
                 // Try our best to check whether this list is done.
                 //

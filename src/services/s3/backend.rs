@@ -16,6 +16,9 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::mem;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -41,9 +44,9 @@ use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
 use super::object_stream::S3ObjectStream;
-use crate::error::Error;
-use crate::error::Kind;
-use crate::error::Result;
+use crate::error::other;
+use crate::error::BackendError;
+use crate::error::ObjectError;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
 use crate::io_util::new_http_channel;
@@ -413,11 +416,10 @@ impl Builder {
         let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
             .body(hyper::Body::empty())
             .expect("must be valid request");
-        let res = client.request(req).await.map_err(|e| Error::Backend {
-            kind: Kind::BackendConfigurationInvalid,
-            context: context.clone(),
-            source: anyhow::Error::new(e),
-        })?;
+        let res = client
+            .request(req)
+            .await
+            .map_err(|e| other(BackendError::new(context.clone(), e)))?;
 
         debug!(
             "auto detect region got response: status {:?}, header: {:?}",
@@ -433,11 +435,7 @@ impl Builder {
                     .get("x-amz-bucket-region")
                     .unwrap_or(&HeaderValue::from_static("us-east-1"))
                     .to_str()
-                    .map_err(|e| Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow::Error::new(e),
-                    })?
+                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
                     .to_string();
                 Ok((endpoint.to_string(), region))
             }
@@ -446,25 +444,23 @@ impl Builder {
                 let region = res
                     .headers()
                     .get("x-amz-bucket-region")
-                    .ok_or(Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow!("can't detect region automatically, region is empty"),
+                    .ok_or_else(|| {
+                        other(BackendError::new(
+                            context.clone(),
+                            anyhow!("can't detect region automatically, region is empty"),
+                        ))
                     })?
                     .to_str()
-                    .map_err(|e| Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow::Error::new(e),
-                    })?
+                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
                     .to_string();
-                let template = ENDPOINT_TEMPLATES.get(endpoint).ok_or(Error::Backend {
-                    kind: Kind::BackendConfigurationInvalid,
-                    context: context.clone(),
-                    source: anyhow!(
-                        "can't detect region automatically, no valid endpoint template for {}",
-                        &endpoint
-                    ),
+                let template = ENDPOINT_TEMPLATES.get(endpoint).ok_or_else(|| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "can't detect region automatically, no valid endpoint template for {}",
+                            &endpoint
+                        ),
+                    ))
                 })?;
 
                 let endpoint = template.replace("{region}", &region);
@@ -473,14 +469,13 @@ impl Builder {
             }
             // Unexpected status code
             code => {
-                return Err(Error::Backend {
-                    kind: Kind::BackendConfigurationInvalid,
-                    context: context.clone(),
-                    source: anyhow!(
+                return Err(other(BackendError::new(
+                    context.clone(),
+                    anyhow!(
                         "can't detect region automatically, unexpected response: status code {}",
                         code
                     ),
-                });
+                )))
             }
         }
     }
@@ -507,11 +502,10 @@ impl Builder {
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(Error::Backend {
-                kind: Kind::BackendConfigurationInvalid,
-                context: HashMap::from([("bucket".to_string(), "".to_string())]),
-                source: anyhow!("bucket is empty"),
-            }),
+            true => Err(other(BackendError::new(
+                HashMap::from([("bucket".to_string(), "".to_string())]),
+                anyhow!("bucket is empty"),
+            ))),
         }?;
         debug!("backend use bucket {}", &bucket);
 
@@ -536,7 +530,10 @@ impl Builder {
             signer_builder.secret_key(sk);
         }
 
-        let signer = signer_builder.build().await?;
+        let signer = signer_builder
+            .build()
+            .await
+            .map_err(|e| other(BackendError::new(context, e)))?;
 
         info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
@@ -710,14 +707,11 @@ impl Accessor for Backend {
                     &p, args.offset, args.size
                 );
 
-                Ok(Box::new(resp.into_body().into_stream().map_err(move |e| {
-                    Error::Object {
-                        kind: Kind::Unexpected,
-                        op: "read",
-                        path: p.to_string(),
-                        source: anyhow::Error::from(e),
-                    }
-                })))
+                Ok(Box::new(
+                    resp.into_body()
+                        .into_stream()
+                        .map_err(move |e| other(ObjectError::new("read", &p, e))),
+                ))
             }
             _ => Err(parse_error_response_with_body(resp, "read", &p).await),
         }
@@ -878,12 +872,7 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "read",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("read", path, e))
         })
     }
 
@@ -925,12 +914,7 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} head_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "stat",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("stat", path, e))
         })
     }
 
@@ -945,12 +929,7 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} delete_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "delete",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("delete", path, e))
         })
     }
 
@@ -976,12 +955,7 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} list_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "list",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("list", path, e))
         })
     }
 }
@@ -990,17 +964,15 @@ impl Backend {
 fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
     let (part, _) = resp.into_parts();
     let kind = match part.status {
-        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
-        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
-        _ => Kind::Unexpected,
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        _ => ErrorKind::Other,
     };
 
-    Error::Object {
+    Error::new(
         kind,
-        op,
-        path: path.to_string(),
-        source: anyhow!("response part: {:?}", part),
-    }
+        ObjectError::new(op, path, anyhow!("response part: {:?}", part)),
+    )
 }
 
 // Read and decode whole error response.
@@ -1011,9 +983,9 @@ async fn parse_error_response_with_body(
 ) -> Error {
     let (part, mut body) = resp.into_parts();
     let kind = match part.status {
-        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
-        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
-        _ => Kind::Unexpected,
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        _ => ErrorKind::Other,
     };
 
     // Only read 4KiB from the response to avoid broken services.
@@ -1029,20 +1001,28 @@ async fn parse_error_response_with_body(
                     break;
                 }
             }
-            Err(e) => return Error::Unexpected(anyhow!("parse error response parse: {:?}", e)),
+            Err(e) => {
+                return other(ObjectError::new(
+                    op,
+                    path,
+                    anyhow!("parse error response parse: {:?}", e),
+                ))
+            }
         }
     }
 
-    Error::Object {
+    Error::new(
         kind,
-        op,
-        path: path.to_string(),
-        source: anyhow!(
-            "response part: {:?}, body: {:?}",
-            part,
-            String::from_utf8_lossy(&bs)
+        ObjectError::new(
+            op,
+            path,
+            anyhow!(
+                "response part: {:?}, body: {:?}",
+                part,
+                String::from_utf8_lossy(&bs)
+            ),
         ),
-    }
+    )
 }
 
 #[cfg(test)]

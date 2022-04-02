@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Error;
+use std::io::Result;
+
 use bytes::Bytes;
 use futures::AsyncRead;
 use futures::AsyncWrite;
 use futures::Sink;
 use futures::Stream;
-
-use crate::error::Error;
-use crate::error::Result;
 
 /// BytesRead represents a reader of bytes.
 pub trait BytesRead: AsyncRead + Unpin + Send {}

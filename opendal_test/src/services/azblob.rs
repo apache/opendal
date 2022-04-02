@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use std::env;
+use std::io::Result;
 use std::sync::Arc;
 
-use opendal::error::Result;
 use opendal::services::azblob;
 use opendal::Accessor;
 

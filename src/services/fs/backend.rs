@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::io::Result;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -31,9 +32,9 @@ use tokio::fs;
 
 use super::error::parse_io_error;
 use super::object_stream::Readdir;
-use crate::error::Error;
-use crate::error::Kind;
-use crate::error::Result;
+use crate::error::other;
+use crate::error::BackendError;
+use crate::error::ObjectError;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
 use crate::io_util::into_sink;
@@ -69,11 +70,10 @@ impl Builder {
             None => "/".to_string(),
             Some(v) => {
                 if !v.starts_with('/') {
-                    return Err(Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: HashMap::from([("root".to_string(), v.clone())]),
-                        source: anyhow!("Root must start with /"),
-                    });
+                    return Err(other(BackendError::new(
+                        HashMap::from([("root".to_string(), v.clone())]),
+                        anyhow!("Root must start with /"),
+                    )));
                 }
                 v.to_string()
             }
@@ -188,7 +188,13 @@ impl Accessor for Backend {
         //   - Is it better to check the parent dir exists before call mkdir?
         let parent = PathBuf::from(&path)
             .parent()
-            .ok_or_else(|| anyhow!("malformed path: {:?}", &path))?
+            .ok_or_else(|| {
+                other(ObjectError::new(
+                    "write",
+                    &path,
+                    anyhow!("malformed path: {:?}", &path),
+                ))
+            })?
             .to_path_buf();
 
         fs::create_dir_all(&parent).await.map_err(|e| {

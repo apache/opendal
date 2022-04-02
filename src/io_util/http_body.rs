@@ -13,11 +13,12 @@
 // limitations under the License.
 
 use std::future::Future;
+use std::io::Error;
+use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bytes::Bytes;
 use futures::channel::mpsc::Sender;
 use futures::channel::mpsc::{self};
@@ -28,8 +29,7 @@ use http::Response;
 use hyper::client::ResponseFuture;
 use hyper::Body;
 
-use crate::error::Error;
-use crate::error::Result;
+use crate::error::other;
 use crate::ops::OpWrite;
 
 /// Create a HTTP channel.
@@ -38,7 +38,7 @@ use crate::ops::OpWrite;
 ///
 /// ```no_run
 /// use opendal::io_util::new_http_channel;
-/// # use opendal::error::Result;
+/// # use std::io::Result;
 /// # use bytes::Bytes;
 /// # use futures::SinkExt;
 ///
@@ -87,18 +87,20 @@ impl HttpBodySinker {
     /// # Example
     ///
     /// ```rust
-    /// # use opendal::io_util::new_http_channel;
+    /// use opendal::io_util::new_http_channel;
     /// # use opendal::io_util::HttpBodySinker;
     /// # use http::StatusCode;
-    /// # use opendal::error::Error;
-    /// # use opendal::error::Result;
     /// # use bytes::Bytes;
     /// # use futures::SinkExt;
     /// # use opendal::ops::OpWrite;
     /// # use anyhow::anyhow;
+    /// # use anyhow::Result;
+    /// use std::io;
+    /// use std::io::ErrorKind;
+    ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+    /// let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
     /// # let op = OpWrite::default();
     /// let (mut tx, body) = new_http_channel();
     /// let req = hyper::Request::put("https://httpbin.org/anything")
@@ -108,7 +110,7 @@ impl HttpBodySinker {
     /// let mut bs = HttpBodySinker::new(&op, tx, client.request(req), |op, resp| {
     ///     match resp.status() {
     ///         StatusCode::OK => Ok(()),
-    ///         _ => Err(Error::Unexpected(anyhow!("unexpected")))
+    ///         _ => Err(io::Error::from(ErrorKind::Other))
     ///     }
     /// });
     /// bs.send(Bytes::from("Hello, World!")).await?;
@@ -136,8 +138,8 @@ impl HttpBodySinker {
     ) -> Poll<std::result::Result<(), Error>> {
         match Pin::new(&mut self.fut).poll(cx) {
             Poll::Ready(Ok(resp)) => Poll::Ready((self.handle)(&self.op, resp)),
-            // TODO: we need better error output.
-            Poll::Ready(Err(e)) => Poll::Ready(Err(Error::Unexpected(anyhow!(e)))),
+            // TODO: we need to inject an object error here.
+            Poll::Ready(Err(e)) => Poll::Ready(Err(other(e))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -156,17 +158,13 @@ impl Sink<Bytes> for HttpBodySinker {
             unreachable!("response returned too early: {:?}", v)
         }
 
-        self.tx
-            .poll_ready(cx)
-            .map_err(|e| Error::Unexpected(anyhow!(e)))
+        self.tx.poll_ready(cx).map_err(other)
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> std::result::Result<(), Self::Error> {
         let this = &mut *self;
 
-        this.tx
-            .start_send(item)
-            .map_err(|e| Error::Unexpected(anyhow!(e)))
+        this.tx.start_send(item).map_err(other)
     }
 
     fn poll_flush(
@@ -181,7 +179,7 @@ impl Sink<Bytes> for HttpBodySinker {
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<(), Self::Error>> {
         if let Err(e) = ready!(Pin::new(&mut self.tx).poll_close(cx)) {
-            return Poll::Ready(Err(Error::Unexpected(anyhow!(e))));
+            return Poll::Ready(Err(other(e)));
         }
 
         self.poll_response(cx)

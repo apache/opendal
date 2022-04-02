@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::ready;
 use futures::Stream;
 use pin_project::pin_project;
 
-use crate::error::Error;
-use crate::error::Result;
 use crate::BytesRead;
 
 /// Convert [`BytesRead`][crate::BytesRead] into [`BytesStream`][crate::BytesStream].
@@ -37,7 +35,7 @@ use crate::BytesRead;
 ///
 /// ```rust
 /// use opendal::io_util::into_stream;
-/// # use opendal::error::Result;
+/// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
 /// # use futures::StreamExt;
@@ -82,7 +80,7 @@ where
         }
 
         match ready!(this.r.poll_read(cx, this.buf)) {
-            Err(err) => Poll::Ready(Some(Err(Error::Unexpected(anyhow!(err))))),
+            Err(err) => Poll::Ready(Some(Err(err))),
             Ok(0) => Poll::Ready(None),
             Ok(n) => {
                 let chunk = this.buf.split_to(n);

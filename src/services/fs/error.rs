@@ -12,35 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::error::Error;
-use crate::error::Kind;
+use std::io;
+use std::io::Error;
+
+use crate::error::ObjectError;
 
 /// Parse all path related errors.
 ///
 /// ## Notes
 ///
 /// Skip utf-8 check to allow invalid path input.
-pub fn parse_io_error(err: std::io::Error, op: &'static str, path: &str) -> Error {
-    use std::io::ErrorKind;
-
-    match err.kind() {
-        ErrorKind::NotFound => Error::Object {
-            kind: Kind::ObjectNotExist,
-            op,
-            path: path.to_string(),
-            source: anyhow::Error::from(err),
-        },
-        ErrorKind::PermissionDenied => Error::Object {
-            kind: Kind::ObjectPermissionDenied,
-            op,
-            path: path.to_string(),
-            source: anyhow::Error::from(err),
-        },
-        _ => Error::Object {
-            kind: Kind::Unexpected,
-            op,
-            path: path.to_string(),
-            source: anyhow::Error::from(err),
-        },
-    }
+pub fn parse_io_error(err: io::Error, op: &'static str, path: &str) -> io::Error {
+    Error::new(err.kind(), ObjectError::new(op, path, err))
 }

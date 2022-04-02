@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [v0.4.0] - 2022-04-02
 
+**Refer to [./docs/upgrade.md] `From v0.3 to v0.4` section for more upgrade details.**
+
 ### Added
 
 - feat(services/azblob): Implement list support (#193)

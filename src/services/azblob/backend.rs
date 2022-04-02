@@ -14,7 +14,8 @@
 
 use std::cmp::min;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::mem;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -31,7 +32,6 @@ use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
-
 use metrics::increment_counter;
 use minitrace::trace;
 use reqsign::services::azure::storage::Signer;

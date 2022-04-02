@@ -33,7 +33,6 @@ use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
-
 use metrics::increment_counter;
 use minitrace::trace;
 use once_cell::sync::Lazy;

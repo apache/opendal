@@ -12,22 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::Result;
-use log::warn;
-use opendal::Operator;
-use opendal_test::services::s3;
+use rand::prelude::*;
 
-use super::BehaviorTest;
+pub fn gen_bytes() -> (Vec<u8>, usize) {
+    let mut rng = thread_rng();
 
-#[tokio::test]
-async fn behavior() -> Result<()> {
-    super::init_logger();
+    let size = rng.gen_range(1..4 * 1024 * 1024);
+    let mut content = vec![0; size as usize];
+    rng.fill_bytes(&mut content);
 
-    let acc = s3::new().await?;
-    if acc.is_none() {
-        warn!("OPENDAL_S3_TEST not set, ignore");
-        return Ok(());
-    }
+    (content, size)
+}
 
-    BehaviorTest::new(Operator::new(acc.unwrap())).run().await
+pub fn gen_offset_length(size: usize) -> (u64, u64) {
+    let mut rng = thread_rng();
+
+    // Make sure at least one byte is read.
+    let offset = rng.gen_range(0..size - 1);
+    let length = rng.gen_range(1..(size - offset));
+
+    (offset as u64, length as u64)
 }

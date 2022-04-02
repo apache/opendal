@@ -584,6 +584,11 @@ impl Backend {
 
     // normalize_path removes all internal `//` inside path.
     pub(crate) fn normalize_path(path: &str) -> String {
+        // TODO: we need a unit test.
+        if path.is_empty() || path == "/" {
+            return String::new();
+        }
+
         let has_trailing = path.ends_with('/');
 
         let mut p = path

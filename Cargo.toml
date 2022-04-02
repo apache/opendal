@@ -59,6 +59,7 @@ dotenv = "0.15"
 env_logger = "0.9"
 num-traits = "0.2"
 opendal_test = { path = "./opendal_test" }
+paste = "1.0.7"
 rand = "0.8"
 serde_json = "1.0.79"
 sha2 = "0.10"

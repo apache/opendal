@@ -19,6 +19,12 @@ You may be looking for:
 
 OpenDAL is in **alpha** stage and has been early adopted by [databend](https://github.com/datafuselabs/databend/). Welcome any feedback at [Discussions](https://github.com/datafuselabs/opendal/discussions)!
 
+## Supported Services
+
+- [fs](https://docs.rs/opendal/latest/opendal/services/fs/index.html): POSIX alike file system.
+- [memory](https://docs.rs/opendal/latest/opendal/services/memory/index.html): In memory backend support.
+- [s3](https://docs.rs/opendal/latest/opendal/services/s3/index.html): AWS S3 alike services.
+
 ## Quickstart
 
 ```rust

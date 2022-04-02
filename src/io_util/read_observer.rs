@@ -73,7 +73,7 @@ pub enum ReadEvent {
     Error(ErrorKind),
 }
 
-/// Observer that created via [`observe_stream`].
+/// Observer that created via [`observe_read`].
 #[pin_project]
 pub struct ReadObserver<F: FnMut(ReadEvent)> {
     s: BytesReader,

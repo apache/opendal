@@ -14,7 +14,6 @@
 use std::env;
 use std::sync::Arc;
 
-use opendal::credential::Credential;
 use opendal::error::Result;
 use opendal::services::azblob;
 use opendal::Accessor;
@@ -45,10 +44,8 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
             &env::var("OPENDAL_AZBLOB_CONTAINER").expect("OPENDAL_AZBLOB_CONTAINER must set"),
         )
         .endpoint(&env::var("OPENDAL_AZBLOB_ENDPOINT").unwrap_or_default())
-        .credential(Credential::hmac(
-            &env::var("OPENDAL_AZBLOB_ACCOUNT_NAME").unwrap_or_default(),
-            &env::var("OPENDAL_AZBLOB_ACCOUNT_KEY").unwrap_or_default(),
-        ));
+        .account_key(&env::var("OPENDAL_AZBLOB_ACCOUNT_NAME").unwrap_or_default())
+        .account_key(&env::var("OPENDAL_AZBLOB_ACCOUNT_KEY").unwrap_or_default());
 
     Ok(Some(builder.finish().await?))
 }

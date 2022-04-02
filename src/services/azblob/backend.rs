@@ -14,6 +14,8 @@
 
 use std::cmp::min;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+use std::mem;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -29,14 +31,13 @@ use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
-use log::warn;
+
 use metrics::increment_counter;
 use minitrace::trace;
 use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
@@ -58,21 +59,39 @@ use crate::ObjectStreamer;
 
 pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct Builder {
     root: Option<String>,
     container: String,
-    credential: Option<Credential>,
     endpoint: Option<String>,
+    account_name: Option<String>,
+    account_key: Option<String>,
+}
+
+impl Debug for Builder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+
+        ds.field("root", &self.root);
+        ds.field("container", &self.container);
+        ds.field("endpoint", &self.endpoint);
+
+        if self.account_name.is_some() {
+            ds.field("account_name", &"<redacted>");
+        }
+        if self.account_key.is_some() {
+            ds.field("account_key", &"<redacted>");
+        }
+
+        ds.finish_non_exhaustive()
+    }
 }
 
 impl Builder {
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
+        if !root.is_empty() {
+            self.root = Some(root.to_string())
+        }
 
         self
     }
@@ -83,15 +102,27 @@ impl Builder {
         self
     }
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = Some(endpoint.to_string());
+        if !endpoint.is_empty() {
+            self.endpoint = Some(endpoint.to_string());
+        }
 
         self
     }
-    pub fn credential(&mut self, credential: Credential) -> &mut Self {
-        self.credential = Some(credential);
+    pub fn account_name(&mut self, account_name: &str) -> &mut Self {
+        if !account_name.is_empty() {
+            self.account_name = Some(account_name.to_string());
+        }
 
         self
     }
+    pub fn account_key(&mut self, account_key: &str) -> &mut Self {
+        if !account_key.is_empty() {
+            self.account_key = Some(account_key.to_string());
+        }
+
+        self
+    }
+
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -128,42 +159,12 @@ impl Builder {
             None => "blob.core.windows.net".to_string(),
         };
 
-        let mut context: HashMap<String, String> = HashMap::from([
-            ("endpoint".to_string(), endpoint.to_string()),
-            ("container".to_string(), container.to_string()),
-        ]);
-
-        let mut account_name = String::new();
-        let mut account_key = String::new();
-        if let Some(cred) = &self.credential {
-            context.insert("credential".to_string(), "*".to_string());
-            match cred {
-                Credential::HMAC {
-                    access_key_id,
-                    secret_access_key,
-                } => {
-                    account_name = access_key_id.to_string();
-                    account_key = secret_access_key.to_string();
-                }
-                // We don't need to do anything if user tries to read credential from env.
-                Credential::Plain => {
-                    warn!("backend got empty credential, fallback to read from env.")
-                }
-                _ => {
-                    return Err(Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow!("credential is invalid"),
-                    });
-                }
-            }
-        }
         let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
         let mut signer_builder = Signer::builder();
-        signer_builder
-            .account_name(&account_name)
-            .account_key(&account_key);
+        if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
+            signer_builder.account_name(name).account_key(key);
+        }
 
         let signer = signer_builder.build().await?;
 
@@ -174,7 +175,7 @@ impl Builder {
             signer: Arc::new(signer),
             container: self.container.clone(),
             client,
-            account_name,
+            account_name: mem::take(&mut self.account_name).unwrap_or_default(),
         }))
     }
 }

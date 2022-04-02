@@ -14,7 +14,6 @@
 use std::env;
 use std::sync::Arc;
 
-use opendal::credential::Credential;
 use opendal::error::Result;
 use opendal::services::s3;
 use opendal::Accessor;
@@ -41,10 +40,8 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     builder.root(&root);
     builder.bucket(&env::var("OPENDAL_S3_BUCKET").expect("OPENDAL_S3_BUCKET must set"));
     builder.endpoint(&env::var("OPENDAL_S3_ENDPOINT").unwrap_or_default());
-    builder.credential(Credential::hmac(
-        &env::var("OPENDAL_S3_ACCESS_KEY_ID").unwrap_or_default(),
-        &env::var("OPENDAL_S3_SECRET_ACCESS_KEY").unwrap_or_default(),
-    ));
+    builder.access_key_id(&env::var("OPENDAL_S3_ACCESS_KEY_ID").unwrap_or_default());
+    builder.secret_access_key(&env::var("OPENDAL_S3_SECRET_ACCESS_KEY").unwrap_or_default());
     builder
         .server_side_encryption(&env::var("OPENDAL_S3_SERVER_SIDE_ENCRYPTION").unwrap_or_default());
     builder.server_side_encryption_customer_algorithm(

@@ -33,7 +33,7 @@ use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
-use log::warn;
+
 use metrics::increment_counter;
 use minitrace::trace;
 use once_cell::sync::Lazy;
@@ -42,7 +42,6 @@ use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
 use super::object_stream::S3ObjectStream;
-use crate::credential::Credential;
 use crate::error::Error;
 use crate::error::Kind;
 use crate::error::Result;
@@ -119,9 +118,10 @@ pub struct Builder {
     root: Option<String>,
 
     bucket: String,
-    credential: Option<Credential>,
     endpoint: Option<String>,
     region: Option<String>,
+    access_key_id: Option<String>,
+    secret_access_key: Option<String>,
     server_side_encryption: Option<String>,
     server_side_encryption_aws_kms_key_id: Option<String>,
     server_side_encryption_customer_algorithm: Option<String>,
@@ -135,10 +135,15 @@ impl Debug for Builder {
 
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
-            .field("credential", &self.credential)
             .field("endpoint", &self.endpoint)
             .field("region", &self.region);
 
+        if self.access_key_id.is_some() {
+            d.field("access_key_id", &"<redacted>");
+        }
+        if self.secret_access_key.is_some() {
+            d.field("secret_access_key", &"<redacted>");
+        }
         if self.server_side_encryption.is_some() {
             d.field("server_side_encryption", &"<redacted>");
         }
@@ -180,13 +185,6 @@ impl Builder {
         self
     }
 
-    /// Set credential of this backend.
-    pub fn credential(&mut self, credential: Credential) -> &mut Self {
-        self.credential = Some(credential);
-
-        self
-    }
-
     /// Set endpoint of this backend.
     ///
     /// Endpoint must be full uri, e.g.
@@ -199,11 +197,9 @@ impl Builder {
     /// If user inputs endpoint without scheme like "s3.amazonaws.com", we
     /// will prepend "https://" before it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
-            None
-        } else {
-            Some(endpoint.to_string())
-        };
+        if !endpoint.is_empty() {
+            self.endpoint = Some(endpoint.to_string())
+        }
 
         self
     }
@@ -215,11 +211,25 @@ impl Builder {
     ///
     /// Most of time, region is not need to be set, especially for AWS S3 and minio.
     pub fn region(&mut self, region: &str) -> &mut Self {
-        self.region = if region.is_empty() {
-            None
-        } else {
-            Some(region.to_string())
-        };
+        if !region.is_empty() {
+            self.region = Some(region.to_string())
+        }
+
+        self
+    }
+
+    pub fn access_key_id(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.access_key_id = Some(v.to_string())
+        }
+
+        self
+    }
+
+    pub fn secret_access_key(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.secret_access_key = Some(v.to_string())
+        }
 
         self
     }
@@ -235,11 +245,10 @@ impl Builder {
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
     pub fn server_side_encryption(&mut self, v: &str) -> &mut Self {
-        self.server_side_encryption = if v.is_empty() {
-            None
-        } else {
-            Some(v.to_string())
-        };
+        if !v.is_empty() {
+            self.server_side_encryption = Some(v.to_string())
+        }
+
         self
     }
 
@@ -261,11 +270,10 @@ impl Builder {
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
     pub fn server_side_encryption_aws_kms_key_id(&mut self, v: &str) -> &mut Self {
-        self.server_side_encryption_aws_kms_key_id = if v.is_empty() {
-            None
-        } else {
-            Some(v.to_string())
-        };
+        if !v.is_empty() {
+            self.server_side_encryption_aws_kms_key_id = Some(v.to_string())
+        }
+
         self
     }
 
@@ -280,11 +288,10 @@ impl Builder {
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
     pub fn server_side_encryption_customer_algorithm(&mut self, v: &str) -> &mut Self {
-        self.server_side_encryption_customer_algorithm = if v.is_empty() {
-            None
-        } else {
-            Some(v.to_string())
-        };
+        if !v.is_empty() {
+            self.server_side_encryption_customer_algorithm = Some(v.to_string())
+        }
+
         self
     }
 
@@ -302,11 +309,10 @@ impl Builder {
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
     pub fn server_side_encryption_customer_key(&mut self, v: &str) -> &mut Self {
-        self.server_side_encryption_customer_key = if v.is_empty() {
-            None
-        } else {
-            Some(v.to_string())
-        };
+        if !v.is_empty() {
+            self.server_side_encryption_customer_key = Some(v.to_string())
+        }
+
         self
     }
 
@@ -323,11 +329,10 @@ impl Builder {
     /// SSE related options should be set carefully to make them works.
     /// Please use `server_side_encryption_with_*` helpers if even possible.
     pub fn server_side_encryption_customer_key_md5(&mut self, v: &str) -> &mut Self {
-        self.server_side_encryption_customer_key_md5 = if v.is_empty() {
-            None
-        } else {
-            Some(v.to_string())
-        };
+        if !v.is_empty() {
+            self.server_side_encryption_customer_key_md5 = Some(v.to_string())
+        }
+
         self
     }
 
@@ -527,28 +532,9 @@ impl Builder {
         signer_builder.region(&region);
         signer_builder.allow_anonymous();
 
-        if let Some(cred) = &self.credential {
-            context.insert("credential".to_string(), "*".to_string());
-            match cred {
-                Credential::HMAC {
-                    access_key_id,
-                    secret_access_key,
-                } => {
-                    signer_builder.access_key(access_key_id);
-                    signer_builder.secret_key(secret_access_key);
-                }
-                // We don't need to do anything if user tries to read credential from env.
-                Credential::Plain => {
-                    warn!("backend got empty credential, fallback to read from env.")
-                }
-                _ => {
-                    return Err(Error::Backend {
-                        kind: Kind::BackendConfigurationInvalid,
-                        context: context.clone(),
-                        source: anyhow!("credential is invalid"),
-                    });
-                }
-            }
+        if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
+            signer_builder.access_key(ak);
+            signer_builder.secret_key(sk);
         }
 
         let signer = signer_builder.build().await?;

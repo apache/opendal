@@ -113,7 +113,6 @@ where
 #[cfg(test)]
 mod tests {
     use futures::io;
-
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;

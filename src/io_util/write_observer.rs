@@ -18,10 +18,10 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::BytesWriter;
-
 use futures::AsyncWrite;
 use pin_project::pin_project;
+
+use crate::BytesWriter;
 
 /// Create an observer over [`crate::BytesWrite`].
 ///
@@ -146,7 +146,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::{io, AsyncWriteExt};
+    use futures::io;
+    use futures::AsyncWriteExt;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;

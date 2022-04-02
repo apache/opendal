@@ -26,10 +26,8 @@ use std::task::Poll;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::BufMut;
-
 use futures::io::Cursor;
 use futures::AsyncWrite;
-
 use minitrace::trace;
 
 use crate::error::other;

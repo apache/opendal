@@ -22,144 +22,140 @@
 
 use std::io::ErrorKind;
 
+use super::init_logger;
+use super::utils::*;
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::StreamExt;
 use opendal::ObjectMode;
 use opendal::Operator;
-use rand::prelude::*;
+use opendal_test::services;
 use sha2::Digest;
 use sha2::Sha256;
 
-/// TODO: Implement test files cleanup.
-pub struct BehaviorTest {
-    op: Operator,
-
-    rng: ThreadRng,
+/// Generate real test cases.
+/// Update function list while changed.
+macro_rules! behavior_tests {
+    ($($service:ident),*) => {
+        $(
+            behavior_test!($service, test_normal, test_stat_root, test_stat_non_exist);
+        )*
+    };
 }
 
-impl BehaviorTest {
-    pub fn new(op: Operator) -> Self {
-        Self {
-            op,
-            rng: thread_rng(),
-        }
-    }
+macro_rules! behavior_test {
+    ($service:ident, $($test:ident),*) => {
+        paste::item! {
+            mod [<$service>] {
+                use super::*;
 
-    pub async fn run(&mut self) -> Result<()> {
-        self.test_normal().await?;
-        self.test_stat_root().await?;
-        self.test_stat_non_exist().await?;
+                $(
+                    #[tokio::test]
+                    async fn [< $test >]() -> Result<()> {
+                        init_logger();
 
-        Ok(())
-    }
-
-    /// This case is use to test service's normal behavior.
-    async fn test_normal(&mut self) -> Result<()> {
-        // Step 1: Generate a random file with random size (under 4 MB).
-        let path = uuid::Uuid::new_v4().to_string();
-        println!("Generate a random file: {}", &path);
-        let (content, size) = self.gen_bytes();
-
-        // Step 2: Write this file
-        let _ = self.op.object(&path).write(&content).await?;
-
-        // Step 3: Stat this file
-        let meta = self.op.object(&path).metadata().await?;
-        assert_eq!(meta.content_length(), size as u64, "stat file");
-
-        // Step 3.1: Stat this file start with "//" should works
-        let meta = self.op.object(&format!("//{}", &path)).metadata().await?;
-        assert_eq!(meta.content_length(), size as u64, "stat file");
-
-        // Step 4: Read this file's content
-        // Step 4.1: Read the whole file.
-        let mut buf = Vec::new();
-        let mut r = self.op.object(&path).reader().await?;
-        let n = r.read_to_end(&mut buf).await.expect("read to end");
-        assert_eq!(n, size as usize, "check size in read whole file");
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&buf)),
-            format!("{:x}", Sha256::digest(&content)),
-            "check hash in read whole file"
-        );
-
-        // Step 4.2: Read the file with random offset and length.
-        let (offset, length) = self.gen_offset_length(size as usize);
-        let mut buf: Vec<u8> = vec![0; length as usize];
-        let mut r = self.op.object(&path).range_reader(offset..).await?;
-        r.read_exact(&mut buf).await?;
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&buf)),
-            format!(
-                "{:x}",
-                Sha256::digest(&content[offset as usize..(offset + length) as usize])
-            ),
-            "read part file"
-        );
-
-        // Step 5: List this dir, we should get this file.
-        let mut obs = self.op.objects("").await?.map(|o| o.expect("list object"));
-        let mut found = false;
-        while let Some(o) = obs.next().await {
-            let meta = o.metadata().await?;
-            if meta.path() == path {
-                let mode = meta.mode();
-                assert_eq!(mode, ObjectMode::FILE);
-
-                found = true
+                        let acc = super::services::$service::new().await?;
+                        if acc.is_none() {
+                            return Ok(())
+                        }
+                        super::$test(Operator::new(acc.unwrap())).await
+                    }
+                )*
             }
         }
-        assert!(found, "file should be found in iterator");
+    };
+}
 
-        // Step 6: Delete this file
-        let result = self.op.object(&path).delete().await;
-        assert!(result.is_ok(), "delete file: {}", result.unwrap_err());
+behavior_tests!(azblob, fs, memory, s3);
 
-        // Step 7: Stat this file again to check if it's deleted
-        let o = self.op.object(&path);
-        let exist = o.is_exist().await?;
-        assert!(!exist, "stat file again");
-        Ok(())
+/// This case is use to test service's normal behavior.
+async fn test_normal(op: Operator) -> Result<()> {
+    // Step 1: Generate a random file with random size (under 4 MB).
+    let path = uuid::Uuid::new_v4().to_string();
+    println!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    // Step 2: Write this file
+    let _ = op.object(&path).write(&content).await?;
+
+    // Step 3: Stat this file
+    let meta = op.object(&path).metadata().await?;
+    assert_eq!(meta.content_length(), size as u64, "stat file");
+
+    // Step 3.1: Stat this file start with "//" should works
+    let meta = op.object(&format!("//{}", &path)).metadata().await?;
+    assert_eq!(meta.content_length(), size as u64, "stat file");
+
+    // Step 4: Read this file's content
+    // Step 4.1: Read the whole file.
+    let mut buf = Vec::new();
+    let mut r = op.object(&path).reader().await?;
+    let n = r.read_to_end(&mut buf).await.expect("read to end");
+    assert_eq!(n, size as usize, "check size in read whole file");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&buf)),
+        format!("{:x}", Sha256::digest(&content)),
+        "check hash in read whole file"
+    );
+
+    // Step 4.2: Read the file with random offset and length.
+    let (offset, length) = gen_offset_length(size as usize);
+    let mut buf: Vec<u8> = vec![0; length as usize];
+    let mut r = op.object(&path).range_reader(offset..).await?;
+    r.read_exact(&mut buf).await?;
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&buf)),
+        format!(
+            "{:x}",
+            Sha256::digest(&content[offset as usize..(offset + length) as usize])
+        ),
+        "read part file"
+    );
+
+    // Step 5: List this dir, we should get this file.
+    let mut obs = op.objects("").await?.map(|o| o.expect("list object"));
+    let mut found = false;
+    while let Some(o) = obs.next().await {
+        let meta = o.metadata().await?;
+        if meta.path() == path {
+            let mode = meta.mode();
+            assert_eq!(mode, ObjectMode::FILE);
+
+            found = true
+        }
     }
+    assert!(found, "file should be found in iterator");
 
-    /// Root should be able to stat and returns DIR.
-    async fn test_stat_root(&mut self) -> Result<()> {
-        let meta = self.op.object("").metadata().await?;
-        assert_eq!(meta.mode(), ObjectMode::DIR);
+    // Step 6: Delete this file
+    let result = op.object(&path).delete().await;
+    assert!(result.is_ok(), "delete file: {}", result.unwrap_err());
 
-        let meta = self.op.object("/").metadata().await?;
-        assert_eq!(meta.mode(), ObjectMode::DIR);
+    // Step 7: Stat this file again to check if it's deleted
+    let o = op.object(&path);
+    let exist = o.is_exist().await?;
+    assert!(!exist, "stat file again");
+    Ok(())
+}
 
-        Ok(())
-    }
+/// Root should be able to stat and returns DIR.
+async fn test_stat_root(op: Operator) -> Result<()> {
+    let meta = op.object("").metadata().await?;
+    assert_eq!(meta.mode(), ObjectMode::DIR);
 
-    /// Stat non exist object should return ObjectNotExist.
-    async fn test_stat_non_exist(&mut self) -> Result<()> {
-        let meta = self
-            .op
-            .object(&uuid::Uuid::new_v4().to_string())
-            .metadata()
-            .await;
-        assert!(meta.is_err());
-        let err = meta.unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
-        Ok(())
-    }
+    let meta = op.object("/").metadata().await?;
+    assert_eq!(meta.mode(), ObjectMode::DIR);
 
-    fn gen_bytes(&mut self) -> (Vec<u8>, usize) {
-        let size = self.rng.gen_range(1..4 * 1024 * 1024);
-        let mut content = vec![0; size as usize];
-        self.rng.fill_bytes(&mut content);
+    Ok(())
+}
 
-        (content, size)
-    }
-
-    fn gen_offset_length(&mut self, size: usize) -> (u64, u64) {
-        // Make sure at least one byte is read.
-        let offset = self.rng.gen_range(0..size - 1);
-        let length = self.rng.gen_range(1..(size - offset));
-
-        (offset as u64, length as u64)
-    }
+/// Stat non exist object should return ObjectNotExist.
+async fn test_stat_non_exist(op: Operator) -> Result<()> {
+    let meta = op
+        .object(&uuid::Uuid::new_v4().to_string())
+        .metadata()
+        .await;
+    assert!(meta.is_err());
+    let err = meta.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+    Ok(())
 }

@@ -14,14 +14,7 @@
 
 // Behavior test suites.
 mod behavior;
-
-use behavior::BehaviorTest;
-
-// All services must pass the behavior test suite.
-mod azblob;
-mod fs;
-mod memory;
-mod s3;
+mod utils;
 
 pub fn init_logger() {
     let _ = env_logger::builder().is_test(true).try_init();

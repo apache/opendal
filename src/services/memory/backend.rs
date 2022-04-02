@@ -26,15 +26,12 @@ use std::task::Poll;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::BufMut;
-use bytes::Bytes;
-use futures::stream;
-use futures::Sink;
+use futures::io::Cursor;
+use futures::AsyncWrite;
 use minitrace::trace;
 
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::io::BytesSinker;
-use crate::io::BytesStreamer;
 use crate::object::ObjectStreamer;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -42,6 +39,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
+use crate::BytesReader;
+use crate::BytesWriter;
 use crate::Metadata;
 use crate::Object;
 use crate::ObjectMode;
@@ -86,7 +85,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = Backend::normalize_path(&args.path);
 
         let map = self.inner.lock().expect("lock poisoned");
@@ -121,15 +120,14 @@ impl Accessor for Backend {
             data = data.slice(0..size as usize);
         };
 
-        Ok(Box::new(Box::pin(stream::once(async {
-            Ok::<_, Error>(data)
-        }))))
+        Ok(Box::new(Cursor::new(data)))
     }
+
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let path = Backend::normalize_path(&args.path);
 
-        Ok(Box::new(MapSink {
+        Ok(Box::new(MapWriter {
             path,
             size: args.size,
             map: self.inner.clone(),
@@ -197,7 +195,7 @@ impl Accessor for Backend {
     }
 }
 
-struct MapSink {
+struct MapWriter {
     path: String,
     size: u64,
     map: Arc<Mutex<HashMap<String, bytes::Bytes>>>,
@@ -205,32 +203,22 @@ struct MapSink {
     buf: bytes::BytesMut,
 }
 
-impl Sink<Bytes> for MapSink {
-    type Error = Error;
-
-    fn poll_ready(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> std::result::Result<(), Self::Error> {
-        self.buf.put_slice(&item);
-        Ok(())
-    }
-
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(
+impl AsyncWrite for MapWriter {
+    fn poll_write(
         mut self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        let size = buf.len();
+        self.buf.put_slice(buf);
+        Poll::Ready(Ok(size))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         if self.buf.len() != self.size as usize {
             return Poll::Ready(Err(other(ObjectError::new(
                 "write",

@@ -11,29 +11,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::io::Error;
+
 use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
-use futures::Sink;
+use futures::AsyncWrite;
 use pin_project::pin_project;
 
-use crate::io::BytesSinker;
+use crate::BytesWriter;
 
-/// Create an observer over BytesSink.
+/// Create an observer over [`crate::BytesWrite`].
 ///
-/// `observe_sink` will accept a `FnMut(SinkEvent)` which handles [`SinkEvent`]
-/// triggered by [`SinkObserver`].
+/// `observe_write` will accept a `FnMut(WriteEvent)` which handles [`WriteEvent`]
+/// triggered by [`WriteObserver`].
 ///
 /// # Example
 ///
 /// ```rust
-/// use opendal::io_util::observe_sink;
-/// use opendal::io_util::SinkEvent;
+/// use opendal::io_util::observe_write;
+/// use opendal::io_util::WriteEvent;
 /// # use opendal::io_util::into_sink;
 /// # use std::io::Result;
 /// # use futures::io;
@@ -44,30 +43,28 @@ use crate::io::BytesSinker;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-/// # let sink = Box::new(into_sink(Vec::new()));
+/// # let w = Box::new(io::Cursor::new(Vec::new()));
 /// let mut written_size = 0;
-/// let mut s = observe_sink(sink, |e| match e {
-///     SinkEvent::Sent(n) => written_size += n,
+/// let mut s = observe_write(w, |e| match e {
+///     WriteEvent::Written(n) => written_size += n,
 ///     _ => {}
 /// });
-/// s.send(Bytes::from(vec![0; 1024])).await?;
+/// s.write_all(&vec![0;1024]).await?;
 /// s.close().await?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn observe_sink<F: FnMut(SinkEvent)>(s: BytesSinker, f: F) -> SinkObserver<F> {
-    SinkObserver { s, f }
+pub fn observe_write<F: FnMut(WriteEvent)>(s: BytesWriter, f: F) -> WriteObserver<F> {
+    WriteObserver { s, f }
 }
 
-/// Event that sent by [`SinkObserver`], should be handled via `FnMut(SinkEvent)`.
+/// Event that sent by [`WriteObserver`], should be handled via `FnMut(WriteEvent)`.
 #[derive(Copy, Clone, Debug)]
-pub enum SinkEvent {
+pub enum WriteEvent {
     /// Emit while meeting `Poll::Pending`.
     Pending,
-    /// Emit while `poll_ready` got `Poll::Ready(Ok(_))`.
-    Ready,
-    /// Emit the sent bytes length while `start_send` got `Ok(_)`.
-    Sent(usize),
+    /// Emit the sent bytes length while `poll_write` got `Poll::Ready(Ok(_))`.
+    Written(usize),
     /// Emit while `poll_flush` got `Poll::Ready(Ok(_))`.
     Flushed,
     /// Emit while `poll_flush` got `Poll::Ready(Ok(_))`.
@@ -80,46 +77,34 @@ pub enum SinkEvent {
     Error(ErrorKind),
 }
 
-/// Observer that created via [`observe_sink`].
+/// Observer that created via [`observe_write`].
 #[pin_project]
-pub struct SinkObserver<F: FnMut(SinkEvent)> {
-    s: BytesSinker,
+pub struct WriteObserver<F: FnMut(WriteEvent)> {
+    s: BytesWriter,
     f: F,
 }
 
-impl<F> Sink<Bytes> for SinkObserver<F>
+impl<F> AsyncWrite for WriteObserver<F>
 where
-    F: FnMut(SinkEvent),
+    F: FnMut(WriteEvent),
 {
-    type Error = Error;
-
-    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        match Pin::new(&mut self.s).poll_ready(cx) {
-            Poll::Ready(Ok(_)) => {
-                (self.f)(SinkEvent::Ready);
-                Poll::Ready(Ok(()))
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize>> {
+        match Pin::new(&mut self.s).poll_write(cx, buf) {
+            Poll::Ready(Ok(n)) => {
+                (self.f)(WriteEvent::Written(n));
+                Poll::Ready(Ok(n))
             }
             Poll::Ready(Err(e)) => {
-                (self.f)(SinkEvent::Error(e.kind()));
+                (self.f)(WriteEvent::Error(e.kind()));
                 Poll::Ready(Err(e))
             }
             Poll::Pending => {
-                (self.f)(SinkEvent::Pending);
+                (self.f)(WriteEvent::Pending);
                 Poll::Pending
-            }
-        }
-    }
-
-    fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> Result<()> {
-        let size = item.len();
-        match Pin::new(&mut self.s).start_send(item) {
-            Ok(_) => {
-                (self.f)(SinkEvent::Sent(size));
-                Ok(())
-            }
-            Err(e) => {
-                (self.f)(SinkEvent::Error(e.kind()));
-                Err(e)
             }
         }
     }
@@ -127,15 +112,15 @@ where
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match Pin::new(&mut self.s).poll_flush(cx) {
             Poll::Ready(Ok(_)) => {
-                (self.f)(SinkEvent::Flushed);
+                (self.f)(WriteEvent::Flushed);
                 Poll::Ready(Ok(()))
             }
             Poll::Ready(Err(e)) => {
-                (self.f)(SinkEvent::Error(e.kind()));
+                (self.f)(WriteEvent::Error(e.kind()));
                 Poll::Ready(Err(e))
             }
             Poll::Pending => {
-                (self.f)(SinkEvent::Pending);
+                (self.f)(WriteEvent::Pending);
                 Poll::Pending
             }
         }
@@ -144,15 +129,15 @@ where
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match Pin::new(&mut self.s).poll_close(cx) {
             Poll::Ready(Ok(_)) => {
-                (self.f)(SinkEvent::Closed);
+                (self.f)(WriteEvent::Closed);
                 Poll::Ready(Ok(()))
             }
             Poll::Ready(Err(e)) => {
-                (self.f)(SinkEvent::Error(e.kind()));
+                (self.f)(WriteEvent::Error(e.kind()));
                 Poll::Ready(Err(e))
             }
             Poll::Pending => {
-                (self.f)(SinkEvent::Pending);
+                (self.f)(WriteEvent::Pending);
                 Poll::Pending
             }
         }
@@ -161,38 +146,36 @@ where
 
 #[cfg(test)]
 mod tests {
-    use futures::SinkExt;
+    use futures::io;
+    use futures::AsyncWriteExt;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
 
     use super::*;
-    use crate::io_util::into_sink;
 
     #[tokio::test]
-    async fn test_sink_observer() {
+    async fn test_write_observer() {
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
         let size = rng.gen_range(1..16 * 1024 * 1024);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
 
-        let s = into_sink(Vec::new());
+        let s = io::Cursor::new(Vec::new());
 
-        let mut sink_size = 0;
+        let mut written_size = 0;
         let mut is_closed = false;
-        let mut s = observe_sink(Box::new(s), |e| match e {
-            SinkEvent::Sent(n) => sink_size += n,
-            SinkEvent::Closed => is_closed = true,
+        let mut s = observe_write(Box::new(s), |e| match e {
+            WriteEvent::Written(n) => written_size += n,
+            WriteEvent::Closed => is_closed = true,
             _ => {}
         });
 
-        s.send(Bytes::from(content.clone()))
-            .await
-            .expect("send must success");
+        s.write_all(&content).await.expect("write must success");
         s.close().await.expect("close must success");
 
-        assert_eq!(sink_size, size);
+        assert_eq!(written_size, size);
         assert!(is_closed);
     }
 }

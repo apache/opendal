@@ -62,7 +62,7 @@ impl BehaviorTest {
         let (content, size) = self.gen_bytes();
 
         // Step 2: Write this file
-        let _ = self.op.object(&path).write_from_slice(&content).await?;
+        let _ = self.op.object(&path).write(&content).await?;
 
         // Step 3: Stat this file
         let meta = self.op.object(&path).metadata().await?;

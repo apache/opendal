@@ -41,14 +41,8 @@ pub type BytesWriter = Box<dyn BytesWrite>;
 pub trait BytesStream: Stream<Item = Result<Bytes>> + Unpin + Send {}
 impl<T> BytesStream for T where T: Stream<Item = Result<Bytes>> + Unpin + Send {}
 
-/// BytesStreamer is a boxed dyn [`BytesStream`].
-pub type BytesStreamer = Box<dyn BytesStream>;
-
 /// BytesSink represents a sink of bytes.
 ///
 /// THis trait is used as alias to `Sink<Bytes, Error = Error> + Unpin + Send`.
 pub trait BytesSink: Sink<Bytes, Error = Error> + Unpin + Send {}
 impl<T> BytesSink for T where T: Sink<Bytes, Error = Error> + Unpin + Send {}
-
-/// BytesSinker is a boxed dyn [`BytesSink`]
-pub type BytesSinker = Box<dyn BytesSink>;

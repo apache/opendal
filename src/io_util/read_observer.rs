@@ -11,29 +11,27 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::Bytes;
-use futures::Stream;
+use futures::AsyncRead;
 use pin_project::pin_project;
 
-use crate::BytesStreamer;
+use crate::BytesReader;
 
-/// Create an observer over BytesStream.
+/// Create an observer over BytesReader.
 ///
-/// `observe_stream` will accept a `FnMut(StreamEvent)` which handles
-/// [`StreamEvent`] triggered by [`StreamObserver`]
+/// `observe_read` will accept a `FnMut(ReadEvent)` which handles
+/// [`ReadEvent`] triggered by [`ReadObserver`]
 ///
 /// # Example
 ///
 /// ```rust
-/// use opendal::io_util::observe_stream;
-/// use opendal::io_util::StreamEvent;
+/// use opendal::io_util::observe_read;
+/// use opendal::io_util::ReadEvent;
 /// # use opendal::io_util::into_stream;
 /// # use std::io::Result;
 /// # use futures::io;
@@ -44,28 +42,28 @@ use crate::BytesStreamer;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-/// # let stream = Box::new(into_stream(io::Cursor::new(vec![0; 1024]), 1024));
+/// let r = Box::new(io::Cursor::new(vec![0; 1024]));
 /// let mut read_size = 0;
-/// let mut s = observe_stream(stream, |e| match e {
-///     StreamEvent::Next(n) => read_size += n,
+/// let mut s = observe_read(r, |e| match e {
+///     ReadEvent::Read(n) => read_size += n,
 ///     _ => {}
 /// });
-/// s.next().await;
+/// io::copy(s, &mut io::sink()).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn observe_stream<F: FnMut(StreamEvent)>(s: BytesStreamer, f: F) -> StreamObserver<F> {
-    StreamObserver { s, f }
+pub fn observe_read<F: FnMut(ReadEvent)>(s: BytesReader, f: F) -> ReadObserver<F> {
+    ReadObserver { s, f }
 }
 
-/// Event that sent by [`StreamObserver`], should be handled via
-/// `FnMut(StreamEvent)`.
-pub enum StreamEvent {
+/// Event that sent by [`ReadObserver`], should be handled via
+/// `FnMut(ReadEvent)`.
+pub enum ReadEvent {
     /// Emit while meeting `Poll::Pending`.
     Pending,
-    /// Emit the sent bytes length while `poll_next` got `Poll::Ready(Some(Ok(_)))`.
-    Next(usize),
-    /// Emit while meeting `Poll::Ok(None)`.
+    /// Emit the sent bytes length while `poll_read` got `Poll::Ready(Ok(n))`.
+    Read(usize),
+    /// Emit while meeting `Poll::Ready(Ok(0))`.
     Terminated,
     /// Emit the error kind while meeting error.
     ///
@@ -77,33 +75,35 @@ pub enum StreamEvent {
 
 /// Observer that created via [`observe_stream`].
 #[pin_project]
-pub struct StreamObserver<F: FnMut(StreamEvent)> {
-    s: BytesStreamer,
+pub struct ReadObserver<F: FnMut(ReadEvent)> {
+    s: BytesReader,
     f: F,
 }
 
-impl<F> Stream for StreamObserver<F>
+impl<F> AsyncRead for ReadObserver<F>
 where
-    F: FnMut(StreamEvent),
+    F: FnMut(ReadEvent),
 {
-    type Item = Result<Bytes>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut self.s).poll_next(cx) {
-            Poll::Ready(Some(Ok(bs))) => {
-                (self.f)(StreamEvent::Next(bs.len()));
-                Poll::Ready(Some(Ok(bs)))
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        match Pin::new(&mut self.s).poll_read(cx, buf) {
+            Poll::Ready(Ok(0)) => {
+                (self.f)(ReadEvent::Terminated);
+                Poll::Ready(Ok(0))
             }
-            Poll::Ready(Some(Err(e))) => {
-                (self.f)(StreamEvent::Error(e.kind()));
-                Poll::Ready(Some(Err(e)))
+            Poll::Ready(Ok(n)) => {
+                (self.f)(ReadEvent::Read(n));
+                Poll::Ready(Ok(n))
             }
-            Poll::Ready(None) => {
-                (self.f)(StreamEvent::Terminated);
-                Poll::Ready(None)
+            Poll::Ready(Err(e)) => {
+                (self.f)(ReadEvent::Error(e.kind()));
+                Poll::Ready(Err(e))
             }
             Poll::Pending => {
-                (self.f)(StreamEvent::Pending);
+                (self.f)(ReadEvent::Pending);
                 Poll::Pending
             }
         }
@@ -113,16 +113,14 @@ where
 #[cfg(test)]
 mod tests {
     use futures::io;
-    use futures::StreamExt;
     use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
 
     use super::*;
-    use crate::io_util::into_stream;
 
     #[tokio::test]
-    async fn test_stream_observer() {
+    async fn test_read_observer() {
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
         let size = rng.gen_range(1..16 * 1024 * 1024);
@@ -130,19 +128,20 @@ mod tests {
         rng.fill_bytes(&mut content);
 
         let r = io::Cursor::new(content.clone());
-        let s = into_stream(r, 1024);
 
-        let mut stream_size = 0;
+        let mut read_size = 0;
         let mut is_terminated = false;
-        let s = observe_stream(Box::new(s), |e| match e {
-            StreamEvent::Next(n) => stream_size += n,
-            StreamEvent::Terminated => is_terminated = true,
+        let s = observe_read(Box::new(r), |e| match e {
+            ReadEvent::Read(n) => read_size += n,
+            ReadEvent::Terminated => is_terminated = true,
             _ => {}
         });
 
-        let _ = s.collect::<Vec<_>>().await;
+        io::copy(s, &mut io::sink())
+            .await
+            .expect("copy must succeed");
 
-        assert_eq!(stream_size, size);
+        assert_eq!(read_size, size);
         assert!(is_terminated);
     }
 }

@@ -102,7 +102,7 @@ impl Operator {
     /// async fn main() -> Result<()> {
     ///     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
     ///
-    ///     op.object("test_dir/test_file").write_from_slice("Hello, World!").await?;
+    ///     op.object("test_dir/test_file").write("Hello, World!").await?;
     ///
     ///     // Start listing a dir.
     ///     let mut obs = op.objects("test_dir").await?;

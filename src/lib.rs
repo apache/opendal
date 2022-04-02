@@ -31,7 +31,7 @@
 //!     let o = op.object("test_file");
 //!
 //!     // Write data info file;
-//!     let _ = o.write_from_slice("Hello, World!").await?;
+//!     let _ = o.write("Hello, World!").await?;
 //!
 //!     // Read data from file;
 //!     let bs = o.read().await?;
@@ -72,9 +72,7 @@ mod io;
 pub use io::BytesRead;
 pub use io::BytesReader;
 pub use io::BytesSink;
-pub use io::BytesSinker;
 pub use io::BytesStream;
-pub use io::BytesStreamer;
 pub use io::BytesWrite;
 pub use io::BytesWriter;
 

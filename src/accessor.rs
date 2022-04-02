@@ -18,13 +18,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::io::BytesSinker;
-use crate::io::BytesStreamer;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::BytesReader;
+use crate::BytesWriter;
 use crate::Metadata;
 use crate::ObjectStreamer;
 
@@ -37,14 +37,14 @@ use crate::ObjectStreamer;
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
     /// Invoke the `read` operation on the specified path, returns a
-    /// [`BytesStream`][crate::BytesStream] if operate successful.
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    /// [`BytesReader`][crate::BytesReader] if operate successful.
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let _ = args;
         unimplemented!()
     }
     /// Invoke the `write` operation on the specified path, returns a
-    /// [`BytesSink`][crate::BytesSink] if operate successful.
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    /// [`BytesWriter`][crate::BytesWriter] if operate successful.
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let _ = args;
         unimplemented!()
     }
@@ -81,10 +81,10 @@ pub trait Accessor: Send + Sync + Debug {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         self.as_ref().read(args).await
     }
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         self.as_ref().write(args).await
     }
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {

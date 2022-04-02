@@ -47,10 +47,8 @@ use super::object_stream::S3ObjectStream;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io::BytesSinker;
-use crate::io::BytesStreamer;
 use crate::io_util::new_http_channel;
-use crate::io_util::HttpBodySinker;
+use crate::io_util::HttpBodyWriter;
 use crate::object::Metadata;
 use crate::object::ObjectStreamer;
 use crate::ops::BytesRange;
@@ -60,6 +58,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
+use crate::BytesReader;
+use crate::BytesWriter;
 use crate::ObjectMode;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -689,7 +689,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read(&self, args: &OpRead) -> Result<BytesStreamer> {
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_s3_read_requests");
 
         let p = self.get_abs_path(&args.path);
@@ -710,7 +710,8 @@ impl Accessor for Backend {
                 Ok(Box::new(
                     resp.into_body()
                         .into_stream()
-                        .map_err(move |e| other(ObjectError::new("read", &p, e))),
+                        .map_err(move |e| other(ObjectError::new("read", &p, e)))
+                        .into_async_read(),
                 ))
             }
             _ => Err(parse_error_response_with_body(resp, "read", &p).await),
@@ -718,7 +719,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write(&self, args: &OpWrite) -> Result<BytesSinker> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 
@@ -726,7 +727,7 @@ impl Accessor for Backend {
 
         let req = self.put_object(&p, args.size, body).await;
 
-        let bs = HttpBodySinker::new(args, tx, self.client.request(req), |op, resp| {
+        let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
                 StatusCode::CREATED | StatusCode::OK => {
                     debug!("object {} write finished: size {:?}", op.path, op.size);

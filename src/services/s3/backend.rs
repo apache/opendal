@@ -688,6 +688,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_s3_read_requests");
 

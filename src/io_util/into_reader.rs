@@ -35,8 +35,8 @@ use crate::BytesStream;
 ///
 /// ```rust
 /// use opendal::io_util::into_reader;
-/// # use opendal::error::Result;
-/// # use opendal::error::Error;
+/// # use anyhow::Result;
+/// # use std::io::Error;
 /// # use futures::io;
 /// # use bytes::Bytes;
 /// # use futures::StreamExt;
@@ -103,7 +103,7 @@ where
                     }
                     Some(Err(err)) => {
                         self.state = State::Eof;
-                        return Poll::Ready(Err(err.into()));
+                        return Poll::Ready(Err(err));
                     }
                     None => {
                         self.state = State::Eof;
@@ -120,12 +120,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::io::Error;
+
     use futures::stream;
     use futures::AsyncReadExt;
     use rand::prelude::*;
 
     use super::*;
-    use crate::error::Error;
 
     #[tokio::test]
     async fn test_into_reader() {

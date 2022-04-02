@@ -63,6 +63,8 @@
 //! - [fs][crate::services::fs]: POSIX alike file system.
 //! - [memory][crate::services::memory]: In memory backend support.
 //! - [s3][crate::services::s3]: AWS services like S3.
+
+/// Private module with public types, they will be accessed via `opendal::Xxxx`
 mod accessor;
 pub use accessor::Accessor;
 
@@ -92,10 +94,15 @@ pub use object::ObjectStreamer;
 mod scheme;
 pub use scheme::Scheme;
 
-pub mod error;
+/// Public modules, they will be accessed via `opendal::io_util::Xxxx`
 pub mod io_util;
 pub mod ops;
 pub mod services;
+
+/// Private modules, internal use only.
+///
+/// Please don't export any type from this module.
+mod error;
 
 #[deprecated]
 pub mod readers;

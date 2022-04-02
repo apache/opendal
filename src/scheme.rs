@@ -1,3 +1,4 @@
+use std::io;
 // Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +16,8 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 
-use super::error::Error;
-use crate::error::Kind;
+use crate::error::other;
+use crate::error::BackendError;
 
 /// Backends that OpenDAL supports
 #[derive(Clone, Debug, PartialEq)]
@@ -29,7 +30,7 @@ pub enum Scheme {
 }
 
 impl FromStr for Scheme {
-    type Err = Error;
+    type Err = io::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
@@ -43,11 +44,10 @@ impl FromStr for Scheme {
             "local" | "disk" => Ok(Scheme::Fs),
             "azurestorageblob" => Ok(Scheme::Azblob),
 
-            v => Err(Error::Backend {
-                kind: Kind::BackendNotSupported,
-                context: Default::default(),
-                source: anyhow!("{} is not supported", v),
-            }),
+            v => Err(other(BackendError::new(
+                Default::default(),
+                anyhow!("{} is not supported", v),
+            ))),
         }
     }
 }

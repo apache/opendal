@@ -17,6 +17,12 @@ runs:
         command: fmt
         args: --all -- --check
 
+    - name: Doc check
+      uses: actions-rs/cargo@v1
+      with:
+        command: doc
+        args: --no-deps
+
     - name: Check License Header
       uses: apache/skywalking-eyes@main
       env:

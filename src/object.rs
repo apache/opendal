@@ -14,6 +14,8 @@
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -24,8 +26,6 @@ use bytes::BytesMut;
 use futures::SinkExt;
 use futures::StreamExt;
 
-use crate::error::Kind;
-use crate::error::Result;
 use crate::io::BytesRead;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
@@ -72,7 +72,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// use bytes::{BufMut, BytesMut};
@@ -96,7 +96,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
@@ -113,7 +113,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
@@ -130,7 +130,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
@@ -158,7 +158,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
@@ -183,7 +183,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
@@ -217,7 +217,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
@@ -241,7 +241,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
@@ -274,7 +274,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -308,7 +308,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -342,7 +342,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -372,7 +372,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -399,7 +399,7 @@ impl Object {
     ///
     /// ```
     /// # use opendal::services::memory;
-    /// # use opendal::error::Result;
+    /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
@@ -466,12 +466,13 @@ impl Object {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::error::Kind;
+    /// use std::io::ErrorKind;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// if let Err(e) = op.object("test").metadata().await {
-    ///     if e.kind() == Kind::ObjectNotExist {
+    ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("object not exist")
     ///     }
     /// }
@@ -493,7 +494,7 @@ impl Object {
     /// use anyhow::Result;
     /// use futures::io;
     /// use opendal::Operator;
-    /// use opendal::error::Kind;
+    ///
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
@@ -527,7 +528,7 @@ impl Object {
     /// use anyhow::Result;
     /// use futures::io;
     /// use opendal::Operator;
-    /// use opendal::error::Kind;
+    ///
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
@@ -542,7 +543,7 @@ impl Object {
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
-                Kind::ObjectNotExist => Ok(false),
+                ErrorKind::NotFound => Ok(false),
                 _ => Err(err),
             },
         }

@@ -20,10 +20,11 @@
 //!
 //! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
 
+use std::io::ErrorKind;
+
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::StreamExt;
-use opendal::error::Kind;
 use opendal::ObjectMode;
 use opendal::Operator;
 use rand::prelude::*;
@@ -142,7 +143,7 @@ impl BehaviorTest {
             .await;
         assert!(meta.is_err());
         let err = meta.unwrap_err();
-        assert_eq!(err.kind(), Kind::ObjectNotExist);
+        assert_eq!(err.kind(), ErrorKind::NotFound);
         Ok(())
     }
 

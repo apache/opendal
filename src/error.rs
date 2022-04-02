@@ -17,25 +17,21 @@
 //! # Examples
 //!
 //! ```
-//! use anyhow::Result;
-//! use opendal::ObjectMode;
-//! use opendal::Operator;
-//! use opendal::error::Kind;
-//! use opendal::services::fs;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
-//!
-//!     // Get metadata of an object.
-//!     let meta = op.object("test_file").metadata().await;
-//!     if let Err(e) = op.object("test_file").metadata().await {
-//!         if e.kind() == Kind::ObjectNotExist {
-//!             println!("object not exist")
-//!         }
+//! # use anyhow::Result;
+//! # use opendal::ObjectMode;
+//! # use opendal::Operator;
+//! use std::io::ErrorKind;
+//! # use opendal::services::fs;
+//! # #[tokio::main]
+//! # async fn main() -> Result<()> {
+//! # let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
+//! if let Err(e) = op.object("test_file").metadata().await {
+//!     if e.kind() == ErrorKind::NotFound {
+//!         println!("object not exist")
 //!     }
-//!     Ok(())
 //! }
+//! # Ok(())
+//! # }
 //! ```
 
 use std::collections::HashMap;
@@ -43,82 +39,56 @@ use std::io;
 
 use thiserror::Error;
 
-// TODO: implement From<Result> for `common_exception::Result`.s
-pub type Result<T> = std::result::Result<T, Error>;
-
-/// Kind is all meaningful error kind, that means you can depend on `Kind` to
-/// take some actions instead of just print. For example, you can try check
-/// `ObjectNotExist` before starting a write operation.
+/// BackendError carries backend related context.
 ///
-/// # Style
+/// # Notes
 ///
-/// The kind will be named as `noun-adj`. For example, `ObjectNotExist` or
-/// `ObjectPermissionDenied`.
-#[derive(Error, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
-pub enum Kind {
-    #[error("backend not supported")]
-    BackendNotSupported,
-    #[error("backend configuration invalid")]
-    BackendConfigurationInvalid,
-
-    #[error("object not exist")]
-    ObjectNotExist,
-    #[error("object permission denied")]
-    ObjectPermissionDenied,
-
-    #[error("unexpected")]
-    Unexpected,
-}
-
-/// Error is the error type for the dal2 crate.
-///
-/// ## Style
-///
-/// The error will be formatted as `description: (keyA: valueA, keyB: valueB, ...)`.
+/// This error is used to carry context only, and should never be returned to users.
+/// Please wrap in [`std::io::Error`] instead.
 #[derive(Error, Debug)]
-pub enum Error {
-    #[error("{kind}: (context: {context:?}, source: {source})")]
-    Backend {
-        kind: Kind,
-        context: HashMap<String, String>,
-        source: anyhow::Error,
-    },
-
-    #[error("{kind}: (op: {op}, path: {path}, source: {source})")]
-    Object {
-        kind: Kind,
-        op: &'static str,
-        path: String,
-        source: anyhow::Error,
-    },
-
-    #[error("unexpected: (source: {0})")]
-    Unexpected(#[from] anyhow::Error),
+#[error("context: {context:?}, source: {source}")]
+pub(crate) struct BackendError {
+    context: HashMap<String, String>,
+    source: anyhow::Error,
 }
 
-impl Error {
-    pub fn kind(&self) -> Kind {
-        match self {
-            Error::Backend { kind, .. } => *kind,
-            Error::Object { kind, .. } => *kind,
-            Error::Unexpected(_) => Kind::Unexpected,
+impl BackendError {
+    pub fn new(context: HashMap<String, String>, source: impl Into<anyhow::Error>) -> Self {
+        BackendError {
+            context,
+            source: source.into(),
         }
     }
 }
 
-// Make it easier to convert to `std::io::Error`
-impl From<Error> for io::Error {
-    fn from(err: Error) -> Self {
-        match err {
-            Error::Backend { .. } => io::Error::new(io::ErrorKind::Other, err),
-            Error::Object { kind, .. } => match kind {
-                Kind::ObjectNotExist => io::Error::new(io::ErrorKind::NotFound, err),
-                Kind::ObjectPermissionDenied => {
-                    io::Error::new(io::ErrorKind::PermissionDenied, err)
-                }
-                _ => io::Error::new(io::ErrorKind::Other, err),
-            },
-            Error::Unexpected(_) => io::Error::new(io::ErrorKind::Other, err),
+/// ObjectError carries object related context.
+///
+/// # Notes
+///
+/// This error is used to carry context only, and should never be returned to users.
+/// Please wrap in [`std::io::Error`] with correct [`std::io::ErrorKind`] instead.
+#[derive(Error, Debug)]
+#[error("op: {op}, path: {path}, source: {source}")]
+pub(crate) struct ObjectError {
+    op: &'static str,
+    path: String,
+    source: anyhow::Error,
+}
+
+impl ObjectError {
+    pub fn new(op: &'static str, path: &str, source: impl Into<anyhow::Error>) -> Self {
+        ObjectError {
+            op,
+            path: path.to_string(),
+            source: source.into(),
         }
     }
+}
+
+/// Copied for [`io::Error::other`], should be removed after `io_error_other` stable.
+pub(crate) fn other<E>(error: E) -> io::Error
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    io::Error::new(io::ErrorKind::Other, error.into())
 }

@@ -16,6 +16,10 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::mem;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -38,9 +42,9 @@ use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use crate::error::Error;
-use crate::error::Kind;
-use crate::error::Result;
+use crate::error::other;
+use crate::error::BackendError;
+use crate::error::ObjectError;
 use crate::io::BytesSinker;
 use crate::io::BytesStreamer;
 use crate::io_util::new_http_channel;
@@ -146,11 +150,10 @@ impl Builder {
         // Handle endpoint, region and container name.
         let container = match self.container.is_empty() {
             false => Ok(&self.container),
-            true => Err(Error::Backend {
-                kind: Kind::BackendConfigurationInvalid,
-                context: HashMap::from([("container".to_string(), "".to_string())]),
-                source: anyhow!("container is empty"),
-            }),
+            true => Err(other(BackendError::new(
+                HashMap::from([("container".to_string(), "".to_string())]),
+                anyhow!("container is empty"),
+            ))),
         }?;
         debug!("backend use container {}", &container);
 
@@ -159,6 +162,11 @@ impl Builder {
             None => "blob.core.windows.net".to_string(),
         };
 
+        let context = HashMap::from([
+            ("container".to_string(), container.to_string()),
+            ("endpoint".to_string(), endpoint.to_string()),
+        ]);
+
         let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
         let mut signer_builder = Signer::builder();
@@ -166,7 +174,10 @@ impl Builder {
             signer_builder.account_name(name).account_key(key);
         }
 
-        let signer = signer_builder.build().await?;
+        let signer = signer_builder
+            .build()
+            .await
+            .map_err(|e| other(BackendError::new(context, e)))?;
 
         info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
@@ -250,14 +261,11 @@ impl Accessor for Backend {
                     &p, args.offset, args.size
                 );
 
-                Ok(Box::new(resp.into_body().into_stream().map_err(move |e| {
-                    Error::Object {
-                        kind: Kind::Unexpected,
-                        op: "read",
-                        path: p.to_string(),
-                        source: anyhow::Error::from(e),
-                    }
-                })))
+                Ok(Box::new(
+                    resp.into_body()
+                        .into_stream()
+                        .map_err(move |e| other(ObjectError::new("read", &p, e))),
+                ))
             }
             _ => Err(parse_error_response_with_body(resp, "read", &p).await),
         }
@@ -418,12 +426,7 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} get_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "read",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("read", path, e))
         })
     }
 
@@ -468,12 +471,7 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} head_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "stat",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("stat", path, e))
         })
     }
 
@@ -492,12 +490,7 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} delete_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "delete",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("delete", path, e))
         })
     }
 
@@ -526,30 +519,27 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} list_object: {:?}", path, e);
-            Error::Object {
-                kind: Kind::Unexpected,
-                op: "list",
-                path: path.to_string(),
-                source: anyhow::Error::from(e),
-            }
+            other(ObjectError::new("list", path, e))
         })
     }
 }
 
-fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
+fn parse_error_response_without_body(
+    resp: Response<Body>,
+    op: &'static str,
+    path: &str,
+) -> io::Error {
     let (part, _) = resp.into_parts();
     let kind = match part.status {
-        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
-        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
-        _ => Kind::Unexpected,
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        _ => ErrorKind::Other,
     };
 
-    Error::Object {
+    io::Error::new(
         kind,
-        op,
-        path: path.to_string(),
-        source: anyhow!("response part: {:?}", part),
-    }
+        ObjectError::new(op, path, anyhow!("response part: {:?}", part)),
+    )
 }
 
 // Read and decode whole error response.
@@ -560,9 +550,9 @@ async fn parse_error_response_with_body(
 ) -> Error {
     let (part, mut body) = resp.into_parts();
     let kind = match part.status {
-        StatusCode::NOT_FOUND => Kind::ObjectNotExist,
-        StatusCode::FORBIDDEN => Kind::ObjectPermissionDenied,
-        _ => Kind::Unexpected,
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        _ => ErrorKind::Other,
     };
 
     // Only read 4KiB from the response to avoid broken services.
@@ -578,18 +568,20 @@ async fn parse_error_response_with_body(
                     break;
                 }
             }
-            Err(e) => return Error::Unexpected(anyhow!("parse error response parse: {:?}", e)),
+            Err(e) => return other(anyhow!("parse error response parse: {:?}", e)),
         }
     }
 
-    Error::Object {
+    io::Error::new(
         kind,
-        op,
-        path: path.to_string(),
-        source: anyhow!(
-            "response part: {:?}, body: {:?}",
-            part,
-            String::from_utf8_lossy(&bs)
+        ObjectError::new(
+            op,
+            path,
+            anyhow!(
+                "response part: {:?}, body: {:?}",
+                part,
+                String::from_utf8_lossy(&bs)
+            ),
         ),
-    }
+    )
 }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::ErrorKind;
+use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -20,8 +22,6 @@ use bytes::Bytes;
 use futures::Stream;
 use pin_project::pin_project;
 
-use crate::error::Kind;
-use crate::error::Result;
 use crate::BytesStreamer;
 
 /// Create an observer over BytesStream.
@@ -35,7 +35,7 @@ use crate::BytesStreamer;
 /// use opendal::io_util::observe_stream;
 /// use opendal::io_util::StreamEvent;
 /// # use opendal::io_util::into_stream;
-/// # use opendal::error::Result;
+/// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
 /// # use futures::StreamExt;
@@ -72,7 +72,7 @@ pub enum StreamEvent {
     /// # Note
     ///
     /// We only emit the error kind here so that we don't need clone the whole error.
-    Error(Kind),
+    Error(ErrorKind),
 }
 
 /// Observer that created via [`observe_stream`].

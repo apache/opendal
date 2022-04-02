@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -19,9 +22,6 @@ use bytes::Bytes;
 use futures::Sink;
 use pin_project::pin_project;
 
-use crate::error::Error;
-use crate::error::Kind;
-use crate::error::Result;
 use crate::io::BytesSinker;
 
 /// Create an observer over BytesSink.
@@ -35,7 +35,7 @@ use crate::io::BytesSinker;
 /// use opendal::io_util::observe_sink;
 /// use opendal::io_util::SinkEvent;
 /// # use opendal::io_util::into_sink;
-/// # use opendal::error::Result;
+/// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
 /// # use futures::StreamExt;
@@ -77,7 +77,7 @@ pub enum SinkEvent {
     /// # Note
     ///
     /// We only emit the error kind here so that we don't need clone the whole error.
-    Error(Kind),
+    Error(ErrorKind),
 }
 
 /// Observer that created via [`observe_sink`].

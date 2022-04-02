@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::future::Future;
-use std::io;
+use std::io::Result;
 use std::io::SeekFrom;
 use std::ops::RangeBounds;
 use std::pin::Pin;
@@ -27,7 +27,6 @@ use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::TryStreamExt;
 
-use crate::error::Result;
 use crate::ops::BytesRange;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -126,7 +125,7 @@ impl AsyncRead for SeekableReader {
                         State::Reading(Box::new(r.map_err(std::io::Error::from).into_async_read()));
                     self.poll_read(cx, buf)
                 }
-                Err(e) => Poll::Ready(Err(io::Error::from(e))),
+                Err(e) => Poll::Ready(Err(e)),
             },
             State::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
                 Ok(n) => {
@@ -147,12 +146,8 @@ impl AsyncSeek for SeekableReader {
         pos: SeekFrom,
     ) -> Poll<std::io::Result<u64>> {
         if let State::Seeking(future) = &mut self.state {
-            match ready!(Pin::new(future).poll(cx)) {
-                Ok(meta) => {
-                    self.size = Some(meta.content_length() - self.offset.unwrap_or_default())
-                }
-                Err(e) => return Poll::Ready(Err(io::Error::from(e))),
-            }
+            let meta = ready!(Pin::new(future).poll(cx))?;
+            self.size = Some(meta.content_length() - self.offset.unwrap_or_default())
         }
 
         let cur = self.pos as i64;

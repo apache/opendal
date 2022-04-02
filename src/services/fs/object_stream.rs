@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -23,9 +24,8 @@ use log::error;
 use tokio::fs;
 
 use super::error::parse_io_error;
-use crate::error::Error;
-use crate::error::Kind;
-use crate::error::Result;
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::Accessor;
 use crate::Object;
 
@@ -64,12 +64,7 @@ impl futures::Stream for Readdir {
             Ok(Some(de)) => {
                 let de_path = de.path();
                 let de_path = de_path.strip_prefix(&self.root).map_err(|e| {
-                    let e = Error::Object {
-                        kind: Kind::Unexpected,
-                        op: "list",
-                        path: de.path().to_string_lossy().to_string(),
-                        source: anyhow::Error::from(e),
-                    };
+                    let e = other(ObjectError::new("list", &de.path().to_string_lossy(), e));
                     error!("object {:?} path strip_prefix: {:?}", &de.path(), e);
                     e
                 })?;

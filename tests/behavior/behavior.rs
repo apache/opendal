@@ -20,13 +20,13 @@
 //!
 //! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
 
-use std::io::ErrorKind;
+use std::io;
 
 use super::init_logger;
 use super::utils::*;
 use anyhow::Result;
-use futures::AsyncReadExt;
 use futures::StreamExt;
+use log::debug;
 use opendal::ObjectMode;
 use opendal::Operator;
 use opendal_test::services;
@@ -38,7 +38,8 @@ use sha2::Sha256;
 macro_rules! behavior_tests {
     ($($service:ident),*) => {
         $(
-            behavior_test!($service, test_normal, test_stat_root, test_stat_non_exist);
+            behavior_test!($service,
+                test_write, test_stat, test_stat_not_cleaned_path, test_stat_not_exist, test_stat_root, test_read_full, test_read_range, test_read_not_exist, test_list_dir, test_delete, test_delete_not_existing);
         )*
     };
 }
@@ -68,72 +69,83 @@ macro_rules! behavior_test {
 
 behavior_tests!(azblob, fs, memory, s3);
 
-/// This case is use to test service's normal behavior.
-async fn test_normal(op: Operator) -> Result<()> {
-    // Step 1: Generate a random file with random size (under 4 MB).
+/// Write a single file and test with stat.
+async fn test_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    println!("Generate a random file: {}", &path);
+    debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    // Step 2: Write this file
     let _ = op.object(&path).write(&content).await?;
 
-    // Step 3: Stat this file
+    let meta = op
+        .object(&path)
+        .metadata()
+        .await
+        .expect("stat must succeed");
+    assert_eq!(meta.path(), path);
+    assert_eq!(meta.content_length(), size as u64);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat existing file should return metadata
+async fn test_stat(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
     let meta = op.object(&path).metadata().await?;
-    assert_eq!(meta.content_length(), size as u64, "stat file");
+    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.content_length(), size as u64);
 
-    // Step 3.1: Stat this file start with "//" should works
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat not cleaned path should also succeed.
+async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
     let meta = op.object(&format!("//{}", &path)).metadata().await?;
-    assert_eq!(meta.content_length(), size as u64, "stat file");
+    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.content_length(), size as u64);
 
-    // Step 4: Read this file's content
-    // Step 4.1: Read the whole file.
-    let mut buf = Vec::new();
-    let mut r = op.object(&path).reader().await?;
-    let n = r.read_to_end(&mut buf).await.expect("read to end");
-    assert_eq!(n, size as usize, "check size in read whole file");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&buf)),
-        format!("{:x}", Sha256::digest(&content)),
-        "check hash in read whole file"
-    );
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
 
-    // Step 4.2: Read the file with random offset and length.
-    let (offset, length) = gen_offset_length(size as usize);
-    let mut buf: Vec<u8> = vec![0; length as usize];
-    let mut r = op.object(&path).range_reader(offset..).await?;
-    r.read_exact(&mut buf).await?;
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&buf)),
-        format!(
-            "{:x}",
-            Sha256::digest(&content[offset as usize..(offset + length) as usize])
-        ),
-        "read part file"
-    );
+/// Stat not exist file should return NotFound
+async fn test_stat_not_exist(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
 
-    // Step 5: List this dir, we should get this file.
-    let mut obs = op.objects("").await?.map(|o| o.expect("list object"));
-    let mut found = false;
-    while let Some(o) = obs.next().await {
-        let meta = o.metadata().await?;
-        if meta.path() == path {
-            let mode = meta.mode();
-            assert_eq!(mode, ObjectMode::FILE);
+    let meta = op.object(&path).metadata().await;
+    assert!(meta.is_err());
+    assert_eq!(meta.unwrap_err().kind(), io::ErrorKind::NotFound);
 
-            found = true
-        }
-    }
-    assert!(found, "file should be found in iterator");
-
-    // Step 6: Delete this file
-    let result = op.object(&path).delete().await;
-    assert!(result.is_ok(), "delete file: {}", result.unwrap_err());
-
-    // Step 7: Stat this file again to check if it's deleted
-    let o = op.object(&path);
-    let exist = o.is_exist().await?;
-    assert!(!exist, "stat file again");
     Ok(())
 }
 
@@ -148,14 +160,132 @@ async fn test_stat_root(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Stat non exist object should return ObjectNotExist.
-async fn test_stat_non_exist(op: Operator) -> Result<()> {
-    let meta = op
-        .object(&uuid::Uuid::new_v4().to_string())
-        .metadata()
-        .await;
-    assert!(meta.is_err());
-    let err = meta.unwrap_err();
-    assert_eq!(err.kind(), ErrorKind::NotFound);
+/// Read full content should match.
+async fn test_read_full(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
+    let bs = op.object(&path).read().await?;
+    assert_eq!(size, bs.len(), "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Read range content should match.
+async fn test_read_range(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, length) = gen_offset_length(size as usize);
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
+    let bs = op.object(&path).range_read(offset..offset + length).await?;
+    assert_eq!(bs.len() as u64, length, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!(
+            "{:x}",
+            Sha256::digest(&content[offset as usize..(offset + length) as usize])
+        ),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Read not exist file should return NotFound
+async fn test_read_not_exist(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let bs = op.object(&path).read().await;
+    assert!(bs.is_err());
+    assert_eq!(bs.unwrap_err().kind(), io::ErrorKind::NotFound);
+
+    Ok(())
+}
+
+/// List dir should return newly created file.
+async fn test_list_dir(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
+    let mut obs = op.objects("/").await?;
+    let mut found = false;
+    while let Some(o) = obs.next().await {
+        let meta = o?.metadata().await?;
+        if meta.path() == path {
+            assert_eq!(meta.mode(), ObjectMode::FILE);
+            assert_eq!(meta.content_length(), size as u64);
+
+            found = true
+        }
+    }
+    assert!(found, "file should be found in list");
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+// Delete existing file should succeed.
+async fn test_delete(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
+    let _ = op.object(&path).delete().await?;
+
+    // Stat it again to check.
+    assert!(!op.object(&path).is_exist().await?);
+
+    Ok(())
+}
+
+// Delete not existing file should also succeed.
+async fn test_delete_not_existing(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let _ = op.object(&path).delete().await?;
+
     Ok(())
 }

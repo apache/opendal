@@ -26,10 +26,10 @@ use std::task::Poll;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::BufMut;
-use bytes::Bytes;
+
 use futures::io::Cursor;
 use futures::AsyncWrite;
-use futures::Sink;
+
 use minitrace::trace;
 
 use crate::error::other;
@@ -194,60 +194,6 @@ impl Accessor for Backend {
             paths,
             idx: 0,
         }))
-    }
-}
-
-struct MapSink {
-    path: String,
-    size: u64,
-    map: Arc<Mutex<HashMap<String, bytes::Bytes>>>,
-
-    buf: bytes::BytesMut,
-}
-
-impl Sink<Bytes> for MapSink {
-    type Error = Error;
-
-    fn poll_ready(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn start_send(mut self: Pin<&mut Self>, item: Bytes) -> std::result::Result<(), Self::Error> {
-        self.buf.put_slice(&item);
-        Ok(())
-    }
-
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Self::Error>> {
-        if self.buf.len() != self.size as usize {
-            return Poll::Ready(Err(other(ObjectError::new(
-                "write",
-                &self.path,
-                anyhow!(
-                    "write short, expect {} actual {}",
-                    self.size,
-                    self.buf.len()
-                ),
-            ))));
-        }
-
-        let buf = mem::take(&mut self.buf);
-        let mut map = self.map.lock().expect("lock poisoned");
-        map.insert(self.path.clone(), buf.freeze());
-
-        Poll::Ready(Ok(()))
     }
 }
 

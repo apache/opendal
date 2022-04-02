@@ -42,3 +42,4 @@ pub(crate) use http_body::HttpBodyWriter;
 
 mod seekable_reader;
 pub use seekable_reader::seekable_read;
+pub use seekable_reader::SeekableReader;

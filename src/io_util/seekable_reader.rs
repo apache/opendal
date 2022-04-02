@@ -70,6 +70,7 @@ pub fn seekable_read(o: &Object, range: impl RangeBounds<u64>) -> SeekableReader
     }
 }
 
+/// SeekableReader implement `AsyncRead` and `AsyncSeek`.
 pub struct SeekableReader {
     acc: Arc<dyn Accessor>,
     path: String,

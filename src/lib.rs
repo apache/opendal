@@ -92,7 +92,6 @@ pub use object::ObjectStreamer;
 mod scheme;
 pub use scheme::Scheme;
 
-pub mod credential;
 pub mod error;
 pub mod io_util;
 pub mod ops;

@@ -20,7 +20,6 @@
 //! use std::sync::Arc;
 //!
 //! use anyhow::Result;
-//! use opendal::credential::Credential;
 //! use opendal::services::s3;
 //! use opendal::services::s3::Builder;
 //! use opendal::Accessor;
@@ -47,12 +46,13 @@
 //!     //
 //!     // Default to "https://s3.amazonaws.com"
 //!     builder.endpoint("https://s3.amazonaws.com");
-//!     // Set the credential.
+//!     // Set the access_key_id and secret_access_key.
 //!     //
 //!     // OpenDAL will try load credential from the env.
 //!     // If credential not set and no valid credential in env, OpenDAL will
 //!     // send request without signing like anonymous user.
-//!     builder.credential(Credential::hmac("access_key_id", "secret_access_key"));
+//!     builder.access_key_id("access_key_id");
+//!     builder.secret_access_key("secret_access_key");
 //!     // Build the `Accessor`.
 //!     let accessor: Arc<dyn Accessor> = builder.finish().await?;
 //!

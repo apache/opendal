@@ -22,10 +22,10 @@ use std::task::Poll;
 use bytes::Bytes;
 use futures::channel::mpsc::Sender;
 use futures::channel::mpsc::{self};
-use futures::future::err;
+use futures::ready;
+use futures::AsyncWrite;
 use futures::Sink;
 use futures::StreamExt;
-use futures::{ready, AsyncWrite};
 use http::Response;
 use hyper::client::ResponseFuture;
 use hyper::Body;
@@ -212,7 +212,7 @@ impl HttpBodyWriter {
     }
 
     fn poll_response(
-        mut self: &mut Pin<&mut Self>,
+        self: &mut Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<(), Error>> {
         match Pin::new(&mut self.fut).poll(cx) {

@@ -20,18 +20,11 @@ use std::ops::RangeBounds;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use bytes::BufMut;
-use bytes::Bytes;
-use bytes::BytesMut;
+use futures::io;
 use futures::io::Cursor;
-use futures::{io, AsyncWriteExt, StreamExt};
-use futures::{AsyncReadExt, SinkExt};
+use futures::AsyncWriteExt;
 
 use crate::io::BytesRead;
-use crate::io::BytesSinker;
-use crate::io::BytesStreamer;
-use crate::io_util::into_reader;
-use crate::io_util::into_writer;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -78,7 +71,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// # let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// # o.write(&vec![0; 4096]).await?;
     /// let bs = o.read().await?;
     /// # Ok(())
     /// # }
@@ -103,14 +96,14 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// # let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// # o.write(&vec![0; 4096]).await?;
     /// let bs = o.range_read(1024..2048).await?;
     /// # Ok(())
     /// # }
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         let op = OpRead::new(self.meta.path(), range);
-        let mut s = self.acc.read2(&op).await?;
+        let s = self.acc.read(&op).await?;
 
         let mut bs = Cursor::new(Vec::new());
 
@@ -134,7 +127,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// # let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// # o.write(&vec![0; 4096]).await?;
     /// let r = o.reader().await?;
     /// # Ok(())
     /// # }
@@ -158,14 +151,14 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// # let o = op.object("path/to/file");
-    /// # o.write_from_slice(&vec![0; 4096]).await?;
+    /// # o.write(&vec![0; 4096]).await?;
     /// let r = o.range_reader(1024..2048).await?;
     /// # Ok(())
     /// # }
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
         let op = OpRead::new(self.meta.path(), range);
-        Ok(self.acc.read2(&op).await?)
+        Ok(self.acc.read(&op).await?)
     }
 
     /// Write bytes into object.
@@ -195,7 +188,7 @@ impl Object {
     /// ```
     pub async fn write(&self, bs: impl AsRef<[u8]>) -> Result<()> {
         let op = OpWrite::new(self.meta.path(), bs.as_ref().len() as u64);
-        let mut s = self.acc.write2(&op).await?;
+        let mut s = self.acc.write(&op).await?;
 
         s.write_all(bs.as_ref()).await?;
         s.close().await?;
@@ -228,7 +221,7 @@ impl Object {
     /// ```
     pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
         let op = OpWrite::new(self.meta.path(), size);
-        let s = self.acc.write2(&op).await?;
+        let s = self.acc.write(&op).await?;
 
         Ok(s)
     }

@@ -28,24 +28,24 @@ use async_trait::async_trait;
 use bytes::BufMut;
 use bytes::Bytes;
 use futures::io::Cursor;
+use futures::AsyncWrite;
 use futures::Sink;
-use futures::{stream, AsyncWrite};
 use minitrace::trace;
 
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::io::BytesSinker;
-use crate::io::BytesStreamer;
 use crate::object::ObjectStreamer;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::Metadata;
 use crate::Object;
 use crate::ObjectMode;
-use crate::{Accessor, BytesReader};
-use crate::{BytesWrite, BytesWriter, Metadata};
 
 #[derive(Default)]
 pub struct Builder {}
@@ -87,7 +87,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = Backend::normalize_path(&args.path);
 
         let map = self.inner.lock().expect("lock poisoned");
@@ -126,7 +126,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let path = Backend::normalize_path(&args.path);
 
         Ok(Box::new(MapWriter {
@@ -262,7 +262,7 @@ struct MapWriter {
 impl AsyncWrite for MapWriter {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
+        _cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize>> {
         let size = buf.len();
@@ -270,11 +270,11 @@ impl AsyncWrite for MapWriter {
         Poll::Ready(Ok(size))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+    fn poll_close(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         if self.buf.len() != self.size as usize {
             return Poll::Ready(Err(other(ObjectError::new(
                 "write",

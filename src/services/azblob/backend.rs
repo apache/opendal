@@ -45,10 +45,8 @@ use time::OffsetDateTime;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io::BytesSinker;
-use crate::io::BytesStreamer;
-use crate::io_util::HttpBodySinker;
-use crate::io_util::{new_http_channel, HttpBodyWriter};
+use crate::io_util::new_http_channel;
+use crate::io_util::HttpBodyWriter;
 use crate::object::Metadata;
 use crate::ops::BytesRange;
 use crate::ops::OpDelete;
@@ -57,9 +55,11 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::services::azblob::object_stream::AzblobObjectStream;
+use crate::Accessor;
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::ObjectMode;
 use crate::ObjectStreamer;
-use crate::{Accessor, BytesReader};
-use crate::{BytesWriter, ObjectMode};
 
 pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
@@ -244,7 +244,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_azure_read_requests");
 
         let p = self.get_abs_path(&args.path);
@@ -273,7 +273,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(&args.path);
         debug!("object {} write start: size {}", &p, args.size);
 

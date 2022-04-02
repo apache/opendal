@@ -35,10 +35,6 @@ use super::object_stream::Readdir;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io::BytesSinker;
-use crate::io::BytesStreamer;
-use crate::io_util::into_sink;
-use crate::io_util::into_stream;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
 use crate::object::ObjectStreamer;
@@ -47,8 +43,9 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::Accessor;
 use crate::BytesReader;
-use crate::{Accessor, BytesWriter};
+use crate::BytesWriter;
 
 #[derive(Default, Debug)]
 pub struct Builder {
@@ -130,7 +127,7 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
-    async fn read2(&self, args: &OpRead) -> Result<BytesReader> {
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_fs_read_requests");
 
         let path = self.get_abs_path(&args.path);
@@ -172,7 +169,7 @@ impl Accessor for Backend {
     }
 
     #[trace("write")]
-    async fn write2(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         increment_counter!("opendal_fs_write_requests");
 
         let path = self.get_abs_path(&args.path);

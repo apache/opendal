@@ -26,13 +26,11 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 
-
 use crate::ops::BytesRange;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::Accessor;
 use crate::BytesReader;
-
 use crate::Metadata;
 use crate::Object;
 
@@ -114,7 +112,7 @@ impl AsyncRead for SeekableReader {
                     size: self.current_size(),
                 };
 
-                let future = async move { acc.read2(&op).await };
+                let future = async move { acc.read(&op).await };
 
                 self.state = State::Sending(Box::pin(future));
                 self.poll_read(cx, buf)
@@ -198,11 +196,7 @@ mod tests {
         let path = format!("/tmp/{}", uuid::Uuid::new_v4());
 
         // Create a test file.
-        let _ = f
-            .object(&path)
-            .write_from_slice("Hello, world!")
-            .await
-            .unwrap();
+        let _ = f.object(&path).write("Hello, world!").await.unwrap();
 
         let o = f.object(&path);
         let mut r = seekable_read(&o, ..);

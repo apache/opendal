@@ -31,7 +31,7 @@
 //!     let o = op.object("test_file");
 //!
 //!     // Write data info file;
-//!     let _ = o.write_from_slice("Hello, World!").await?;
+//!     let _ = o.write("Hello, World!").await?;
 //!
 //!     // Read data from file;
 //!     let bs = o.read().await?;

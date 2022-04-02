@@ -97,7 +97,7 @@ OPENDAL_S3_BUCKET=opendal OPENDAL_S3_ACCESS_KEY_ID=minioadmin OPENDAL_S3_SECRET_
 
     // Create an object handle to start operation on object.
     info!("try to write file: {}", &path);
-    op.object(&path).write_from_slice("Hello, world!").await?;
+    op.object(&path).write("Hello, world!").await?;
     info!("write file successful!");
 
     info!("try to read file: {}", &path);

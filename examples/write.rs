@@ -30,10 +30,7 @@ async fn main() -> Result<()> {
     // Real example starts from here.
 
     // Write from slice.
-    let _ = op
-        .object("test_file")
-        .write_from_slice("Hello, World!")
-        .await?;
+    let _ = op.object("test_file").write("Hello, World!").await?;
 
     // Or write data via a writer.
     let mut w = op.object("test_file").writer(1024).await?;

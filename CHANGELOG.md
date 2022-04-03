@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - feat: Add seekable_reader on Object (#215)
 
+### Fixed
+
+- fix: Object last_modified should carry timezone (#217)
+
 ## [v0.4.1] - 2022-04-02
 
 ### Added

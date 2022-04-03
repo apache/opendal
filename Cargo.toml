@@ -7,7 +7,7 @@ keywords = ["storage", "data", "s3", "fs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.4.1"
+version = "0.4.2"
 
 [workspace]
 members = ["opendal_test"]

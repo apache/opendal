@@ -29,41 +29,44 @@ OpenDAL is in **alpha** stage and has been early adopted by [databend](https://g
 
 ```rust
 use anyhow::Result;
-use futures::AsyncReadExt;
 use futures::StreamExt;
 use opendal::services::fs;
 use opendal::ObjectMode;
 use opendal::Operator;
+use opendal::Metadata;
+use opendal::Object;
+use opendal::ObjectStreamer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Init Operator
     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
 
-    let o = op.object("test_file");
+    // Create object handler.
+    let o: Object = op.object("test_file");
 
-    // Write data info file;
-    let _ = o.write("Hello, World!").await?;
+    // Write data info object;
+    let _: () = o.write("Hello, World!").await?;
 
-    // Read data from file;
-    let bs = o.read().await?;
+    // Read data from object;
+    let bs: Vec<u8> = o.read().await?;
 
-    // Read range from file;
-    let bs = o.range_read(1..=11).await?;
+    // Read range from object;
+    let bs: Vec<u8> = o.range_read(1..=11).await?;
 
-    // Get file's Metadata
-    let meta = o.metadata().await?;
+    // Get object's Metadata
+    let meta: Metadata = o.metadata().await?;
+    let path: &str = meta.path();
+    let mode: ObjectMode = meta.mode();
+    let length: u64 = meta.content_length();
+    let content_md5: Option<String> = meta.content_md5();
 
-    // List dir.
-    let mut obs = op.objects("").await?.map(|o| o.expect("list object"));
-    while let Some(o) = obs.next().await {
-        let meta = o.metadata().await?;
-        let path = meta.path();
-        let mode = meta.mode();
-        let length = meta.content_length();
-    }
+    // List dir object.
+    let mut obs: ObjectStreamer = op.objects("").await?;
+    while let Some(o) = obs.next().await {}
 
-    // Delete file.
-    o.delete().await?;
+    // Delete object.
+    let _: () = o.delete().await?;
 
     Ok(())
 }

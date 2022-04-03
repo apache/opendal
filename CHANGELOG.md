@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.4.2] - 2022-04-03
+
+### Added
+
+- feat: Add seekable_reader on Object (#215)
+
 ## [v0.4.1] - 2022-04-02
 
 ### Added
@@ -232,6 +238,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.4.2]: https://github.com/datafuselabs/opendal/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/datafuselabs/opendal/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/datafuselabs/opendal/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/datafuselabs/opendal/compare/v0.2.5...v0.3.0

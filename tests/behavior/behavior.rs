@@ -22,8 +22,6 @@
 
 use std::io;
 
-use super::init_logger;
-use super::utils::*;
 use anyhow::Result;
 use futures::StreamExt;
 use log::debug;
@@ -32,6 +30,9 @@ use opendal::Operator;
 use opendal_test::services;
 use sha2::Digest;
 use sha2::Sha256;
+
+use super::init_logger;
+use super::utils::*;
 
 /// Generate real test cases.
 /// Update function list while changed.

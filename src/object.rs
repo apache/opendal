@@ -25,6 +25,8 @@ use futures::io::Cursor;
 use futures::AsyncWriteExt;
 
 use crate::io::BytesRead;
+use crate::io_util::seekable_read;
+use crate::io_util::SeekableReader;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -134,7 +136,7 @@ impl Object {
         self.range_reader(..).await
     }
 
-    /// Create a new reader which can read the whole object.
+    /// Create a new reader which can read the specified range.
     ///
     /// # Examples
     ///
@@ -155,6 +157,38 @@ impl Object {
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
         let op = OpRead::new(self.meta.path(), range);
         Ok(self.acc.read(&op).await?)
+    }
+
+    /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.
+    ///
+    /// # Notes
+    ///
+    /// It's not a zero-cost operations. In order to support seeking, we have extra internal
+    /// state which maintains the reader contents:
+    ///
+    /// - Seeking is pure in memory operation.
+    /// - Every first read after seeking will start a new read operation on backend.
+    ///
+    /// This operation is neither async nor returning result, because real IO happens while
+    /// users call `read` or `seek`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// # let o = op.object("path/to/file");
+    /// let r = o.seekable_reader(1024..2048);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn seekable_reader(&self, range: impl RangeBounds<u64>) -> SeekableReader {
+        seekable_read(self, range)
     }
 
     /// Write bytes into object.

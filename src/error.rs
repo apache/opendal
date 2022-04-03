@@ -46,7 +46,7 @@ use thiserror::Error;
 /// This error is used to carry context only, and should never be returned to users.
 /// Please wrap in [`std::io::Error`] instead.
 #[derive(Error, Debug)]
-#[error("context: {context:?}, source: {source}")]
+#[error("backend error: (context: {context:?}, source: {source})")]
 pub(crate) struct BackendError {
     context: HashMap<String, String>,
     source: anyhow::Error,
@@ -68,7 +68,7 @@ impl BackendError {
 /// This error is used to carry context only, and should never be returned to users.
 /// Please wrap in [`std::io::Error`] with correct [`std::io::ErrorKind`] instead.
 #[derive(Error, Debug)]
-#[error("op: {op}, path: {path}, source: {source}")]
+#[error("object error: (op: {op}, path: {path}, source: {source})")]
 pub(crate) struct ObjectError {
     op: &'static str,
     path: String,

@@ -18,11 +18,11 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use futures::io;
 use futures::io::Cursor;
 use futures::AsyncWriteExt;
+use time::OffsetDateTime;
 
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
@@ -392,7 +392,7 @@ pub struct Metadata {
 
     content_length: Option<u64>,
     content_md5: Option<String>,
-    last_modified: Option<SystemTime>,
+    last_modified: Option<OffsetDateTime>,
 }
 
 impl Metadata {
@@ -450,11 +450,11 @@ impl Metadata {
     }
 
     /// Last modified of this object.
-    pub fn last_modified(&self) -> Option<SystemTime> {
+    pub fn last_modified(&self) -> Option<OffsetDateTime> {
         self.last_modified
     }
 
-    pub(crate) fn set_last_modified(&mut self, last_modified: SystemTime) -> &mut Self {
+    pub(crate) fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
         self.last_modified = Some(last_modified);
         self
     }

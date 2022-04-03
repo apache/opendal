@@ -28,6 +28,7 @@ use log::error;
 use log::info;
 use metrics::increment_counter;
 use minitrace::trace;
+use time::OffsetDateTime;
 use tokio::fs;
 
 use super::error::parse_io_error;
@@ -242,6 +243,7 @@ impl Accessor for Backend {
         m.set_content_length(meta.len() as u64);
         m.set_last_modified(
             meta.modified()
+                .map(OffsetDateTime::from)
                 .map_err(|e| parse_io_error(e, "stat", &path))?,
         );
         m.set_complete();

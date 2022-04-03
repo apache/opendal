@@ -799,7 +799,7 @@ impl Accessor for Backend {
                     let v = v.to_str().expect("header must not contain non-ascii value");
                     let t =
                         OffsetDateTime::parse(v, &Rfc2822).expect("must contain valid time format");
-                    m.set_last_modified(t.into());
+                    m.set_last_modified(t);
                 }
 
                 if p.ends_with('/') {

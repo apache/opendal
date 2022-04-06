@@ -62,6 +62,7 @@ macro_rules! behavior_tests {
                 test_stat_root,
 
                 test_list_dir,
+                test_list_sub_dir,
                 test_list_dir_with_file_path,
 
                 test_delete,
@@ -399,6 +400,35 @@ async fn test_list_dir(op: Operator) -> Result<()> {
         }
     }
     assert!(found, "file should be found in list");
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// List dir should return correct sub dir.
+async fn test_list_sub_dir(op: Operator) -> Result<()> {
+    let path = format!("{}/", uuid::Uuid::new_v4());
+
+    let _ = op
+        .object(&path)
+        .create_dir()
+        .await
+        .expect("create_dir must succeed");
+
+    let mut obs = op.objects("/").await?;
+    let mut found = false;
+    while let Some(o) = obs.next().await {
+        let meta = o?.metadata().await?;
+        if meta.path() == path {
+            assert_eq!(meta.mode(), ObjectMode::DIR);
+
+            found = true
+        }
+    }
+    assert!(found, "dir should be found in list");
 
     op.object(&path)
         .delete()

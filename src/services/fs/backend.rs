@@ -349,7 +349,7 @@ impl Accessor for Backend {
         let path = self.get_abs_path(&args.path);
         debug!("object {} list start", &path);
 
-        let f = fs::read_dir(&path).await.map_err(|e| {
+        let f = std::fs::read_dir(&path).map_err(|e| {
             let e = parse_io_error(e, "list", &path);
             error!("object {} list: {:?}", &path, e);
             e

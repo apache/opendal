@@ -20,6 +20,8 @@ use std::ops::RangeBounds;
 use crate::ObjectMode;
 
 /// Args for `create` operation.
+///
+/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpCreate {
     pub path: String,
@@ -36,6 +38,8 @@ impl OpCreate {
 }
 
 /// Args for `read` operation.
+///
+/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     pub path: String,
@@ -56,6 +60,8 @@ impl OpRead {
 }
 
 /// Args for `stat` operation.
+///
+/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {
     pub path: String,
@@ -70,6 +76,8 @@ impl OpStat {
 }
 
 /// Args for `write` operation.
+///
+/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     pub path: String,
@@ -86,6 +94,8 @@ impl OpWrite {
 }
 
 /// Args for `delete` operation.
+///
+/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpDelete {
     pub path: String,
@@ -100,6 +110,8 @@ impl OpDelete {
 }
 
 /// Args for `list` operation.
+///
+/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpList {
     pub path: String,

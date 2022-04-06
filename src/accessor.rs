@@ -31,22 +31,40 @@ use crate::ObjectStreamer;
 
 /// Underlying trait of all backends for implementors.
 ///
-/// # Note
+/// # Note to users
 ///
 /// Only service implementor should care about this trait, users need to
 /// use [`Operator`][crate::Operator] instead.
+///
+/// # Note to services
+///
+/// - Path in args will all be normalized into the same style, services
+///   should handle them based on services requirement.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
+    /// Invoke the `read` operation on the specified path, returns corresponding
+    /// [`Metadata`] if operate successful.
+    ///
+    /// # Behavior
+    ///
+    /// | path type | mode | result   |
+    /// | --------- | ---- | ------   |
+    /// | file path | FILE | `Ok(_)`  |
+    /// | dir path  | FILE | `Err(_)` |
+    /// | file path | DIR  | `Ok(_)`  |
+    /// | dir path  | DIR  | `Ok(_)`  |
     async fn create(&self, args: &OpCreate) -> Result<Metadata> {
         let _ = args;
         unimplemented!()
     }
+
     /// Invoke the `read` operation on the specified path, returns a
     /// [`BytesReader`][crate::BytesReader] if operate successful.
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let _ = args;
         unimplemented!()
     }
+
     /// Invoke the `write` operation on the specified path, returns a
     /// [`BytesWriter`][crate::BytesWriter] if operate successful.
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
@@ -58,8 +76,8 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - `Stat` empty path means stat backend's root path.
-    /// - `Stat` a path endswith "/" means stating a dir.
+    /// - `stat` empty path means stat backend's root path.
+    /// - `stat` a path endswith "/" means stating a dir.
     ///   - On fs, an error could return if not a dir.
     ///   - On s3 alike backends, a dir object will return no matter it exist or not.
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {

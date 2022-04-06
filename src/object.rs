@@ -44,15 +44,56 @@ pub struct Object {
 }
 
 impl Object {
-    /// Creates a new Object.
+    /// Creates a new Object with normalized path.
+    ///
+    /// - All path will be converted into relative path (without any leading `/`)
+    /// - Path endswith `/` means it's a dir path.
+    /// - Otherwise, it's a file path.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         Self {
             acc,
             meta: Metadata {
-                path: path.to_string(),
+                path: Object::normalize_path(path),
                 ..Default::default()
             },
         }
+    }
+
+    /// Make sure all operation are constructed by normalized path:
+    ///
+    /// - Path endswith `/` means it's a dir path.
+    /// - Otherwise, it's a file path.
+    ///
+    /// # Normalize Rules
+    ///
+    /// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
+    /// - All leading / will be trimmed: `///abc` => `abc`
+    /// - Internal // will be replaced by /: `abc///def` => `abc/def`
+    /// - Empty path will be `/`: `` => `/`
+    pub(crate) fn normalize_path(path: &str) -> String {
+        // - all whitespace has been trimmed.
+        // - all leading `/` has been trimmed.
+        let path = path.trim().trim_start_matches('/');
+
+        // Fast line for empty path.
+        if path.is_empty() {
+            return "/".to_string();
+        }
+
+        let has_trailing = path.ends_with('/');
+
+        let mut p = path
+            .split('/')
+            .filter(|v| !v.is_empty())
+            .collect::<Vec<&str>>()
+            .join("/");
+
+        // Append trailing back if input path is endswith `/`.
+        if has_trailing {
+            p.push('/');
+        }
+
+        p
     }
 
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
@@ -505,3 +546,30 @@ impl<T> ObjectStream for T where T: futures::Stream<Item = Result<Object>> + Unp
 
 /// ObjectStreamer is a boxed dyn [`ObjectStream`]
 pub type ObjectStreamer = Box<dyn ObjectStream>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_dir_path() {
+        let cases = vec![
+            ("file path", "abc", "abc"),
+            ("dir path", "abc/", "abc/"),
+            ("empty path", "", "/"),
+            ("root path", "/", "/"),
+            ("root path with extra /", "///", "/"),
+            ("abs file path", "/abc/def", "abc/def"),
+            ("abs dir path", "/abc/def/", "abc/def/"),
+            ("abs file path with extra /", "///abc/def", "abc/def"),
+            ("abs dir path with extra /", "///abc/def/", "abc/def/"),
+            ("file path contains ///", "abc///def", "abc/def"),
+            ("dir path contains ///", "abc///def///", "abc/def/"),
+            ("file with whitespace", "abc/def   ", "abc/def"),
+        ];
+
+        for (name, input, expect) in cases {
+            assert_eq!(Object::normalize_path(input), expect, "{}", name)
+        }
+    }
+}

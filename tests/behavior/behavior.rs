@@ -145,7 +145,7 @@ async fn test_create_dir_with_file_path(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let meta = op.object(&path).create_dir().await?;
-    assert_eq!(meta.path(), &path);
+    assert_eq!(meta.path(), format!("{}/", path));
     assert_eq!(meta.mode(), ObjectMode::DIR);
     assert_eq!(meta.content_length(), 0);
 
@@ -459,16 +459,13 @@ async fn test_delete(op: Operator) -> Result<()> {
 async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let _ = op
+    let meta = op
         .object(&path)
         .create_dir()
         .await
         .expect("create_dir must succeed");
 
-    let _ = op.object(&path).delete().await?;
-
-    // Stat it again to check.
-    assert!(!op.object(&path).is_exist().await?);
+    let _ = op.object(meta.path()).delete().await?;
 
     Ok(())
 }

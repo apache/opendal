@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     // Real example starts from here.
 
     // Start listing a dir.
-    let mut obs = op.objects("test_dir").await?;
+    let mut obs = op.object("test_dir/").list().await?;
     // ObjectStream implements `futures::Stream`
     while let Some(o) = obs.next().await {
         let mut o = o?;

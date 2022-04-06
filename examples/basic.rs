@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
     assert_eq!(meta.content_length(), 13);
 
     // List current dir.
-    let mut obs = op.objects("").await?;
+    let mut obs = op.object("/").list().await?;
     let mut found = false;
     while let Some(o) = obs.next().await {
         let o = o?;

@@ -51,12 +51,12 @@ use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodyWriter;
 use crate::object::Metadata;
 use crate::object::ObjectStreamer;
-use crate::ops::BytesRange;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{BytesRange, OpCreate};
 use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
@@ -495,7 +495,11 @@ impl Builder {
             // Use "/" as root if user not specified.
             None => "/".to_string(),
             Some(v) => {
-                let mut v = Backend::normalize_path(v);
+                let mut v = v
+                    .split('/')
+                    .filter(|v| !v.is_empty())
+                    .collect::<Vec<&str>>()
+                    .join("/");
                 if !v.starts_with('/') {
                     v.insert(0, '/');
                 }
@@ -590,33 +594,13 @@ impl Backend {
         Builder::default()
     }
 
-    // normalize_path removes all internal `//` inside path.
-    pub(crate) fn normalize_path(path: &str) -> String {
-        // TODO: we need a unit test.
-        if path.is_empty() || path == "/" {
-            return String::new();
-        }
-
-        let has_trailing = path.ends_with('/');
-
-        let mut p = path
-            .split('/')
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<&str>>()
-            .join("/");
-
-        if has_trailing && !p.eq("/") {
-            p.push('/')
-        }
-
-        p
-    }
-
     /// get_abs_path will return the absolute path of the given path in the s3 format.
     ///
     /// Read [RFC-112](https://github.com/datafuselabs/opendal/pull/112) for more details.
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        let path = Backend::normalize_path(path);
+        if path == "/" {
+            return self.root.trim_start_matches('/').to_string();
+        }
         // root must be normalized like `/abc/`
         format!("{}{}", self.root, path)
             .trim_start_matches('/')
@@ -625,7 +609,6 @@ impl Backend {
 
     /// get_rel_path will return the relative path of the given path in the s3 format.
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
-        let path = Backend::normalize_path(path);
         let path = format!("/{}", path);
 
         match path.strip_prefix(&self.root) {
@@ -701,6 +684,30 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("read")]
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        increment_counter!("opendal_s3_create_requests");
+        let p = self.get_abs_path(args.path());
+
+        let req = self.put_object(&p, 0, Body::empty()).await;
+        let resp = self.client.request(req).await.map_err(|e| {
+            error!("object {} get_object: {:?}", args.path(), e);
+            other(ObjectError::new("read", args.path(), e))
+        })?;
+
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                debug!("object {} create finished", args.path());
+                Ok(())
+            }
+            _ => Err(parse_error_response_without_body(
+                resp,
+                "write",
+                args.path(),
+            )),
+        }
+    }
+
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_s3_read_requests");

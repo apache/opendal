@@ -93,6 +93,7 @@ pub use operator::Operator;
 mod object;
 pub use object::Metadata;
 pub use object::Object;
+pub use object::ObjectAction;
 pub use object::ObjectMode;
 pub use object::ObjectStream;
 pub use object::ObjectStreamer;

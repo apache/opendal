@@ -102,6 +102,44 @@ impl Object {
         self.acc.clone()
     }
 
+    /// Get the actions that available to this object.
+    ///
+    /// # Note
+    ///
+    /// We are not include `create`, `stat`/`metadata`, `delete`, because they are always
+    /// available for an object.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::ObjectAction;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path content is unknown");
+    /// let oa = o.action()?;
+    /// if oa.contains(ObjectAction::READ) {
+    ///     // read object from it.
+    /// } else if oa.contains(ObjectAction::LIST) {
+    ///     // list objects from it.
+    /// } else {
+    ///     // skip if we can't handle it.
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn action(&self) -> Result<ObjectAction> {
+        if self.meta.path.ends_with('/') {
+            Ok(ObjectAction::LIST)
+        } else {
+            Ok(ObjectAction::READ | ObjectAction::WRITE)
+        }
+    }
+
     /// Create an empty object, like using the following linux commands:
     ///
     /// - `touch path/to/file`
@@ -627,11 +665,20 @@ impl Display for ObjectMode {
 }
 
 bitflags! {
+    /// ObjectAction is the available actions provided for object.
+    ///
+    /// # Note
+    ///
+    /// We are not include `create`, `stat`/`metadata`, `delete`, because they are always
+    /// available for an object.
+    #[derive(Default)]
     pub struct ObjectAction: u64 {
+        /// this object is able to do [`Object::list`].
         const LIST = 1<<0;
-        const READ = 2<<0;
-        const WRITE = 3<<0;
-        const DECOMPRESS = 4<<0;
+        /// this object is able to do object read operations like: [`Object::read`], [`Object::range_read`].
+        const READ = 1<<1;
+        /// this object is able to do object write operations like: [`Object::write`].
+        const WRITE = 1<<2;
     }
 }
 
@@ -666,5 +713,12 @@ mod tests {
         for (name, input, expect) in cases {
             assert_eq!(Object::normalize_path(input), expect, "{}", name)
         }
+    }
+
+    #[test]
+    fn test_object_action() {
+        assert_eq!(0b0001, ObjectAction::LIST.bits());
+        assert_eq!(0b0010, ObjectAction::READ.bits());
+        assert_eq!(0b0100, ObjectAction::WRITE.bits());
     }
 }

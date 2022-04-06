@@ -102,11 +102,14 @@ impl Object {
         self.acc.clone()
     }
 
-    /// Create an empty file object, like using `touch path/to/file` on linux.
+    /// Create an empty object, like using the following linux commands:
     ///
-    /// An error will be returned if object path ends with `/`.
+    /// - `touch path/to/file`
+    /// - `mkdir path/to/dir/`
     ///
     /// # Examples
+    ///
+    /// ## Create an empty file
     ///
     /// ```
     /// # use opendal::services::memory;
@@ -117,25 +120,12 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// let o = op.object("path/to/file");
-    /// let _ = o.create_file().await?;
+    /// let _ = o.create().await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn create_file(&self) -> Result<()> {
-        let op = OpCreate::new(self.meta.path(), ObjectMode::FILE)?;
-        self.acc.create(&op).await
-    }
-
-    /// Create a dile object, like using `mkdir path/to/dir/` on linux.
     ///
-    /// An error will be returned if object path doesn't end with `/`.
-    ///
-    /// # Notes
-    ///
-    /// The trailing `/` in path `path/to/dir/` is required.
-    /// OpenDAL will treat all path endswith `/` as dir object.
-    ///
-    /// # Examples
+    /// ## Create a dir
     ///
     /// ```
     /// # use opendal::services::memory;
@@ -146,13 +136,18 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// let o = op.object("path/to/dir/");
-    /// let _ = o.create_dir().await?;
+    /// let _ = o.create().await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn create_dir(&self) -> Result<()> {
-        let op = OpCreate::new(self.meta.path(), ObjectMode::DIR)?;
-        self.acc.create(&op).await
+    pub async fn create(&self) -> Result<()> {
+        if self.meta.path.ends_with('/') {
+            let op = OpCreate::new(self.meta.path(), ObjectMode::DIR)?;
+            self.acc.create(&op).await
+        } else {
+            let op = OpCreate::new(self.meta.path(), ObjectMode::FILE)?;
+            self.acc.create(&op).await
+        }
     }
 
     /// Read the whole object into a bytes.

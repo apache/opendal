@@ -1,6 +1,6 @@
 - Proposal Name: `create-dir`
 - Start Date: 2022-04-06
-- RFC PR: [datafuselabs/opendal#000](https://github.com/datafuselabs/opendal/pull/000)
+- RFC PR: [datafuselabs/opendal#221](https://github.com/datafuselabs/opendal/pull/221)
 - Tracking Issue: [datafuselabs/opendal#000](https://github.com/datafuselabs/opendal/pull/000)
 
 # Summary
@@ -9,13 +9,13 @@ Add creating dir support for OpenDAL.
 
 # Motivation
 
-Interoperability between OpenDAL services requires dir support. Object storage system will simulate dir operations via object endswith `/`. But we can't share the same behavior with `fs`, as `mkdir` is a separate syscall.
+Interoperability between OpenDAL services requires dir support. The object storage system will simulate dir operations with `/` via object ends. But we can't share the same behavior with `fs`, as `mkdir` is a separate syscall.
 
 So we need to unify the behavior about dir across different services.
 
 # Guide-level explanation
 
-After this proposal got merged, we will treat all path that end with `/` as a dir.
+After this proposal got merged, we will treat all paths that end with `/` as a dir.
 
 For example:
 
@@ -69,9 +69,9 @@ None
 
 # Unresolved questions
 
-At the time of writing this proposal, [io_error_more](https://github.com/rust-lang/rust/issues/86442) is not stabilized yet. We can't use `NotADirectory` nor `IsADirectory` directly.
+When writing this proposal, [io_error_more](https://github.com/rust-lang/rust/issues/86442) is not stabilized yet. We can't use `NotADirectory` nor `IsADirectory` directly.
 
-Using `from_raw_os_error` is not acceptable, because we can't carry our error context.
+Using `from_raw_os_error` is unacceptable because we can't carry our error context.
 
 ```rust
 use std::io;
@@ -80,7 +80,7 @@ let error = io::Error::from_raw_os_error(22);
 assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
 ```
 
-So we will use `ErrorKind::Other` for now which means our users can't check the following errors:
+So we will use `ErrorKind::Other` for now, which means our users can't check the following errors:
 
 - `IsADirectory`
 - `DirectoryNotEmpty`

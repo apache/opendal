@@ -20,17 +20,11 @@ use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
-#[cfg(feature = "compress")]
-use anyhow::anyhow;
 use futures::io;
 use futures::io::Cursor;
 use futures::AsyncWriteExt;
 use time::OffsetDateTime;
 
-#[cfg(feature = "compress")]
-use crate::error::other;
-#[cfg(feature = "compress")]
-use crate::error::ObjectError;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
@@ -291,32 +285,88 @@ impl Object {
         seekable_read(self, range)
     }
 
+    /// Read the whole object into a bytes with auto detected compress algorithm.
+    ///
+    /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let bs = o.decompress_read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "compress")]
     pub async fn decompress_read(&self) -> Result<Vec<u8>> {
-        let algo = CompressAlgorithm::from_path(self.meta.path()).ok_or_else(|| {
-            other(ObjectError::new(
-                "decompress_read",
-                self.meta.path(),
-                anyhow!("can't auto detect compress algorithm from path"),
-            ))
-        })?;
+        let algo = CompressAlgorithm::from_path(self.meta.path());
 
-        self.decompress_read_with(algo).await
+        match algo {
+            None => self.read().await,
+            Some(algo) => self.decompress_read_with(algo).await,
+        }
     }
 
+    /// Create a reader with auto detected compress algorithm.
+    ///
+    /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let r = o.decompress_reader().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "compress")]
     pub async fn decompress_reader(&self) -> Result<impl BytesRead> {
-        let algo = CompressAlgorithm::from_path(self.meta.path()).ok_or_else(|| {
-            other(ObjectError::new(
-                "decompress_reader",
-                self.meta.path(),
-                anyhow!("can't auto detect compress algorithm from path"),
-            ))
-        })?;
+        let algo = CompressAlgorithm::from_path(self.meta.path());
 
-        self.decompress_reader_with(algo).await
+        let r = self.reader().await?;
+
+        if let Some(algo) = algo {
+            Ok(algo.into_reader(r))
+        } else {
+            Ok(Box::new(r))
+        }
     }
 
+    /// Read the whole object into a bytes with specific compress algorithm.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::io_util::CompressAlgorithm;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let bs = o.decompress_read_with(CompressAlgorithm::Gzip).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "compress")]
     pub async fn decompress_read_with(&self, algo: CompressAlgorithm) -> Result<Vec<u8>> {
         let r = self.decompress_reader_with(algo).await?;
@@ -327,6 +377,25 @@ impl Object {
         Ok(bs.into_inner())
     }
 
+    /// Create a reader with specific compress algorithm.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::io_util::CompressAlgorithm;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let r = o.decompress_reader_with(CompressAlgorithm::Gzip).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     #[cfg(feature = "compress")]
     pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
         let r = self.reader().await?;

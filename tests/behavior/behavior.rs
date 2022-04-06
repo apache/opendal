@@ -348,7 +348,7 @@ async fn test_read_with_dir_path(op: Operator) -> Result<()> {
 async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
     use async_compression::futures::write::GzipEncoder;
 
-    let path = format!("{}.gz", uuid::Uuid::new_v4().to_string());
+    let path = format!("{}.gz", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
@@ -378,7 +378,7 @@ async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
 async fn test_read_decompress_gzip_with(op: Operator) -> Result<()> {
     use async_compression::futures::write::GzipEncoder;
 
-    let path = format!("{}.gz", uuid::Uuid::new_v4().to_string());
+    let path = format!("{}.gz", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 

@@ -29,19 +29,35 @@ use futures::io::BufReader;
 use crate::BytesRead;
 use crate::BytesReader;
 
+/// CompressAlgorithm represents all compress algorithm that OpenDAL supports.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum CompressAlgorithm {
+    /// [Brotli](https://github.com/google/brotli) compression format.
     Brotli,
+    /// [bzip2](http://sourceware.org/bzip2/) compression format.
     Bz2,
+    /// [Deflate](https://datatracker.ietf.org/doc/html/rfc1951) Compressed Data Format.
+    ///
+    /// Similar to [`CompressAlgorithm::Gzip`] and [`CompressAlgorithm::Zlib`]
     Deflate,
+    /// [Gzip](https://datatracker.ietf.org/doc/html/rfc1952) compress format.
+    ///
+    /// Similar to [`CompressAlgorithm::Deflate`] and [`CompressAlgorithm::Zlib`]
     Gzip,
+    /// [LZMA](https://www.7-zip.org/sdk.html) compress format.
     Lzma,
+    /// [Xz](https://tukaani.org/xz/) compress format, the successor of [`CompressAlgorithm::Lzma`].
     Xz,
+    /// [Zlib](https://datatracker.ietf.org/doc/html/rfc1950) compress format.
+    ///
+    /// Similar to [`CompressAlgorithm::Deflate`] and [`CompressAlgorithm::Gzip`]
     Zlib,
+    /// [Zstd](https://github.com/facebook/zstd) compression algorithm
     Zstd,
 }
 
 impl CompressAlgorithm {
+    /// Get the file extension of this compress algorithm.
     pub fn extension(&self) -> &str {
         match self {
             CompressAlgorithm::Brotli => "br",
@@ -55,6 +71,9 @@ impl CompressAlgorithm {
         }
     }
 
+    /// Create CompressAlgorithm from file extension.
+    ///
+    /// If the file extension is not supported, `None` will be return instead.
     pub fn from_extension(ext: &str) -> Option<CompressAlgorithm> {
         match ext {
             "br" => Some(CompressAlgorithm::Brotli),
@@ -69,6 +88,9 @@ impl CompressAlgorithm {
         }
     }
 
+    /// Create CompressAlgorithm from file path.
+    ///
+    /// If the extension in file path is not supported, `None` will be return instead.
     pub fn from_path(path: &str) -> Option<CompressAlgorithm> {
         let ext = PathBuf::from(path)
             .extension()
@@ -78,6 +100,7 @@ impl CompressAlgorithm {
         CompressAlgorithm::from_extension(&ext)
     }
 
+    /// Wrap input reader into the corresponding reader of compress algorithm.
     pub fn into_reader<R: 'static + BytesRead>(self, r: R) -> BytesReader {
         match self {
             CompressAlgorithm::Brotli => Box::new(into_brotli_reader(r)),
@@ -92,34 +115,42 @@ impl CompressAlgorithm {
     }
 }
 
+/// Wrap input reader into brotli decoder.
 pub fn into_brotli_reader<R: BytesRead>(r: R) -> BrotliDecoder<BufReader<R>> {
     BrotliDecoder::new(BufReader::new(r))
 }
 
+/// Wrap input reader into bz2 decoder.
 pub fn into_bz2_reader<R: BytesRead>(r: R) -> BzDecoder<BufReader<R>> {
     BzDecoder::new(BufReader::new(r))
 }
 
+/// Wrap input reader into deflate decoder.
 pub fn into_deflate_reader<R: BytesRead>(r: R) -> DeflateDecoder<BufReader<R>> {
     DeflateDecoder::new(BufReader::new(r))
 }
 
+/// Wrap input reader into gzip decoder.
 pub fn into_gzip_reader<R: BytesRead>(r: R) -> GzipDecoder<BufReader<R>> {
     GzipDecoder::new(BufReader::new(r))
 }
 
+/// Wrap input reader into lzma decoder.
 pub fn into_lzma_reader<R: BytesRead>(r: R) -> LzmaDecoder<BufReader<R>> {
     LzmaDecoder::new(BufReader::new(r))
 }
 
+/// Wrap input reader into xz decoder.
 pub fn into_xz_reader<R: BytesRead>(r: R) -> XzDecoder<BufReader<R>> {
     XzDecoder::new(BufReader::new(r))
 }
 
+/// Wrap input reader into zlib decoder.
 pub fn into_zlib_reader<R: BytesRead>(r: R) -> ZlibDecoder<BufReader<R>> {
     ZlibDecoder::new(BufReader::new(r))
 }
 
+/// Wrap input reader into zstd decoder.
 pub fn into_zstd_reader<R: BytesRead>(r: R) -> ZstdDecoder<BufReader<R>> {
     ZstdDecoder::new(BufReader::new(r))
 }

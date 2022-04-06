@@ -27,6 +27,8 @@ use time::OffsetDateTime;
 
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
+#[cfg(feature = "compress")]
+use crate::io_util::CompressAlgorithm;
 use crate::io_util::SeekableReader;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -281,6 +283,124 @@ impl Object {
     /// ```
     pub fn seekable_reader(&self, range: impl RangeBounds<u64>) -> SeekableReader {
         seekable_read(self, range)
+    }
+
+    /// Read the whole object into a bytes with auto detected compress algorithm.
+    ///
+    /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let bs = o.decompress_read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "compress")]
+    pub async fn decompress_read(&self) -> Result<Vec<u8>> {
+        let algo = CompressAlgorithm::from_path(self.meta.path());
+
+        match algo {
+            None => self.read().await,
+            Some(algo) => self.decompress_read_with(algo).await,
+        }
+    }
+
+    /// Create a reader with auto detected compress algorithm.
+    ///
+    /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let r = o.decompress_reader().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "compress")]
+    pub async fn decompress_reader(&self) -> Result<impl BytesRead> {
+        let algo = CompressAlgorithm::from_path(self.meta.path());
+
+        let r = self.reader().await?;
+
+        if let Some(algo) = algo {
+            Ok(algo.into_reader(r))
+        } else {
+            Ok(Box::new(r))
+        }
+    }
+
+    /// Read the whole object into a bytes with specific compress algorithm.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::io_util::CompressAlgorithm;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let bs = o.decompress_read_with(CompressAlgorithm::Gzip).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "compress")]
+    pub async fn decompress_read_with(&self, algo: CompressAlgorithm) -> Result<Vec<u8>> {
+        let r = self.decompress_reader_with(algo).await?;
+        let mut bs = Cursor::new(Vec::new());
+
+        io::copy(r, &mut bs).await?;
+
+        Ok(bs.into_inner())
+    }
+
+    /// Create a reader with specific compress algorithm.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::io_util::CompressAlgorithm;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file.gz");
+    /// # o.write(&vec![0; 4096]).await?;
+    /// let r = o.decompress_reader_with(CompressAlgorithm::Gzip).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "compress")]
+    pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
+        let r = self.reader().await?;
+
+        Ok(algo.into_reader(r))
     }
 
     /// Write bytes into object.

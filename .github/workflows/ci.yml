@@ -30,6 +30,22 @@ jobs:
         with:
           command: build
 
+  build_all_features:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v2
+      - uses: Swatinem/rust-cache@v1
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all-features
+
   unit:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -44,7 +60,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-fail-fast
+          args: --no-fail-fast --all-features
         env:
           RUST_TEST_THREADS: '2'
           RUST_LOG: DEBUG

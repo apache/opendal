@@ -43,3 +43,8 @@ pub(crate) use http_body::HttpBodyWriter;
 mod seekable_reader;
 pub use seekable_reader::seekable_read;
 pub use seekable_reader::SeekableReader;
+
+#[cfg(feature = "compress")]
+mod compress;
+#[cfg(feature = "compress")]
+pub use compress::*;

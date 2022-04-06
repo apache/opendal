@@ -23,8 +23,10 @@
 use std::io;
 
 use anyhow::Result;
+use futures::AsyncWriteExt;
 use futures::StreamExt;
 use log::debug;
+use opendal::io_util::CompressAlgorithm;
 use opendal::ObjectMode;
 use opendal::Operator;
 use opendal_test::services;
@@ -52,6 +54,8 @@ macro_rules! behavior_tests {
                 test_read_range,
                 test_read_not_exist,
                 test_read_with_dir_path,
+                test_read_decompress_gzip,
+                test_read_decompress_gzip_with,
 
                 test_stat,
                 test_stat_dir,
@@ -332,6 +336,69 @@ async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let result = op.object(&path).read().await;
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Is a directory"));
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+// Read a compressed file.
+async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
+    use async_compression::futures::write::GzipEncoder;
+
+    let path = format!("{}.gz", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let mut encoder = GzipEncoder::new(vec![]);
+    encoder.write_all(&content).await?;
+    encoder.close().await?;
+    let compressed_content = encoder.into_inner();
+
+    let _ = op.object(&path).write(&compressed_content).await?;
+
+    let bs = op.object(&path).decompress_read().await?;
+    assert_eq!(bs.len(), size, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+// Read a compressed file with algo.
+async fn test_read_decompress_gzip_with(op: Operator) -> Result<()> {
+    use async_compression::futures::write::GzipEncoder;
+
+    let path = format!("{}.gz", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let mut encoder = GzipEncoder::new(vec![]);
+    encoder.write_all(&content).await?;
+    encoder.close().await?;
+    let compressed_content = encoder.into_inner();
+
+    let _ = op.object(&path).write(&compressed_content).await?;
+
+    let bs = op
+        .object(&path)
+        .decompress_read_with(CompressAlgorithm::Gzip)
+        .await?;
+    assert_eq!(bs.len(), size, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
 
     op.object(&path)
         .delete()

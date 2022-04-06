@@ -21,7 +21,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test fs -- --nocapture
+        run: cargo test fs --all-features -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

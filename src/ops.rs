@@ -17,6 +17,24 @@
 use std::collections::Bound;
 use std::ops::RangeBounds;
 
+use crate::ObjectMode;
+
+/// Args for `create` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpCreate {
+    pub path: String,
+    pub mode: ObjectMode,
+}
+
+impl OpCreate {
+    pub fn new(path: &str, mode: ObjectMode) -> Self {
+        Self {
+            path: path.to_string(),
+            mode,
+        }
+    }
+}
+
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {

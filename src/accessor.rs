@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -36,6 +37,10 @@ use crate::ObjectStreamer;
 /// use [`Operator`][crate::Operator] instead.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
+    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
+        let _ = args;
+        unimplemented!()
+    }
     /// Invoke the `read` operation on the specified path, returns a
     /// [`BytesReader`][crate::BytesReader] if operate successful.
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
@@ -48,6 +53,7 @@ pub trait Accessor: Send + Sync + Debug {
         let _ = args;
         unimplemented!()
     }
+
     /// Invoke the `stat` operation on the specified path.
     ///
     /// # Behavior
@@ -60,12 +66,13 @@ pub trait Accessor: Send + Sync + Debug {
         let _ = args;
         unimplemented!()
     }
-    /// `Delete` will invoke the `delete` operation.
+
+    /// `delete` will invoke the `delete` operation.
     ///
     /// # Behavior
     ///
-    /// - `Delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
-    /// - `Delete` will return `Ok(())` if the path is deleted successfully or not exist.
+    /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
+    /// - `delete` will return `Ok(())` if the path is deleted successfully or not exist.
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let _ = args;
         unimplemented!()
@@ -81,6 +88,9 @@ pub trait Accessor: Send + Sync + Debug {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
+    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
+        self.as_ref().create(args).await
+    }
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         self.as_ref().read(args).await
     }

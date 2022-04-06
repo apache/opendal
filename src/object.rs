@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -27,6 +28,7 @@ use time::OffsetDateTime;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 use crate::io_util::SeekableReader;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -55,6 +57,16 @@ impl Object {
 
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
         self.acc.clone()
+    }
+
+    pub async fn create_file(&self) -> Result<Metadata> {
+        let op = OpCreate::new(self.meta.path(), ObjectMode::FILE);
+        self.acc.create(&op).await
+    }
+
+    pub async fn create_dir(&self) -> Result<Metadata> {
+        let op = OpCreate::new(self.meta.path(), ObjectMode::DIR);
+        self.acc.create(&op).await
     }
 
     /// Read the whole object into a bytes.

@@ -18,8 +18,6 @@ use std::fmt::Formatter;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::RangeBounds;
-#[cfg(feature = "compress")]
-use std::path::PathBuf;
 use std::sync::Arc;
 
 #[cfg(feature = "compress")]
@@ -295,31 +293,33 @@ impl Object {
 
     #[cfg(feature = "compress")]
     pub async fn decompress_read(&self) -> Result<Vec<u8>> {
-        let algo =
-            CompressAlgorithm::from_path(self.meta.path()).ok_or(other(ObjectError::new(
+        let algo = CompressAlgorithm::from_path(self.meta.path()).ok_or_else(|| {
+            other(ObjectError::new(
                 "decompress_read",
                 self.meta.path(),
                 anyhow!("can't auto detect compress algorithm from path"),
-            )))?;
+            ))
+        })?;
 
         self.decompress_read_with(algo).await
     }
 
     #[cfg(feature = "compress")]
     pub async fn decompress_reader(&self) -> Result<impl BytesRead> {
-        let algo =
-            CompressAlgorithm::from_path(self.meta.path()).ok_or(other(ObjectError::new(
+        let algo = CompressAlgorithm::from_path(self.meta.path()).ok_or_else(|| {
+            other(ObjectError::new(
                 "decompress_reader",
                 self.meta.path(),
                 anyhow!("can't auto detect compress algorithm from path"),
-            )))?;
+            ))
+        })?;
 
         self.decompress_reader_with(algo).await
     }
 
     #[cfg(feature = "compress")]
     pub async fn decompress_read_with(&self, algo: CompressAlgorithm) -> Result<Vec<u8>> {
-        let mut r = self.decompress_reader_with(algo).await?;
+        let r = self.decompress_reader_with(algo).await?;
         let mut bs = Cursor::new(Vec::new());
 
         io::copy(r, &mut bs).await?;
@@ -396,31 +396,6 @@ impl Object {
         let s = self.acc.write(&op?).await?;
 
         Ok(s)
-    }
-
-    #[cfg(feature = "compress")]
-    pub async fn compress_write(&self, bs: impl AsRef<[u8]>) -> Result<()> {
-        let algo =
-            CompressAlgorithm::from_path(self.meta.path()).ok_or(other(ObjectError::new(
-                "compress_write",
-                self.meta.path(),
-                anyhow!("can't auto detect compress algorithm from path"),
-            )))?;
-
-        self.compress_write_with(bs, algo).await
-    }
-
-    #[cfg(feature = "compress")]
-    pub async fn compress_write_with(
-        &self,
-        bs: impl AsRef<[u8]>,
-        algo: CompressAlgorithm,
-    ) -> Result<()> {
-        let mut encoder = algo.into_writer(Vec::new());
-        encoder.write_all(bs.as_ref()).await?;
-        encoder.close().await?;
-
-        self.write(encoder.into_inner()).await
     }
 
     /// Delete object.

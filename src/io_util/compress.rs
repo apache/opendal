@@ -14,6 +14,8 @@
 
 //! This mod provides compress support for BytesWrite and decompress support for BytesRead.
 
+use std::path::PathBuf;
+
 use async_compression::futures::bufread::BrotliDecoder;
 use async_compression::futures::bufread::BzDecoder;
 use async_compression::futures::bufread::DeflateDecoder;
@@ -22,19 +24,10 @@ use async_compression::futures::bufread::LzmaDecoder;
 use async_compression::futures::bufread::XzDecoder;
 use async_compression::futures::bufread::ZlibDecoder;
 use async_compression::futures::bufread::ZstdDecoder;
-use async_compression::futures::write::BrotliEncoder;
-use async_compression::futures::write::BzEncoder;
-use async_compression::futures::write::DeflateEncoder;
-use async_compression::futures::write::GzipEncoder;
-use async_compression::futures::write::LzmaEncoder;
-use async_compression::futures::write::XzEncoder;
-use async_compression::futures::write::ZlibEncoder;
-use async_compression::futures::write::ZstdEncoder;
 use futures::io::BufReader;
-use std::path::PathBuf;
 
 use crate::BytesRead;
-use crate::BytesWrite;
+use crate::BytesReader;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum CompressAlgorithm {
@@ -79,34 +72,22 @@ impl CompressAlgorithm {
     pub fn from_path(path: &str) -> Option<CompressAlgorithm> {
         let ext = PathBuf::from(path)
             .extension()
-            .map(|s| s.to_string_lossy())?;
+            .map(|s| s.to_string_lossy())?
+            .to_string();
 
         CompressAlgorithm::from_extension(&ext)
     }
 
-    pub fn into_reader<R: BytesRead>(self, r: R) -> impl BytesRead {
+    pub fn into_reader<R: 'static + BytesRead>(self, r: R) -> BytesReader {
         match self {
-            CompressAlgorithm::Brotli => into_brotli_reader(r),
-            CompressAlgorithm::Bz2 => into_bz2_reader(r),
-            CompressAlgorithm::Deflate => into_deflate_reader(r),
-            CompressAlgorithm::Gzip => into_gzip_reader(r),
-            CompressAlgorithm::Lzma => into_lzma_reader(r),
-            CompressAlgorithm::Xz => into_xz_reader(r),
-            CompressAlgorithm::Zlib => into_zlib_reader(r),
-            CompressAlgorithm::Zstd => into_zstd_reader(r),
-        }
-    }
-
-    pub fn into_writer<W: BytesWrite>(self, w: W) -> impl BytesWrite {
-        match self {
-            CompressAlgorithm::Brotli => into_brotli_writer(w),
-            CompressAlgorithm::Bz2 => into_bz2_writer(w),
-            CompressAlgorithm::Deflate => into_deflate_writer(w),
-            CompressAlgorithm::Gzip => into_gzip_writer(w),
-            CompressAlgorithm::Lzma => into_lzma_writer(w),
-            CompressAlgorithm::Xz => into_xz_writer(w),
-            CompressAlgorithm::Zlib => into_zlib_writer(w),
-            CompressAlgorithm::Zstd => into_zstd_writer(w),
+            CompressAlgorithm::Brotli => Box::new(into_brotli_reader(r)),
+            CompressAlgorithm::Bz2 => Box::new(into_bz2_reader(r)),
+            CompressAlgorithm::Deflate => Box::new(into_deflate_reader(r)),
+            CompressAlgorithm::Gzip => Box::new(into_gzip_reader(r)),
+            CompressAlgorithm::Lzma => Box::new(into_lzma_reader(r)),
+            CompressAlgorithm::Xz => Box::new(into_xz_reader(r)),
+            CompressAlgorithm::Zlib => Box::new(into_zlib_reader(r)),
+            CompressAlgorithm::Zstd => Box::new(into_zstd_reader(r)),
         }
     }
 }
@@ -115,62 +96,30 @@ pub fn into_brotli_reader<R: BytesRead>(r: R) -> BrotliDecoder<BufReader<R>> {
     BrotliDecoder::new(BufReader::new(r))
 }
 
-pub fn into_brotli_writer<W: BytesWrite>(w: W) -> BrotliEncoder<W> {
-    BrotliEncoder::new(w)
-}
-
 pub fn into_bz2_reader<R: BytesRead>(r: R) -> BzDecoder<BufReader<R>> {
     BzDecoder::new(BufReader::new(r))
-}
-
-pub fn into_bz2_writer<W: BytesWrite>(w: W) -> BzEncoder<W> {
-    BzEncoder::new(w)
 }
 
 pub fn into_deflate_reader<R: BytesRead>(r: R) -> DeflateDecoder<BufReader<R>> {
     DeflateDecoder::new(BufReader::new(r))
 }
 
-pub fn into_deflate_writer<W: BytesWrite>(w: W) -> DeflateEncoder<W> {
-    DeflateEncoder::new(w)
-}
-
 pub fn into_gzip_reader<R: BytesRead>(r: R) -> GzipDecoder<BufReader<R>> {
     GzipDecoder::new(BufReader::new(r))
-}
-
-pub fn into_gzip_writer<W: BytesWrite>(w: W) -> GzipEncoder<W> {
-    GzipEncoder::new(w)
 }
 
 pub fn into_lzma_reader<R: BytesRead>(r: R) -> LzmaDecoder<BufReader<R>> {
     LzmaDecoder::new(BufReader::new(r))
 }
 
-pub fn into_lzma_writer<W: BytesWrite>(w: W) -> LzmaEncoder<W> {
-    LzmaEncoder::new(w)
-}
-
 pub fn into_xz_reader<R: BytesRead>(r: R) -> XzDecoder<BufReader<R>> {
     XzDecoder::new(BufReader::new(r))
-}
-
-pub fn into_xz_writer<W: BytesWrite>(w: W) -> XzEncoder<W> {
-    XzEncoder::new(w)
 }
 
 pub fn into_zlib_reader<R: BytesRead>(r: R) -> ZlibDecoder<BufReader<R>> {
     ZlibDecoder::new(BufReader::new(r))
 }
 
-pub fn into_zlib_writer<W: BytesWrite>(w: W) -> ZlibEncoder<W> {
-    ZlibEncoder::new(w)
-}
-
 pub fn into_zstd_reader<R: BytesRead>(r: R) -> ZstdDecoder<BufReader<R>> {
     ZstdDecoder::new(BufReader::new(r))
-}
-
-pub fn into_zstd_writer<W: BytesWrite>(w: W) -> ZstdEncoder<W> {
-    ZstdEncoder::new(w)
 }

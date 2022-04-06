@@ -28,14 +28,10 @@ For example:
 And we will support create an empty object:
 
 ```rust
-// create a dir object "abc/", we will allow user ignore the ending "/"
-let _ = op.object("abc").create_dir().await?;
 // create a dir object "abc/"
-let _ = op.object("abc/").create_dir().await?;
+let _ = op.object("abc/").create().await?;
 // create a file object "abc"
-let _ = op.object("abc").create_file().await?;
-// returns an error that `IsDir`.
-let _ = op.object("abc/").create_file().await?; 
+let _ = op.object("abc").create().await?;
 ```
 
 # Reference-level explanation
@@ -53,7 +49,7 @@ pub trait Accessor: Send + Sync + Debug {
 }
 ```
 
-`Object` will expose API like `create_dir` and `create_file` which will call `Accessor::create()` internally.
+`Object` will expose API like `create` which will call `Accessor::create()` internally.
 
 # Drawbacks
 
@@ -90,4 +86,4 @@ Until they get stabilized.
 
 # Future possibilities
 
-- `create_link` support.
+None

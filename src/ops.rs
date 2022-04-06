@@ -14,12 +14,14 @@
 
 //! Operations used by [`Accessor`][crate::Accessor]
 
-use crate::error::{other, ObjectError};
-use anyhow::anyhow;
 use std::collections::Bound;
 use std::io::Result;
 use std::ops::RangeBounds;
 
+use anyhow::anyhow;
+
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::ObjectMode;
 
 /// Args for `create` operation.

@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::io::SeekFrom;
-use std::io::{ErrorKind, Result};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -39,11 +40,12 @@ use crate::error::ObjectError;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
 use crate::object::ObjectStreamer;
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{OpCreate, OpDelete};
 use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;

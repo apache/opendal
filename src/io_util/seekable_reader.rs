@@ -107,11 +107,11 @@ impl AsyncRead for SeekableReader {
         match &mut self.state {
             State::Idle => {
                 let acc = self.acc.clone();
-                let op = OpRead {
-                    path: self.path.to_string(),
-                    offset: Some(self.current_offset()),
-                    size: self.current_size(),
-                };
+                let op = OpRead::new_with_offset(
+                    &self.path,
+                    Some(self.current_offset()),
+                    self.current_size(),
+                )?;
 
                 let future = async move { acc.read(&op).await };
 
@@ -156,7 +156,7 @@ impl AsyncSeek for SeekableReader {
                 // Stat the object to get it's content-length.
                 if self.size.is_none() {
                     let acc = self.acc.clone();
-                    let op = OpStat::new(&self.path);
+                    let op = OpStat::new(&self.path)?;
 
                     let future = async move { acc.stat(&op).await };
 

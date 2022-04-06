@@ -100,13 +100,13 @@ impl Object {
         self.acc.clone()
     }
 
-    pub async fn create_file(&self) -> Result<Metadata> {
-        let op = OpCreate::new(self.meta.path(), ObjectMode::FILE);
+    pub async fn create_file(&self) -> Result<()> {
+        let op = OpCreate::new(self.meta.path(), ObjectMode::FILE)?;
         self.acc.create(&op).await
     }
 
-    pub async fn create_dir(&self) -> Result<Metadata> {
-        let op = OpCreate::new(self.meta.path(), ObjectMode::DIR);
+    pub async fn create_dir(&self) -> Result<()> {
+        let op = OpCreate::new(self.meta.path(), ObjectMode::DIR)?;
         self.acc.create(&op).await
     }
 
@@ -157,7 +157,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        let op = OpRead::new(self.meta.path(), range);
+        let op = OpRead::new(self.meta.path(), range)?;
         let s = self.acc.read(&op).await?;
 
         let mut bs = Cursor::new(Vec::new());
@@ -208,7 +208,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
-        let op = OpRead::new(self.meta.path(), range);
+        let op = OpRead::new(self.meta.path(), range)?;
         Ok(self.acc.read(&op).await?)
     }
 
@@ -269,7 +269,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn write(&self, bs: impl AsRef<[u8]>) -> Result<()> {
-        let op = OpWrite::new(self.meta.path(), bs.as_ref().len() as u64);
+        let op = OpWrite::new(self.meta.path(), bs.as_ref().len() as u64)?;
         let mut s = self.acc.write(&op).await?;
 
         s.write_all(bs.as_ref()).await?;
@@ -303,7 +303,7 @@ impl Object {
     /// ```
     pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
         let op = OpWrite::new(self.meta.path(), size);
-        let s = self.acc.write(&op).await?;
+        let s = self.acc.write(&op?).await?;
 
         Ok(s)
     }
@@ -329,7 +329,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn delete(&self) -> Result<()> {
-        let op = &OpDelete::new(self.meta.path());
+        let op = &OpDelete::new(self.meta.path())?;
 
         self.acc.delete(op).await
     }
@@ -365,7 +365,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn metadata(&self) -> Result<Metadata> {
-        let op = &OpStat::new(self.meta.path());
+        let op = &OpStat::new(self.meta.path())?;
 
         self.acc.stat(op).await
     }
@@ -398,7 +398,7 @@ impl Object {
             return Ok(&self.meta);
         }
 
-        let op = &OpStat::new(self.meta.path());
+        let op = &OpStat::new(self.meta.path())?;
         self.meta = self.acc.stat(op).await?;
 
         Ok(&self.meta)

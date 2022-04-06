@@ -14,7 +14,10 @@
 
 //! Operations used by [`Accessor`][crate::Accessor]
 
+use crate::error::{other, ObjectError};
+use anyhow::anyhow;
 use std::collections::Bound;
+use std::io::Result;
 use std::ops::RangeBounds;
 
 use crate::ObjectMode;
@@ -24,16 +27,52 @@ use crate::ObjectMode;
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpCreate {
-    pub path: String,
-    pub mode: ObjectMode,
+    path: String,
+    mode: ObjectMode,
 }
 
 impl OpCreate {
-    pub fn new(path: &str, mode: ObjectMode) -> Self {
-        Self {
-            path: path.to_string(),
-            mode,
+    pub fn new(path: &str, mode: ObjectMode) -> Result<Self> {
+        match mode {
+            ObjectMode::FILE => {
+                if path.ends_with('/') {
+                    return Err(other(ObjectError::new(
+                        "create",
+                        path,
+                        anyhow!("Is a directory"),
+                    )));
+                }
+                Ok(Self {
+                    path: path.to_string(),
+                    mode,
+                })
+            }
+            ObjectMode::DIR => {
+                if !path.ends_with('/') {
+                    return Err(other(ObjectError::new(
+                        "create",
+                        path,
+                        anyhow!("Not a directory"),
+                    )));
+                }
+
+                Ok(Self {
+                    path: path.to_string(),
+                    mode,
+                })
+            }
+            ObjectMode::Unknown => Err(other(ObjectError::new(
+                "create",
+                path,
+                anyhow!("create unknown object mode is not supported"),
+            ))),
         }
+    }
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+    pub fn mode(&self) -> ObjectMode {
+        self.mode
     }
 }
 
@@ -42,20 +81,57 @@ impl OpCreate {
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
-    pub path: String,
-    pub offset: Option<u64>,
-    pub size: Option<u64>,
+    path: String,
+    offset: Option<u64>,
+    size: Option<u64>,
 }
 
 impl OpRead {
-    pub fn new(path: &str, range: impl RangeBounds<u64>) -> Self {
+    pub fn new(path: &str, range: impl RangeBounds<u64>) -> Result<Self> {
+        if path.ends_with('/') {
+            return Err(other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("Is a directory"),
+            )));
+        }
+
         let br = BytesRange::from(range);
 
-        Self {
+        Ok(Self {
             path: path.to_string(),
             offset: br.offset(),
             size: br.size(),
+        })
+    }
+
+    pub(crate) fn new_with_offset(
+        path: &str,
+        offset: Option<u64>,
+        size: Option<u64>,
+    ) -> Result<Self> {
+        if path.ends_with('/') {
+            return Err(other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("Is a directory"),
+            )));
         }
+
+        Ok(Self {
+            path: path.to_string(),
+            offset,
+            size,
+        })
+    }
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+    pub fn offset(&self) -> Option<u64> {
+        self.offset
+    }
+    pub fn size(&self) -> Option<u64> {
+        self.size
     }
 }
 
@@ -64,14 +140,17 @@ impl OpRead {
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {
-    pub path: String,
+    path: String,
 }
 
 impl OpStat {
-    pub fn new(path: &str) -> Self {
-        Self {
+    pub fn new(path: &str) -> Result<Self> {
+        Ok(Self {
             path: path.to_string(),
-        }
+        })
+    }
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
 
@@ -80,16 +159,30 @@ impl OpStat {
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
-    pub path: String,
-    pub size: u64,
+    path: String,
+    size: u64,
 }
 
 impl OpWrite {
-    pub fn new(path: &str, size: u64) -> Self {
-        Self {
+    pub fn new(path: &str, size: u64) -> Result<Self> {
+        if path.ends_with('/') {
+            return Err(other(ObjectError::new(
+                "write",
+                path,
+                anyhow!("Is a directory"),
+            )));
+        }
+
+        Ok(Self {
             path: path.to_string(),
             size,
-        }
+        })
+    }
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+    pub fn size(&self) -> u64 {
+        self.size
     }
 }
 
@@ -102,10 +195,13 @@ pub struct OpDelete {
 }
 
 impl OpDelete {
-    pub fn new(path: &str) -> Self {
-        Self {
+    pub fn new(path: &str) -> Result<Self> {
+        Ok(Self {
             path: path.to_string(),
-        }
+        })
+    }
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
 
@@ -118,10 +214,21 @@ pub struct OpList {
 }
 
 impl OpList {
-    pub fn new(path: &str) -> Self {
-        Self {
-            path: path.to_string(),
+    pub fn new(path: &str) -> Result<Self> {
+        if !path.ends_with('/') {
+            return Err(other(ObjectError::new(
+                "list",
+                path,
+                anyhow!("Not a directory"),
+            )));
         }
+
+        Ok(Self {
+            path: path.to_string(),
+        })
+    }
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
 

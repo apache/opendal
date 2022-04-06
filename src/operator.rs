@@ -127,7 +127,7 @@ impl Operator {
     /// }
     /// ```
     pub async fn objects(&self, path: &str) -> Result<ObjectStreamer> {
-        let op = OpList::new(&Object::normalize_path(path));
+        let op = OpList::new(&Object::normalize_path(path))?;
         self.inner().list(&op).await
     }
 }

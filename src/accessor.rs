@@ -51,9 +51,9 @@ pub trait Accessor: Send + Sync + Debug {
     /// | --------- | ---- | ------   |
     /// | file path | FILE | `Ok(_)`  |
     /// | dir path  | FILE | `Err(_)` |
-    /// | file path | DIR  | `Ok(_)`  |
+    /// | file path | DIR  | `Err(_)`  |
     /// | dir path  | DIR  | `Ok(_)`  |
-    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
+    async fn create(&self, args: &OpCreate) -> Result<()> {
         let _ = args;
         unimplemented!()
     }
@@ -85,7 +85,7 @@ pub trait Accessor: Send + Sync + Debug {
         unimplemented!()
     }
 
-    /// `delete` will invoke the `delete` operation.
+    /// Invoke the `delete` operation on the specified path.
     ///
     /// # Behavior
     ///
@@ -96,6 +96,11 @@ pub trait Accessor: Send + Sync + Debug {
         unimplemented!()
     }
 
+    /// Invoke the `list` operation on the specified path.
+    ///
+    /// # Behavior
+    ///
+    /// - list on file path should emit an `NotADirectory` error.
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         let _ = args;
         unimplemented!()
@@ -106,7 +111,7 @@ pub trait Accessor: Send + Sync + Debug {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
-    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
+    async fn create(&self, args: &OpCreate) -> Result<()> {
         self.as_ref().create(args).await
     }
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {

@@ -705,19 +705,23 @@ impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_s3_read_requests");
 
-        let p = self.get_abs_path(&args.path);
+        let p = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
-            &p, args.offset, args.size
+            &p,
+            args.offset(),
+            args.size()
         );
 
-        let resp = self.get_object(&p, args.offset, args.size).await?;
+        let resp = self.get_object(&p, args.offset(), args.size()).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 debug!(
                     "object {} reader created: offset {:?}, size {:?}",
-                    &p, args.offset, args.size
+                    &p,
+                    args.offset(),
+                    args.size()
                 );
 
                 Ok(Box::new(
@@ -733,20 +737,20 @@ impl Accessor for Backend {
 
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let p = self.get_abs_path(&args.path);
-        debug!("object {} write start: size {}", &p, args.size);
+        let p = self.get_abs_path(args.path());
+        debug!("object {} write start: size {}", &p, args.size());
 
         let (tx, body) = new_http_channel();
 
-        let req = self.put_object(&p, args.size, body).await;
+        let req = self.put_object(&p, args.size(), body).await;
 
         let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
                 StatusCode::CREATED | StatusCode::OK => {
-                    debug!("object {} write finished: size {:?}", op.path, op.size);
+                    debug!("object {} write finished: size {:?}", op.path(), op.size());
                     Ok(())
                 }
-                _ => Err(parse_error_response_without_body(resp, "write", &op.path)),
+                _ => Err(parse_error_response_without_body(resp, "write", op.path())),
             }
         });
 
@@ -757,13 +761,13 @@ impl Accessor for Backend {
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_s3_stat_requests");
 
-        let p = self.get_abs_path(&args.path);
+        let p = self.get_abs_path(args.path());
         debug!("object {} stat start", &p);
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
             let mut m = Metadata::default();
-            m.set_path(&args.path);
+            m.set_path(args.path());
             m.set_content_length(0);
             m.set_mode(ObjectMode::DIR);
             m.set_complete();
@@ -777,7 +781,7 @@ impl Accessor for Backend {
         match resp.status() {
             StatusCode::OK => {
                 let mut m = Metadata::default();
-                m.set_path(&args.path);
+                m.set_path(args.path());
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
@@ -815,7 +819,7 @@ impl Accessor for Backend {
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
                 let mut m = Metadata::default();
-                m.set_path(&args.path);
+                m.set_path(args.path());
                 m.set_content_length(0);
                 m.set_mode(ObjectMode::DIR);
                 m.set_complete();

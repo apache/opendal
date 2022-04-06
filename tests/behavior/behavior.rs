@@ -101,7 +101,11 @@ behavior_tests!(azblob, fs, memory, s3);
 async fn test_create_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).create_file().await?;
+    let o = op.object(&path);
+
+    let _ = o.create_file().await?;
+
+    let meta = o.metadata().await?;
     assert_eq!(meta.path(), &path);
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
@@ -119,7 +123,7 @@ async fn test_create_file_with_dir_path(op: Operator) -> Result<()> {
 
     let meta = op.object(&path).create_file().await;
     assert!(meta.is_err());
-    assert!(meta.unwrap_err().to_string().contains("is a directory"));
+    assert!(meta.unwrap_err().to_string().contains("Is a directory"));
 
     Ok(())
 }
@@ -128,10 +132,13 @@ async fn test_create_file_with_dir_path(op: Operator) -> Result<()> {
 async fn test_create_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let meta = op.object(&path).create_dir().await?;
+    let o = op.object(&path);
+
+    let _ = o.create_dir().await?;
+
+    let meta = o.metadata().await?;
     assert_eq!(meta.path(), &path);
     assert_eq!(meta.mode(), ObjectMode::DIR);
-    assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
         .delete()
@@ -144,10 +151,9 @@ async fn test_create_dir(op: Operator) -> Result<()> {
 async fn test_create_dir_with_file_path(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).create_dir().await?;
-    assert_eq!(meta.path(), format!("{}/", path));
-    assert_eq!(meta.mode(), ObjectMode::DIR);
-    assert_eq!(meta.content_length(), 0);
+    let meta = op.object(&path).create_dir().await;
+    assert!(meta.is_err());
+    assert!(meta.unwrap_err().to_string().contains("Not a directory"));
 
     op.object(&path)
         .delete()
@@ -186,7 +192,7 @@ async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
     let result = op.object(&path).write(&content).await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("is a directory"));
+    assert!(result.unwrap_err().to_string().contains("Is a directory"));
 
     Ok(())
 }
@@ -226,7 +232,6 @@ async fn test_stat_dir(op: Operator) -> Result<()> {
 
     let meta = op.object(&path).metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
-    assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
         .delete()
@@ -361,7 +366,7 @@ async fn test_read_with_dir_path(op: Operator) -> Result<()> {
 
     let result = op.object(&path).read().await;
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("is a directory"));
+    assert!(result.unwrap_err().to_string().contains("Is a directory"));
 
     op.object(&path)
         .delete()
@@ -405,33 +410,11 @@ async fn test_list_dir(op: Operator) -> Result<()> {
 /// List with path file should auto add / suffix.
 async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
-    let path = uuid::Uuid::new_v4().to_string();
-    let full_path = format!("{}/{}", &parent, &path);
-    let (content, size) = gen_bytes();
 
-    let _ = op
-        .object(&full_path)
-        .write(&content)
-        .await
-        .expect("write must succeed");
+    let obs = op.objects(&parent).await.map(|_| ());
+    assert!(obs.is_err());
+    assert!(obs.unwrap_err().to_string().contains("Not a directory"));
 
-    let mut obs = op.objects(&parent).await?;
-    let mut found = false;
-    while let Some(o) = obs.next().await {
-        let meta = o?.metadata().await?;
-        if meta.path() == full_path {
-            assert_eq!(meta.mode(), ObjectMode::FILE);
-            assert_eq!(meta.content_length(), size as u64);
-
-            found = true
-        }
-    }
-    assert!(found, "file should be found in list");
-
-    op.object(&full_path)
-        .delete()
-        .await
-        .expect("delete must succeed");
     Ok(())
 }
 
@@ -459,13 +442,11 @@ async fn test_delete(op: Operator) -> Result<()> {
 async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let meta = op
-        .object(&path)
-        .create_dir()
-        .await
-        .expect("create_dir must succeed");
+    let o = op.object(&path);
 
-    let _ = op.object(meta.path()).delete().await?;
+    let _ = o.create_dir().await.expect("create_dir must succeed");
+
+    let _ = op.object(&path).delete().await?;
 
     Ok(())
 }

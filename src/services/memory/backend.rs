@@ -68,63 +68,29 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("create")]
-    async fn create(&self, args: &OpCreate) -> Result<Metadata> {
-        let path = &args.path;
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        let path = args.path();
 
-        match args.mode {
+        match args.mode() {
             ObjectMode::FILE => {
-                if path.ends_with('/') {
-                    return Err(other(ObjectError::new(
-                        "create",
-                        path,
-                        anyhow!("is a directory"),
-                    )));
-                }
-
                 let mut map = self.inner.lock().expect("lock poisoned");
-                map.insert(path.clone(), Bytes::new());
+                map.insert(path.to_string(), Bytes::new());
 
-                let mut meta = Metadata::default();
-                meta.set_path(path);
-                meta.set_mode(ObjectMode::FILE);
-                meta.set_content_length(0);
-                meta.set_complete();
-                Ok(meta)
+                Ok(())
             }
             ObjectMode::DIR => {
-                let mut path = path.clone();
-                if !path.ends_with('/') {
-                    path.push('/');
-                }
-
                 let mut map = self.inner.lock().expect("lock poisoned");
-                map.insert(path.clone(), Bytes::new());
+                map.insert(path.to_string(), Bytes::new());
 
-                let mut meta = Metadata::default();
-                meta.set_path(&path);
-                meta.set_mode(ObjectMode::DIR);
-                meta.set_content_length(0);
-                meta.set_complete();
-                Ok(meta)
+                Ok(())
             }
-            ObjectMode::Unknown => Err(other(ObjectError::new(
-                "create",
-                path,
-                anyhow!("create unknown object mode is not supported"),
-            ))),
+            _ => unreachable!(),
         }
     }
 
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = &args.path;
-        if path.ends_with('/') {
-            return Err(other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("is a directory"),
-            )));
-        }
+        let path = args.path();
 
         let map = self.inner.lock().expect("lock poisoned");
 
@@ -136,7 +102,7 @@ impl Accessor for Backend {
         })?;
 
         let mut data = data.clone();
-        if let Some(offset) = args.offset {
+        if let Some(offset) = args.offset() {
             if offset >= data.len() as u64 {
                 return Err(other(ObjectError::new(
                     "read",
@@ -147,7 +113,7 @@ impl Accessor for Backend {
             data = data.slice(offset as usize..data.len());
         };
 
-        if let Some(size) = args.size {
+        if let Some(size) = args.size() {
             if size > data.len() as u64 {
                 return Err(other(ObjectError::new(
                     "read",
@@ -163,18 +129,11 @@ impl Accessor for Backend {
 
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let path = &args.path;
-        if path.ends_with('/') {
-            return Err(other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("is a directory"),
-            )));
-        }
+        let path = args.path();
 
         Ok(Box::new(MapWriter {
-            path: path.clone(),
-            size: args.size,
+            path: path.to_string(),
+            size: args.size(),
             map: self.inner.clone(),
             buf: Default::default(),
         }))
@@ -182,7 +141,7 @@ impl Accessor for Backend {
 
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
-        let path = &args.path;
+        let path = args.path();
 
         if path.ends_with('/') {
             let mut meta = Metadata::default();
@@ -225,9 +184,6 @@ impl Accessor for Backend {
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         let mut path = args.path.clone();
-        if !path.ends_with('/') {
-            path.push('/')
-        }
         if path == "/" {
             path.clear();
         }

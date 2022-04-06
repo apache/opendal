@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::io::Result;
 use std::io::SeekFrom;
+use std::io::{ErrorKind, Result};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -39,11 +39,11 @@ use crate::error::ObjectError;
 use crate::object::Metadata;
 use crate::object::ObjectMode;
 use crate::object::ObjectStreamer;
-use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{OpCreate, OpDelete};
 use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
@@ -110,13 +110,9 @@ impl Backend {
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        // Joining an absolute path replaces the existing path, we need to
-        // normalize it before.
-        let path = path
-            .split('/')
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<&str>>()
-            .join("/");
+        if path == "/" {
+            return self.root.clone();
+        }
 
         PathBuf::from(&self.root)
             .join(path)
@@ -127,14 +123,69 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        let path = self.get_abs_path(args.path());
+
+        let parent = PathBuf::from(&path)
+            .parent()
+            .ok_or_else(|| {
+                other(ObjectError::new(
+                    "write",
+                    &path,
+                    anyhow!("malformed path: {:?}", &path),
+                ))
+            })?
+            .to_path_buf();
+
+        fs::create_dir_all(&parent).await.map_err(|e| {
+            let e = parse_io_error(e, "write", &parent.to_string_lossy());
+            error!(
+                "object {} create_dir_all for parent {}: {:?}",
+                &path,
+                &parent.to_string_lossy(),
+                e
+            );
+            e
+        })?;
+
+        if args.mode() == ObjectMode::FILE {
+            fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(&path)
+                .await
+                .map_err(|e| {
+                    let e = parse_io_error(e, "write", &path);
+                    error!("object {} create: {:?}", &path, e);
+                    e
+                })?;
+
+            return Ok(());
+        }
+
+        if args.mode() == ObjectMode::DIR {
+            fs::create_dir(&path).await.map_err(|e| {
+                let e = parse_io_error(e, "write", &path);
+                error!("object {} create: {:?}", &path, e);
+                e
+            })?;
+
+            return Ok(());
+        }
+
+        unreachable!()
+    }
+
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_fs_read_requests");
 
-        let path = self.get_abs_path(&args.path);
+        let path = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
-            &path, args.offset, args.size
+            &path,
+            args.offset(),
+            args.size()
         );
 
         let f = fs::OpenOptions::new()
@@ -149,7 +200,7 @@ impl Accessor for Backend {
 
         let mut f = Compat::new(f);
 
-        if let Some(offset) = args.offset {
+        if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
                 let e = parse_io_error(e, "read", &path);
                 error!("object {} seek: {:?}", &path, e);
@@ -157,14 +208,16 @@ impl Accessor for Backend {
             })?;
         };
 
-        let r: BytesReader = match args.size {
+        let r: BytesReader = match args.size() {
             Some(size) => Box::new(f.take(size)),
             None => Box::new(f),
         };
 
         debug!(
             "object {} reader created: offset {:?}, size {:?}",
-            &path, args.offset, args.size
+            &path,
+            args.offset(),
+            args.size()
         );
         Ok(Box::new(r))
     }
@@ -173,8 +226,8 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         increment_counter!("opendal_fs_write_requests");
 
-        let path = self.get_abs_path(&args.path);
-        debug!("object {} write start: size {}", &path, args.size);
+        let path = self.get_abs_path(args.path());
+        debug!("object {} write start: size {}", &path, args.size());
 
         // Create dir before write path.
         //
@@ -215,7 +268,7 @@ impl Accessor for Backend {
                 e
             })?;
 
-        debug!("object {} write finished: size {:?}", &path, args.size);
+        debug!("object {} write finished: size {:?}", &path, args.size());
         Ok(Box::new(Compat::new(f)))
     }
 
@@ -223,7 +276,7 @@ impl Accessor for Backend {
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_fs_stat_requests");
 
-        let path = self.get_abs_path(&args.path);
+        let path = self.get_abs_path(args.path());
         debug!("object {} stat start", &path);
 
         let meta = fs::metadata(&path).await.map_err(|e| {
@@ -233,7 +286,7 @@ impl Accessor for Backend {
         })?;
 
         let mut m = Metadata::default();
-        m.set_path(&args.path);
+        m.set_path(args.path());
         if meta.is_dir() {
             m.set_mode(ObjectMode::DIR);
         } else {
@@ -263,7 +316,7 @@ impl Accessor for Backend {
         let meta = fs::metadata(&path).await;
 
         if let Err(err) = meta {
-            return if err.kind() == std::io::ErrorKind::NotFound {
+            return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
                 let e = parse_io_error(err, "delete", &path);
@@ -295,7 +348,7 @@ impl Accessor for Backend {
         debug!("object {} list start", &path);
 
         let f = fs::read_dir(&path).await.map_err(|e| {
-            let e = parse_io_error(e, "read", &path);
+            let e = parse_io_error(e, "list", &path);
             error!("object {} list: {:?}", &path, e);
             e
         })?;

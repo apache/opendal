@@ -94,13 +94,6 @@ impl Builder {
 }
 
 /// Backend is used to serve `Accessor` support for posix alike fs.
-///
-/// # Note
-///
-/// We will use separate dedicated thread pool (powered by `unblocking`)
-/// for better async performance under tokio. All `std::File` will be wrapped
-/// by `Unblock` to gain async support. IO will happen at the separate dedicated
-/// thread pool, so we will not block the tokio runtime.
 #[derive(Debug, Clone)]
 pub struct Backend {
     root: String,
@@ -288,12 +281,19 @@ impl Accessor for Backend {
         })?;
 
         let mut m = Metadata::default();
-        m.set_path(args.path());
         if meta.is_dir() {
+            let mut p = args.path().to_string();
+            if !p.ends_with('/') {
+                p.push('/')
+            }
+            m.set_path(&p);
             m.set_mode(ObjectMode::DIR);
-        } else {
-            // TODO: we should handle LINK or other types here.
+        } else if meta.is_file() {
+            m.set_path(args.path());
             m.set_mode(ObjectMode::FILE);
+        } else {
+            m.set_path(args.path());
+            m.set_mode(ObjectMode::Unknown);
         }
         m.set_content_length(meta.len() as u64);
         m.set_last_modified(

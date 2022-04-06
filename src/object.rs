@@ -30,6 +30,7 @@ use crate::io_util::seekable_read;
 use crate::io_util::SeekableReader;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
@@ -100,11 +101,54 @@ impl Object {
         self.acc.clone()
     }
 
+    /// Create an empty file object, like using `touch path/to/file` on linux.
+    ///
+    /// An error will be returned if object path ends with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/file");
+    /// let _ = o.create_file().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn create_file(&self) -> Result<()> {
         let op = OpCreate::new(self.meta.path(), ObjectMode::FILE)?;
         self.acc.create(&op).await
     }
 
+    /// Create a dile object, like using `mkdir path/to/dir/` on linux.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Notes
+    ///
+    /// The trailing `/` in path `path/to/dir/` is required.
+    /// OpenDAL will treat all path endswith `/` as dir object.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/dir/");
+    /// let _ = o.create_dir().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn create_dir(&self) -> Result<()> {
         let op = OpCreate::new(self.meta.path(), ObjectMode::DIR)?;
         self.acc.create(&op).await
@@ -332,6 +376,52 @@ impl Object {
         let op = &OpDelete::new(self.meta.path())?;
 
         self.acc.delete(op).await
+    }
+
+    /// List current dir object.
+    ///
+    /// This function will create a new [`ObjectStreamer`][crate::ObjectStreamer] handle
+    /// to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # use futures::StreamExt;
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let o = op.object("path/to/dir/");
+    /// let mut obs = o.list().await?;
+    /// // ObjectStream implements `futures::Stream`
+    /// while let Some(o) = obs.next().await {
+    ///     let mut o = o?;
+    ///     // It's highly possible that OpenDAL already did metadata during list.
+    ///     // Use `Object::metadata_cached()` to get cached metadata at first.
+    ///     let meta = o.metadata_cached().await?;
+    ///     match meta.mode() {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list(&self) -> Result<ObjectStreamer> {
+        let op = &OpList::new(self.meta.path())?;
+
+        self.acc.list(op).await
     }
 
     pub(crate) fn metadata_ref(&self) -> &Metadata {

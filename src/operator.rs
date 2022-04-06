@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::sync::Arc;
 
-use crate::ops::OpList;
 use crate::Accessor;
 use crate::Layer;
 use crate::Object;
-use crate::ObjectStreamer;
 
 /// User-facing APIs for object and object streams.
 #[derive(Clone)]
@@ -84,50 +81,5 @@ impl Operator {
     /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
         Object::new(self.inner(), path)
-    }
-
-    /// Create a new [`ObjectStreamer`][crate::ObjectStreamer] handle to list objects.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use anyhow::Result;
-    /// use futures::StreamExt;
-    /// use opendal::ObjectMode;
-    /// use opendal::ObjectStream;
-    /// use opendal::Operator;
-    /// use opendal::services::fs;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
-    ///
-    ///     op.object("test_dir/test_file").write("Hello, World!").await?;
-    ///
-    ///     // Start listing a dir.
-    ///     let mut obs = op.objects("test_dir/").await?;
-    ///     // ObjectStream implements `futures::Stream`
-    ///     while let Some(o) = obs.next().await {
-    ///         let mut o = o?;
-    ///         // It's highly possible that OpenDAL already did metadata during list.
-    ///         // Use `Object::metadata_cached()` to get cached metadata at first.
-    ///         let meta = o.metadata_cached().await?;
-    ///         match meta.mode() {
-    ///             ObjectMode::FILE => {
-    ///                 println!("Handling file")
-    ///             }
-    ///             ObjectMode::DIR => {
-    ///                 println!("Handling dir like start a new list via meta.path()")
-    ///             }
-    ///             ObjectMode::Unknown => continue,
-    ///         }
-    ///     }
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn objects(&self, path: &str) -> Result<ObjectStreamer> {
-        let op = OpList::new(&Object::normalize_path(path))?;
-        self.inner().list(&op).await
     }
 }

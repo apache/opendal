@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Operations used by [`Accessor`][crate::Accessor]
+//! Operations used by [`Accessor`][crate::Accessor].
+//!
+//! Users should not use struct or functions here, use [`Operator`][crate::Operator] instead
 
 use std::collections::Bound;
 use std::io::Result;
@@ -34,6 +36,9 @@ pub struct OpCreate {
 }
 
 impl OpCreate {
+    /// Create a new `OpCreate`.
+    ///
+    /// If input path is not match with object mode, an error will be returned.
     pub fn new(path: &str, mode: ObjectMode) -> Result<Self> {
         match mode {
             ObjectMode::FILE => {
@@ -89,6 +94,9 @@ pub struct OpRead {
 }
 
 impl OpRead {
+    /// Create a new `OpRead`.
+    ///
+    /// If input path is not a file path, an error will be returned.
     pub fn new(path: &str, range: impl RangeBounds<u64>) -> Result<Self> {
         if path.ends_with('/') {
             return Err(other(ObjectError::new(
@@ -146,6 +154,7 @@ pub struct OpStat {
 }
 
 impl OpStat {
+    /// Create a new `OpStat`.
     pub fn new(path: &str) -> Result<Self> {
         Ok(Self {
             path: path.to_string(),
@@ -166,6 +175,9 @@ pub struct OpWrite {
 }
 
 impl OpWrite {
+    /// Create a new `OpWrite`.
+    ///
+    /// If input path is not a file path, an error will be returned.
     pub fn new(path: &str, size: u64) -> Result<Self> {
         if path.ends_with('/') {
             return Err(other(ObjectError::new(
@@ -197,6 +209,7 @@ pub struct OpDelete {
 }
 
 impl OpDelete {
+    /// Create a new `OpDelete`.
     pub fn new(path: &str) -> Result<Self> {
         Ok(Self {
             path: path.to_string(),
@@ -216,6 +229,9 @@ pub struct OpList {
 }
 
 impl OpList {
+    /// Create a new `OpList`.
+    ///
+    /// If input path is not a dir path, an error will be returned.
     pub fn new(path: &str) -> Result<Self> {
         if !path.ends_with('/') {
             return Err(other(ObjectError::new(

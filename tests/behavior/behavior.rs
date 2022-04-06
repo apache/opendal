@@ -388,7 +388,7 @@ async fn test_list_dir(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut obs = op.objects("/").await?;
+    let mut obs = op.object("/").list().await?;
     let mut found = false;
     while let Some(o) = obs.next().await {
         let meta = o?.metadata().await?;
@@ -418,7 +418,7 @@ async fn test_list_sub_dir(op: Operator) -> Result<()> {
         .await
         .expect("create_dir must succeed");
 
-    let mut obs = op.objects("/").await?;
+    let mut obs = op.object("/").list().await?;
     let mut found = false;
     while let Some(o) = obs.next().await {
         let meta = o?.metadata().await?;
@@ -441,7 +441,7 @@ async fn test_list_sub_dir(op: Operator) -> Result<()> {
 async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
 
-    let obs = op.objects(&parent).await.map(|_| ());
+    let obs = op.object(&parent).list().await.map(|_| ());
     assert!(obs.is_err());
     assert!(obs.unwrap_err().to_string().contains("Not a directory"));
 

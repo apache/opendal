@@ -20,6 +20,7 @@ use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+use bitflags::bitflags;
 use futures::io;
 use futures::io::Cursor;
 use futures::AsyncWriteExt;
@@ -627,6 +628,15 @@ impl Display for ObjectMode {
             ObjectMode::DIR => write!(f, "dir"),
             ObjectMode::Unknown => write!(f, "unknown"),
         }
+    }
+}
+
+bitflags! {
+    pub struct ObjectAction: u64 {
+        const LIST = 1<<0;
+        const READ = 2<<0;
+        const WRITE = 3<<0;
+        const DECOMPRESS = 4<<0;
     }
 }
 

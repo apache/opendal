@@ -9,6 +9,9 @@ name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
 version = "0.4.2"
 
+[features]
+compress = ["async-compression"]
+
 [workspace]
 members = ["opendal_test"]
 
@@ -26,6 +29,10 @@ name = "io"
 [dependencies]
 anyhow = "1"
 async-compat = "0.2"
+async-compression = { version = "0.3.12", features = [
+  "futures-io",
+  "all-algorithms",
+], optional = true }
 async-trait = "0.1"
 base64 = "0.13.0"
 bytes = "1.1.0"

@@ -24,7 +24,7 @@
 //!
 //! # Example
 //!
-//! ```
+//! ```no_run
 //! use anyhow::Result;
 //! use futures::StreamExt;
 //! use opendal::services::fs;

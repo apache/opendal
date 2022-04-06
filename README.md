@@ -61,12 +61,15 @@ async fn main() -> Result<()> {
     let length: u64 = meta.content_length();
     let content_md5: Option<String> = meta.content_md5();
 
-    // List dir object.
-    let mut obs: ObjectStreamer = op.objects("").await?;
-    while let Some(o) = obs.next().await {}
-
     // Delete object.
     let _: () = o.delete().await?;
+
+    // List dir object.
+    let o: Object = op.object("test_dir/");
+    let mut obs: ObjectStreamer = o.list().await?;
+    while let Some(entry) = obs.next().await {
+        let entry: Object = entry?;
+    }
 
     Ok(())
 }

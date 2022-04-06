@@ -105,7 +105,7 @@ impl Operator {
     ///     op.object("test_dir/test_file").write("Hello, World!").await?;
     ///
     ///     // Start listing a dir.
-    ///     let mut obs = op.objects("test_dir").await?;
+    ///     let mut obs = op.objects("test_dir/").await?;
     ///     // ObjectStream implements `futures::Stream`
     ///     while let Some(o) = obs.next().await {
     ///         let mut o = o?;
@@ -127,7 +127,7 @@ impl Operator {
     /// }
     /// ```
     pub async fn objects(&self, path: &str) -> Result<ObjectStreamer> {
-        let op = OpList::new(path);
+        let op = OpList::new(&Object::normalize_path(path))?;
         self.inner().list(&op).await
     }
 }

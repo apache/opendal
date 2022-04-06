@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -27,6 +28,7 @@ use time::OffsetDateTime;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 use crate::io_util::SeekableReader;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -42,19 +44,70 @@ pub struct Object {
 }
 
 impl Object {
-    /// Creates a new Object.
+    /// Creates a new Object with normalized path.
+    ///
+    /// - All path will be converted into relative path (without any leading `/`)
+    /// - Path endswith `/` means it's a dir path.
+    /// - Otherwise, it's a file path.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         Self {
             acc,
             meta: Metadata {
-                path: path.to_string(),
+                path: Object::normalize_path(path),
                 ..Default::default()
             },
         }
     }
 
+    /// Make sure all operation are constructed by normalized path:
+    ///
+    /// - Path endswith `/` means it's a dir path.
+    /// - Otherwise, it's a file path.
+    ///
+    /// # Normalize Rules
+    ///
+    /// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
+    /// - All leading / will be trimmed: `///abc` => `abc`
+    /// - Internal // will be replaced by /: `abc///def` => `abc/def`
+    /// - Empty path will be `/`: `` => `/`
+    pub(crate) fn normalize_path(path: &str) -> String {
+        // - all whitespace has been trimmed.
+        // - all leading `/` has been trimmed.
+        let path = path.trim().trim_start_matches('/');
+
+        // Fast line for empty path.
+        if path.is_empty() {
+            return "/".to_string();
+        }
+
+        let has_trailing = path.ends_with('/');
+
+        let mut p = path
+            .split('/')
+            .filter(|v| !v.is_empty())
+            .collect::<Vec<&str>>()
+            .join("/");
+
+        // Append trailing back if input path is endswith `/`.
+        if has_trailing {
+            p.push('/');
+        }
+
+        p
+    }
+
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
         self.acc.clone()
+    }
+
+    pub async fn create_file(&self) -> Result<()> {
+        let op = OpCreate::new(self.meta.path(), ObjectMode::FILE)?;
+        self.acc.create(&op).await
+    }
+
+    pub async fn create_dir(&self) -> Result<()> {
+        let op = OpCreate::new(self.meta.path(), ObjectMode::DIR)?;
+        self.acc.create(&op).await
     }
 
     /// Read the whole object into a bytes.
@@ -104,7 +157,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        let op = OpRead::new(self.meta.path(), range);
+        let op = OpRead::new(self.meta.path(), range)?;
         let s = self.acc.read(&op).await?;
 
         let mut bs = Cursor::new(Vec::new());
@@ -155,7 +208,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
-        let op = OpRead::new(self.meta.path(), range);
+        let op = OpRead::new(self.meta.path(), range)?;
         Ok(self.acc.read(&op).await?)
     }
 
@@ -216,7 +269,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn write(&self, bs: impl AsRef<[u8]>) -> Result<()> {
-        let op = OpWrite::new(self.meta.path(), bs.as_ref().len() as u64);
+        let op = OpWrite::new(self.meta.path(), bs.as_ref().len() as u64)?;
         let mut s = self.acc.write(&op).await?;
 
         s.write_all(bs.as_ref()).await?;
@@ -250,7 +303,7 @@ impl Object {
     /// ```
     pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
         let op = OpWrite::new(self.meta.path(), size);
-        let s = self.acc.write(&op).await?;
+        let s = self.acc.write(&op?).await?;
 
         Ok(s)
     }
@@ -276,7 +329,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn delete(&self) -> Result<()> {
-        let op = &OpDelete::new(self.meta.path());
+        let op = &OpDelete::new(self.meta.path())?;
 
         self.acc.delete(op).await
     }
@@ -312,7 +365,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn metadata(&self) -> Result<Metadata> {
-        let op = &OpStat::new(self.meta.path());
+        let op = &OpStat::new(self.meta.path())?;
 
         self.acc.stat(op).await
     }
@@ -345,7 +398,7 @@ impl Object {
             return Ok(&self.meta);
         }
 
-        let op = &OpStat::new(self.meta.path());
+        let op = &OpStat::new(self.meta.path())?;
         self.meta = self.acc.stat(op).await?;
 
         Ok(&self.meta)
@@ -493,3 +546,30 @@ impl<T> ObjectStream for T where T: futures::Stream<Item = Result<Object>> + Unp
 
 /// ObjectStreamer is a boxed dyn [`ObjectStream`]
 pub type ObjectStreamer = Box<dyn ObjectStream>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_dir_path() {
+        let cases = vec![
+            ("file path", "abc", "abc"),
+            ("dir path", "abc/", "abc/"),
+            ("empty path", "", "/"),
+            ("root path", "/", "/"),
+            ("root path with extra /", "///", "/"),
+            ("abs file path", "/abc/def", "abc/def"),
+            ("abs dir path", "/abc/def/", "abc/def/"),
+            ("abs file path with extra /", "///abc/def", "abc/def"),
+            ("abs dir path with extra /", "///abc/def/", "abc/def/"),
+            ("file path contains ///", "abc///def", "abc/def"),
+            ("dir path contains ///", "abc///def///", "abc/def/"),
+            ("file with whitespace", "abc/def   ", "abc/def"),
+        ];
+
+        for (name, input, expect) in cases {
+            assert_eq!(Object::normalize_path(input), expect, "{}", name)
+        }
+    }
+}

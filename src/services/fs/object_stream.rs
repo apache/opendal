@@ -18,27 +18,26 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::ready;
 use log::debug;
 use log::error;
-use tokio::fs;
 
 use super::error::parse_io_error;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::Accessor;
 use crate::Object;
+use crate::ObjectMode;
 
 pub struct Readdir {
     acc: Arc<dyn Accessor>,
     root: String,
     path: String,
 
-    rd: fs::ReadDir,
+    rd: std::fs::ReadDir,
 }
 
 impl Readdir {
-    pub fn new(acc: Arc<dyn Accessor>, root: &str, path: &str, rd: fs::ReadDir) -> Self {
+    pub fn new(acc: Arc<dyn Accessor>, root: &str, path: &str, rd: std::fs::ReadDir) -> Self {
         Self {
             acc,
             root: root.to_string(),
@@ -51,17 +50,17 @@ impl Readdir {
 impl futures::Stream for Readdir {
     type Item = Result<Object>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match ready!(Pin::new(&mut self.rd).poll_next_entry(cx)) {
-            Err(e) => {
-                error!("object {} stream poll_next: {:?}", &self.path, e);
-                Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path))))
-            }
-            Ok(None) => {
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.rd.next() {
+            None => {
                 debug!("object {} list done", &self.path);
                 Poll::Ready(None)
             }
-            Ok(Some(de)) => {
+            Some(Err(e)) => {
+                error!("object {} stream poll_next: {:?}", &self.path, e);
+                Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path))))
+            }
+            Some(Ok(de)) => {
                 let de_path = de.path();
                 let de_path = de_path.strip_prefix(&self.root).map_err(|e| {
                     let e = other(ObjectError::new("list", &de.path().to_string_lossy(), e));
@@ -72,8 +71,24 @@ impl futures::Stream for Readdir {
 
                 let mut o = Object::new(self.acc.clone(), &path);
 
+                // On Windows and most Unix platforms this function is free
+                // (no extra system calls needed), but some Unix platforms may
+                // require the equivalent call to symlink_metadata to learn about
+                // the target file type.
+                let de = de.file_type()?;
+
                 let meta = o.metadata_mut();
-                meta.set_path(&path);
+                if de.is_file() {
+                    meta.set_mode(ObjectMode::FILE);
+                    meta.set_path(&path);
+                } else if de.is_dir() {
+                    // Make sure we are returning the correct path.
+                    meta.set_path(&format!("{}/", &path));
+                    meta.set_mode(ObjectMode::DIR);
+                } else {
+                    meta.set_path(&path);
+                    meta.set_mode(ObjectMode::Unknown);
+                }
 
                 debug!("object {} got entry, path: {}", &self.path, meta.path());
                 Poll::Ready(Some(Ok(o)))

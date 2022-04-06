@@ -52,6 +52,7 @@ use crate::io_util::HttpBodyWriter;
 use crate::object::Metadata;
 use crate::object::ObjectStreamer;
 use crate::ops::BytesRange;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -495,7 +496,11 @@ impl Builder {
             // Use "/" as root if user not specified.
             None => "/".to_string(),
             Some(v) => {
-                let mut v = Backend::normalize_path(v);
+                let mut v = v
+                    .split('/')
+                    .filter(|v| !v.is_empty())
+                    .collect::<Vec<&str>>()
+                    .join("/");
                 if !v.starts_with('/') {
                     v.insert(0, '/');
                 }
@@ -590,33 +595,13 @@ impl Backend {
         Builder::default()
     }
 
-    // normalize_path removes all internal `//` inside path.
-    pub(crate) fn normalize_path(path: &str) -> String {
-        // TODO: we need a unit test.
-        if path.is_empty() || path == "/" {
-            return String::new();
-        }
-
-        let has_trailing = path.ends_with('/');
-
-        let mut p = path
-            .split('/')
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<&str>>()
-            .join("/");
-
-        if has_trailing && !p.eq("/") {
-            p.push('/')
-        }
-
-        p
-    }
-
     /// get_abs_path will return the absolute path of the given path in the s3 format.
     ///
     /// Read [RFC-112](https://github.com/datafuselabs/opendal/pull/112) for more details.
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        let path = Backend::normalize_path(path);
+        if path == "/" {
+            return self.root.trim_start_matches('/').to_string();
+        }
         // root must be normalized like `/abc/`
         format!("{}{}", self.root, path)
             .trim_start_matches('/')
@@ -625,7 +610,6 @@ impl Backend {
 
     /// get_rel_path will return the relative path of the given path in the s3 format.
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
-        let path = Backend::normalize_path(path);
         let path = format!("/{}", path);
 
         match path.strip_prefix(&self.root) {
@@ -702,22 +686,50 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        increment_counter!("opendal_s3_create_requests");
+        let p = self.get_abs_path(args.path());
+
+        let req = self.put_object(&p, 0, Body::empty()).await;
+        let resp = self.client.request(req).await.map_err(|e| {
+            error!("object {} get_object: {:?}", args.path(), e);
+            other(ObjectError::new("read", args.path(), e))
+        })?;
+
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                debug!("object {} create finished", args.path());
+                Ok(())
+            }
+            _ => Err(parse_error_response_without_body(
+                resp,
+                "write",
+                args.path(),
+            )),
+        }
+    }
+
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         increment_counter!("opendal_s3_read_requests");
 
-        let p = self.get_abs_path(&args.path);
+        let p = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
-            &p, args.offset, args.size
+            &p,
+            args.offset(),
+            args.size()
         );
 
-        let resp = self.get_object(&p, args.offset, args.size).await?;
+        let resp = self.get_object(&p, args.offset(), args.size()).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 debug!(
                     "object {} reader created: offset {:?}, size {:?}",
-                    &p, args.offset, args.size
+                    &p,
+                    args.offset(),
+                    args.size()
                 );
 
                 Ok(Box::new(
@@ -733,20 +745,20 @@ impl Accessor for Backend {
 
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let p = self.get_abs_path(&args.path);
-        debug!("object {} write start: size {}", &p, args.size);
+        let p = self.get_abs_path(args.path());
+        debug!("object {} write start: size {}", &p, args.size());
 
         let (tx, body) = new_http_channel();
 
-        let req = self.put_object(&p, args.size, body).await;
+        let req = self.put_object(&p, args.size(), body).await;
 
         let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
                 StatusCode::CREATED | StatusCode::OK => {
-                    debug!("object {} write finished: size {:?}", op.path, op.size);
+                    debug!("object {} write finished: size {:?}", op.path(), op.size());
                     Ok(())
                 }
-                _ => Err(parse_error_response_without_body(resp, "write", &op.path)),
+                _ => Err(parse_error_response_without_body(resp, "write", op.path())),
             }
         });
 
@@ -757,13 +769,13 @@ impl Accessor for Backend {
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         increment_counter!("opendal_s3_stat_requests");
 
-        let p = self.get_abs_path(&args.path);
+        let p = self.get_abs_path(args.path());
         debug!("object {} stat start", &p);
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
             let mut m = Metadata::default();
-            m.set_path(&args.path);
+            m.set_path(args.path());
             m.set_content_length(0);
             m.set_mode(ObjectMode::DIR);
             m.set_complete();
@@ -777,7 +789,7 @@ impl Accessor for Backend {
         match resp.status() {
             StatusCode::OK => {
                 let mut m = Metadata::default();
-                m.set_path(&args.path);
+                m.set_path(args.path());
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
@@ -815,7 +827,7 @@ impl Accessor for Backend {
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
                 let mut m = Metadata::default();
-                m.set_path(&args.path);
+                m.set_path(args.path());
                 m.set_content_length(0);
                 m.set_mode(ObjectMode::DIR);
                 m.set_complete();

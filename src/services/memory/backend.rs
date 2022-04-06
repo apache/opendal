@@ -26,6 +26,7 @@ use std::task::Poll;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::BufMut;
+use bytes::Bytes;
 use futures::io::Cursor;
 use futures::AsyncWrite;
 use minitrace::trace;
@@ -33,6 +34,7 @@ use minitrace::trace;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::object::ObjectStreamer;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -63,61 +65,61 @@ impl Backend {
     pub fn build() -> Builder {
         Builder::default()
     }
-
-    // normalize_path removes all internal `//` inside path.
-    pub(crate) fn normalize_path(path: &str) -> String {
-        if path.is_empty() || path == "/" {
-            return String::new();
-        }
-
-        let has_trailing = path.ends_with('/');
-
-        let mut p = path
-            .split('/')
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<&str>>()
-            .join("/");
-
-        if has_trailing && !p.eq("/") {
-            p.push('/')
-        }
-
-        p
-    }
 }
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("create")]
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        let path = args.path();
+
+        match args.mode() {
+            ObjectMode::FILE => {
+                let mut map = self.inner.lock().expect("lock poisoned");
+                map.insert(path.to_string(), Bytes::new());
+
+                Ok(())
+            }
+            ObjectMode::DIR => {
+                let mut map = self.inner.lock().expect("lock poisoned");
+                map.insert(path.to_string(), Bytes::new());
+
+                Ok(())
+            }
+            _ => unreachable!(),
+        }
+    }
+
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = Backend::normalize_path(&args.path);
+        let path = args.path();
 
         let map = self.inner.lock().expect("lock poisoned");
 
-        let data = map.get(&path).ok_or_else(|| {
+        let data = map.get(path).ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
-                ObjectError::new("read", &path, anyhow!("key not exists in map")),
+                ObjectError::new("read", path, anyhow!("key not exists in map")),
             )
         })?;
 
         let mut data = data.clone();
-        if let Some(offset) = args.offset {
+        if let Some(offset) = args.offset() {
             if offset >= data.len() as u64 {
                 return Err(other(ObjectError::new(
                     "read",
-                    &path,
+                    path,
                     anyhow!("offset out of bound {} >= {}", offset, data.len()),
                 )));
             }
             data = data.slice(offset as usize..data.len());
         };
 
-        if let Some(size) = args.size {
+        if let Some(size) = args.size() {
             if size > data.len() as u64 {
                 return Err(other(ObjectError::new(
                     "read",
-                    &path,
+                    path,
                     anyhow!("size out of bound {} > {}", size, data.len()),
                 )));
             }
@@ -129,11 +131,11 @@ impl Accessor for Backend {
 
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let path = Backend::normalize_path(&args.path);
+        let path = args.path();
 
         Ok(Box::new(MapWriter {
-            path,
-            size: args.size,
+            path: path.to_string(),
+            size: args.size(),
             map: self.inner.clone(),
             buf: Default::default(),
         }))
@@ -141,11 +143,11 @@ impl Accessor for Backend {
 
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
-        let path = Backend::normalize_path(&args.path);
+        let path = args.path();
 
-        if path.ends_with('/') || path.is_empty() {
+        if path.ends_with('/') {
             let mut meta = Metadata::default();
-            meta.set_path(&path)
+            meta.set_path(path)
                 .set_mode(ObjectMode::DIR)
                 .set_content_length(0)
                 .set_complete();
@@ -155,33 +157,38 @@ impl Accessor for Backend {
 
         let map = self.inner.lock().expect("lock poisoned");
 
-        let data = map.get(&path).ok_or_else(|| {
+        let data = map.get(path).ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
-                ObjectError::new("read", &path, anyhow!("key not exists in map")),
+                ObjectError::new("read", path, anyhow!("key not exists in map")),
             )
         })?;
 
         let mut meta = Metadata::default();
-        meta.set_path(&path)
+        meta.set_path(path)
             .set_mode(ObjectMode::FILE)
             .set_content_length(data.len() as u64)
             .set_complete();
 
         Ok(meta)
     }
+
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = Backend::normalize_path(&args.path);
+        let path = &args.path;
 
         let mut map = self.inner.lock().expect("lock poisoned");
-        map.remove(&path);
+        map.remove(path);
 
         Ok(())
     }
+
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
-        let path = Backend::normalize_path(&args.path);
+        let mut path = args.path.clone();
+        if path == "/" {
+            path.clear();
+        }
 
         let map = self.inner.lock().expect("lock poisoned");
 

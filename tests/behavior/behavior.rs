@@ -23,10 +23,8 @@
 use std::io;
 
 use anyhow::Result;
-use futures::AsyncWriteExt;
 use futures::StreamExt;
 use log::debug;
-use opendal::io_util::CompressAlgorithm;
 use opendal::ObjectMode;
 use opendal::Operator;
 use opendal_test::services;
@@ -54,7 +52,9 @@ macro_rules! behavior_tests {
                 test_read_range,
                 test_read_not_exist,
                 test_read_with_dir_path,
+                #[cfg(feature = "compress")]
                 test_read_decompress_gzip,
+                #[cfg(feature = "compress")]
                 test_read_decompress_gzip_with,
 
                 test_stat,
@@ -76,13 +76,16 @@ macro_rules! behavior_tests {
 }
 
 macro_rules! behavior_test {
-    ($service:ident, $($test:ident),*,) => {
+    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             mod [<$service>] {
                 use super::*;
 
                 $(
                     #[tokio::test]
+                    $(
+                        #[$meta]
+                    )*
                     async fn [< $test >]() -> Result<()> {
                         init_logger();
 
@@ -345,8 +348,10 @@ async fn test_read_with_dir_path(op: Operator) -> Result<()> {
 }
 
 // Read a compressed file.
+#[cfg(feature = "compress")]
 async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
     use async_compression::futures::write::GzipEncoder;
+    use futures::AsyncWriteExt;
 
     let path = format!("{}.gz", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
@@ -375,8 +380,11 @@ async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
 }
 
 // Read a compressed file with algo.
+#[cfg(feature = "compress")]
 async fn test_read_decompress_gzip_with(op: Operator) -> Result<()> {
     use async_compression::futures::write::GzipEncoder;
+    use futures::AsyncWriteExt;
+    use opendal::io_util::CompressAlgorithm;
 
     let path = format!("{}.gz", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);

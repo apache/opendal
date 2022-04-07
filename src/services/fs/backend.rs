@@ -126,7 +126,7 @@ impl Accessor for Backend {
                 .parent()
                 .ok_or_else(|| {
                     other(ObjectError::new(
-                        "write",
+                        "create",
                         &path,
                         anyhow!("malformed path: {:?}", &path),
                     ))
@@ -134,7 +134,7 @@ impl Accessor for Backend {
                 .to_path_buf();
 
             fs::create_dir_all(&parent).await.map_err(|e| {
-                let e = parse_io_error(e, "write", &parent.to_string_lossy());
+                let e = parse_io_error(e, "create", &parent.to_string_lossy());
                 error!(
                     "object {} create_dir_all for parent {:?}: {:?}",
                     &path, &parent, e
@@ -148,7 +148,7 @@ impl Accessor for Backend {
                 .open(&path)
                 .await
                 .map_err(|e| {
-                    let e = parse_io_error(e, "write", &path);
+                    let e = parse_io_error(e, "create", &path);
                     error!("object {} create: {:?}", &path, e);
                     e
                 })?;

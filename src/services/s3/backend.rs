@@ -692,7 +692,7 @@ impl Accessor for Backend {
 
         let req = self.put_object(&p, 0, Body::empty()).await;
         let resp = self.client.request(req).await.map_err(|e| {
-            error!("object {} get_object: {:?}", args.path(), e);
+            error!("object {} put_object: {:?}", args.path(), e);
             other(ObjectError::new("read", args.path(), e))
         })?;
 

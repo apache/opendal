@@ -49,6 +49,7 @@ use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodyWriter;
 use crate::object::Metadata;
 use crate::ops::BytesRange;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -134,7 +135,11 @@ impl Builder {
             // Use "/" as root if user not specified.
             None => "/".to_string(),
             Some(v) => {
-                let mut v = Backend::normalize_path(v);
+                let mut v = v
+                    .split('/')
+                    .filter(|v| !v.is_empty())
+                    .collect::<Vec<&str>>()
+                    .join("/");
                 if !v.starts_with('/') {
                     v.insert(0, '/');
                 }
@@ -159,7 +164,7 @@ impl Builder {
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => endpoint.clone(),
-            None => "blob.core.windows.net".to_string(),
+            None => "https://blob.core.windows.net".to_string(),
         };
 
         let context = HashMap::from([
@@ -206,23 +211,10 @@ impl Backend {
         Builder::default()
     }
 
-    pub(crate) fn normalize_path(path: &str) -> String {
-        let has_trailing = path.ends_with('/');
-
-        let mut p = path
-            .split('/')
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<&str>>()
-            .join("/");
-
-        if has_trailing && !p.eq("/") {
-            p.push('/')
-        }
-
-        p
-    }
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        let path = Backend::normalize_path(path);
+        if path == "/" {
+            return self.root.trim_start_matches('/').to_string();
+        }
         // root must be normalized like `/abc/`
         format!("{}{}", self.root, path)
             .trim_start_matches('/')
@@ -244,8 +236,32 @@ impl Backend {
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        increment_counter!("opendal_azblob_create_requests");
+        let p = self.get_abs_path(args.path());
+
+        let req = self.put_blob(&p, 0, Body::empty()).await;
+        let resp = self.client.request(req).await.map_err(|e| {
+            error!("object {} put_object: {:?}", args.path(), e);
+            other(ObjectError::new("read", args.path(), e))
+        })?;
+
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                debug!("object {} create finished", args.path());
+                Ok(())
+            }
+            _ => Err(parse_error_response_without_body(
+                resp,
+                "write",
+                args.path(),
+            )),
+        }
+    }
+
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        increment_counter!("opendal_azure_read_requests");
+        increment_counter!("opendal_azblob_read_requests");
 
         let p = self.get_abs_path(args.path());
         debug!(
@@ -380,7 +396,7 @@ impl Accessor for Backend {
 
         let resp = self.delete_blob(&p).await?;
         match resp.status() {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED => {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
@@ -392,11 +408,7 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_azblob_list_requests");
 
-        let mut path = self.get_abs_path(&args.path);
-        // Make sure list path is endswith '/'
-        if !path.ends_with('/') && !path.is_empty() {
-            path.push('/')
-        }
+        let path = self.get_abs_path(&args.path);
         debug!("object {} list start", &path);
 
         Ok(Box::new(AzblobObjectStream::new(self.clone(), path)))
@@ -412,7 +424,7 @@ impl Backend {
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
         let mut req = hyper::Request::get(&format!(
-            "https://{}.{}/{}/{}",
+            "{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
         ));
 
@@ -443,7 +455,7 @@ impl Backend {
         body: Body,
     ) -> hyper::Request<hyper::Body> {
         let mut req = hyper::Request::put(&format!(
-            "https://{}.{}/{}/{}",
+            "{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
         ));
 
@@ -465,7 +477,7 @@ impl Backend {
         path: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::head(&format!(
-            "https://{}.{}/{}/{}",
+            "{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
         ));
         let mut req = req
@@ -483,7 +495,7 @@ impl Backend {
     #[trace("delete_blob")]
     pub(crate) async fn delete_blob(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
         let req = hyper::Request::delete(&format!(
-            "https://{}.{}/{}/{}",
+            "{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
         ));
 
@@ -506,7 +518,7 @@ impl Backend {
         next_marker: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
         let mut uri = format!(
-            "https://{}.{}/{}?restype=container&comp=list&delimiter=/",
+            "{}.{}/{}?restype=container&comp=list&delimiter=/",
             self.account_name, self.endpoint, self.container
         );
         if !path.is_empty() {

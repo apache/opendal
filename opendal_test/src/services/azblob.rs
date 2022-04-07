@@ -33,18 +33,18 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
         return Ok(None);
     }
 
-    let root =
-        &env::var("OPENDAL_AZBLOB_ROOT").unwrap_or_else(|_| format!("/{}", uuid::Uuid::new_v4()));
+    let root = &env::var("OPENDAL_AZBLOB_ROOT").unwrap_or_else(|_| "/".to_string());
+    let root = format!("/{}/{}", root, uuid::Uuid::new_v4());
 
     let mut builder = azblob::Backend::build();
 
     builder
-        .root(root)
+        .root(&root)
         .container(
             &env::var("OPENDAL_AZBLOB_CONTAINER").expect("OPENDAL_AZBLOB_CONTAINER must set"),
         )
         .endpoint(&env::var("OPENDAL_AZBLOB_ENDPOINT").unwrap_or_default())
-        .account_key(&env::var("OPENDAL_AZBLOB_ACCOUNT_NAME").unwrap_or_default())
+        .account_name(&env::var("OPENDAL_AZBLOB_ACCOUNT_NAME").unwrap_or_default())
         .account_key(&env::var("OPENDAL_AZBLOB_ACCOUNT_KEY").unwrap_or_default());
 
     Ok(Some(builder.finish().await?))

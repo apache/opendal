@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.5.0] - 2022-04-07
+
+### Added
+
+- feat: Improve error message (#220)
+- RFC-0221: Create Dir (#221)
+- feat: Simplify create API (#225)
+- feat: Implement decompress read support (#227)
+- ci: Enable behavior test for azblob (#229)
+- docs: Add docs for azblob's public structs (#230)
+
+### Changed
+
+- refactor: Move op.objects() to o.list() (#224)
+- refactor: Improve behavior_tests so that cargo test works without --all-features (#231)
+
+### Fixed
+
+- fix: Azblob should pass all behavior tests now (#228)
+
 ## [v0.4.2] - 2022-04-03
 
 ### Added
@@ -242,6 +262,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.5.0]: https://github.com/datafuselabs/opendal/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/datafuselabs/opendal/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/datafuselabs/opendal/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/datafuselabs/opendal/compare/v0.3.0...v0.4.0

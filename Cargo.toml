@@ -3,11 +3,11 @@ authors = ["Databend Authors <opensource@datafuselabs.com>"]
 categories = ["filesystem"]
 description = "Open Data Access Layer that connect the whole world together."
 edition = "2021"
-keywords = ["storage", "data", "s3", "fs"]
+keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.4.2"
+version = "0.5.0"
 
 [features]
 compress = ["async-compression"]

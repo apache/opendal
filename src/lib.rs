@@ -18,6 +18,7 @@
 //!
 //! | Services | Description |
 //! | -------- | ----------- |
+//! | [azblob][crate::services::azblob] | Azure Storage Blob services. |
 //! | [fs][crate::services::fs] | POSIX alike file system. |
 //! | [memory][crate::services::memory] | In memory backend support. |
 //! | [s3][crate::services::s3] | AWS S3 alike services. |

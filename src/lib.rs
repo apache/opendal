@@ -23,6 +23,10 @@
 //! | [memory][crate::services::memory] | In memory backend support. |
 //! | [s3][crate::services::s3] | AWS S3 alike services. |
 //!
+//! # Optional features
+//!
+//! - `compress`: Enable object decompress read support.
+//!
 //! # Example
 //!
 //! ```no_run

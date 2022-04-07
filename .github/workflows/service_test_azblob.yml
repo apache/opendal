@@ -16,7 +16,6 @@ jobs:
         image: mcr.microsoft.com/azure-storage/azurite
         ports:
           - 10000:10000
-        options: --entrypoint "azurite-blob --blobHost 0.0.0.0 --blobPort 10000"
 
     steps:
       - uses: actions/checkout@v2

@@ -47,12 +47,9 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// | path type | mode | result   |
-    /// | --------- | ---- | ------   |
-    /// | file path | FILE | `Ok(_)`  |
-    /// | dir path  | FILE | `Err(_)` |
-    /// | file path | DIR  | `Err(_)`  |
-    /// | dir path  | DIR  | `Ok(_)`  |
+    /// - Input path MUST match with ObjectMode, DON'T NEED to check object mode.
+    /// - Create on existing dir SHOULD succeed.
+    /// - Create on existing file SHOULD overwrite and truncate.
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let _ = args;
         unimplemented!()
@@ -60,6 +57,10 @@ pub trait Accessor: Send + Sync + Debug {
 
     /// Invoke the `read` operation on the specified path, returns a
     /// [`BytesReader`][crate::BytesReader] if operate successful.
+    ///
+    /// # Behavior
+    ///
+    /// - Input path MUST be file path, DON'T NEED to check object mode.
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let _ = args;
         unimplemented!()
@@ -67,6 +68,10 @@ pub trait Accessor: Send + Sync + Debug {
 
     /// Invoke the `write` operation on the specified path, returns a
     /// [`BytesWriter`][crate::BytesWriter] if operate successful.
+    ///
+    /// # Behavior
+    ///
+    /// - Input path MUST be file path, DON'T NEED to check object mode.
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let _ = args;
         unimplemented!()
@@ -78,8 +83,6 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
-    ///   - On fs, an error could return if not a dir.
-    ///   - On s3 alike backends, a dir object will return no matter it exist or not.
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let _ = args;
         unimplemented!()
@@ -90,7 +93,7 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
-    /// - `delete` will return `Ok(())` if the path is deleted successfully or not exist.
+    /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let _ = args;
         unimplemented!()
@@ -100,7 +103,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - list on file path should emit an `NotADirectory` error.
+    /// - Input path MUST be dir path, DON'T NEED to check object mode.
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         let _ = args;
         unimplemented!()

@@ -23,7 +23,8 @@ jobs:
       - uses: Swatinem/rust-cache@v1
 
       - name: Setup test bucket
-        run: az storage container create \
+        run: |
+            az storage container create \
                 --name test \
                 --auth-mode key \
                 --account-name devstoreaccount1 \

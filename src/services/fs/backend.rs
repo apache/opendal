@@ -121,29 +121,27 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = self.get_abs_path(args.path());
 
-        let parent = PathBuf::from(&path)
-            .parent()
-            .ok_or_else(|| {
-                other(ObjectError::new(
-                    "write",
-                    &path,
-                    anyhow!("malformed path: {:?}", &path),
-                ))
-            })?
-            .to_path_buf();
-
-        fs::create_dir_all(&parent).await.map_err(|e| {
-            let e = parse_io_error(e, "write", &parent.to_string_lossy());
-            error!(
-                "object {} create_dir_all for parent {}: {:?}",
-                &path,
-                &parent.to_string_lossy(),
-                e
-            );
-            e
-        })?;
-
         if args.mode() == ObjectMode::FILE {
+            let parent = PathBuf::from(&path)
+                .parent()
+                .ok_or_else(|| {
+                    other(ObjectError::new(
+                        "write",
+                        &path,
+                        anyhow!("malformed path: {:?}", &path),
+                    ))
+                })?
+                .to_path_buf();
+
+            fs::create_dir_all(&parent).await.map_err(|e| {
+                let e = parse_io_error(e, "write", &parent.to_string_lossy());
+                error!(
+                    "object {} create_dir_all for parent {:?}: {:?}",
+                    &path, &parent, e
+                );
+                e
+            })?;
+
             fs::OpenOptions::new()
                 .create(true)
                 .write(true)
@@ -159,8 +157,8 @@ impl Accessor for Backend {
         }
 
         if args.mode() == ObjectMode::DIR {
-            fs::create_dir(&path).await.map_err(|e| {
-                let e = parse_io_error(e, "write", &path);
+            fs::create_dir_all(&path).await.map_err(|e| {
+                let e = parse_io_error(e, "create", &path);
                 error!("object {} create: {:?}", &path, e);
                 e
             })?;

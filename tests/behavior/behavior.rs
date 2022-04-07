@@ -43,7 +43,9 @@ macro_rules! behavior_tests {
                 $service,
 
                 test_create_file,
+                test_create_file_existing,
                 test_create_dir,
+                test_create_dir_exising,
 
                 test_write,
                 test_write_with_dir_path,
@@ -123,11 +125,54 @@ async fn test_create_file(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Create file on existing file path should succeed.
+async fn test_create_file_existing(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let o = op.object(&path);
+
+    let _ = o.create().await?;
+
+    let _ = o.create().await?;
+
+    let meta = o.metadata().await?;
+    assert_eq!(meta.path(), &path);
+    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.content_length(), 0);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
 /// Create dir with dir path should succeed.
 async fn test_create_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     let o = op.object(&path);
+
+    let _ = o.create().await?;
+
+    let meta = o.metadata().await?;
+    assert_eq!(meta.path(), &path);
+    assert_eq!(meta.mode(), ObjectMode::DIR);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Create dir on existing dir should succeed.
+async fn test_create_dir_exising(op: Operator) -> Result<()> {
+    let path = format!("{}/", uuid::Uuid::new_v4());
+
+    let o = op.object(&path);
+
+    let _ = o.create().await?;
 
     let _ = o.create().await?;
 

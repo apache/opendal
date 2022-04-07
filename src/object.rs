@@ -108,6 +108,11 @@ impl Object {
     /// - `touch path/to/file`
     /// - `mkdir path/to/dir/`
     ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create on existing file will overwrite and truncate it.
+    ///
     /// # Examples
     ///
     /// ## Create an empty file

@@ -42,11 +42,13 @@ pub struct AzblobObjectStream {
     done: bool,
     state: State,
 }
+
 enum State {
     Idle,
     Sending(BoxFuture<'static, Result<bytes::Bytes>>),
     Listing((Output, usize, usize)),
 }
+
 impl AzblobObjectStream {
     pub fn new(backend: Backend, path: String) -> Self {
         Self {
@@ -177,11 +179,13 @@ struct Blobs {
     blob: Vec<Blob>,
     blob_prefix: Option<Vec<BlobPrefix>>,
 }
+
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 struct BlobPrefix {
     name: String,
 }
+
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 struct Blob {
@@ -199,13 +203,13 @@ struct Properties {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_parse_xml() {
         let bs = bytes::Bytes::from(
-            r#" 
-            \xef\xbb\xbf
+            r#"
             <?xml version="1.0" encoding="utf-8"?>
-            <EnumerationResults ServiceEndpoint="https://d2lark.blob.core.windows.net/" ContainerName="myazurebucket">
+            <EnumerationResults ServiceEndpoint="https://test.blob.core.windows.net/" ContainerName="myazurebucket">
                 <Prefix>dir1/</Prefix>
                 <Delimiter>/</Delimiter>
                 <Blobs>

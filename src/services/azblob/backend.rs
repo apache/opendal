@@ -62,8 +62,9 @@ use crate::BytesWriter;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 
-pub const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
+const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
+/// Builder for azblob services
 #[derive(Default, Clone)]
 pub struct Builder {
     root: Option<String>,
@@ -93,6 +94,9 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    /// Set root of this backend.
+    ///
+    /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
             self.root = Some(root.to_string())
@@ -101,11 +105,19 @@ impl Builder {
         self
     }
 
+    /// Set container name of this backend.
     pub fn container(&mut self, container: &str) -> &mut Self {
         self.container = container.to_string();
 
         self
     }
+
+    /// Set endpoint of this backend.
+    ///
+    /// Endpoint must be full uri, e.g.
+    ///
+    /// - Azblob: `https://accountname.blob.core.windows.net`
+    /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.to_string());
@@ -113,6 +125,11 @@ impl Builder {
 
         self
     }
+
+    /// Set account_name of this backend.
+    ///
+    /// - If account_name is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
     pub fn account_name(&mut self, account_name: &str) -> &mut Self {
         if !account_name.is_empty() {
             self.account_name = Some(account_name.to_string());
@@ -120,6 +137,11 @@ impl Builder {
 
         self
     }
+
+    /// Set account_key of this backend.
+    ///
+    /// - If account_key is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
     pub fn account_key(&mut self, account_key: &str) -> &mut Self {
         if !account_key.is_empty() {
             self.account_key = Some(account_key.to_string());
@@ -128,6 +150,7 @@ impl Builder {
         self
     }
 
+    /// Consume builder to build an azblob backend.
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -163,9 +186,13 @@ impl Builder {
         debug!("backend use container {}", &container);
 
         let endpoint = match &self.endpoint {
-            Some(endpoint) => endpoint.clone(),
-            None => "https://blob.core.windows.net".to_string(),
-        };
+            Some(endpoint) => Ok(endpoint.clone()),
+            None => Err(other(BackendError::new(
+                HashMap::from([("endpoint".to_string(), "".to_string())]),
+                anyhow!("endpoint is empty"),
+            ))),
+        }?;
+        debug!("backend use endpoint {}", &container);
 
         let context = HashMap::from([
             ("container".to_string(), container.to_string()),
@@ -195,7 +222,7 @@ impl Builder {
         }))
     }
 }
-
+/// Backend for azblob services.
 #[derive(Debug, Clone)]
 pub struct Backend {
     container: String,
@@ -233,6 +260,7 @@ impl Backend {
         }
     }
 }
+
 #[async_trait]
 impl Accessor for Backend {
     #[trace("read")]

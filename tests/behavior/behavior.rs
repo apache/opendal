@@ -76,7 +76,7 @@ macro_rules! behavior_tests {
 }
 
 macro_rules! behavior_test {
-    ($service:ident, $($(#[cfg($cfg:meta)])* $test:ident),*,) => {
+    ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
             mod [<$service>] {
                 use super::*;
@@ -84,7 +84,7 @@ macro_rules! behavior_test {
                 $(
                     #[tokio::test]
                     $(
-                        #[cfg($cfg)]
+                        #[$meta]
                     )*
                     async fn [< $test >]() -> Result<()> {
                         init_logger();

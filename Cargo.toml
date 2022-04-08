@@ -9,6 +9,9 @@ name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
 version = "0.5.1"
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 compress = ["async-compression"]
 

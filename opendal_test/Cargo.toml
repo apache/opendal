@@ -13,4 +13,4 @@ version = "0.0.0"
 [dependencies]
 dotenv = "0.15.0"
 opendal = { path = ".." }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }

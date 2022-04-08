@@ -30,48 +30,48 @@ harness = false
 name = "io"
 
 [dependencies]
-anyhow = "1"
-async-compat = "0.2"
+anyhow = "1.0.56"
+async-compat = "0.2.1"
 async-compression = { version = "0.3.12", features = [
   "futures-io",
   "all-algorithms",
 ], optional = true }
-async-trait = "0.1"
+async-trait = "0.1.53"
 base64 = "0.13.0"
 bytes = "1.1.0"
-futures = { version = "0.3", features = ["alloc"] }
-http = "0.2"
-hyper = { version = "0.14", features = ["full"] }
+futures = { version = "0.3.21", features = ["alloc"] }
+http = "0.2.6"
+hyper = { version = "0.14.18", features = ["full"] }
 hyper-tls = "0.5.0"
-log = "0.4"
+log = "0.4.16"
 md5 = "0.7.0"
-metrics = "0.18"
+metrics = "0.18.1"
 minitrace = "0.4.0"
-once_cell = "1"
-pin-project = "1"
+once_cell = "1.10.0"
+pin-project = "1.0.10"
 quick-xml = { version = "0.22.0", features = ["serialize"] }
 reqsign = "0.0.3"
-reqwest = { version = "0.11", features = ["stream"] }
-roxmltree = "0.14"
+reqwest = { version = "0.11.10", features = ["stream"] }
+roxmltree = "0.14.1"
 serde = { version = "1.0.136", features = ["derive"] }
-thiserror = "1"
-time = "0.3.7"
-tokio = { version = "1.17", features = ["full"] }
+thiserror = "1.0.30"
+time = "0.3.9"
+tokio = { version = "1.17.0", features = ["full"] }
 
 [dev-dependencies]
-anyhow = "1.0"
-criterion = { version = "0.3", features = [
+anyhow = "1.0.56"
+criterion = { version = "0.3.5", features = [
   "async",
   "async_tokio",
   "html_reports",
 ] }
-dotenv = "0.15"
-env_logger = "0.9"
-num-traits = "0.2"
+dotenv = "0.15.0"
+env_logger = "0.9.0"
+num-traits = "0.2.14"
 opendal_test = { path = "./opendal_test" }
 paste = "1.0.7"
-rand = "0.8"
+rand = "0.8.5"
 serde_json = "1.0.79"
-sha2 = "0.10"
-size = "0.1"
-uuid = { version = "0.8", features = ["serde", "v4"] }
+sha2 = "0.10.2"
+size = "0.1.2"
+uuid = { version = "0.8.2", features = ["serde", "v4"] }

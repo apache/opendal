@@ -75,9 +75,13 @@ impl OpCreate {
             ))),
         }
     }
+
+    /// Get path from option.
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    /// Get object mode from option.
     pub fn mode(&self) -> ObjectMode {
         self.mode
     }
@@ -134,12 +138,18 @@ impl OpRead {
             size,
         })
     }
+
+    /// Get path from option.
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    /// Get offset from option.
     pub fn offset(&self) -> Option<u64> {
         self.offset
     }
+
+    /// Get size from option.
     pub fn size(&self) -> Option<u64> {
         self.size
     }
@@ -160,6 +170,8 @@ impl OpStat {
             path: path.to_string(),
         })
     }
+
+    /// Get path from option.
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -192,9 +204,13 @@ impl OpWrite {
             size,
         })
     }
+
+    /// Get path from option.
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    /// Get size from option.
     pub fn size(&self) -> u64 {
         self.size
     }
@@ -205,7 +221,7 @@ impl OpWrite {
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpDelete {
-    pub path: String,
+    path: String,
 }
 
 impl OpDelete {
@@ -215,6 +231,8 @@ impl OpDelete {
             path: path.to_string(),
         })
     }
+
+    /// Get path from option.
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -225,7 +243,7 @@ impl OpDelete {
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpList {
-    pub path: String,
+    path: String,
 }
 
 impl OpList {
@@ -245,6 +263,8 @@ impl OpList {
             path: path.to_string(),
         })
     }
+
+    /// Get path from option.
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -264,10 +284,12 @@ impl BytesRange {
         BytesRange(offset, size)
     }
 
+    /// Get offset from BytesRange.
     pub fn offset(&self) -> Option<u64> {
         self.0
     }
 
+    /// Get size from BytesRange.
     pub fn size(&self) -> Option<u64> {
         self.1
     }

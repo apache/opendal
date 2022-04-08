@@ -449,7 +449,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_azure_delete_requests");
 
-        let p = self.get_abs_path(&args.path);
+        let p = self.get_abs_path(args.path());
         debug!("object {} delete start", &p);
 
         let resp = self.delete_blob(&p).await?;
@@ -466,7 +466,7 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_azblob_list_requests");
 
-        let path = self.get_abs_path(&args.path);
+        let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 
         Ok(Box::new(AzblobObjectStream::new(self.clone(), path)))

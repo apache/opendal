@@ -45,6 +45,7 @@ use crate::Accessor;
 /// }
 /// ```
 pub trait Layer {
+    /// Intercept the operations on the underlying storage.
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor>;
 }
 

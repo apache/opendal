@@ -50,18 +50,21 @@ use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
 
+/// Builder for fs backend.
 #[derive(Default, Debug)]
 pub struct Builder {
     root: Option<String>,
 }
 
 impl Builder {
+    /// Set root for backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = Some(root.to_string());
 
         self
     }
 
+    /// Consume current builder to build an fs backend.
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -100,6 +103,7 @@ pub struct Backend {
 }
 
 impl Backend {
+    /// Create a builder.
     pub fn build() -> Builder {
         Builder::default()
     }
@@ -309,7 +313,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_fs_delete_requests");
 
-        let path = self.get_abs_path(&args.path);
+        let path = self.get_abs_path(args.path());
         debug!("object {} delete start", &path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
@@ -344,7 +348,7 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_fs_list_requests");
 
-        let path = self.get_abs_path(&args.path);
+        let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 
         let f = std::fs::read_dir(&path).map_err(|e| {
@@ -353,7 +357,7 @@ impl Accessor for Backend {
             e
         })?;
 
-        let rd = Readdir::new(Arc::new(self.clone()), &self.root, &args.path, f);
+        let rd = Readdir::new(Arc::new(self.clone()), &self.root, args.path(), f);
 
         Ok(Box::new(rd))
     }

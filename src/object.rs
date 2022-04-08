@@ -294,6 +294,10 @@ impl Object {
     ///
     /// If we can't find the correct algorithm, we will fallback to normal read instead.
     ///
+    /// # Feature
+    ///
+    /// This function needs to enable feature `compress`.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -323,6 +327,10 @@ impl Object {
     /// Create a reader with auto detected compress algorithm.
     ///
     /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    ///
+    /// # Feature
+    ///
+    /// This function needs to enable feature `compress`.
     ///
     /// # Examples
     ///
@@ -355,6 +363,10 @@ impl Object {
 
     /// Read the whole object into a bytes with specific compress algorithm.
     ///
+    /// # Feature
+    ///
+    /// This function needs to enable feature `compress`.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -383,6 +395,10 @@ impl Object {
     }
 
     /// Create a reader with specific compress algorithm.
+    ///
+    /// # Feature
+    ///
+    /// This function needs to enable feature `compress`.
     ///
     /// # Examples
     ///

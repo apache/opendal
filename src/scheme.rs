@@ -22,10 +22,13 @@ use crate::error::BackendError;
 /// Backends that OpenDAL supports
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scheme {
-    // TODO: Although we don't have azblob support for now, but we need to add it for compatibility. We will implement azblob support as soon as possible.
+    /// [azblob][crate::services::azblob]: Azure Storage Blob services.
     Azblob,
+    /// [fs][crate::services::fs]: POSIX alike file system.
     Fs,
+    /// [memory][crate::services::memory]: In memory backend support.
     Memory,
+    /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
 }
 

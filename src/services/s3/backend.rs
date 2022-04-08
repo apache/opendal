@@ -19,7 +19,6 @@ use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::mem;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -431,11 +430,21 @@ impl Builder {
 
         let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
             .body(hyper::Body::empty())
-            .expect("must be valid request");
-        let res = client
-            .request(req)
-            .await
-            .map_err(|e| other(BackendError::new(context.clone(), e)))?;
+            .map_err(|e| {
+                error!("backend detect_region: {:?}", e);
+                other(BackendError::new(
+                    context.clone(),
+                    anyhow!("build request: {:?}", e),
+                ))
+            })?;
+
+        let res = client.request(req).await.map_err(|e| {
+            error!("backend detect_region: {:?}", e);
+            other(BackendError::new(
+                context.clone(),
+                anyhow!("sending request: {:?}", e),
+            ))
+        })?;
 
         debug!(
             "auto detect region got response: status {:?}, header: {:?}",
@@ -533,6 +542,74 @@ impl Builder {
         let mut context: HashMap<String, String> =
             HashMap::from([("bucket".to_string(), bucket.to_string())]);
 
+        let server_side_encryption = match &self.server_side_encryption {
+            None => None,
+            Some(v) => Some(v.parse().map_err(|e| {
+                other(BackendError::new(
+                    context.clone(),
+                    anyhow!("server_side_encryption value {} invalid: {}", v, e),
+                ))
+            })?),
+        };
+
+        let server_side_encryption_aws_kms_key_id =
+            match &self.server_side_encryption_aws_kms_key_id {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "server_side_encryption_aws_kms_key_id value {} invalid: {}",
+                            v,
+                            e
+                        ),
+                    ))
+                })?),
+            };
+
+        let server_side_encryption_customer_algorithm =
+            match &self.server_side_encryption_customer_algorithm {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "server_side_encryption_customer_algorithm value {} invalid: {}",
+                            v,
+                            e
+                        ),
+                    ))
+                })?),
+            };
+
+        let server_side_encryption_customer_key = match &self.server_side_encryption_customer_key {
+            None => None,
+            Some(v) => Some(v.parse().map_err(|e| {
+                other(BackendError::new(
+                    context.clone(),
+                    anyhow!(
+                        "server_side_encryption_customer_key value {} invalid: {}",
+                        v,
+                        e
+                    ),
+                ))
+            })?),
+        };
+        let server_side_encryption_customer_key_md5 =
+            match &self.server_side_encryption_customer_key_md5 {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "server_side_encryption_customer_key_md5 value {} invalid: {}",
+                            v,
+                            e
+                        ),
+                    ))
+                })?),
+            };
+
         let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
         let (endpoint, region) = self.detect_region(&client, bucket, &context).await?;
@@ -563,19 +640,11 @@ impl Builder {
             bucket: self.bucket.clone(),
             client,
 
-            server_side_encryption: mem::take(&mut self.server_side_encryption),
-            server_side_encryption_aws_kms_key_id: mem::take(
-                &mut self.server_side_encryption_aws_kms_key_id,
-            ),
-            server_side_encryption_customer_algorithm: mem::take(
-                &mut self.server_side_encryption_customer_algorithm,
-            ),
-            server_side_encryption_customer_key: mem::take(
-                &mut self.server_side_encryption_customer_key,
-            ),
-            server_side_encryption_customer_key_md5: mem::take(
-                &mut self.server_side_encryption_customer_key_md5,
-            ),
+            server_side_encryption,
+            server_side_encryption_aws_kms_key_id,
+            server_side_encryption_customer_algorithm,
+            server_side_encryption_customer_key,
+            server_side_encryption_customer_key_md5,
         }))
     }
 }
@@ -590,11 +659,11 @@ pub struct Backend {
     // root will be "/" or "/abc/"
     root: String,
 
-    server_side_encryption: Option<String>,
-    server_side_encryption_aws_kms_key_id: Option<String>,
-    server_side_encryption_customer_algorithm: Option<String>,
-    server_side_encryption_customer_key: Option<String>,
-    server_side_encryption_customer_key_md5: Option<String>,
+    server_side_encryption: Option<HeaderValue>,
+    server_side_encryption_aws_kms_key_id: Option<HeaderValue>,
+    server_side_encryption_customer_algorithm: Option<HeaderValue>,
+    server_side_encryption_customer_key: Option<HeaderValue>,
+    server_side_encryption_customer_key_md5: Option<HeaderValue>,
 }
 
 impl Backend {
@@ -639,7 +708,7 @@ impl Backend {
     ) -> http::request::Builder {
         if is_write {
             if let Some(v) = &self.server_side_encryption {
-                let mut v: HeaderValue = v.parse().expect("must be valid header value");
+                let mut v = v.clone();
                 v.set_sensitive(true);
 
                 req = req.header(
@@ -648,7 +717,7 @@ impl Backend {
                 )
             }
             if let Some(v) = &self.server_side_encryption_aws_kms_key_id {
-                let mut v: HeaderValue = v.parse().expect("must be valid header value");
+                let mut v = v.clone();
                 v.set_sensitive(true);
 
                 req = req.header(
@@ -659,7 +728,7 @@ impl Backend {
         }
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
-            let mut v: HeaderValue = v.parse().expect("must be valid header value");
+            let mut v = v.clone();
             v.set_sensitive(true);
 
             req = req.header(
@@ -668,7 +737,7 @@ impl Backend {
             )
         }
         if let Some(v) = &self.server_side_encryption_customer_key {
-            let mut v: HeaderValue = v.parse().expect("must be valid header value");
+            let mut v = v.clone();
             v.set_sensitive(true);
 
             req = req.header(
@@ -677,7 +746,7 @@ impl Backend {
             )
         }
         if let Some(v) = &self.server_side_encryption_customer_key_md5 {
-            let mut v: HeaderValue = v.parse().expect("must be valid header value");
+            let mut v = v.clone();
             v.set_sensitive(true);
 
             req = req.header(
@@ -697,7 +766,7 @@ impl Accessor for Backend {
         increment_counter!("opendal_s3_create_requests");
         let p = self.get_abs_path(args.path());
 
-        let req = self.put_object(&p, 0, Body::empty()).await;
+        let req = self.put_object(&p, 0, Body::empty()).await?;
         let resp = self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
             other(ObjectError::new("read", args.path(), e))
@@ -728,7 +797,13 @@ impl Accessor for Backend {
             args.size()
         );
 
-        let resp = self.get_object(&p, args.offset(), args.size()).await?;
+        let resp = self
+            .get_object(&p, args.offset(), args.size())
+            .await
+            .map_err(|e| {
+                error!("object {} get_object: {:?}", p, e);
+                e
+            })?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
@@ -757,7 +832,7 @@ impl Accessor for Backend {
 
         let (tx, body) = new_http_channel();
 
-        let req = self.put_object(&p, args.size(), body).await;
+        let req = self.put_object(&p, args.size(), body).await?;
 
         let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
@@ -800,24 +875,53 @@ impl Accessor for Backend {
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
-                    let v =
-                        u64::from_str(v.to_str().expect("header must not contain non-ascii value"))
-                            .expect("content length header must contain valid length");
+                    let v = v.to_str().map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse {} header: {:?}", http::header::CONTENT_LENGTH, e),
+                        ))
+                    })?;
+
+                    let v = u64::from_str(v).map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse {} header: {:?}", http::header::CONTENT_LENGTH, e),
+                        ))
+                    })?;
 
                     m.set_content_length(v);
                 }
 
                 // Parse content_md5
                 if let Some(v) = resp.headers().get(HeaderName::from_static("content-md5")) {
-                    let v = v.to_str().expect("header must not contain non-ascii value");
+                    let v = v.to_str().map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse {} header: {:?}", "content-md5", e),
+                        ))
+                    })?;
                     m.set_content_md5(v);
                 }
 
                 // Parse last_modified
                 if let Some(v) = resp.headers().get(http::header::LAST_MODIFIED) {
-                    let v = v.to_str().expect("header must not contain non-ascii value");
-                    let t =
-                        OffsetDateTime::parse(v, &Rfc2822).expect("must contain valid time format");
+                    let v = v.to_str().map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse {} header: {:?}", http::header::LAST_MODIFIED, e),
+                        ))
+                    })?;
+                    let t = OffsetDateTime::parse(v, &Rfc2822).map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse {} header: {:?}", http::header::LAST_MODIFIED, e),
+                        ))
+                    })?;
                     m.set_last_modified(t);
                 }
 
@@ -897,15 +1001,28 @@ impl Backend {
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
 
-        let mut req = req
-            .body(hyper::Body::empty())
-            .expect("must be valid request");
+        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+            other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("build request: {:?}", e),
+            ))
+        })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} get_object: {:?}", path, e);
-            other(ObjectError::new("read", path, e))
+            other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 
@@ -915,7 +1032,7 @@ impl Backend {
         path: &str,
         size: u64,
         body: hyper::Body,
-    ) -> hyper::Request<hyper::Body> {
+    ) -> Result<hyper::Request<hyper::Body>> {
         let mut req = hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
 
         // Set content length.
@@ -925,11 +1042,25 @@ impl Backend {
         req = self.insert_sse_headers(req, true);
 
         // Set body
-        let mut req = req.body(body).expect("must be valid request");
+        let mut req = req.body(body).map_err(|e| {
+            error!("object {} put_object: {:?}", path, e);
+            other(ObjectError::new(
+                "write",
+                path,
+                anyhow!("build request: {:?}", e),
+            ))
+        })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} put_object: {:?}", path, e);
+            other(ObjectError::new(
+                "write",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
-        req
+        Ok(req)
     }
 
     #[trace("head_object")]
@@ -939,15 +1070,31 @@ impl Backend {
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
 
-        let mut req = req
-            .body(hyper::Body::empty())
-            .expect("must be valid request");
+        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+            error!("object {} head_object: {:?}", path, e);
+            other(ObjectError::new(
+                "stat",
+                path,
+                anyhow!("build request: {:?}", e),
+            ))
+        })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} head_object: {:?}", path, e);
+            other(ObjectError::new(
+                "stat",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} head_object: {:?}", path, e);
-            other(ObjectError::new("stat", path, e))
+            other(ObjectError::new(
+                "stat",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 
@@ -956,13 +1103,31 @@ impl Backend {
         let mut req =
             hyper::Request::delete(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
                 .body(hyper::Body::empty())
-                .expect("must be valid request");
+                .map_err(|e| {
+                    error!("object {} delete_object: {:?}", path, e);
+                    other(ObjectError::new(
+                        "delete",
+                        path,
+                        anyhow!("build request: {:?}", e),
+                    ))
+                })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} delete_object: {:?}", path, e);
+            other(ObjectError::new(
+                "delete",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} delete_object: {:?}", path, e);
-            other(ObjectError::new("delete", path, e))
+            other(ObjectError::new(
+                "delete",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 
@@ -982,13 +1147,31 @@ impl Backend {
 
         let mut req = hyper::Request::get(uri)
             .body(hyper::Body::empty())
-            .expect("must be valid request");
+            .map_err(|e| {
+                error!("object {} list_objects: {:?}", path, e);
+                other(ObjectError::new(
+                    "list",
+                    path,
+                    anyhow!("build request: {:?}", e),
+                ))
+            })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} list_objects: {:?}", path, e);
+            other(ObjectError::new(
+                "list",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} list_object: {:?}", path, e);
-            other(ObjectError::new("list", path, e))
+            other(ObjectError::new(
+                "list",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 }

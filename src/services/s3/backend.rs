@@ -409,12 +409,19 @@ impl Builder {
         context: &HashMap<String, String>,
     ) -> Result<(String, String)> {
         let endpoint = match &self.endpoint {
-            Some(endpoint) => endpoint,
-            None => "https://s3.amazonaws.com",
+            Some(endpoint) => {
+                if endpoint.starts_with("http") {
+                    endpoint.to_string()
+                } else {
+                    // Prefix https if endpoint doesn't start with scheme.
+                    format!("https://{}", endpoint)
+                }
+            }
+            None => "https://s3.amazonaws.com".to_string(),
         };
 
         if let Some(region) = &self.region {
-            return if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint) {
+            return if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
                 let endpoint = template.replace("{region}", region);
                 Ok((endpoint, region.to_string()))
             } else {
@@ -462,7 +469,7 @@ impl Builder {
                     .to_str()
                     .map_err(|e| other(BackendError::new(context.clone(), e)))?
                     .to_string();
-                let template = ENDPOINT_TEMPLATES.get(endpoint).ok_or_else(|| {
+                let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
                     other(BackendError::new(
                         context.clone(),
                         anyhow!(
@@ -1053,51 +1060,38 @@ async fn parse_error_response_with_body(
 
 #[cfg(test)]
 mod tests {
+    use itertools::iproduct;
+
     use super::*;
 
     #[tokio::test]
     async fn test_detect_region() {
         let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
 
-        // endpoint = `https://s3.amazonaws.com`, region = None
-        let b = Builder::default();
-        let (endpoint, region) = b
-            .detect_region(&client, "test", &HashMap::new())
-            .await
-            .expect("detect region must success");
-        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
-        assert_eq!(region, "us-east-2");
+        let endpoint_cases = vec![
+            Some("s3.amazonaws.com"),
+            Some("https://s3.amazonaws.com"),
+            Some("https://s3.us-east-2.amazonaws.com"),
+            None,
+        ];
 
-        // endpoint = `https://s3.amazonaws.com`, region = `us-east-2`
-        let mut b = Builder::default();
-        b.region("us-east-2");
-        let (endpoint, region) = b
-            .detect_region(&client, "test", &HashMap::new())
-            .await
-            .expect("detect region must success");
-        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
-        assert_eq!(region, "us-east-2");
+        let region_cases = vec![Some("us-east-2"), None];
 
-        // endpoint = `https://s3.amazonaws.com`, region = `us-east-2`
-        let mut b = Builder::default();
-        b.endpoint("https://s3.amazonaws.com");
-        b.region("us-east-2");
-        let (endpoint, region) = b
-            .detect_region(&client, "test", &HashMap::new())
-            .await
-            .expect("detect region must success");
-        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
-        assert_eq!(region, "us-east-2");
+        for (endpoint, region) in iproduct!(endpoint_cases, region_cases) {
+            let mut b = Builder::default();
+            if let Some(endpoint) = endpoint {
+                b.endpoint(endpoint);
+            }
+            if let Some(region) = region {
+                b.region(region);
+            }
 
-        // endpoint = `https://s3.us-east-2.amazonaws.com`, region = `us-east-2`
-        let mut b = Builder::default();
-        b.endpoint("https://s3.us-east-2.amazonaws.com");
-        b.region("us-east-2");
-        let (endpoint, region) = b
-            .detect_region(&client, "test", &HashMap::new())
-            .await
-            .expect("detect region must success");
-        assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
-        assert_eq!(region, "us-east-2");
+            let (endpoint, region) = b
+                .detect_region(&client, "test", &HashMap::new())
+                .await
+                .expect("detect region must success");
+            assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
+            assert_eq!(region, "us-east-2");
+        }
     }
 }

@@ -67,6 +67,7 @@ criterion = { version = "0.3.5", features = [
 ] }
 dotenv = "0.15.0"
 env_logger = "0.9.0"
+itertools = "0.10.3"
 num-traits = "0.2.14"
 opendal_test = { path = "./opendal_test" }
 paste = "1.0.7"

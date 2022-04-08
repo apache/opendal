@@ -268,7 +268,7 @@ impl Accessor for Backend {
         increment_counter!("opendal_azblob_create_requests");
         let p = self.get_abs_path(args.path());
 
-        let req = self.put_blob(&p, 0, Body::empty()).await;
+        let req = self.put_blob(&p, 0, Body::empty()).await?;
         let resp = self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
             other(ObjectError::new("read", args.path(), e))
@@ -327,7 +327,7 @@ impl Accessor for Backend {
 
         let (tx, body) = new_http_channel();
 
-        let req = self.put_blob(&p, args.size(), body).await;
+        let req = self.put_blob(&p, args.size(), body).await?;
 
         let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
             match resp.status() {
@@ -369,24 +369,54 @@ impl Accessor for Backend {
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
-                    let v =
-                        u64::from_str(v.to_str().expect("header must not contain non-ascii value"))
-                            .expect("content length header must contain valid length");
+                    let v = v.to_str().map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse content-length header: {:?}", e),
+                        ))
+                    })?;
+                    let v = u64::from_str(v).map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse content-length header: {:?}", e),
+                        ))
+                    })?;
 
                     m.set_content_length(v);
                 }
 
                 // Parse content_md5
                 if let Some(v) = resp.headers().get(HeaderName::from_static("content-md5")) {
-                    let v = v.to_str().expect("header must not contain non-ascii value");
+                    let v = v.to_str().map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse content-md5 header: {:?}", e),
+                        ))
+                    })?;
+
                     m.set_content_md5(v);
                 }
 
                 // Parse last_modified
                 if let Some(v) = resp.headers().get(http::header::LAST_MODIFIED) {
-                    let v = v.to_str().expect("header must not contain non-ascii value");
-                    let t =
-                        OffsetDateTime::parse(v, &Rfc2822).expect("must contain valid time format");
+                    let v = v.to_str().map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse last-modified header: {:?}", e),
+                        ))
+                    })?;
+                    let t = OffsetDateTime::parse(v, &Rfc2822).map_err(|e| {
+                        other(ObjectError::new(
+                            "stat",
+                            &p,
+                            anyhow!("parse last-modified header: {:?}", e),
+                        ))
+                    })?;
+
                     m.set_last_modified(t);
                 }
 
@@ -463,15 +493,31 @@ impl Backend {
             );
         }
 
-        let mut req = req
-            .body(hyper::Body::empty())
-            .expect("must be valid request");
+        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+            error!("object {} get_blob: {:?}", path, e);
+            other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("build request: {:?}", e),
+            ))
+        })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} get_blob: {:?}", path, e);
+            other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} get_object: {:?}", path, e);
-            other(ObjectError::new("read", path, e))
+            error!("object {} get_blob: {:?}", path, e);
+            other(ObjectError::new(
+                "read",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 
@@ -481,7 +527,7 @@ impl Backend {
         path: &str,
         size: u64,
         body: Body,
-    ) -> hyper::Request<hyper::Body> {
+    ) -> Result<hyper::Request<hyper::Body>> {
         let mut req = hyper::Request::put(&format!(
             "{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
@@ -492,11 +538,25 @@ impl Backend {
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
-        let mut req = req.body(body).expect("must be valid request");
+        let mut req = req.body(body).map_err(|e| {
+            error!("object {} put_blob: {:?}", path, e);
+            other(ObjectError::new(
+                "write",
+                path,
+                anyhow!("build request: {:?}", e),
+            ))
+        })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} put_blob: {:?}", path, e);
+            other(ObjectError::new(
+                "write",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
-        req
+        Ok(req)
     }
 
     #[trace("get_blob_properties")]
@@ -508,15 +568,32 @@ impl Backend {
             "{}.{}/{}/{}",
             self.account_name, self.endpoint, self.container, path
         ));
-        let mut req = req
-            .body(hyper::Body::empty())
-            .expect("must be valid request");
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+            error!("object {} get_blob_properties: {:?}", path, e);
+            other(ObjectError::new(
+                "stat",
+                path,
+                anyhow!("build request: {:?}", e),
+            ))
+        })?;
+
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} get_blob_properties: {:?}", path, e);
+            other(ObjectError::new(
+                "stat",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} head_object: {:?}", path, e);
-            other(ObjectError::new("stat", path, e))
+            error!("object {} get_blob_properties: {:?}", path, e);
+            other(ObjectError::new(
+                "stat",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 
@@ -527,15 +604,31 @@ impl Backend {
             self.account_name, self.endpoint, self.container, path
         ));
 
-        let mut req = req
-            .body(hyper::Body::empty())
-            .expect("must be valid request");
+        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+            error!("object {} delete_blob: {:?}", path, e);
+            other(ObjectError::new(
+                "delete",
+                path,
+                anyhow!("build request: {:?}", e),
+            ))
+        })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} delete_blob: {:?}", path, e);
+            other(ObjectError::new(
+                "delete",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
             error!("object {} delete_object: {:?}", path, e);
-            other(ObjectError::new("delete", path, e))
+            other(ObjectError::new(
+                "delete",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 
@@ -558,13 +651,31 @@ impl Backend {
 
         let mut req = hyper::Request::get(uri)
             .body(hyper::Body::empty())
-            .expect("must be valid request");
+            .map_err(|e| {
+                error!("object {} list_blobs: {:?}", path, e);
+                other(ObjectError::new(
+                    "list",
+                    path,
+                    anyhow!("build request: {:?}", e),
+                ))
+            })?;
 
-        self.signer.sign(&mut req).await.expect("sign must success");
+        self.signer.sign(&mut req).await.map_err(|e| {
+            error!("object {} list_blobs: {:?}", path, e);
+            other(ObjectError::new(
+                "list",
+                path,
+                anyhow!("sign request: {:?}", e),
+            ))
+        })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} list_object: {:?}", path, e);
-            other(ObjectError::new("list", path, e))
+            error!("object {} list_blobs: {:?}", path, e);
+            other(ObjectError::new(
+                "list",
+                path,
+                anyhow!("send request: {:?}", e),
+            ))
         })
     }
 }

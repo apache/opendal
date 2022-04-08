@@ -313,7 +313,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_fs_delete_requests");
 
-        let path = self.get_abs_path(&args.path);
+        let path = self.get_abs_path(args.path());
         debug!("object {} delete start", &path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
@@ -348,7 +348,7 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_fs_list_requests");
 
-        let path = self.get_abs_path(&args.path);
+        let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 
         let f = std::fs::read_dir(&path).map_err(|e| {
@@ -357,7 +357,7 @@ impl Accessor for Backend {
             e
         })?;
 
-        let rd = Readdir::new(Arc::new(self.clone()), &self.root, &args.path, f);
+        let rd = Readdir::new(Arc::new(self.clone()), &self.root, args.path(), f);
 
         Ok(Box::new(rd))
     }

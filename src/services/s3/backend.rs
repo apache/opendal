@@ -953,7 +953,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_s3_delete_requests");
 
-        let p = self.get_abs_path(&args.path);
+        let p = self.get_abs_path(args.path());
         debug!("object {} delete start", &p);
 
         let resp = self.delete_object(&p).await?;
@@ -970,7 +970,7 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_s3_list_requests");
 
-        let mut path = self.get_abs_path(&args.path);
+        let mut path = self.get_abs_path(args.path());
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {
             path.push('/')

@@ -179,7 +179,7 @@ impl Accessor for Backend {
 
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = &args.path;
+        let path = args.path();
 
         let mut map = self.inner.lock();
         map.remove(path);
@@ -189,7 +189,7 @@ impl Accessor for Backend {
 
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
-        let mut path = args.path.clone();
+        let mut path = args.path().to_string();
         if path == "/" {
             path.clear();
         }

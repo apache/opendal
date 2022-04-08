@@ -10,7 +10,7 @@ jobs:
   aws_s3:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: Swatinem/rust-cache@v1
 
@@ -30,7 +30,7 @@ jobs:
   aws_s3_with_sse_c:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: Swatinem/rust-cache@v1
 
@@ -64,7 +64,7 @@ jobs:
           MINIO_SECRET_KEY: "minioadmin"
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: Swatinem/rust-cache@v1
 
@@ -101,7 +101,7 @@ jobs:
           MINIO_SECRET_KEY: "minioadmin"
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: Swatinem/rust-cache@v1
 

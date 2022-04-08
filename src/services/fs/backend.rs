@@ -50,18 +50,21 @@ use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
 
+/// Builder for fs backend.
 #[derive(Default, Debug)]
 pub struct Builder {
     root: Option<String>,
 }
 
 impl Builder {
+    /// Set root for backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = Some(root.to_string());
 
         self
     }
 
+    /// Consume current builder to build an fs backend.
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -100,6 +103,7 @@ pub struct Backend {
 }
 
 impl Backend {
+    /// Create a builder.
     pub fn build() -> Builder {
         Builder::default()
     }

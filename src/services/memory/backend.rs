@@ -47,21 +47,25 @@ use crate::Metadata;
 use crate::Object;
 use crate::ObjectMode;
 
+/// Builder for memory backend
 #[derive(Default)]
 pub struct Builder {}
 
 impl Builder {
+    /// Consume builder to build a memory backend.
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         Ok(Arc::new(Backend::default()))
     }
 }
 
+/// Backend is used to serve `Accessor` support in memory.
 #[derive(Debug, Clone, Default)]
 pub struct Backend {
     inner: Arc<Mutex<HashMap<String, bytes::Bytes>>>,
 }
 
 impl Backend {
+    /// Create a builder.
     pub fn build() -> Builder {
         Builder::default()
     }

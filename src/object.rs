@@ -255,7 +255,7 @@ impl Object {
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
         let op = OpRead::new(self.meta.path(), range)?;
-        Ok(self.acc.read(&op).await?)
+        self.acc.read(&op).await
     }
 
     /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.

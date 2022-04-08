@@ -17,7 +17,6 @@ use std::env;
 use std::sync::Arc;
 
 use anyhow::Result;
-use futures::AsyncReadExt;
 use log::info;
 use opendal::services::s3;
 use opendal::services::s3::Builder;
@@ -32,22 +31,16 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     println!(
-        r#"OpenDAL S3 Example.
+        r#"OpenDAL s3 Example.
 
 Available Environment Values:
 
-RUST_LOG: log level
-OPENDAL_S3_ROOT: root path, default: /
-OPENDAL_S3_BUCKET: bukcet name, required.
-OPENDAL_S3_ENDPOINT: endpoint of s3 service, default: https://s3.amazonaws.com
-OPENDAL_S3_REGION: region of s3 service, could be auto detected.
-OPENDAL_S3_ACCESS_KEY_ID: access key id of s3 service, could be auto detected.
-OPENDAL_S3_SECRET_ACCESS_KEY: secret access key of s3 service, could be auto detected.
-
-Examples:
-
-OPENDAL_S3_BUCKET=opendal OPENDAL_S3_ACCESS_KEY_ID=minioadmin OPENDAL_S3_SECRET_ACCESS_KEY=minioadminx OPENDAL_S3_ENDPOINT=http://127.0.0.1:9900 OPENDAL_S3_REGION=test cargo run --example s3
-
+- OPENDAL_S3_ROOT: root path, default: /
+- OPENDAL_S3_BUCKET: bukcet name, required.
+- OPENDAL_S3_ENDPOINT: endpoint of s3 service, default: https://s3.amazonaws.com
+- OPENDAL_S3_REGION: region of s3 service, could be auto detected.
+- OPENDAL_S3_ACCESS_KEY_ID: access key id of s3 service, could be auto detected.
+- OPENDAL_S3_SECRET_ACCESS_KEY: secret access key of s3 service, could be auto detected.
     "#
     );
 
@@ -101,13 +94,11 @@ OPENDAL_S3_BUCKET=opendal OPENDAL_S3_ACCESS_KEY_ID=minioadmin OPENDAL_S3_SECRET_
     info!("write file successful!");
 
     info!("try to read file: {}", &path);
-    let mut content = String::new();
-    op.object(&path)
-        .reader()
-        .await?
-        .read_to_string(&mut content)
-        .await?;
-    info!("read file successful, content: {}", content);
+    let content = op.object(&path).read().await?;
+    info!(
+        "read file successful, content: {}",
+        String::from_utf8_lossy(&content)
+    );
 
     info!("try to get file metadata: {}", &path);
     let meta = op.object(&path).metadata().await?;

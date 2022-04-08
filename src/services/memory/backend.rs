@@ -19,7 +19,6 @@ use std::io::Result;
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 
@@ -30,6 +29,7 @@ use bytes::Bytes;
 use futures::io::Cursor;
 use futures::AsyncWrite;
 use minitrace::trace;
+use parking_lot::Mutex;
 
 use crate::error::other;
 use crate::error::ObjectError;
@@ -75,13 +75,13 @@ impl Accessor for Backend {
 
         match args.mode() {
             ObjectMode::FILE => {
-                let mut map = self.inner.lock().expect("lock poisoned");
+                let mut map = self.inner.lock();
                 map.insert(path.to_string(), Bytes::new());
 
                 Ok(())
             }
             ObjectMode::DIR => {
-                let mut map = self.inner.lock().expect("lock poisoned");
+                let mut map = self.inner.lock();
                 map.insert(path.to_string(), Bytes::new());
 
                 Ok(())
@@ -94,7 +94,7 @@ impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = args.path();
 
-        let map = self.inner.lock().expect("lock poisoned");
+        let map = self.inner.lock();
 
         let data = map.get(path).ok_or_else(|| {
             Error::new(
@@ -155,7 +155,7 @@ impl Accessor for Backend {
             return Ok(meta);
         }
 
-        let map = self.inner.lock().expect("lock poisoned");
+        let map = self.inner.lock();
 
         let data = map.get(path).ok_or_else(|| {
             Error::new(
@@ -177,7 +177,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = &args.path;
 
-        let mut map = self.inner.lock().expect("lock poisoned");
+        let mut map = self.inner.lock();
         map.remove(path);
 
         Ok(())
@@ -190,7 +190,7 @@ impl Accessor for Backend {
             path.clear();
         }
 
-        let map = self.inner.lock().expect("lock poisoned");
+        let map = self.inner.lock();
 
         let paths = map
             .iter()
@@ -243,7 +243,7 @@ impl AsyncWrite for MapWriter {
         }
 
         let buf = mem::take(&mut self.buf);
-        let mut map = self.map.lock().expect("lock poisoned");
+        let mut map = self.map.lock();
         map.insert(self.path.clone(), buf.freeze());
 
         Poll::Ready(Ok(()))
@@ -270,14 +270,12 @@ impl futures::Stream for EntryStream {
         let path = self.paths.get(idx).expect("path must valid");
 
         let backend = self.backend.clone();
-        let map = backend.inner.lock().expect("lock poisoned");
+        let map = backend.inner.lock();
 
-        let data = map.get(path);
-        // If the path is not get, we can skip it safely.
-        if data.is_none() {
-            return self.poll_next(cx);
-        }
-        let bs = data.expect("object must exist");
+        let bs = match map.get(path) {
+            Some(bs) => bs,
+            None => return self.poll_next(cx),
+        };
 
         let mut o = Object::new(Arc::new(self.backend.clone()), path);
         let meta = o.metadata_mut();

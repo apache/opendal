@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.5.2] - 2022-04-08
+
+### Changed
+
+- chore: Build all features for docs.rs (#238)
+- ci: Enable auto dependence upgrade (#239)
+- chore(deps): Bump actions/checkout from 2 to 3 (#240)
+- docs: Refactor examples (#241)
+
+### Fixed
+
+- fix(services/s3): Endpoint without scheme should also supported (#242)
+
 ## [v0.5.1] - 2022-04-08
 
 ### Added
@@ -272,6 +285,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.5.2]: https://github.com/datafuselabs/opendal/compare/v0.5.1...v0.5.2
 [v0.5.1]: https://github.com/datafuselabs/opendal/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/datafuselabs/opendal/compare/v0.4.2...v0.5.0
 [v0.4.2]: https://github.com/datafuselabs/opendal/compare/v0.4.1...v0.4.2

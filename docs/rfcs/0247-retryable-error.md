@@ -1,6 +1,6 @@
 - Proposal Name: `retryable_error`
 - Start Date: 2022-04-12
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
+- RFC PR: [datafuselabs/opendal#247](https://github.com/datafuselabs/opendal/pull/247)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary

@@ -75,7 +75,7 @@ None
 
 # Unresolved questions
 
-- `write` can't be retried.
+- `read` and `write` can't be retried during IO.
 
 # Future possibilities
 

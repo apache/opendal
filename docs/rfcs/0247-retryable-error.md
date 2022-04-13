@@ -54,6 +54,11 @@ This proposal will do the best we can: retry the operation if no actual IO happe
 
 If we meet an internal error before reading/writing the user's buffer, it's safe and cheap to retry it with precisely the same argument.
 
+## Retryable Error
+
+- Operator MAY retry `io::ErrorKind::Interrupt` errors.
+- Services SHOULD return `io::ErrorKind::Interrupt` kind if the error is retryable.
+
 # Drawbacks
 
 ## Write operation can't be retried

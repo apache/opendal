@@ -105,9 +105,7 @@ impl Operator {
     #[cfg(feature = "retry")]
     #[must_use]
     pub fn with_backoff(self, backoff: impl Backoff + Send + Sync + Debug + 'static) -> Self {
-        Operator {
-            accessor: backoff.layer(self.accessor),
-        }
+        self.layer(backoff)
     }
 
     fn inner(&self) -> Arc<dyn Accessor> {

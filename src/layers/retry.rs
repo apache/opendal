@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+//! Provide backoff retry support via implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html)
+
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -32,6 +35,28 @@ use crate::Layer;
 use crate::Metadata;
 use crate::ObjectStreamer;
 
+/// Implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html) so that all backoff can be used as a layer
+///
+/// # Example
+///
+///
+/// ```
+/// # use std::sync::Arc;
+/// # use anyhow::Result;
+/// # use opendal::services::fs;
+/// # use opendal::services::fs::Builder;
+/// use opendal::Operator;
+/// use backon::ExponentialBackoff;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// #     let accessor = fs::Backend::build().finish().await?;
+/// let op = Operator::new(accessor).layer(ExponentialBackoff::default());
+/// // All operations will be retried if the error is retryable
+/// let _ = op.object("test_file").read();
+/// # Ok(())
+/// # }
+/// ```
 impl<B: 'static> Layer for B
 where
     B: backon::Backoff + Debug + Send + Sync,

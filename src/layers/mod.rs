@@ -15,4 +15,5 @@
 mod layer;
 pub use layer::Layer;
 
+#[cfg(feature = "retry")]
 mod retry;

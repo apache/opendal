@@ -98,3 +98,76 @@ where
             .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use anyhow::anyhow;
+    use async_trait::async_trait;
+    use backon::ConstantBackoff;
+    use tokio::sync::Mutex;
+
+    use crate::error::other;
+    use crate::ops::OpRead;
+    use crate::Accessor;
+    use crate::BytesReader;
+    use crate::Operator;
+
+    #[derive(Debug, Clone, Default)]
+    struct MockService {
+        attempt: Arc<Mutex<usize>>,
+    }
+
+    #[async_trait]
+    impl Accessor for MockService {
+        async fn read(&self, args: &OpRead) -> std::io::Result<BytesReader> {
+            let mut attempt = self.attempt.lock().await;
+            *attempt += 1;
+
+            match args.path() {
+                "retryable_error" => Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    anyhow!("retryable_error"),
+                )),
+                _ => Err(other(anyhow!("not_retryable_error"))),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_retry_retryable_error() -> anyhow::Result<()> {
+        let srv = Arc::new(MockService::default());
+
+        let backoff = ConstantBackoff::default()
+            .with_delay(Duration::from_micros(1))
+            .with_max_times(10);
+        let op = Operator::new(srv.clone()).layer(backoff);
+
+        let result = op.object("retryable_error").read().await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "retryable_error");
+        // The error is retryable, we should request it 1 + 10 times.
+        assert_eq!(*srv.attempt.lock().await, 11);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_not_retryable_error() -> anyhow::Result<()> {
+        let srv = Arc::new(MockService::default());
+
+        let backoff = ConstantBackoff::default();
+        let op = Operator::new(srv.clone()).layer(backoff);
+
+        let result = op.object("not_retryable_error").read().await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "not_retryable_error");
+        // The error is not retryable, we should only request it once.
+        assert_eq!(*srv.attempt.lock().await, 1);
+
+        Ok(())
+    }
+}

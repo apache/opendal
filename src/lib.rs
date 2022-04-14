@@ -26,6 +26,7 @@
 //! # Optional features
 //!
 //! - `compress`: Enable object decompress read support.
+//! - `retry`: Enable operator retry support.
 //!
 //! # Example
 //!

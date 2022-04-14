@@ -70,7 +70,7 @@ impl Operator {
     #[must_use]
     pub fn layer(self, layer: impl Layer) -> Self {
         Operator {
-            accessor: layer.layer(self.accessor.clone()),
+            accessor: layer.layer(self.accessor),
         }
     }
 

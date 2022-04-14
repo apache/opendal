@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(feature = "retry")]
+use std::fmt::Debug;
 use std::sync::Arc;
+
+#[cfg(feature = "retry")]
+use backon::Backoff;
 
 use crate::Accessor;
 use crate::Layer;
@@ -70,8 +75,37 @@ impl Operator {
     #[must_use]
     pub fn layer(self, layer: impl Layer) -> Self {
         Operator {
-            accessor: layer.layer(self.accessor.clone()),
+            accessor: layer.layer(self.accessor),
         }
+    }
+
+    /// Configure backoff for operators
+    ///
+    /// This function only provided if feature `retry` is enabled.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// # use opendal::services::fs;
+    /// # use opendal::services::fs::Builder;
+    /// use opendal::Operator;
+    /// use backon::ExponentialBackoff;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// #     let accessor = fs::Backend::build().finish().await?;
+    /// let op = Operator::new(accessor).with_backoff(ExponentialBackoff::default());
+    /// // All operations will be retried if the error is retryable
+    /// let _ = op.object("test_file").read();
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[cfg(feature = "retry")]
+    #[must_use]
+    pub fn with_backoff(self, backoff: impl Backoff + Send + Sync + Debug + 'static) -> Self {
+        self.layer(backoff)
     }
 
     fn inner(&self) -> Arc<dyn Accessor> {

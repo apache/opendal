@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 use std::sync::Arc;
 
 use crate::Accessor;
@@ -47,12 +46,6 @@ use crate::Accessor;
 pub trait Layer {
     /// Intercept the operations on the underlying storage.
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor>;
-}
-
-impl<T: Layer> Layer for Arc<T> {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        self.as_ref().layer(inner)
-    }
 }
 
 #[cfg(test)]

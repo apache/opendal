@@ -26,6 +26,7 @@
 //! # Optional features
 //!
 //! - `compress`: Enable object decompress read support.
+//! - `retry`: Enable operator retry support.
 //!
 //! # Example
 //!
@@ -89,8 +90,8 @@ pub use io::BytesStream;
 pub use io::BytesWrite;
 pub use io::BytesWriter;
 
-mod layer;
-pub use layer::Layer;
+mod layers;
+pub use layers::Layer;
 
 mod operator;
 pub use operator::Operator;

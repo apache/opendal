@@ -32,17 +32,12 @@ use crate::Layer;
 use crate::Metadata;
 use crate::ObjectStreamer;
 
-#[derive(Debug, Clone)]
-pub struct Retry<B: backon::Backoff + Debug + Send + Sync + 'static> {
-    backoff: B,
-}
-
-impl<B> Layer for Retry<B>
+impl<B: 'static> Layer for B
 where
     B: backon::Backoff + Debug + Send + Sync,
 {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(RetryableAccessor::create(inner, self.backoff.clone()))
+        Arc::new(RetryableAccessor::create(inner, self.clone()))
     }
 }
 

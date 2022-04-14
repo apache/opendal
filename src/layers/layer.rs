@@ -48,12 +48,6 @@ pub trait Layer {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor>;
 }
 
-impl<T: Layer> Layer for Arc<T> {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        self.as_ref().layer(inner)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::Result;

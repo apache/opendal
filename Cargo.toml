@@ -30,14 +30,14 @@ harness = false
 name = "io"
 
 [dependencies]
-backon = "0.0.2"
 anyhow = "1.0.56"
 async-compat = "0.2.1"
 async-compression = { version = "0.3.12", features = [
-    "futures-io",
-    "all-algorithms",
+  "futures-io",
+  "all-algorithms",
 ], optional = true }
 async-trait = "0.1.53"
+backon = "0.0.2"
 base64 = "0.13.0"
 bytes = "1.1.0"
 futures = { version = "0.3.21", features = ["alloc"] }
@@ -63,9 +63,9 @@ tokio = { version = "1.17.0", features = ["full"] }
 [dev-dependencies]
 anyhow = "1.0.56"
 criterion = { version = "0.3.5", features = [
-    "async",
-    "async_tokio",
-    "html_reports",
+  "async",
+  "async_tokio",
+  "html_reports",
 ] }
 dotenv = "0.15.0"
 env_logger = "0.9.0"

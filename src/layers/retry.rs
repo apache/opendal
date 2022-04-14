@@ -11,18 +11,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
-use crate::{Accessor, BytesReader, BytesWriter, Layer, Metadata, ObjectStreamer};
-
-use async_trait::async_trait;
-use backon::{Retryable};
-
-use std::fmt::{Debug};
-
-
-use std::io::{ErrorKind, Result};
+use std::fmt::Debug;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use backon::Retryable;
+
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::Layer;
+use crate::Metadata;
+use crate::ObjectStreamer;
 
 #[derive(Debug, Clone)]
 pub struct Retry<B: backon::Backoff + Debug + Send + Sync + 'static> {

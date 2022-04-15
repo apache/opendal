@@ -45,7 +45,7 @@ use crate::BytesSink;
 /// # async fn main() -> Result<()> {
 /// # let sink = into_sink(Vec::new());
 /// let mut s = into_writer(sink);
-/// s.write(&vec![0;1024]).await;
+/// s.write(&vec![0; 1024]).await;
 /// # Ok(())
 /// # }
 /// ```

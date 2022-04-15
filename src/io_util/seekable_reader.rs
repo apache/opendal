@@ -51,7 +51,7 @@ use crate::Object;
 /// let o = op.object("test");
 /// let mut r = seekable_read(&o, 10..);
 /// r.seek(SeekFrom::Current(10)).await?;
-/// let mut bs = vec![0;10];
+/// let mut bs = vec![0; 10];
 /// r.read(&mut bs).await?;
 /// # Ok(())
 /// # }

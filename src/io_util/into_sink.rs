@@ -43,7 +43,7 @@ use crate::BytesWrite;
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let mut s = into_sink(Vec::new());
-/// s.feed(Bytes::from(vec![0;1024])).await?;
+/// s.feed(Bytes::from(vec![0; 1024])).await?;
 /// s.close().await?;
 /// # Ok(())
 /// # }

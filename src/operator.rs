@@ -90,8 +90,8 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use opendal::services::fs;
     /// # use opendal::services::fs::Builder;
-    /// use opendal::Operator;
     /// use backon::ExponentialBackoff;
+    /// use opendal::Operator;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {

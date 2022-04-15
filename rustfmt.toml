@@ -1,5 +1,6 @@
 edition = "2021"
 reorder_imports = true
+#format_code_in_doc_comments = true
 #imports_granularity = "Item"
 #group_imports = "StdExternalCrate"
 #where_single_line = true

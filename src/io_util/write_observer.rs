@@ -49,7 +49,7 @@ use crate::BytesWriter;
 ///     WriteEvent::Written(n) => written_size += n,
 ///     _ => {}
 /// });
-/// s.write_all(&vec![0;1024]).await?;
+/// s.write_all(&vec![0; 1024]).await?;
 /// s.close().await?;
 /// # Ok(())
 /// # }

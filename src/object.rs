@@ -601,11 +601,10 @@ impl Object {
     /// # Example
     ///
     /// ```
-    /// use opendal::services::memory;
     /// use anyhow::Result;
     /// use futures::io;
+    /// use opendal::services::memory;
     /// use opendal::Operator;
-    ///
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
@@ -635,11 +634,10 @@ impl Object {
     /// # Example
     ///
     /// ```
-    /// use opendal::services::memory;
     /// use anyhow::Result;
     /// use futures::io;
+    /// use opendal::services::memory;
     /// use opendal::Operator;
-    ///
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<()> {

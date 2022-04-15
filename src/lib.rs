@@ -34,11 +34,11 @@
 //! use anyhow::Result;
 //! use futures::StreamExt;
 //! use opendal::services::fs;
-//! use opendal::ObjectMode;
-//! use opendal::Operator;
 //! use opendal::Metadata;
 //! use opendal::Object;
+//! use opendal::ObjectMode;
 //! use opendal::ObjectStreamer;
+//! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {

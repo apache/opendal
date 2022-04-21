@@ -78,4 +78,4 @@ rand = "0.8.5"
 serde_json = "1.0.79"
 sha2 = "0.10.2"
 size = "0.1.2"
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
+uuid = { version = "1.0.0", features = ["serde", "v4"] }

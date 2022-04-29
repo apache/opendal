@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io;
+
 use std::io::Error;
 
 use crate::error::ObjectError;
@@ -22,6 +22,6 @@ use crate::error::ObjectError;
 /// ## Notes
 ///
 /// Skip utf-8 check to allow invalid path input.
-pub fn parse_io_error(err: io::Error, op: &'static str, path: &str) -> io::Error {
+pub fn parse_io_error(err: Error, op: &'static str, path: &str) -> Error {
     Error::new(err.kind(), ObjectError::new(op, path, err))
 }

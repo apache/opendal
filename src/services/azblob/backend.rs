@@ -680,15 +680,15 @@ impl Backend {
     }
 }
 
-fn parse_error_response_without_body(
-    resp: Response<Body>,
-    op: &'static str,
-    path: &str,
-) -> io::Error {
+fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
     let (part, _) = resp.into_parts();
     let kind = match part.status {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
     };
 
@@ -708,6 +708,10 @@ async fn parse_error_response_with_body(
     let kind = match part.status {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
     };
 

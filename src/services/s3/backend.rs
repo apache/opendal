@@ -1205,6 +1205,10 @@ async fn parse_error_response_with_body(
     let kind = match part.status {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
     };
 

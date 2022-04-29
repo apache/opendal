@@ -32,6 +32,7 @@ harness = false
 name = "io"
 
 [dependencies]
+libc = "0.2.124"
 anyhow = "1.0.56"
 async-compat = "0.2.1"
 async-compression = { version = "0.3.12", features = [
@@ -61,7 +62,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 time = "0.3.9"
 tokio = { version = "1.17.0", features = ["full"] }
-hdrs = { git = "https://github.com/Xuanwo/hdrs/", rev = "4eed0958c32d778f88576784619f4b2adb7cfb69", optional = true }
+hdrs = { version="0.0.3", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.56"

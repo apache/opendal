@@ -13,17 +13,18 @@
 // limitations under the License.
 
 use crate::ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
-use crate::{Accessor, BytesReader, BytesWriter, Metadata, ObjectStreamer};
+use crate::{Accessor, BytesReader, BytesWriter, Metadata, ObjectMode, ObjectStreamer};
 use async_trait::async_trait;
 use std::fmt::{Debug, Formatter};
+use std::io::Result;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct Builder {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Backend {
-    client: Arc<Mutex<hdrs::Client>>,
+    client: Arc<hdrs::Client>,
 }
 
 unsafe impl Send for Backend {}
@@ -33,22 +34,34 @@ impl Backend {}
 
 #[async_trait]
 impl Accessor for Backend {
-    async fn create(&self, args: &OpCreate) -> std::io::Result<()> {
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        match args.mode() {
+            ObjectMode::FILE => {
+                let _ = self
+                    .client
+                    .open(args.path(), libc::O_CREAT | libc::O_WRONLY)?;
+                Ok(())
+            }
+            ObjectMode::DIR => {
+                let _ = self.client.mkdir(args.path())?;
+                Ok(())
+            }
+            ObjectMode::Unknown => unreachable!(),
+        }
+    }
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         todo!()
     }
-    async fn read(&self, args: &OpRead) -> std::io::Result<BytesReader> {
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         todo!()
     }
-    async fn write(&self, args: &OpWrite) -> std::io::Result<BytesWriter> {
+    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         todo!()
     }
-    async fn stat(&self, args: &OpStat) -> std::io::Result<Metadata> {
+    async fn delete(&self, args: &OpDelete) -> Result<()> {
         todo!()
     }
-    async fn delete(&self, args: &OpDelete) -> std::io::Result<()> {
-        todo!()
-    }
-    async fn list(&self, args: &OpList) -> std::io::Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         todo!()
     }
 }

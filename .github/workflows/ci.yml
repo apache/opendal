@@ -11,6 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - name: Checkout python env
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
       - uses: ./.github/actions/check
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,6 +55,21 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v1
+
+      - name: Checkout python env
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -56,6 +86,21 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v1
+
+      - name: Checkout python env
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
       - name: Test
         uses: actions-rs/cargo@v1
         with:

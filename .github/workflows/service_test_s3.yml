@@ -115,7 +115,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test s3 --all-features -- --nocapture
+        run: cargo test s3 --features compress,retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

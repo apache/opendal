@@ -12,4 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 mod backend;
+pub use backend::Backend;
+pub use backend::Builder;
+
 mod error;
+mod object_stream;

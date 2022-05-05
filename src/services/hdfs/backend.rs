@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Formatter;
+
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::Seek;
@@ -23,14 +24,14 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use log::debug;
 use log::error;
+use log::{debug, info};
 use time::OffsetDateTime;
-use tokio::sync::Mutex;
+
 
 use super::error::parse_io_error;
-use crate::error::other;
 use crate::error::ObjectError;
+use crate::error::{other, BackendError};
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -44,7 +45,77 @@ use crate::Metadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 
-pub struct Builder {}
+use super::object_stream::Readdir;
+
+#[derive(Debug, Default)]
+pub struct Builder {
+    root: Option<String>,
+    endpoint: Option<String>,
+}
+
+impl Builder {
+    pub fn root(&mut self, root: &str) -> &mut Self {
+        self.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+        if !endpoint.is_empty() {
+            self.endpoint = Some(endpoint.to_string())
+        }
+
+        self
+    }
+
+    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+        info!("backend build started: {:?}", &self);
+
+        let endpoint = match &self.endpoint {
+            None => {
+                return Err(other(BackendError::new(
+                    HashMap::new(),
+                    anyhow!("Endpoint must be specified"),
+                )))
+            }
+            Some(v) => v,
+        };
+
+        // Make `/` as the default of root.
+        let root = match &self.root {
+            None => "/".to_string(),
+            Some(v) => {
+                if !v.starts_with('/') {
+                    return Err(other(BackendError::new(
+                        HashMap::from([("root".to_string(), v.clone())]),
+                        anyhow!("Root must start with /"),
+                    )));
+                }
+                v.to_string()
+            }
+        };
+
+        let client = hdrs::Client::connect(endpoint).map_err(|e| {
+            other(BackendError::new(
+                HashMap::from([
+                    ("root".to_string(), root.clone()),
+                    ("endpoint".to_string(), endpoint.clone()),
+                ]),
+                anyhow!("connect hdfs name node: {}", e),
+            ))
+        })?;
+
+        info!("backend build finished: {:?}", &self);
+        Ok(Arc::new(Backend {
+            root,
+            client: Arc::new(client),
+        }))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Backend {
@@ -56,6 +127,11 @@ unsafe impl Send for Backend {}
 unsafe impl Sync for Backend {}
 
 impl Backend {
+    /// Create a builder.
+    pub fn build() -> Builder {
+        Builder::default()
+    }
+
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
         if path == "/" {
             return self.root.clone();
@@ -179,7 +255,7 @@ impl Accessor for Backend {
                 e
             })?;
 
-        let mut f = self
+        let f = self
             .client
             .open_file()
             .create(true)
@@ -252,6 +328,17 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
-        todo!()
+        let path = self.get_abs_path(args.path());
+        debug!("object {} list start", &path);
+
+        let f = self.client.read_dir(&path).map_err(|e| {
+            let e = parse_io_error(e, "list", &path);
+            error!("object {} list: {:?}", &path, e);
+            e
+        })?;
+
+        let rd = Readdir::new(Arc::new(self.clone()), &self.root, args.path(), f);
+
+        Ok(Box::new(rd))
     }
 }

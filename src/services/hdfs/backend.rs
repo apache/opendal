@@ -14,7 +14,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::Seek;
@@ -24,14 +23,16 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use log::debug;
 use log::error;
-use log::{debug, info};
+use log::info;
 use time::OffsetDateTime;
 
-
 use super::error::parse_io_error;
+use super::object_stream::Readdir;
+use crate::error::other;
+use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::error::{other, BackendError};
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -44,8 +45,6 @@ use crate::BytesWriter;
 use crate::Metadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
-
-use super::object_stream::Readdir;
 
 #[derive(Debug, Default)]
 pub struct Builder {

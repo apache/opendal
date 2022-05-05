@@ -13,5 +13,6 @@
 // limitations under the License.
 pub mod azblob;
 pub mod fs;
+pub mod hdfs;
 pub mod memory;
 pub mod s3;

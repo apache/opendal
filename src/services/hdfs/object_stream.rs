@@ -22,7 +22,6 @@ use std::task::Poll;
 use log::debug;
 use log::error;
 
-
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::Accessor;
@@ -69,18 +68,18 @@ impl futures::Stream for Readdir {
                     e
                 })?;
 
-                let mut o = Object::new(self.acc.clone(), &path);
+                let mut o = Object::new(self.acc.clone(), path);
 
                 let meta = o.metadata_mut();
                 if de.is_file() {
                     meta.set_mode(ObjectMode::FILE);
-                    meta.set_path(&path);
+                    meta.set_path(path);
                 } else if de.is_dir() {
                     // Make sure we are returning the correct path.
-                    meta.set_path(&format!("{}/", &path));
+                    meta.set_path(&format!("{}/", path));
                     meta.set_mode(ObjectMode::DIR);
                 } else {
-                    meta.set_path(&path);
+                    meta.set_path(path);
                     meta.set_mode(ObjectMode::Unknown);
                 }
 

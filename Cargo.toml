@@ -62,7 +62,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 time = "0.3.9"
 tokio = { version = "1.17.0", features = ["full"] }
-hdrs = { version="0.0.3", optional = true }
+hdrs = { version="0.1.0", optional = true, features = ["futures-io"] }
 
 [dev-dependencies]
 anyhow = "1.0.56"

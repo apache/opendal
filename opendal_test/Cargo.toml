@@ -10,6 +10,9 @@ publish = false
 repository = "https://github.com/datafuselabs/opendal"
 version = "0.0.0"
 
+[features]
+services-hdfs = ["opendal/services-hdfs"]
+
 [dependencies]
 dotenv = "0.15.0"
 opendal = { path = ".." }

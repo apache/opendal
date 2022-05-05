@@ -60,6 +60,8 @@ impl futures::Stream for Readdir {
                 let de_path = de.name().to_string_lossy();
 
                 // Workaround for hdfs could return prefix for default.
+                //
+                // Should be removed after https://github.com/Xuanwo/hdrs/issues/52
                 let de_path = match de_path.strip_prefix("file:") {
                     None => de_path.to_string(),
                     Some(v) => v.to_string(),

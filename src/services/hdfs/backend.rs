@@ -154,7 +154,7 @@ impl Backend {
             return self.root.clone();
         }
 
-        if path.starts_with("/") {
+        if path.starts_with('/') {
             format!("{}{}", &self.root, path)
         } else {
             format!("{}/{}", &self.root, path)

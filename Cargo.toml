@@ -15,7 +15,7 @@ all-features = true
 [features]
 compress = ["async-compression"]
 retry = ["backon"]
-services-hdfs = ["hdrs"]
+services-hdfs = ["hdrs", "opendal_test/services-hdfs"]
 
 [workspace]
 members = ["opendal_test"]

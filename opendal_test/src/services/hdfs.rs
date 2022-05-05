@@ -31,7 +31,7 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     }
 
     let root = &env::var("OPENDAL_HDFS_ROOT").unwrap_or_else(|_| "/".to_string());
-    let root = format!("/{}/{}", root, uuid::Uuid::new_v4());
+    let root = format!("{}{}/", root, uuid::Uuid::new_v4());
 
     let mut builder = hdfs::Backend::build();
     builder.root(&root);

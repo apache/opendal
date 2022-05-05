@@ -23,6 +23,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use futures::AsyncReadExt;
 use log::debug;
 use log::error;
 use log::info;
@@ -78,7 +79,7 @@ impl Builder {
             None => {
                 return Err(other(BackendError::new(
                     HashMap::new(),
-                    anyhow!("Endpoint must be specified"),
+                    anyhow!("endpoint must be specified"),
                 )))
             }
             Some(v) => v,
@@ -91,7 +92,7 @@ impl Builder {
                 if !v.starts_with('/') {
                     return Err(other(BackendError::new(
                         HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("Root must start with /"),
+                        anyhow!("root must start with /"),
                     )));
                 }
                 v.to_string()
@@ -107,6 +108,23 @@ impl Builder {
                 anyhow!("connect hdfs name node: {}", e),
             ))
         })?;
+
+        // Create root dir if not exist.
+        if let Err(e) = client.metadata(&root) {
+            if e.kind() == ErrorKind::NotFound {
+                debug!("root {} is not exist, creating now", root);
+
+                client.create_dir(&root).map_err(|e| {
+                    other(BackendError::new(
+                        HashMap::from([
+                            ("root".to_string(), root.clone()),
+                            ("endpoint".to_string(), endpoint.clone()),
+                        ]),
+                        anyhow!("create root dir: {}", e),
+                    ))
+                })?
+            }
+        }
 
         info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
@@ -136,10 +154,11 @@ impl Backend {
             return self.root.clone();
         }
 
-        PathBuf::from(&self.root)
-            .join(path)
-            .to_string_lossy()
-            .to_string()
+        if path.starts_with("/") {
+            format!("{}{}", &self.root, path)
+        } else {
+            format!("{}/{}", &self.root, path)
+        }
     }
 }
 
@@ -174,7 +193,7 @@ impl Accessor for Backend {
                     .create(true)
                     .write(true)
                     .truncate(true)
-                    .open(args.path())
+                    .open(&path)
                     .map_err(|e| {
                         let e = parse_io_error(e, "create", &path);
                         error!("object {} create: {:?}", &path, e);
@@ -184,7 +203,7 @@ impl Accessor for Backend {
                 Ok(())
             }
             ObjectMode::DIR => {
-                self.client.create_dir(args.path()).map_err(|e| {
+                self.client.create_dir(&path).map_err(|e| {
                     let e = parse_io_error(e, "create", &path);
                     error!("object {} create: {:?}", &path, e);
                     e
@@ -198,6 +217,7 @@ impl Accessor for Backend {
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = self.get_abs_path(args.path());
+
         debug!(
             "object {} read start: offset {:?}, size {:?}",
             &path,
@@ -205,7 +225,7 @@ impl Accessor for Backend {
             args.size()
         );
 
-        let mut f = self.client.open_file().read(true).open(args.path())?;
+        let mut f = self.client.open_file().read(true).open(&path)?;
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset)).map_err(|e| {
@@ -215,7 +235,10 @@ impl Accessor for Backend {
             })?;
         };
 
-        // TODO: implement take support
+        let f: BytesReader = match args.size() {
+            None => Box::new(f),
+            Some(size) => Box::new(f.take(size)),
+        };
 
         debug!(
             "object {} reader created: offset {:?}, size {:?}",
@@ -223,7 +246,7 @@ impl Accessor for Backend {
             args.offset(),
             args.size()
         );
-        Ok(Box::new(f))
+        Ok(f)
     }
 
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
@@ -259,7 +282,7 @@ impl Accessor for Backend {
             .open_file()
             .create(true)
             .write(true)
-            .open(args.path())?;
+            .open(&path)?;
 
         debug!("object {} write finished: size {:?}", &path, args.size());
         Ok(Box::new(f))
@@ -291,7 +314,7 @@ impl Accessor for Backend {
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
         m.set_complete();
 
-        debug!("object {} stat finished", &path);
+        debug!("object {} stat finished: {:?}", &path, m);
         Ok(m)
     }
 

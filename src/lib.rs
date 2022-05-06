@@ -115,6 +115,3 @@ pub mod services;
 //
 // Please don't export any type from this module.
 mod error;
-
-#[deprecated]
-pub mod readers;

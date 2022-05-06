@@ -40,7 +40,7 @@ jobs:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_HDFS_TEST: on
-          OPENDAL_HDFS_ROOT: /tmp
+          OPENDAL_HDFS_ROOT: /tmp/
           OPENDAL_HDFS_ENDPOINT: default
           LD_LIBRARY_PATH: ${{ env.HADOOP_HOME }}/lib/native:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CLASSPATH: ${{ env.HADOOP_HOME }}/share/hadoop/common/*:${{ env.HADOOP_HOME }}/share/hadoop/common/lib/*:${{ env.HADOOP_HOME }}/share/hadoop/hdfs/*:${{ env.HADOOP_HOME }}/share/hadoop/hdfs/lib/*:${{ env.HADOOP_HOME }}/etc/hadoop/*

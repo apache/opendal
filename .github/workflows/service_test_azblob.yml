@@ -19,9 +19,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-      - uses: Swatinem/rust-cache@v1
-
       - name: Setup test bucket
         run: |
             az storage container create \

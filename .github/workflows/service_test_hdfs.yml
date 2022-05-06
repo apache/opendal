@@ -17,7 +17,6 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
 
       - name: Checkout python env
         uses: actions/setup-python@v3
@@ -55,7 +54,6 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
 
       - name: Checkout python env
         uses: actions/setup-python@v3

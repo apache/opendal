@@ -15,10 +15,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Checkout python env
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
       - uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --no-deps --all-features
+        env:
+          LD_LIBRARY_PATH: ${{ env.HADOOP_HOME }}/lib/native:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Deploy to vercel
         env:

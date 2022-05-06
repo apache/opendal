@@ -57,7 +57,7 @@ impl futures::Stream for Readdir {
                 Poll::Ready(None)
             }
             Some(de) => {
-                let de_path = de.name().to_string_lossy();
+                let de_path = de.path();
 
                 // Workaround for hdfs could return prefix for default.
                 //

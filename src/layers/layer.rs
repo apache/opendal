@@ -27,8 +27,10 @@ use crate::Accessor;
 /// # Examples
 ///
 /// ```
-/// use opendal::{Accessor, Layer};
 /// use std::sync::Arc;
+///
+/// use opendal::Accessor;
+/// use opendal::Layer;
 ///
 /// #[derive(Debug)]
 /// struct Trace {

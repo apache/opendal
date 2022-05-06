@@ -11,6 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - name: Checkout python env
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
       - uses: ./.github/actions/check
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -24,7 +39,6 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -39,7 +53,20 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
+      - name: Checkout python env
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
       - name: Build
         uses: actions-rs/cargo@v1
         with:
@@ -55,13 +82,27 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v1
+      - name: Checkout python env
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
       - name: Test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-fail-fast --all-features
+          args: --no-fail-fast --features compress,retry
         env:
           RUST_TEST_THREADS: '2'
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full
+          LD_LIBRARY_PATH: ${{ env.HADOOP_HOME }}/lib/native:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

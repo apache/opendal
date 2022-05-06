@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing specific services support.
-//!
-//! In order to implement a service, we need the following things:
-//!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
+use std::io::Error;
 
-pub mod azblob;
-pub mod fs;
-#[cfg(feature = "services-hdfs")]
-pub mod hdfs;
-pub mod memory;
-pub mod s3;
+use crate::error::ObjectError;
+
+/// Parse all path related errors.
+///
+/// ## Notes
+///
+/// Skip utf-8 check to allow invalid path input.
+pub fn parse_io_error(err: Error, op: &'static str, path: &str) -> Error {
+    Error::new(err.kind(), ObjectError::new(op, path, err))
+}

@@ -11,12 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - uses: Swatinem/rust-cache@v1
-
       - name: Test
         shell: bash
-        run: cargo test s3 --all-features -- --nocapture
+        run: cargo test s3 --features compress,retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -31,12 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
-      - uses: Swatinem/rust-cache@v1
-
       - name: Test
         shell: bash
-        run: cargo test s3 --all-features -- --nocapture
+        run: cargo test s3 --features compress,retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -65,9 +59,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-      - uses: Swatinem/rust-cache@v1
-
       - name: Setup test bucket
         env:
           AWS_ACCESS_KEY_ID: "minioadmin"
@@ -77,7 +68,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test s3 --all-features -- --nocapture
+        run: cargo test s3 --features compress,retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -102,9 +93,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-
-      - uses: Swatinem/rust-cache@v1
-
       - name: Setup test bucket
         run: |
           curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
@@ -115,7 +103,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test s3 --all-features -- --nocapture
+        run: cargo test s3 --features compress,retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

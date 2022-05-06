@@ -16,12 +16,9 @@ jobs:
           - macos-11
     steps:
       - uses: actions/checkout@v3
-
-      - uses: Swatinem/rust-cache@v1
-
       - name: Test
         shell: bash
-        run: cargo test fs --all-features -- --nocapture
+        run: cargo test fs --features compress,retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

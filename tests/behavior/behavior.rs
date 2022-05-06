@@ -104,6 +104,8 @@ macro_rules! behavior_test {
 }
 
 behavior_tests!(azblob, fs, memory, s3);
+#[cfg(feature = "services-hdfs")]
+behavior_tests!(hdfs);
 
 /// Create file with file path should succeed.
 async fn test_create_file(op: Operator) -> Result<()> {

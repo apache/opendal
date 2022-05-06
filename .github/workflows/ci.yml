@@ -105,4 +105,4 @@ jobs:
           RUST_TEST_THREADS: '2'
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full
-          LD_LIBRARY_PATH: ${{ env.HADOOP_HOME }}/lib/native:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

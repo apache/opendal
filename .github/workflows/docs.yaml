@@ -1,9 +1,6 @@
 name: Docs
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -15,12 +12,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '11'
+
       - uses: actions-rs/cargo@v1
         with:
           command: doc
           args: --no-deps --all-features
+        env:
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Deploy to vercel
+        if: github.ref_name == 'main'
         env:
           VERCEL_ORG_ID: ${{secrets.VERCEL_ORG_ID}}
           VERCEL_PROJECT_ID: ${{secrets.VERCEL_PROJECT_ID}}

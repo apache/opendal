@@ -100,7 +100,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-fail-fast --all-features
+          args: --no-fail-fast --features compress,retry
         env:
           RUST_TEST_THREADS: '2'
           RUST_LOG: DEBUG

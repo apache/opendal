@@ -20,6 +20,7 @@
 //! | -------- | ----------- |
 //! | [azblob][crate::services::azblob] | Azure Storage Blob services. |
 //! | [fs][crate::services::fs] | POSIX alike file system. |
+//! | [hdfs][crate::services::hdfs] | Hadoop Distributed File System(HDFS). |
 //! | [memory][crate::services::memory] | In memory backend support. |
 //! | [s3][crate::services::s3] | AWS S3 alike services. |
 //!
@@ -27,6 +28,7 @@
 //!
 //! - `compress`: Enable object decompress read support.
 //! - `retry`: Enable operator retry support.
+//! - `services-hdfs`: Enable hdfs service support.
 //!
 //! # Example
 //!

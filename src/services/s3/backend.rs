@@ -949,6 +949,7 @@ impl Accessor for Backend {
             _ => Err(parse_error_response_with_body(resp, "stat", &p).await),
         }
     }
+
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         increment_counter!("opendal_s3_delete_requests");
@@ -966,6 +967,7 @@ impl Accessor for Backend {
             _ => Err(parse_error_response_with_body(resp, "delete", &p).await),
         }
     }
+
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         increment_counter!("opendal_s3_list_requests");

@@ -39,7 +39,7 @@ jobs:
           RUST_LOG: debug
           OPENDAL_HDFS_TEST: on
           OPENDAL_HDFS_ROOT: /tmp/
-          OPENDAL_HDFS_ENDPOINT: default
+          OPENDAL_HDFS_NAME_NODE: default
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
 
@@ -75,5 +75,5 @@ jobs:
           RUST_LOG: debug
           OPENDAL_HDFS_TEST: on
           OPENDAL_HDFS_ROOT: /
-          OPENDAL_HDFS_ENDPOINT: hdfs://${{ env.HDFS_NAMENODE_ADDR }}
+          OPENDAL_HDFS_NAME_NODE: hdfs://${{ env.HDFS_NAMENODE_ADDR }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

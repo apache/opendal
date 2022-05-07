@@ -23,6 +23,7 @@ OpenDAL is in **alpha** stage and has been early adopted by [databend](https://g
 
 - [azblob](https://docs.rs/opendal/latest/opendal/services/azblob/index.html): Azure Storage Blob services.
 - [fs](https://docs.rs/opendal/latest/opendal/services/fs/index.html): POSIX alike file system.
+- [hdfs](https://docs.rs/opendal/latest/opendal/services/hdfs/index.html): Hadoop Distributed File System(HDFS).
 - [memory](https://docs.rs/opendal/latest/opendal/services/memory/index.html): In memory backend.
 - [s3](https://docs.rs/opendal/latest/opendal/services/s3/index.html): AWS S3 alike services.
 

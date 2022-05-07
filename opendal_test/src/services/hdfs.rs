@@ -22,7 +22,7 @@ use opendal::Accessor;
 ///
 /// - `OPENDAL_HDFS_TEST=on`: set to `on` to enable the test.
 /// - `OPENDAL_HDFS_ROOT=/path/to/dir`: set the root dir.
-/// - `OPENDAL_HDFS_ENDPOINT=<endpoint>`: set the endpoint of the hdfs service.
+/// - `OPENDAL_HDFS_NAME_NODE=<name_node>`: set the name_node of the hdfs service.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     dotenv::from_filename(".env").ok();
 
@@ -35,7 +35,8 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
 
     let mut builder = hdfs::Backend::build();
     builder.root(&root);
-    builder
-        .endpoint(&env::var("OPENDAL_HDFS_ENDPOINT").expect("OPENDAL_HDFS_ENDPOINT must be set"));
+    builder.name_node(
+        &env::var("OPENDAL_HDFS_NAME_NODE").expect("OPENDAL_HDFS_NAME_NODE must be set"),
+    );
     Ok(Some(builder.finish().await?))
 }

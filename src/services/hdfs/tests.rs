@@ -23,8 +23,6 @@ use crate::Accessor;
 /// - `OPENDAL_HDFS_ROOT=/path/to/dir`: set the root dir.
 /// - `OPENDAL_HDFS_NAME_NODE=<name_node>`: set the name_node of the hdfs service.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
-    dotenv::from_filename(".env").ok();
-
     if env::var("OPENDAL_HDFS_TEST").is_err() || env::var("OPENDAL_HDFS_TEST").unwrap() != "on" {
         return Ok(None);
     }

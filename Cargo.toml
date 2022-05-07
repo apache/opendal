@@ -16,7 +16,7 @@ all-features = true
 compress = ["async-compression"]
 retry = ["backon"]
 services-hdfs = ["hdrs"]
-testing = ["dotenv", "uuid"]
+testing = ["uuid"]
 
 [lib]
 bench = false
@@ -71,6 +71,7 @@ criterion = { version = "0.3.5", features = [
   "async_tokio",
   "html_reports",
 ] }
+dotenv = "0.15.0"
 env_logger = "0.9.0"
 itertools = "0.10.3"
 num-traits = "0.2.14"

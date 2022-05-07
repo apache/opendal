@@ -90,6 +90,7 @@ macro_rules! behavior_test {
                     )*
                     async fn [< $test >]() -> Result<()> {
                         init_logger();
+                        let _ = dotenv::dotenv();
 
                         let acc = super::services::$service::tests::new().await?;
                         if acc.is_none() {

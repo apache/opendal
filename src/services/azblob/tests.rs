@@ -25,8 +25,6 @@ use crate::Accessor;
 /// - `OPENDAL_AZBLOB_ACCOUNT_NAME=<account_name>`: set the account_name.
 /// - `OPENDAL_AZBLOB_ACCOUNT_KEY=<account_key>`: set the account_key.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
-    dotenv::from_filename(".env").ok();
-
     if env::var("OPENDAL_AZBLOB_TEST").is_err() || env::var("OPENDAL_AZBLOB_TEST").unwrap() != "on"
     {
         return Ok(None);

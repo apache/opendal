@@ -23,8 +23,6 @@ use crate::Accessor;
 /// - `OPENDAL_FS_TEST=on`: set to `on` to enable the test.
 /// - `OPENDAL_FS_ROOT=<path>`: set the root directory of the test.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
-    dotenv::from_filename(".env").ok();
-
     if env::var("OPENDAL_FS_TEST").is_err() || env::var("OPENDAL_FS_TEST").unwrap() != "on" {
         return Ok(None);
     }

@@ -15,8 +15,7 @@ use std::env;
 use std::io::Result;
 use std::sync::Arc;
 
-use opendal::services::azblob;
-use opendal::Accessor;
+use crate::Accessor;
 
 /// In order to test azblob service, please set the following environment variables:
 /// - `OPENDAL_AZBLOB_TEST=on`: set to `on` to enable the test.
@@ -26,8 +25,6 @@ use opendal::Accessor;
 /// - `OPENDAL_AZBLOB_ACCOUNT_NAME=<account_name>`: set the account_name.
 /// - `OPENDAL_AZBLOB_ACCOUNT_KEY=<account_key>`: set the account_key.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
-    dotenv::from_filename(".env").ok();
-
     if env::var("OPENDAL_AZBLOB_TEST").is_err() || env::var("OPENDAL_AZBLOB_TEST").unwrap() != "on"
     {
         return Ok(None);
@@ -36,7 +33,7 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     let root = &env::var("OPENDAL_AZBLOB_ROOT").unwrap_or_else(|_| "/".to_string());
     let root = format!("/{}/{}", root, uuid::Uuid::new_v4());
 
-    let mut builder = azblob::Backend::build();
+    let mut builder = super::Backend::build();
 
     builder
         .root(&root)

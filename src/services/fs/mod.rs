@@ -53,3 +53,7 @@ pub use backend::Builder;
 
 mod error;
 mod object_stream;
+
+#[doc(hidden)]
+#[cfg(feature = "testing")]
+pub mod tests;

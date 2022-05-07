@@ -77,3 +77,7 @@ pub use backend::Backend;
 pub use backend::Builder;
 
 mod object_stream;
+
+#[doc(hidden)]
+#[cfg(feature = "testing")]
+pub mod tests;

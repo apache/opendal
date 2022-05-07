@@ -13,7 +13,9 @@
 // limitations under the License.
 
 // Behavior test suites.
+#[cfg(feature = "testing")]
 mod behavior;
+#[cfg(feature = "testing")]
 mod utils;
 
 pub fn init_logger() {

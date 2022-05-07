@@ -15,8 +15,7 @@ use std::env;
 use std::io::Result;
 use std::sync::Arc;
 
-use opendal::services::hdfs;
-use opendal::Accessor;
+use crate::Accessor;
 
 /// In order to test s3 service, please set the following environment variables:
 ///
@@ -24,8 +23,6 @@ use opendal::Accessor;
 /// - `OPENDAL_HDFS_ROOT=/path/to/dir`: set the root dir.
 /// - `OPENDAL_HDFS_NAME_NODE=<name_node>`: set the name_node of the hdfs service.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
-    dotenv::from_filename(".env").ok();
-
     if env::var("OPENDAL_HDFS_TEST").is_err() || env::var("OPENDAL_HDFS_TEST").unwrap() != "on" {
         return Ok(None);
     }
@@ -33,7 +30,7 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     let root = &env::var("OPENDAL_HDFS_ROOT").unwrap_or_else(|_| "/".to_string());
     let root = format!("{}{}/", root, uuid::Uuid::new_v4());
 
-    let mut builder = hdfs::Backend::build();
+    let mut builder = super::Backend::build();
     builder.root(&root);
     builder.name_node(
         &env::var("OPENDAL_HDFS_NAME_NODE").expect("OPENDAL_HDFS_NAME_NODE must be set"),

@@ -17,3 +17,7 @@
 mod backend;
 pub use backend::Backend;
 pub use backend::Builder;
+
+#[doc(hidden)]
+#[cfg(feature = "testing")]
+pub mod tests;

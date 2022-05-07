@@ -15,8 +15,7 @@ use std::env;
 use std::io::Result;
 use std::sync::Arc;
 
-use opendal::services::s3;
-use opendal::Accessor;
+use crate::Accessor;
 
 /// In order to test s3 service, please set the following environment variables:
 ///
@@ -27,8 +26,6 @@ use opendal::Accessor;
 /// - `OPENDAL_S3_ACCESS_KEY_ID=<access_key_id>`: set the access key id.
 /// - `OPENDAL_S3_SECRET_ACCESS_KEY=<secret_access_key>`: set the secret access key.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
-    dotenv::from_filename(".env").ok();
-
     if env::var("OPENDAL_S3_TEST").is_err() || env::var("OPENDAL_S3_TEST").unwrap() != "on" {
         return Ok(None);
     }
@@ -36,7 +33,7 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     let root = &env::var("OPENDAL_S3_ROOT").unwrap_or_else(|_| "/".to_string());
     let root = format!("/{}/{}", root, uuid::Uuid::new_v4());
 
-    let mut builder = s3::Backend::build();
+    let mut builder = super::Backend::build();
     builder.root(&root);
     builder.bucket(&env::var("OPENDAL_S3_BUCKET").expect("OPENDAL_S3_BUCKET must set"));
     builder.endpoint(&env::var("OPENDAL_S3_ENDPOINT").unwrap_or_default());

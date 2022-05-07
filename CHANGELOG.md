@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.6.0] - 2022-05-07
+
+### Added
+
+- docs: Improve docs to 100% coverage (#246)
+- RFC-0247: Retryable Error (#247)
+- feat: Implement retry layers  (#249)
+- feat: Implement retryable errors for azblob and s3 (#254)
+- feat: Implement hdfs service support (#255)
+- docs: Add docs for hdfs services (#262)
+
+### Changed
+
+- docs: Make sure code examples are formatted (#251)
+- chore(deps): Update uuid requirement from 0.8.2 to 1.0.0 (#252)
+- refactor: Remove deprecated modules (#259)
+
+### Fixed
+
+- ci: Fix docs build (#260)
+- fix: HDFS jar not load (#261)
+
 ## [v0.5.2] - 2022-04-08
 
 ### Changed
@@ -285,6 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.6.0]: https://github.com/datafuselabs/opendal/compare/v0.5.2...v0.6.0
 [v0.5.2]: https://github.com/datafuselabs/opendal/compare/v0.5.1...v0.5.2
 [v0.5.1]: https://github.com/datafuselabs/opendal/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/datafuselabs/opendal/compare/v0.4.2...v0.5.0

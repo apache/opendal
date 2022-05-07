@@ -62,7 +62,7 @@ impl futures::Stream for Readdir {
                 let path = de_path.strip_prefix(&self.root).ok_or_else(|| {
                     let e = other(ObjectError::new(
                         "list",
-                        &de_path,
+                        de_path,
                         anyhow!("path doesn't have specified prefix"),
                     ));
                     error!("object {:?} path strip_prefix: {:?}", &de_path, e);

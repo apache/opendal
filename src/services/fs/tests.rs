@@ -13,21 +13,31 @@
 // limitations under the License.
 use std::env;
 use std::io::Result;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use opendal::services::memory;
-use opendal::Accessor;
+use crate::Accessor;
 
-/// In order to test memory service, please set the following environment variables:
+/// In order to test fs service, please set the following environment variables:
 ///
-/// - `OPENDAL_MEMORY_TEST=on`: set to `on` to enable the test.
+/// - `OPENDAL_FS_TEST=on`: set to `on` to enable the test.
+/// - `OPENDAL_FS_ROOT=<path>`: set the root directory of the test.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     dotenv::from_filename(".env").ok();
 
-    if env::var("OPENDAL_MEMORY_TEST").is_err() || env::var("OPENDAL_MEMORY_TEST").unwrap() != "on"
-    {
+    if env::var("OPENDAL_FS_TEST").is_err() || env::var("OPENDAL_FS_TEST").unwrap() != "on" {
         return Ok(None);
     }
 
-    Ok(Some(memory::Backend::build().finish().await?))
+    let root = &env::var("OPENDAL_FS_ROOT")
+        .unwrap_or_else(|_| env::temp_dir().to_string_lossy().to_string());
+
+    let root = PathBuf::from(root).join(uuid::Uuid::new_v4().to_string());
+
+    Ok(Some(
+        super::Backend::build()
+            .root(root.to_str().unwrap())
+            .finish()
+            .await?,
+    ))
 }

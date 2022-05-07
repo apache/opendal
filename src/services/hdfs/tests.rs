@@ -13,32 +13,29 @@
 // limitations under the License.
 use std::env;
 use std::io::Result;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use opendal::services::fs;
-use opendal::Accessor;
+use crate::Accessor;
 
-/// In order to test fs service, please set the following environment variables:
+/// In order to test s3 service, please set the following environment variables:
 ///
-/// - `OPENDAL_FS_TEST=on`: set to `on` to enable the test.
-/// - `OPENDAL_FS_ROOT=<path>`: set the root directory of the test.
+/// - `OPENDAL_HDFS_TEST=on`: set to `on` to enable the test.
+/// - `OPENDAL_HDFS_ROOT=/path/to/dir`: set the root dir.
+/// - `OPENDAL_HDFS_NAME_NODE=<name_node>`: set the name_node of the hdfs service.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     dotenv::from_filename(".env").ok();
 
-    if env::var("OPENDAL_FS_TEST").is_err() || env::var("OPENDAL_FS_TEST").unwrap() != "on" {
+    if env::var("OPENDAL_HDFS_TEST").is_err() || env::var("OPENDAL_HDFS_TEST").unwrap() != "on" {
         return Ok(None);
     }
 
-    let root = &env::var("OPENDAL_FS_ROOT")
-        .unwrap_or_else(|_| env::temp_dir().to_string_lossy().to_string());
+    let root = &env::var("OPENDAL_HDFS_ROOT").unwrap_or_else(|_| "/".to_string());
+    let root = format!("{}{}/", root, uuid::Uuid::new_v4());
 
-    let root = PathBuf::from(root).join(uuid::Uuid::new_v4().to_string());
-
-    Ok(Some(
-        fs::Backend::build()
-            .root(root.to_str().unwrap())
-            .finish()
-            .await?,
-    ))
+    let mut builder = super::Backend::build();
+    builder.root(&root);
+    builder.name_node(
+        &env::var("OPENDAL_HDFS_NAME_NODE").expect("OPENDAL_HDFS_NAME_NODE must be set"),
+    );
+    Ok(Some(builder.finish().await?))
 }

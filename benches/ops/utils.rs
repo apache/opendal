@@ -16,9 +16,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use once_cell::sync::Lazy;
+use opendal::services::*;
 use opendal::Accessor;
 use opendal::Operator;
-use opendal_test::services::*;
 use rand::prelude::*;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
@@ -27,9 +27,9 @@ pub static TOKIO: Lazy<tokio::runtime::Runtime> =
 pub fn services() -> Vec<(&'static str, Option<Arc<dyn Accessor>>)> {
     TOKIO.block_on(async {
         vec![
-            ("fs", fs::new().await.expect("init fs")),
-            ("s3", s3::new().await.expect("init s3")),
-            ("memory", memory::new().await.expect("init memory")),
+            ("fs", fs::tests::new().await.expect("init fs")),
+            ("s3", s3::tests::new().await.expect("init s3")),
+            ("memory", memory::tests::new().await.expect("init memory")),
         ]
     })
 }

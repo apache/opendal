@@ -25,9 +25,9 @@ use std::io;
 use anyhow::Result;
 use futures::StreamExt;
 use log::debug;
+use opendal::services;
 use opendal::ObjectMode;
 use opendal::Operator;
-use opendal_test::services;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -91,7 +91,7 @@ macro_rules! behavior_test {
                     async fn [< $test >]() -> Result<()> {
                         init_logger();
 
-                        let acc = super::services::$service::new().await?;
+                        let acc = super::services::$service::tests::new().await?;
                         if acc.is_none() {
                             return Ok(())
                         }
@@ -104,8 +104,12 @@ macro_rules! behavior_test {
 }
 
 behavior_tests!(azblob, fs, memory, s3);
-#[cfg(feature = "services-hdfs")]
-behavior_tests!(hdfs);
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "services-hdfs")] {
+        behavior_tests!(hdfs);
+    }
+}
 
 /// Create file with file path should succeed.
 async fn test_create_file(op: Operator) -> Result<()> {

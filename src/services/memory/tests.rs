@@ -11,4 +11,22 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-pub mod services;
+use std::env;
+use std::io::Result;
+use std::sync::Arc;
+
+use crate::Accessor;
+
+/// In order to test memory service, please set the following environment variables:
+///
+/// - `OPENDAL_MEMORY_TEST=on`: set to `on` to enable the test.
+pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
+    dotenv::from_filename(".env").ok();
+
+    if env::var("OPENDAL_MEMORY_TEST").is_err() || env::var("OPENDAL_MEMORY_TEST").unwrap() != "on"
+    {
+        return Ok(None);
+    }
+
+    Ok(Some(super::Backend::build().finish().await?))
+}

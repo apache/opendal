@@ -27,6 +27,7 @@ use futures::AsyncReadExt;
 use log::debug;
 use log::error;
 use log::info;
+use minitrace::trace;
 use time::OffsetDateTime;
 
 use super::error::parse_io_error;
@@ -47,13 +48,17 @@ use crate::Metadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 
+/// Builder for hdfs services
 #[derive(Debug, Default)]
 pub struct Builder {
     root: Option<String>,
-    endpoint: Option<String>,
+    name_node: Option<String>,
 }
 
 impl Builder {
+    /// Set root of this backend.
+    ///
+    /// All operations will happen under this root.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
             None
@@ -64,18 +69,25 @@ impl Builder {
         self
     }
 
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.to_string())
+    /// Set name_node of this backend.
+    ///
+    /// Vaild format including:
+    ///
+    /// - `default`: using the default setting based on hadoop config.
+    /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
+    pub fn name_node(&mut self, name_node: &str) -> &mut Self {
+        if !name_node.is_empty() {
+            self.name_node = Some(name_node.to_string())
         }
 
         self
     }
 
+    /// Finish the building and create hdfs backend.
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
-        let endpoint = match &self.endpoint {
+        let name_node = match &self.name_node {
             None => {
                 return Err(other(BackendError::new(
                     HashMap::new(),
@@ -99,11 +111,11 @@ impl Builder {
             }
         };
 
-        let client = hdrs::Client::connect(endpoint).map_err(|e| {
+        let client = hdrs::Client::connect(name_node).map_err(|e| {
             other(BackendError::new(
                 HashMap::from([
                     ("root".to_string(), root.clone()),
-                    ("endpoint".to_string(), endpoint.clone()),
+                    ("endpoint".to_string(), name_node.clone()),
                 ]),
                 anyhow!("connect hdfs name node: {}", e),
             ))
@@ -118,7 +130,7 @@ impl Builder {
                     other(BackendError::new(
                         HashMap::from([
                             ("root".to_string(), root.clone()),
-                            ("endpoint".to_string(), endpoint.clone()),
+                            ("endpoint".to_string(), name_node.clone()),
                         ]),
                         anyhow!("create root dir: {}", e),
                     ))
@@ -134,12 +146,14 @@ impl Builder {
     }
 }
 
+/// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct Backend {
     root: String,
     client: Arc<hdrs::Client>,
 }
 
+/// hdrs::Client is thread-safe.
 unsafe impl Send for Backend {}
 unsafe impl Sync for Backend {}
 
@@ -164,6 +178,7 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    #[trace("read")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = self.get_abs_path(args.path());
 
@@ -215,6 +230,7 @@ impl Accessor for Backend {
         }
     }
 
+    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = self.get_abs_path(args.path());
 
@@ -249,6 +265,7 @@ impl Accessor for Backend {
         Ok(f)
     }
 
+    #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let path = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &path, args.size());
@@ -288,6 +305,7 @@ impl Accessor for Backend {
         Ok(Box::new(f))
     }
 
+    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
         let path = self.get_abs_path(args.path());
         debug!("object {} stat start", &path);
@@ -318,6 +336,7 @@ impl Accessor for Backend {
         Ok(m)
     }
 
+    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = self.get_abs_path(args.path());
         debug!("object {} delete start", &path);
@@ -349,6 +368,7 @@ impl Accessor for Backend {
         Ok(())
     }
 
+    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);

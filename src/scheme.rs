@@ -27,6 +27,7 @@ pub enum Scheme {
     /// [fs][crate::services::fs]: POSIX alike file system.
     Fs,
     /// [hdfs][crate::services::hdfs]: Hadoop Distributed File System.
+    #[cfg(feature = "services-hdfs")]
     Hdfs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
@@ -42,6 +43,7 @@ impl FromStr for Scheme {
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
             "fs" => Ok(Scheme::Fs),
+            #[cfg(feature = "services-hdfs")]
             "hdfs" => Ok(Scheme::Hdfs),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),

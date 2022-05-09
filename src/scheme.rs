@@ -1,4 +1,3 @@
-use std::io;
 // Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +11,7 @@ use std::io;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use std::io;
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -26,6 +26,8 @@ pub enum Scheme {
     Azblob,
     /// [fs][crate::services::fs]: POSIX alike file system.
     Fs,
+    /// [hdfs][crate::services::hdfs]: Hadoop Distributed File System.
+    Hdfs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.
@@ -40,13 +42,9 @@ impl FromStr for Scheme {
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
             "fs" => Ok(Scheme::Fs),
+            "hdfs" => Ok(Scheme::Hdfs),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
-
-            // TODO: it's used for compatibility with dal1, should be removed in the future
-            "local" | "disk" => Ok(Scheme::Fs),
-            "azurestorageblob" => Ok(Scheme::Azblob),
-
             v => Err(other(BackendError::new(
                 Default::default(),
                 anyhow!("{} is not supported", v),

@@ -218,7 +218,7 @@ impl Builder {
             signer: Arc::new(signer),
             container: self.container.clone(),
             client,
-            account_name: mem::take(&mut self.account_name).unwrap_or_default(),
+            _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
         }))
     }
 }
@@ -230,7 +230,7 @@ pub struct Backend {
     root: String, // root will be "/" or /abc/
     endpoint: String,
     signer: Arc<Signer>,
-    account_name: String,
+    _account_name: String,
 }
 
 impl Backend {
@@ -481,10 +481,8 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let mut req = hyper::Request::get(&format!(
-            "{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.container, path
-        ));
+        let mut req =
+            hyper::Request::get(&format!("{}/{}/{}", self.endpoint, self.container, path));
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -528,10 +526,8 @@ impl Backend {
         size: u64,
         body: Body,
     ) -> Result<hyper::Request<hyper::Body>> {
-        let mut req = hyper::Request::put(&format!(
-            "{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.container, path
-        ));
+        let mut req =
+            hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.container, path));
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
@@ -564,10 +560,7 @@ impl Backend {
         &self,
         path: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let req = hyper::Request::head(&format!(
-            "{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.container, path
-        ));
+        let req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.container, path));
 
         let mut req = req.body(hyper::Body::empty()).map_err(|e| {
             error!("object {} get_blob_properties: {:?}", path, e);
@@ -599,10 +592,7 @@ impl Backend {
 
     #[trace("delete_blob")]
     pub(crate) async fn delete_blob(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let req = hyper::Request::delete(&format!(
-            "{}.{}/{}/{}",
-            self.account_name, self.endpoint, self.container, path
-        ));
+        let req = hyper::Request::delete(&format!("{}/{}/{}", self.endpoint, self.container, path));
 
         let mut req = req.body(hyper::Body::empty()).map_err(|e| {
             error!("object {} delete_blob: {:?}", path, e);
@@ -639,8 +629,8 @@ impl Backend {
         next_marker: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
         let mut uri = format!(
-            "{}.{}/{}?restype=container&comp=list&delimiter=/",
-            self.account_name, self.endpoint, self.container
+            "{}/{}?restype=container&comp=list&delimiter=/",
+            self.endpoint, self.container
         );
         if !path.is_empty() {
             uri.push_str(&format!("&prefix={}", path))

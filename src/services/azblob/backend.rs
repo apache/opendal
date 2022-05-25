@@ -208,7 +208,6 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .await
             .map_err(|e| other(BackendError::new(context, e)))?;
 
         info!("backend build finished: {:?}", &self);
@@ -500,7 +499,7 @@ impl Backend {
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} get_blob: {:?}", path, e);
             other(ObjectError::new(
                 "read",
@@ -543,7 +542,7 @@ impl Backend {
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} put_blob: {:?}", path, e);
             other(ObjectError::new(
                 "write",
@@ -571,7 +570,7 @@ impl Backend {
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} get_blob_properties: {:?}", path, e);
             other(ObjectError::new(
                 "stat",
@@ -603,7 +602,7 @@ impl Backend {
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} delete_blob: {:?}", path, e);
             other(ObjectError::new(
                 "delete",
@@ -650,7 +649,7 @@ impl Backend {
                 ))
             })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} list_blobs: {:?}", path, e);
             other(ObjectError::new(
                 "list",

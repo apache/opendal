@@ -429,21 +429,23 @@ impl Builder {
             };
         }
 
-        let req = hyper::Request::head(format!("{endpoint}/{bucket}"))
-            .body(hyper::Body::empty())
+        let url = format!("{endpoint}/{bucket}");
+
+        let req = hyper::Request::head(&url)
+            .body(Body::empty())
             .map_err(|e| {
-                error!("backend detect_region: {:?}", e);
+                error!("backend detect_region {}: {:?}", url, e);
                 other(BackendError::new(
                     context.clone(),
-                    anyhow!("build request: {:?}", e),
+                    anyhow!("build request {}: {:?}", url, e),
                 ))
             })?;
 
         let res = client.request(req).await.map_err(|e| {
-            error!("backend detect_region: {:?}", e);
+            error!("backend detect_region: {}: {:?}", url, e);
             other(BackendError::new(
                 context.clone(),
-                anyhow!("sending request: {:?}", e),
+                anyhow!("sending request: {}: {:?}", url, e),
             ))
         })?;
 
@@ -618,7 +620,7 @@ impl Builder {
         context.insert("region".to_string(), region.clone());
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
-        let mut signer_builder = reqsign::services::aws::v4::Signer::builder();
+        let mut signer_builder = Signer::builder();
         signer_builder.service("s3");
         signer_builder.region(&region);
         signer_builder.allow_anonymous();
@@ -991,7 +993,9 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let mut req = hyper::Request::get(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+
+        let mut req = hyper::Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -1004,26 +1008,29 @@ impl Backend {
         req = self.insert_sse_headers(req, false);
 
         let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+            error!("object {path} get_object: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,
-                anyhow!("build request: {:?}", e),
+                anyhow!("build request {url}: {e:?}"),
             ))
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
+            error!("object {path} get_blob: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request: {url}: {e:?}"),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
+            error!("object {path} get_blob: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request: {url}: {e:?}"),
             ))
         })
     }
@@ -1035,7 +1042,9 @@ impl Backend {
         size: u64,
         body: hyper::Body,
     ) -> Result<hyper::Request<hyper::Body>> {
-        let mut req = hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+
+        let mut req = hyper::Request::put(&url);
 
         // Set content length.
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
@@ -1045,20 +1054,20 @@ impl Backend {
 
         // Set body
         let mut req = req.body(body).map_err(|e| {
-            error!("object {} put_object: {:?}", path, e);
+            error!("object {path} put_object: {url} {e:?}");
             other(ObjectError::new(
                 "write",
                 path,
-                anyhow!("build request: {:?}", e),
+                anyhow!("build request {url}: {e:?}"),
             ))
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {} put_object: {:?}", path, e);
+            error!("object {path} put_object: {url} {e:?}");
             other(ObjectError::new(
                 "write",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request: {url}: {e:?}"),
             ))
         })?;
 
@@ -1067,68 +1076,71 @@ impl Backend {
 
     #[trace("head_object")]
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let mut req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.bucket, path));
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+
+        let mut req = hyper::Request::head(&url);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
 
         let mut req = req.body(hyper::Body::empty()).map_err(|e| {
-            error!("object {} head_object: {:?}", path, e);
+            error!("object {path} head_object: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
                 path,
-                anyhow!("build request: {:?}", e),
+                anyhow!("build request {url}: {e:?}"),
             ))
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {} head_object: {:?}", path, e);
+            error!("object {path} head_object: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request: {url}: {e:?}"),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} head_object: {:?}", path, e);
+            error!("object {path} head_object: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request {url}: {e:?}"),
             ))
         })
     }
 
     #[trace("delete_object")]
     pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let mut req =
-            hyper::Request::delete(&format!("{}/{}/{}", self.endpoint, self.bucket, path))
-                .body(hyper::Body::empty())
-                .map_err(|e| {
-                    error!("object {} delete_object: {:?}", path, e);
-                    other(ObjectError::new(
-                        "delete",
-                        path,
-                        anyhow!("build request: {:?}", e),
-                    ))
-                })?;
+        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+
+        let mut req = hyper::Request::delete(&url)
+            .body(hyper::Body::empty())
+            .map_err(|e| {
+                error!("object {path} delete_object: {url} {e:?}");
+                other(ObjectError::new(
+                    "delete",
+                    path,
+                    anyhow!("build request {url}: {e:?}"),
+                ))
+            })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {} delete_object: {:?}", path, e);
+            error!("object {path} delete_object: {url} {e:?}");
             other(ObjectError::new(
                 "delete",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request {url}: {e:?}"),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} delete_object: {:?}", path, e);
+            error!("object {path} delete_object: {url} {e:?}");
             other(ObjectError::new(
                 "delete",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request {url}: {e:?}"),
             ))
         })
     }
@@ -1139,40 +1151,40 @@ impl Backend {
         path: &str,
         continuation_token: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let mut uri = format!(
+        let mut url = format!(
             "{}/{}?list-type=2&delimiter=/&prefix={}",
             self.endpoint, self.bucket, path
         );
         if !continuation_token.is_empty() {
-            uri.push_str(&format!("&continuation-token={}", continuation_token))
+            url.push_str(&format!("&continuation-token={continuation_token}"))
         }
 
-        let mut req = hyper::Request::get(uri)
+        let mut req = hyper::Request::get(&url)
             .body(hyper::Body::empty())
             .map_err(|e| {
-                error!("object {} list_objects: {:?}", path, e);
+                error!("object {path} list_objects: {url} {e:?}");
                 other(ObjectError::new(
                     "list",
                     path,
-                    anyhow!("build request: {:?}", e),
+                    anyhow!("build request {url}: {e:?}"),
                 ))
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {} list_objects: {:?}", path, e);
+            error!("object {path} list_objects: {url} {e:?}");
             other(ObjectError::new(
                 "list",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request {url}: {e:?}"),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} list_object: {:?}", path, e);
+            error!("object {path} list_object: {url} {e:?}");
             other(ObjectError::new(
                 "list",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request {url}: {e:?}"),
             ))
         })
     }

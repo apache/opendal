@@ -431,7 +431,7 @@ impl Builder {
 
         let url = format!("{endpoint}/{bucket}");
 
-        let req = hyper::Request::head(url.clone())
+        let req = hyper::Request::head(&url)
             .body(Body::empty())
             .map_err(|e| {
                 error!("backend detect_region {}: {:?}", url, e);

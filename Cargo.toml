@@ -32,9 +32,13 @@ name = "io"
 [dependencies]
 anyhow = "1.0.56"
 async-compat = "0.2.1"
-async-compression = { version = "0.3.12", features = [
-  "futures-io",
-  "all-algorithms",
+#async-compression = { version = "0.3.12", features = [
+#  "futures-io",
+#  "all-algorithms",
+#], optional = true }
+async-compression = { path = "../../Nemo157/async-compression", features = [
+    "futures-io",
+    "all-algorithms",
 ], optional = true }
 async-trait = "0.1.53"
 backon = { version = "0.0.2", optional = true }
@@ -67,9 +71,9 @@ uuid = { version = "1.0.0", optional = true, features = ["serde", "v4"] }
 anyhow = "1.0.56"
 cfg-if = "1.0.0"
 criterion = { version = "0.3.5", features = [
-  "async",
-  "async_tokio",
-  "html_reports",
+    "async",
+    "async_tokio",
+    "html_reports",
 ] }
 dotenv = "0.15.0"
 env_logger = "0.9.0"

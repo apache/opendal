@@ -16,6 +16,7 @@
 
 use std::path::PathBuf;
 
+use async_compression::codec::{Decode, GzipDecoder as GzipDe};
 use async_compression::futures::bufread::BrotliDecoder;
 use async_compression::futures::bufread::BzDecoder;
 use async_compression::futures::bufread::DeflateDecoder;
@@ -25,6 +26,7 @@ use async_compression::futures::bufread::XzDecoder;
 use async_compression::futures::bufread::ZlibDecoder;
 use async_compression::futures::bufread::ZstdDecoder;
 use futures::io::BufReader;
+use tokio::io::AsyncBufRead;
 
 use crate::BytesRead;
 use crate::BytesReader;
@@ -153,4 +155,8 @@ pub fn into_zlib_reader<R: BytesRead>(r: R) -> ZlibDecoder<BufReader<R>> {
 /// Wrap input reader into zstd decoder.
 pub fn into_zstd_reader<R: BytesRead>(r: R) -> ZstdDecoder<BufReader<R>> {
     ZstdDecoder::new(BufReader::new(r))
+}
+
+pub fn decode_gzip() {
+    let de = GzipDe::new();
 }

@@ -120,7 +120,8 @@ impl Builder {
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.to_string());
+            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
+            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self

@@ -629,7 +629,6 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .await
             .map_err(|e| other(BackendError::new(context, e)))?;
 
         info!("backend build finished: {:?}", &self);
@@ -1011,7 +1010,7 @@ impl Backend {
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             other(ObjectError::new(
                 "read",
                 path,
@@ -1053,7 +1052,7 @@ impl Backend {
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} put_object: {:?}", path, e);
             other(ObjectError::new(
                 "write",
@@ -1081,7 +1080,7 @@ impl Backend {
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} head_object: {:?}", path, e);
             other(ObjectError::new(
                 "stat",
@@ -1114,7 +1113,7 @@ impl Backend {
                     ))
                 })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} delete_object: {:?}", path, e);
             other(ObjectError::new(
                 "delete",
@@ -1158,7 +1157,7 @@ impl Backend {
                 ))
             })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
+        self.signer.sign(&mut req).map_err(|e| {
             error!("object {} list_objects: {:?}", path, e);
             other(ObjectError::new(
                 "list",

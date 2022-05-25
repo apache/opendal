@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.6.3] - 2022-05-25
+
+### Added
+
+- ci: Add all issues into databend-storage project (#277)
+- feat(services/s3): Add retry in load_credential (#281)
+- feat(services): Allow endpoint has trailing slash (#282)
+- feat(services): Attach more context in error messages (#283)
+
 ## [v0.6.2] - 2022-05-12
 
 ### Fixed
@@ -319,6 +328,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.6.3]: https://github.com/datafuselabs/opendal/compare/v0.6.2...v0.6.3
 [v0.6.2]: https://github.com/datafuselabs/opendal/compare/v0.6.1...v0.6.2
 [v0.6.1]: https://github.com/datafuselabs/opendal/compare/v0.6.0...v0.6.1
 [v0.6.0]: https://github.com/datafuselabs/opendal/compare/v0.5.2...v0.6.0

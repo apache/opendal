@@ -464,7 +464,7 @@ impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
             if let DecompressState::Done = *this.state {
                 return Poll::Ready(Ok(output.written().len()));
             }
-            if output.unwritten().is_empty() {
+            if !output.written().is_empty() {
                 return Poll::Ready(Ok(output.written().len()));
             }
         }

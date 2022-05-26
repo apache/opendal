@@ -37,8 +37,8 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
 use crate::BytesWrite;
+use crate::{Accessor, BytesReader};
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -315,14 +315,19 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    // #[cfg(feature = "compress")]
-    // pub async fn decompress_read(&self) -> Result<Vec<u8>> {
-    //     todo!()
-    // }
+    #[cfg(feature = "compress")]
+    pub async fn decompress_read(&self) -> Result<Vec<u8>> {
+        let algo = CompressAlgorithm::from_path(self.meta.path());
+
+        match algo {
+            None => self.read().await,
+            Some(algo) => self.decompress_read_with(algo).await,
+        }
+    }
 
     /// Create a reader with auto detected compress algorithm.
     ///
-    /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    /// If we can't find the correct algorithm, we will return an error instead.
     ///
     /// # Feature
     ///
@@ -344,10 +349,17 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    // #[cfg(feature = "compress")]
-    // pub async fn decompress_reader(&self) -> Result<impl BytesRead> {
-    //     todo!()
-    // }
+    #[cfg(feature = "compress")]
+    pub async fn decompress_reader(&self) -> Result<Option<DecompressReader<impl BytesRead>>> {
+        let algo = match CompressAlgorithm::from_path(self.meta.path()) {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        let r = self.reader().await?;
+
+        Ok(Some(DecompressReader::new(r, algo)))
+    }
 
     /// Read the whole object into a bytes with specific compress algorithm.
     ///
@@ -372,10 +384,15 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    // #[cfg(feature = "compress")]
-    // pub async fn decompress_read_with(&self, algo: CompressAlgorithm) -> Result<Vec<u8>> {
-    //     todo!()
-    // }
+    #[cfg(feature = "compress")]
+    pub async fn decompress_read_with(&self, algo: CompressAlgorithm) -> Result<Vec<u8>> {
+        let r = self.decompress_reader_with(algo).await?;
+        let mut bs = Cursor::new(Vec::new());
+
+        io::copy(r, &mut bs).await?;
+
+        Ok(bs.into_inner())
+    }
 
     /// Create a reader with specific compress algorithm.
     ///

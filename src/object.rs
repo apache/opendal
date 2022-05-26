@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use async_compression::codec::{BrotliDecoder, Decode};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -30,15 +29,16 @@ use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
 use crate::io_util::CompressAlgorithm;
-use crate::io_util::{DecompressReader, SeekableReader};
+use crate::io_util::DecompressReader;
+use crate::io_util::SeekableReader;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::Accessor;
 use crate::BytesWrite;
-use crate::{Accessor, BytesReader};
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]

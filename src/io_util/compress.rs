@@ -17,21 +17,27 @@
 use std::io::Result;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
-use async_compression::codec::{
-    BrotliDecoder, BzDecoder, Decode, DeflateDecoder, GzipDecoder, LzmaDecoder, XzDecoder,
-    ZlibDecoder, ZstdDecoder,
-};
+use async_compression::codec::BrotliDecoder;
+use async_compression::codec::BzDecoder;
+use async_compression::codec::Decode;
+use async_compression::codec::DeflateDecoder;
+use async_compression::codec::GzipDecoder;
+use async_compression::codec::LzmaDecoder;
+use async_compression::codec::XzDecoder;
+use async_compression::codec::ZlibDecoder;
+use async_compression::codec::ZstdDecoder;
 use async_compression::util::PartialBuffer;
+use futures::io::AsyncBufRead;
+use futures::io::AsyncBufReadExt;
 use futures::io::BufReader;
-use futures::io::{AsyncBufRead, AsyncBufReadExt};
 use futures::ready;
 use log::debug;
 use pin_project::pin_project;
 
 use crate::BytesRead;
-use crate::BytesReader;
 
 /// CompressAlgorithm represents all compress algorithm that OpenDAL supports.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -355,19 +361,15 @@ impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use async_compression::codec::Decode;
+    use std::io::Result;
+
     use async_compression::futures::bufread::GzipEncoder;
     use async_compression::futures::bufread::ZlibEncoder;
-    use bytes::BufMut;
     use futures::io::Cursor;
     use futures::AsyncReadExt;
-    use futures::AsyncWriteExt;
-    use log::debug;
     use rand::prelude::*;
-    use std::io;
-    use std::io::Result;
-    use std::io::Write;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_decompress_decode_zlib() -> Result<()> {

@@ -14,19 +14,18 @@
 
 //! This mod provides compress support for BytesWrite and decompress support for BytesRead.
 
+use std::io::Result;
 use std::path::PathBuf;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use async_compression::codec::{Decode, GzipDecoder as GzipDe};
-use async_compression::futures::bufread::BrotliDecoder;
-use async_compression::futures::bufread::BzDecoder;
-use async_compression::futures::bufread::DeflateDecoder;
-use async_compression::futures::bufread::GzipDecoder;
-use async_compression::futures::bufread::LzmaDecoder;
-use async_compression::futures::bufread::XzDecoder;
-use async_compression::futures::bufread::ZlibDecoder;
-use async_compression::futures::bufread::ZstdDecoder;
+use async_compression::codec::{BrotliDecoder, Decode, GzipDecoder};
+use async_compression::util::PartialBuffer;
 use futures::io::BufReader;
-use tokio::io::AsyncBufRead;
+use futures::io::{AsyncBufRead, AsyncBufReadExt};
+use futures::ready;
+use log::debug;
+use pin_project::pin_project;
 
 use crate::BytesRead;
 use crate::BytesReader;
@@ -101,62 +100,260 @@ impl CompressAlgorithm {
 
         CompressAlgorithm::from_extension(&ext)
     }
+}
 
-    /// Wrap input reader into the corresponding reader of compress algorithm.
-    pub fn into_reader<R: 'static + BytesRead>(self, r: R) -> BytesReader {
-        match self {
-            CompressAlgorithm::Brotli => Box::new(into_brotli_reader(r)),
-            CompressAlgorithm::Bz2 => Box::new(into_bz2_reader(r)),
-            CompressAlgorithm::Deflate => Box::new(into_deflate_reader(r)),
-            CompressAlgorithm::Gzip => Box::new(into_gzip_reader(r)),
-            CompressAlgorithm::Lzma => Box::new(into_lzma_reader(r)),
-            CompressAlgorithm::Xz => Box::new(into_xz_reader(r)),
-            CompressAlgorithm::Zlib => Box::new(into_zlib_reader(r)),
-            CompressAlgorithm::Zstd => Box::new(into_zstd_reader(r)),
+#[derive(Debug)]
+enum DecompressState {
+    Reading,
+    Decoding,
+    Finishing,
+    Done,
+}
+
+#[derive(Debug)]
+#[pin_project]
+struct DecompressReader<R: BytesRead, D: Decode> {
+    #[pin]
+    reader: BufReader<R>,
+    decoder: D,
+    state: DecompressState,
+    multiple_members: bool,
+}
+
+impl<R: BytesRead, D: Decode> DecompressReader<R, D> {
+    pub fn new(reader: R, decoder: D) -> Self {
+        Self {
+            reader: BufReader::new(reader),
+            decoder,
+            state: DecompressState::Decoding,
+            multiple_members: false,
         }
     }
 }
 
-/// Wrap input reader into brotli decoder.
-pub fn into_brotli_reader<R: BytesRead>(r: R) -> BrotliDecoder<BufReader<R>> {
-    BrotliDecoder::new(BufReader::new(r))
+impl<R: BytesRead, D: Decode> futures::io::AsyncRead for DecompressReader<R, D> {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+
+        let mut output = PartialBuffer::new(buf);
+        let mut this = self.project();
+
+        loop {
+            *this.state = match this.state {
+                DecompressState::Decoding => {
+                    let input = ready!(this.reader.as_mut().poll_fill_buf(cx))?;
+                    if input.is_empty() {
+                        // Avoid attempting to reinitialise the decoder if the reader
+                        // has returned EOF.
+                        *this.multiple_members = false;
+                        DecompressState::Finishing
+                    } else {
+                        let mut input = PartialBuffer::new(input);
+                        let done = this.decoder.decode(&mut input, &mut output)?;
+                        let len = input.written().len();
+                        this.reader.as_mut().consume(len);
+                        if done {
+                            DecompressState::Finishing
+                        } else {
+                            DecompressState::Decoding
+                        }
+                    }
+                }
+
+                DecompressState::Finishing => {
+                    if this.decoder.finish(&mut output)? {
+                        if *this.multiple_members {
+                            this.decoder.reinit()?;
+                            DecompressState::Reading
+                        } else {
+                            DecompressState::Done
+                        }
+                    } else {
+                        DecompressState::Finishing
+                    }
+                }
+
+                DecompressState::Done => DecompressState::Done,
+
+                DecompressState::Reading => {
+                    let input = ready!(this.reader.as_mut().poll_fill_buf(cx))?;
+                    if input.is_empty() {
+                        DecompressState::Done
+                    } else {
+                        DecompressState::Decoding
+                    }
+                }
+            };
+
+            if let DecompressState::Done = *this.state {
+                return Poll::Ready(Ok(output.written().len()));
+            }
+            if output.unwritten().is_empty() {
+                return Poll::Ready(Ok(output.written().len()));
+            }
+        }
+    }
 }
 
-/// Wrap input reader into bz2 decoder.
-pub fn into_bz2_reader<R: BytesRead>(r: R) -> BzDecoder<BufReader<R>> {
-    BzDecoder::new(BufReader::new(r))
+#[derive(Debug)]
+struct DecompressDecoder<R: AsyncBufRead + Unpin, D: Decode> {
+    reader: R,
+    decoder: D,
+    multiple_members: bool,
 }
 
-/// Wrap input reader into deflate decoder.
-pub fn into_deflate_reader<R: BytesRead>(r: R) -> DeflateDecoder<BufReader<R>> {
-    DeflateDecoder::new(BufReader::new(r))
+impl<R: AsyncBufRead + Unpin, D: Decode> DecompressDecoder<R, D> {
+    pub fn new(reader: R, decoder: D) -> Self {
+        Self {
+            reader,
+            decoder,
+            multiple_members: false,
+        }
+    }
+
+    pub async fn fill_buf(&mut self) -> Result<&[u8]> {
+        self.reader.fill_buf().await
+    }
+
+    pub fn decode(&mut self, input: &[u8], output: &mut [u8]) -> Result<(DecompressState, usize)> {
+        // If input is empty, inner reader must reach EOF, return directly.
+        if input.is_empty() {
+            debug!("input is empty, return directly");
+            // Avoid attempting to reinitialise the decoder if the reader
+            // has returned EOF.
+            self.multiple_members = false;
+            return Ok((DecompressState::Finishing, 0));
+        }
+
+        let mut input = PartialBuffer::new(input);
+        let mut output = PartialBuffer::new(output);
+        let done = self.decoder.decode(&mut input, &mut output)?;
+        let len = input.written().len();
+        debug!("advance reader with amt {}", len);
+        Pin::new(&mut self.reader).consume(len);
+
+        if done {
+            Ok((DecompressState::Finishing, output.written().len()))
+        } else {
+            Ok((DecompressState::Reading, output.written().len()))
+        }
+    }
+
+    pub fn finish(&mut self, output: &mut [u8]) -> Result<(DecompressState, usize)> {
+        let mut output = PartialBuffer::new(output);
+        let done = self.decoder.finish(&mut output)?;
+        if done {
+            if self.multiple_members {
+                self.decoder.reinit()?;
+                Ok((DecompressState::Reading, output.written().len()))
+            } else {
+                Ok((DecompressState::Done, output.written().len()))
+            }
+        } else {
+            Ok((DecompressState::Finishing, output.written().len()))
+        }
+    }
 }
 
-/// Wrap input reader into gzip decoder.
-pub fn into_gzip_reader<R: BytesRead>(r: R) -> GzipDecoder<BufReader<R>> {
-    GzipDecoder::new(BufReader::new(r))
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_compression::codec::{Decode, ZlibDecoder as ZlibCodec};
+    use bytes::BufMut;
+    use flate2::write::ZlibEncoder;
+    use flate2::Compression;
+    use futures::io::Cursor;
+    use futures::AsyncReadExt;
+    use log::debug;
+    use rand::prelude::*;
+    use std::io;
+    use std::io::Result;
+    use std::io::Write;
 
-/// Wrap input reader into lzma decoder.
-pub fn into_lzma_reader<R: BytesRead>(r: R) -> LzmaDecoder<BufReader<R>> {
-    LzmaDecoder::new(BufReader::new(r))
-}
+    #[tokio::test]
+    async fn test_decompress_decode_zlib() -> Result<()> {
+        env_logger::init();
 
-/// Wrap input reader into xz decoder.
-pub fn into_xz_reader<R: BytesRead>(r: R) -> XzDecoder<BufReader<R>> {
-    XzDecoder::new(BufReader::new(r))
-}
+        let mut rng = ThreadRng::default();
+        let mut content = vec![0; 16 * 1024 * 1024];
+        rng.fill_bytes(&mut content);
+        debug!("raw_content size: {}", content.len());
 
-/// Wrap input reader into zlib decoder.
-pub fn into_zlib_reader<R: BytesRead>(r: R) -> ZlibDecoder<BufReader<R>> {
-    ZlibDecoder::new(BufReader::new(r))
-}
+        let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+        e.write_all(&content)?;
+        let compressed_content = e.finish()?;
+        debug!("compressed_content size: {}", compressed_content.len());
 
-/// Wrap input reader into zstd decoder.
-pub fn into_zstd_reader<R: BytesRead>(r: R) -> ZstdDecoder<BufReader<R>> {
-    ZstdDecoder::new(BufReader::new(r))
-}
+        let br = BufReader::new(Cursor::new(compressed_content));
+        let mut cr = DecompressDecoder::new(br, ZlibCodec::new());
 
-pub fn decode_gzip() {
-    let de = GzipDe::new();
+        let mut result = vec![0; 16 * 1024 * 1024];
+        let mut cnt = 0;
+        let mut state = DecompressState::Reading;
+        let mut buf = Vec::new();
+        loop {
+            let (_, output) = result.split_at_mut(cnt);
+
+            match state {
+                DecompressState::Reading => {
+                    debug!("start reading");
+                    buf = cr.fill_buf().await?.to_vec();
+                    debug!("read data: {}", buf.len());
+                    state = DecompressState::Decoding
+                }
+                DecompressState::Decoding => unsafe {
+                    debug!("start decoding from buf {} to output {}", buf.len(), cnt);
+                    let (decode_state, written) = cr.decode(&buf, output)?;
+                    debug!("decoded from buf {} as output {}", buf.len(), written);
+                    state = decode_state;
+                    cnt += written;
+                },
+                DecompressState::Finishing => {
+                    debug!("start finishing to output {}", cnt);
+                    let (finish_state, written) = cr.finish(output)?;
+                    debug!("finished from buf {} as output {}", buf.len(), written);
+                    state = finish_state;
+                    cnt += written;
+                }
+                DecompressState::Done => {
+                    debug!("done");
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(result, content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_reader_zlib() -> Result<()> {
+        env_logger::init();
+
+        let mut rng = ThreadRng::default();
+        let mut content = vec![0; 16 * 1024 * 1024];
+        rng.fill_bytes(&mut content);
+        debug!("raw_content size: {}", content.len());
+
+        let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
+        e.write_all(&content)?;
+        let compressed_content = e.finish()?;
+        debug!("compressed_content size: {}", compressed_content.len());
+
+        let mut cr = DecompressReader::new(Cursor::new(compressed_content), ZlibCodec::new());
+
+        let mut result = vec![];
+        cr.read_to_end(&mut result).await?;
+
+        assert_eq!(result, content);
+
+        Ok(())
+    }
 }

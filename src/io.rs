@@ -16,10 +16,10 @@ use std::io::Error;
 use std::io::Result;
 
 use bytes::Bytes;
-use futures::AsyncRead;
 use futures::AsyncWrite;
 use futures::Sink;
 use futures::Stream;
+use futures::{AsyncBufRead, AsyncRead};
 
 /// BytesRead represents a reader of bytes.
 pub trait BytesRead: AsyncRead + Unpin + Send {}

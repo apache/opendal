@@ -314,15 +314,10 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(feature = "compress")]
-    pub async fn decompress_read(&self) -> Result<Vec<u8>> {
-        let algo = CompressAlgorithm::from_path(self.meta.path());
-
-        match algo {
-            None => self.read().await,
-            Some(algo) => self.decompress_read_with(algo).await,
-        }
-    }
+    // #[cfg(feature = "compress")]
+    // pub async fn decompress_read(&self) -> Result<Vec<u8>> {
+    //     todo!()
+    // }
 
     /// Create a reader with auto detected compress algorithm.
     ///
@@ -348,18 +343,10 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(feature = "compress")]
-    pub async fn decompress_reader(&self) -> Result<impl BytesRead> {
-        let algo = CompressAlgorithm::from_path(self.meta.path());
-
-        let r = self.reader().await?;
-
-        if let Some(algo) = algo {
-            Ok(algo.into_reader(r))
-        } else {
-            Ok(Box::new(r))
-        }
-    }
+    // #[cfg(feature = "compress")]
+    // pub async fn decompress_reader(&self) -> Result<impl BytesRead> {
+    //     todo!()
+    // }
 
     /// Read the whole object into a bytes with specific compress algorithm.
     ///
@@ -384,15 +371,10 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(feature = "compress")]
-    pub async fn decompress_read_with(&self, algo: CompressAlgorithm) -> Result<Vec<u8>> {
-        let r = self.decompress_reader_with(algo).await?;
-        let mut bs = Cursor::new(Vec::new());
-
-        io::copy(r, &mut bs).await?;
-
-        Ok(bs.into_inner())
-    }
+    // #[cfg(feature = "compress")]
+    // pub async fn decompress_read_with(&self, algo: CompressAlgorithm) -> Result<Vec<u8>> {
+    //     todo!()
+    // }
 
     /// Create a reader with specific compress algorithm.
     ///
@@ -417,12 +399,10 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(feature = "compress")]
-    pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
-        let r = self.reader().await?;
-
-        Ok(algo.into_reader(r))
-    }
+    // #[cfg(feature = "compress")]
+    // pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
+    //     todo!()
+    // }
 
     /// Write bytes into object.
     ///

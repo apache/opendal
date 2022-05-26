@@ -126,6 +126,18 @@ impl From<CompressAlgorithm> for DecompressDecoder {
     }
 }
 
+/// DecompressDecoder contains all decoders that opendal supports.
+///
+/// # Example
+///
+/// Please use `CompressAlgorithm.into()` to create a new decoder
+///
+/// ```
+/// use opendal::io_util::CompressAlgorithm;
+/// use opendal::io_util::DecompressDecoder;
+///
+/// let de: DecompressDecoder = CompressAlgorithm::Zstd.into();
+/// ```
 #[derive(Debug)]
 pub enum DecompressDecoder {
     /// BrotliDecoder is too large that is 2592 bytes
@@ -204,14 +216,103 @@ impl Decode for DecompressDecoder {
     }
 }
 
+/// DecompressState is that decode state during decompress.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum DecompressState {
+    /// Reading means there is no data to be consume, we need to fetch more.
+    ///
+    /// We need to call `DecompressReader::fetch()`.
     Reading,
+    /// Decoding means data is ready.
+    ///
+    /// We need to call `DecompressReader::decode()`
     Decoding,
+    /// Finishing means all data has been consumed.
+    ///
+    /// We need to call `DecompressReader::finish()` to flush them into output.
     Finishing,
+    /// Done means the whole process of decompress is done.
+    ///
+    /// We should not call any function of `DecompressReader` anymore.
     Done,
 }
 
+/// DecompressReader provides decompress support for opendal.
+///
+/// There are two ways to do decompress: users can decide where `decode` happen.
+///
+/// - In async runtime: `decode` happen inside `poll_read` (will block the runtime)
+/// - In blocking thread: `decode` happen inside a blocking thread (user need to handle the decompress logic)
+///
+/// Those two way can't be used at the same time.
+///
+/// # In async runtime
+///
+/// This way is much more simple: Users can use `DecompressReader` as `AsyncRead`.
+///
+/// ```no_run
+/// use futures::io::Cursor;
+/// use opendal::io_util::DecompressReader;
+/// use opendal::io_util::CompressAlgorithm;
+/// # use std::io::Result;
+/// # use futures::AsyncReadExt;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let content = vec![0; 16 * 1024 * 1024];
+/// let mut cr = DecompressReader::new(Cursor::new(content), CompressAlgorithm::Gzip);
+/// let mut result = vec![];
+/// cr.read_to_end(&mut result).await?;
+/// # Ok(())
+/// }
+/// ```
+///
+/// # In blocking thread
+///
+/// Do `decode` inside async runtime will blocking the async runtime. To avoid this happen, we can move the `decode` process to blocking thread.
+///
+/// We need to handle the `DecompressState` by ourselves.
+///
+/// Note: please use this way carefully!
+///
+/// ```no_run
+/// use futures::io::Cursor;
+/// use opendal::io_util::DecompressReader;
+/// use opendal::io_util::CompressAlgorithm;
+/// use opendal::io_util::DecompressState;
+/// # use std::io::Result;
+/// # use futures::AsyncReadExt;
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let content = vec![0; 16 * 1024 * 1024];
+/// let mut cr = DecompressReader::new(Cursor::new(content), CompressAlgorithm::Gzip);
+/// let mut result = vec![0; 16 * 1024 * 1024];
+/// let mut buf = Vec::new();
+/// let mut cnt = 0;
+/// loop {
+///     let (_, output) = result.split_at_mut(cnt);
+///
+///     match cr.state() {
+///         DecompressState::Reading => {
+///             buf = cr.fetch().await?.to_vec();
+///         }
+///         DecompressState::Decoding => {
+///             let written = cr.decode(&buf, output)?;
+///             cnt += written;
+///         }
+///         DecompressState::Finishing => {
+///             let written = cr.finish(output)?;
+///             cnt += written;
+///         }
+///         DecompressState::Done => {
+///             break;
+///         }
+///     }
+/// }
+/// # Ok(())
+/// }
+/// ```
 #[derive(Debug)]
 #[pin_project]
 pub struct DecompressReader<R: BytesRead> {
@@ -223,6 +324,7 @@ pub struct DecompressReader<R: BytesRead> {
 }
 
 impl<R: BytesRead> DecompressReader<R> {
+    /// Create a new DecompressReader.
     pub fn new(reader: R, algo: CompressAlgorithm) -> Self {
         Self {
             reader: BufReader::new(reader),
@@ -232,6 +334,12 @@ impl<R: BytesRead> DecompressReader<R> {
         }
     }
 
+    /// Get decompress state
+    pub fn state(&self) -> DecompressState {
+        self.state
+    }
+
+    /// Fetch more data from underlying reader.
     pub async fn fetch(&mut self) -> Result<&[u8]> {
         debug_assert_eq!(self.state, DecompressState::Reading);
 
@@ -240,6 +348,8 @@ impl<R: BytesRead> DecompressReader<R> {
         Ok(buf)
     }
 
+    /// Decode data into output.
+    /// Returns the data that has been written.
     pub fn decode(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize> {
         debug_assert_eq!(self.state, DecompressState::Decoding);
 
@@ -269,6 +379,8 @@ impl<R: BytesRead> DecompressReader<R> {
         Ok(output.written().len())
     }
 
+    /// Finish a decompress press, flushing remaining data into output.
+    /// Return the data that has been written.
     pub fn finish(&mut self, output: &mut [u8]) -> Result<usize> {
         debug_assert_eq!(self.state, DecompressState::Finishing);
 

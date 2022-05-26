@@ -327,7 +327,7 @@ impl Object {
 
     /// Create a reader with auto detected compress algorithm.
     ///
-    /// If we can't find the correct algorithm, we will return an error instead.
+    /// If we can't find the correct algorithm, we will return `Ok(None)`.
     ///
     /// # Feature
     ///

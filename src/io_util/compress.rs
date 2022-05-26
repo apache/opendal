@@ -108,7 +108,7 @@ impl CompressAlgorithm {
 impl From<CompressAlgorithm> for DecompressDecoder {
     fn from(v: CompressAlgorithm) -> Self {
         match v {
-            CompressAlgorithm::Brotli => DecompressDecoder::Brotli(BrotliDecoder::new()),
+            CompressAlgorithm::Brotli => DecompressDecoder::Brotli(Box::new(BrotliDecoder::new())),
             CompressAlgorithm::Bz2 => DecompressDecoder::Bz2(BzDecoder::new()),
             CompressAlgorithm::Deflate => DecompressDecoder::Deflate(DeflateDecoder::new()),
             CompressAlgorithm::Gzip => DecompressDecoder::Gzip(GzipDecoder::new()),
@@ -122,7 +122,9 @@ impl From<CompressAlgorithm> for DecompressDecoder {
 
 #[derive(Debug)]
 pub enum DecompressDecoder {
-    Brotli(BrotliDecoder),
+    /// BrotliDecoder is too large that is 2592 bytes
+    /// Wrap into box to reduce the total size of the enum
+    Brotli(Box<BrotliDecoder>),
     Bz2(BzDecoder),
     Deflate(DeflateDecoder),
     Gzip(GzipDecoder),
@@ -354,12 +356,13 @@ impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_compression::codec::{Decode, ZlibDecoder as ZlibCodec};
+    use async_compression::codec::Decode;
+    use async_compression::futures::bufread::GzipEncoder;
+    use async_compression::futures::bufread::ZlibEncoder;
     use bytes::BufMut;
-    use flate2::write::ZlibEncoder;
-    use flate2::Compression;
     use futures::io::Cursor;
     use futures::AsyncReadExt;
+    use futures::AsyncWriteExt;
     use log::debug;
     use rand::prelude::*;
     use std::io;
@@ -371,19 +374,18 @@ mod tests {
         let _ = env_logger::try_init();
 
         let mut rng = ThreadRng::default();
-        let mut content = vec![0; 16 * 1024 * 1024];
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
-        debug!("raw_content size: {}", content.len());
 
-        let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-        e.write_all(&content)?;
-        let compressed_content = e.finish()?;
-        debug!("compressed_content size: {}", compressed_content.len());
+        let mut e = ZlibEncoder::new(Cursor::new(content.clone()));
+        let mut compressed_content = vec![];
+        e.read_to_end(&mut compressed_content).await?;
 
         let br = BufReader::new(Cursor::new(compressed_content));
         let mut cr = DecompressReader::new(br, CompressAlgorithm::Zlib);
 
-        let mut result = vec![0; 16 * 1024 * 1024];
+        let mut result = vec![0; size];
         let mut cnt = 0;
         let mut buf = Vec::new();
         loop {
@@ -391,23 +393,17 @@ mod tests {
 
             match cr.state {
                 DecompressState::Reading => {
-                    debug!("start reading");
                     buf = cr.fetch().await?.to_vec();
-                    debug!("read data: {}", buf.len());
                 }
                 DecompressState::Decoding => {
-                    debug!("start decoding from buf {} to output {}", buf.len(), cnt);
                     let written = cr.decode(&buf, output)?;
-                    debug!("decoded from buf {} as output {}", buf.len(), written);
                     cnt += written;
                 }
                 DecompressState::Finishing => {
-                    debug!("start finishing to output {}", cnt);
                     let written = cr.finish(output)?;
-                    debug!("finished from buf {} as output {}", buf.len(), written);
+                    cnt += written;
                 }
                 DecompressState::Done => {
-                    debug!("done");
                     break;
                 }
             }
@@ -425,17 +421,81 @@ mod tests {
         let mut rng = ThreadRng::default();
         let mut content = vec![0; 16 * 1024 * 1024];
         rng.fill_bytes(&mut content);
-        debug!("raw_content size: {}", content.len());
 
-        let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-        e.write_all(&content)?;
-        let compressed_content = e.finish()?;
-        debug!("compressed_content size: {}", compressed_content.len());
+        let mut e = ZlibEncoder::new(Cursor::new(content.clone()));
+        let mut compressed_content = vec![];
+        e.read_to_end(&mut compressed_content).await?;
 
-        let mut cr = DecompressReader::new(
-            Cursor::new(compressed_content),
-            CompressAlgorithm::Zlib.into(),
-        );
+        let mut cr =
+            DecompressReader::new(Cursor::new(compressed_content), CompressAlgorithm::Zlib);
+
+        let mut result = vec![];
+        cr.read_to_end(&mut result).await?;
+
+        assert_eq!(result, content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_decode_gzip() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let mut rng = ThreadRng::default();
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+
+        let mut e = GzipEncoder::new(Cursor::new(content.clone()));
+        let mut compressed_content = vec![];
+        e.read_to_end(&mut compressed_content).await?;
+
+        let br = BufReader::new(Cursor::new(compressed_content));
+        let mut cr = DecompressReader::new(br, CompressAlgorithm::Gzip);
+
+        let mut result = vec![0; size];
+        let mut cnt = 0;
+        let mut buf = Vec::new();
+        loop {
+            let (_, output) = result.split_at_mut(cnt);
+
+            match cr.state {
+                DecompressState::Reading => {
+                    buf = cr.fetch().await?.to_vec();
+                }
+                DecompressState::Decoding => {
+                    let written = cr.decode(&buf, output)?;
+                    cnt += written;
+                }
+                DecompressState::Finishing => {
+                    let written = cr.finish(output)?;
+                    cnt += written;
+                }
+                DecompressState::Done => {
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(result, content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_reader_gzip() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let mut rng = ThreadRng::default();
+        let mut content = vec![0; 16 * 1024 * 1024];
+        rng.fill_bytes(&mut content);
+
+        let mut e = GzipEncoder::new(Cursor::new(content.clone()));
+        let mut compressed_content = vec![];
+        e.read_to_end(&mut compressed_content).await?;
+
+        let mut cr =
+            DecompressReader::new(Cursor::new(compressed_content), CompressAlgorithm::Gzip);
 
         let mut result = vec![];
         cr.read_to_end(&mut result).await?;

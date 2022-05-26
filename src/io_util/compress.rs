@@ -19,7 +19,10 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use async_compression::codec::{BrotliDecoder, Decode, GzipDecoder};
+use async_compression::codec::{
+    BrotliDecoder, BzDecoder, Decode, DeflateDecoder, GzipDecoder, LzmaDecoder, XzDecoder,
+    ZlibDecoder, ZstdDecoder,
+};
 use async_compression::util::PartialBuffer;
 use futures::io::BufReader;
 use futures::io::{AsyncBufRead, AsyncBufReadExt};
@@ -100,11 +103,95 @@ impl CompressAlgorithm {
 
         CompressAlgorithm::from_extension(&ext)
     }
+}
 
-    pub fn to_reader(self, r: impl BytesRead) -> DecompressReader<impl BytesRead, impl Decode> {
+impl From<CompressAlgorithm> for DecompressDecoder {
+    fn from(v: CompressAlgorithm) -> Self {
+        match v {
+            CompressAlgorithm::Brotli => DecompressDecoder::Brotli(BrotliDecoder::new()),
+            CompressAlgorithm::Bz2 => DecompressDecoder::Bz2(BzDecoder::new()),
+            CompressAlgorithm::Deflate => DecompressDecoder::Deflate(DeflateDecoder::new()),
+            CompressAlgorithm::Gzip => DecompressDecoder::Gzip(GzipDecoder::new()),
+            CompressAlgorithm::Lzma => DecompressDecoder::Lzma(LzmaDecoder::new()),
+            CompressAlgorithm::Xz => DecompressDecoder::Xz(XzDecoder::new()),
+            CompressAlgorithm::Zlib => DecompressDecoder::Zlib(ZlibDecoder::new()),
+            CompressAlgorithm::Zstd => DecompressDecoder::Zstd(ZstdDecoder::new()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum DecompressDecoder {
+    Brotli(BrotliDecoder),
+    Bz2(BzDecoder),
+    Deflate(DeflateDecoder),
+    Gzip(GzipDecoder),
+    Lzma(LzmaDecoder),
+    Xz(XzDecoder),
+    Zlib(ZlibDecoder),
+    Zstd(ZstdDecoder),
+}
+
+impl Decode for DecompressDecoder {
+    fn reinit(&mut self) -> Result<()> {
         match self {
-            CompressAlgorithm::Brotli => DecompressReader::new(r, BrotliDecoder::new()),
-            _ => unimplemented!(),
+            DecompressDecoder::Brotli(v) => v.reinit(),
+            DecompressDecoder::Bz2(v) => v.reinit(),
+            DecompressDecoder::Deflate(v) => v.reinit(),
+            DecompressDecoder::Gzip(v) => v.reinit(),
+            DecompressDecoder::Lzma(v) => v.reinit(),
+            DecompressDecoder::Xz(v) => v.reinit(),
+            DecompressDecoder::Zlib(v) => v.reinit(),
+            DecompressDecoder::Zstd(v) => v.reinit(),
+        }
+    }
+
+    fn decode(
+        &mut self,
+        input: &mut PartialBuffer<impl AsRef<[u8]>>,
+        output: &mut PartialBuffer<impl AsRef<[u8]> + AsMut<[u8]>>,
+    ) -> Result<bool> {
+        match self {
+            DecompressDecoder::Brotli(v) => v.decode(input, output),
+            DecompressDecoder::Bz2(v) => v.decode(input, output),
+            DecompressDecoder::Deflate(v) => v.decode(input, output),
+            DecompressDecoder::Gzip(v) => v.decode(input, output),
+            DecompressDecoder::Lzma(v) => v.decode(input, output),
+            DecompressDecoder::Xz(v) => v.decode(input, output),
+            DecompressDecoder::Zlib(v) => v.decode(input, output),
+            DecompressDecoder::Zstd(v) => v.decode(input, output),
+        }
+    }
+
+    fn flush(
+        &mut self,
+        output: &mut PartialBuffer<impl AsRef<[u8]> + AsMut<[u8]>>,
+    ) -> Result<bool> {
+        match self {
+            DecompressDecoder::Brotli(v) => v.flush(output),
+            DecompressDecoder::Bz2(v) => v.flush(output),
+            DecompressDecoder::Deflate(v) => v.flush(output),
+            DecompressDecoder::Gzip(v) => v.flush(output),
+            DecompressDecoder::Lzma(v) => v.flush(output),
+            DecompressDecoder::Xz(v) => v.flush(output),
+            DecompressDecoder::Zlib(v) => v.flush(output),
+            DecompressDecoder::Zstd(v) => v.flush(output),
+        }
+    }
+
+    fn finish(
+        &mut self,
+        output: &mut PartialBuffer<impl AsRef<[u8]> + AsMut<[u8]>>,
+    ) -> Result<bool> {
+        match self {
+            DecompressDecoder::Brotli(v) => v.finish(output),
+            DecompressDecoder::Bz2(v) => v.finish(output),
+            DecompressDecoder::Deflate(v) => v.finish(output),
+            DecompressDecoder::Gzip(v) => v.finish(output),
+            DecompressDecoder::Lzma(v) => v.finish(output),
+            DecompressDecoder::Xz(v) => v.finish(output),
+            DecompressDecoder::Zlib(v) => v.finish(output),
+            DecompressDecoder::Zstd(v) => v.finish(output),
         }
     }
 }
@@ -119,19 +206,19 @@ pub enum DecompressState {
 
 #[derive(Debug)]
 #[pin_project]
-pub struct DecompressReader<R: BytesRead, D: Decode> {
+pub struct DecompressReader<R: BytesRead> {
     #[pin]
     reader: BufReader<R>,
-    decoder: D,
+    decoder: DecompressDecoder,
     state: DecompressState,
     multiple_members: bool,
 }
 
-impl<R: BytesRead, D: Decode> DecompressReader<R, D> {
-    pub fn new(reader: R, decoder: D) -> Self {
+impl<R: BytesRead> DecompressReader<R> {
+    pub fn new(reader: R, algo: CompressAlgorithm) -> Self {
         Self {
             reader: BufReader::new(reader),
-            decoder,
+            decoder: algo.into(),
             state: DecompressState::Reading,
             multiple_members: false,
         }
@@ -194,7 +281,7 @@ impl<R: BytesRead, D: Decode> DecompressReader<R, D> {
     }
 }
 
-impl<R: BytesRead, D: Decode> futures::io::AsyncRead for DecompressReader<R, D> {
+impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -294,7 +381,7 @@ mod tests {
         debug!("compressed_content size: {}", compressed_content.len());
 
         let br = BufReader::new(Cursor::new(compressed_content));
-        let mut cr = DecompressReader::new(br, ZlibCodec::new());
+        let mut cr = DecompressReader::new(br, CompressAlgorithm::Zlib);
 
         let mut result = vec![0; 16 * 1024 * 1024];
         let mut cnt = 0;
@@ -345,7 +432,10 @@ mod tests {
         let compressed_content = e.finish()?;
         debug!("compressed_content size: {}", compressed_content.len());
 
-        let mut cr = DecompressReader::new(Cursor::new(compressed_content), ZlibCodec::new());
+        let mut cr = DecompressReader::new(
+            Cursor::new(compressed_content),
+            CompressAlgorithm::Zlib.into(),
+        );
 
         let mut result = vec![];
         cr.read_to_end(&mut result).await?;

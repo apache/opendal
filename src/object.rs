@@ -400,18 +400,14 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    // #[cfg(feature = "compress")]
-    // pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
-    //     todo!()
-    // }
-
-    pub async fn decompress_decoder_with(
+    #[cfg(feature = "compress")]
+    pub async fn decompress_reader_with(
         &self,
         algo: CompressAlgorithm,
-    ) -> Result<DecompressReader<impl BytesRead, impl Decode>> {
+    ) -> Result<DecompressReader<impl BytesRead>> {
         let r = self.reader().await?;
 
-        Ok(algo.to_reader(r))
+        Ok(DecompressReader::new(r, algo))
     }
 
     /// Write bytes into object.

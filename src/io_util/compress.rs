@@ -101,15 +101,15 @@ impl CompressAlgorithm {
         CompressAlgorithm::from_extension(&ext)
     }
 
-    pub fn to_reader(self, r: impl BytesRead) -> DecompressDecoder<impl BytesRead, impl Decode> {
+    pub fn to_reader(self, r: impl BytesRead) -> DecompressReader<impl BytesRead, impl Decode> {
         match self {
-            CompressAlgorithm::Brotli => DecompressDecoder::new(r, BrotliDecoder::new()),
+            CompressAlgorithm::Brotli => DecompressReader::new(r, BrotliDecoder::new()),
             _ => unimplemented!(),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum DecompressState {
     Reading,
     Decoding,
@@ -119,7 +119,7 @@ pub enum DecompressState {
 
 #[derive(Debug)]
 #[pin_project]
-struct DecompressReader<R: BytesRead, D: Decode> {
+pub struct DecompressReader<R: BytesRead, D: Decode> {
     #[pin]
     reader: BufReader<R>,
     decoder: D,
@@ -132,9 +132,65 @@ impl<R: BytesRead, D: Decode> DecompressReader<R, D> {
         Self {
             reader: BufReader::new(reader),
             decoder,
-            state: DecompressState::Decoding,
+            state: DecompressState::Reading,
             multiple_members: false,
         }
+    }
+
+    pub async fn fetch(&mut self) -> Result<&[u8]> {
+        debug_assert_eq!(self.state, DecompressState::Reading);
+
+        let buf = self.reader.fill_buf().await?;
+        self.state = DecompressState::Decoding;
+        Ok(buf)
+    }
+
+    pub fn decode(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize> {
+        debug_assert_eq!(self.state, DecompressState::Decoding);
+
+        // If input is empty, inner reader must reach EOF, return directly.
+        if input.is_empty() {
+            debug!("input is empty, return directly");
+            // Avoid attempting to reinitialise the decoder if the reader
+            // has returned EOF.
+            self.multiple_members = false;
+            self.state = DecompressState::Finishing;
+            return Ok(0);
+        }
+
+        let mut input = PartialBuffer::new(input);
+        let mut output = PartialBuffer::new(output);
+        let done = self.decoder.decode(&mut input, &mut output)?;
+        let len = input.written().len();
+        debug!("advance reader with amt {}", len);
+        Pin::new(&mut self.reader).consume(len);
+
+        if done {
+            self.state = DecompressState::Finishing;
+        } else {
+            self.state = DecompressState::Reading;
+        }
+
+        Ok(output.written().len())
+    }
+
+    pub fn finish(&mut self, output: &mut [u8]) -> Result<usize> {
+        debug_assert_eq!(self.state, DecompressState::Finishing);
+
+        let mut output = PartialBuffer::new(output);
+        let done = self.decoder.finish(&mut output)?;
+        if done {
+            if self.multiple_members {
+                self.decoder.reinit()?;
+                self.state = DecompressState::Reading;
+            } else {
+                self.state = DecompressState::Done;
+            }
+        } else {
+            self.state = DecompressState::Finishing;
+        }
+
+        Ok(output.written().len())
     }
 }
 
@@ -208,66 +264,6 @@ impl<R: BytesRead, D: Decode> futures::io::AsyncRead for DecompressReader<R, D> 
     }
 }
 
-#[derive(Debug)]
-pub struct DecompressDecoder<R: BytesRead, D: Decode> {
-    reader: BufReader<R>,
-    decoder: D,
-    multiple_members: bool,
-}
-
-impl<R: BytesRead, D: Decode> DecompressDecoder<R, D> {
-    pub fn new(reader: R, decoder: D) -> Self {
-        Self {
-            reader: BufReader::new(reader),
-            decoder,
-            multiple_members: false,
-        }
-    }
-
-    pub async fn fetch(&mut self) -> Result<&[u8]> {
-        self.reader.fill_buf().await
-    }
-
-    pub fn decode(&mut self, input: &[u8], output: &mut [u8]) -> Result<(DecompressState, usize)> {
-        // If input is empty, inner reader must reach EOF, return directly.
-        if input.is_empty() {
-            debug!("input is empty, return directly");
-            // Avoid attempting to reinitialise the decoder if the reader
-            // has returned EOF.
-            self.multiple_members = false;
-            return Ok((DecompressState::Finishing, 0));
-        }
-
-        let mut input = PartialBuffer::new(input);
-        let mut output = PartialBuffer::new(output);
-        let done = self.decoder.decode(&mut input, &mut output)?;
-        let len = input.written().len();
-        debug!("advance reader with amt {}", len);
-        Pin::new(&mut self.reader).consume(len);
-
-        if done {
-            Ok((DecompressState::Finishing, output.written().len()))
-        } else {
-            Ok((DecompressState::Reading, output.written().len()))
-        }
-    }
-
-    pub fn finish(&mut self, output: &mut [u8]) -> Result<(DecompressState, usize)> {
-        let mut output = PartialBuffer::new(output);
-        let done = self.decoder.finish(&mut output)?;
-        if done {
-            if self.multiple_members {
-                self.decoder.reinit()?;
-                Ok((DecompressState::Reading, output.written().len()))
-            } else {
-                Ok((DecompressState::Done, output.written().len()))
-            }
-        } else {
-            Ok((DecompressState::Finishing, output.written().len()))
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_decompress_decode_zlib() -> Result<()> {
-        env_logger::init();
+        let _ = env_logger::try_init();
 
         let mut rng = ThreadRng::default();
         let mut content = vec![0; 16 * 1024 * 1024];
@@ -298,35 +294,30 @@ mod tests {
         debug!("compressed_content size: {}", compressed_content.len());
 
         let br = BufReader::new(Cursor::new(compressed_content));
-        let mut cr = DecompressDecoder::new(br, ZlibCodec::new());
+        let mut cr = DecompressReader::new(br, ZlibCodec::new());
 
         let mut result = vec![0; 16 * 1024 * 1024];
         let mut cnt = 0;
-        let mut state = DecompressState::Reading;
         let mut buf = Vec::new();
         loop {
             let (_, output) = result.split_at_mut(cnt);
 
-            match state {
+            match cr.state {
                 DecompressState::Reading => {
                     debug!("start reading");
                     buf = cr.fetch().await?.to_vec();
                     debug!("read data: {}", buf.len());
-                    state = DecompressState::Decoding
                 }
-                DecompressState::Decoding => unsafe {
+                DecompressState::Decoding => {
                     debug!("start decoding from buf {} to output {}", buf.len(), cnt);
-                    let (decode_state, written) = cr.decode(&buf, output)?;
+                    let written = cr.decode(&buf, output)?;
                     debug!("decoded from buf {} as output {}", buf.len(), written);
-                    state = decode_state;
                     cnt += written;
-                },
+                }
                 DecompressState::Finishing => {
                     debug!("start finishing to output {}", cnt);
-                    let (finish_state, written) = cr.finish(output)?;
+                    let written = cr.finish(output)?;
                     debug!("finished from buf {} as output {}", buf.len(), written);
-                    state = finish_state;
-                    cnt += written;
                 }
                 DecompressState::Done => {
                     debug!("done");
@@ -342,7 +333,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_decompress_reader_zlib() -> Result<()> {
-        env_logger::init();
+        let _ = env_logger::try_init();
 
         let mut rng = ThreadRng::default();
         let mut content = vec![0; 16 * 1024 * 1024];

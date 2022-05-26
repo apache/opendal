@@ -27,10 +27,10 @@ use futures::AsyncWriteExt;
 use time::OffsetDateTime;
 
 use crate::io::BytesRead;
+use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
 use crate::io_util::CompressAlgorithm;
-use crate::io_util::SeekableReader;
-use crate::io_util::{seekable_read, DecompressDecoder};
+use crate::io_util::{DecompressReader, SeekableReader};
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -408,7 +408,7 @@ impl Object {
     pub async fn decompress_decoder_with(
         &self,
         algo: CompressAlgorithm,
-    ) -> Result<DecompressDecoder<impl BytesRead, impl Decode>> {
+    ) -> Result<DecompressReader<impl BytesRead, impl Decode>> {
         let r = self.reader().await?;
 
         Ok(algo.to_reader(r))

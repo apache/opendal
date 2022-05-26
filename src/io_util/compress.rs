@@ -100,10 +100,17 @@ impl CompressAlgorithm {
 
         CompressAlgorithm::from_extension(&ext)
     }
+
+    pub fn to_reader(self, r: impl BytesRead) -> DecompressDecoder<impl BytesRead, impl Decode> {
+        match self {
+            CompressAlgorithm::Brotli => DecompressDecoder::new(r, BrotliDecoder::new()),
+            _ => unimplemented!(),
+        }
+    }
 }
 
 #[derive(Debug)]
-enum DecompressState {
+pub enum DecompressState {
     Reading,
     Decoding,
     Finishing,
@@ -202,22 +209,22 @@ impl<R: BytesRead, D: Decode> futures::io::AsyncRead for DecompressReader<R, D> 
 }
 
 #[derive(Debug)]
-struct DecompressDecoder<R: AsyncBufRead + Unpin, D: Decode> {
-    reader: R,
+pub struct DecompressDecoder<R: BytesRead, D: Decode> {
+    reader: BufReader<R>,
     decoder: D,
     multiple_members: bool,
 }
 
-impl<R: AsyncBufRead + Unpin, D: Decode> DecompressDecoder<R, D> {
+impl<R: BytesRead, D: Decode> DecompressDecoder<R, D> {
     pub fn new(reader: R, decoder: D) -> Self {
         Self {
-            reader,
+            reader: BufReader::new(reader),
             decoder,
             multiple_members: false,
         }
     }
 
-    pub async fn fill_buf(&mut self) -> Result<&[u8]> {
+    pub async fn fetch(&mut self) -> Result<&[u8]> {
         self.reader.fill_buf().await
     }
 
@@ -303,7 +310,7 @@ mod tests {
             match state {
                 DecompressState::Reading => {
                     debug!("start reading");
-                    buf = cr.fill_buf().await?.to_vec();
+                    buf = cr.fetch().await?.to_vec();
                     debug!("read data: {}", buf.len());
                     state = DecompressState::Decoding
                 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use async_compression::codec::{BrotliDecoder, Decode};
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -26,10 +27,10 @@ use futures::AsyncWriteExt;
 use time::OffsetDateTime;
 
 use crate::io::BytesRead;
-use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
 use crate::io_util::CompressAlgorithm;
 use crate::io_util::SeekableReader;
+use crate::io_util::{seekable_read, DecompressDecoder};
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -403,6 +404,15 @@ impl Object {
     // pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
     //     todo!()
     // }
+
+    pub async fn decompress_decoder_with(
+        &self,
+        algo: CompressAlgorithm,
+    ) -> Result<DecompressDecoder<impl BytesRead, impl Decode>> {
+        let r = self.reader().await?;
+
+        Ok(algo.to_reader(r))
+    }
 
     /// Write bytes into object.
     ///

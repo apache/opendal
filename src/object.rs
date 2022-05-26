@@ -29,6 +29,8 @@ use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
 use crate::io_util::CompressAlgorithm;
+#[cfg(feature = "compress")]
+use crate::io_util::DecompressReader;
 use crate::io_util::SeekableReader;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -326,7 +328,7 @@ impl Object {
 
     /// Create a reader with auto detected compress algorithm.
     ///
-    /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    /// If we can't find the correct algorithm, we will return `Ok(None)`.
     ///
     /// # Feature
     ///
@@ -349,16 +351,15 @@ impl Object {
     /// # }
     /// ```
     #[cfg(feature = "compress")]
-    pub async fn decompress_reader(&self) -> Result<impl BytesRead> {
-        let algo = CompressAlgorithm::from_path(self.meta.path());
+    pub async fn decompress_reader(&self) -> Result<Option<DecompressReader<impl BytesRead>>> {
+        let algo = match CompressAlgorithm::from_path(self.meta.path()) {
+            Some(v) => v,
+            None => return Ok(None),
+        };
 
         let r = self.reader().await?;
 
-        if let Some(algo) = algo {
-            Ok(algo.into_reader(r))
-        } else {
-            Ok(Box::new(r))
-        }
+        Ok(Some(DecompressReader::new(r, algo)))
     }
 
     /// Read the whole object into a bytes with specific compress algorithm.
@@ -418,10 +419,13 @@ impl Object {
     /// # }
     /// ```
     #[cfg(feature = "compress")]
-    pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
+    pub async fn decompress_reader_with(
+        &self,
+        algo: CompressAlgorithm,
+    ) -> Result<DecompressReader<impl BytesRead>> {
         let r = self.reader().await?;
 
-        Ok(algo.into_reader(r))
+        Ok(DecompressReader::new(r, algo))
     }
 
     /// Write bytes into object.

@@ -32,7 +32,8 @@ name = "io"
 [dependencies]
 anyhow = "1.0.56"
 async-compat = "0.2.1"
-async-compression = { version = "0.3.12", features = [
+# Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
+async-compression = { git = "https://github.com/Xuanwo/async-compression", rev = "b439493", features = [
   "futures-io",
   "all-algorithms",
 ], optional = true }

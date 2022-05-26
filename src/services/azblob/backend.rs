@@ -120,7 +120,8 @@ impl Builder {
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
-            self.endpoint = Some(endpoint.to_string());
+            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
+            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
 
         self
@@ -208,7 +209,6 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .await
             .map_err(|e| other(BackendError::new(context, e)))?;
 
         info!("backend build finished: {:?}", &self);
@@ -481,8 +481,9 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let mut req =
-            hyper::Request::get(&format!("{}/{}/{}", self.endpoint, self.container, path));
+        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+
+        let mut req = hyper::Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -492,29 +493,29 @@ impl Backend {
         }
 
         let mut req = req.body(hyper::Body::empty()).map_err(|e| {
-            error!("object {} get_blob: {:?}", path, e);
+            error!("object {path} get_blob: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,
-                anyhow!("build request: {:?}", e),
+                anyhow!("build request {url}: {e:?}"),
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
-            error!("object {} get_blob: {:?}", path, e);
+        self.signer.sign(&mut req).map_err(|e| {
+            error!("object {path} get_blob: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request {url}: {e:?}"),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} get_blob: {:?}", path, e);
+            error!("object {path} get_blob: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request {url}: {e:?}"),
             ))
         })
     }
@@ -526,8 +527,9 @@ impl Backend {
         size: u64,
         body: Body,
     ) -> Result<hyper::Request<hyper::Body>> {
-        let mut req =
-            hyper::Request::put(&format!("{}/{}/{}", self.endpoint, self.container, path));
+        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+
+        let mut req = hyper::Request::put(&url);
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
@@ -535,20 +537,20 @@ impl Backend {
 
         // Set body
         let mut req = req.body(body).map_err(|e| {
-            error!("object {} put_blob: {:?}", path, e);
+            error!("object {path} put_blob: {url} {e:?}");
             other(ObjectError::new(
                 "write",
                 path,
-                anyhow!("build request: {:?}", e),
+                anyhow!("build request {url}: {e:?}"),
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
-            error!("object {} put_blob: {:?}", path, e);
+        self.signer.sign(&mut req).map_err(|e| {
+            error!("object {path} put_blob: {url} {e:?}");
             other(ObjectError::new(
                 "write",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request {url}: {e:?}"),
             ))
         })?;
 
@@ -560,64 +562,68 @@ impl Backend {
         &self,
         path: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let req = hyper::Request::head(&format!("{}/{}/{}", self.endpoint, self.container, path));
+        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+
+        let req = hyper::Request::head(&url);
 
         let mut req = req.body(hyper::Body::empty()).map_err(|e| {
-            error!("object {} get_blob_properties: {:?}", path, e);
+            error!("object {path} get_blob_properties: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
                 path,
-                anyhow!("build request: {:?}", e),
+                anyhow!("build request {url}: {e:?}"),
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
-            error!("object {} get_blob_properties: {:?}", path, e);
+        self.signer.sign(&mut req).map_err(|e| {
+            error!("object {path} get_blob_properties: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request {url}: {e:?}"),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} get_blob_properties: {:?}", path, e);
+            error!("object {path} get_blob_properties: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request {url}: {e:?}"),
             ))
         })
     }
 
     #[trace("delete_blob")]
     pub(crate) async fn delete_blob(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let req = hyper::Request::delete(&format!("{}/{}/{}", self.endpoint, self.container, path));
+        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+
+        let req = hyper::Request::delete(&url);
 
         let mut req = req.body(hyper::Body::empty()).map_err(|e| {
-            error!("object {} delete_blob: {:?}", path, e);
+            error!("object {path} delete_blob: {url} {e:?}");
             other(ObjectError::new(
                 "delete",
                 path,
-                anyhow!("build request: {:?}", e),
+                anyhow!("build request {url}: {e:?}"),
             ))
         })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
-            error!("object {} delete_blob: {:?}", path, e);
+        self.signer.sign(&mut req).map_err(|e| {
+            error!("object {path} delete_blob: {url} {e:?}");
             other(ObjectError::new(
                 "delete",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request {url}: {e:?}"),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} delete_object: {:?}", path, e);
+            error!("object {path} delete_object: {url} {e:?}");
             other(ObjectError::new(
                 "delete",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request {url}: {e:?}"),
             ))
         })
     }
@@ -628,43 +634,43 @@ impl Backend {
         path: &str,
         next_marker: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let mut uri = format!(
+        let mut url = format!(
             "{}/{}?restype=container&comp=list&delimiter=/",
             self.endpoint, self.container
         );
         if !path.is_empty() {
-            uri.push_str(&format!("&prefix={}", path))
+            url.push_str(&format!("&prefix={path}"))
         }
         if !next_marker.is_empty() {
-            uri.push_str(&format!("&marker={}", next_marker))
+            url.push_str(&format!("&marker={next_marker}"))
         }
 
-        let mut req = hyper::Request::get(uri)
+        let mut req = hyper::Request::get(&url)
             .body(hyper::Body::empty())
             .map_err(|e| {
-                error!("object {} list_blobs: {:?}", path, e);
+                error!("object {path} list_blobs: {url} {e:?}");
                 other(ObjectError::new(
                     "list",
                     path,
-                    anyhow!("build request: {:?}", e),
+                    anyhow!("build request {url}: {e:?}"),
                 ))
             })?;
 
-        self.signer.sign(&mut req).await.map_err(|e| {
-            error!("object {} list_blobs: {:?}", path, e);
+        self.signer.sign(&mut req).map_err(|e| {
+            error!("object {} list_blobs: {url} {:?}", path, e);
             other(ObjectError::new(
                 "list",
                 path,
-                anyhow!("sign request: {:?}", e),
+                anyhow!("sign request {url}: {:?}", e),
             ))
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {} list_blobs: {:?}", path, e);
+            error!("object {path} list_blobs: {url} {e:?}");
             other(ObjectError::new(
                 "list",
                 path,
-                anyhow!("send request: {:?}", e),
+                anyhow!("send request {url}: {e:?}"),
             ))
         })
     }

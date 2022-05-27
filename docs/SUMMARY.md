@@ -19,3 +19,4 @@
   - [0203-remove-credential](rfcs/0203-remove-credential.md)
   - [0221-create-dir](rfcs/0221-create-dir.md)
   - [0247-retryable-error](rfcs/0247-retryable-error.md)
+  - [0293-object-id](rfcs/0293-object-id.md)

@@ -43,6 +43,7 @@ macro_rules! behavior_tests {
                 $service,
 
                 test_check,
+                test_metadata,
 
                 test_create_file,
                 test_create_file_existing,
@@ -117,6 +118,13 @@ cfg_if::cfg_if! {
 /// Create file with file path should succeed.
 async fn test_check(op: Operator) -> Result<()> {
     op.check().await.expect("operator check is ok");
+
+    Ok(())
+}
+
+/// Create file with file path should succeed.
+async fn test_metadata(op: Operator) -> Result<()> {
+    let _ = op.metadata();
 
     Ok(())
 }

@@ -20,7 +20,7 @@ use crate::error::other;
 use crate::error::BackendError;
 
 /// Backends that OpenDAL supports
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Scheme {
     /// [azblob][crate::services::azblob]: Azure Storage Blob services.
     Azblob,
@@ -33,6 +33,12 @@ pub enum Scheme {
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
+}
+
+impl Default for Scheme {
+    fn default() -> Self {
+        Self::Memory
+    }
 }
 
 impl FromStr for Scheme {

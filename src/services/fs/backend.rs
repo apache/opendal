@@ -34,6 +34,7 @@ use tokio::fs;
 
 use super::error::parse_io_error;
 use super::object_stream::Readdir;
+use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -49,6 +50,7 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::Scheme;
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]
@@ -122,6 +124,13 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::Fs).set_root(&self.root);
+
+        am
+    }
+
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = self.get_abs_path(args.path());
 

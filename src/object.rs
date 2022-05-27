@@ -105,10 +105,57 @@ impl Object {
         self.acc.clone()
     }
 
+    /// ID of object.
+    ///
+    /// ID is the unique id of object in the underlying backend. In different backend,
+    /// the id could have different meaning.
+    ///
+    /// For example:
+    ///
+    /// - In `fs`: id is the absolute path of file, like `/path/to/dir/test_object`.
+    /// - In `s3`: id is the full object key, like `path/to/dir/test_object`
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::services::memory;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///     let id = op.object("test").id();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn id(&self) -> String {
-        "".to_string()
+        format!("{}{}", self.acc.metadata().root(), self.meta.path)
     }
 
+    /// Path of object. Path is relative to operator's root.
+    /// Only valid in current operator.
+    ///
+    /// The value is the same with `Metadata::path`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::services::memory;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///     let path = op.object("test").path();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn path(&self) -> String {
         self.meta.path.clone()
     }

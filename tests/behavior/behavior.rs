@@ -44,6 +44,7 @@ macro_rules! behavior_tests {
 
                 test_check,
                 test_metadata,
+                test_object_id,
 
                 test_create_file,
                 test_create_file_existing,
@@ -125,6 +126,18 @@ async fn test_check(op: Operator) -> Result<()> {
 /// Create file with file path should succeed.
 async fn test_metadata(op: Operator) -> Result<()> {
     let _ = op.metadata();
+
+    Ok(())
+}
+
+/// Test object id and path.
+async fn test_object_id(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let o = op.object(&path);
+
+    assert_eq!(o.path(), path);
+    assert_eq!(o.id(), format!("{}{}", op.metadata().root(), path));
 
     Ok(())
 }

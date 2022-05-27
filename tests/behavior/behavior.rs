@@ -42,6 +42,8 @@ macro_rules! behavior_tests {
             behavior_test!(
                 $service,
 
+                test_check,
+
                 test_create_file,
                 test_create_file_existing,
                 test_create_dir,
@@ -110,6 +112,13 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "services-hdfs")] {
         behavior_tests!(hdfs);
     }
+}
+
+/// Create file with file path should succeed.
+async fn test_check(op: Operator) -> Result<()> {
+    op.check().await.expect("operator check is ok");
+
+    Ok(())
 }
 
 /// Create file with file path should succeed.

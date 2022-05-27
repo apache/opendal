@@ -172,7 +172,7 @@ impl AccessorMetadata {
         self
     }
 
-    /// Name of backend, could be empty if underlying backend doesn't namespace concept.
+    /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
     ///
     /// For example:
     ///

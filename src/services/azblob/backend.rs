@@ -89,7 +89,7 @@ impl Debug for Builder {
             ds.field("account_key", &"<redacted>");
         }
 
-        ds.finish_non_exhaustive()
+        ds.finish()
     }
 }
 

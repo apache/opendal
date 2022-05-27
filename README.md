@@ -12,7 +12,8 @@
 You may be looking for:
 
 - [Examples](./examples)
-- [API documentation](https://opendal.databend.rs/opendal/)
+- [Documentation](https://opendal.databend.rs)
+- [API Reference](https://opendal.databend.rs/opendal/)
 - [Release notes](https://github.com/datafuselabs/opendal/releases)
 
 ## Status

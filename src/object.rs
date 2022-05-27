@@ -105,6 +105,14 @@ impl Object {
         self.acc.clone()
     }
 
+    pub fn id(&self) -> String {
+        "".to_string()
+    }
+
+    pub fn path(&self) -> String {
+        self.meta.path.clone()
+    }
+
     /// Create an empty object, like using the following linux commands:
     ///
     /// - `touch path/to/file`

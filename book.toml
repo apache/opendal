@@ -1,0 +1,18 @@
+[book]
+authors = ["Xuanwo"]
+language = "en"
+multilingual = false
+src = "docs"
+title = "OpenDAL Documentation"
+
+[build]
+build-dir = "target/book"
+create-missing = false
+
+[rust]
+edition = "2021"
+
+[output.html]
+no-section-label = true
+git-repository-url = "https://github.com/datafuselabs/opendal"
+edit-url-template = "https://github.com/datafuselabs/opendal/edit/main/{path}"

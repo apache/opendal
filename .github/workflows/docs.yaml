@@ -26,6 +26,15 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
+      - name: Setup mdBook
+        uses: peaceiris/actions-mdbook@v1
+        with:
+          mdbook-version: 'latest'
+
+      - run: |
+          mdbook build
+          cp -r ./target/doc/* ./target/book
+
       - name: Deploy to vercel
         if: github.ref_name == 'main'
         env:
@@ -33,4 +42,13 @@ jobs:
           VERCEL_PROJECT_ID: ${{secrets.VERCEL_PROJECT_ID}}
         run: |
           npm i -g vercel
-          vercel --token=${{ secrets.VERCEL_TOKEN }} --prod --scope databend ./target/doc
+          vercel --token=${{ secrets.VERCEL_TOKEN }} --prod --scope databend ./target/book
+
+      - name: Deploy to vercel (preview)
+        if: github.ref_name != 'main'
+        env:
+          VERCEL_ORG_ID: ${{secrets.VERCEL_ORG_ID}}
+          VERCEL_PROJECT_ID: ${{secrets.VERCEL_PROJECT_ID}}
+        run: |
+          npm i -g vercel
+          vercel --token=${{ secrets.VERCEL_TOKEN }} --scope databend ./target/book

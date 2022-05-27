@@ -677,6 +677,12 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Whether this object is complete.
+    ///
+    /// - If complete, this metadata is the full set. And we can't
+    ///   get more information.
+    /// - If not, this metadata is not the full set. We can use
+    ///   `Object::metadata()` to get more information.
     pub fn complete(&self) -> bool {
         self.complete
     }

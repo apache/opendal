@@ -42,11 +42,13 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::Metadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+use crate::Scheme;
 
 /// Builder for hdfs services
 #[derive(Debug, Default)]
@@ -179,7 +181,14 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    #[trace("read")]
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::Hdfs).set_root(&self.root);
+
+        am
+    }
+
+    #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = self.get_abs_path(args.path());
 

@@ -58,9 +58,11 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::ObjectMode;
+use crate::Scheme;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -508,6 +510,7 @@ impl Builder {
         }
     }
 
+    /// Finish the build process and create a new accessor.
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -669,6 +672,7 @@ pub struct Backend {
 }
 
 impl Backend {
+    /// Create a new builder for s3.
     pub fn build() -> Builder {
         Builder::default()
     }
@@ -763,7 +767,16 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    #[trace("read")]
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::S3)
+            .set_root(&self.root)
+            .set_name(&self.bucket);
+
+        am
+    }
+
+    #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
         increment_counter!("opendal_s3_create_requests");
         let p = self.get_abs_path(args.path());

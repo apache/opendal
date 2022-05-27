@@ -42,6 +42,7 @@ use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
+use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -61,6 +62,7 @@ use crate::BytesReader;
 use crate::BytesWriter;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+use crate::Scheme;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
@@ -234,6 +236,7 @@ pub struct Backend {
 }
 
 impl Backend {
+    /// Create a builder for azblob.
     pub fn build() -> Builder {
         Builder::default()
     }
@@ -263,7 +266,16 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
-    #[trace("read")]
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::Azblob)
+            .set_root(&self.root)
+            .set_name(&self.container);
+
+        am
+    }
+
+    #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
         increment_counter!("opendal_azblob_create_requests");
         let p = self.get_abs_path(args.path());
@@ -728,7 +740,7 @@ async fn parse_error_response_with_body(
         }
     }
 
-    io::Error::new(
+    Error::new(
         kind,
         ObjectError::new(
             op,

@@ -21,6 +21,7 @@ use std::sync::Arc;
 use backon::Backoff;
 
 use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::Layer;
 use crate::Object;
 
@@ -113,6 +114,29 @@ impl Operator {
         self.accessor.clone()
     }
 
+    /// Get metadata of underlying accessor.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// # use opendal::services::fs;
+    /// # use opendal::services::fs::Builder;
+    /// use opendal::Operator;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let accessor = fs::Backend::build().finish().await?;
+    /// let op = Operator::new(accessor);
+    /// let meta = op.metadata();
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn metadata(&self) -> AccessorMetadata {
+        self.accessor.metadata()
+    }
+
     /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
         Object::new(self.inner(), path)
@@ -134,7 +158,6 @@ impl Operator {
     /// # async fn main() -> Result<()> {
     /// # let accessor = fs::Backend::build().finish().await?;
     /// let op = Operator::new(accessor);
-    /// // All operations will be retried if the error is retryable
     /// op.check().await?;
     /// # Ok(())
     /// # }

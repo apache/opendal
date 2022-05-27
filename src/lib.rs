@@ -80,9 +80,13 @@
 //! }
 //! ```
 
+// Make sure all our public APIs have docs.
+#![warn(missing_docs)]
+
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod accessor;
 pub use accessor::Accessor;
+pub use accessor::AccessorMetadata;
 
 mod io;
 pub use io::BytesRead;

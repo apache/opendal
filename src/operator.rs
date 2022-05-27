@@ -14,6 +14,7 @@
 
 #[cfg(feature = "retry")]
 use std::fmt::Debug;
+use std::io::Result;
 use std::sync::Arc;
 
 #[cfg(feature = "retry")]
@@ -95,7 +96,7 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// #     let accessor = fs::Backend::build().finish().await?;
+    /// # let accessor = fs::Backend::build().finish().await?;
     /// let op = Operator::new(accessor).with_backoff(ExponentialBackoff::default());
     /// // All operations will be retried if the error is retryable
     /// let _ = op.object("test_file").read();
@@ -115,5 +116,33 @@ impl Operator {
     /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
         Object::new(self.inner(), path)
+    }
+
+    /// Check if this operator can work correctly.
+    ///
+    /// We will send a real `stat` request to `.opendal` and return any errors
+    /// we met.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// # use opendal::services::fs;
+    /// # use opendal::services::fs::Builder;
+    /// use opendal::Operator;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let accessor = fs::Backend::build().finish().await?;
+    /// let op = Operator::new(accessor);
+    /// // All operations will be retried if the error is retryable
+    /// op.check().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn check(&self) -> Result<()> {
+        // The existences of `.opendal` doesn't matters.
+        let _ = self.object(".opendal").is_exist().await?;
+
+        Ok(())
     }
 }

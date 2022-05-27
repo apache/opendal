@@ -140,15 +140,24 @@ impl From<CompressAlgorithm> for DecompressDecoder {
 /// ```
 #[derive(Debug)]
 pub enum DecompressDecoder {
+    /// Decoder for [`CompressAlgorithm::Brotli`]
+    ///
     /// BrotliDecoder is too large that is 2592 bytes
     /// Wrap into box to reduce the total size of the enum
     Brotli(Box<BrotliDecoder>),
+    /// Decoder for [`CompressAlgorithm::Bz2`]
     Bz2(BzDecoder),
+    /// Decoder for [`CompressAlgorithm::Deflate`]
     Deflate(DeflateDecoder),
+    /// Decoder for [`CompressAlgorithm::Gzip`]
     Gzip(GzipDecoder),
+    /// Decoder for [`CompressAlgorithm::Lzma`]
     Lzma(LzmaDecoder),
+    /// Decoder for [`CompressAlgorithm::Xz`]
     Xz(XzDecoder),
+    /// Decoder for [`CompressAlgorithm::Zlib`]
     Zlib(ZlibDecoder),
+    /// Decoder for [`CompressAlgorithm::Zstd`]
     Zstd(ZstdDecoder),
 }
 

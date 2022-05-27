@@ -28,6 +28,7 @@ use crate::BytesReader;
 use crate::BytesWriter;
 use crate::Metadata;
 use crate::ObjectStreamer;
+use crate::Scheme;
 
 /// Underlying trait of all backends for implementors.
 ///
@@ -42,6 +43,11 @@ use crate::ObjectStreamer;
 ///   should handle them based on services requirement.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
+    /// Invoke the `metadata` operation to get metadata of accessor.
+    fn metadata(&self) -> AccessorMetadata {
+        unimplemented!()
+    }
+
     /// Invoke the `read` operation on the specified path, returns corresponding
     /// [`Metadata`] if operate successful.
     ///
@@ -114,6 +120,9 @@ pub trait Accessor: Send + Sync + Debug {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
+    fn metadata(&self) -> AccessorMetadata {
+        self.as_ref().metadata()
+    }
     async fn create(&self, args: &OpCreate) -> Result<()> {
         self.as_ref().create(args).await
     }
@@ -131,5 +140,50 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
         self.as_ref().list(args).await
+    }
+}
+
+/// Metadata for accessor, users can use this metadata to get information of underlying backend.
+#[derive(Clone, Debug, Default)]
+pub struct AccessorMetadata {
+    scheme: Scheme,
+    root: String,
+    name: String,
+}
+
+impl AccessorMetadata {
+    /// [`Scheme`] of backend.
+    pub fn scheme(&self) -> Scheme {
+        self.scheme
+    }
+
+    pub(crate) fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
+        self.scheme = scheme;
+        self
+    }
+
+    /// Root of backend, will be in format like `/path/to/dir/`
+    pub fn root(&self) -> &str {
+        &self.root
+    }
+
+    pub(crate) fn set_root(&mut self, root: &str) -> &mut Self {
+        self.root = root.to_string();
+        self
+    }
+
+    /// Name of backend, could be empty if underlying backend doesn't namespace concept.
+    ///
+    /// For example:
+    ///
+    /// - name for `s3` => bucket name
+    /// - name for `azblob` => container name
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn set_name(&mut self, name: &str) -> &mut Self {
+        self.name = name.to_string();
+        self
     }
 }

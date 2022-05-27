@@ -41,11 +41,13 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::Metadata;
 use crate::Object;
 use crate::ObjectMode;
+use crate::Scheme;
 
 /// Builder for memory backend
 #[derive(Default)]
@@ -73,6 +75,15 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::Memory)
+            .set_root("/")
+            .set_name("memory");
+
+        am
+    }
+
     #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = args.path();

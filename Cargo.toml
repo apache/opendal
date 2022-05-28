@@ -33,7 +33,7 @@ name = "io"
 anyhow = "1.0.56"
 async-compat = "0.2.1"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
-async-compression = { git = "https://github.com/Xuanwo/async-compression", rev = "b439493", features = [
+async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
   "futures-io",
   "all-algorithms",
 ], optional = true }

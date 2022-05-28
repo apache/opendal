@@ -6,7 +6,7 @@ This document intends to record upgrade and migrate procedures while OpenDAL mee
 
 OpenDAL introduces a breaking change of `decompress_read` related in v0.7.
 
-Since v0.7, `decompress_read` and `decompress_reader` will return `Result<Option<_>>` while OpenDAL can't detect the correct compress algorithm.
+Since v0.7, `decompress_read` and `decompress_reader` will return `Ok(None)` while OpenDAL can't detect the correct compress algorithm.
 
 ```rust
 impl Object {

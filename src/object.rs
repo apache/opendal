@@ -349,7 +349,7 @@ impl Object {
 
     /// Read the whole object into a bytes with auto detected compress algorithm.
     ///
-    /// If we can't find the correct algorithm, we will fallback to normal read instead.
+    /// If we can't find the correct algorithm, we return `Ok(None)` instead.
     ///
     /// # Feature
     ///
@@ -367,18 +367,18 @@ impl Object {
     /// # let op = Operator::new(memory::Backend::build().finish().await?);
     /// let o = op.object("path/to/file.gz");
     /// # o.write(&vec![0; 4096]).await?;
-    /// let bs = o.decompress_read().await?;
+    /// let bs = o.decompress_read().await?.expect("must read succeed");
     /// # Ok(())
     /// # }
     /// ```
     #[cfg(feature = "compress")]
-    pub async fn decompress_read(&self) -> Result<Vec<u8>> {
-        let algo = CompressAlgorithm::from_path(self.meta.path());
+    pub async fn decompress_read(&self) -> Result<Option<Vec<u8>>> {
+        let algo = match CompressAlgorithm::from_path(self.meta.path()) {
+            None => return Ok(None),
+            Some(algo) => algo,
+        };
 
-        match algo {
-            None => self.read().await,
-            Some(algo) => self.decompress_read_with(algo).await,
-        }
+        self.decompress_read_with(algo).await.map(Some)
     }
 
     /// Create a reader with auto detected compress algorithm.
@@ -406,7 +406,7 @@ impl Object {
     /// # }
     /// ```
     #[cfg(feature = "compress")]
-    pub async fn decompress_reader(&self) -> Result<Option<DecompressReader<impl BytesRead>>> {
+    pub async fn decompress_reader(&self) -> Result<Option<impl BytesRead>> {
         let algo = match CompressAlgorithm::from_path(self.meta.path()) {
             Some(v) => v,
             None => return Ok(None),
@@ -474,10 +474,7 @@ impl Object {
     /// # }
     /// ```
     #[cfg(feature = "compress")]
-    pub async fn decompress_reader_with(
-        &self,
-        algo: CompressAlgorithm,
-    ) -> Result<DecompressReader<impl BytesRead>> {
+    pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
         let r = self.reader().await?;
 
         Ok(DecompressReader::new(r, algo))

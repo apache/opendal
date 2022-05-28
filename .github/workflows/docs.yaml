@@ -37,18 +37,23 @@ jobs:
 
       - name: Deploy to vercel
         if: github.ref_name == 'main'
-        env:
-          VERCEL_ORG_ID: ${{secrets.VERCEL_ORG_ID}}
-          VERCEL_PROJECT_ID: ${{secrets.VERCEL_PROJECT_ID}}
-        run: |
-          npm i -g vercel
-          vercel --token=${{ secrets.VERCEL_TOKEN }} --prod --scope databend ./target/book
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          scope: databend
+          working-directory: ./target/book
 
       - name: Deploy to vercel (preview)
         if: github.ref_name != 'main'
-        env:
-          VERCEL_ORG_ID: ${{secrets.VERCEL_ORG_ID}}
-          VERCEL_PROJECT_ID: ${{secrets.VERCEL_PROJECT_ID}}
-        run: |
-          npm i -g vercel
-          vercel --token=${{ secrets.VERCEL_TOKEN }} --scope databend ./target/book
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          scope: databend
+          working-directory: ./target/book

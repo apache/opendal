@@ -446,7 +446,11 @@ async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
 
     let _ = op.object(&path).write(&compressed_content).await?;
 
-    let bs = op.object(&path).decompress_read().await?;
+    let bs = op
+        .object(&path)
+        .decompress_read()
+        .await?
+        .expect("decompress read must succeed");
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

@@ -47,4 +47,12 @@ pub use seekable_reader::SeekableReader;
 #[cfg(feature = "compress")]
 mod compress;
 #[cfg(feature = "compress")]
-pub use compress::*;
+pub use compress::CompressAlgorithm;
+#[cfg(feature = "compress")]
+pub use compress::DecompressCodec;
+#[cfg(feature = "compress")]
+pub use compress::DecompressDecoder;
+#[cfg(feature = "compress")]
+pub use compress::DecompressReader;
+#[cfg(feature = "compress")]
+pub use compress::DecompressState;

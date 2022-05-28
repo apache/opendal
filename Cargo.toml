@@ -7,7 +7,7 @@ keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.6.3"
+version = "0.7.0"
 
 [package.metadata.docs.rs]
 all-features = true

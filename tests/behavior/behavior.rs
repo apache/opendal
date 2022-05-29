@@ -62,6 +62,10 @@ macro_rules! behavior_tests {
                 test_read_decompress_gzip,
                 #[cfg(feature = "compress")]
                 test_read_decompress_gzip_with,
+                #[cfg(feature = "compress")]
+                test_read_decompress_zstd,
+                #[cfg(feature = "compress")]
+                test_read_decompress_zstd_with,
 
                 test_stat,
                 test_stat_dir,
@@ -429,7 +433,7 @@ async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Read a compressed file.
+// Read a compressed gzip file.
 #[cfg(feature = "compress")]
 async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
     use async_compression::futures::write::GzipEncoder;
@@ -465,7 +469,7 @@ async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
     Ok(())
 }
 
-// Read a compressed file with algo.
+// Read a compressed gzip file with algo.
 #[cfg(feature = "compress")]
 async fn test_read_decompress_gzip_with(op: Operator) -> Result<()> {
     use async_compression::futures::write::GzipEncoder;
@@ -498,6 +502,74 @@ async fn test_read_decompress_gzip_with(op: Operator) -> Result<()> {
         .delete()
         .await
         .expect("delete must succeed");
+    Ok(())
+}
+
+// Read a compressed zstd file.
+#[cfg(feature = "compress")]
+async fn test_read_decompress_zstd(op: Operator) -> Result<()> {
+    use async_compression::futures::write::ZstdEncoder;
+    use futures::AsyncWriteExt;
+
+    let path = format!("{}.zst", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let mut encoder = ZstdEncoder::new(vec![]);
+    encoder.write_all(&content).await?;
+    encoder.close().await?;
+    let compressed_content = encoder.into_inner();
+
+    let _ = op.object(&path).write(&compressed_content).await?;
+
+    let bs = op
+        .object(&path)
+        .decompress_read()
+        .await?
+        .expect("decompress read must succeed");
+    assert_eq!(bs.len(), size, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+// Read a compressed zstd file with algo.
+#[cfg(feature = "compress")]
+async fn test_read_decompress_zstd_with(op: Operator) -> Result<()> {
+    use async_compression::futures::write::ZstdEncoder;
+    use futures::AsyncWriteExt;
+    use opendal::io_util::CompressAlgorithm;
+
+    let path = format!("{}.zst", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let mut encoder = ZstdEncoder::new(vec![]);
+    encoder.write_all(&content).await?;
+    encoder.close().await?;
+    let compressed_content = encoder.into_inner();
+
+    let _ = op.object(&path).write(&compressed_content).await?;
+
+    let bs = op
+        .object(&path)
+        .decompress_read_with(CompressAlgorithm::Zstd)
+        .await?;
+    assert_eq!(bs.len(), size, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
+
     Ok(())
 }
 

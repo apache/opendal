@@ -334,6 +334,7 @@ impl DecompressDecoder {
         self.buf.extend_from_slice(bs);
         self.state = DecompressState::Decoding;
 
+        debug!("fill: read {len} bytes from src");
         len
     }
 
@@ -366,7 +367,7 @@ impl DecompressDecoder {
         }
 
         debug!(
-            "read {} bytes from src, written {} bytes into dest",
+            "decode: consume {} bytes from src, write {} bytes into dst",
             read_len, written_len
         );
         Ok(written_len)
@@ -390,6 +391,7 @@ impl DecompressDecoder {
             self.state = DecompressState::Flushing;
         }
 
+        debug!("finish: flush {len} bytes into dst");
         Ok(output.written().len())
     }
 }

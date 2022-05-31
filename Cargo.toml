@@ -55,9 +55,7 @@ once_cell = "1.10.0"
 parking_lot = "0.12.0"
 pin-project = "1.0.10"
 quick-xml = { version = "0.23.0", features = ["serialize"] }
-reqsign = "0.0.5"
-reqwest = { version = "0.11.10", features = ["stream"] }
-roxmltree = "0.14.1"
+reqsign = "0.1.0"
 serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 time = "0.3.9"

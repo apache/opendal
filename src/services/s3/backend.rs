@@ -38,6 +38,8 @@ use log::info;
 use metrics::increment_counter;
 use minitrace::trace;
 use once_cell::sync::Lazy;
+use reqsign::services::aws::loader::CredentialLoadChain;
+use reqsign::services::aws::loader::DummyLoader;
 use reqsign::services::aws::v4::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
@@ -131,6 +133,8 @@ pub struct Builder {
     server_side_encryption_customer_algorithm: Option<String>,
     server_side_encryption_customer_key: Option<String>,
     server_side_encryption_customer_key_md5: Option<String>,
+
+    disable_credential_loader: bool,
 }
 
 impl Debug for Builder {
@@ -140,7 +144,8 @@ impl Debug for Builder {
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("region", &self.region);
+            .field("region", &self.region)
+            .field("disable_credential_loader", &self.disable_credential_loader);
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
@@ -400,6 +405,13 @@ impl Builder {
         self
     }
 
+    /// Disable credential loader so that opendal will not load credentials
+    /// from environment.
+    pub fn disable_credential_loader(&mut self) -> &mut Self {
+        self.disable_credential_loader = true;
+        self
+    }
+
     // Read RFC-0057: Auto Region for detailed behavior.
     async fn detect_region(
         &self,
@@ -627,6 +639,14 @@ impl Builder {
         signer_builder.service("s3");
         signer_builder.region(&region);
         signer_builder.allow_anonymous();
+        if self.disable_credential_loader {
+            signer_builder.credential_loader({
+                let mut chain = CredentialLoadChain::default();
+                chain.push(DummyLoader {});
+
+                chain
+            });
+        }
 
         if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
             signer_builder.access_key(ak);

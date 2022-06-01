@@ -4,6 +4,13 @@
 
 # User Guide
 
+- [Services](services/README.md)
+  - [Azblob](services/azblob.md)
+  - [Fs](services/fs.md)
+  - [S3](services/s3.md)
+- [Features](features/README.md)
+  - [Decompress](features/decompress.md)
+  - [Server Side Encrypt](features/server-side-encryption.md)
 - [Upgrade](upgrade.md)
 
 # Reference Guide

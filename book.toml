@@ -16,3 +16,4 @@ edition = "2021"
 edit-url-template = "https://github.com/datafuselabs/opendal/edit/main/{path}"
 git-repository-url = "https://github.com/datafuselabs/opendal"
 no-section-label = true
+runnable = false

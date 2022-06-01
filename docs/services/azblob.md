@@ -1,6 +1,6 @@
-# Use azblob as backend
+# Azblob
 
-[azblob.rs](azblob.rs) provides a detailed examples for using azblob as backend.
+These docs provide a detailed examples for using azblob as backend.
 
 This example has native support for Azure Storage Simulator [Azurite](https://github.com/Azure/Azurite). All value will fall back to Azurite default settings.
 
@@ -24,3 +24,9 @@ All config could be passed via environment:
 - `OPENDAL_AZBLOB_ENDPOINT`: endpoint of your container
 - `OPENDAL_AZBLOB_ACCOUNT_NAME`: account name
 - `OPENDAL_AZBLOB_ACCOUNT_KEY`: account key
+
+## Example
+
+```rust
+{{#include ../../examples/azblob.rs:15:}}
+```

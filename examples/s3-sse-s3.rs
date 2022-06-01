@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Example for initiating a s3 backend with SSE-KMS and AWS managed key.
+//! Example for initiating a s3 backend with SSE-S3
 use anyhow::Result;
 use log::info;
 use opendal::services::s3;
@@ -25,8 +25,8 @@ async fn main() -> Result<()> {
 
     // Setup builders
 
-    // Enable SSE-KMS with aws managed kms key
-    builder.server_side_encryption_with_aws_managed_kms_key();
+    // Enable SSE-S3
+    builder.server_side_encryption_with_s3_key();
 
     let acc = builder.finish().await?;
     info!("accessor: {:?}", acc);

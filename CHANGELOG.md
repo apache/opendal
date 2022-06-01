@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.7.1] - 2022-05-29
+
+### Fixed
+
+- publish: Fix git version not allowed (#306)
+- fix(io_util/compress): Decompress read exit too early (#308)
+
+## [v0.7.0] - 2022-05-29
+
+### Added
+
+- feat: Add support for blocking decompress_read (#289)
+- feat: Add check for operator (#290)
+- docs: Use mdbook to generate documentation (#291)
+- proposal: Object ID (#293)
+- feat: Implement operator metadata support (#296)
+- feat: Implement RFC-0293 Object ID (#298)
+
+### Changed
+
+- chore(deps): Update quick-xml requirement from 0.22.0 to 0.23.0 (#286)
+- feat(io_util): Refactor decompress decoder  (#302)
+- ci: Adopt amondnet/vercel-action (#303)
+
+### Fixed
+
+- fix(services/aws): Increase retry times for AWS STS (#299)
+
 ## [v0.6.3] - 2022-05-25
 
 ### Added
@@ -328,6 +356,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.7.1]: https://github.com/datafuselabs/opendal/compare/v0.7.0...v0.7.1
+[v0.7.0]: https://github.com/datafuselabs/opendal/compare/v0.6.3...v0.7.0
 [v0.6.3]: https://github.com/datafuselabs/opendal/compare/v0.6.2...v0.6.3
 [v0.6.2]: https://github.com/datafuselabs/opendal/compare/v0.6.1...v0.6.2
 [v0.6.1]: https://github.com/datafuselabs/opendal/compare/v0.6.0...v0.6.1

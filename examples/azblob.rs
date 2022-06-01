@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Example for initiating a fs backend.
+//! Example for initiating a azblob backend.
 
 use std::env;
 use std::sync::Arc;

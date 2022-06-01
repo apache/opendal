@@ -94,7 +94,7 @@ impl CompressAlgorithm {
             "lzma" => Some(CompressAlgorithm::Lzma),
             "xz" => Some(CompressAlgorithm::Xz),
             "zl" => Some(CompressAlgorithm::Zlib),
-            "zstd" => Some(CompressAlgorithm::Zstd),
+            "zstd" | "zst" => Some(CompressAlgorithm::Zstd),
             _ => None,
         }
     }
@@ -334,6 +334,7 @@ impl DecompressDecoder {
         self.buf.extend_from_slice(bs);
         self.state = DecompressState::Decoding;
 
+        debug!("fill: read {len} bytes from src");
         len
     }
 
@@ -355,9 +356,9 @@ impl DecompressDecoder {
         let mut input = PartialBuffer::new(&self.buf);
         let mut output = PartialBuffer::new(output);
         let done = self.decoder.decode(&mut input, &mut output)?;
-        let len = input.written().len();
-        debug!("advance buffer with amt {}", len);
-        self.buf.advance(len);
+        let read_len = input.written().len();
+        let written_len = output.written().len();
+        self.buf.advance(read_len);
 
         if done {
             self.state = DecompressState::Flushing;
@@ -365,7 +366,8 @@ impl DecompressDecoder {
             self.state = DecompressState::Reading;
         }
 
-        Ok(output.written().len())
+        debug!("decode: consume {read_len} bytes from src, write {written_len} bytes into dst");
+        Ok(written_len)
     }
 
     /// Finish a decompress press, flushing remaining data into output.
@@ -386,7 +388,9 @@ impl DecompressDecoder {
             self.state = DecompressState::Flushing;
         }
 
-        Ok(output.written().len())
+        let len = output.written().len();
+        debug!("finish: flush {len} bytes into dst");
+        Ok(len)
     }
 }
 
@@ -455,11 +459,15 @@ impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
                 }
                 DecompressState::Decoding => {
                     let written = this.decoder.decode(buf)?;
-                    return Poll::Ready(Ok(written));
+                    if written != 0 {
+                        return Poll::Ready(Ok(written));
+                    }
                 }
                 DecompressState::Flushing => {
                     let written = this.decoder.finish(buf)?;
-                    return Poll::Ready(Ok(written));
+                    if written != 0 {
+                        return Poll::Ready(Ok(written));
+                    }
                 }
                 DecompressState::Done => return Poll::Ready(Ok(0)),
             }
@@ -469,6 +477,8 @@ impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::fs;
     use std::io::Result;
 
     use async_compression::futures::bufread::GzipEncoder;
@@ -559,6 +569,77 @@ mod tests {
 
         let mut cr =
             DecompressReader::new(Cursor::new(compressed_content), CompressAlgorithm::Gzip);
+
+        let mut result = vec![];
+        cr.read_to_end(&mut result).await?;
+
+        assert_eq!(result, content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_reader_ontime_gzip() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let content = fs::read(format!(
+            "{}/testdata/ontime.csv",
+            env::current_dir()?.to_string_lossy()
+        ))?;
+        let compressed_content = fs::read(format!(
+            "{}/testdata/ontime.csv.gz",
+            env::current_dir()?.to_string_lossy()
+        ))?;
+
+        let mut cr =
+            DecompressReader::new(Cursor::new(compressed_content), CompressAlgorithm::Gzip);
+
+        let mut result = vec![];
+        cr.read_to_end(&mut result).await?;
+
+        assert_eq!(result, content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_reader_ontime_bz2() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let content = fs::read(format!(
+            "{}/testdata/ontime.csv",
+            env::current_dir()?.to_string_lossy()
+        ))?;
+        let compressed_content = fs::read(format!(
+            "{}/testdata/ontime.csv.bz2",
+            env::current_dir()?.to_string_lossy()
+        ))?;
+
+        let mut cr = DecompressReader::new(Cursor::new(compressed_content), CompressAlgorithm::Bz2);
+
+        let mut result = vec![];
+        cr.read_to_end(&mut result).await?;
+
+        assert_eq!(result, content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_reader_ontime_zstd() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let content = fs::read(format!(
+            "{}/testdata/ontime.csv",
+            env::current_dir()?.to_string_lossy()
+        ))?;
+        let compressed_content = fs::read(format!(
+            "{}/testdata/ontime.csv.zst",
+            env::current_dir()?.to_string_lossy()
+        ))?;
+
+        let mut cr =
+            DecompressReader::new(Cursor::new(compressed_content), CompressAlgorithm::Zstd);
 
         let mut result = vec![];
         cr.read_to_end(&mut result).await?;

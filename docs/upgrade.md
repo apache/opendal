@@ -2,6 +2,25 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## From v0.6 to v0.7
+
+OpenDAL introduces a breaking change of `decompress_read` related in v0.7.
+
+Since v0.7, `decompress_read` and `decompress_reader` will return `Ok(None)` while OpenDAL can't detect the correct compress algorithm.
+
+```rust
+impl Object {
+    pub async fn decompress_read(&self) -> Result<Option<Vec<u8>>> {}
+    pub async fn decompress_reader(&self) -> Result<Option<impl BytesRead>> {}
+}
+```
+
+So users should match and check the `None` case:
+
+```rust
+let bs = o.decompress_read().await?.expect("must have valid compress algorithm");
+```
+
 ## From v0.3 to v0.4
 
 OpenDAL introduces many breaking changes in v0.4.

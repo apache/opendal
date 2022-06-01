@@ -17,5 +17,7 @@ header:
     - "**/*.yaml"
     - "**/*.toml"
     - "**/*.lock"
+    # Ignore test data
+    - "testdata"
 
   comment: on-failure

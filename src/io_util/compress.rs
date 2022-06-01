@@ -334,7 +334,10 @@ impl DecompressDecoder {
         self.buf.extend_from_slice(bs);
         self.state = DecompressState::Decoding;
 
-        debug!("fill: read {len} bytes from src");
+        debug!(
+            "fill: read {len} bytes from src, next state {:?}",
+            self.state
+        );
         len
     }
 
@@ -362,11 +365,12 @@ impl DecompressDecoder {
 
         if done {
             self.state = DecompressState::Flushing;
-        } else {
+        } else if self.buf.is_empty() {
             self.state = DecompressState::Reading;
+        } else {
+            self.state = DecompressState::Decoding;
         }
-
-        debug!("decode: consume {read_len} bytes from src, write {written_len} bytes into dst");
+        debug!("decode: consume {read_len} bytes from src, write {written_len} bytes into dst, next state {:?}", self.state);
         Ok(written_len)
     }
 
@@ -389,7 +393,10 @@ impl DecompressDecoder {
         }
 
         let len = output.written().len();
-        debug!("finish: flush {len} bytes into dst");
+        debug!(
+            "finish: flush {len} bytes into dst, next state {:?}",
+            self.state
+        );
         Ok(len)
     }
 }
@@ -477,6 +484,7 @@ impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::min;
     use std::env;
     use std::fs;
     use std::io::Result;
@@ -486,6 +494,8 @@ mod tests {
     use futures::io::Cursor;
     use futures::AsyncReadExt;
     use rand::prelude::*;
+    use sha2::Digest;
+    use sha2::Sha256;
 
     use super::*;
 
@@ -528,6 +538,112 @@ mod tests {
         }
 
         assert_eq!(result, content);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_bytes_zlib_read_multiple() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let mut rng = ThreadRng::default();
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+
+        let mut e = ZlibEncoder::new(Cursor::new(content.clone()));
+        let mut compressed_content = vec![];
+        e.read_to_end(&mut compressed_content).await?;
+
+        let mut cr = DecompressDecoder::new(CompressAlgorithm::Zlib);
+
+        let mut result = Vec::with_capacity(content.len());
+        let mut buf = vec![0; 1024 * 1024];
+        let mut read = 0;
+        loop {
+            match cr.state {
+                DecompressState::Reading => {
+                    if read == compressed_content.len() {
+                        break;
+                    }
+
+                    // Simulate read in 4k.
+                    let size = min(read + 4 * 1024 * 1024, compressed_content.len());
+                    let n = cr.fill(&compressed_content[read..size]);
+                    read += n;
+                }
+                DecompressState::Decoding => {
+                    let n = cr.decode(&mut buf)?;
+                    result.extend_from_slice(&buf[..n])
+                }
+                DecompressState::Flushing => {
+                    let n = cr.finish(&mut buf)?;
+                    result.extend_from_slice(&buf[..n])
+                }
+                DecompressState::Done => {
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(result.len(), content.len());
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&result)),
+            format!("{:x}", Sha256::digest(&content))
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_decompress_bytes_gzip_read_multiple() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let mut rng = ThreadRng::default();
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+
+        let mut e = GzipEncoder::new(Cursor::new(content.clone()));
+        let mut compressed_content = vec![];
+        e.read_to_end(&mut compressed_content).await?;
+
+        let mut cr = DecompressDecoder::new(CompressAlgorithm::Gzip);
+
+        let mut result = Vec::with_capacity(content.len());
+        let mut buf = vec![0; 1024 * 1024];
+        let mut read = 0;
+        loop {
+            match cr.state {
+                DecompressState::Reading => {
+                    if read == compressed_content.len() {
+                        break;
+                    }
+
+                    // Simulate read in 4k.
+                    let size = min(read + 4 * 1024 * 1024, compressed_content.len());
+                    let n = cr.fill(&compressed_content[read..size]);
+                    read += n;
+                }
+                DecompressState::Decoding => {
+                    let n = cr.decode(&mut buf)?;
+                    result.extend_from_slice(&buf[..n])
+                }
+                DecompressState::Flushing => {
+                    let n = cr.finish(&mut buf)?;
+                    result.extend_from_slice(&buf[..n])
+                }
+                DecompressState::Done => {
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(result.len(), content.len());
+        assert_eq!(
+            format!("{:x}", Sha256::digest(&result)),
+            format!("{:x}", Sha256::digest(&content))
+        );
 
         Ok(())
     }

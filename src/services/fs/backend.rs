@@ -287,7 +287,7 @@ impl Accessor for Backend {
 
         let meta = fs::metadata(&path).await.map_err(|e| {
             let e = parse_io_error(e, "stat", &path);
-            error!("object {} stat: {:?}", &path, e);
+            warn!("object {} stat: {:?}", &path, e);
             e
         })?;
 

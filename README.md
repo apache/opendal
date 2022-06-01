@@ -5,28 +5,31 @@
 [Latest Version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal
 
-**Open **D**ata **A**ccess **L**ayer that connect the whole world together.**
+**Open Data Access Layer that connect the whole world together.**
 
 ---
 
 You may be looking for:
 
-- [Examples](./examples)
 - [Documentation](https://opendal.databend.rs)
 - [API Reference](https://opendal.databend.rs/opendal/)
 - [Release notes](https://github.com/datafuselabs/opendal/releases)
 
-## Status
-
-OpenDAL is in **alpha** stage and has been early adopted by [databend](https://github.com/datafuselabs/databend/). Welcome any feedback at [Discussions](https://github.com/datafuselabs/opendal/discussions)!
-
-## Supported Services
+## Services
 
 - [azblob](https://docs.rs/opendal/latest/opendal/services/azblob/index.html): Azure Storage Blob services.
 - [fs](https://docs.rs/opendal/latest/opendal/services/fs/index.html): POSIX alike file system.
 - [hdfs](https://docs.rs/opendal/latest/opendal/services/hdfs/index.html): Hadoop Distributed File System(HDFS).
 - [memory](https://docs.rs/opendal/latest/opendal/services/memory/index.html): In memory backend.
 - [s3](https://docs.rs/opendal/latest/opendal/services/s3/index.html): AWS S3 alike services.
+
+## Features
+
+- Access different storage system in the same way
+- Native decompress support
+- Native service-side encryption support
+- **100%** documents covered
+- Behavior tests for all services
 
 ## Quickstart
 
@@ -78,7 +81,11 @@ async fn main() -> Result<()> {
 }
 ```
 
-More examples could be found at [examples](./examples).
+More examples could be found at [Documentation](https://opendal.databend.rs).
+
+## Projects
+
+- [databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
 
 ## Contributing
 

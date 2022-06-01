@@ -754,6 +754,25 @@ impl Metadata {
         self
     }
 
+    /// Returns object name
+    pub fn name(&self) -> String {
+        let separator = "/";
+        let split: Vec<&str> = self.path.split(separator).collect();
+        match &self.mode() {
+            ObjectMode::FILE | ObjectMode::Unknown => split[split.len() - 1].into(),
+            ObjectMode::DIR => {
+                if split.len() == 1 && split[0].is_empty() {
+                    return separator.into();
+                }
+                let last = split[split.len() - 1];
+                if !last.ends_with(separator) {
+                    return vec![last, separator].join("");
+                }
+                last.into()
+            }
+        }
+    }
+
     /// Object mode represent this object' mode.
     pub fn mode(&self) -> ObjectMode {
         debug_assert!(self.mode.is_some(), "mode must exist");
@@ -856,6 +875,53 @@ mod tests {
 
         for (name, input, expect) in cases {
             assert_eq!(Object::normalize_path(input), expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_file_name_from_metadata() {
+        let cases = vec![
+            ("file abs path", "/foo/bar/baz.txt", "baz.txt"),
+            ("file rel path", "bar/baz.txt", "baz.txt"),
+            ("file trailing slash", "/bar/baz.txt/", ""),
+            ("empty", "", ""),
+            ("walk", "/foo/../bar/../baz", "baz"),
+        ];
+
+        for (name, input, expect) in cases {
+            let meta = Metadata {
+                path: input.to_string(),
+                complete: true,
+                content_length: None,
+                content_md5: None,
+                last_modified: None,
+                mode: Some(ObjectMode::FILE),
+            };
+            assert_eq!(meta.name(), expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_dir_name_from_metadata() {
+        let cases = vec![
+            ("dir abs path", "/bar/baz", "baz/"),
+            ("dir rel path", "bar/baz", "baz/"),
+            ("root", "/", "/"),
+            ("empty", "", "/"),
+            ("walk", "/foo/../bar/../baz", "baz/"),
+            ("parent", "/foo/..", "../"),
+        ];
+
+        for (name, input, expect) in cases {
+            let meta = Metadata {
+                path: input.to_string(),
+                complete: true,
+                content_length: None,
+                content_md5: None,
+                last_modified: None,
+                mode: Some(ObjectMode::DIR),
+            };
+            assert_eq!(meta.name(), expect, "{}", name)
         }
     }
 }

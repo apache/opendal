@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.7.2] - 2022-06-01
+
+### Added
+
+- feat(io_util): Improve debug logging for compress (#310)
+- feat(services/s3): Add disable_credential_loader support (#317)
+- feat: Allow check user input (#318)
+- docs: Add services and features docs (#319)
+- feat: Add name to object metadata (#304)
+- fix(io_util/compress): Fix decoder's buf not all consumed (#323)
+
+### Changed
+
+- chore(deps): Update metrics requirement from 0.18.1 to 0.19.0 (#314)
+- docs: Update README to reflect current status (#321)
+- refactor(object): Make Metadata::name() return &str (#322)
+
+### Fixed
+
+- docs: Fix typo in examples (#320)
+- fix(services): Don't throw error message for stat operation (#324)
+
 ## [v0.7.1] - 2022-05-29
 
 ### Fixed
@@ -356,6 +378,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.7.2]: https://github.com/datafuselabs/opendal/compare/v0.7.1...v0.7.2
 [v0.7.1]: https://github.com/datafuselabs/opendal/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/datafuselabs/opendal/compare/v0.6.3...v0.7.0
 [v0.6.3]: https://github.com/datafuselabs/opendal/compare/v0.6.2...v0.6.3

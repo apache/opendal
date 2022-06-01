@@ -144,7 +144,7 @@ impl Operator {
 
     /// Check if this operator can work correctly.
     ///
-    /// We will send a real `stat` request to `.opendal` and return any errors
+    /// We will send a real `stat` request to path and return any errors
     /// we met.
     ///
     /// ```
@@ -158,13 +158,13 @@ impl Operator {
     /// # async fn main() -> Result<()> {
     /// # let accessor = fs::Backend::build().finish().await?;
     /// let op = Operator::new(accessor);
-    /// op.check().await?;
+    /// op.check(".opendal").await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn check(&self) -> Result<()> {
+    pub async fn check(&self, path: &str) -> Result<()> {
         // The existences of `.opendal` doesn't matters.
-        let _ = self.object(".opendal").is_exist().await?;
+        let _ = self.object(path).is_exist().await?;
 
         Ok(())
     }

@@ -885,7 +885,7 @@ mod tests {
             ("file rel path", "bar/baz.txt", "baz.txt"),
             ("file trailing slash", "/bar/baz.txt/", ""),
             ("empty", "", ""),
-            ("walk", "/foo/../bar/../baz", "baz")
+            ("walk", "/foo/../bar/../baz", "baz"),
         ];
 
         for (name, input, expect) in cases {
@@ -895,7 +895,7 @@ mod tests {
                 content_length: None,
                 content_md5: None,
                 last_modified: None,
-                mode: Some(ObjectMode::FILE)
+                mode: Some(ObjectMode::FILE),
             };
             assert_eq!(meta.name(), expect, "{}", name)
         }
@@ -909,7 +909,7 @@ mod tests {
             ("root", "/", "/"),
             ("empty", "", "/"),
             ("walk", "/foo/../bar/../baz", "baz/"),
-            ("parent", "/foo/..", "../")
+            ("parent", "/foo/..", "../"),
         ];
 
         for (name, input, expect) in cases {
@@ -919,7 +919,7 @@ mod tests {
                 content_length: None,
                 content_md5: None,
                 last_modified: None,
-                mode: Some(ObjectMode::DIR)
+                mode: Some(ObjectMode::DIR),
             };
             assert_eq!(meta.name(), expect, "{}", name)
         }

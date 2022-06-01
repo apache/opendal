@@ -61,7 +61,7 @@
 //!
 //!     // Get object's Metadata
 //!     let meta: Metadata = o.metadata().await?;
-//!     let name: String = meta.name();
+//!     let name: &str = meta.name();
 //!     let path: &str = meta.path();
 //!     let mode: ObjectMode = meta.mode();
 //!     let length: u64 = meta.content_length();

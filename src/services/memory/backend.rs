@@ -295,7 +295,13 @@ impl futures::Stream for EntryStream {
         let mut o = Object::new(Arc::new(self.backend.clone()), path);
         let meta = o.metadata_mut();
         meta.set_path(path)
-            .set_mode(ObjectMode::FILE)
+            .set_mode({
+                if path.ends_with('/') {
+                    ObjectMode::DIR
+                } else {
+                    ObjectMode::FILE
+                }
+            })
             .set_content_length(bs.len() as u64)
             .set_complete();
 

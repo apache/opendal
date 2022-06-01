@@ -138,7 +138,7 @@ impl Object {
     /// Path of object. Path is relative to operator's root.
     /// Only valid in current operator.
     ///
-    /// The value is the same with `Metadata::path`.
+    /// The value is the same with `Metadata::path()`.
     ///
     /// # Example
     ///
@@ -158,6 +158,33 @@ impl Object {
     /// ```
     pub fn path(&self) -> String {
         self.meta.path.clone()
+    }
+
+    /// Name of object. Name is the last segment of path.
+    ///
+    /// If this object is a dir, `Name` MUST endswith `/`
+    /// Otherwise, `Name` MUST NOT endswith `/`.
+    ///
+    /// The value is the same with `Metadata::name()`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::services::memory;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let op = Operator::new(memory::Backend::build().finish().await?);
+    ///     let name = op.object("test").name();
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn name(&self) -> String {
+        self.meta.name().to_string()
     }
 
     /// Create an empty object, like using the following linux commands:
@@ -750,26 +777,40 @@ impl Metadata {
     }
 
     pub(crate) fn set_path(&mut self, path: &str) -> &mut Self {
+        // Path should not be empty.
+        debug_assert!(!path.is_empty());
+
         self.path = path.to_string();
         self
     }
 
     /// Returns object name
-    pub fn name(&self) -> String {
-        let separator = "/";
-        let split: Vec<&str> = self.path.split(separator).collect();
-        match &self.mode() {
-            ObjectMode::FILE | ObjectMode::Unknown => split[split.len() - 1].into(),
-            ObjectMode::DIR => {
-                if split.len() == 1 && split[0].is_empty() {
-                    return separator.into();
-                }
-                let last = split[split.len() - 1];
-                if !last.ends_with(separator) {
-                    return vec![last, separator].join("");
-                }
-                last.into()
+    pub fn name(&self) -> &str {
+        // Handle root case
+        if self.path() == "/" {
+            return "/";
+        }
+
+        // Handle file case
+        if !self.path.ends_with('/') {
+            return self
+                .path()
+                .split('/')
+                .last()
+                .expect("file path without name is invalid");
+        }
+
+        // The idx of second `/` if path in reserve order.
+        // - `abc/` => `None`
+        // - `abc/def/` => `Some(3)`
+        let idx = self.path[..self.path().len() - 1].rfind('/').map(|v| v + 1);
+
+        match idx {
+            Some(v) => {
+                let (_, name) = self.path.split_at(v);
+                name
             }
+            None => self.path(),
         }
     }
 
@@ -781,6 +822,11 @@ impl Metadata {
     }
 
     pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+        debug_assert!(
+            (mode == ObjectMode::DIR) == self.path.ends_with('/'),
+            "mode must match with path"
+        );
+
         self.mode = Some(mode);
         self
     }
@@ -879,47 +925,20 @@ mod tests {
     }
 
     #[test]
-    fn test_file_name_from_metadata() {
+    fn test_metadata_name() {
         let cases = vec![
-            ("file abs path", "/foo/bar/baz.txt", "baz.txt"),
+            ("file abs path", "foo/bar/baz.txt", "baz.txt"),
             ("file rel path", "bar/baz.txt", "baz.txt"),
-            ("file trailing slash", "/bar/baz.txt/", ""),
-            ("empty", "", ""),
-            ("walk", "/foo/../bar/../baz", "baz"),
+            ("file walk", "foo/bar/baz", "baz"),
+            ("dir rel path", "bar/baz/", "baz/"),
+            ("dir root", "/", "/"),
+            ("dir walk", "foo/bar/baz/", "baz/"),
         ];
 
         for (name, input, expect) in cases {
             let meta = Metadata {
                 path: input.to_string(),
-                complete: true,
-                content_length: None,
-                content_md5: None,
-                last_modified: None,
-                mode: Some(ObjectMode::FILE),
-            };
-            assert_eq!(meta.name(), expect, "{}", name)
-        }
-    }
-
-    #[test]
-    fn test_dir_name_from_metadata() {
-        let cases = vec![
-            ("dir abs path", "/bar/baz", "baz/"),
-            ("dir rel path", "bar/baz", "baz/"),
-            ("root", "/", "/"),
-            ("empty", "", "/"),
-            ("walk", "/foo/../bar/../baz", "baz/"),
-            ("parent", "/foo/..", "../"),
-        ];
-
-        for (name, input, expect) in cases {
-            let meta = Metadata {
-                path: input.to_string(),
-                complete: true,
-                content_length: None,
-                content_md5: None,
-                last_modified: None,
-                mode: Some(ObjectMode::DIR),
+                ..Metadata::default()
             };
             assert_eq!(meta.name(), expect, "{}", name)
         }

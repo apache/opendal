@@ -44,7 +44,9 @@ macro_rules! behavior_tests {
 
                 test_check,
                 test_metadata,
+                test_object_path,
                 test_object_id,
+                test_object_name,
 
                 test_create_file,
                 test_create_file_existing,
@@ -134,14 +136,40 @@ async fn test_metadata(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Test object id and path.
+/// Test object id.
 async fn test_object_id(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     let o = op.object(&path);
 
-    assert_eq!(o.path(), path);
     assert_eq!(o.id(), format!("{}{}", op.metadata().root(), path));
+
+    Ok(())
+}
+
+/// Test object path.
+async fn test_object_path(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let o = op.object(&path);
+
+    assert_eq!(o.path(), path);
+
+    Ok(())
+}
+
+/// Test object name.
+async fn test_object_name(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+
+    let o = op.object(&path);
+    assert_eq!(o.name(), path);
+
+    let name = uuid::Uuid::new_v4().to_string();
+    let path = format!("{}/{}", uuid::Uuid::new_v4(), name);
+
+    let o = op.object(&path);
+    assert_eq!(o.name(), name);
 
     Ok(())
 }

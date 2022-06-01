@@ -1050,7 +1050,7 @@ impl Backend {
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} get_blob: {url} {e:?}");
+            error!("object {path} get_object: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,
@@ -1059,7 +1059,7 @@ impl Backend {
         })?;
 
         self.client.request(req).await.map_err(|e| {
-            error!("object {path} get_blob: {url} {e:?}");
+            error!("object {path} get_object: {url} {e:?}");
             other(ObjectError::new(
                 "read",
                 path,

@@ -172,11 +172,7 @@ impl Backend {
             return self.root.clone();
         }
 
-        if path.starts_with('/') {
-            format!("{}{}", &self.root, path)
-        } else {
-            format!("{}/{}", &self.root, path)
-        }
+        format!("{}{}", &self.root, path.trim_start_matches('/'))
     }
 }
 

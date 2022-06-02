@@ -55,10 +55,16 @@ impl Object {
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        let path = if acc.should_normalize_path() {
+           Object::normalize_path(path) 
+        } else {
+            path.to_string()
+        };
+
         Self {
             acc,
             meta: Metadata {
-                path: Object::normalize_path(path),
+                path,
                 ..Default::default()
             },
         }
@@ -822,11 +828,6 @@ impl Metadata {
     }
 
     pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
-        debug_assert!(
-            (mode == ObjectMode::DIR) == self.path.ends_with('/'),
-            "mode must match with path"
-        );
-
         self.mode = Some(mode);
         self
     }

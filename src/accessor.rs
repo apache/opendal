@@ -114,6 +114,11 @@ pub trait Accessor: Send + Sync + Debug {
         let _ = args;
         unimplemented!()
     }
+
+    /// for hdfs accessor, should not normalize the path, it may use hdfs://127.0.0.1:9000/xx path pattern 
+    fn should_normalize_path(&self) -> bool {
+        return true;
+    }
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement

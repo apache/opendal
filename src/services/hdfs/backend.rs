@@ -54,23 +54,10 @@ use crate::Scheme;
 /// Builder for hdfs services
 #[derive(Debug, Default)]
 pub struct Builder {
-    root: Option<String>,
     name_node: Option<String>,
 }
 
 impl Builder {
-    /// Set root of this backend.
-    ///
-    /// All operations will happen under this root.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
-        self
-    }
 
     /// Set name_node of this backend.
     ///
@@ -101,50 +88,18 @@ impl Builder {
             Some(v) => v,
         };
 
-        // Make `/` as the default of root.
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                if !v.starts_with('/') {
-                    return Err(other(BackendError::new(
-                        HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("root must start with /"),
-                    )));
-                }
-                v.to_string()
-            }
-        };
-
         let client = hdrs::Client::connect(name_node).map_err(|e| {
             other(BackendError::new(
                 HashMap::from([
-                    ("root".to_string(), root.clone()),
                     ("endpoint".to_string(), name_node.clone()),
                 ]),
                 anyhow!("connect hdfs name node: {}", e),
             ))
         })?;
 
-        // Create root dir if not exist.
-        if let Err(e) = client.metadata(&root) {
-            if e.kind() == ErrorKind::NotFound {
-                debug!("root {} is not exist, creating now", root);
-
-                client.create_dir(&root).map_err(|e| {
-                    other(BackendError::new(
-                        HashMap::from([
-                            ("root".to_string(), root.clone()),
-                            ("endpoint".to_string(), name_node.clone()),
-                        ]),
-                        anyhow!("create root dir: {}", e),
-                    ))
-                })?
-            }
-        }
 
         info!("backend build finished: {:?}", &self);
         Ok(Arc::new(Backend {
-            root,
             client: Arc::new(client),
         }))
     }
@@ -153,7 +108,6 @@ impl Builder {
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct Backend {
-    root: String,
     client: Arc<hdrs::Client>,
 }
 
@@ -166,32 +120,20 @@ impl Backend {
     pub fn build() -> Builder {
         Builder::default()
     }
-
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == "/" {
-            return self.root.clone();
-        }
-
-        if path.starts_with('/') {
-            format!("{}{}", &self.root, path)
-        } else {
-            format!("{}/{}", &self.root, path)
-        }
-    }
 }
 
 #[async_trait]
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::Hdfs).set_root(&self.root);
+        am.set_scheme(Scheme::Hdfs);
 
         am
     }
 
     #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = args.path().to_string();
 
         match args.mode() {
             ObjectMode::FILE => {
@@ -243,7 +185,7 @@ impl Accessor for Backend {
 
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = self.get_abs_path(args.path());
+        let path = args.path().to_string();
 
         debug!(
             "object {} read start: offset {:?}, size {:?}",
@@ -278,7 +220,7 @@ impl Accessor for Backend {
 
     #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let path = self.get_abs_path(args.path());
+        let path = args.path().to_string();
         debug!("object {} write start: size {}", &path, args.size());
 
         let parent = PathBuf::from(&path)
@@ -318,7 +260,7 @@ impl Accessor for Backend {
 
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<Metadata> {
-        let path = self.get_abs_path(args.path());
+        let path = args.path().to_string();
         debug!("object {} stat start", &path);
 
         let meta = self.client.metadata(&path).map_err(|e| {
@@ -329,14 +271,10 @@ impl Accessor for Backend {
 
         let mut m = Metadata::default();
         if meta.is_dir() {
-            let mut p = args.path().to_string();
-            if !p.ends_with('/') {
-                p.push('/')
-            }
-            m.set_path(&p);
+            m.set_path(&path);
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
-            m.set_path(args.path());
+            m.set_path(&path);
             m.set_mode(ObjectMode::FILE);
         }
         m.set_content_length(meta.len());
@@ -349,7 +287,7 @@ impl Accessor for Backend {
 
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = args.path().to_string();
         debug!("object {} delete start", &path);
 
         let meta = self.client.metadata(&path);
@@ -381,7 +319,7 @@ impl Accessor for Backend {
 
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
-        let path = self.get_abs_path(args.path());
+        let path = args.path().to_string();
         debug!("object {} list start", &path);
 
         let f = self.client.read_dir(&path).map_err(|e| {
@@ -390,8 +328,13 @@ impl Accessor for Backend {
             e
         })?;
 
-        let rd = Readdir::new(Arc::new(self.clone()), &self.root, args.path(), f);
+        let rd = Readdir::new(Arc::new(self.clone()), args.path(), f);
 
         Ok(Box::new(rd))
+    }
+
+    // hdfs path may have patern: hdfs://localhost:9000/xx, should not normalize
+    fn should_normalize_path(&self) -> bool {
+       return false; 
     }
 }

@@ -18,29 +18,23 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use log::debug;
-use log::error;
 
-use crate::error::other;
-use crate::error::ObjectError;
 use crate::Accessor;
 use crate::Object;
 use crate::ObjectMode;
 
 pub struct Readdir {
     acc: Arc<dyn Accessor>,
-    root: String,
     path: String,
 
     rd: hdrs::Readdir,
 }
 
 impl Readdir {
-    pub fn new(acc: Arc<dyn Accessor>, root: &str, path: &str, rd: hdrs::Readdir) -> Self {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str, rd: hdrs::Readdir) -> Self {
         Self {
             acc,
-            root: root.to_string(),
             path: path.to_string(),
             rd,
         }
@@ -57,30 +51,17 @@ impl futures::Stream for Readdir {
                 Poll::Ready(None)
             }
             Some(de) => {
-                let de_path = de.path();
-
-                let path = de_path.strip_prefix(&self.root).ok_or_else(|| {
-                    let e = other(ObjectError::new(
-                        "list",
-                        de_path,
-                        anyhow!("path doesn't have specified prefix"),
-                    ));
-                    error!("object {:?} path strip_prefix: {:?}", &de_path, e);
-                    e
-                })?;
+                let path = de.path();
 
                 let mut o = Object::new(self.acc.clone(), path);
 
                 let meta = o.metadata_mut();
+                meta.set_path(path);
                 if de.is_file() {
                     meta.set_mode(ObjectMode::FILE);
-                    meta.set_path(path);
                 } else if de.is_dir() {
-                    // Make sure we are returning the correct path.
-                    meta.set_path(&format!("{}/", path));
                     meta.set_mode(ObjectMode::DIR);
                 } else {
-                    meta.set_path(path);
                     meta.set_mode(ObjectMode::Unknown);
                 }
 

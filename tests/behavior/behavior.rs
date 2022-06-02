@@ -20,6 +20,7 @@
 //!
 //! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
 
+use std::collections::HashMap;
 use std::io;
 
 use anyhow::Result;
@@ -78,6 +79,8 @@ macro_rules! behavior_tests {
                 test_list_dir,
                 test_list_sub_dir,
                 test_list_dir_with_file_path,
+                test_list_nested_dir,
+                test_list_empty_dir,
 
                 test_delete,
                 test_delete_not_existing,
@@ -160,16 +163,25 @@ async fn test_object_path(op: Operator) -> Result<()> {
 
 /// Test object name.
 async fn test_object_name(op: Operator) -> Result<()> {
+    // Normal
     let path = uuid::Uuid::new_v4().to_string();
 
     let o = op.object(&path);
     assert_eq!(o.name(), path);
 
+    // File in subdir
     let name = uuid::Uuid::new_v4().to_string();
     let path = format!("{}/{}", uuid::Uuid::new_v4(), name);
 
     let o = op.object(&path);
     assert_eq!(o.name(), name);
+
+    // Dir in subdir
+    let name = uuid::Uuid::new_v4().to_string();
+    let path = format!("{}/{}/", uuid::Uuid::new_v4(), name);
+
+    let o = op.object(&path);
+    assert_eq!(o.name(), format!("{name}/"));
 
     Ok(())
 }
@@ -633,6 +645,27 @@ async fn test_list_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// List empty dir should return nothing.
+async fn test_list_empty_dir(op: Operator) -> Result<()> {
+    let dir = format!("{}/", uuid::Uuid::new_v4());
+
+    let _ = op.object(&dir).create().await.expect("write must succeed");
+
+    let mut obs = op.object(&dir).list().await?;
+    let mut objects = HashMap::new();
+    while let Some(o) = obs.next().await {
+        let o = o?;
+
+        objects.insert(o.path(), o);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 0, "dir should only return empty");
+
+    op.object(&dir).delete().await.expect("delete must succeed");
+    Ok(())
+}
+
 /// List dir should return correct sub dir.
 async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
@@ -645,11 +678,46 @@ async fn test_list_sub_dir(op: Operator) -> Result<()> {
         let meta = o?.metadata().await?;
         if meta.path() == path {
             assert_eq!(meta.mode(), ObjectMode::DIR);
+            assert_eq!(meta.name(), path);
 
             found = true
         }
     }
     assert!(found, "dir should be found in list");
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// List dir should also to list nested dir.
+async fn test_list_nested_dir(op: Operator) -> Result<()> {
+    let dir = format!("{}/{}/", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let name = uuid::Uuid::new_v4().to_string();
+    let path = format!("{dir}{name}");
+
+    let _ = op.object(&dir).create().await.expect("creat must succeed");
+    let _ = op.object(&path).create().await.expect("creat must succeed");
+
+    let mut obs = op.object(&dir).list().await?;
+    let mut objects = HashMap::new();
+
+    while let Some(o) = obs.next().await {
+        let o = o?;
+        objects.insert(o.path(), o);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 1, "dir should only return one key");
+    let meta = objects
+        .get(&path)
+        .expect("file should be found in list")
+        .metadata()
+        .await?;
+    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.name(), name);
 
     op.object(&path)
         .delete()

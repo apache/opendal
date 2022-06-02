@@ -172,7 +172,10 @@ impl Backend {
             return self.root.clone();
         }
 
-        format!("{}{}", &self.root, path.trim_start_matches('/'))
+        PathBuf::from(&self.root)
+            .join(path)
+            .to_string_lossy()
+            .to_string()
     }
 }
 
@@ -222,7 +225,7 @@ impl Accessor for Backend {
                         e
                     })?;
 
-                debug!("object {path} create file");
+                debug!("object {path} created file");
                 Ok(())
             }
             ObjectMode::DIR => {
@@ -232,7 +235,7 @@ impl Accessor for Backend {
                     e
                 })?;
 
-                debug!("object {path} create dir");
+                debug!("object {path} created dir");
                 Ok(())
             }
             ObjectMode::Unknown => unreachable!(),

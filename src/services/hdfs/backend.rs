@@ -226,6 +226,7 @@ impl Accessor for Backend {
                         e
                     })?;
 
+                debug!("object {path} create file");
                 Ok(())
             }
             ObjectMode::DIR => {
@@ -235,6 +236,7 @@ impl Accessor for Backend {
                     e
                 })?;
 
+                debug!("object {path} create dir");
                 Ok(())
             }
             ObjectMode::Unknown => unreachable!(),

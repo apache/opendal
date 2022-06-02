@@ -157,8 +157,8 @@ impl futures::Stream for S3ObjectStream {
                     let object = &objects[*objects_idx];
                     *objects_idx += 1;
 
-                    // If minio deployed on local fs, it could return the
-                    // dir itself in contents which endswith `/`.
+                    // s3 could return the dir itself in contents
+                    // which endswith `/`.
                     // We should ignore them.
                     if object.key.ends_with('/') {
                         continue;

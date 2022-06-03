@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.7.3] - 2022-06-03
+
+### Fixed
+
+- fix(services/s3,hdfs): List empty dir should not return itself (#327)
+- fix(services/hdfs): Root path not cleaned correctly (#330)
+
 ## [v0.7.2] - 2022-06-01
 
 ### Added
@@ -378,6 +385,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.7.3]: https://github.com/datafuselabs/opendal/compare/v0.7.2...v0.7.3
 [v0.7.2]: https://github.com/datafuselabs/opendal/compare/v0.7.1...v0.7.2
 [v0.7.1]: https://github.com/datafuselabs/opendal/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/datafuselabs/opendal/compare/v0.6.3...v0.7.0

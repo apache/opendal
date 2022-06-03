@@ -153,9 +153,16 @@ impl futures::Stream for S3ObjectStream {
                 }
 
                 let objects = &output.contents;
-                if *objects_idx < objects.len() {
+                while *objects_idx < objects.len() {
+                    let object = &objects[*objects_idx];
                     *objects_idx += 1;
-                    let object = &objects[*objects_idx - 1];
+
+                    // s3 could return the dir itself in contents
+                    // which endswith `/`.
+                    // We should ignore them.
+                    if object.key.ends_with('/') {
+                        continue;
+                    }
 
                     let mut o = Object::new(
                         Arc::new(backend.clone()),

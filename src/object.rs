@@ -824,7 +824,9 @@ impl Metadata {
     pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
         debug_assert!(
             (mode == ObjectMode::DIR) == self.path.ends_with('/'),
-            "mode must match with path"
+            "mode {:?} not match with path {}",
+            mode,
+            self.path
         );
 
         self.mode = Some(mode);

@@ -210,7 +210,7 @@ impl Accessor for Backend {
         let paths = map
             .iter()
             .map(|(k, _)| k.clone())
-            .filter(|k| k.starts_with(&path))
+            .filter(|k| k.starts_with(&path) && k != &path)
             .collect::<Vec<String>>();
 
         Ok(Box::new(EntryStream {

@@ -62,7 +62,11 @@ pub struct Builder {
 impl Builder {
     /// Set root for backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = Some(root.to_string());
+        self.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
 
         self
     }
@@ -75,13 +79,21 @@ impl Builder {
         let root = match &self.root {
             None => "/".to_string(),
             Some(v) => {
+                debug_assert!(!v.is_empty());
+
+                let mut v = v.clone();
+
                 if !v.starts_with('/') {
                     return Err(other(BackendError::new(
                         HashMap::from([("root".to_string(), v.clone())]),
                         anyhow!("Root must start with /"),
                     )));
                 }
-                v.to_string()
+                if !v.ends_with('/') {
+                    v.push('/');
+                }
+
+                v
             }
         };
 

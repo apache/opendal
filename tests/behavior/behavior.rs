@@ -695,11 +695,23 @@ async fn test_list_sub_dir(op: Operator) -> Result<()> {
 /// List dir should also to list nested dir.
 async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let dir = format!("{}/{}/", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
-    let name = uuid::Uuid::new_v4().to_string();
-    let path = format!("{dir}{name}");
+
+    let file_name = uuid::Uuid::new_v4().to_string();
+    let file_path = format!("{dir}{file_name}");
+    let dir_name = format!("{}/", uuid::Uuid::new_v4());
+    let dir_path = format!("{dir}{dir_name}");
 
     let _ = op.object(&dir).create().await.expect("creat must succeed");
-    let _ = op.object(&path).create().await.expect("creat must succeed");
+    let _ = op
+        .object(&file_path)
+        .create()
+        .await
+        .expect("creat must succeed");
+    let _ = op
+        .object(&dir_path)
+        .create()
+        .await
+        .expect("creat must succeed");
 
     let mut obs = op.object(&dir).list().await?;
     let mut objects = HashMap::new();
@@ -710,19 +722,36 @@ async fn test_list_nested_dir(op: Operator) -> Result<()> {
     }
     debug!("got objects: {:?}", objects);
 
-    assert_eq!(objects.len(), 1, "dir should only return one key");
+    assert_eq!(objects.len(), 2, "dir should only got 2 objects");
+
+    // Check file
     let meta = objects
-        .get(&path)
+        .get(&file_path)
         .expect("file should be found in list")
         .metadata()
         .await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
-    assert_eq!(meta.name(), name);
+    assert_eq!(meta.name(), file_name);
+    assert_eq!(meta.content_length(), 0);
 
-    op.object(&path)
+    // Check dir
+    let meta = objects
+        .get(&dir_path)
+        .expect("file should be found in list")
+        .metadata()
+        .await?;
+    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.name(), dir_name);
+
+    op.object(&file_path)
         .delete()
         .await
         .expect("delete must succeed");
+    op.object(&dir_path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    op.object(&dir).delete().await.expect("delete must succeed");
     Ok(())
 }
 

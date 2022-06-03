@@ -105,13 +105,20 @@ impl Builder {
         let root = match &self.root {
             None => "/".to_string(),
             Some(v) => {
+                debug_assert!(!v.is_empty());
+
+                let mut v = v.clone();
                 if !v.starts_with('/') {
                     return Err(other(BackendError::new(
                         HashMap::from([("root".to_string(), v.clone())]),
                         anyhow!("root must start with /"),
                     )));
                 }
-                v.to_string()
+                if !v.ends_with('/') {
+                    v.push('/');
+                }
+
+                v
             }
         };
 

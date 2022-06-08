@@ -101,6 +101,7 @@ mod layers;
 pub use layers::Layer;
 
 mod operator;
+pub use operator::BatchOperator;
 pub use operator::Operator;
 
 mod object;

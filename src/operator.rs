@@ -15,18 +15,21 @@
 #[cfg(feature = "retry")]
 use std::fmt::Debug;
 use std::io::Result;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 #[cfg(feature = "retry")]
 use backon::Backoff;
+use futures::{StreamExt, TryStreamExt};
 
-use crate::Accessor;
-use crate::AccessorMetadata;
 use crate::Layer;
 use crate::Object;
+use crate::{Accessor, ObjectMode};
+use crate::{AccessorMetadata, ObjectStreamer};
 
 /// User-facing APIs for object and object streams.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Operator {
     accessor: Arc<dyn Accessor>,
 }
@@ -167,5 +170,58 @@ impl Operator {
         let _ = self.object(path).is_exist().await?;
 
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BatchOperator {
+    src: Operator,
+    dst: Option<Operator>,
+
+    concurrency: usize,
+}
+
+impl BatchOperator {
+    pub fn new(op: Operator) -> Self {
+        BatchOperator {
+            src: op,
+            dst: None,
+            concurrency: 4,
+        }
+    }
+
+    pub fn with_destination(mut self, op: Operator) -> Self {
+        self.dst = Some(op);
+        self
+    }
+
+    pub fn with_concurrency(mut self, concurrency: usize) -> Self {
+        self.concurrency = concurrency;
+        self
+    }
+
+    pub async fn walk_top_down(&self, path: &str) -> Result<ObjectStreamer> {
+        todo!()
+    }
+
+    pub async fn walk_bottom_up(&self, path: &str) -> Result<ObjectStreamer> {
+        todo!()
+    }
+
+    pub async fn remove(&self, path: &str) -> Result<()> {
+        let parent = self.src.object(path);
+        let meta = parent.metadata().await?;
+
+        if meta.mode() != ObjectMode::DIR {
+            return parent.delete().await;
+        }
+
+        let obs = parent.list().await?;
+        obs.try_for_each_concurrent(self.concurrency, |mut v| async move {
+            let meta = v.metadata_cached().await?;
+
+            v.delete().await
+        })
+        .await
     }
 }

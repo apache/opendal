@@ -28,6 +28,7 @@ use bytes::BufMut;
 use bytes::Bytes;
 use futures::io::Cursor;
 use futures::AsyncWrite;
+use log::debug;
 use minitrace::trace;
 use parking_lot::Mutex;
 
@@ -40,14 +41,14 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
-use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::Object;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
+use crate::{Accessor, DirEntry};
+use crate::{AccessorMetadata, DirStreamer};
 
 /// Builder for memory backend
 #[derive(Default)]
@@ -199,7 +200,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
         let mut path = args.path().to_string();
         if path == "/" {
             path.clear();
@@ -213,8 +214,9 @@ impl Accessor for Backend {
             .filter(|k| k.starts_with(&path) && k != &path)
             .collect::<Vec<String>>();
 
-        Ok(Box::new(EntryStream {
-            backend: self.clone(),
+        Ok(Box::new(DirStream {
+            backend: Arc::new(self.clone()),
+            path,
             paths,
             idx: 0,
         }))
@@ -265,14 +267,15 @@ impl AsyncWrite for MapWriter {
     }
 }
 
-struct EntryStream {
-    backend: Backend,
+struct DirStream {
+    backend: Arc<Backend>,
+    path: String,
     paths: Vec<String>,
     idx: usize,
 }
 
-impl futures::Stream for EntryStream {
-    type Item = Result<Object>;
+impl futures::Stream for DirStream {
+    type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.idx >= self.paths.len() {
@@ -292,19 +295,18 @@ impl futures::Stream for EntryStream {
             None => return self.poll_next(cx),
         };
 
-        let mut o = Object::new(Arc::new(self.backend.clone()), path);
-        let meta = o.metadata_mut();
-        meta.set_path(path)
-            .set_mode({
-                if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                }
-            })
-            .set_content_length(bs.len() as u64)
-            .set_complete();
+        let de = if path.ends_with('/') {
+            DirEntry::new(self.backend.clone(), ObjectMode::DIR, path)
+        } else {
+            DirEntry::new(self.backend.clone(), ObjectMode::FILE, path)
+        };
 
-        Poll::Ready(Some(Ok(o)))
+        debug!(
+            "dir object {} got entry, mode: {}, path: {}",
+            &self.path,
+            de.mode(),
+            de.path()
+        );
+        Poll::Ready(Some(Ok(de)))
     }
 }

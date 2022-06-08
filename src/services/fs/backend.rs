@@ -45,12 +45,13 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
-use crate::{Accessor, DirStreamer};
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]

@@ -40,13 +40,15 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::DirEntry;
+use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
-use crate::{Accessor, DirEntry};
-use crate::{AccessorMetadata, DirStreamer};
 
 /// Builder for memory backend
 #[derive(Default)]

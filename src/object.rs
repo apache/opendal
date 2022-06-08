@@ -38,7 +38,8 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::path::{get_basename, normalize_path};
+use crate::path::get_basename;
+use crate::path::normalize_path;
 use crate::Accessor;
 use crate::BytesWrite;
 

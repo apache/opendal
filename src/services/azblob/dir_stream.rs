@@ -31,17 +31,8 @@ use serde::Deserialize;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::Object;
 use crate::ObjectMode;
-
-pub struct AzblobObjectStream {
-    backend: Backend,
-    path: String,
-
-    next_marker: String,
-    done: bool,
-    state: State,
-}
+use crate::{DirEntry, Object};
 
 enum State {
     Idle,
@@ -49,11 +40,20 @@ enum State {
     Listing((Output, usize, usize)),
 }
 
-impl AzblobObjectStream {
-    pub fn new(backend: Backend, path: String) -> Self {
+pub struct AzblobDirStream {
+    backend: Arc<Backend>,
+    path: String,
+
+    next_marker: String,
+    done: bool,
+    state: State,
+}
+
+impl AzblobDirStream {
+    pub fn new(backend: Arc<Backend>, path: &str) -> Self {
         Self {
             backend,
-            path,
+            path: path.to_string(),
 
             next_marker: "".to_string(),
             done: false,
@@ -62,15 +62,14 @@ impl AzblobObjectStream {
     }
 }
 
-impl futures::Stream for AzblobObjectStream {
-    type Item = Result<Object>;
+impl futures::Stream for AzblobDirStream {
+    type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
 
         match &mut self.state {
             State::Idle => {
-                let backend = self.backend.clone();
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
                 let fut = async move {
@@ -115,20 +114,19 @@ impl futures::Stream for AzblobObjectStream {
                         *common_prefixes_idx += 1;
                         let prefix = &prefixes[*common_prefixes_idx - 1].name;
 
-                        let mut o =
-                            Object::new(Arc::new(backend.clone()), &backend.get_rel_path(prefix));
-                        let meta = o.metadata_mut();
-                        meta.set_mode(ObjectMode::DIR)
-                            .set_content_length(0)
-                            .set_complete();
+                        let de = DirEntry::new(
+                            backend.clone(),
+                            ObjectMode::DIR,
+                            &backend.get_rel_path(prefix),
+                        );
 
                         debug!(
-                            "object {} got entry, path: {}, mode: {}",
+                            "dir object {} got entry, mode: {}, path: {}",
                             &self.path,
-                            meta.path(),
-                            meta.mode()
+                            de.mode(),
+                            de.path()
                         );
-                        return Poll::Ready(Some(Ok(o)));
+                        return Poll::Ready(Some(Ok(de)));
                     }
                 };
 
@@ -144,25 +142,23 @@ impl futures::Stream for AzblobObjectStream {
                         continue;
                     }
 
-                    let mut o = Object::new(
-                        Arc::new(backend.clone()),
+                    let de = DirEntry::new(
+                        backend.clone(),
+                        ObjectMode::FILE,
                         &backend.get_rel_path(&object.name),
                     );
-                    let meta = o.metadata_mut();
-                    meta.set_mode(ObjectMode::FILE)
-                        .set_content_length(object.properties.content_length as u64);
 
                     debug!(
-                        "object {} got entry, path: {}, mode: {}",
+                        "dir object {} got entry, mode: {}, path: {}",
                         &self.path,
-                        meta.path(),
-                        meta.mode()
+                        de.mode(),
+                        de.path(),
                     );
-                    return Poll::Ready(Some(Ok(o)));
+                    return Poll::Ready(Some(Ok(de)));
                 }
 
                 if self.done {
-                    debug!("object {} list done", &self.path);
+                    debug!("dir object {} list done", &self.path);
                     return Poll::Ready(None);
                 }
 
@@ -172,6 +168,7 @@ impl futures::Stream for AzblobObjectStream {
         }
     }
 }
+
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 struct Output {

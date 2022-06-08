@@ -104,6 +104,9 @@ mod operator;
 pub use operator::Operator;
 
 mod object;
+pub use object::DirEntry;
+pub use object::DirStream;
+pub use object::DirStreamer;
 pub use object::Object;
 pub use object::ObjectMetadata;
 #[deprecated = "Metadata has been deprecated, use ObjectMetadata instead"]

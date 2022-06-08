@@ -42,6 +42,7 @@ use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
+use super::dir_stream::AzblobDirStream;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
@@ -56,13 +57,12 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::services::azblob::object_stream::AzblobObjectStream;
-use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 use crate::Scheme;
+use crate::{Accessor, DirStreamer};
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
@@ -475,13 +475,16 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
         increment_counter!("opendal_azblob_list_requests");
 
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 
-        Ok(Box::new(AzblobObjectStream::new(self.clone(), path)))
+        Ok(Box::new(AzblobDirStream::new(
+            Arc::new(self.clone()),
+            &path,
+        )))
     }
 }
 

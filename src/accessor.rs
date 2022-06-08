@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
+use crate::object::DirStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -111,6 +112,11 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+        let _ = args;
+        unimplemented!()
+    }
+
+    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
         let _ = args;
         unimplemented!()
     }

@@ -877,6 +877,15 @@ pub enum ObjectMode {
     Unknown,
 }
 
+impl ObjectMode {
+    pub fn is_file(self) -> bool {
+        self == ObjectMode::FILE
+    }
+    pub fn is_dir(self) -> bool {
+        self == ObjectMode::DIR
+    }
+}
+
 impl Default for ObjectMode {
     fn default() -> Self {
         Self::Unknown
@@ -899,6 +908,45 @@ impl<T> ObjectStream for T where T: futures::Stream<Item = Result<Object>> + Unp
 
 /// ObjectStreamer is a boxed dyn [`ObjectStream`]
 pub type ObjectStreamer = Box<dyn ObjectStream>;
+
+/// DirStream represents a stream of Dir.
+pub trait DirStream: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
+impl<T> DirStream for T where T: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
+
+/// DirStreamer is a boxed dyn [`DirStream`]
+pub type DirStreamer = Box<dyn DirStream>;
+
+pub struct DirEntry {
+    acc: Arc<dyn Accessor>,
+
+    mode: ObjectMode,
+    path: String,
+}
+
+impl DirEntry {
+    pub(crate) fn new(acc: Arc<dyn Accessor>, mode: ObjectMode, path: &str) -> DirEntry {
+        debug_assert!(
+            mode.is_dir() == path.ends_with('/'),
+            "mode {:?} not match with path {}",
+            mode,
+            path
+        );
+
+        DirEntry {
+            acc,
+            mode,
+            path: path.to_string(),
+        }
+    }
+
+    pub fn mode(&self) -> ObjectMode {
+        self.mode
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+}
 
 #[cfg(test)]
 mod tests {

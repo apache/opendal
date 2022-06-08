@@ -39,8 +39,9 @@
 //! use opendal::ObjectMetadata;
 //! use opendal::Object;
 //! use opendal::ObjectMode;
-//! use opendal::ObjectStreamer;
+//! use opendal::DirStreamer;
 //! use opendal::Operator;
+//! use opendal::DirEntry;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
@@ -60,9 +61,9 @@
 //!     let bs: Vec<u8> = o.range_read(1..=11).await?;
 //!
 //!     // Get object's Metadata
+//!     let name: &str = o.name();
+//!     let path: &str = o.path();
 //!     let meta: ObjectMetadata = o.metadata().await?;
-//!     let name: &str = meta.name();
-//!     let path: &str = meta.path();
 //!     let mode: ObjectMode = meta.mode();
 //!     let length: u64 = meta.content_length();
 //!     let content_md5: Option<String> = meta.content_md5();
@@ -72,9 +73,9 @@
 //!
 //!     // List dir object.
 //!     let o: Object = op.object("test_dir/");
-//!     let mut obs: ObjectStreamer = o.list().await?;
+//!     let mut obs: DirStreamer = o.list().await?;
 //!     while let Some(entry) = obs.next().await {
-//!         let entry: Object = entry?;
+//!         let entry: DirEntry = entry?;
 //!     }
 //!
 //!     Ok(())

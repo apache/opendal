@@ -573,19 +573,15 @@ impl Object {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::ObjectMode;
-    /// # use futures::StreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let op = Operator::new(memory::Backend::build().finish().await?);
     /// let o = op.object("path/to/dir/");
-    /// let mut obs = o.list().await?;
-    /// // ObjectStream implements `futures::Stream`
-    /// while let Some(o) = obs.next().await {
-    ///     let mut o = o?;
-    ///     // It's highly possible that OpenDAL already did metadata during list.
-    ///     // Use `Object::metadata_cached()` to get cached metadata at first.
-    ///     let meta = o.metadata_cached().await?;
-    ///     match meta.mode() {
+    /// let mut ds = o.list().await?;
+    /// // DirStreamer implements `futures::Stream`
+    /// while let Some(de) = ds.try_next().await? {
+    ///     match de.mode() {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }

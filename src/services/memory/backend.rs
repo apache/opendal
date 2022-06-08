@@ -34,7 +34,6 @@ use parking_lot::Mutex;
 
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::object::ObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -163,10 +162,7 @@ impl Accessor for Backend {
 
         if path.ends_with('/') {
             let mut meta = ObjectMetadata::default();
-            meta.set_path(path)
-                .set_mode(ObjectMode::DIR)
-                .set_content_length(0)
-                .set_complete();
+            meta.set_mode(ObjectMode::DIR);
 
             return Ok(meta);
         }
@@ -181,10 +177,8 @@ impl Accessor for Backend {
         })?;
 
         let mut meta = ObjectMetadata::default();
-        meta.set_path(path)
-            .set_mode(ObjectMode::FILE)
-            .set_content_length(data.len() as u64)
-            .set_complete();
+        meta.set_mode(ObjectMode::FILE)
+            .set_content_length(data.len() as u64);
 
         Ok(meta)
     }

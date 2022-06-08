@@ -60,7 +60,6 @@ use crate::ops::OpWrite;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::ObjectMode;
-use crate::ObjectStreamer;
 use crate::Scheme;
 use crate::{Accessor, DirStreamer};
 
@@ -364,10 +363,7 @@ impl Accessor for Backend {
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
             let mut m = ObjectMetadata::default();
-            m.set_path(args.path());
-            m.set_content_length(0);
             m.set_mode(ObjectMode::DIR);
-            m.set_complete();
 
             debug!("backed root object stat finished");
             return Ok(m);
@@ -377,7 +373,6 @@ impl Accessor for Backend {
         match resp.status() {
             http::StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
-                m.set_path(args.path());
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
@@ -438,17 +433,12 @@ impl Accessor for Backend {
                     m.set_mode(ObjectMode::FILE);
                 };
 
-                m.set_complete();
-
                 debug!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
-                m.set_path(args.path());
-                m.set_content_length(0);
                 m.set_mode(ObjectMode::DIR);
-                m.set_complete();
 
                 debug!("object {} stat finished", &p);
                 Ok(m)

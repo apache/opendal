@@ -18,7 +18,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::object::DirStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -27,8 +26,8 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::DirStreamer;
 use crate::ObjectMetadata;
-use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Underlying trait of all backends for implementors.

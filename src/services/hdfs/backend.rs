@@ -47,7 +47,6 @@ use crate::BytesReader;
 use crate::BytesWriter;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::ObjectStreamer;
 use crate::Scheme;
 use crate::{Accessor, DirStreamer};
 
@@ -347,19 +346,12 @@ impl Accessor for Backend {
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
-            let mut p = args.path().to_string();
-            if !p.ends_with('/') {
-                p.push('/')
-            }
-            m.set_path(&p);
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
-            m.set_path(args.path());
             m.set_mode(ObjectMode::FILE);
         }
         m.set_content_length(meta.len());
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
-        m.set_complete();
 
         debug!("object {} stat finished: {:?}", &path, m);
         Ok(m)

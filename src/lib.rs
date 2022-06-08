@@ -112,8 +112,6 @@ pub use object::ObjectMetadata;
 #[deprecated = "Metadata has been deprecated, use ObjectMetadata instead"]
 pub use object::ObjectMetadata as Metadata;
 pub use object::ObjectMode;
-pub use object::ObjectStream;
-pub use object::ObjectStreamer;
 
 mod scheme;
 pub use scheme::Scheme;
@@ -127,3 +125,4 @@ pub mod services;
 //
 // Please don't export any type from this module.
 mod error;
+mod path;

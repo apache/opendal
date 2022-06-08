@@ -39,9 +39,6 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::object::ObjectMetadata;
-use crate::object::ObjectMode;
-use crate::object::ObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -50,6 +47,8 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 use crate::Scheme;
 use crate::{Accessor, DirStreamer};
 
@@ -316,17 +315,10 @@ impl Accessor for Backend {
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
-            let mut p = args.path().to_string();
-            if !p.ends_with('/') {
-                p.push('/')
-            }
-            m.set_path(&p);
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
-            m.set_path(args.path());
             m.set_mode(ObjectMode::FILE);
         } else {
-            m.set_path(args.path());
             m.set_mode(ObjectMode::Unknown);
         }
         m.set_content_length(meta.len() as u64);
@@ -335,7 +327,6 @@ impl Accessor for Backend {
                 .map(OffsetDateTime::from)
                 .map_err(|e| parse_io_error(e, "stat", &path))?,
         );
-        m.set_complete();
 
         debug!("object {} stat finished", &path);
         Ok(m)

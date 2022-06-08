@@ -39,7 +39,7 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::object::Metadata;
+use crate::object::ObjectMetadata;
 use crate::object::ObjectMode;
 use crate::object::ObjectStreamer;
 use crate::ops::OpCreate;
@@ -292,7 +292,7 @@ impl Accessor for Backend {
     }
 
     #[trace("stat")]
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         increment_counter!("opendal_fs_stat_requests");
 
         let path = self.get_abs_path(args.path());
@@ -304,7 +304,7 @@ impl Accessor for Backend {
             e
         })?;
 
-        let mut m = Metadata::default();
+        let mut m = ObjectMetadata::default();
         if meta.is_dir() {
             let mut p = args.path().to_string();
             if !p.ends_with('/') {

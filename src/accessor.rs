@@ -26,7 +26,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BytesReader;
 use crate::BytesWriter;
-use crate::Metadata;
+use crate::ObjectMetadata;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -89,7 +89,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let _ = args;
         unimplemented!()
     }
@@ -132,7 +132,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         self.as_ref().write(args).await
     }
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         self.as_ref().stat(args).await
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {

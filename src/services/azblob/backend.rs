@@ -48,7 +48,7 @@ use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodyWriter;
-use crate::object::Metadata;
+use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -355,7 +355,7 @@ impl Accessor for Backend {
     }
 
     #[trace("stat")]
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         increment_counter!("opendal_azure_stat_requests");
 
         let p = self.get_abs_path(args.path());
@@ -363,7 +363,7 @@ impl Accessor for Backend {
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
-            let mut m = Metadata::default();
+            let mut m = ObjectMetadata::default();
             m.set_path(args.path());
             m.set_content_length(0);
             m.set_mode(ObjectMode::DIR);
@@ -376,7 +376,7 @@ impl Accessor for Backend {
         let resp = self.get_blob_properties(&p).await?;
         match resp.status() {
             http::StatusCode::OK => {
-                let mut m = Metadata::default();
+                let mut m = ObjectMetadata::default();
                 m.set_path(args.path());
 
                 // Parse content_length
@@ -444,7 +444,7 @@ impl Accessor for Backend {
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
-                let mut m = Metadata::default();
+                let mut m = ObjectMetadata::default();
                 m.set_path(args.path());
                 m.set_content_length(0);
                 m.set_mode(ObjectMode::DIR);

@@ -36,7 +36,7 @@
 //! use anyhow::Result;
 //! use futures::StreamExt;
 //! use opendal::services::fs;
-//! use opendal::Metadata;
+//! use opendal::ObjectMetadata;
 //! use opendal::Object;
 //! use opendal::ObjectMode;
 //! use opendal::ObjectStreamer;
@@ -60,7 +60,7 @@
 //!     let bs: Vec<u8> = o.range_read(1..=11).await?;
 //!
 //!     // Get object's Metadata
-//!     let meta: Metadata = o.metadata().await?;
+//!     let meta: ObjectMetadata = o.metadata().await?;
 //!     let name: &str = meta.name();
 //!     let path: &str = meta.path();
 //!     let mode: ObjectMode = meta.mode();
@@ -104,8 +104,10 @@ mod operator;
 pub use operator::Operator;
 
 mod object;
-pub use object::Metadata;
 pub use object::Object;
+pub use object::ObjectMetadata;
+#[deprecated = "Metadata has been deprecated, use ObjectMetadata instead"]
+pub use object::ObjectMetadata as Metadata;
 pub use object::ObjectMode;
 pub use object::ObjectStream;
 pub use object::ObjectStreamer;

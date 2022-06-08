@@ -31,8 +31,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::Metadata;
 use crate::Object;
+use crate::ObjectMetadata;
 
 /// Add seek support for object via internal lazy operation.
 ///
@@ -85,7 +85,7 @@ pub struct SeekableReader {
 enum State {
     Idle,
     Sending(BoxFuture<'static, Result<BytesReader>>),
-    Seeking(BoxFuture<'static, Result<Metadata>>),
+    Seeking(BoxFuture<'static, Result<ObjectMetadata>>),
     Reading(BytesReader),
 }
 

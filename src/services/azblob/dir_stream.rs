@@ -31,8 +31,8 @@ use serde::Deserialize;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::DirEntry;
 use crate::ObjectMode;
-use crate::{DirEntry, Object};
 
 enum State {
     Idle,

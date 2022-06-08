@@ -32,7 +32,6 @@ use crate::BytesReader;
 use crate::BytesWriter;
 use crate::Layer;
 use crate::ObjectMetadata;
-use crate::ObjectStreamer;
 use crate::{Accessor, DirStreamer};
 
 /// Implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html) so that all backoff can be used as a layer

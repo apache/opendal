@@ -726,9 +726,11 @@ pub enum ObjectMode {
 }
 
 impl ObjectMode {
+    /// Check if this object mode is FILE.
     pub fn is_file(self) -> bool {
         self == ObjectMode::FILE
     }
+    /// Check if this object mode is DIR.
     pub fn is_dir(self) -> bool {
         self == ObjectMode::DIR
     }
@@ -757,6 +759,11 @@ impl<T> DirStream for T where T: futures::Stream<Item = Result<DirEntry>> + Unpi
 /// DirStreamer is a boxed dyn [`DirStream`]
 pub type DirStreamer = Box<dyn DirStream>;
 
+/// DirEntry is returned by [`DirStream`] during object list.
+///
+/// DirEntry carries two information: path and mode. Users can check returning dir
+/// entry's mode or convert into an object without overhead.
+#[derive(Clone, Debug)]
 pub struct DirEntry {
     acc: Arc<dyn Accessor>,
 
@@ -780,36 +787,48 @@ impl DirEntry {
         }
     }
 
+    /// Return this dir entry's object mode.
     pub fn mode(&self) -> ObjectMode {
         self.mode
     }
 
+    /// Return this dir entry's id.
+    ///
+    /// The same with [`Object::id()`]
+    pub fn id(&self) -> String {
+        format!("{}{}", self.acc.metadata().root(), self.path)
+    }
+
+    /// Return this dir entry's path.
+    ///
+    /// The same with [`Object::path()`]
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    /// Return this dir entry's name.
+    ///
+    /// The same with [`Object::name()`]
+    pub fn name(&self) -> &str {
+        get_basename(&self.path)
+    }
+
+    /// Fetch metadata about this dir entry.
+    ///
+    /// The same with [`Object::metadata()`]
+    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+        let op = OpStat::new(self.path())?;
+
+        self.acc.stat(&op).await
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_metadata_name() {
-        let cases = vec![
-            ("file abs path", "foo/bar/baz.txt", "baz.txt"),
-            ("file rel path", "bar/baz.txt", "baz.txt"),
-            ("file walk", "foo/bar/baz", "baz"),
-            ("dir rel path", "bar/baz/", "baz/"),
-            ("dir root", "/", "/"),
-            ("dir walk", "foo/bar/baz/", "baz/"),
-        ];
-
-        for (name, input, expect) in cases {
-            let meta = ObjectMetadata {
-                path: input.to_string(),
-                ..ObjectMetadata::default()
-            };
-            assert_eq!(meta.name(), expect, "{}", name)
+/// DirEntry can convert into object without overhead.
+impl From<DirEntry> for Object {
+    fn from(d: DirEntry) -> Self {
+        Object {
+            acc: d.acc,
+            path: d.path,
         }
     }
 }

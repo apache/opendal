@@ -18,16 +18,11 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use log::debug;
-use log::error;
 
 use super::Backend;
-use crate::error::other;
-use crate::error::ObjectError;
-use crate::Object;
+use crate::DirEntry;
 use crate::ObjectMode;
-use crate::{Accessor, DirEntry};
 
 pub struct DirStream {
     backend: Arc<Backend>,

@@ -42,7 +42,6 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BytesReader;
 use crate::BytesWriter;
-use crate::Object;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
@@ -271,7 +270,7 @@ struct DirStream {
 impl futures::Stream for DirStream {
     type Item = Result<DirEntry>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.idx >= self.paths.len() {
             return Poll::Ready(None);
         }
@@ -280,14 +279,6 @@ impl futures::Stream for DirStream {
         self.idx += 1;
 
         let path = self.paths.get(idx).expect("path must valid");
-
-        let backend = self.backend.clone();
-        let map = backend.inner.lock();
-
-        let bs = match map.get(path) {
-            Some(bs) => bs,
-            None => return self.poll_next(cx),
-        };
 
         let de = if path.ends_with('/') {
             DirEntry::new(self.backend.clone(), ObjectMode::DIR, path)

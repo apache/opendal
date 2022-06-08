@@ -1,7 +1,7 @@
 - Proposal Name: `dir_entry`
 - Start Date: 2022-06-08
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#337](https://github.com/datafuselabs/opendal/pull/337)
+- Tracking Issue: [datafuselabs/opendal#338](https://github.com/datafuselabs/opendal/issues/338)
 
 # Summary
 

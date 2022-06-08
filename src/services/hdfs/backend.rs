@@ -46,7 +46,7 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
-use crate::Metadata;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 use crate::Scheme;
@@ -325,7 +325,7 @@ impl Accessor for Backend {
     }
 
     #[trace("stat")]
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = self.get_abs_path(args.path());
         debug!("object {} stat start", &path);
 
@@ -335,7 +335,7 @@ impl Accessor for Backend {
             e
         })?;
 
-        let mut m = Metadata::default();
+        let mut m = ObjectMetadata::default();
         if meta.is_dir() {
             let mut p = args.path().to_string();
             if !p.ends_with('/') {

@@ -45,7 +45,7 @@ use crate::BytesWrite;
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
-    meta: Metadata,
+    meta: ObjectMetadata,
 }
 
 impl Object {
@@ -57,7 +57,7 @@ impl Object {
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         Self {
             acc,
-            meta: Metadata {
+            meta: ObjectMetadata {
                 path: Object::normalize_path(path),
                 ..Default::default()
             },
@@ -643,11 +643,11 @@ impl Object {
         self.acc.list(op).await
     }
 
-    pub(crate) fn metadata_ref(&self) -> &Metadata {
+    pub(crate) fn metadata_ref(&self) -> &ObjectMetadata {
         &self.meta
     }
 
-    pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
+    pub(crate) fn metadata_mut(&mut self) -> &mut ObjectMetadata {
         &mut self.meta
     }
 
@@ -673,7 +673,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(&self) -> Result<Metadata> {
+    pub async fn metadata(&self) -> Result<ObjectMetadata> {
         let op = &OpStat::new(self.meta.path())?;
 
         self.acc.stat(op).await
@@ -701,7 +701,7 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn metadata_cached(&mut self) -> Result<&Metadata> {
+    pub async fn metadata_cached(&mut self) -> Result<&ObjectMetadata> {
         if self.meta.complete() {
             return Ok(&self.meta);
         }
@@ -744,7 +744,7 @@ impl Object {
 
 /// Metadata carries all object metadata.
 #[derive(Debug, Clone, Default)]
-pub struct Metadata {
+pub struct ObjectMetadata {
     complete: bool,
 
     path: String,
@@ -755,7 +755,7 @@ pub struct Metadata {
     last_modified: Option<OffsetDateTime>,
 }
 
-impl Metadata {
+impl ObjectMetadata {
     /// Whether this object is complete.
     ///
     /// - If complete, this metadata is the full set. And we can't
@@ -938,9 +938,9 @@ mod tests {
         ];
 
         for (name, input, expect) in cases {
-            let meta = Metadata {
+            let meta = ObjectMetadata {
                 path: input.to_string(),
-                ..Metadata::default()
+                ..ObjectMetadata::default()
             };
             assert_eq!(meta.name(), expect, "{}", name)
         }

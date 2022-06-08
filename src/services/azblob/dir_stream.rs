@@ -40,7 +40,7 @@ enum State {
     Listing((Output, usize, usize)),
 }
 
-pub struct AzblobDirStream {
+pub struct DirStream {
     backend: Arc<Backend>,
     path: String,
 
@@ -49,7 +49,7 @@ pub struct AzblobDirStream {
     state: State,
 }
 
-impl AzblobDirStream {
+impl DirStream {
     pub fn new(backend: Arc<Backend>, path: &str) -> Self {
         Self {
             backend,
@@ -62,7 +62,7 @@ impl AzblobDirStream {
     }
 }
 
-impl futures::Stream for AzblobDirStream {
+impl futures::Stream for DirStream {
     type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

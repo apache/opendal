@@ -42,7 +42,7 @@ use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::dir_stream::AzblobDirStream;
+use super::dir_stream::DirStream;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
@@ -481,10 +481,7 @@ impl Accessor for Backend {
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 
-        Ok(Box::new(AzblobDirStream::new(
-            Arc::new(self.clone()),
-            &path,
-        )))
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 }
 

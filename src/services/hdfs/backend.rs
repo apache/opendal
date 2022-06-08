@@ -398,7 +398,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 

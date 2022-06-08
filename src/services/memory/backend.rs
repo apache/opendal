@@ -200,7 +200,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let mut path = args.path().to_string();
         if path == "/" {
             path.clear();

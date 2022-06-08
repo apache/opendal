@@ -111,12 +111,7 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
-        let _ = args;
-        unimplemented!()
-    }
-
-    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let _ = args;
         unimplemented!()
     }
@@ -144,7 +139,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         self.as_ref().delete(args).await
     }
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         self.as_ref().list(args).await
     }
 }

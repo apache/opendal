@@ -1004,7 +1004,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         increment_counter!("opendal_s3_list_requests");
 
         let mut path = self.get_abs_path(args.path());

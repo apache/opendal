@@ -637,7 +637,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<ObjectStreamer> {
+    pub async fn list(&self) -> Result<DirStreamer> {
         let op = &OpList::new(self.meta.path())?;
 
         self.acc.list(op).await

@@ -62,7 +62,7 @@ pub fn seekable_read(o: &Object, range: impl RangeBounds<u64>) -> SeekableReader
 
     SeekableReader {
         acc: o.accessor(),
-        path: o.metadata_ref().path().to_string(),
+        path: o.path().to_string(),
         offset: br.offset(),
         size: br.size(),
 

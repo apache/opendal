@@ -44,14 +44,12 @@ use reqsign::services::aws::v4::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::object_stream::S3ObjectStream;
+use super::object_stream::DirStream;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodyWriter;
-use crate::object::ObjectMetadata;
-use crate::object::ObjectStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -63,6 +61,8 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
 
@@ -892,10 +892,7 @@ impl Accessor for Backend {
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
             let mut m = ObjectMetadata::default();
-            m.set_path(args.path());
-            m.set_content_length(0);
             m.set_mode(ObjectMode::DIR);
-            m.set_complete();
 
             debug!("backed root object stat finished");
             return Ok(m);
@@ -906,7 +903,6 @@ impl Accessor for Backend {
         match resp.status() {
             StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
-                m.set_path(args.path());
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
@@ -966,17 +962,12 @@ impl Accessor for Backend {
                     m.set_mode(ObjectMode::FILE);
                 };
 
-                m.set_complete();
-
                 debug!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
-                m.set_path(args.path());
-                m.set_content_length(0);
                 m.set_mode(ObjectMode::DIR);
-                m.set_complete();
 
                 debug!("object {} stat finished", &p);
                 Ok(m)
@@ -1004,7 +995,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         increment_counter!("opendal_s3_list_requests");
 
         let mut path = self.get_abs_path(args.path());
@@ -1014,7 +1005,7 @@ impl Accessor for Backend {
         }
         debug!("object {} list start", &path);
 
-        Ok(Box::new(S3ObjectStream::new(self.clone(), path)))
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 }
 

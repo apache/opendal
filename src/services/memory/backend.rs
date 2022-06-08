@@ -28,12 +28,12 @@ use bytes::BufMut;
 use bytes::Bytes;
 use futures::io::Cursor;
 use futures::AsyncWrite;
+use log::debug;
 use minitrace::trace;
 use parking_lot::Mutex;
 
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::object::ObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -44,7 +44,8 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
-use crate::Object;
+use crate::DirEntry;
+use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
@@ -162,10 +163,7 @@ impl Accessor for Backend {
 
         if path.ends_with('/') {
             let mut meta = ObjectMetadata::default();
-            meta.set_path(path)
-                .set_mode(ObjectMode::DIR)
-                .set_content_length(0)
-                .set_complete();
+            meta.set_mode(ObjectMode::DIR);
 
             return Ok(meta);
         }
@@ -180,10 +178,8 @@ impl Accessor for Backend {
         })?;
 
         let mut meta = ObjectMetadata::default();
-        meta.set_path(path)
-            .set_mode(ObjectMode::FILE)
-            .set_content_length(data.len() as u64)
-            .set_complete();
+        meta.set_mode(ObjectMode::FILE)
+            .set_content_length(data.len() as u64);
 
         Ok(meta)
     }
@@ -199,7 +195,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let mut path = args.path().to_string();
         if path == "/" {
             path.clear();
@@ -213,8 +209,9 @@ impl Accessor for Backend {
             .filter(|k| k.starts_with(&path) && k != &path)
             .collect::<Vec<String>>();
 
-        Ok(Box::new(EntryStream {
-            backend: self.clone(),
+        Ok(Box::new(DirStream {
+            backend: Arc::new(self.clone()),
+            path,
             paths,
             idx: 0,
         }))
@@ -265,16 +262,17 @@ impl AsyncWrite for MapWriter {
     }
 }
 
-struct EntryStream {
-    backend: Backend,
+struct DirStream {
+    backend: Arc<Backend>,
+    path: String,
     paths: Vec<String>,
     idx: usize,
 }
 
-impl futures::Stream for EntryStream {
-    type Item = Result<Object>;
+impl futures::Stream for DirStream {
+    type Item = Result<DirEntry>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.idx >= self.paths.len() {
             return Poll::Ready(None);
         }
@@ -284,27 +282,18 @@ impl futures::Stream for EntryStream {
 
         let path = self.paths.get(idx).expect("path must valid");
 
-        let backend = self.backend.clone();
-        let map = backend.inner.lock();
-
-        let bs = match map.get(path) {
-            Some(bs) => bs,
-            None => return self.poll_next(cx),
+        let de = if path.ends_with('/') {
+            DirEntry::new(self.backend.clone(), ObjectMode::DIR, path)
+        } else {
+            DirEntry::new(self.backend.clone(), ObjectMode::FILE, path)
         };
 
-        let mut o = Object::new(Arc::new(self.backend.clone()), path);
-        let meta = o.metadata_mut();
-        meta.set_path(path)
-            .set_mode({
-                if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                }
-            })
-            .set_content_length(bs.len() as u64)
-            .set_complete();
-
-        Poll::Ready(Some(Ok(o)))
+        debug!(
+            "dir object {} got entry, mode: {}, path: {}",
+            &self.path,
+            de.mode(),
+            de.path()
+        );
+        Poll::Ready(Some(Ok(de)))
     }
 }

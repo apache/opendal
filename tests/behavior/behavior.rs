@@ -24,7 +24,7 @@ use std::collections::HashMap;
 use std::io;
 
 use anyhow::Result;
-use futures::StreamExt;
+use futures::TryStreamExt;
 use log::debug;
 use opendal::services;
 use opendal::ObjectMode;
@@ -195,7 +195,6 @@ async fn test_create_file(op: Operator) -> Result<()> {
     let _ = o.create().await?;
 
     let meta = o.metadata().await?;
-    assert_eq!(meta.path(), &path);
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -217,7 +216,6 @@ async fn test_create_file_existing(op: Operator) -> Result<()> {
     let _ = o.create().await?;
 
     let meta = o.metadata().await?;
-    assert_eq!(meta.path(), &path);
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -237,7 +235,6 @@ async fn test_create_dir(op: Operator) -> Result<()> {
     let _ = o.create().await?;
 
     let meta = o.metadata().await?;
-    assert_eq!(meta.path(), &path);
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -258,7 +255,6 @@ async fn test_create_dir_exising(op: Operator) -> Result<()> {
     let _ = o.create().await?;
 
     let meta = o.metadata().await?;
-    assert_eq!(meta.path(), &path);
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -281,7 +277,6 @@ async fn test_write(op: Operator) -> Result<()> {
         .metadata()
         .await
         .expect("stat must succeed");
-    assert_eq!(meta.path(), path);
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -627,9 +622,9 @@ async fn test_list_dir(op: Operator) -> Result<()> {
 
     let mut obs = op.object("/").list().await?;
     let mut found = false;
-    while let Some(o) = obs.next().await {
-        let meta = o?.metadata().await?;
-        if meta.path() == path {
+    while let Some(de) = obs.try_next().await? {
+        let meta = de.metadata().await?;
+        if de.path() == path {
             assert_eq!(meta.mode(), ObjectMode::FILE);
             assert_eq!(meta.content_length(), size as u64);
 
@@ -653,10 +648,8 @@ async fn test_list_empty_dir(op: Operator) -> Result<()> {
 
     let mut obs = op.object(&dir).list().await?;
     let mut objects = HashMap::new();
-    while let Some(o) = obs.next().await {
-        let o = o?;
-
-        objects.insert(o.path(), o);
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
     }
     debug!("got objects: {:?}", objects);
 
@@ -674,11 +667,10 @@ async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
     let mut obs = op.object("/").list().await?;
     let mut found = false;
-    while let Some(o) = obs.next().await {
-        let meta = o?.metadata().await?;
-        if meta.path() == path {
-            assert_eq!(meta.mode(), ObjectMode::DIR);
-            assert_eq!(meta.name(), path);
+    while let Some(de) = obs.try_next().await? {
+        if de.path() == path {
+            assert_eq!(de.mode(), ObjectMode::DIR);
+            assert_eq!(de.name(), path);
 
             found = true
         }
@@ -716,9 +708,8 @@ async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let mut obs = op.object(&dir).list().await?;
     let mut objects = HashMap::new();
 
-    while let Some(o) = obs.next().await {
-        let o = o?;
-        objects.insert(o.path(), o);
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
     }
     debug!("got objects: {:?}", objects);
 
@@ -731,7 +722,6 @@ async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .metadata()
         .await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
-    assert_eq!(meta.name(), file_name);
     assert_eq!(meta.content_length(), 0);
 
     // Check dir
@@ -741,7 +731,6 @@ async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .metadata()
         .await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
-    assert_eq!(meta.name(), dir_name);
 
     op.object(&file_path)
         .delete()

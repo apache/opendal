@@ -31,8 +31,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::Metadata;
 use crate::Object;
+use crate::ObjectMetadata;
 
 /// Add seek support for object via internal lazy operation.
 ///
@@ -62,7 +62,7 @@ pub fn seekable_read(o: &Object, range: impl RangeBounds<u64>) -> SeekableReader
 
     SeekableReader {
         acc: o.accessor(),
-        path: o.metadata_ref().path().to_string(),
+        path: o.path().to_string(),
         offset: br.offset(),
         size: br.size(),
 
@@ -85,7 +85,7 @@ pub struct SeekableReader {
 enum State {
     Idle,
     Sending(BoxFuture<'static, Result<BytesReader>>),
-    Seeking(BoxFuture<'static, Result<Metadata>>),
+    Seeking(BoxFuture<'static, Result<ObjectMetadata>>),
     Reading(BytesReader),
 }
 

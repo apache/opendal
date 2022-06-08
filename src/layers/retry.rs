@@ -31,9 +31,9 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::DirStreamer;
 use crate::Layer;
-use crate::Metadata;
-use crate::ObjectStreamer;
+use crate::ObjectMetadata;
 
 /// Implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html) so that all backoff can be used as a layer
 ///
@@ -104,7 +104,7 @@ where
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         { || self.inner.stat(args) }
             .retry(self.backoff.clone())
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
@@ -116,7 +116,7 @@ where
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         { || self.inner.list(args) }
             .retry(self.backoff.clone())
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)

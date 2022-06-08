@@ -26,8 +26,8 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::BytesReader;
 use crate::BytesWriter;
-use crate::Metadata;
-use crate::ObjectStreamer;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
 use crate::Scheme;
 
 /// Underlying trait of all backends for implementors.
@@ -89,7 +89,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let _ = args;
         unimplemented!()
     }
@@ -110,7 +110,7 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let _ = args;
         unimplemented!()
     }
@@ -132,13 +132,13 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         self.as_ref().write(args).await
     }
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         self.as_ref().stat(args).await
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         self.as_ref().delete(args).await
     }
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         self.as_ref().list(args).await
     }
 }

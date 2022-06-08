@@ -32,11 +32,11 @@ use serde::Deserialize;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::Object;
+use crate::DirEntry;
 use crate::ObjectMode;
 
-pub struct S3ObjectStream {
-    backend: Backend,
+pub struct DirStream {
+    backend: Arc<Backend>,
     path: String,
 
     token: String,
@@ -50,11 +50,11 @@ enum State {
     Listing((Output, usize, usize)),
 }
 
-impl S3ObjectStream {
-    pub fn new(backend: Backend, path: String) -> Self {
+impl DirStream {
+    pub fn new(backend: Arc<Backend>, path: &str) -> Self {
         Self {
             backend,
-            path,
+            path: path.to_string(),
 
             token: "".to_string(),
             done: false,
@@ -63,15 +63,14 @@ impl S3ObjectStream {
     }
 }
 
-impl futures::Stream for S3ObjectStream {
-    type Item = Result<Object>;
+impl futures::Stream for DirStream {
+    type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
 
         match &mut self.state {
             State::Idle => {
-                let backend = self.backend.clone();
                 let path = self.path.clone();
                 let token = self.token.clone();
                 let fut = async move {
@@ -136,20 +135,19 @@ impl futures::Stream for S3ObjectStream {
                     *common_prefixes_idx += 1;
                     let prefix = &prefixes[*common_prefixes_idx - 1].prefix;
 
-                    let mut o =
-                        Object::new(Arc::new(backend.clone()), &backend.get_rel_path(prefix));
-                    let meta = o.metadata_mut();
-                    meta.set_mode(ObjectMode::DIR)
-                        .set_content_length(0)
-                        .set_complete();
+                    let de = DirEntry::new(
+                        backend.clone(),
+                        ObjectMode::DIR,
+                        &backend.get_rel_path(prefix),
+                    );
 
                     debug!(
-                        "object {} got entry, path: {}, mode: {}",
+                        "object {} got entry, mode: {}, path: {}",
                         &self.path,
-                        meta.path(),
-                        meta.mode()
+                        de.path(),
+                        de.mode()
                     );
-                    return Poll::Ready(Some(Ok(o)));
+                    return Poll::Ready(Some(Ok(de)));
                 }
 
                 let objects = &output.contents;
@@ -164,21 +162,19 @@ impl futures::Stream for S3ObjectStream {
                         continue;
                     }
 
-                    let mut o = Object::new(
-                        Arc::new(backend.clone()),
+                    let de = DirEntry::new(
+                        backend.clone(),
+                        ObjectMode::FILE,
                         &backend.get_rel_path(&object.key),
                     );
-                    let meta = o.metadata_mut();
-                    meta.set_mode(ObjectMode::FILE)
-                        .set_content_length(object.size as u64);
 
                     debug!(
-                        "object {} got entry, path: {}, mode: {}",
+                        "dir object {} got entry, mode: {}, path: {}",
                         &self.path,
-                        meta.path(),
-                        meta.mode()
+                        de.mode(),
+                        de.path()
                     );
-                    return Poll::Ready(Some(Ok(o)));
+                    return Poll::Ready(Some(Ok(de)));
                 }
 
                 if self.done {

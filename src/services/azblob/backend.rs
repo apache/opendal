@@ -42,13 +42,14 @@ use reqsign::services::azure::storage::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
+use super::dir_stream::DirStream;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodyWriter;
-use crate::object::Metadata;
+use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -56,12 +57,11 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::services::azblob::object_stream::AzblobObjectStream;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::DirStreamer;
 use crate::ObjectMode;
-use crate::ObjectStreamer;
 use crate::Scheme;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
@@ -355,7 +355,7 @@ impl Accessor for Backend {
     }
 
     #[trace("stat")]
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         increment_counter!("opendal_azure_stat_requests");
 
         let p = self.get_abs_path(args.path());
@@ -363,11 +363,8 @@ impl Accessor for Backend {
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
-            let mut m = Metadata::default();
-            m.set_path(args.path());
-            m.set_content_length(0);
+            let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
-            m.set_complete();
 
             debug!("backed root object stat finished");
             return Ok(m);
@@ -376,8 +373,7 @@ impl Accessor for Backend {
         let resp = self.get_blob_properties(&p).await?;
         match resp.status() {
             http::StatusCode::OK => {
-                let mut m = Metadata::default();
-                m.set_path(args.path());
+                let mut m = ObjectMetadata::default();
 
                 // Parse content_length
                 if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
@@ -438,17 +434,12 @@ impl Accessor for Backend {
                     m.set_mode(ObjectMode::FILE);
                 };
 
-                m.set_complete();
-
                 debug!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
-                let mut m = Metadata::default();
-                m.set_path(args.path());
-                m.set_content_length(0);
+                let mut m = ObjectMetadata::default();
                 m.set_mode(ObjectMode::DIR);
-                m.set_complete();
 
                 debug!("object {} stat finished", &p);
                 Ok(m)
@@ -475,13 +466,13 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         increment_counter!("opendal_azblob_list_requests");
 
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 
-        Ok(Box::new(AzblobObjectStream::new(self.clone(), path)))
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 }
 

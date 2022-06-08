@@ -33,15 +33,12 @@ use minitrace::trace;
 use time::OffsetDateTime;
 use tokio::fs;
 
+use super::dir_stream::DirStream;
 use super::error::parse_io_error;
-use super::object_stream::Readdir;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::object::Metadata;
-use crate::object::ObjectMode;
-use crate::object::ObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -51,6 +48,9 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 use crate::Scheme;
 
 /// Builder for fs backend.
@@ -132,6 +132,16 @@ impl Backend {
             .join(path)
             .to_string_lossy()
             .to_string()
+    }
+
+    pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        match path.strip_prefix(&self.root) {
+            Some(p) => p.to_string(),
+            None => unreachable!(
+                "invalid path {} that not start with backend root {}",
+                &path, &self.root
+            ),
+        }
     }
 }
 
@@ -292,7 +302,7 @@ impl Accessor for Backend {
     }
 
     #[trace("stat")]
-    async fn stat(&self, args: &OpStat) -> Result<Metadata> {
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         increment_counter!("opendal_fs_stat_requests");
 
         let path = self.get_abs_path(args.path());
@@ -304,19 +314,12 @@ impl Accessor for Backend {
             e
         })?;
 
-        let mut m = Metadata::default();
+        let mut m = ObjectMetadata::default();
         if meta.is_dir() {
-            let mut p = args.path().to_string();
-            if !p.ends_with('/') {
-                p.push('/')
-            }
-            m.set_path(&p);
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
-            m.set_path(args.path());
             m.set_mode(ObjectMode::FILE);
         } else {
-            m.set_path(args.path());
             m.set_mode(ObjectMode::Unknown);
         }
         m.set_content_length(meta.len() as u64);
@@ -325,7 +328,6 @@ impl Accessor for Backend {
                 .map(OffsetDateTime::from)
                 .map_err(|e| parse_io_error(e, "stat", &path))?,
         );
-        m.set_complete();
 
         debug!("object {} stat finished", &path);
         Ok(m)
@@ -367,7 +369,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         increment_counter!("opendal_fs_list_requests");
 
         let path = self.get_abs_path(args.path());
@@ -379,7 +381,7 @@ impl Accessor for Backend {
             e
         })?;
 
-        let rd = Readdir::new(Arc::new(self.clone()), &self.root, args.path(), f);
+        let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 
         Ok(Box::new(rd))
     }

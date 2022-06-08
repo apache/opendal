@@ -36,10 +36,11 @@
 //! use anyhow::Result;
 //! use futures::StreamExt;
 //! use opendal::services::fs;
-//! use opendal::Metadata;
+//! use opendal::DirEntry;
+//! use opendal::DirStreamer;
 //! use opendal::Object;
+//! use opendal::ObjectMetadata;
 //! use opendal::ObjectMode;
-//! use opendal::ObjectStreamer;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
@@ -60,9 +61,9 @@
 //!     let bs: Vec<u8> = o.range_read(1..=11).await?;
 //!
 //!     // Get object's Metadata
-//!     let meta: Metadata = o.metadata().await?;
-//!     let name: &str = meta.name();
-//!     let path: &str = meta.path();
+//!     let name: &str = o.name();
+//!     let path: &str = o.path();
+//!     let meta: ObjectMetadata = o.metadata().await?;
 //!     let mode: ObjectMode = meta.mode();
 //!     let length: u64 = meta.content_length();
 //!     let content_md5: Option<String> = meta.content_md5();
@@ -72,9 +73,9 @@
 //!
 //!     // List dir object.
 //!     let o: Object = op.object("test_dir/");
-//!     let mut obs: ObjectStreamer = o.list().await?;
+//!     let mut obs: DirStreamer = o.list().await?;
 //!     while let Some(entry) = obs.next().await {
-//!         let entry: Object = entry?;
+//!         let entry: DirEntry = entry?;
 //!     }
 //!
 //!     Ok(())
@@ -105,11 +106,14 @@ pub use operator::BatchOperator;
 pub use operator::Operator;
 
 mod object;
-pub use object::Metadata;
+pub use object::DirEntry;
+pub use object::DirStream;
+pub use object::DirStreamer;
 pub use object::Object;
+pub use object::ObjectMetadata;
+#[deprecated = "Metadata has been deprecated, use ObjectMetadata instead"]
+pub use object::ObjectMetadata as Metadata;
 pub use object::ObjectMode;
-pub use object::ObjectStream;
-pub use object::ObjectStreamer;
 
 mod scheme;
 pub use scheme::Scheme;
@@ -123,3 +127,4 @@ pub mod services;
 //
 // Please don't export any type from this module.
 mod error;
+mod path;

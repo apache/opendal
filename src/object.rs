@@ -38,6 +38,8 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::path::get_basename;
+use crate::path::normalize_path;
 use crate::Accessor;
 use crate::BytesWrite;
 
@@ -45,7 +47,7 @@ use crate::BytesWrite;
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
-    meta: Metadata,
+    path: String,
 }
 
 impl Object {
@@ -57,48 +59,8 @@ impl Object {
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         Self {
             acc,
-            meta: Metadata {
-                path: Object::normalize_path(path),
-                ..Default::default()
-            },
+            path: normalize_path(path),
         }
-    }
-
-    /// Make sure all operation are constructed by normalized path:
-    ///
-    /// - Path endswith `/` means it's a dir path.
-    /// - Otherwise, it's a file path.
-    ///
-    /// # Normalize Rules
-    ///
-    /// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
-    /// - All leading / will be trimmed: `///abc` => `abc`
-    /// - Internal // will be replaced by /: `abc///def` => `abc/def`
-    /// - Empty path will be `/`: `` => `/`
-    pub(crate) fn normalize_path(path: &str) -> String {
-        // - all whitespace has been trimmed.
-        // - all leading `/` has been trimmed.
-        let path = path.trim().trim_start_matches('/');
-
-        // Fast line for empty path.
-        if path.is_empty() {
-            return "/".to_string();
-        }
-
-        let has_trailing = path.ends_with('/');
-
-        let mut p = path
-            .split('/')
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<&str>>()
-            .join("/");
-
-        // Append trailing back if input path is endswith `/`.
-        if has_trailing {
-            p.push('/');
-        }
-
-        p
     }
 
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
@@ -132,7 +94,7 @@ impl Object {
     /// }
     /// ```
     pub fn id(&self) -> String {
-        format!("{}{}", self.acc.metadata().root(), self.meta.path)
+        format!("{}{}", self.acc.metadata().root(), self.path)
     }
 
     /// Path of object. Path is relative to operator's root.
@@ -156,8 +118,8 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    pub fn path(&self) -> String {
-        self.meta.path.clone()
+    pub fn path(&self) -> &str {
+        &self.path
     }
 
     /// Name of object. Name is the last segment of path.
@@ -183,8 +145,8 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    pub fn name(&self) -> String {
-        self.meta.name().to_string()
+    pub fn name(&self) -> &str {
+        get_basename(&self.path)
     }
 
     /// Create an empty object, like using the following linux commands:
@@ -231,11 +193,11 @@ impl Object {
     /// # }
     /// ```
     pub async fn create(&self) -> Result<()> {
-        if self.meta.path.ends_with('/') {
-            let op = OpCreate::new(self.meta.path(), ObjectMode::DIR)?;
+        if self.path.ends_with('/') {
+            let op = OpCreate::new(self.path(), ObjectMode::DIR)?;
             self.acc.create(&op).await
         } else {
-            let op = OpCreate::new(self.meta.path(), ObjectMode::FILE)?;
+            let op = OpCreate::new(self.path(), ObjectMode::FILE)?;
             self.acc.create(&op).await
         }
     }
@@ -287,7 +249,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        let op = OpRead::new(self.meta.path(), range)?;
+        let op = OpRead::new(self.path(), range)?;
         let s = self.acc.read(&op).await?;
 
         let mut bs = Cursor::new(Vec::new());
@@ -338,7 +300,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
-        let op = OpRead::new(self.meta.path(), range)?;
+        let op = OpRead::new(self.path(), range)?;
         self.acc.read(&op).await
     }
 
@@ -400,7 +362,7 @@ impl Object {
     /// ```
     #[cfg(feature = "compress")]
     pub async fn decompress_read(&self) -> Result<Option<Vec<u8>>> {
-        let algo = match CompressAlgorithm::from_path(self.meta.path()) {
+        let algo = match CompressAlgorithm::from_path(self.path()) {
             None => return Ok(None),
             Some(algo) => algo,
         };
@@ -434,7 +396,7 @@ impl Object {
     /// ```
     #[cfg(feature = "compress")]
     pub async fn decompress_reader(&self) -> Result<Option<impl BytesRead>> {
-        let algo = match CompressAlgorithm::from_path(self.meta.path()) {
+        let algo = match CompressAlgorithm::from_path(self.path()) {
             Some(v) => v,
             None => return Ok(None),
         };
@@ -532,7 +494,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn write(&self, bs: impl AsRef<[u8]>) -> Result<()> {
-        let op = OpWrite::new(self.meta.path(), bs.as_ref().len() as u64)?;
+        let op = OpWrite::new(self.path(), bs.as_ref().len() as u64)?;
         let mut s = self.acc.write(&op).await?;
 
         s.write_all(bs.as_ref()).await?;
@@ -565,7 +527,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
-        let op = OpWrite::new(self.meta.path(), size);
+        let op = OpWrite::new(self.path(), size);
         let s = self.acc.write(&op?).await?;
 
         Ok(s)
@@ -592,7 +554,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn delete(&self) -> Result<()> {
-        let op = &OpDelete::new(self.meta.path())?;
+        let op = &OpDelete::new(self.path())?;
 
         self.acc.delete(op).await
     }
@@ -612,19 +574,15 @@ impl Object {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::ObjectMode;
-    /// # use futures::StreamExt;
+    /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # let op = Operator::new(memory::Backend::build().finish().await?);
+    /// let op = Operator::new(memory::Backend::build().finish().await?);
     /// let o = op.object("path/to/dir/");
-    /// let mut obs = o.list().await?;
-    /// // ObjectStream implements `futures::Stream`
-    /// while let Some(o) = obs.next().await {
-    ///     let mut o = o?;
-    ///     // It's highly possible that OpenDAL already did metadata during list.
-    ///     // Use `Object::metadata_cached()` to get cached metadata at first.
-    ///     let meta = o.metadata_cached().await?;
-    ///     match meta.mode() {
+    /// let mut ds = o.list().await?;
+    /// // DirStreamer implements `futures::Stream`
+    /// while let Some(de) = ds.try_next().await? {
+    ///     match de.mode() {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -637,18 +595,10 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<ObjectStreamer> {
-        let op = &OpList::new(self.meta.path())?;
+    pub async fn list(&self) -> Result<DirStreamer> {
+        let op = OpList::new(self.path())?;
 
-        self.acc.list(op).await
-    }
-
-    pub(crate) fn metadata_ref(&self) -> &Metadata {
-        &self.meta
-    }
-
-    pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
-        &mut self.meta
+        self.acc.list(&op).await
     }
 
     /// Get current object's metadata.
@@ -673,43 +623,10 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(&self) -> Result<Metadata> {
-        let op = &OpStat::new(self.meta.path())?;
+    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+        let op = OpStat::new(self.path())?;
 
-        self.acc.stat(op).await
-    }
-
-    /// Use local cached metadata if possible.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::services::memory;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::new(memory::Backend::build().finish().await?);
-    ///     let mut o = op.object("test");
-    ///
-    ///     o.metadata_cached().await;
-    ///     // The second call to metadata_cached will have no cost.
-    ///     o.metadata_cached().await;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn metadata_cached(&mut self) -> Result<&Metadata> {
-        if self.meta.complete() {
-            return Ok(&self.meta);
-        }
-
-        let op = &OpStat::new(self.meta.path())?;
-        self.meta = self.acc.stat(op).await?;
-
-        Ok(&self.meta)
+        self.acc.stat(&op).await
     }
 
     /// Check if this object exist or not.
@@ -744,104 +661,32 @@ impl Object {
 
 /// Metadata carries all object metadata.
 #[derive(Debug, Clone, Default)]
-pub struct Metadata {
-    complete: bool,
+pub struct ObjectMetadata {
+    mode: ObjectMode,
 
-    path: String,
-    mode: Option<ObjectMode>,
-
-    content_length: Option<u64>,
+    content_length: u64,
     content_md5: Option<String>,
     last_modified: Option<OffsetDateTime>,
 }
 
-impl Metadata {
-    /// Whether this object is complete.
-    ///
-    /// - If complete, this metadata is the full set. And we can't
-    ///   get more information.
-    /// - If not, this metadata is not the full set. We can use
-    ///   `Object::metadata()` to get more information.
-    pub fn complete(&self) -> bool {
-        self.complete
-    }
-
-    pub(crate) fn set_complete(&mut self) -> &mut Self {
-        self.complete = true;
-        self
-    }
-
-    /// Returns object path that relative to corresponding backend's root.
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-
-    pub(crate) fn set_path(&mut self, path: &str) -> &mut Self {
-        // Path should not be empty.
-        debug_assert!(!path.is_empty());
-
-        self.path = path.to_string();
-        self
-    }
-
-    /// Returns object name
-    pub fn name(&self) -> &str {
-        // Handle root case
-        if self.path() == "/" {
-            return "/";
-        }
-
-        // Handle file case
-        if !self.path.ends_with('/') {
-            return self
-                .path()
-                .split('/')
-                .last()
-                .expect("file path without name is invalid");
-        }
-
-        // The idx of second `/` if path in reserve order.
-        // - `abc/` => `None`
-        // - `abc/def/` => `Some(3)`
-        let idx = self.path[..self.path().len() - 1].rfind('/').map(|v| v + 1);
-
-        match idx {
-            Some(v) => {
-                let (_, name) = self.path.split_at(v);
-                name
-            }
-            None => self.path(),
-        }
-    }
-
+impl ObjectMetadata {
     /// Object mode represent this object' mode.
     pub fn mode(&self) -> ObjectMode {
-        debug_assert!(self.mode.is_some(), "mode must exist");
-
-        self.mode.unwrap_or_default()
+        self.mode
     }
 
     pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
-        debug_assert!(
-            (mode == ObjectMode::DIR) == self.path.ends_with('/'),
-            "mode {:?} not match with path {}",
-            mode,
-            self.path
-        );
-
-        self.mode = Some(mode);
+        self.mode = mode;
         self
     }
 
     /// Content length of this object
     pub fn content_length(&self) -> u64 {
-        debug_assert!(self.content_length.is_some(), "content length must exist");
-
-        self.content_length.unwrap_or_default()
+        self.content_length
     }
 
     pub(crate) fn set_content_length(&mut self, content_length: u64) -> &mut Self {
-        self.content_length = Some(content_length);
+        self.content_length = content_length;
         self
     }
 
@@ -877,6 +722,17 @@ pub enum ObjectMode {
     Unknown,
 }
 
+impl ObjectMode {
+    /// Check if this object mode is FILE.
+    pub fn is_file(self) -> bool {
+        self == ObjectMode::FILE
+    }
+    /// Check if this object mode is DIR.
+    pub fn is_dir(self) -> bool {
+        self == ObjectMode::DIR
+    }
+}
+
 impl Default for ObjectMode {
     fn default() -> Self {
         Self::Unknown
@@ -893,56 +749,83 @@ impl Display for ObjectMode {
     }
 }
 
-/// ObjectStream represents a stream of object.
-pub trait ObjectStream: futures::Stream<Item = Result<Object>> + Unpin + Send {}
-impl<T> ObjectStream for T where T: futures::Stream<Item = Result<Object>> + Unpin + Send {}
+/// DirStream represents a stream of Dir.
+pub trait DirStream: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
+impl<T> DirStream for T where T: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
 
-/// ObjectStreamer is a boxed dyn [`ObjectStream`]
-pub type ObjectStreamer = Box<dyn ObjectStream>;
+/// DirStreamer is a boxed dyn [`DirStream`]
+pub type DirStreamer = Box<dyn DirStream>;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// DirEntry is returned by [`DirStream`] during object list.
+///
+/// DirEntry carries two information: path and mode. Users can check returning dir
+/// entry's mode or convert into an object without overhead.
+#[derive(Clone, Debug)]
+pub struct DirEntry {
+    acc: Arc<dyn Accessor>,
 
-    #[test]
-    fn test_normalize_dir_path() {
-        let cases = vec![
-            ("file path", "abc", "abc"),
-            ("dir path", "abc/", "abc/"),
-            ("empty path", "", "/"),
-            ("root path", "/", "/"),
-            ("root path with extra /", "///", "/"),
-            ("abs file path", "/abc/def", "abc/def"),
-            ("abs dir path", "/abc/def/", "abc/def/"),
-            ("abs file path with extra /", "///abc/def", "abc/def"),
-            ("abs dir path with extra /", "///abc/def/", "abc/def/"),
-            ("file path contains ///", "abc///def", "abc/def"),
-            ("dir path contains ///", "abc///def///", "abc/def/"),
-            ("file with whitespace", "abc/def   ", "abc/def"),
-        ];
+    mode: ObjectMode,
+    path: String,
+}
 
-        for (name, input, expect) in cases {
-            assert_eq!(Object::normalize_path(input), expect, "{}", name)
+impl DirEntry {
+    pub(crate) fn new(acc: Arc<dyn Accessor>, mode: ObjectMode, path: &str) -> DirEntry {
+        debug_assert!(
+            mode.is_dir() == path.ends_with('/'),
+            "mode {:?} not match with path {}",
+            mode,
+            path
+        );
+
+        DirEntry {
+            acc,
+            mode,
+            path: path.to_string(),
         }
     }
 
-    #[test]
-    fn test_metadata_name() {
-        let cases = vec![
-            ("file abs path", "foo/bar/baz.txt", "baz.txt"),
-            ("file rel path", "bar/baz.txt", "baz.txt"),
-            ("file walk", "foo/bar/baz", "baz"),
-            ("dir rel path", "bar/baz/", "baz/"),
-            ("dir root", "/", "/"),
-            ("dir walk", "foo/bar/baz/", "baz/"),
-        ];
+    /// Return this dir entry's object mode.
+    pub fn mode(&self) -> ObjectMode {
+        self.mode
+    }
 
-        for (name, input, expect) in cases {
-            let meta = Metadata {
-                path: input.to_string(),
-                ..Metadata::default()
-            };
-            assert_eq!(meta.name(), expect, "{}", name)
+    /// Return this dir entry's id.
+    ///
+    /// The same with [`Object::id()`]
+    pub fn id(&self) -> String {
+        format!("{}{}", self.acc.metadata().root(), self.path)
+    }
+
+    /// Return this dir entry's path.
+    ///
+    /// The same with [`Object::path()`]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// Return this dir entry's name.
+    ///
+    /// The same with [`Object::name()`]
+    pub fn name(&self) -> &str {
+        get_basename(&self.path)
+    }
+
+    /// Fetch metadata about this dir entry.
+    ///
+    /// The same with [`Object::metadata()`]
+    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+        let op = OpStat::new(self.path())?;
+
+        self.acc.stat(&op).await
+    }
+}
+
+/// DirEntry can convert into object without overhead.
+impl From<DirEntry> for Object {
+    fn from(d: DirEntry) -> Self {
+        Object {
+            acc: d.acc,
+            path: d.path,
         }
     }
 }

@@ -206,9 +206,16 @@ impl Accessor for Backend {
         let paths = map
             .iter()
             .map(|(k, _)| k.clone())
+            // Make sure k is start with input path.
             .filter(|k| k.starts_with(&path) && k != &path)
-            .collect::<Vec<String>>();
+            // Make sure k is at the same level with input path.
+            .filter(|k| match k[path.len()..].find('/') {
+                None => true,
+                Some(idx) => idx + 1 + path.len() == k.len(),
+            })
+            .collect::<Vec<_>>();
 
+        debug!("dir object {} listed keys: {paths:?}", path);
         Ok(Box::new(DirStream {
             backend: Arc::new(self.clone()),
             path,

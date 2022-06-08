@@ -26,7 +26,7 @@ use futures::{StreamExt, TryStreamExt};
 use crate::Layer;
 use crate::Object;
 use crate::{Accessor, ObjectMode};
-use crate::{AccessorMetadata, ObjectStreamer};
+use crate::{AccessorMetadata, DirStreamer};
 
 /// User-facing APIs for object and object streams.
 #[derive(Clone, Debug)]
@@ -200,11 +200,11 @@ impl BatchOperator {
         self
     }
 
-    pub async fn walk_top_down(&self, path: &str) -> Result<ObjectStreamer> {
+    pub async fn walk_top_down(&self, path: &str) -> Result<DirStreamer> {
         todo!()
     }
 
-    pub async fn walk_bottom_up(&self, path: &str) -> Result<ObjectStreamer> {
+    pub async fn walk_bottom_up(&self, path: &str) -> Result<DirStreamer> {
         todo!()
     }
 
@@ -217,11 +217,7 @@ impl BatchOperator {
         }
 
         let obs = parent.list().await?;
-        obs.try_for_each_concurrent(self.concurrency, |mut v| async move {
-            let meta = v.metadata_cached().await?;
-
-            v.delete().await
-        })
-        .await
+        obs.try_for_each_concurrent(self.concurrency, |mut v| async move { Ok(()) })
+            .await
     }
 }

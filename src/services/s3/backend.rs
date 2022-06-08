@@ -44,7 +44,7 @@ use reqsign::services::aws::v4::Signer;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::object_stream::S3ObjectStream;
+use super::object_stream::DirStream;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -59,12 +59,12 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::ObjectMode;
 use crate::Scheme;
+use crate::{Accessor, DirStreamer};
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -1004,7 +1004,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
         increment_counter!("opendal_s3_list_requests");
 
         let mut path = self.get_abs_path(args.path());
@@ -1014,7 +1014,7 @@ impl Accessor for Backend {
         }
         debug!("object {} list start", &path);
 
-        Ok(Box::new(S3ObjectStream::new(self.clone(), path)))
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 }
 

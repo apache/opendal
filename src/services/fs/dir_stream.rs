@@ -22,76 +22,72 @@ use log::debug;
 use log::error;
 
 use super::error::parse_io_error;
+use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::Accessor;
 use crate::Object;
 use crate::ObjectMode;
+use crate::{Accessor, DirEntry};
 
-pub struct Readdir {
-    acc: Arc<dyn Accessor>,
-    root: String,
+pub struct DirStream {
+    backend: Arc<Backend>,
     path: String,
 
     rd: std::fs::ReadDir,
 }
 
-impl Readdir {
-    pub fn new(acc: Arc<dyn Accessor>, root: &str, path: &str, rd: std::fs::ReadDir) -> Self {
+impl DirStream {
+    pub fn new(backend: Arc<Backend>, path: &str, rd: std::fs::ReadDir) -> Self {
         Self {
-            acc,
-            root: root.to_string(),
+            backend,
             path: path.to_string(),
             rd,
         }
     }
 }
 
-impl futures::Stream for Readdir {
-    type Item = Result<Object>;
+impl futures::Stream for DirStream {
+    type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.rd.next() {
             None => {
-                debug!("object {} list done", &self.path);
+                debug!("dir object {} list done", &self.path);
                 Poll::Ready(None)
             }
             Some(Err(e)) => {
-                error!("object {} stream poll_next: {:?}", &self.path, e);
+                error!("dir object {} list: {:?}", &self.path, e);
                 Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path))))
             }
             Some(Ok(de)) => {
-                let de_path = de.path();
-                let de_path = de_path.strip_prefix(&self.root).map_err(|e| {
-                    let e = other(ObjectError::new("list", &de.path().to_string_lossy(), e));
-                    error!("object {:?} path strip_prefix: {:?}", &de.path(), e);
-                    e
-                })?;
-                let path = de_path.to_string_lossy();
-
-                let mut o = Object::new(self.acc.clone(), &path);
+                let path = self.backend.get_rel_path(&de.path().to_string_lossy());
 
                 // On Windows and most Unix platforms this function is free
                 // (no extra system calls needed), but some Unix platforms may
                 // require the equivalent call to symlink_metadata to learn about
                 // the target file type.
-                let de = de.file_type()?;
+                let file_type = de.file_type()?;
 
-                let meta = o.metadata_mut();
-                if de.is_file() {
-                    meta.set_mode(ObjectMode::FILE);
-                    meta.set_path(&path);
-                } else if de.is_dir() {
+                let d = if file_type.is_file() {
+                    DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
+                } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
-                    meta.set_path(&format!("{}/", &path));
-                    meta.set_mode(ObjectMode::DIR);
+                    DirEntry::new(
+                        self.backend.clone(),
+                        ObjectMode::DIR,
+                        &format!("{}/", &path),
+                    )
                 } else {
-                    meta.set_path(&path);
-                    meta.set_mode(ObjectMode::Unknown);
-                }
+                    DirEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
+                };
 
-                debug!("object {} got entry, path: {}", &self.path, meta.path());
-                Poll::Ready(Some(Ok(o)))
+                debug!(
+                    "dir object {} got entry, mode: {}, path: {}",
+                    &self.path,
+                    d.mode(),
+                    d.path()
+                );
+                Poll::Ready(Some(Ok(d)))
             }
         }
     }

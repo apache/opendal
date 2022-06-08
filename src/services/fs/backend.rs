@@ -33,8 +33,8 @@ use minitrace::trace;
 use time::OffsetDateTime;
 use tokio::fs;
 
+use super::dir_stream::DirStream;
 use super::error::parse_io_error;
-use super::object_stream::Readdir;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
@@ -48,10 +48,10 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::Accessor;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::Scheme;
+use crate::{Accessor, DirStreamer};
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]
@@ -132,6 +132,16 @@ impl Backend {
             .join(path)
             .to_string_lossy()
             .to_string()
+    }
+
+    pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        match path.strip_prefix(&self.root) {
+            Some(p) => p.to_string(),
+            None => unreachable!(
+                "invalid path {} that not start with backend root {}",
+                &path, &self.root
+            ),
+        }
     }
 }
 
@@ -367,7 +377,7 @@ impl Accessor for Backend {
     }
 
     #[trace("list")]
-    async fn list(&self, args: &OpList) -> Result<ObjectStreamer> {
+    async fn list2(&self, args: &OpList) -> Result<DirStreamer> {
         increment_counter!("opendal_fs_list_requests");
 
         let path = self.get_abs_path(args.path());
@@ -379,7 +389,7 @@ impl Accessor for Backend {
             e
         })?;
 
-        let rd = Readdir::new(Arc::new(self.clone()), &self.root, args.path(), f);
+        let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 
         Ok(Box::new(rd))
     }

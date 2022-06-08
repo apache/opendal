@@ -142,6 +142,18 @@ pub trait DirStream: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
 pub type DirStreamer = Box<dyn DirStream>;
 ```
 
+With the addition of `DirEntry`, we will remove `meta` from `Object`:
+
+```rust
+#[derive(Clone, Debug)]
+pub struct Object {
+    acc: Arc<dyn Accessor>,
+    path: String,
+}
+```
+
+After this change, `Object` will become a thin wrapper of `Accessor` with path. And metadata related APIs like `metadata_ref()` and `metadata_mut()` will also be removed.
+
 # Drawbacks
 
 We are adding a new concept to our core logic.

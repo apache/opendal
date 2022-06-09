@@ -48,8 +48,7 @@ pub trait Accessor: Send + Sync + Debug {
         unimplemented!()
     }
 
-    /// Invoke the `read` operation on the specified path, returns corresponding
-    /// [`Metadata`] if operate successful.
+    /// Invoke the `create` operation on the specified path
     ///
     /// # Behavior
     ///

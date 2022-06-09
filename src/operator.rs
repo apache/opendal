@@ -214,7 +214,7 @@ impl BatchOperator {
 
     /// Walk a dir in top down way: list current dir first and than list nested dir.
     ///
-    /// Refer to [`WalkTopDown`] for more about the behavior details.
+    /// Refer to [`TopDownWalker`] for more about the behavior details.
     pub fn walk_top_down(&self, path: &str) -> Result<DirStreamer> {
         Ok(Box::new(TopDownWalker::new(Object::new(
             self.src.inner(),
@@ -224,7 +224,7 @@ impl BatchOperator {
 
     /// Walk a dir in bottom up way: list nested dir first and than current dir.
     ///
-    /// Refer to [`WalkBottomUp`] for more about the behavior details.
+    /// Refer to [`BottomUpWalker`] for more about the behavior details.
     pub fn walk_bottom_up(&self, path: &str) -> Result<DirStreamer> {
         Ok(Box::new(BottomUpWalker::new(Object::new(
             self.src.inner(),

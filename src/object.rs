@@ -561,8 +561,7 @@ impl Object {
 
     /// List current dir object.
     ///
-    /// This function will create a new [`ObjectStreamer`][crate::ObjectStreamer] handle
-    /// to list objects.
+    /// This function will create a new [`DirStreamer`] handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///

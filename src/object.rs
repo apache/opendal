@@ -784,6 +784,15 @@ impl DirEntry {
         }
     }
 
+    /// Convert [`DirEntry`] into [`Object`].
+    ///
+    /// This function is the same with already implemented `From` trait.
+    /// This function will make our users happier to avoid writing
+    /// generic type parameter
+    pub fn into_object(self) -> Object {
+        self.into()
+    }
+
     /// Return this dir entry's object mode.
     pub fn mode(&self) -> ObjectMode {
         self.mode

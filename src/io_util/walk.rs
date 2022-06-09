@@ -32,10 +32,10 @@ use crate::{DirEntry, DirStreamer, Object, ObjectMode};
 /// ```txt
 /// .
 /// ├── dir_x/
-/// │ ├── dir_y/
-/// │ │ ├── dir_z/
-/// │ │ └── file_c
-/// │ └── file_b
+/// │   ├── dir_y/
+/// │   │   ├── dir_z/
+/// │   │   └── file_c
+/// │   └── file_b
 /// └── file_a
 /// ```
 ///
@@ -127,10 +127,10 @@ impl futures::Stream for TopDownWalker {
 /// ```txt
 /// .
 /// ├── dir_x/
-/// │ ├── dir_y/
-/// │ │ ├── dir_z/
-/// │ │ └── file_c
-/// │ └── file_b
+/// │   ├── dir_y/
+/// │   │   ├── dir_z/
+/// │   │   └── file_c
+/// │   └── file_b
 /// └── file_a
 /// ```
 ///

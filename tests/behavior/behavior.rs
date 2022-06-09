@@ -85,6 +85,9 @@ macro_rules! behavior_tests {
                 test_delete,
                 test_delete_not_existing,
                 test_delete_empty_dir,
+
+                test_walk_bottom_up,
+                test_walk_top_down,
             );
         )*
     };
@@ -796,5 +799,75 @@ async fn test_delete_not_existing(op: Operator) -> Result<()> {
 
     let _ = op.object(&path).delete().await?;
 
+    Ok(())
+}
+
+// Walk top down should output as expected
+async fn test_walk_top_down(op: Operator) -> Result<()> {
+    let mut expected = vec![
+        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+    ];
+    for path in expected.iter() {
+        op.object(path).create().await?;
+    }
+
+    let w = op.batch().walk_top_down("x/")?;
+    let mut actual = w
+        .try_collect::<Vec<_>>()
+        .await?
+        .into_iter()
+        .map(|v| v.path().to_string())
+        .collect::<Vec<_>>();
+
+    debug!("walk top down: {:?}", actual);
+
+    fn get_position(vs: &[String], s: &str) -> usize {
+        vs.iter()
+            .position(|v| v == s)
+            .expect("{s} is not found in {vs}")
+    }
+
+    assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
+    assert!(get_position(&actual, "x/x/x/") > get_position(&actual, "x/x/"));
+    assert!(get_position(&actual, "x/x/") > get_position(&actual, "x/"));
+
+    expected.sort_unstable();
+    actual.sort_unstable();
+    assert_eq!(actual, expected);
+    Ok(())
+}
+
+// Walk bottom up should output as expected
+async fn test_walk_bottom_up(op: Operator) -> Result<()> {
+    let mut expected = vec![
+        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+    ];
+    for path in expected.iter() {
+        op.object(path).create().await?;
+    }
+
+    let w = op.batch().walk_bottom_up("x/")?;
+    let mut actual = w
+        .try_collect::<Vec<_>>()
+        .await?
+        .into_iter()
+        .map(|v| v.path().to_string())
+        .collect::<Vec<_>>();
+
+    debug!("walk bottom up: {:?}", actual);
+
+    fn get_position(vs: &[String], s: &str) -> usize {
+        vs.iter()
+            .position(|v| v == s)
+            .expect("{s} is not found in {vs}")
+    }
+
+    assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));
+    assert!(get_position(&actual, "x/x/x/") < get_position(&actual, "x/x/"));
+    assert!(get_position(&actual, "x/x/") < get_position(&actual, "x/"));
+
+    expected.sort_unstable();
+    actual.sort_unstable();
+    assert_eq!(actual, expected);
     Ok(())
 }

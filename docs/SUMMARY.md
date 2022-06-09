@@ -4,10 +4,12 @@
 
 # User Guide
 
+- [Concepts](concepts.md)
 - [Services](services/README.md)
-  - [Azblob](services/azblob.md)
-  - [Fs](services/fs.md)
-  - [S3](services/s3.md)
+  - [azblob](services/azblob.md)
+  - [fs](services/fs.md)
+  - [hdfs](services/hdfs.md)
+  - [s3](services/s3.md)
 - [Features](features/README.md)
   - [Decompress](features/decompress.md)
   - [Server Side Encrypt](features/server-side-encryption.md)

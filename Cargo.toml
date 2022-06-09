@@ -30,6 +30,10 @@ name = "ops"
 harness = false
 name = "io"
 
+[[example]]
+name = "hdfs"
+required-features = ["services-hdfs"]
+
 [dependencies]
 anyhow = "1.0.56"
 async-compat = "0.2.1"

@@ -17,6 +17,7 @@ header:
     - "**/*.yaml"
     - "**/*.toml"
     - "**/*.lock"
+    - "**/*.tldr"
     # Ignore test data
     - "testdata"
 

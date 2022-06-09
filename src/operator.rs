@@ -15,7 +15,6 @@
 #[cfg(feature = "retry")]
 use std::fmt::Debug;
 use std::io::Result;
-
 use std::sync::Arc;
 
 #[cfg(feature = "retry")]
@@ -23,11 +22,14 @@ use backon::Backoff;
 use futures::TryStreamExt;
 use log::debug;
 
-use crate::io_util::{BottomUpWalker, TopDownWalker};
+use crate::io_util::BottomUpWalker;
+use crate::io_util::TopDownWalker;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::DirStreamer;
 use crate::Layer;
 use crate::Object;
-use crate::{Accessor, ObjectMode};
-use crate::{AccessorMetadata, DirStreamer};
+use crate::ObjectMode;
 
 /// User-facing APIs for object and object streams.
 #[derive(Clone, Debug)]

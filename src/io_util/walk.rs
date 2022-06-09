@@ -12,15 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
 use std::collections::VecDeque;
 use std::io::Result;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
-use crate::{DirEntry, DirStreamer, Object, ObjectMode};
+use futures::future::BoxFuture;
+use futures::ready;
+use futures::Future;
+
+use crate::DirEntry;
+use crate::DirStreamer;
+use crate::Object;
+use crate::ObjectMode;
 
 /// TopDownWalker will walk dir in top down way:
 ///
@@ -228,12 +233,12 @@ impl futures::Stream for BottomUpWalker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::Operator;
     use futures::TryStreamExt;
     use log::debug;
 
+    use super::*;
     use crate::services::memory::Backend;
+    use crate::Operator;
 
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()

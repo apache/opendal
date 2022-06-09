@@ -26,12 +26,12 @@ use futures::AsyncWriteExt;
 use time::OffsetDateTime;
 
 use crate::io::BytesRead;
-use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
 use crate::io_util::CompressAlgorithm;
 #[cfg(feature = "compress")]
 use crate::io_util::DecompressReader;
-use crate::io_util::SeekableReader;
+use crate::io_util::{seekable_read, TopDownWalker};
+use crate::io_util::{BottomUpWalker, SeekableReader};
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -782,6 +782,15 @@ impl DirEntry {
             mode,
             path: path.to_string(),
         }
+    }
+
+    /// Convert [`DirEntry`] into [`Object`].
+    ///
+    /// This function is the same with already implemented `From` trait.
+    /// This function will make our users happier to avoid writing
+    /// generic type parameter
+    pub fn into_object(self) -> Object {
+        self.into()
     }
 
     /// Return this dir entry's object mode.

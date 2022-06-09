@@ -23,6 +23,7 @@ use std::task::{Context, Poll};
 use backon::Backoff;
 use futures::{StreamExt, TryStreamExt};
 
+use crate::io_util::{BottomUpWalker, TopDownWalker};
 use crate::Layer;
 use crate::Object;
 use crate::{Accessor, ObjectMode};
@@ -140,6 +141,12 @@ impl Operator {
         self.accessor.metadata()
     }
 
+    /// Create a new batch operator handle to take batch operations
+    /// like `walk` and `remove`.
+    pub fn batch(&self) -> BatchOperator {
+        BatchOperator::new(self.clone())
+    }
+
     /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
         Object::new(self.inner(), path)
@@ -173,42 +180,60 @@ impl Operator {
     }
 }
 
+/// BatchOperator is used to take batch operations like walk_dir and remove_all, should
+/// be constructed by [`Operator::batch()`].
+///
+/// BatchOperator will execute batch tasks concurrently, the default workers is `4`.
+/// Users can use [`BatchOperator::with_concurrency()`] to configure the value.
+///
+/// # TODO
+///
+/// We will support batch operators between two different operators like cooy and move.
 #[derive(Clone, Debug)]
 pub struct BatchOperator {
     src: Operator,
-    dst: Option<Operator>,
 
     concurrency: usize,
 }
 
 impl BatchOperator {
-    pub fn new(op: Operator) -> Self {
+    pub(crate) fn new(op: Operator) -> Self {
         BatchOperator {
             src: op,
-            dst: None,
             concurrency: 4,
         }
     }
 
-    pub fn with_destination(mut self, op: Operator) -> Self {
-        self.dst = Some(op);
-        self
-    }
-
+    /// Specify the concurrency of batch operators.
     pub fn with_concurrency(mut self, concurrency: usize) -> Self {
         self.concurrency = concurrency;
         self
     }
 
-    pub async fn walk_top_down(&self, path: &str) -> Result<DirStreamer> {
-        todo!()
+    /// Walk a dir in top down way: list current dir first and than list nested dir.
+    ///
+    /// Refer to [`WalkTopDown`] for more about the behavior details.
+    pub fn walk_top_down(&self, path: &str) -> Result<DirStreamer> {
+        Ok(Box::new(TopDownWalker::new(Object::new(
+            self.src.inner(),
+            path,
+        ))))
     }
 
-    pub async fn walk_bottom_up(&self, path: &str) -> Result<DirStreamer> {
-        todo!()
+    /// Walk a dir in bottom up way: list nested dir first and than current dir.
+    ///
+    /// Refer to [`WalkBottomUp`] for more about the behavior details.
+    pub fn walk_bottom_up(&self, path: &str) -> Result<DirStreamer> {
+        Ok(Box::new(BottomUpWalker::new(Object::new(
+            self.src.inner(),
+            path,
+        ))))
     }
 
-    pub async fn remove(&self, path: &str) -> Result<()> {
+    /// Remove the path and all nested dirs and files recursively.
+    ///
+    /// **Use this function in cautions to avoid unexpected data loss.**
+    pub async fn remove_all(&self, path: &str) -> Result<()> {
         let parent = self.src.object(path);
         let meta = parent.metadata().await?;
 
@@ -216,8 +241,10 @@ impl BatchOperator {
             return parent.delete().await;
         }
 
-        let obs = parent.list().await?;
-        obs.try_for_each_concurrent(self.concurrency, |mut v| async move { Ok(()) })
-            .await
+        let obs = self.walk_bottom_up(path)?;
+        obs.try_for_each_concurrent(self.concurrency, |v| async move {
+            v.into_object().delete().await
+        })
+        .await
     }
 }

@@ -22,14 +22,47 @@ use std::task::{Context, Poll};
 
 use crate::{BytesStream, DirEntry, DirStreamer, Object, ObjectMode, Operator};
 
-pub struct WalkTopDown {
+/// TopDownWalker will walk dir in top down way:
+///
+/// - List current dir first
+/// - Go into nested dirs one by one
+///
+/// Given the following file tree:
+///
+/// ```txt
+/// .
+/// ├── dir_x/
+/// │ ├── dir_y/
+/// │ │ ├── dir_z/
+/// │ │ └── file_c
+/// │ └── file_b
+/// └── file_a
+/// ```
+///
+/// WalkTopDown will output entries like:
+///
+/// ```txt
+/// dir_x/
+/// dir_x/file_a
+/// dir_x/dir_y/
+/// dir_x/dir_y/file_b
+/// dir_x/dir_y/dir_z/
+/// dir_x/dir_y/dir_z/file_c
+/// ```
+///
+/// # Note
+///
+/// There is no guarantee about the order between files and dirs at the same level.
+/// We only make sure the parent dirs will show up before nest dirs.
+pub struct TopDownWalker {
     dirs: VecDeque<Object>,
     state: WalkTopDownState,
 }
 
-impl WalkTopDown {
+impl TopDownWalker {
+    /// Create a new [`TopDownWalker`]
     pub fn new(parent: Object) -> Self {
-        WalkTopDown {
+        TopDownWalker {
             dirs: VecDeque::from([parent]),
             state: WalkTopDownState::Idle,
         }
@@ -42,7 +75,7 @@ enum WalkTopDownState {
     Listing(DirStreamer),
 }
 
-impl futures::Stream for WalkTopDown {
+impl futures::Stream for TopDownWalker {
     type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -84,15 +117,52 @@ impl futures::Stream for WalkTopDown {
     }
 }
 
-pub struct WalkBottomUp {
+/// BottomUpWalker will walk dir in bottom up way:
+///
+/// - List nested dir first
+/// - Go back into parent dirs one by one
+///
+/// Given the following file tree:
+///
+/// ```txt
+/// .
+/// ├── dir_x/
+/// │ ├── dir_y/
+/// │ │ ├── dir_z/
+/// │ │ └── file_c
+/// │ └── file_b
+/// └── file_a
+/// ```
+///
+/// WalkTopDown will output entries like:
+///
+/// ```txt
+/// dir_x/dir_y/dir_z/file_c
+/// dir_x/dir_y/dir_z/
+/// dir_x/dir_y/file_b
+/// dir_x/dir_y/
+/// dir_x/file_a
+/// dir_x/
+/// ```
+///
+/// # Note
+///
+/// There is no guarantee about the order between files and dirs at the same level.
+/// We only make sure the nested dirs will show up before parent dirs.
+///
+/// Especially, for storage services that can't return dirs first, BottomUpWalker
+/// may output parent dirs' files before nested dirs, this is expected because files
+/// always output directly while listing.
+pub struct BottomUpWalker {
     dirs: Vec<Object>,
     ds: Vec<DirStreamer>,
     state: WalkBottomUpState,
 }
 
-impl WalkBottomUp {
+impl BottomUpWalker {
+    /// Create a new [`BottomUpWalker`]
     pub fn new(parent: Object) -> Self {
-        WalkBottomUp {
+        BottomUpWalker {
             dirs: Vec::new(),
             ds: Vec::new(),
             state: WalkBottomUpState::Starting(Some(parent)),
@@ -106,7 +176,7 @@ enum WalkBottomUpState {
     Listing,
 }
 
-impl futures::Stream for WalkBottomUp {
+impl futures::Stream for BottomUpWalker {
     type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -184,7 +254,7 @@ mod tests {
         op.object("x/x/x/y").create().await?;
         op.object("x/x/x/x/").create().await?;
 
-        let w = WalkTopDown::new(op.object("x/"));
+        let w = TopDownWalker::new(op.object("x/"));
         let actual = w
             .try_collect::<Vec<_>>()
             .await?
@@ -213,7 +283,7 @@ mod tests {
         op.object("x/x/x/y").create().await?;
         op.object("x/x/x/x/").create().await?;
 
-        let w = WalkBottomUp::new(op.object("x/"));
+        let w = BottomUpWalker::new(op.object("x/"));
         let actual = w
             .try_collect::<Vec<_>>()
             .await?

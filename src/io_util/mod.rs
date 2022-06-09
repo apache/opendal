@@ -58,5 +58,5 @@ pub use compress::DecompressReader;
 pub use compress::DecompressState;
 
 mod walk;
-pub use walk::WalkBottomUp;
-pub use walk::WalkTopDown;
+pub use walk::BottomUpWalker;
+pub use walk::TopDownWalker;

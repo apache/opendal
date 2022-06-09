@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.8.0] - 2022-06-09
+
+### Added
+
+- RFC-0337: Dir Entry (#337)
+- feat: Implement RFC-0337: Dir Entry (#342)
+- feat: Add batch operation support (#346)
+
+### Changed
+
+- refactor: Rename Metadata to ObjectMetadata for clearify (#339)
+
+### Others
+
+- chore(deps): Bump actions/setup-python from 3 to 4 (#343)
+- chore(deps): Bump amondnet/vercel-action from 20 to 25 (#344)
+
 ## [v0.7.3] - 2022-06-03
 
 ### Fixed
@@ -385,6 +402,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.8.0]: https://github.com/datafuselabs/opendal/compare/v0.7.3...v0.8.0
 [v0.7.3]: https://github.com/datafuselabs/opendal/compare/v0.7.2...v0.7.3
 [v0.7.2]: https://github.com/datafuselabs/opendal/compare/v0.7.1...v0.7.2
 [v0.7.1]: https://github.com/datafuselabs/opendal/compare/v0.7.0...v0.7.1

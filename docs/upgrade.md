@@ -2,7 +2,37 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
-## From v0.6 to v0.7
+## Upgraded to v0.8
+
+OpenDAL introduces a breaking change of `list` related operations in v0.8.
+
+Since v0.8, `list` will return `DirStreamer` instead:
+
+```rust
+pub trait Accessor: Send + Sync + Debug {
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {}
+}
+```
+
+`DirStreamer` streams `DirEntry` which carries `ObjectMode`, so that we don't need an extra call to get object mode:
+
+```rust
+impl DirEntry {
+    pub fn mode(&self) -> ObjectMode {
+        self.mode
+    }
+}
+```
+
+And `DirEntry` can be converted into `Object` without overhead:
+
+```rust
+let o: Object = de.into()
+```
+
+Since `v0.8`, `opendal::Metadata` has been deprecated by `opendal::ObjectMetadata`.
+
+## Upgraded to v0.7
 
 OpenDAL introduces a breaking change of `decompress_read` related in v0.7.
 
@@ -21,7 +51,7 @@ So users should match and check the `None` case:
 let bs = o.decompress_read().await?.expect("must have valid compress algorithm");
 ```
 
-## From v0.3 to v0.4
+## Upgraded to v0.4
 
 OpenDAL introduces many breaking changes in v0.4.
 

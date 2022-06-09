@@ -24,7 +24,6 @@ use opendal::Accessor;
 use opendal::Operator;
 
 #[tokio::main]
-#[cfg(feature = "services-hdfs")]
 async fn main() -> Result<()> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "debug");

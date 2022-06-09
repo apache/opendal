@@ -18,10 +18,10 @@ use std::io::Result;
 
 use std::sync::Arc;
 
-
 #[cfg(feature = "retry")]
 use backon::Backoff;
-use futures::{TryStreamExt};
+use futures::TryStreamExt;
+use log::debug;
 
 use crate::io_util::{BottomUpWalker, TopDownWalker};
 use crate::Layer;
@@ -243,6 +243,7 @@ impl BatchOperator {
 
         let obs = self.walk_bottom_up(path)?;
         obs.try_for_each_concurrent(self.concurrency, |v| async move {
+            debug!("deleting {}", v.path());
             v.into_object().delete().await
         })
         .await

@@ -88,6 +88,7 @@ macro_rules! behavior_tests {
 
                 test_walk_bottom_up,
                 test_walk_top_down,
+                test_remove_all,
             );
         )*
     };
@@ -869,5 +870,28 @@ async fn test_walk_bottom_up(op: Operator) -> Result<()> {
     expected.sort_unstable();
     actual.sort_unstable();
     assert_eq!(actual, expected);
+    Ok(())
+}
+
+// Remove all should remove all in this path.
+async fn test_remove_all(op: Operator) -> Result<()> {
+    let expected = vec![
+        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+    ];
+    for path in expected.iter() {
+        op.object(path).create().await?;
+    }
+
+    let _ = op.batch().remove_all("x/").await?;
+
+    for path in expected.iter() {
+        if path.ends_with('/') {
+            continue;
+        }
+        assert!(
+            !op.object(path).is_exist().await?,
+            "{path} should be removed"
+        )
+    }
     Ok(())
 }

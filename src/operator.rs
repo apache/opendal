@@ -15,13 +15,13 @@
 #[cfg(feature = "retry")]
 use std::fmt::Debug;
 use std::io::Result;
-use std::pin::Pin;
+
 use std::sync::Arc;
-use std::task::{Context, Poll};
+
 
 #[cfg(feature = "retry")]
 use backon::Backoff;
-use futures::{StreamExt, TryStreamExt};
+use futures::{TryStreamExt};
 
 use crate::io_util::{BottomUpWalker, TopDownWalker};
 use crate::Layer;

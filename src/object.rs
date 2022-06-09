@@ -30,8 +30,8 @@ use crate::io::BytesRead;
 use crate::io_util::CompressAlgorithm;
 #[cfg(feature = "compress")]
 use crate::io_util::DecompressReader;
-use crate::io_util::{seekable_read, TopDownWalker};
-use crate::io_util::{BottomUpWalker, SeekableReader};
+use crate::io_util::{seekable_read};
+use crate::io_util::{SeekableReader};
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;

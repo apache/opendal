@@ -13,14 +13,14 @@
 // limitations under the License.
 
 use futures::future::BoxFuture;
+use futures::ready;
 use futures::Future;
-use futures::{ready, StreamExt};
 use std::collections::VecDeque;
 use std::io::Result;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use crate::{BytesStream, DirEntry, DirStreamer, Object, ObjectMode, Operator};
+use crate::{DirEntry, DirStreamer, Object, ObjectMode};
 
 /// TopDownWalker will walk dir in top down way:
 ///
@@ -89,7 +89,7 @@ impl futures::Stream for TopDownWalker {
                 let future = async move { object.list().await };
 
                 self.state = WalkTopDownState::Sending(Box::pin(future));
-                return Poll::Ready(Some(Ok(de)));
+                Poll::Ready(Some(Ok(de)))
             }
             WalkTopDownState::Sending(fut) => match ready!(Pin::new(fut).poll(cx)) {
                 Ok(ds) => {
@@ -229,13 +229,13 @@ impl futures::Stream for BottomUpWalker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Accessor;
+    use crate::Operator;
     use futures::TryStreamExt;
     use log::debug;
 
     use crate::services::memory::Backend;
 
-    fn get_position(vs: &Vec<String>, s: &str) -> usize {
+    fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
             .expect("{s} is not found in {vs}")
@@ -246,16 +246,15 @@ mod tests {
         let _ = env_logger::try_init();
 
         let op = Operator::new(Backend::build().finish().await?);
-        op.object("x/").create().await?;
-        op.object("x/y").create().await?;
-        op.object("x/x/").create().await?;
-        op.object("x/x/y").create().await?;
-        op.object("x/x/x/").create().await?;
-        op.object("x/x/x/y").create().await?;
-        op.object("x/x/x/x/").create().await?;
+        let mut expected = vec![
+            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+        ];
+        for path in expected.iter() {
+            op.object(path).create().await?;
+        }
 
         let w = TopDownWalker::new(op.object("x/"));
-        let actual = w
+        let mut actual = w
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
@@ -267,6 +266,10 @@ mod tests {
         assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
         assert!(get_position(&actual, "x/x/x/") > get_position(&actual, "x/x/"));
         assert!(get_position(&actual, "x/x/") > get_position(&actual, "x/"));
+
+        expected.sort_unstable();
+        actual.sort_unstable();
+        assert_eq!(actual, expected);
         Ok(())
     }
 
@@ -275,16 +278,15 @@ mod tests {
         let _ = env_logger::try_init();
 
         let op = Operator::new(Backend::build().finish().await?);
-        op.object("x/").create().await?;
-        op.object("x/y").create().await?;
-        op.object("x/x/").create().await?;
-        op.object("x/x/y").create().await?;
-        op.object("x/x/x/").create().await?;
-        op.object("x/x/x/y").create().await?;
-        op.object("x/x/x/x/").create().await?;
+        let mut expected = vec![
+            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+        ];
+        for path in expected.iter() {
+            op.object(path).create().await?;
+        }
 
         let w = BottomUpWalker::new(op.object("x/"));
-        let actual = w
+        let mut actual = w
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
@@ -296,6 +298,10 @@ mod tests {
         assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));
         assert!(get_position(&actual, "x/x/x/") < get_position(&actual, "x/x/"));
         assert!(get_position(&actual, "x/x/") < get_position(&actual, "x/"));
+
+        expected.sort_unstable();
+        actual.sort_unstable();
+        assert_eq!(actual, expected);
         Ok(())
     }
 }

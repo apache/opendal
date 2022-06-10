@@ -47,8 +47,8 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodyWriter;
+use crate::io_util::{new_http_channel, HttpClient};
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -202,7 +202,7 @@ impl Builder {
             ("endpoint".to_string(), endpoint.to_string()),
         ]);
 
-        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+        let client = HttpClient::new();
 
         let mut signer_builder = Signer::builder();
         if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
@@ -228,7 +228,7 @@ impl Builder {
 #[derive(Debug, Clone)]
 pub struct Backend {
     container: String,
-    client: hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
+    client: HttpClient,
     root: String, // root will be "/" or /abc/
     endpoint: String,
     signer: Arc<Signer>,

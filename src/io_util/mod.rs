@@ -40,6 +40,9 @@ mod http_body;
 pub(crate) use http_body::new_http_channel;
 pub(crate) use http_body::HttpBodyWriter;
 
+mod http_client;
+pub(crate) use http_client::HttpClient;
+
 mod seekable_reader;
 pub use seekable_reader::seekable_read;
 pub use seekable_reader::SeekableReader;

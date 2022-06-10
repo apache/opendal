@@ -44,7 +44,7 @@ use crate::ObjectMode;
 /// └── file_a
 /// ```
 ///
-/// WalkTopDown will output entries like:
+/// TopDownWalker will output entries like:
 ///
 /// ```txt
 /// dir_x/
@@ -139,7 +139,7 @@ impl futures::Stream for TopDownWalker {
 /// └── file_a
 /// ```
 ///
-/// WalkTopDown will output entries like:
+/// BottomUpWalker will output entries like:
 ///
 /// ```txt
 /// dir_x/dir_y/dir_z/file_c

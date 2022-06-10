@@ -1,4 +1,4 @@
-# Server Side Encryption
+# Enable Server Side Encryption
 
 OpenDAL has native support for server side encryption.
 

@@ -1,4 +1,4 @@
-# Decompress
+# Read compressed files
 
 OpenDAL has native decompress support.
 

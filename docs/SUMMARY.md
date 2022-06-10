@@ -10,9 +10,11 @@
   - [fs](services/fs.md)
   - [hdfs](services/hdfs.md)
   - [s3](services/s3.md)
-- [Features](features/README.md)
-  - [Decompress](features/decompress.md)
-  - [Server Side Encrypt](features/server-side-encryption.md)
+- [Examples](examples/README.md)
+  - [Walk Dir](examples/walk.md)
+  - [Remove a dir recursively](examples/remove_all.md)
+  - [Read compressed files](examples/decompress-read.md)
+  - [Enable Server Side Encrypt](examples/server-side-encryption.md)
 - [Upgrade](upgrade.md)
 
 # Reference Guide

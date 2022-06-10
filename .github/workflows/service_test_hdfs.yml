@@ -7,42 +7,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  default:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        hdfs-version: [ "2.10.1", "3.2.3", "3.3.2" ]
-        os:
-          - ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Checkout python env
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.8'
-      - name: Checkout java env
-        uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: '11'
-      - name: Setup-hdfs env
-        uses: beyondstorage/setup-hdfs@master
-        with:
-          hdfs-version: ${{ matrix.hdfs-version }}
-
-      - name: Test
-        shell: bash
-        run: cargo test hdfs --features compress,retry,testing,services-hdfs -- --nocapture
-        env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
-          OPENDAL_HDFS_TEST: on
-          OPENDAL_HDFS_ROOT: /tmp/
-          OPENDAL_HDFS_NAME_NODE: default
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-
-
   hdfs:
     runs-on: ${{ matrix.os }}
     strategy:

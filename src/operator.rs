@@ -194,22 +194,11 @@ impl Operator {
 #[derive(Clone, Debug)]
 pub struct BatchOperator {
     src: Operator,
-
-    concurrency: usize,
 }
 
 impl BatchOperator {
     pub(crate) fn new(op: Operator) -> Self {
-        BatchOperator {
-            src: op,
-            concurrency: 4,
-        }
-    }
-
-    /// Specify the concurrency of batch operators.
-    pub fn with_concurrency(mut self, concurrency: usize) -> Self {
-        self.concurrency = concurrency;
-        self
+        BatchOperator { src: op }
     }
 
     /// Walk a dir in top down way: list current dir first and than list nested dir.
@@ -244,7 +233,7 @@ impl BatchOperator {
         }
 
         let obs = self.walk_bottom_up(path)?;
-        obs.try_for_each_concurrent(self.concurrency, |v| async move {
+        obs.try_for_each(|v| async move {
             debug!("deleting {}", v.path());
             v.into_object().delete().await
         })

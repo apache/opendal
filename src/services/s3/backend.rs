@@ -50,6 +50,7 @@ use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::HttpBodyWriter;
+use crate::io_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -415,10 +416,7 @@ impl Builder {
     // Read RFC-0057: Auto Region for detailed behavior.
     async fn detect_region(
         &self,
-        client: &hyper::Client<
-            hyper_tls::HttpsConnector<hyper::client::HttpConnector>,
-            hyper::Body,
-        >,
+        client: &HttpClient,
         bucket: &str,
         context: &HashMap<String, String>,
     ) -> Result<(String, String)> {
@@ -628,7 +626,7 @@ impl Builder {
                 })?),
             };
 
-        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+        let client = HttpClient::new();
 
         let (endpoint, region) = self.detect_region(&client, bucket, &context).await?;
         context.insert("endpoint".to_string(), endpoint.clone());
@@ -680,7 +678,7 @@ pub struct Backend {
     bucket: String,
     endpoint: String,
     signer: Arc<Signer>,
-    client: hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
+    client: HttpClient,
     // root will be "/" or "/abc/"
     root: String,
 
@@ -1295,7 +1293,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_region() {
-        let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+        let client = HttpClient::new();
 
         let endpoint_cases = vec![
             Some("s3.amazonaws.com"),

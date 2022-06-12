@@ -52,6 +52,8 @@ pub enum Scheme {
     /// - Custom must not overwrite any existing services name.
     /// - Custom must be lowed cases.
     Custom(&'static str),
+    /// [ipfs][crate::services::ipfs]: IPFS mutable file system
+    Ipfs,
 }
 
 impl Scheme {
@@ -77,6 +79,7 @@ impl Display for Scheme {
             Scheme::Gcs => write!(f, "gcs"),
             #[cfg(feature = "services-http")]
             Scheme::Http => write!(f, "http"),
+            Scheme::Ipfs => write!(f, "ipfs"),
             Scheme::Memory => write!(f, "memory"),
             Scheme::Obs => write!(f, "obs"),
             Scheme::S3 => write!(f, "s3"),
@@ -98,6 +101,7 @@ impl FromStr for Scheme {
             #[cfg(feature = "services-http")]
             "http" | "https" => Ok(Scheme::Http),
             "gcs" => Ok(Scheme::Gcs),
+            "ipfs" => Ok(Scheme::Ipfs),
             "memory" => Ok(Scheme::Memory),
             "obs" => Ok(Scheme::Obs),
             "s3" => Ok(Scheme::S3),
@@ -116,6 +120,7 @@ impl From<Scheme> for &'static str {
             #[cfg(feature = "services-http")]
             Scheme::Http => "http",
             Scheme::Gcs => "gcs",
+            Scheme::Ipfs => "ipfs",
             Scheme::Memory => "memory",
             Scheme::Obs => "obs",
             Scheme::S3 => "s3",

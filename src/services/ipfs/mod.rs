@@ -12,21 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing specific services support.
-//!
-//! In order to implement a service, we need the following things:
-//!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
+//! IPFS file system support.
 
-pub mod azblob;
-pub mod fs;
-pub mod gcs;
-#[cfg(feature = "services-hdfs")]
-pub mod hdfs;
-#[cfg(feature = "services-http")]
-pub mod http;
-pub mod ipfs;
-pub mod memory;
-pub mod obs;
-pub mod s3;
+mod backend;
+mod builder;
+mod dir_stream;
+mod error;
+mod rpc;
+pub use backend::Backend;

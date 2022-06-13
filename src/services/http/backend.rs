@@ -12,35 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::error::{other, BackendError, ObjectError};
-use crate::io_util::HttpClient;
-use crate::ops::{BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
-use crate::{
-    Accessor, AccessorMetadata, BytesReader, BytesWriter, DirEntry, DirStreamer, ObjectMetadata,
-    ObjectMode, Scheme,
-};
+use std::cmp::min;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
+use std::mem;
+use std::pin::Pin;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::BufMut;
 use futures::TryStreamExt;
 use http::header::HeaderName;
-use http::{Response, StatusCode};
+use http::Response;
+use http::StatusCode;
 use hyper::body::HttpBody;
 use hyper::Body;
-use log::{debug, error, info};
+use log::debug;
+use log::error;
+use log::info;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
-use std::cmp::min;
-use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::io::{Error, ErrorKind, Result};
-use std::mem;
-use std::pin::Pin;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::task::{Context, Poll};
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
+
+use crate::error::other;
+use crate::error::BackendError;
+use crate::error::ObjectError;
+use crate::io_util::HttpClient;
+use crate::ops::BytesRange;
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::DirEntry;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
+use crate::Scheme;
 
 /// Builder for http backend.
 #[derive(Default)]
@@ -525,11 +547,15 @@ async fn parse_error_response_with_body(
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
+    use wiremock::matchers::method;
+    use wiremock::matchers::path;
+    use wiremock::Mock;
+    use wiremock::MockServer;
+    use wiremock::ResponseTemplate;
+
     use super::*;
     use crate::Operator;
-    use anyhow::Result;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_read() -> Result<()> {

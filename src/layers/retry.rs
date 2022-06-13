@@ -28,12 +28,13 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
-use crate::{Accessor, AccessorMetadata};
 
 /// Implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html) so that all backoff can be used as a layer
 ///

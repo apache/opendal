@@ -23,5 +23,7 @@ pub mod azblob;
 pub mod fs;
 #[cfg(feature = "services-hdfs")]
 pub mod hdfs;
+#[cfg(feature = "services-http")]
+pub mod http;
 pub mod memory;
 pub mod s3;

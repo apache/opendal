@@ -29,6 +29,9 @@ pub enum Scheme {
     /// [hdfs][crate::services::hdfs]: Hadoop Distributed File System.
     #[cfg(feature = "services-hdfs")]
     Hdfs,
+    /// [http][crate::services::http]: HTTP read-only backend.
+    #[cfg(feature = "services-http")]
+    Http,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.

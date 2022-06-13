@@ -29,6 +29,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::DirStreamer;
@@ -86,6 +87,10 @@ impl<B> Accessor for RetryableAccessor<B>
 where
     B: backon::Backoff + Debug + Send + Sync,
 {
+    fn metadata(&self) -> AccessorMetadata {
+        self.inner.metadata()
+    }
+
     async fn create(&self, args: &OpCreate) -> Result<()> {
         { || self.inner.create(args) }
             .retry(self.backoff.clone())

@@ -43,6 +43,11 @@ pub(crate) use http_body::HttpBodyWriter;
 mod http_client;
 pub(crate) use http_client::HttpClient;
 
+mod http_header;
+pub(crate) use http_header::parse_content_length;
+pub(crate) use http_header::parse_content_md5;
+pub(crate) use http_header::parse_last_modified;
+
 mod seekable_reader;
 pub use seekable_reader::seekable_read;
 pub use seekable_reader::SeekableReader;

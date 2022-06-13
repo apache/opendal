@@ -21,7 +21,6 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::mem;
 use std::pin::Pin;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
@@ -30,7 +29,6 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::BufMut;
 use futures::TryStreamExt;
-use http::header::HeaderName;
 use http::Response;
 use http::StatusCode;
 use hyper::body::HttpBody;
@@ -40,12 +38,13 @@ use log::error;
 use log::info;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
-use time::format_description::well_known::Rfc2822;
-use time::OffsetDateTime;
 
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
+use crate::io_util::parse_content_length;
+use crate::io_util::parse_content_md5;
+use crate::io_util::parse_last_modified;
 use crate::io_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -283,56 +282,22 @@ impl Accessor for Backend {
             StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
 
-                // Parse content_length
-                if let Some(v) = resp.headers().get(http::header::CONTENT_LENGTH) {
-                    let v = v.to_str().map_err(|e| {
-                        other(ObjectError::new(
-                            "stat",
-                            &p,
-                            anyhow!("parse {} header: {:?}", http::header::CONTENT_LENGTH, e),
-                        ))
-                    })?;
-
-                    let v = u64::from_str(v).map_err(|e| {
-                        other(ObjectError::new(
-                            "stat",
-                            &p,
-                            anyhow!("parse {} header: {:?}", http::header::CONTENT_LENGTH, e),
-                        ))
-                    })?;
-
+                if let Some(v) = parse_content_length(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
                     m.set_content_length(v);
                 }
 
-                // Parse content_md5
-                if let Some(v) = resp.headers().get(HeaderName::from_static("content-md5")) {
-                    let v = v.to_str().map_err(|e| {
-                        other(ObjectError::new(
-                            "stat",
-                            &p,
-                            anyhow!("parse {} header: {:?}", "content-md5", e),
-                        ))
-                    })?;
+                if let Some(v) = parse_content_md5(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
                     m.set_content_md5(v);
                 }
 
-                // Parse last_modified
-                if let Some(v) = resp.headers().get(http::header::LAST_MODIFIED) {
-                    let v = v.to_str().map_err(|e| {
-                        other(ObjectError::new(
-                            "stat",
-                            &p,
-                            anyhow!("parse {} header: {:?}", http::header::LAST_MODIFIED, e),
-                        ))
-                    })?;
-                    let t = OffsetDateTime::parse(v, &Rfc2822).map_err(|e| {
-                        other(ObjectError::new(
-                            "stat",
-                            &p,
-                            anyhow!("parse {} header: {:?}", http::header::LAST_MODIFIED, e),
-                        ))
-                    })?;
-                    m.set_last_modified(t);
+                if let Some(v) = parse_last_modified(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
+                    m.set_last_modified(v);
                 }
 
                 if p.ends_with('/') {

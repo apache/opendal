@@ -20,6 +20,7 @@ You may be looking for:
 - [azblob](https://docs.rs/opendal/latest/opendal/services/azblob/index.html): Azure Storage Blob services.
 - [fs](https://docs.rs/opendal/latest/opendal/services/fs/index.html): POSIX alike file system.
 - [hdfs](https://docs.rs/opendal/latest/opendal/services/hdfs/index.html): Hadoop Distributed File System(HDFS).
+- [http](https://docs.rs/opendal/latest/opendal/services/http/index.html): HTTP read-only services.
 - [memory](https://docs.rs/opendal/latest/opendal/services/memory/index.html): In memory backend.
 - [s3](https://docs.rs/opendal/latest/opendal/services/s3/index.html): AWS S3 alike services.
 

@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::anyhow;
+use std::borrow::BorrowMut;
+use std::collections::HashSet;
 use std::future::Future;
-use std::io::Error;
 use std::io::Result;
+use std::io::{Error, ErrorKind};
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -26,29 +29,36 @@ use futures::ready;
 use futures::AsyncWrite;
 use futures::Sink;
 use futures::StreamExt;
-use http::Response;
+use hyper::body::HttpBody;
 use hyper::client::ResponseFuture;
 use hyper::Body;
+use log::debug;
 use pin_project::pin_project;
 
-use crate::error::other;
+use crate::error::{other, ObjectError};
 use crate::ops::OpWrite;
 
 /// Create a HTTP channel.
 ///
 /// Read [`opendal::services::s3`]'s `write` implementations for more details.
-pub(crate) fn new_http_channel() -> (Sender<Bytes>, Body) {
+pub fn new_http_channel() -> (Sender<Bytes>, Body) {
     let (tx, rx) = mpsc::channel(0);
 
     (tx, Body::wrap_stream(rx.map(Ok::<_, Error>)))
 }
 
 #[pin_project]
-pub(crate) struct HttpBodyWriter {
+pub struct HttpBodyWriter {
     op: OpWrite,
     tx: Sender<Bytes>,
-    fut: ResponseFuture,
-    handle: fn(&OpWrite, Response<Body>) -> Result<()>,
+    state: State,
+    accepted_codes: HashSet<http::StatusCode>,
+    error_parser: fn(http::StatusCode) -> ErrorKind,
+}
+
+enum State {
+    Sending(ResponseFuture),
+    Receiving(http::response::Parts, Body, Vec<u8>),
 }
 
 impl HttpBodyWriter {
@@ -66,13 +76,15 @@ impl HttpBodyWriter {
         op: &OpWrite,
         tx: Sender<Bytes>,
         fut: ResponseFuture,
-        handle: fn(&OpWrite, Response<Body>) -> Result<()>,
+        accepted_codes: HashSet<http::StatusCode>,
+        error_parser: fn(http::StatusCode) -> ErrorKind,
     ) -> HttpBodyWriter {
         HttpBodyWriter {
             op: op.clone(),
             tx,
-            fut,
-            handle,
+            state: State::Sending(fut),
+            accepted_codes,
+            error_parser,
         }
     }
 
@@ -80,11 +92,75 @@ impl HttpBodyWriter {
         self: &mut Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<std::result::Result<(), Error>> {
-        match Pin::new(&mut self.fut).poll(cx) {
-            Poll::Ready(Ok(resp)) => Poll::Ready((self.handle)(&self.op, resp)),
-            // TODO: we need to inject an object error here.
-            Poll::Ready(Err(e)) => Poll::Ready(Err(other(e))),
-            Poll::Pending => Poll::Pending,
+        let op = self.op.clone();
+        let accepted_codes = self.accepted_codes.clone();
+        let error_parser = self.error_parser;
+
+        match self.state.borrow_mut() {
+            State::Sending(fut) => match Pin::new(fut).poll(cx) {
+                Poll::Ready(Ok(resp)) => {
+                    let (parts, body) = resp.into_parts();
+                    self.state = State::Receiving(parts, body, Vec::new());
+                    self.poll_response(cx)
+                }
+                // TODO: we need to inject an object error here.
+                Poll::Ready(Err(e)) => Poll::Ready(Err(other(e))),
+                Poll::Pending => Poll::Pending,
+            },
+            State::Receiving(parts, body, bs) => {
+                if accepted_codes.contains(&parts.status) {
+                    debug!("object {} write finished: size {:?}", op.path(), op.size());
+                    return Poll::Ready(Ok(()));
+                }
+
+                match ready!(Pin::new(body).poll_data(cx)) {
+                    None => Poll::Ready(Err(Error::new(
+                        (error_parser)(parts.status),
+                        ObjectError::new(
+                            "write",
+                            op.path(),
+                            anyhow!(
+                                "response parts: {:?}, body: {:?}",
+                                parts,
+                                String::from_utf8_lossy(bs)
+                            ),
+                        ),
+                    ))),
+                    Some(Ok(data)) => {
+                        bs.extend_from_slice(&data);
+                        // Only read 4KiB from the response to avoid broken services.
+                        if bs.len() >= 4 * 1024 {
+                            Poll::Ready(Err(Error::new(
+                                (error_parser)(parts.status),
+                                ObjectError::new(
+                                    "write",
+                                    op.path(),
+                                    anyhow!(
+                                        "response parts: {:?}, body: {:?}",
+                                        parts,
+                                        String::from_utf8_lossy(bs)
+                                    ),
+                                ),
+                            )))
+                        } else {
+                            self.poll_response(cx)
+                        }
+                    }
+                    Some(Err(e)) => Poll::Ready(Err(Error::new(
+                        (error_parser)(parts.status),
+                        ObjectError::new(
+                            "write",
+                            op.path(),
+                            anyhow!(
+                                "error response parts: {:?}, read body: {:?}, remaining {:?}",
+                                parts,
+                                String::from_utf8_lossy(bs),
+                                e
+                            ),
+                        ),
+                    ))),
+                }
+            }
         }
     }
 }

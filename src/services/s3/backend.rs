@@ -14,6 +14,7 @@
 
 use std::cmp::min;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Error;
@@ -898,15 +899,21 @@ impl Accessor for Backend {
 
         let req = self.put_object(&p, args.size(), body).await?;
 
-        let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
-            match resp.status() {
-                StatusCode::CREATED | StatusCode::OK => {
-                    debug!("object {} write finished: size {:?}", op.path(), op.size());
-                    Ok(())
-                }
-                _ => Err(parse_error_response_without_body(resp, "write", op.path())),
-            }
-        });
+        let bs = HttpBodyWriter::new(
+            args,
+            tx,
+            self.client.request(req),
+            HashSet::from([StatusCode::CREATED, StatusCode::OK]),
+            |status| match status {
+                StatusCode::NOT_FOUND => ErrorKind::NotFound,
+                StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+                StatusCode::INTERNAL_SERVER_ERROR
+                | StatusCode::BAD_GATEWAY
+                | StatusCode::SERVICE_UNAVAILABLE
+                | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
+                _ => ErrorKind::Other,
+            },
+        );
 
         Ok(Box::new(bs))
     }

@@ -136,6 +136,7 @@ pub struct Builder {
     server_side_encryption_customer_key_md5: Option<String>,
 
     disable_credential_loader: bool,
+    enable_virtual_host_style: bool,
 }
 
 impl Debug for Builder {
@@ -146,7 +147,8 @@ impl Debug for Builder {
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
             .field("region", &self.region)
-            .field("disable_credential_loader", &self.disable_credential_loader);
+            .field("disable_credential_loader", &self.disable_credential_loader)
+            .field("enable_virtual_host_style", &self.disable_credential_loader);
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
@@ -413,14 +415,32 @@ impl Builder {
         self
     }
 
-    // Read RFC-0057: Auto Region for detailed behavior.
+    /// Enable virtual host style so that opendal will send API requests
+    /// in virtual host style instead of path style.
+    ///
+    /// - By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
+    /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
+    pub fn enable_virtual_host_style(&mut self) -> &mut Self {
+        self.enable_virtual_host_style = true;
+        self
+    }
+
+    /// Read RFC-0057: Auto Region for detailed behavior.
+    ///
+    /// - If region is already known, the region will be returned directly.
+    /// - If region is not known, we will send API to `{endpoint}/{bucket}` to get
+    ///   `x-amz-bucket-region`, use `us-east-1` if not found.
+    ///
+    /// Returning endpoint will trim bucket name:
+    ///
+    /// - `https://bucket_name.s3.amazonaws.com` => `https://s3.amazonaws.com`
     async fn detect_region(
         &self,
         client: &HttpClient,
         bucket: &str,
         context: &HashMap<String, String>,
     ) -> Result<(String, String)> {
-        let endpoint = match &self.endpoint {
+        let mut endpoint = match &self.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
                     endpoint.to_string()
@@ -432,16 +452,21 @@ impl Builder {
             None => "https://s3.amazonaws.com".to_string(),
         };
 
+        // If endpoint contains bucket name, we should trim them.
+        endpoint = endpoint.replace(&format!("//{bucket}."), "//");
+
         if let Some(region) = &self.region {
-            return if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
-                let endpoint = template.replace("{region}", region);
-                Ok((endpoint, region.to_string()))
+            let endpoint = if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
+                template.replace("{region}", region)
             } else {
-                Ok((endpoint.to_string(), region.to_string()))
+                endpoint.to_string()
             };
+
+            return Ok((endpoint, region.to_string()));
         }
 
         let url = format!("{endpoint}/{bucket}");
+        debug!("backend detect region with url: {url}");
 
         let req = hyper::Request::head(&url)
             .body(Body::empty())
@@ -628,7 +653,13 @@ impl Builder {
 
         let client = HttpClient::new();
 
-        let (endpoint, region) = self.detect_region(&client, bucket, &context).await?;
+        let (mut endpoint, region) = self.detect_region(&client, bucket, &context).await?;
+        // Construct endpoint which contains bucket name.
+        if self.enable_virtual_host_style {
+            endpoint = endpoint.replace("//", &format!("//{bucket}."))
+        } else {
+            endpoint.push_str(&format!("/{bucket}"))
+        }
         context.insert("endpoint".to_string(), endpoint.clone());
         context.insert("region".to_string(), region.clone());
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
@@ -981,7 +1012,7 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+        let url = format!("{}/{}", self.endpoint, path);
 
         let mut req = hyper::Request::get(&url);
 
@@ -1030,7 +1061,7 @@ impl Backend {
         size: u64,
         body: hyper::Body,
     ) -> Result<hyper::Request<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+        let url = format!("{}/{}", self.endpoint, path);
 
         let mut req = hyper::Request::put(&url);
 
@@ -1064,7 +1095,7 @@ impl Backend {
 
     #[trace("head_object")]
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+        let url = format!("{}/{}", self.endpoint, path);
 
         let mut req = hyper::Request::head(&url);
 
@@ -1101,7 +1132,7 @@ impl Backend {
 
     #[trace("delete_object")]
     pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, path);
+        let url = format!("{}/{}", self.endpoint, path);
 
         let mut req = hyper::Request::delete(&url)
             .body(hyper::Body::empty())
@@ -1139,10 +1170,7 @@ impl Backend {
         path: &str,
         continuation_token: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let mut url = format!(
-            "{}/{}?list-type=2&delimiter=/&prefix={}",
-            self.endpoint, self.bucket, path
-        );
+        let mut url = format!("{}?list-type=2&delimiter=/&prefix={}", self.endpoint, path);
         if !continuation_token.is_empty() {
             url.push_str(&format!("&continuation-token={continuation_token}"))
         }

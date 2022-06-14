@@ -12,25 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp::min;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
+
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::BufMut;
 use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::HeaderValue;
-use http::Response;
+
 use http::StatusCode;
-use hyper::body::HttpBody;
 use hyper::Body;
 use log::debug;
 use log::error;

@@ -12,28 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp::min;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::BufMut;
 use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::HeaderValue;
-use http::Response;
 use http::StatusCode;
-use hyper::body::HttpBody;
 use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
+use log::warn;
 use metrics::increment_counter;
 use minitrace::trace;
 use once_cell::sync::Lazy;
@@ -41,13 +38,14 @@ use reqsign::services::aws::loader::CredentialLoadChain;
 use reqsign::services::aws::loader::DummyLoader;
 use reqsign::services::aws::v4::Signer;
 
-use super::object_stream::DirStream;
+use super::dir_stream::DirStream;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::parse_content_length;
 use crate::io_util::parse_content_md5;
+use crate::io_util::parse_error_response;
 use crate::io_util::parse_last_modified;
 use crate::io_util::HttpBodyWriter;
 use crate::io_util::HttpClient;
@@ -841,11 +839,11 @@ impl Accessor for Backend {
                 debug!("object {} create finished", args.path());
                 Ok(())
             }
-            _ => Err(parse_error_response_without_body(
-                resp,
-                "write",
-                args.path(),
-            )),
+            _ => {
+                let err = parse_error_response("create", args.path(), parse_error_kind, resp).await;
+                warn!("object {} create: {:?}", args.path(), err);
+                Err(err)
+            }
         }
     }
 
@@ -885,7 +883,11 @@ impl Accessor for Backend {
                         .into_async_read(),
                 ))
             }
-            _ => Err(parse_error_response_with_body(resp, "read", &p).await),
+            _ => {
+                let err = parse_error_response("read", args.path(), parse_error_kind, resp).await;
+                warn!("object {} read: {:?}", args.path(), err);
+                Err(err)
+            }
         }
     }
 
@@ -898,15 +900,13 @@ impl Accessor for Backend {
 
         let req = self.put_object(&p, args.size(), body).await?;
 
-        let bs = HttpBodyWriter::new(args, tx, self.client.request(req), |op, resp| {
-            match resp.status() {
-                StatusCode::CREATED | StatusCode::OK => {
-                    debug!("object {} write finished: size {:?}", op.path(), op.size());
-                    Ok(())
-                }
-                _ => Err(parse_error_response_without_body(resp, "write", op.path())),
-            }
-        });
+        let bs = HttpBodyWriter::new(
+            args,
+            tx,
+            self.client.request(req),
+            HashSet::from([StatusCode::CREATED, StatusCode::OK]),
+            parse_error_kind,
+        );
 
         Ok(Box::new(bs))
     }
@@ -967,7 +967,11 @@ impl Accessor for Backend {
                 debug!("object {} stat finished", &p);
                 Ok(m)
             }
-            _ => Err(parse_error_response_with_body(resp, "stat", &p).await),
+            _ => {
+                let err = parse_error_response("stat", args.path(), parse_error_kind, resp).await;
+                warn!("object {} stat: {:?}", args.path(), err);
+                Err(err)
+            }
         }
     }
 
@@ -985,7 +989,11 @@ impl Accessor for Backend {
                 debug!("object {} delete finished", &p);
                 Ok(())
             }
-            _ => Err(parse_error_response_with_body(resp, "delete", &p).await),
+            _ => {
+                let err = parse_error_response("delete", args.path(), parse_error_kind, resp).await;
+                warn!("object {} delete: {:?}", args.path(), err);
+                Err(err)
+            }
         }
     }
 
@@ -1206,10 +1214,8 @@ impl Backend {
     }
 }
 
-// Read and decode whole error response.
-fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, path: &str) -> Error {
-    let (part, _) = resp.into_parts();
-    let kind = match part.status {
+pub fn parse_error_kind(code: StatusCode) -> ErrorKind {
+    match code {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
         StatusCode::INTERNAL_SERVER_ERROR
@@ -1217,66 +1223,7 @@ fn parse_error_response_without_body(resp: Response<Body>, op: &'static str, pat
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
-    };
-
-    Error::new(
-        kind,
-        ObjectError::new(op, path, anyhow!("response part: {:?}", part)),
-    )
-}
-
-// Read and decode whole error response.
-async fn parse_error_response_with_body(
-    resp: Response<Body>,
-    op: &'static str,
-    path: &str,
-) -> Error {
-    let (part, mut body) = resp.into_parts();
-    let kind = match part.status {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
-    };
-
-    // Only read 4KiB from the response to avoid broken services.
-    let mut bs = Vec::new();
-    let mut limit = 4 * 1024;
-
-    while let Some(b) = body.data().await {
-        match b {
-            Ok(b) => {
-                bs.put_slice(&b[..min(b.len(), limit)]);
-                limit -= b.len();
-                if limit == 0 {
-                    break;
-                }
-            }
-            Err(e) => {
-                return other(ObjectError::new(
-                    op,
-                    path,
-                    anyhow!("parse error response parse: {:?}", e),
-                ))
-            }
-        }
     }
-
-    Error::new(
-        kind,
-        ObjectError::new(
-            op,
-            path,
-            anyhow!(
-                "response part: {:?}, body: {:?}",
-                part,
-                String::from_utf8_lossy(&bs)
-            ),
-        ),
-    )
 }
 
 #[cfg(test)]

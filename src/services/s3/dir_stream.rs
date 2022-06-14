@@ -32,6 +32,8 @@ use serde::Deserialize;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::io_util::parse_error_response;
+use crate::services::s3::backend::parse_error_kind;
 use crate::DirEntry;
 use crate::ObjectMode;
 
@@ -77,10 +79,9 @@ impl futures::Stream for DirStream {
                     let mut resp = backend.list_objects(&path, &token).await?;
 
                     if resp.status() != http::StatusCode::OK {
-                        let e = other(ObjectError::new("list", &path, anyhow!("{:?}", resp)));
-
-                        debug!("error response: {:?}", resp);
-                        return Err(e);
+                        return Err(
+                            parse_error_response("list", &path, parse_error_kind, resp).await
+                        );
                     }
 
                     let body = resp.body_mut();

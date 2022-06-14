@@ -38,6 +38,7 @@ pub use write_observer::WriteObserver;
 
 mod http_body;
 pub(crate) use http_body::new_http_channel;
+pub(crate) use http_body::parse_error_response;
 pub(crate) use http_body::HttpBodyWriter;
 
 mod http_client;

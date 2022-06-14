@@ -70,7 +70,7 @@ mod backend;
 pub use backend::Backend;
 pub use backend::Builder;
 
-mod object_stream;
+mod dir_stream;
 
 #[doc(hidden)]
 #[cfg(feature = "testing")]

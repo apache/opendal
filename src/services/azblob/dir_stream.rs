@@ -18,7 +18,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bytes::Buf;
 use bytes::BufMut;
 use futures::future::BoxFuture;
@@ -31,14 +30,10 @@ use serde::Deserialize;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::io_util::parse_error_response;
+use crate::services::azblob::backend::parse_error_kind;
 use crate::DirEntry;
 use crate::ObjectMode;
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<bytes::Bytes>>),
-    Listing((Output, usize, usize)),
-}
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -47,6 +42,12 @@ pub struct DirStream {
     next_marker: String,
     done: bool,
     state: State,
+}
+
+enum State {
+    Idle,
+    Sending(BoxFuture<'static, Result<bytes::Bytes>>),
+    Listing((Output, usize, usize)),
 }
 
 impl DirStream {
@@ -76,9 +77,9 @@ impl futures::Stream for DirStream {
                     let mut resp = backend.list_blobs(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
-                        let e = other(ObjectError::new("list", &path, anyhow!("{:?}", resp)));
-                        debug!("error response: {:?}", resp);
-                        return Err(e);
+                        return Err(
+                            parse_error_response("list", &path, parse_error_kind, resp).await
+                        );
                     }
 
                     let body = resp.body_mut();

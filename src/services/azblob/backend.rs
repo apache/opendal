@@ -23,11 +23,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::BufMut;
 use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::StatusCode;
-use hyper::body::HttpBody;
 use hyper::Body;
 use log::error;
 use log::info;

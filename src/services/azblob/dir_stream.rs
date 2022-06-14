@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
+
 use bytes::Buf;
 use bytes::BufMut;
 use futures::future::BoxFuture;
@@ -31,7 +31,7 @@ use serde::Deserialize;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::io_util::{parse_error_response, ParseErrorResponse};
+use crate::io_util::{parse_error_response};
 use crate::services::azblob::backend::parse_error_kind;
 use crate::DirEntry;
 use crate::ObjectMode;

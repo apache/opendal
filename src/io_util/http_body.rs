@@ -12,31 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
 use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use std::future::Future;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
-use std::io::{Error, ErrorKind};
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
 use bytes::Bytes;
+use futures::channel::mpsc;
 use futures::channel::mpsc::Sender;
-use futures::channel::mpsc::{self};
+use futures::ready;
 use futures::AsyncWrite;
+use futures::SinkExt;
 use futures::StreamExt;
-use futures::{ready, SinkExt};
 use http::response::Parts;
-use http::{Response, StatusCode};
+use http::Response;
+use http::StatusCode;
 use hyper::body::HttpBody;
 use hyper::client::ResponseFuture;
 use hyper::Body;
 use log::debug;
 use pin_project::pin_project;
 
-use crate::error::{other, ObjectError};
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::ops::OpWrite;
 
 /// Create a HTTP channel.

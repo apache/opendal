@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
@@ -26,7 +25,6 @@ use async_trait::async_trait;
 use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::HeaderValue;
-
 use http::StatusCode;
 use hyper::Body;
 use log::debug;

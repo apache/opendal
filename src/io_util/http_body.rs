@@ -25,10 +25,9 @@ use std::task::Poll;
 use bytes::Bytes;
 use futures::channel::mpsc::Sender;
 use futures::channel::mpsc::{self};
-use futures::ready;
 use futures::AsyncWrite;
-use futures::Sink;
 use futures::StreamExt;
+use futures::{ready, SinkExt};
 use hyper::body::HttpBody;
 use hyper::client::ResponseFuture;
 use hyper::Body;
@@ -88,12 +87,9 @@ impl HttpBodyWriter {
         }
     }
 
-    fn poll_response(
-        self: &mut Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::result::Result<(), Error>> {
-        let op = self.op.clone();
-        let accepted_codes = self.accepted_codes.clone();
+    fn poll_response(&mut self, cx: &mut Context<'_>) -> Poll<std::result::Result<(), Error>> {
+        let op = &self.op;
+        let accepted_codes = &self.accepted_codes;
         let error_parser = self.error_parser;
 
         match self.state.borrow_mut() {
@@ -171,7 +167,7 @@ impl AsyncWrite for HttpBodyWriter {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<Result<usize>> {
-        if let Poll::Ready(v) = Pin::new(&mut *self).poll_response(cx) {
+        if let Poll::Ready(v) = (*self).poll_response(cx) {
             unreachable!("response returned too early: {:?}", v)
         }
 
@@ -186,11 +182,11 @@ impl AsyncWrite for HttpBodyWriter {
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Pin::new(&mut self.tx).poll_flush(cx).map_err(other)
+        self.tx.poll_flush_unpin(cx).map_err(other)
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        if let Err(e) = ready!(Pin::new(&mut self.tx).poll_close(cx)) {
+        if let Err(e) = ready!(self.tx.poll_close_unpin(cx)) {
             return Poll::Ready(Err(other(e)));
         }
 

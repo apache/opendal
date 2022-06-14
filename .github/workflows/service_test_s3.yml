@@ -24,6 +24,24 @@ jobs:
           OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
           OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
 
+  aws_s3_with_virtual_host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test
+        shell: bash
+        run: cargo test s3 --features compress,retry,testing -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
+          OPENDAL_S3_ROOT: ${{ secrets.OPENDAL_S3_ROOT }}
+          OPENDAL_S3_BUCKET: ${{ secrets.OPENDAL_S3_BUCKET }}
+          OPENDAL_S3_ENDPOINT: ${{ secrets.OPENDAL_S3_ENDPOINT }}
+          OPENDAL_S3_ACCESS_KEY_ID: ${{ secrets.OPENDAL_S3_ACCESS_KEY_ID }}
+          OPENDAL_S3_SECRET_ACCESS_KEY: ${{ secrets.OPENDAL_S3_SECRET_ACCESS_KEY }}
+          OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE: on
+
   aws_s3_with_sse_c:
     runs-on: ubuntu-latest
     steps:

@@ -25,6 +25,7 @@ use crate::Accessor;
 /// - `OPENDAL_S3_ENDPOINT=<endpoint>`: set the endpoint of the s3 service.
 /// - `OPENDAL_S3_ACCESS_KEY_ID=<access_key_id>`: set the access key id.
 /// - `OPENDAL_S3_SECRET_ACCESS_KEY=<secret_access_key>`: set the secret access key.
+/// - `OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE=<bool>`: enable enable_virtual_host_style.
 pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     if env::var("OPENDAL_S3_TEST").is_err() || env::var("OPENDAL_S3_TEST").unwrap() != "on" {
         return Ok(None);
@@ -53,5 +54,8 @@ pub async fn new() -> Result<Option<Arc<dyn Accessor>>> {
     builder.server_side_encryption_aws_kms_key_id(
         &env::var("OPENDAL_S3_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID").unwrap_or_default(),
     );
+    if env::var("OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE").unwrap_or_default() == "on" {
+        builder.enable_virtual_host_style();
+    }
     Ok(Some(builder.finish().await?))
 }

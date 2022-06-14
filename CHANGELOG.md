@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.9.0] - 2022-06-14
+
+### Added
+
+- feat: Implement http service support  (#368)
+- feat: Add http_header to handle HTTP header parse (#369)
+- feat(services/s3): Add virtual host API style support (#374)
+
+### Changed
+
+- refactor: Use the same http client across project (#364)
+- refactor(services/{s3,azblob}): Make sure error response parsed correctly and safely (#375)
+
+### Docs
+
+- docs: Add concepts for Accessor, Operator and Object (#354)
+- docs: Aad docs for batch operations (#363)
+
 ## [v0.8.0] - 2022-06-09
 
 ### Added
@@ -402,6 +420,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.9.0]: https://github.com/datafuselabs/opendal/compare/v0.8.0...v0.9.0
 [v0.8.0]: https://github.com/datafuselabs/opendal/compare/v0.7.3...v0.8.0
 [v0.7.3]: https://github.com/datafuselabs/opendal/compare/v0.7.2...v0.7.3
 [v0.7.2]: https://github.com/datafuselabs/opendal/compare/v0.7.1...v0.7.2

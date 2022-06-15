@@ -666,6 +666,7 @@ pub struct ObjectMetadata {
     content_length: u64,
     content_md5: Option<String>,
     last_modified: Option<OffsetDateTime>,
+    etag: Option<String>,
 }
 
 impl ObjectMetadata {
@@ -680,6 +681,9 @@ impl ObjectMetadata {
     }
 
     /// Content length of this object
+    ///
+    /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
+    /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
     pub fn content_length(&self) -> u64 {
         self.content_length
     }
@@ -690,8 +694,13 @@ impl ObjectMetadata {
     }
 
     /// Content MD5 of this object.
-    pub fn content_md5(&self) -> Option<String> {
-        self.content_md5.clone()
+    ///
+    /// Content Length is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
+    /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
+    ///
+    /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
+    pub fn content_md5(&self) -> Option<&str> {
+        self.content_md5.as_deref()
     }
 
     pub(crate) fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
@@ -700,12 +709,37 @@ impl ObjectMetadata {
     }
 
     /// Last modified of this object.
+    ///
+    /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
+    /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
+    ///
+    /// OpenDAL parse the raw value into [`OffsetDateTime`] for convenient.
     pub fn last_modified(&self) -> Option<OffsetDateTime> {
         self.last_modified
     }
 
     pub(crate) fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
         self.last_modified = Some(last_modified);
+        self
+    }
+
+    /// ETag of this object.
+    ///
+    /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
+    /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
+    ///
+    /// OpenDAL will return this value AS-IS like the following:
+    ///
+    /// - `"33a64df551425fcc55e4d42a148795d9f25f89d4"`
+    /// - `W/"0815"`
+    ///
+    /// `"` is part of etag.
+    pub fn etag(&self) -> Option<&str> {
+        self.etag.as_deref()
+    }
+
+    pub(crate) fn set_etag(&mut self, etag: &str) -> &mut Self {
+        self.etag = Some(etag.to_string());
         self
     }
 }

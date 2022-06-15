@@ -68,7 +68,8 @@
 //!     let meta: ObjectMetadata = o.metadata().await?;
 //!     let mode: ObjectMode = meta.mode();
 //!     let length: u64 = meta.content_length();
-//!     let content_md5: Option<String> = meta.content_md5();
+//!     let content_md5: Option<&str> = meta.content_md5();
+//!     let etag: Option<&str> = meta.etag();
 //!
 //!     // Delete object.
 //!     let _: () = o.delete().await?;

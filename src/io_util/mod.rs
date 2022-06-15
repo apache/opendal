@@ -46,6 +46,7 @@ pub(crate) use http_client::HttpClient;
 
 mod http_header;
 pub(crate) use http_header::parse_content_length;
+#[cfg(feature = "services-http")]
 pub(crate) use http_header::parse_content_md5;
 pub(crate) use http_header::parse_etag;
 pub(crate) use http_header::parse_last_modified;

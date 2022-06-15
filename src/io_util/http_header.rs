@@ -14,6 +14,7 @@
 
 use anyhow::anyhow;
 use anyhow::Result;
+#[cfg(feature = "services-http")]
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::ETAG;
@@ -36,6 +37,7 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
 }
 
 /// Parse content md5 from header map.
+#[cfg(feature = "services-http")]
 pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
     match headers.get(HeaderName::from_static("content-md5")) {
         None => Ok(None),

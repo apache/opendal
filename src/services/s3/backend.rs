@@ -44,8 +44,8 @@ use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::parse_content_length;
-use crate::io_util::parse_content_md5;
 use crate::io_util::parse_error_response;
+use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
 use crate::io_util::HttpBodyWriter;
 use crate::io_util::HttpClient;
@@ -939,10 +939,11 @@ impl Accessor for Backend {
                     m.set_content_length(v);
                 }
 
-                if let Some(v) = parse_content_md5(resp.headers())
+                if let Some(v) = parse_etag(resp.headers())
                     .map_err(|e| other(ObjectError::new("stat", &p, e)))?
                 {
-                    m.set_content_md5(v);
+                    m.set_etag(v);
+                    m.set_content_md5(v.trim_matches('"'));
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())

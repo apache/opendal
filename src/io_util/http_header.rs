@@ -14,8 +14,10 @@
 
 use anyhow::anyhow;
 use anyhow::Result;
+#[cfg(feature = "services-http")]
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
+use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::HeaderMap;
 use time::format_description::well_known::Rfc2822;
@@ -35,6 +37,7 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
 }
 
 /// Parse content md5 from header map.
+#[cfg(feature = "services-http")]
 pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
     match headers.get(HeaderName::from_static("content-md5")) {
         None => Ok(None),
@@ -59,5 +62,16 @@ pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>
 
             Ok(Some(t))
         }
+    }
+}
+
+/// Parse etag from header map.
+pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
+    match headers.get(ETAG) {
+        None => Ok(None),
+        Some(v) => Ok(Some(
+            v.to_str()
+                .map_err(|e| anyhow!("parse etag header: {:?}", e))?,
+        )),
     }
 }

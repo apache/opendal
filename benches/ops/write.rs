@@ -48,7 +48,7 @@ fn bench_write_once(c: &mut Criterion, op: Operator) {
         let path = uuid::Uuid::new_v4().to_string();
         let temp_data = TempData::existing(op.clone(), &path);
 
-        group.throughput(criterion::Throughput::Bytes(size.bytes()));
+        group.throughput(criterion::Throughput::Bytes(size.bytes() as u64));
         group.bench_with_input(
             size.to_string(Base::Base2, Style::Abbreviated),
             &(op.clone(), &path, content),

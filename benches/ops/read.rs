@@ -16,9 +16,7 @@ use futures::io;
 use futures::AsyncReadExt;
 use opendal::Operator;
 use rand::prelude::*;
-use size::Base;
 use size::Size;
-use size::Style;
 
 use super::utils::*;
 
@@ -43,30 +41,26 @@ fn bench_read_full(c: &mut Criterion, op: Operator) {
     let mut rng = thread_rng();
 
     for size in [
-        Size::Kibibytes(4_usize),
-        Size::Kibibytes(256),
-        Size::Mebibytes(4),
-        Size::Mebibytes(16),
+        Size::from_kibibytes(4),
+        Size::from_kibibytes(256),
+        Size::from_mebibytes(4),
+        Size::from_mebibytes(16),
     ] {
         let content = gen_bytes(&mut rng, size.bytes() as usize);
         let path = uuid::Uuid::new_v4().to_string();
         let temp_data = TempData::generate(op.clone(), &path, content.clone());
 
         group.throughput(criterion::Throughput::Bytes(size.bytes() as u64));
-        group.bench_with_input(
-            size.to_string(Base::Base2, Style::Abbreviated),
-            &(op.clone(), &path),
-            |b, (op, path)| {
-                b.to_async(&*TOKIO).iter(|| async {
-                    let r = op
-                        .object(path)
-                        .range_reader(..=size.bytes() as u64)
-                        .await
-                        .unwrap();
-                    io::copy(r, &mut io::sink()).await.unwrap();
-                })
-            },
-        );
+        group.bench_with_input(size.to_string(), &(op.clone(), &path), |b, (op, path)| {
+            b.to_async(&*TOKIO).iter(|| async {
+                let r = op
+                    .object(path)
+                    .range_reader(..=size.bytes() as u64)
+                    .await
+                    .unwrap();
+                io::copy(r, &mut io::sink()).await.unwrap();
+            })
+        });
 
         std::mem::drop(temp_data);
     }
@@ -81,10 +75,10 @@ fn bench_read_part(c: &mut Criterion, op: Operator) {
     let mut rng = thread_rng();
 
     for size in [
-        Size::Kibibytes(4_usize),
-        Size::Kibibytes(256),
-        Size::Mebibytes(4),
-        Size::Mebibytes(16),
+        Size::from_kibibytes(4),
+        Size::from_kibibytes(256),
+        Size::from_mebibytes(4),
+        Size::from_mebibytes(16),
     ] {
         let content = gen_bytes(&mut rng, (size.bytes() * 2) as usize);
         let path = uuid::Uuid::new_v4().to_string();
@@ -92,16 +86,12 @@ fn bench_read_part(c: &mut Criterion, op: Operator) {
         let temp_data = TempData::generate(op.clone(), &path, content.clone());
 
         group.throughput(criterion::Throughput::Bytes(size.bytes() as u64));
-        group.bench_with_input(
-            size.to_string(Base::Base2, Style::Abbreviated),
-            &(op.clone(), &path),
-            |b, (op, path)| {
-                b.to_async(&*TOKIO).iter(|| async {
-                    let r = op.object(path).range_reader(offset..).await.unwrap();
-                    io::copy(r, &mut io::sink()).await.unwrap();
-                })
-            },
-        );
+        group.bench_with_input(size.to_string(), &(op.clone(), &path), |b, (op, path)| {
+            b.to_async(&*TOKIO).iter(|| async {
+                let r = op.object(path).range_reader(offset..).await.unwrap();
+                io::copy(r, &mut io::sink()).await.unwrap();
+            })
+        });
 
         std::mem::drop(temp_data);
     }
@@ -115,10 +105,10 @@ fn bench_read_parallel(c: &mut Criterion, op: Operator) {
     let mut rng = thread_rng();
 
     for size in [
-        Size::Kibibytes(4_usize),
-        Size::Kibibytes(256),
-        Size::Mebibytes(4),
-        Size::Mebibytes(16),
+        Size::from_kibibytes(4),
+        Size::from_kibibytes(256),
+        Size::from_mebibytes(4),
+        Size::from_mebibytes(16),
     ] {
         let content = gen_bytes(&mut rng, (size.bytes() * 2) as usize);
         let path = uuid::Uuid::new_v4().to_string();
@@ -129,11 +119,7 @@ fn bench_read_parallel(c: &mut Criterion, op: Operator) {
         for parallel in [1, 2, 4, 8, 16] {
             group.throughput(criterion::Throughput::Bytes(parallel * size.bytes() as u64));
             group.bench_with_input(
-                format!(
-                    "{}x{}",
-                    parallel,
-                    size.to_string(Base::Base2, Style::Abbreviated)
-                ),
+                format!("{}x{}", parallel, size.to_string()),
                 &(op.clone(), &path, buf.clone()),
                 |b, (op, path, buf)| {
                     b.to_async(&*TOKIO).iter(|| async {

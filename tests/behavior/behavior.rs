@@ -51,6 +51,7 @@ macro_rules! behavior_tests {
 
                 test_create_file,
                 test_create_file_existing,
+                test_create_file_with_special_chars,
                 test_create_dir,
                 test_create_dir_exising,
 
@@ -216,6 +217,26 @@ async fn test_create_file_existing(op: Operator) -> Result<()> {
     let o = op.object(&path);
 
     let _ = o.create().await?;
+
+    let _ = o.create().await?;
+
+    let meta = o.metadata().await?;
+    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.content_length(), 0);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Create file with special chars should succeed.
+async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
+    let path = format!("{} !@#$%^&*()_+-=;:'><,/?.txt", uuid::Uuid::new_v4());
+
+    let o = op.object(&path);
+    debug!("{o:?}");
 
     let _ = o.create().await?;
 

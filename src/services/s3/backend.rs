@@ -35,9 +35,11 @@ use log::warn;
 use metrics::increment_counter;
 use minitrace::trace;
 use once_cell::sync::Lazy;
+use percent_encoding::utf8_percent_encode;
 use reqsign::services::aws::loader::CredentialLoadChain;
 use reqsign::services::aws::loader::DummyLoader;
 use reqsign::services::aws::v4::Signer;
+use reqsign::services::aws::AWS_URI_ENCODE_SET;
 
 use super::dir_stream::DirStream;
 use crate::error::other;
@@ -1026,7 +1028,11 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}", self.endpoint, path);
+        let url = format!(
+            "{}/{}",
+            self.endpoint,
+            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
+        );
 
         let mut req = hyper::Request::get(&url);
 
@@ -1075,7 +1081,11 @@ impl Backend {
         size: u64,
         body: hyper::Body,
     ) -> Result<hyper::Request<hyper::Body>> {
-        let url = format!("{}/{}", self.endpoint, path);
+        let url = format!(
+            "{}/{}",
+            self.endpoint,
+            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
+        );
 
         let mut req = hyper::Request::put(&url);
 
@@ -1109,7 +1119,11 @@ impl Backend {
 
     #[trace("head_object")]
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}", self.endpoint, path);
+        let url = format!(
+            "{}/{}",
+            self.endpoint,
+            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
+        );
 
         let mut req = hyper::Request::head(&url);
 
@@ -1146,7 +1160,11 @@ impl Backend {
 
     #[trace("delete_object")]
     pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}", self.endpoint, path);
+        let url = format!(
+            "{}/{}",
+            self.endpoint,
+            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
+        );
 
         let mut req = hyper::Request::delete(&url)
             .body(hyper::Body::empty())
@@ -1184,7 +1202,11 @@ impl Backend {
         path: &str,
         continuation_token: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let mut url = format!("{}?list-type=2&delimiter=/&prefix={}", self.endpoint, path);
+        let mut url = format!(
+            "{}?list-type=2&delimiter=/&prefix={}",
+            self.endpoint,
+            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
+        );
         if !continuation_token.is_empty() {
             url.push_str(&format!("&continuation-token={continuation_token}"))
         }

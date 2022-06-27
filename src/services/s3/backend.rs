@@ -16,8 +16,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
-use std::io::{Error, ErrorKind};
 use std::sync::Arc;
 
 use anyhow::anyhow;

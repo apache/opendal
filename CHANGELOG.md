@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.9.1] - 2022-06-27
+
+### Added
+
+- feat(object): Add ETag support (#381)
+- feat: Convert retryable hyper errors into Interrupted (#396)
+
+### Changed
+
+- build: Exclude docs from publish (#383)
+- ci: Don't run CI on not needed push (#395)
+- refactor: Use list for check instead of stat (#399)
+
+### Dependencies
+
+- chore(deps): Update size requirement from 0.1.2 to 0.2.0 (#385)
+- Upgrade dev-dependency `size` to 0.4 (#392)
+
+### Fixed
+
+- fix: Special chars not handled correctly (#398)
+
 ## [v0.9.0] - 2022-06-14
 
 ### Added
@@ -420,6 +442,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.9.1]: https://github.com/datafuselabs/opendal/compare/v0.9.0...v0.9.1
 [v0.9.0]: https://github.com/datafuselabs/opendal/compare/v0.8.0...v0.9.0
 [v0.8.0]: https://github.com/datafuselabs/opendal/compare/v0.7.3...v0.8.0
 [v0.7.3]: https://github.com/datafuselabs/opendal/compare/v0.7.2...v0.7.3

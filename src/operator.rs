@@ -14,12 +14,14 @@
 
 #[cfg(feature = "retry")]
 use std::fmt::Debug;
-use std::io::{ErrorKind, Result};
+use std::io::ErrorKind;
+use std::io::Result;
 use std::sync::Arc;
 
 #[cfg(feature = "retry")]
 use backon::Backoff;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
+use futures::TryStreamExt;
 use log::debug;
 
 use crate::io_util::BottomUpWalker;

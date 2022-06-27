@@ -47,6 +47,7 @@ use crate::io_util::parse_error_kind as parse_http_error_kind;
 use crate::io_util::parse_error_response;
 use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
+use crate::io_util::percent_encode_path;
 use crate::io_util::HttpBodyWriter;
 use crate::io_util::HttpClient;
 use crate::object::ObjectMetadata;
@@ -464,7 +465,12 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(path)
+        );
 
         let mut req = hyper::Request::get(&url);
 
@@ -509,7 +515,12 @@ impl Backend {
         size: u64,
         body: Body,
     ) -> Result<hyper::Request<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(path)
+        );
 
         let mut req = hyper::Request::put(&url);
 
@@ -544,7 +555,12 @@ impl Backend {
         &self,
         path: &str,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(path)
+        );
 
         let req = hyper::Request::head(&url);
 
@@ -577,7 +593,12 @@ impl Backend {
 
     #[trace("delete_blob")]
     pub(crate) async fn delete_blob(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}/{}/{}", self.endpoint, self.container, path);
+        let url = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.container,
+            percent_encode_path(path)
+        );
 
         let req = hyper::Request::delete(&url);
 
@@ -619,7 +640,7 @@ impl Backend {
             self.endpoint, self.container
         );
         if !path.is_empty() {
-            url.push_str(&format!("&prefix={path}"))
+            url.push_str(&format!("&prefix={}", percent_encode_path(path)))
         }
         if !next_marker.is_empty() {
             url.push_str(&format!("&marker={next_marker}"))

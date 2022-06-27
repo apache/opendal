@@ -233,7 +233,7 @@ async fn test_create_file_existing(op: Operator) -> Result<()> {
 
 /// Create file with special chars should succeed.
 async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;:'><,/?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
 
     let o = op.object(&path);
     debug!("{o:?}");

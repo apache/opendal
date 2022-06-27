@@ -35,11 +35,9 @@ use log::warn;
 use metrics::increment_counter;
 use minitrace::trace;
 use once_cell::sync::Lazy;
-use percent_encoding::utf8_percent_encode;
 use reqsign::services::aws::loader::CredentialLoadChain;
 use reqsign::services::aws::loader::DummyLoader;
 use reqsign::services::aws::v4::Signer;
-use reqsign::services::aws::AWS_URI_ENCODE_SET;
 
 use super::dir_stream::DirStream;
 use crate::error::other;
@@ -51,6 +49,7 @@ use crate::io_util::parse_error_kind as parse_http_error_kind;
 use crate::io_util::parse_error_response;
 use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
+use crate::io_util::percent_encode_path;
 use crate::io_util::HttpBodyWriter;
 use crate::io_util::HttpClient;
 use crate::ops::BytesRange;
@@ -1028,11 +1027,7 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!(
-            "{}/{}",
-            self.endpoint,
-            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
-        );
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = hyper::Request::get(&url);
 
@@ -1081,11 +1076,7 @@ impl Backend {
         size: u64,
         body: hyper::Body,
     ) -> Result<hyper::Request<hyper::Body>> {
-        let url = format!(
-            "{}/{}",
-            self.endpoint,
-            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
-        );
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = hyper::Request::put(&url);
 
@@ -1119,11 +1110,7 @@ impl Backend {
 
     #[trace("head_object")]
     pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!(
-            "{}/{}",
-            self.endpoint,
-            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
-        );
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = hyper::Request::head(&url);
 
@@ -1160,11 +1147,7 @@ impl Backend {
 
     #[trace("delete_object")]
     pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!(
-            "{}/{}",
-            self.endpoint,
-            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
-        );
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = hyper::Request::delete(&url)
             .body(hyper::Body::empty())
@@ -1205,7 +1188,7 @@ impl Backend {
         let mut url = format!(
             "{}?list-type=2&delimiter=/&prefix={}",
             self.endpoint,
-            utf8_percent_encode(path, &AWS_URI_ENCODE_SET)
+            percent_encode_path(path)
         );
         if !continuation_token.is_empty() {
             url.push_str(&format!("&continuation-token={continuation_token}"))

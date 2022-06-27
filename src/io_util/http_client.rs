@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::ErrorKind;
 use std::ops::Deref;
 
 /// HttpClient that used across opendal.
@@ -36,5 +37,20 @@ impl Deref for HttpClient {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+/// Parse hyper error into `ErrorKind`.
+///
+/// It's safe to retry the following errors:
+///
+/// - is_canceled(): Request that was canceled.
+/// - is_connect(): an error from Connect.
+/// - is_timeout(): the error was caused by a timeout.
+pub fn parse_error_kind(err: &hyper::Error) -> ErrorKind {
+    if err.is_canceled() || err.is_connect() || err.is_timeout() {
+        ErrorKind::Interrupted
+    } else {
+        ErrorKind::Other
     }
 }

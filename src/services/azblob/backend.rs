@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem;
@@ -42,6 +43,7 @@ use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::parse_content_length;
+use crate::io_util::parse_error_kind as parse_http_error_kind;
 use crate::io_util::parse_error_response;
 use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
@@ -281,7 +283,11 @@ impl Accessor for Backend {
         let req = self.put_blob(&p, 0, Body::empty()).await?;
         let resp = self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
-            other(ObjectError::new("read", args.path(), e))
+
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("create", args.path(), anyhow!("send request: {e:?}")),
+            )
         })?;
 
         match resp.status() {
@@ -489,11 +495,10 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {path} get_blob: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("send request {url}: {e:?}"),
-            ))
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("read", path, anyhow!("send request {url}: {e:?}")),
+            )
         })
     }
 
@@ -563,11 +568,10 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {path} get_blob_properties: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("send request {url}: {e:?}"),
-            ))
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("stat", path, anyhow!("send request {url}: {e:?}")),
+            )
         })
     }
 
@@ -597,11 +601,10 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {path} delete_object: {url} {e:?}");
-            other(ObjectError::new(
-                "delete",
-                path,
-                anyhow!("send request {url}: {e:?}"),
-            ))
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("delete", path, anyhow!("send request {url}: {e:?}")),
+            )
         })
     }
 
@@ -644,11 +647,10 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {path} list_blobs: {url} {e:?}");
-            other(ObjectError::new(
-                "list",
-                path,
-                anyhow!("send request {url}: {e:?}"),
-            ))
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("list", path, anyhow!("send request {url}: {e:?}")),
+            )
         })
     }
 }

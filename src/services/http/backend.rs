@@ -44,6 +44,7 @@ use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::io_util::parse_content_length;
 use crate::io_util::parse_content_md5;
+use crate::io_util::parse_error_kind as parse_http_error_kind;
 use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
 use crate::io_util::HttpClient;
@@ -391,11 +392,10 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {path} http_get: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("send request: {url}: {e:?}"),
-            ))
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("read", path, anyhow!("send request {url}: {e:?}")),
+            )
         })
     }
 
@@ -415,11 +415,10 @@ impl Backend {
 
         self.client.request(req).await.map_err(|e| {
             error!("object {path} http_head: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("send request {url}: {e:?}"),
-            ))
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("stat", path, anyhow!("send request {url}: {e:?}")),
+            )
         })
     }
 }

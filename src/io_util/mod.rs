@@ -42,6 +42,7 @@ pub(crate) use http_body::parse_error_response;
 pub(crate) use http_body::HttpBodyWriter;
 
 mod http_client;
+pub(crate) use http_client::parse_error_kind;
 pub(crate) use http_client::HttpClient;
 
 mod http_header;

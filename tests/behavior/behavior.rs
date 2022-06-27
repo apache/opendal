@@ -134,9 +134,9 @@ cfg_if::cfg_if! {
     }
 }
 
-/// Create file with file path should succeed.
+/// Check should be OK.
 async fn test_check(op: Operator) -> Result<()> {
-    op.check(".opendal").await.expect("operator check is ok");
+    op.check().await.expect("operator check is ok");
 
     Ok(())
 }

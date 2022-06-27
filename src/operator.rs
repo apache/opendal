@@ -14,11 +14,13 @@
 
 #[cfg(feature = "retry")]
 use std::fmt::Debug;
+use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
 #[cfg(feature = "retry")]
 use backon::Backoff;
+use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
@@ -156,8 +158,7 @@ impl Operator {
 
     /// Check if this operator can work correctly.
     ///
-    /// We will send a real `stat` request to path and return any errors
-    /// we met.
+    /// We will send a `list` request to path and return any errors we met.
     ///
     /// ```
     /// # use std::sync::Arc;
@@ -170,15 +171,17 @@ impl Operator {
     /// # async fn main() -> Result<()> {
     /// # let accessor = fs::Backend::build().finish().await?;
     /// let op = Operator::new(accessor);
-    /// op.check(".opendal").await?;
+    /// op.check().await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn check(&self, path: &str) -> Result<()> {
-        // The existences of `.opendal` doesn't matters.
-        let _ = self.object(path).is_exist().await?;
+    pub async fn check(&self) -> Result<()> {
+        let mut ds = self.object("/").list().await?;
 
-        Ok(())
+        match ds.next().await {
+            Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
     }
 }
 

@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::io::ErrorKind;
 use std::ops::Deref;
+
+use percent_encoding::utf8_percent_encode;
+use percent_encoding::AsciiSet;
+use percent_encoding::NON_ALPHANUMERIC;
 
 /// HttpClient that used across opendal.
 ///

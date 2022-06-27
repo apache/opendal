@@ -51,11 +51,13 @@ macro_rules! behavior_tests {
 
                 test_create_file,
                 test_create_file_existing,
+                test_create_file_with_special_chars,
                 test_create_dir,
                 test_create_dir_exising,
 
                 test_write,
                 test_write_with_dir_path,
+                test_write_with_special_chars,
 
                 test_read_full,
                 test_read_range,
@@ -69,12 +71,14 @@ macro_rules! behavior_tests {
                 test_read_decompress_zstd,
                 #[cfg(feature = "compress")]
                 test_read_decompress_zstd_with,
+                test_read_with_special_chars,
 
                 test_stat,
                 test_stat_dir,
                 test_stat_not_cleaned_path,
                 test_stat_not_exist,
                 test_stat_root,
+                test_stat_with_special_chars,
 
                 test_list_dir,
                 test_list_sub_dir,
@@ -85,6 +89,7 @@ macro_rules! behavior_tests {
                 test_delete,
                 test_delete_not_existing,
                 test_delete_empty_dir,
+                test_delete_with_special_chars,
 
                 test_walk_bottom_up,
                 test_walk_top_down,
@@ -230,6 +235,26 @@ async fn test_create_file_existing(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Create file with special chars should succeed.
+async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
+    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+
+    let o = op.object(&path);
+    debug!("{o:?}");
+
+    let _ = o.create().await?;
+
+    let meta = o.metadata().await?;
+    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.content_length(), 0);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
 /// Create dir with dir path should succeed.
 async fn test_create_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
@@ -302,6 +327,28 @@ async fn test_write_with_dir_path(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Write a single file with special chars should succeed.
+async fn test_write_with_special_chars(op: Operator) -> Result<()> {
+    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let _ = op.object(&path).write(&content).await?;
+
+    let meta = op
+        .object(&path)
+        .metadata()
+        .await
+        .expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
 /// Stat existing file should return metadata
 async fn test_stat(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
@@ -333,6 +380,29 @@ async fn test_stat_dir(op: Operator) -> Result<()> {
 
     let meta = op.object(&path).metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Stat existing file with special chars should return metadata
+async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
+    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
+    let meta = op.object(&path).metadata().await?;
+    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
         .delete()
@@ -612,6 +682,33 @@ async fn test_read_decompress_zstd_with(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Read file with special chars should succeed.
+async fn test_read_with_special_chars(op: Operator) -> Result<()> {
+    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
+    let bs = op.object(&path).read().await?;
+    assert_eq!(size, bs.len(), "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
 /// List dir should return newly created file.
 async fn test_list_dir(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
@@ -790,6 +887,26 @@ async fn test_delete_empty_dir(op: Operator) -> Result<()> {
         .expect("create must succeed");
 
     let _ = op.object(&path).delete().await?;
+
+    Ok(())
+}
+
+// Delete file with special chars should succeed.
+async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
+    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    let _ = op
+        .object(&path)
+        .write(&content)
+        .await
+        .expect("write must succeed");
+
+    let _ = op.object(&path).delete().await?;
+
+    // Stat it again to check.
+    assert!(!op.object(&path).is_exist().await?);
 
     Ok(())
 }

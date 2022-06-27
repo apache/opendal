@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::io::ErrorKind;
 use std::ops::Deref;
 
@@ -52,5 +53,60 @@ pub fn parse_error_kind(err: &hyper::Error) -> ErrorKind {
         ErrorKind::Interrupted
     } else {
         ErrorKind::Other
+    }
+}
+
+/// PATH_ENCODE_SET is the encode set for http url path.
+///
+/// This set follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent) which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`
+static PATH_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'!')
+    .remove(b'~')
+    .remove(b'*')
+    .remove(b'\'')
+    .remove(b'(')
+    .remove(b')');
+
+/// percent_encode_path will do percent encoding for http encode path.
+///
+/// Follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent) which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`
+pub fn percent_encode_path(path: &str) -> String {
+    utf8_percent_encode(path, &PATH_ENCODE_SET).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_percent_encode_path() {
+        let cases = vec![
+            (
+                "Reserved Characters",
+                ";,/?:@&=+$",
+                "%3B%2C%2F%3F%3A%40%26%3D%2B%24",
+            ),
+            ("Unescaped Characters", "-_.!~*'()", "-_.!~*'()"),
+            ("Number Sign", "#", "%23"),
+            (
+                "Alphanumeric Characters + Space",
+                "ABC abc 123",
+                "ABC%20abc%20123",
+            ),
+            (
+                "Unicode",
+                "你好，世界！❤",
+                "%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C%EF%BC%81%E2%9D%A4",
+            ),
+        ];
+
+        for (name, input, expected) in cases {
+            let actual = percent_encode_path(input);
+
+            assert_eq!(actual, expected, "{name}");
+        }
     }
 }

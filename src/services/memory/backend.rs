@@ -80,7 +80,8 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Memory)
             .set_root("/")
-            .set_name("memory");
+            .set_name("memory")
+            .set_capabilities(None);
 
         am
     }

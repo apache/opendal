@@ -271,7 +271,8 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
-            .set_name(&self.container);
+            .set_name(&self.container)
+            .set_capabilities(None);
 
         am
     }

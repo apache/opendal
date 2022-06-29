@@ -821,7 +821,8 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
-            .set_name(&self.bucket);
+            .set_name(&self.bucket)
+            .set_capabilities(None);
 
         am
     }

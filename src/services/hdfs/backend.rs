@@ -200,7 +200,9 @@ impl Backend {
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::Hdfs).set_root(&self.root);
+        am.set_scheme(Scheme::Hdfs)
+            .set_root(&self.root)
+            .set_capabilities(None);
 
         am
     }

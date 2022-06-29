@@ -215,7 +215,9 @@ impl Backend {
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
-        ma.set_scheme(Scheme::Http).set_root(&self.root);
+        ma.set_scheme(Scheme::Http)
+            .set_root(&self.root)
+            .set_capabilities(None);
 
         ma
     }

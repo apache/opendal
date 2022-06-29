@@ -1,7 +1,7 @@
 - Proposal Name: `accessor_capabilities`
 - Start Date: 2022-06-29
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#409](https://github.com/datafuselabs/opendal/pull/409)
+- Tracking Issue: [datafuselabs/opendal#410](https://github.com/datafuselabs/opendal/issues/410)
 
 # Summary
 

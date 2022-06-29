@@ -5,7 +5,7 @@
 
 # Summary
 
-Add support for accessor capabilities so that users can check if a given accessor is capable of a given capability.
+Add support for accessor capabilities so that users can check if a given accessor is capable of a given ability.
 
 # Motivation
 
@@ -28,11 +28,11 @@ let _: bool = meta.can_multipart();
 
 `Accessor` will return [`io::ErrorKind::Unsupported`](https://doc.rust-lang.org/stable/std/io/enum.ErrorKind.html#variant.Unsupported) for not supported operations instead of panic as `unimplemented()`.
 
-Users can check before operations or check `Unsupported` error kind after operations.
+Users can check before operations or the `Unsupported` error kind after operations.
 
 # Reference-level explanation
 
-We will introduce a new enum called `AccessorCapability` which included `AccessorMetadata`.
+We will introduce a new enum called `AccessorCapability`, which includes `AccessorMetadata`.
 
 This enum is private and only accessible inside OpenDAL, so it's not part of our public API. We will expose the check API via `AccessorMetadata`:
 

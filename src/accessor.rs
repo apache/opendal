@@ -17,6 +17,8 @@ use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use flagset::flags;
+use flagset::FlagSet;
 
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -148,6 +150,7 @@ pub struct AccessorMetadata {
     scheme: Scheme,
     root: String,
     name: String,
+    capabilities: FlagSet<AccessorCapability>,
 }
 
 impl AccessorMetadata {
@@ -185,4 +188,17 @@ impl AccessorMetadata {
         self.name = name.to_string();
         self
     }
+
+    pub(crate) fn set_capabilities(
+        &mut self,
+        capabilities: impl Into<FlagSet<AccessorCapability>>,
+    ) -> &mut Self {
+        self.capabilities = capabilities.into();
+        self
+    }
+}
+
+flags! {
+    /// AccessorCapability describes accessor's advanced capability.
+    pub(crate) enum AccessorCapability: u32 {}
 }

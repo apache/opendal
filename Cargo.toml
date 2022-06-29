@@ -49,6 +49,7 @@ backon = { version = "0.0.2", optional = true }
 base64 = "0.13.0"
 bytes = "1.1.0"
 dotenv = { version = "0.15.0", optional = true }
+flagset = "0.4.3"
 futures = { version = "0.3.21", features = ["alloc"] }
 hdrs = { version = "0.1.4", optional = true, features = ["futures-io"] }
 http = "0.2.6"

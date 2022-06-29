@@ -193,7 +193,7 @@ impl Operator {
 ///
 /// # TODO
 ///
-/// We will support batch operators between two different operators like cooy and move.
+/// We will support batch operators between two different operators like copy and move.
 #[derive(Clone, Debug)]
 pub struct BatchOperator {
     src: Operator,

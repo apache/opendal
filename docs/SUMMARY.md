@@ -32,3 +32,4 @@
   - [0247-retryable-error](rfcs/0247-retryable-error.md)
   - [0293-object-id](rfcs/0293-object-id.md)
   - [0337-dir-entry](rfcs/0337-dir-entry.md)
+  - [0409-accessor-capabilities](rfcs/0409-accessor-capabilities.md)

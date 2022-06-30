@@ -632,7 +632,7 @@ impl Object {
         self.acc.stat(&op).await
     }
 
-    /// Check if this object exist or not.
+    /// Check if this object exists or not.
     ///
     /// # Example
     ///
@@ -662,6 +662,28 @@ impl Object {
     }
 
     /// Presign an operation for read.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::services::memory;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    /// #    let op = Operator::new(memory::Backend::build().finish().await?);
+    ///     let signed_req = op.object("test").presign_read(Duration::hours(1))?;
+    ///     let req = hyper::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(hyper::Body::empty())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(self.path(), Operation::Read, expire)?;
 
@@ -669,6 +691,28 @@ impl Object {
     }
 
     /// Presign an operation for write.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::services::memory;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    /// #    let op = Operator::new(memory::Backend::build().finish().await?);
+    ///     let signed_req = op.object("test").presign_write(Duration::hours(1))?;
+    ///     let req = hyper::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(hyper::Body::from("Hello, World!"))?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(self.path(), Operation::Write, expire)?;
 

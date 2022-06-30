@@ -24,11 +24,8 @@ use std::collections::HashMap;
 use std::io;
 
 use anyhow::Result;
-use futures::StreamExt;
 use futures::TryStreamExt;
 use http::header;
-use http::StatusCode;
-use hyper::body::HttpBody;
 use log::debug;
 use opendal::services;
 use opendal::ObjectMode;
@@ -1043,7 +1040,7 @@ async fn test_presign_write(op: Operator) -> Result<()> {
         .insert(header::CONTENT_LENGTH, content.len().to_string().parse()?);
 
     let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
-    let resp = client.request(req).await?;
+    let _ = client.request(req).await?;
 
     let meta = op
         .object(&path)

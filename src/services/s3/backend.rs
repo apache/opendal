@@ -1058,7 +1058,11 @@ impl Accessor for Backend {
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
 
-        Ok(PresignedRequest::new(parts.method, parts.uri))
+        Ok(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        ))
     }
 }
 

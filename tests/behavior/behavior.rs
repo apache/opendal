@@ -1036,6 +1036,7 @@ async fn test_presign_write(op: Operator) -> Result<()> {
         .method(signed_req.method())
         .uri(signed_req.uri())
         .body(hyper::Body::from(content.clone()))?;
+    *req.headers_mut() = signed_req.header().clone();
     req.headers_mut()
         .insert(header::CONTENT_LENGTH, content.len().to_string().parse()?);
 
@@ -1076,10 +1077,11 @@ async fn test_presign_read(op: Operator) -> Result<()> {
     let signed_req = op.object(&path).presign_read(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let req = hyper::Request::builder()
+    let mut req = hyper::Request::builder()
         .method(signed_req.method())
         .uri(signed_req.uri())
         .body(hyper::Body::empty())?;
+    *req.headers_mut() = signed_req.header().clone();
 
     let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
     let resp = client.request(req).await?;

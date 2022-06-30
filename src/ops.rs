@@ -360,12 +360,17 @@ impl OpPresign {
 pub struct PresignedRequest {
     method: http::Method,
     uri: http::Uri,
+    headers: http::HeaderMap,
 }
 
 impl PresignedRequest {
     /// Create a new PresignedRequest
-    pub fn new(method: http::Method, uri: http::Uri) -> Self {
-        Self { method, uri }
+    pub fn new(method: http::Method, uri: http::Uri, headers: http::HeaderMap) -> Self {
+        Self {
+            method,
+            uri,
+            headers,
+        }
     }
 
     /// Return request's method.
@@ -376,6 +381,11 @@ impl PresignedRequest {
     /// Return request's uri.
     pub fn uri(&self) -> &http::Uri {
         &self.uri
+    }
+
+    /// Return request's header.
+    pub fn header(&self) -> &http::HeaderMap {
+        &self.headers
     }
 }
 

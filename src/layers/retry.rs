@@ -25,9 +25,11 @@ use backon::Retryable;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
+use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -126,6 +128,10 @@ where
             .retry(self.backoff.clone())
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
             .await
+    }
+
+    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
+        self.inner.presign(args)
     }
 }
 

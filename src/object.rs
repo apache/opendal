@@ -23,6 +23,7 @@ use std::sync::Arc;
 use futures::io;
 use futures::io::Cursor;
 use futures::AsyncWriteExt;
+use time::Duration;
 use time::OffsetDateTime;
 
 use crate::io::BytesRead;
@@ -35,9 +36,12 @@ use crate::io_util::SeekableReader;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
+use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
+use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
@@ -655,6 +659,20 @@ impl Object {
                 _ => Err(err),
             },
         }
+    }
+
+    /// Presign an operation for read.
+    pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
+        let op = OpPresign::new(self.path(), Operation::Read, expire)?;
+
+        self.acc.presign(&op)
+    }
+
+    /// Presign an operation for write.
+    pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
+        let op = OpPresign::new(self.path(), Operation::Write, expire)?;
+
+        self.acc.presign(&op)
     }
 }
 

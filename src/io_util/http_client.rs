@@ -62,7 +62,11 @@ pub fn parse_error_kind(err: &hyper::Error) -> ErrorKind {
 /// PATH_ENCODE_SET is the encode set for http url path.
 ///
 /// This set follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent) which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`
+///
+/// There is a special case for `/` in path: we will allow `/` in path as
+/// required by storage services like s3.
 static PATH_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
+    .remove(b'/')
     .remove(b'-')
     .remove(b'_')
     .remove(b'.')
@@ -76,6 +80,9 @@ static PATH_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
 /// percent_encode_path will do percent encoding for http encode path.
 ///
 /// Follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent) which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`
+///
+/// There is a special case for `/` in path: we will allow `/` in path as
+/// required by storage services like s3.
 pub fn percent_encode_path(path: &str) -> String {
     utf8_percent_encode(path, &PATH_ENCODE_SET).to_string()
 }
@@ -90,7 +97,7 @@ mod tests {
             (
                 "Reserved Characters",
                 ";,/?:@&=+$",
-                "%3B%2C%2F%3F%3A%40%26%3D%2B%24",
+                "%3B%2C/%3F%3A%40%26%3D%2B%24",
             ),
             ("Unescaped Characters", "-_.!~*'()", "-_.!~*'()"),
             ("Number Sign", "#", "%23"),

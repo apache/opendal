@@ -71,15 +71,15 @@ pub trait Accessor {
 ```rust
 struct OpPresign {
     path: String,
-    method: http::Method,
+    op: Operation,
     expire: time::Duration,
 }
 
 struct PresignedRequest {}
 
 impl PresignedRequest {
-    pub fn method(&self) -> http::Method {..}
-    pub fn url(&self) -> &str {..}
+    pub fn method(&self) -> &http::Method {..}
+    pub fn url(&self) -> &http::Uri {..}
 }
 ```
 

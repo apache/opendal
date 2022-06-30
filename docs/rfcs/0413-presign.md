@@ -1,7 +1,7 @@
 - Proposal Name: `presign`
 - Start Date: 2022-06-30
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#0413](https://github.com/datafuselabs/opendal/pull/413)
+- Tracking Issue: [datafuselabs/opendal#394](https://github.com/datafuselabs/opendal/issues/394)
 
 # Summary
 
@@ -31,9 +31,9 @@ With this feature, our users can:
 ## Generate presigned URL for downloading
 
 ```rust
-let (method, url, _) = op.presign_read("path/to/file")?;
-// method: GET
-// url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>  
+let req = op.presign_read("path/to/file")?;
+// req.method: GET
+// req.url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>  
 ```
 
 Users can download this object directly from the s3 bucket. For example:
@@ -45,9 +45,9 @@ curl <generated_url> -O test.txt
 ## Generate presigned URL for uploading
 
 ```rust
-let (method, url) = op.presign_write("path/to/file")?;
-// method: PUT
-// url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>  
+let req = op.presign_write("path/to/file")?;
+// req.method: PUT
+// req.url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>  
 ```
 
 Users can upload content directly to the s3 bucket. For example:

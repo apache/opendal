@@ -22,7 +22,7 @@ Adding this feature in OpenDAL will make users' lives easier to generate presign
 
 The whole process would be:
 
-![](../assets/rfcs/0000-presign/process.png)
+![](../assets/rfcs/0413-presign/process.png)
 
 # Guide-level explanation
 

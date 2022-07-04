@@ -108,7 +108,7 @@ Available Environment Values:
     );
 
     info!("try to delete file: {}", &path);
-    let _ = op.object(&path).delete().await?;
+    op.object(&path).delete().await?;
     info!("delete file successful");
 
     Ok(())

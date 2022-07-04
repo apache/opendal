@@ -17,14 +17,59 @@
 //! Users should not use struct or functions here, use [`Operator`][crate::Operator] instead
 
 use std::collections::Bound;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::io::Result;
 use std::ops::RangeBounds;
 
 use anyhow::anyhow;
+use time::Duration;
 
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::ObjectMode;
+
+/// Operation is the name for APIs in `Accessor`.
+#[derive(Debug, Copy, Clone)]
+pub enum Operation {
+    /// Operation for [`crate::Accessor::metadata`]
+    Metadata,
+    /// Operation for [`crate::Accessor::create`]
+    Create,
+    /// Operation for [`crate::Accessor::read`]
+    Read,
+    /// Operation for [`crate::Accessor::write`]
+    Write,
+    /// Operation for [`crate::Accessor::stat`]
+    Stat,
+    /// Operation for [`crate::Accessor::delete`]
+    Delete,
+    /// Operation for [`crate::Accessor::list`]
+    List,
+    /// Operation for [`crate::Accessor::presign`]
+    Presign,
+}
+
+impl Default for Operation {
+    fn default() -> Self {
+        Operation::Metadata
+    }
+}
+
+impl Display for Operation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Operation::Metadata => write!(f, "metadata"),
+            Operation::Create => write!(f, "create"),
+            Operation::Read => write!(f, "read"),
+            Operation::Write => write!(f, "write"),
+            Operation::Stat => write!(f, "stat"),
+            Operation::Delete => write!(f, "delete"),
+            Operation::List => write!(f, "list"),
+            Operation::Presign => write!(f, "presign"),
+        }
+    }
+}
 
 /// Args for `create` operation.
 ///
@@ -267,6 +312,80 @@ impl OpList {
     /// Get path from option.
     pub fn path(&self) -> &str {
         &self.path
+    }
+}
+
+/// Args for `presign` operation.
+///
+/// The path must be normalized.
+#[derive(Debug, Clone, Default)]
+pub struct OpPresign {
+    path: String,
+    op: Operation,
+    expire: Duration,
+}
+
+impl OpPresign {
+    /// Create a new `OpPresign`.
+    pub fn new(path: &str, op: Operation, expire: Duration) -> Result<Self> {
+        Ok(Self {
+            path: path.to_string(),
+            op,
+            expire,
+        })
+    }
+
+    /// Get path from op.
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// Get operation from op.
+    pub fn operation(&self) -> Operation {
+        self.op
+    }
+
+    /// Get expire from op.
+    pub fn expire(&self) -> Duration {
+        self.expire
+    }
+}
+
+/// PresignedRequest is a presigned request return by `presign`.
+///
+/// # TODO
+///
+/// Add signed headers
+#[derive(Debug, Clone)]
+pub struct PresignedRequest {
+    method: http::Method,
+    uri: http::Uri,
+    headers: http::HeaderMap,
+}
+
+impl PresignedRequest {
+    /// Create a new PresignedRequest
+    pub fn new(method: http::Method, uri: http::Uri, headers: http::HeaderMap) -> Self {
+        Self {
+            method,
+            uri,
+            headers,
+        }
+    }
+
+    /// Return request's method.
+    pub fn method(&self) -> &http::Method {
+        &self.method
+    }
+
+    /// Return request's uri.
+    pub fn uri(&self) -> &http::Uri {
+        &self.uri
+    }
+
+    /// Return request's header.
+    pub fn header(&self) -> &http::HeaderMap {
+        &self.headers
     }
 }
 

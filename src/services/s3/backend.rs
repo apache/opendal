@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::fmt::Write;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -27,7 +28,6 @@ use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::HeaderValue;
 use http::StatusCode;
-use hyper::Body;
 use log::debug;
 use log::error;
 use log::info;
@@ -40,6 +40,7 @@ use reqsign::services::aws::loader::DummyLoader;
 use reqsign::services::aws::v4::Signer;
 
 use super::dir_stream::DirStream;
+use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -56,9 +57,12 @@ use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
+use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
+use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -470,7 +474,7 @@ impl Builder {
         debug!("backend detect region with url: {url}");
 
         let req = hyper::Request::head(&url)
-            .body(Body::empty())
+            .body(hyper::Body::empty())
             .map_err(|e| {
                 error!("backend detect_region {}: {:?}", url, e);
                 other(BackendError::new(
@@ -659,7 +663,7 @@ impl Builder {
         if self.enable_virtual_host_style {
             endpoint = endpoint.replace("//", &format!("//{bucket}."))
         } else {
-            endpoint.push_str(&format!("/{bucket}"))
+            write!(endpoint, "/{bucket}").expect("write into string must succeed");
         }
         context.insert("endpoint".to_string(), endpoint.clone());
         context.insert("region".to_string(), region.clone());
@@ -822,7 +826,7 @@ impl Accessor for Backend {
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(None);
+            .set_capabilities(AccessorCapability::Presign);
 
         am
     }
@@ -832,7 +836,7 @@ impl Accessor for Backend {
         increment_counter!("opendal_s3_create_requests");
         let p = self.get_abs_path(args.path());
 
-        let req = self.put_object(&p, 0, Body::empty()).await?;
+        let req = self.put_object(&p, 0, hyper::Body::empty()).await?;
         let resp = self.client.request(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
             Error::new(
@@ -1018,16 +1022,58 @@ impl Accessor for Backend {
 
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
+
+    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
+        increment_counter!("opendal_s3_presign_requests");
+
+        let path = self.get_abs_path(args.path());
+
+        // We will not send this request out, just for signing.
+        let mut req = match args.operation() {
+            Operation::Read => self.get_object_request(&path, None, None)?,
+            Operation::Write => self.put_object_request(&path, None, hyper::Body::empty())?,
+            op => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    ObjectError::new(
+                        "presign",
+                        &path,
+                        anyhow!("presign for {op} is not supported"),
+                    ),
+                ))
+            }
+        };
+        let url = req.uri().to_string();
+
+        self.signer
+            .sign_query(&mut req, args.expire())
+            .map_err(|e| {
+                error!("object {path} presign: {url} {e:?}");
+                other(ObjectError::new(
+                    "presign",
+                    &path,
+                    anyhow!("sign request: {url}: {e:?}"),
+                ))
+            })?;
+
+        // We don't need this request anymore, consume it directly.
+        let (parts, _) = req.into_parts();
+
+        Ok(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        ))
+    }
 }
 
 impl Backend {
-    #[trace("get_object")]
-    pub(crate) async fn get_object(
+    pub(crate) fn get_object_request(
         &self,
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<hyper::Response<hyper::Body>> {
+    ) -> Result<hyper::Request<hyper::Body>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = hyper::Request::get(&url);
@@ -1040,9 +1086,10 @@ impl Backend {
         }
 
         // Set SSE headers.
+        // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
 
-        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+        let req = req.body(hyper::Body::empty()).map_err(|e| {
             error!("object {path} get_object: {url} {e:?}");
             other(ObjectError::new(
                 "read",
@@ -1050,6 +1097,19 @@ impl Backend {
                 anyhow!("build request {url}: {e:?}"),
             ))
         })?;
+
+        Ok(req)
+    }
+
+    #[trace("get_object")]
+    pub(crate) async fn get_object(
+        &self,
+        path: &str,
+        offset: Option<u64>,
+        size: Option<u64>,
+    ) -> Result<hyper::Response<hyper::Body>> {
+        let mut req = self.get_object_request(path, offset, size)?;
+        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} get_object: {url} {e:?}");
@@ -1070,11 +1130,10 @@ impl Backend {
         })
     }
 
-    #[trace("put_object")]
-    pub(crate) async fn put_object(
+    pub(crate) fn put_object_request(
         &self,
         path: &str,
-        size: u64,
+        size: Option<u64>,
         body: hyper::Body,
     ) -> Result<hyper::Request<hyper::Body>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
@@ -1082,13 +1141,16 @@ impl Backend {
         let mut req = hyper::Request::put(&url);
 
         // Set content length.
-        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+        if let Some(size) = size {
+            req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+        }
 
         // Set SSE headers.
+        // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, true);
 
         // Set body
-        let mut req = req.body(body).map_err(|e| {
+        let req = req.body(body).map_err(|e| {
             error!("object {path} put_object: {url} {e:?}");
             other(ObjectError::new(
                 "write",
@@ -1096,6 +1158,19 @@ impl Backend {
                 anyhow!("build request {url}: {e:?}"),
             ))
         })?;
+
+        Ok(req)
+    }
+
+    #[trace("put_object")]
+    pub(crate) async fn put_object(
+        &self,
+        path: &str,
+        size: u64,
+        body: hyper::Body,
+    ) -> Result<hyper::Request<hyper::Body>> {
+        let mut req = self.put_object_request(path, Some(size), body)?;
+        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} put_object: {url} {e:?}");
@@ -1192,7 +1267,8 @@ impl Backend {
             percent_encode_path(path)
         );
         if !continuation_token.is_empty() {
-            url.push_str(&format!("&continuation-token={continuation_token}"))
+            write!(url, "&continuation-token={continuation_token}")
+                .expect("write into string must succeed");
         }
 
         let mut req = hyper::Request::get(&url)

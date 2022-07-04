@@ -13,19 +13,25 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
 
+use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
+use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::PresignedRequest;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::DirStreamer;
@@ -42,9 +48,17 @@ use crate::Scheme;
 /// # Note to services
 ///
 /// - Path in args will all be normalized into the same style, services
-///   should handle them based on services requirement.
+///   should handle them based on services' requirement.
+/// - `metadata`, `create`, `read`, `write`, `stat`, `delete` and `list`
+///   are basic functions while required to be implemented, use `unimplemented!()`
+///   if not implemented or can't implement.
+/// - Other APIs are optional and should be recorded in `AccessorCapability`.
+///   Return [`std::io::ErrorKind::Unsupported`] if not supported.
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
+    /// Required APIs.
+    /// -------------
+
     /// Invoke the `metadata` operation to get metadata of accessor.
     fn metadata(&self) -> AccessorMetadata {
         unimplemented!()
@@ -115,6 +129,21 @@ pub trait Accessor: Send + Sync + Debug {
         let _ = args;
         unimplemented!()
     }
+
+    /// Optional APIs (Capabilities)
+    /// ---------------------------
+
+    /// Invoke the `presign` operation on the specified path.
+    ///
+    /// # Behavior
+    ///
+    /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
+    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
+        return Err(Error::new(
+            ErrorKind::Unsupported,
+            ObjectError::new("presign", args.path(), anyhow!("")),
+        ));
+    }
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
@@ -141,6 +170,9 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         self.as_ref().list(args).await
+    }
+    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
+        self.as_ref().presign(args)
     }
 }
 
@@ -189,6 +221,11 @@ impl AccessorMetadata {
         self
     }
 
+    /// Check if current backend supports [`Accessor::presign`] or not.
+    pub fn can_presign(&self) -> bool {
+        self.capabilities.contains(AccessorCapability::Presign)
+    }
+
     pub(crate) fn set_capabilities(
         &mut self,
         capabilities: impl Into<FlagSet<AccessorCapability>>,
@@ -200,5 +237,8 @@ impl AccessorMetadata {
 
 flags! {
     /// AccessorCapability describes accessor's advanced capability.
-    pub(crate) enum AccessorCapability: u32 {}
+    pub(crate) enum AccessorCapability: u32 {
+        /// Add this capability if service supports `presign`
+        Presign,
+    }
 }

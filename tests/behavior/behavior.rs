@@ -206,7 +206,7 @@ async fn test_create_file(op: Operator) -> Result<()> {
 
     let o = op.object(&path);
 
-    let _ = o.create().await?;
+    o.create().await?;
 
     let meta = o.metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);

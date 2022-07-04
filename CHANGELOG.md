@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.10.0] - 2022-07-04
+
+### Added
+
+- RFC-0409: Accessor Capabilities (#409)
+- feat: Implement RFC-0409 Accessor Capabilities (#411)
+- RFC-0413: Presign (#413)
+- feat: Implement presign support for s3 (#414)
+
+### Docs
+
+- docs: Add new RFCs in list (#415)
+
+### Dependencies
+
+- chore(deps): Update reqsign requirement from 0.1.1 to 0.2.0 (#412)
+
 ## [v0.9.1] - 2022-06-27
 
 ### Added
@@ -442,6 +459,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.10.0]: https://github.com/datafuselabs/opendal/compare/v0.9.1...v0.10.0
 [v0.9.1]: https://github.com/datafuselabs/opendal/compare/v0.9.0...v0.9.1
 [v0.9.0]: https://github.com/datafuselabs/opendal/compare/v0.8.0...v0.9.0
 [v0.8.0]: https://github.com/datafuselabs/opendal/compare/v0.7.3...v0.8.0

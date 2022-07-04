@@ -225,9 +225,9 @@ async fn test_create_file_existing(op: Operator) -> Result<()> {
 
     let o = op.object(&path);
 
-    let _ = o.create().await?;
+    o.create().await?;
 
-    let _ = o.create().await?;
+    o.create().await?;
 
     let meta = o.metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
@@ -247,7 +247,7 @@ async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
     let o = op.object(&path);
     debug!("{o:?}");
 
-    let _ = o.create().await?;
+    o.create().await?;
 
     let meta = o.metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
@@ -266,7 +266,7 @@ async fn test_create_dir(op: Operator) -> Result<()> {
 
     let o = op.object(&path);
 
-    let _ = o.create().await?;
+    o.create().await?;
 
     let meta = o.metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
@@ -284,9 +284,9 @@ async fn test_create_dir_exising(op: Operator) -> Result<()> {
 
     let o = op.object(&path);
 
-    let _ = o.create().await?;
+    o.create().await?;
 
-    let _ = o.create().await?;
+    o.create().await?;
 
     let meta = o.metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
@@ -304,7 +304,7 @@ async fn test_write(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op.object(&path).write(&content).await?;
+    op.object(&path).write(&content).await?;
 
     let meta = op
         .object(&path)
@@ -338,7 +338,7 @@ async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op.object(&path).write(&content).await?;
+    op.object(&path).write(&content).await?;
 
     let meta = op
         .object(&path)
@@ -360,7 +360,7 @@ async fn test_stat(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
@@ -381,7 +381,7 @@ async fn test_stat(op: Operator) -> Result<()> {
 async fn test_stat_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let _ = op.object(&path).create().await.expect("write must succeed");
+    op.object(&path).create().await.expect("write must succeed");
 
     let meta = op.object(&path).metadata().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
@@ -399,7 +399,7 @@ async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
@@ -422,7 +422,7 @@ async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
@@ -467,7 +467,7 @@ async fn test_read_full(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
@@ -495,7 +495,7 @@ async fn test_read_range(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size as usize);
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
@@ -534,7 +534,7 @@ async fn test_read_not_exist(op: Operator) -> Result<()> {
 async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let _ = op.object(&path).create().await.expect("write must succeed");
+    op.object(&path).create().await.expect("write must succeed");
 
     let result = op.object(&path).read().await;
     assert!(result.is_err());
@@ -562,7 +562,7 @@ async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    let _ = op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(&compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -599,7 +599,7 @@ async fn test_read_decompress_gzip_with(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    let _ = op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(&compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -634,7 +634,7 @@ async fn test_read_decompress_zstd(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    let _ = op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(&compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -671,7 +671,7 @@ async fn test_read_decompress_zstd_with(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    let _ = op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(&compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -693,7 +693,7 @@ async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
@@ -720,7 +720,7 @@ async fn test_list_dir(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
@@ -750,7 +750,7 @@ async fn test_list_dir(op: Operator) -> Result<()> {
 async fn test_list_empty_dir(op: Operator) -> Result<()> {
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
-    let _ = op.object(&dir).create().await.expect("write must succeed");
+    op.object(&dir).create().await.expect("write must succeed");
 
     let mut obs = op.object(&dir).list().await?;
     let mut objects = HashMap::new();
@@ -769,7 +769,7 @@ async fn test_list_empty_dir(op: Operator) -> Result<()> {
 async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let _ = op.object(&path).create().await.expect("creat must succeed");
+    op.object(&path).create().await.expect("creat must succeed");
 
     let mut obs = op.object("/").list().await?;
     let mut found = false;
@@ -799,13 +799,13 @@ async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let dir_name = format!("{}/", uuid::Uuid::new_v4());
     let dir_path = format!("{dir}{dir_name}");
 
-    let _ = op.object(&dir).create().await.expect("creat must succeed");
-    let _ = op
+    op.object(&dir).create().await.expect("creat must succeed");
+    op
         .object(&file_path)
         .create()
         .await
         .expect("creat must succeed");
-    let _ = op
+    op
         .object(&dir_path)
         .create()
         .await
@@ -867,13 +867,13 @@ async fn test_delete(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
 
-    let _ = op.object(&path).delete().await?;
+    op.object(&path).delete().await?;
 
     // Stat it again to check.
     assert!(!op.object(&path).is_exist().await?);
@@ -885,13 +885,13 @@ async fn test_delete(op: Operator) -> Result<()> {
 async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let _ = op
+    op
         .object(&path)
         .create()
         .await
         .expect("create must succeed");
 
-    let _ = op.object(&path).delete().await?;
+    op.object(&path).delete().await?;
 
     Ok(())
 }
@@ -902,13 +902,13 @@ async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
 
-    let _ = op.object(&path).delete().await?;
+    op.object(&path).delete().await?;
 
     // Stat it again to check.
     assert!(!op.object(&path).is_exist().await?);
@@ -920,7 +920,7 @@ async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
 async fn test_delete_not_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let _ = op.object(&path).delete().await?;
+    op.object(&path).delete().await?;
 
     Ok(())
 }
@@ -1004,7 +1004,7 @@ async fn test_remove_all(op: Operator) -> Result<()> {
         op.object(path).create().await?;
     }
 
-    let _ = op.batch().remove_all("x/").await?;
+    op.batch().remove_all("x/").await?;
 
     for path in expected.iter() {
         if path.ends_with('/') {
@@ -1068,7 +1068,7 @@ async fn test_presign_read(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    let _ = op
+    op
         .object(&path)
         .write(&content)
         .await

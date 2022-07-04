@@ -360,8 +360,7 @@ async fn test_stat(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -399,8 +398,7 @@ async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -422,8 +420,7 @@ async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -467,8 +464,7 @@ async fn test_read_full(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -495,8 +491,7 @@ async fn test_read_range(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
     let (offset, length) = gen_offset_length(size as usize);
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -693,8 +688,7 @@ async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -720,8 +714,7 @@ async fn test_list_dir(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -800,13 +793,11 @@ async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let dir_path = format!("{dir}{dir_name}");
 
     op.object(&dir).create().await.expect("creat must succeed");
-    op
-        .object(&file_path)
+    op.object(&file_path)
         .create()
         .await
         .expect("creat must succeed");
-    op
-        .object(&dir_path)
+    op.object(&dir_path)
         .create()
         .await
         .expect("creat must succeed");
@@ -867,8 +858,7 @@ async fn test_delete(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -885,8 +875,7 @@ async fn test_delete(op: Operator) -> Result<()> {
 async fn test_delete_empty_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    op
-        .object(&path)
+    op.object(&path)
         .create()
         .await
         .expect("create must succeed");
@@ -902,8 +891,7 @@ async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");
@@ -1068,8 +1056,7 @@ async fn test_presign_read(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op
-        .object(&path)
+    op.object(&path)
         .write(&content)
         .await
         .expect("write must succeed");

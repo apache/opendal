@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::fmt::Write;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -662,7 +663,7 @@ impl Builder {
         if self.enable_virtual_host_style {
             endpoint = endpoint.replace("//", &format!("//{bucket}."))
         } else {
-            endpoint.push_str(&format!("/{bucket}"))
+            write!(endpoint, "/{bucket}").expect("write into string must succeed");
         }
         context.insert("endpoint".to_string(), endpoint.clone());
         context.insert("region".to_string(), region.clone());
@@ -1266,7 +1267,8 @@ impl Backend {
             percent_encode_path(path)
         );
         if !continuation_token.is_empty() {
-            url.push_str(&format!("&continuation-token={continuation_token}"))
+            write!(url, "&continuation-token={continuation_token}")
+                .expect("write into string must succeed");
         }
 
         let mut req = hyper::Request::get(&url)

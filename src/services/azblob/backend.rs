@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::fmt::Write;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -641,10 +642,11 @@ impl Backend {
             self.endpoint, self.container
         );
         if !path.is_empty() {
-            url.push_str(&format!("&prefix={}", percent_encode_path(path)))
+            write!(url, "&prefix={}", percent_encode_path(path))
+                .expect("write into string must succeed");
         }
         if !next_marker.is_empty() {
-            url.push_str(&format!("&marker={next_marker}"))
+            write!(url, "&marker={next_marker}").expect("write into string must succeed");
         }
 
         let mut req = hyper::Request::get(&url)

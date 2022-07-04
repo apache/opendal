@@ -198,7 +198,7 @@ mod tests {
         let path = format!("/tmp/{}", uuid::Uuid::new_v4());
 
         // Create a test file.
-        let _ = f.object(&path).write("Hello, world!").await.unwrap();
+        f.object(&path).write("Hello, world!").await.unwrap();
 
         let o = f.object(&path);
         let mut r = seekable_read(&o, ..);

@@ -17,10 +17,10 @@ all-features = true
 [features]
 compress = ["async-compression"]
 retry = ["backon"]
+serde = ["time/serde"]
 services-hdfs = ["hdrs"]
 services-http = ["radix_trie"]
 testing = ["uuid"]
-serde = ["time/serde"]
 
 [lib]
 bench = false

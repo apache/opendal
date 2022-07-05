@@ -68,7 +68,7 @@ radix_trie = { version = "0.2.1", optional = true }
 reqsign = "0.3.0"
 serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
-time = "0.3.9"
+time = { version = "0.3.9", features = ["serde"] }
 tokio = { version = "1.17.0", features = ["full"] }
 uuid = { version = "1.0.0", optional = true, features = ["serde", "v4"] }
 

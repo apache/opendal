@@ -46,6 +46,8 @@ use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
 use crate::BytesWrite;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -722,6 +724,7 @@ impl Object {
 
 /// Metadata carries all object metadata.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ObjectMetadata {
     mode: ObjectMode,
 
@@ -808,6 +811,7 @@ impl ObjectMetadata {
 
 /// ObjectMode represents the corresponding object's mode.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ObjectMode {
     /// FILE means the object has data to read.
     FILE,

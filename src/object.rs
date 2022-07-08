@@ -33,6 +33,7 @@ use crate::io_util::CompressAlgorithm;
 #[cfg(feature = "compress")]
 use crate::io_util::DecompressReader;
 use crate::io_util::SeekableReader;
+use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -46,6 +47,8 @@ use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
 use crate::BytesWrite;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -253,10 +256,16 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        let op = OpRead::new(self.path(), range)?;
+        let op = OpRead::new(self.path(), (range.start_bound(), range.end_bound()))?;
         let s = self.acc.read(&op).await?;
 
-        let mut bs = Cursor::new(Vec::new());
+        let br = BytesRange::from(range);
+        let buffer = if let Some(range_size) = br.size() {
+            Vec::with_capacity(range_size as usize)
+        } else {
+            Vec::with_capacity(4 * 1024 * 1024)
+        };
+        let mut bs = Cursor::new(buffer);
 
         io::copy(s, &mut bs).await?;
 
@@ -722,6 +731,7 @@ impl Object {
 
 /// Metadata carries all object metadata.
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ObjectMetadata {
     mode: ObjectMode,
 
@@ -808,6 +818,7 @@ impl ObjectMetadata {
 
 /// ObjectMode represents the corresponding object's mode.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ObjectMode {
     /// FILE means the object has data to read.
     FILE,

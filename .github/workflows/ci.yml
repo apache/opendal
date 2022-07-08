@@ -48,9 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
+        run: cargo build
 
   build_all_features:
     runs-on: ${{ matrix.os }}
@@ -76,10 +74,20 @@ jobs:
           hdfs-version: "3.3.2"
 
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all-features
+        run: cargo build --all-features
+
+  build_oli:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        working-directory: ./oli
+        run: cargo build
 
   unit:
     runs-on: ${{ matrix.os }}
@@ -105,12 +113,22 @@ jobs:
           hdfs-version: "3.3.2"
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --no-fail-fast --features compress,retry
+        run: cargo test --no-fail-fast --features compress,retry
         env:
           RUST_TEST_THREADS: '2'
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
+  unit_oli:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test
+        working-directory: ./oli
+        run: cargo test

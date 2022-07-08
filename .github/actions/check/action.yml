@@ -8,6 +8,13 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Check License Header
+      uses: apache/skywalking-eyes/header@main
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      with:
+        log: info
+
     - name: Format
       shell: bash
       run: cargo fmt --all -- --check
@@ -15,13 +22,6 @@ runs:
     - name: Doc check
       shell: bash
       run: cargo doc --no-deps
-
-    - name: Check License Header
-      uses: apache/skywalking-eyes/header@main
-      env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-      with:
-        log: info
 
     - name: Install cargo-audit
       uses: actions-rs/cargo@v1

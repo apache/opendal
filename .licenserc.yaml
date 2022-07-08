@@ -18,6 +18,7 @@ header:
     - "**/*.toml"
     - "**/*.lock"
     - "**/*.tldr"
+    - "**/target"
     # Ignore test data
     - "testdata"
 

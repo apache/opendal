@@ -4,27 +4,24 @@ inputs:
   github_token:
     description: "Github Token"
     required: true
+
 runs:
   using: "composite"
   steps:
-    - name: Format
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
-
-    - name: Doc check
-      uses: actions-rs/cargo@v1
-      with:
-        command: doc
-        args: --no-deps
-
     - name: Check License Header
       uses: apache/skywalking-eyes/header@main
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       with:
         log: info
+
+    - name: Format
+      shell: bash
+      run: cargo fmt --all -- --check
+
+    - name: Doc check
+      shell: bash
+      run: cargo doc --no-deps
 
     - name: Install cargo-audit
       uses: actions-rs/cargo@v1
@@ -33,12 +30,14 @@ runs:
         args: cargo-audit
 
     - name: Audit dependencies
-      uses: actions-rs/cargo@v1
-      with:
-        command: audit
+      shell: bash
+      run: cargo audit
 
     - name: Clippy
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --all-targets --all-features -- -D warnings
+      shell: bash
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    - name: Clippy Oli
+      shell: bash
+      working-directory: ./oli
+      run: cargo clippy --all-targets --all-features -- -D warnings

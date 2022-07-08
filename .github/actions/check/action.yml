@@ -20,7 +20,7 @@ runs:
         args: --no-deps
 
     - name: Check License Header
-      uses: apache/skywalking-eyes@0.3.0
+      uses: apache/skywalking-eyes/header@main
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       with:

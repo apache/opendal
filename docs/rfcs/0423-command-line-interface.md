@@ -1,6 +1,6 @@
 - Proposal Name: `command_line_interface`
 - Start Date: 2022-07-08
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
+- RFC PR: [datafuselabs/opendal#423](https://github.com/datafuselabs/opendal/pull/423)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary

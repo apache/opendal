@@ -27,7 +27,9 @@ However, for 80% cases, we just want to do simple jobs like `cp`, `mv` and `rm`.
 - `azcopy copy 'C:\myDirectory' 'https://mystorageaccount.blob.core.windows.net/mycontainer' --recursive`
 - `gsutil cp data gs://testbucket/`
 
-Can we use them in the same way? Can we let the data flow freely? Let's look back OpenDAL's slogan:
+Can we use them in the same way? Can we let the data flow freely? 
+
+Let's look back OpenDAL's slogan:
 
 **Open Data Access Layer that connect the whole world together**
 
@@ -35,7 +37,7 @@ This is a natural extension for OpenDAL: providing a command line interface!
 
 # Guide-level explanation
 
-TBD
+
 
 # Reference-level explanation
 

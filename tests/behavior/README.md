@@ -29,13 +29,11 @@ Notice: If the env is not set, all behavior tests will be skipped by default.
 Test all available backend.
 
 ```shell
-cargo test --features testing
+cargo test
 ```
 
 Test specific backend.
 
 ```shell
-cargo test fs --features testing
+cargo test fs
 ```
-
-Notice: feature `testing` is required as we hide testing related utils under this feature.

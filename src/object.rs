@@ -23,6 +23,10 @@ use std::sync::Arc;
 use futures::io;
 use futures::io::Cursor;
 use futures::AsyncWriteExt;
+#[cfg(feature = "serde")]
+use serde::Deserialize;
+#[cfg(feature = "serde")]
+use serde::Serialize;
 use time::Duration;
 use time::OffsetDateTime;
 
@@ -47,8 +51,6 @@ use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
 use crate::BytesWrite;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]

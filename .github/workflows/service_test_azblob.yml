@@ -35,7 +35,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test azblob --features compress,retry,testing -- --nocapture
+        run: cargo test azblob --features compress,retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

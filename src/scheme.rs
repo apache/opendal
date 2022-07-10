@@ -1,3 +1,5 @@
+use std::fmt::Display;
+use std::fmt::Formatter;
 // Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,6 +43,21 @@ pub enum Scheme {
 impl Default for Scheme {
     fn default() -> Self {
         Self::Memory
+    }
+}
+
+impl Display for Scheme {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Scheme::Azblob => write!(f, "azblob"),
+            Scheme::Fs => write!(f, "fs"),
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs => write!(f, "hdfs"),
+            #[cfg(feature = "services-http")]
+            Scheme::Http => write!(f, "http"),
+            Scheme::Memory => write!(f, "memory"),
+            Scheme::S3 => write!(f, "s3"),
+        }
     }
 }
 

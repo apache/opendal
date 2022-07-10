@@ -12,24 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::Arc;
+use std::env;
 
 use bytes::Bytes;
 use once_cell::sync::Lazy;
-use opendal::services::*;
-use opendal::Accessor;
 use opendal::Operator;
+use opendal::Scheme;
 use rand::prelude::*;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
-pub fn services() -> Vec<(&'static str, Option<Arc<dyn Accessor>>)> {
+async fn service(scheme: Scheme) -> Option<Operator> {
+    let test_key = format!("opendal_{scheme}_test");
+    if let Ok(test) = env::var(test_key) {
+        if test == "on" {
+            Some(
+                Operator::from_env(scheme)
+                    .await
+                    .unwrap_or_else(|_| panic!("init {scheme} must succeed")),
+            )
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
+pub fn services() -> Vec<(&'static str, Option<Operator>)> {
     TOKIO.block_on(async {
         vec![
-            ("fs", fs::tests::new().await.expect("init fs")),
-            ("s3", s3::tests::new().await.expect("init s3")),
-            ("memory", memory::tests::new().await.expect("init memory")),
+            ("fs", service(Scheme::Fs).await),
+            ("s3", service(Scheme::S3).await),
+            ("memory", service(Scheme::Memory).await),
         ]
     })
 }

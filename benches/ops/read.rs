@@ -27,7 +27,7 @@ pub fn bench(c: &mut Criterion) {
             continue;
         }
 
-        let op = Operator::new(case.1.unwrap());
+        let op = case.1.unwrap();
 
         bench_read_full(c, op.clone());
         bench_read_part(c, op.clone());

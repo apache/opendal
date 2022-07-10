@@ -1,7 +1,7 @@
 [package]
 authors = ["Databend Authors <opensource@datafuselabs.com>"]
 categories = ["filesystem"]
-description = "Open Data Access Layer that connect the whole world together."
+description = "Open Data Access Layer that empowers everyone to access different storage services painless and efficiently."
 edition = "2021"
 exclude = ["docs/"]
 homepage = "https://opendal.databend.rs/"

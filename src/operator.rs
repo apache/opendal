@@ -12,27 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "services-http")]
-use std::collections::HashMap;
 use std::env;
-#[cfg(feature = "retry")]
-use std::fmt::Debug;
-#[cfg(feature = "services-http")]
-use std::io::Error;
+
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
-#[cfg(feature = "services-http")]
-use anyhow::anyhow;
-#[cfg(feature = "retry")]
-use backon::Backoff;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
-#[cfg(feature = "services-http")]
-use crate::error::BackendError;
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::services;
@@ -145,13 +134,17 @@ impl Operator {
             Scheme::Memory => services::memory::Backend::build().finish().await?,
             #[cfg(feature = "services-http")]
             Scheme::Http => {
+                use crate::error::BackendError;
+                use std::collections::HashMap;
+                use std::io::Error;
+
                 return Err(Error::new(
                     ErrorKind::Unsupported,
                     BackendError::new(
                         it.collect::<HashMap<_, _>>(),
-                        anyhow!("backend http doesn't support init from iter"),
+                        anyhow::anyhow!("backend http doesn't support init from iter"),
                     ),
-                ))
+                ));
             }
         };
 
@@ -267,7 +260,10 @@ impl Operator {
     /// ```
     #[cfg(feature = "retry")]
     #[must_use]
-    pub fn with_backoff(self, backoff: impl Backoff + Send + Sync + Debug + 'static) -> Self {
+    pub fn with_backoff(
+        self,
+        backoff: impl backon::Backoff + Send + Sync + std::fmt::Debug + 'static,
+    ) -> Self {
         self.layer(backoff)
     }
 

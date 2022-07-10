@@ -1,7 +1,7 @@
 - Proposal Name: `init_from_iter`
 - Start Date: 2022-07-10
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#429](https://github.com/datafuselabs/opendal/pull/429)
+- Tracking Issue: [datafuselabs/opendal#430](https://github.com/datafuselabs/opendal/issues/430)
 
 # Summary
 

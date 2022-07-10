@@ -37,18 +37,18 @@
 //! ```no_run
 //! use anyhow::Result;
 //! use futures::StreamExt;
-//! use opendal::services::fs;
 //! use opendal::DirEntry;
 //! use opendal::DirStreamer;
 //! use opendal::Object;
 //! use opendal::ObjectMetadata;
 //! use opendal::ObjectMode;
 //! use opendal::Operator;
+//! use opendal::Scheme;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Init Operator
-//!     let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
+//!     let op = Operator::from_env(Scheme::S3).await?;
 //!
 //!     // Create object handler.
 //!     let o: Object = op.object("test_file");

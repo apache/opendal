@@ -31,4 +31,4 @@ jobs:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_FS_TEST: on
-          OPENDAL_FS_ROOT: /tmp
+          OPENDAL_FS_ROOT: /tmp/

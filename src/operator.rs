@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(feature = "services-http")]
 use std::collections::HashMap;
 use std::env;
 #[cfg(feature = "retry")]
 use std::fmt::Debug;
+#[cfg(feature = "services-http")]
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
+#[cfg(feature = "services-http")]
 use anyhow::anyhow;
 #[cfg(feature = "retry")]
 use backon::Backoff;
@@ -28,6 +31,7 @@ use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
+#[cfg(feature = "services-http")]
 use crate::error::BackendError;
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
@@ -138,12 +142,14 @@ impl Operator {
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => services::hdfs::Backend::from_iter(it).await?,
             Scheme::S3 => services::s3::Backend::from_iter(it).await?,
-            _ => {
+            Scheme::Memory => services::memory::Backend::build().finish().await?,
+            #[cfg(feature = "services-http")]
+            Scheme::Http => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
                     BackendError::new(
                         it.collect::<HashMap<_, _>>(),
-                        anyhow!("backend {scheme} doesn't support init from iter"),
+                        anyhow!("backend http doesn't support init from iter"),
                     ),
                 ))
             }

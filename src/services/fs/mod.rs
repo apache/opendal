@@ -92,7 +92,3 @@ pub use backend::Builder;
 
 mod dir_stream;
 mod error;
-
-#[doc(hidden)]
-#[cfg(feature = "testing")]
-pub mod tests;

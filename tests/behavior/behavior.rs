@@ -27,9 +27,9 @@ use anyhow::Result;
 use futures::TryStreamExt;
 use http::header;
 use log::debug;
-use opendal::services;
 use opendal::ObjectMode;
 use opendal::Operator;
+use opendal::Scheme::*;
 use sha2::Digest;
 use sha2::Sha256;
 use time::Duration;
@@ -107,7 +107,7 @@ macro_rules! behavior_tests {
 macro_rules! behavior_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<$service>] {
+            mod [<$service:lower>] {
                 use super::*;
 
                 $(
@@ -119,11 +119,26 @@ macro_rules! behavior_test {
                         init_logger();
                         let _ = dotenv::dotenv();
 
-                        let acc = super::services::$service::tests::new().await?;
-                        if acc.is_none() {
-                            return Ok(())
+                        let prefix = format!("opendal_{}_", $service);
+
+                        let mut cfg = std::env::vars()
+                            .filter_map(|(k, v)| {
+                                k.to_lowercase()
+                                    .strip_prefix(&prefix)
+                                    .map(|k| (k.to_string(), v))
+                            })
+                            .collect::<HashMap<String, String>>();
+
+                        if cfg.get("test").is_none() || cfg.get("test").unwrap() != "on" {
+                            return Ok(());
                         }
-                        super::$test(Operator::new(acc.unwrap())).await
+
+                        let root = cfg.get("root").cloned().unwrap_or_else(|| "/".to_string());
+                        let root = format!("{}{}/", root, uuid::Uuid::new_v4());
+                        cfg.insert("root".into(), root);
+
+                        let op = Operator::from_iter($service, cfg.into_iter()).await?;
+                        super::$test(op).await
                     }
                 )*
             }
@@ -131,11 +146,11 @@ macro_rules! behavior_test {
     };
 }
 
-behavior_tests!(azblob, fs, memory, s3);
+behavior_tests!(Azblob, Fs, Memory, S3);
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "services-hdfs")] {
-        behavior_tests!(hdfs);
+        behavior_tests!(Hdfs);
     }
 }
 

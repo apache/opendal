@@ -14,7 +14,102 @@
 
 //! Aws S3 and compatible services (including minio, digitalocean space and so on) support
 //!
+//! # Configuration
+//!
+//! - `root`: Set the work dir for backend.
+//! - `bucket`: Set the container name for backend.
+//! - `endpoint`: Set the endpoint for backend.
+//! - `region`: Set the region for backend.
+//! - `access_key_id`: Set the access_key_id for backend.
+//! - `secret_access_key`: Set the secret_access_key for backend.
+//! - `server_side_encryption`: Set the server_side_encryption for backend.
+//! - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
+//! - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
+//! - `server_side_encryption_customer_key`: Set the server_side_encryption_customer_key for backend.
+//! - `server_side_encryption_customer_key_md5`: Set the server_side_encryption_customer_key_md5 for backend.
+//! - `disable_credential_loader`: Disable aws credential loader from env
+//! - `enable_virtual_host_style`: Enable virtual host style.
+//!
+//! Refer to [`Builder`]'s public API docs for more information.
+//!
+//! # Environment
+//!
+//! - `OPENDAL_S3_ROOT`
+//! - `OPENDAL_S3_BUCKET`
+//! - `OPENDAL_S3_ENDPOINT`
+//! - `OPENDAL_S3_REGION`
+//! - `OPENDAL_S3_ACCESS_KEY_ID`
+//! - `OPENDAL_S3_SECRET_ACCESS_KEY`
+//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION`
+//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM`
+//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY`
+//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5`
+//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID`
+//! - `OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE`
+//!
+//! # Server Side Encryption
+//!
+//! OpenDAL provides full support of S3 Server Side Encryption(SSE) features.
+//!
+//! The easiest way to configure them is to use helper functions like
+//!
+//! - SSE-KMS: `server_side_encryption_with_aws_managed_kms_key`
+//! - SSE-KMS: `server_side_encryption_with_customer_managed_kms_key`
+//! - SSE-S3: `server_side_encryption_with_s3_key`
+//! - SSE-C: `server_side_encryption_with_customer_key`
+//!
+//! If those functions don't fulfill need, low-level options are also provided:
+//!
+//! - Use service managed kms key
+//!   - `server_side_encryption="aws:kms"`
+//! - Use customer provided kms key
+//!   - `server_side_encryption="aws:kms"`
+//!   - `server_side_encryption_aws_kms_key_id="your-kms-key"`
+//! - Use S3 managed key
+//!   - `server_side_encryption="AES256"`
+//! - Use customer key
+//!   - `server_side_encryption_customer_algorithm="AES256"`
+//!   - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
+//!   - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
+//!
+//! After SSE have been configured, all requests send by this backed will attach those headers.
+//!
+//! Reference: [Protecting data using server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html)
+//!
 //! # Example
+//!
+//! ## Via Environment
+//!
+//! Set environment correctly:
+//!
+//! ```shell
+//! export OPENDAL_S3_ROOT=/path/to/dir/
+//! export OPENDAL_S3_BUCKET=test
+//! export OPENDAL_S3_ENDPOINT=https://s3.amazonaws.com
+//! export OPENDAL_S3_ACCESS_KEY_ID=access_key_id
+//! export OPENDAL_S3_SECRET_ACCESS_KEY=secret_access_key
+//! ```
+//!
+//! ```no_run
+//! use std::sync::Arc;
+//!
+//! use anyhow::Result;
+//! use opendal::Object;
+//! use opendal::Operator;
+//! use opendal::Scheme;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let op: Operator = Operator::from_env(Scheme::S3).await?;
+//!
+//!     // Create an object handle to start operation on object.
+//!     let _: Object = op.object("test_file");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Via Builder
 //!
 //! ```no_run
 //! use std::sync::Arc;

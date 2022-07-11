@@ -14,6 +14,7 @@
   - [Walk Dir](examples/walk.md)
   - [Remove a dir recursively](examples/remove_all.md)
   - [Read compressed files](examples/decompress-read.md)
+  - [Generate presigned URL](examples/presign.md)
   - [Enable Server Side Encrypt](examples/server-side-encryption.md)
 - [Upgrade](upgrade.md)
 

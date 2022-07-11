@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use anyhow::Result;
+use opendal::Operator;
 
+/// Parse `s3://abc/def` into `name` and `location`.
 pub fn parse_location(s: &str) -> Result<(&str, &str)> {
     if !s.contains("://") {
         return Ok(("fs", s));
@@ -22,6 +24,15 @@ pub fn parse_location(s: &str) -> Result<(&str, &str)> {
     let s = s.splitn(2, "://").collect::<Vec<_>>();
     debug_assert!(s.len() == 2);
     Ok((s[0], s[1]))
+}
+
+/// If name is a valid scheme, we will load from env directly.
+/// Or, we will try to get env from `OLI_PROFILE_{NAME}_XXX`.
+///
+/// Especially, the type is specified by `OLI_PROFILE_{NAME}_TYPE`
+#[allow(dead_code)]
+pub fn parse_profile(_: &str) -> Result<Operator> {
+    todo!()
 }
 
 #[cfg(test)]

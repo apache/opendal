@@ -11,13 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use clap::{App, AppSettings, SubCommand};
+use clap::{App, AppSettings};
 
 use anyhow::{anyhow, Result};
 
 pub fn main() -> Result<()> {
     match cli().get_matches().subcommand() {
-        Some(("cp", m)) => println!("got oli cp"),
+        Some(("cp", _)) => println!("got oli cp"),
         _ => return Err(anyhow!("not handled")),
     }
 
@@ -25,7 +25,7 @@ pub fn main() -> Result<()> {
 }
 
 fn cli() -> App<'static> {
-    let mut app = App::new("oli")
+    let app = App::new("oli")
         .version("0.10.0")
         .about("OpenDAL Command Line Interface")
         .setting(AppSettings::DeriveDisplayOrder)

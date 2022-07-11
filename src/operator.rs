@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::env;
-
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
@@ -134,9 +133,10 @@ impl Operator {
             Scheme::Memory => services::memory::Backend::build().finish().await?,
             #[cfg(feature = "services-http")]
             Scheme::Http => {
-                use crate::error::BackendError;
                 use std::collections::HashMap;
                 use std::io::Error;
+
+                use crate::error::BackendError;
 
                 return Err(Error::new(
                     ErrorKind::Unsupported,

@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use anyhow::{anyhow, Result};
-use clap::{App, AppSettings, SubCommand};
+use anyhow::Result;
+use clap::{App, AppSettings};
 
 pub fn main() -> Result<()> {
     let _ = cli("ocp").get_matches();
@@ -21,7 +21,7 @@ pub fn main() -> Result<()> {
 }
 
 pub(crate) fn cli(name: &str) -> App<'static> {
-    let mut app = App::new(name)
+    let app = App::new(name)
         .version("0.10.0")
         .about("copy")
         .setting(AppSettings::DeriveDisplayOrder)

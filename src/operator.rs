@@ -350,7 +350,7 @@ impl BatchOperator {
         BatchOperator { src: op }
     }
 
-    /// Walk a dir in top down way: list current dir first and than list nested dir.
+    /// Walk a dir in top down way: list current dir first and then list nested dir.
     ///
     /// Refer to [`TopDownWalker`] for more about the behavior details.
     pub fn walk_top_down(&self, path: &str) -> Result<DirStreamer> {
@@ -360,7 +360,7 @@ impl BatchOperator {
         ))))
     }
 
-    /// Walk a dir in bottom up way: list nested dir first and than current dir.
+    /// Walk a dir in bottom up way: list nested dir first and then current dir.
     ///
     /// Refer to [`BottomUpWalker`] for more about the behavior details.
     pub fn walk_bottom_up(&self, path: &str) -> Result<DirStreamer> {

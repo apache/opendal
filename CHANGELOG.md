@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.11.0] - 2022-07-11
+
+### Added
+
+- feat: derive Deserialize/Serialize for ObjectMetaData (#420)
+- RFC-0423: Command Line Interface (#423)
+- feat: optimize range read (#425)
+- feat(oli): Add basic layout for oli (#426)
+- RFC-0429: Init From Iter (#429)
+- feat: Implement RFC-0429 Init From Iter (#432)
+- feat(oli): Add cp command layout (#428)
+
+### Docs
+
+- docs: Update description of OpenDAL (#434)
+
 ## [v0.10.0] - 2022-07-04
 
 ### Added
@@ -459,6 +475,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.11.0]: https://github.com/datafuselabs/opendal/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/datafuselabs/opendal/compare/v0.9.1...v0.10.0
 [v0.9.1]: https://github.com/datafuselabs/opendal/compare/v0.9.0...v0.9.1
 [v0.9.0]: https://github.com/datafuselabs/opendal/compare/v0.8.0...v0.9.0

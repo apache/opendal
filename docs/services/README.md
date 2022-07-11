@@ -2,6 +2,11 @@
 
 This section will demonstrate how to init and start using a service.
 
+OpenDAL can init services via environment or builder.
+
+- Via Builder: use different backends' `Builder` API.
+- Via Environment: use `Operator::from_env()` API.
+
 OpenDAL supports the following services:
 
 - [azblob](./azblob.md): Azure blob storage service

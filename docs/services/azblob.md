@@ -27,6 +27,22 @@ All config could be passed via environment:
 
 ## Example
 
+### Via Environment
+
+```rust
+use anyhow::Result;
+use opendal::Operator;
+use opendal::Scheme;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Init Operator from env.
+    let op = Operator::from_env(Scheme::Azblob).await?;
+}
+```
+
+### Via Builder
+
 ```rust
 {{#include ../../examples/azblob.rs:15:}}
 ```

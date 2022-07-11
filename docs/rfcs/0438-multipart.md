@@ -34,11 +34,40 @@ OpenDAL users can upload objects larger than 5 GiB via supporting multipart uplo
 
 # Guide-level explanation
 
-TBD
+Users can start a multipart upload via:
+
+```rust
+let mp = op.object("path/to/file").create_multipart().await?;
+```
+
+Or build a multipart via already known upload id:
+
+```rust
+let mp = op.object("path/to/file").into_multipart("<upload_id>");
+```
+
+With `Multipart`, we can upload a new part:
+
+```rust
+let part = mp.write(part_number, content).await?;
+```
+
+After all parts has been uploaded, we can finish this upload:
+
+```rust
+let _ = mp.complete(parts).await?;
+```
+
+Or, we can abort already uploaded parts:
+
+```rust
+let _ = mp.abort().await?;
+```
 
 # Reference-level explanation
 
 TBD
+
 # Drawbacks
 
 TBD
@@ -53,8 +82,14 @@ TBD
 
 # Unresolved questions
 
-TBD
+None.
 
 # Future possibilities
 
-TBD
+## Support list multipart uploads
+
+We can support list multipart uploads to list ongoing multipart uploads. So that we can resume an upload or abort them.
+
+## Support list part
+
+We can support list parts to list already uploaded parts for an upload.

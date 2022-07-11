@@ -37,3 +37,4 @@
   - [0413-presign](rfcs/0413-presign.md)
   - [0423-command-line-interface](rfcs/0423-command-line-interface.md)
   - [0429-init-from-iter](rfcs/0429-init-from-iter.md)
+  - [0438-multipart](rfcs/0438-multipart.md)

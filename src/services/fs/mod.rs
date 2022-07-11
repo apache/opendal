@@ -14,7 +14,46 @@
 
 //! POSIX file system support.
 //!
+//! # Configuration
+//!
+//! - `root`: Set the work dir for backend.
+//!
+//! Refer to [`Builder`]'s public API docs for more information.
+//!
+//! # Environment
+//!
+//! - `OPENDAL_FS_ROOT`
+//!
 //! # Example
+//!
+//! ## Via Environment
+//!
+//! Set environment correctly:
+//!
+//! ```shell
+//! export OPENDAL_FS_ROOT=/path/to/dir/
+//! ```
+//!
+//! ```no_run
+//! use std::sync::Arc;
+//!
+//! use anyhow::Result;
+//! use opendal::Object;
+//! use opendal::Operator;
+//! use opendal::Scheme;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let op: Operator = Operator::from_env(Scheme::Fs).await?;
+//!
+//!     // Create an object handle to start operation on object.
+//!     let _: Object = op.object("test_file");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Via Builder
 //!
 //! ```
 //! use std::sync::Arc;
@@ -53,7 +92,3 @@ pub use backend::Builder;
 
 mod dir_stream;
 mod error;
-
-#[doc(hidden)]
-#[cfg(feature = "testing")]
-pub mod tests;

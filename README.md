@@ -5,7 +5,7 @@
 [Latest Version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal
 
-**Open Data Access Layer that connect the whole world together.**
+**Open Data Access Layer that empowers everyone to access different storage services painless and efficiently**
 
 ---
 
@@ -37,17 +37,17 @@ You may be looking for:
 ```rust
 use anyhow::Result;
 use futures::StreamExt;
-use opendal::services::fs;
 use opendal::ObjectMode;
 use opendal::Operator;
 use opendal::Metadata;
 use opendal::Object;
 use opendal::ObjectStreamer;
+use opendal::Scheme;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Init Operator
-    let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
+    // Init Operator from env.
+    let op = Operator::from_env(Scheme::S3).await?;
 
     // Create object handler.
     let o: Object = op.object("test_file");

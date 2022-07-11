@@ -35,3 +35,4 @@
   - [0409-accessor-capabilities](rfcs/0409-accessor-capabilities.md)
   - [0413-presign](rfcs/0413-presign.md)
   - [0423-command-line-interface](rfcs/0423-command-line-interface.md)
+  - [0429-init-from-iter](rfcs/0429-init-from-iter.md)

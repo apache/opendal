@@ -226,6 +226,7 @@ impl Builder {
         }))
     }
 }
+
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
 pub struct Backend {
@@ -241,6 +242,26 @@ impl Backend {
     /// Create a builder for azblob.
     pub fn build() -> Builder {
         Builder::default()
+    }
+
+    pub(crate) async fn from_iter(
+        it: impl Iterator<Item = (String, String)>,
+    ) -> Result<Arc<dyn Accessor>> {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "container" => builder.container(v),
+                "endpoint" => builder.endpoint(v),
+                "account_name" => builder.account_name(v),
+                "account_key" => builder.account_key(v),
+                _ => continue,
+            };
+        }
+
+        builder.finish().await
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {

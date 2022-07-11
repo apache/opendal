@@ -174,6 +174,23 @@ impl Backend {
         Builder::default()
     }
 
+    pub(crate) async fn from_iter(
+        it: impl Iterator<Item = (String, String)>,
+    ) -> Result<Arc<dyn Accessor>> {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "name_node" => builder.name_node(v),
+                _ => continue,
+            };
+        }
+
+        builder.finish().await
+    }
+
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
         if path == "/" {
             return self.root.clone();

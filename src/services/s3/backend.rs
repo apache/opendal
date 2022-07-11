@@ -96,35 +96,6 @@ mod constants {
 }
 
 /// Builder for s3 services
-///
-/// # Server Side Encryption
-///
-/// OpenDAL provides full support of S3 Server Side Encryption(SSE) features.
-///
-/// The easiest way to configure them is to use helper functions like
-///
-/// - SSE-KMS: `server_side_encryption_with_aws_managed_kms_key`
-/// - SSE-KMS: `server_side_encryption_with_customer_managed_kms_key`
-/// - SSE-S3: `server_side_encryption_with_s3_key`
-/// - SSE-C: `server_side_encryption_with_customer_key`
-///
-/// If those functions don't fulfill need, low-level options are also provided:
-///
-/// - Use service managed kms key
-///   - `server_side_encryption="aws:kms"`
-/// - Use customer provided kms key
-///   - `server_side_encryption="aws:kms"`
-///   - `server_side_encryption_aws_kms_key_id="your-kms-key"`
-/// - Use S3 managed key
-///   - `server_side_encryption="AES256"`
-/// - Use customer key
-///   - `server_side_encryption_customer_algorithm="AES256"`
-///   - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
-///   - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
-///
-/// After SSE have been configured, all requests send by this backed will attach those headers.
-///
-/// Reference: [Protecting data using server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html)
 #[derive(Default, Clone)]
 pub struct Builder {
     root: Option<String>,
@@ -729,6 +700,42 @@ impl Backend {
     /// Create a new builder for s3.
     pub fn build() -> Builder {
         Builder::default()
+    }
+
+    pub(crate) async fn from_iter(
+        it: impl Iterator<Item = (String, String)>,
+    ) -> Result<Arc<dyn Accessor>> {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "bucket" => builder.bucket(v),
+                "endpoint" => builder.endpoint(v),
+                "region" => builder.region(v),
+                "access_key_id" => builder.access_key_id(v),
+                "secret_access_key" => builder.secret_access_key(v),
+                "server_side_encryption" => builder.server_side_encryption(v),
+                "server_side_encryption_aws_kms_key_id" => {
+                    builder.server_side_encryption_aws_kms_key_id(v)
+                }
+                "server_side_encryption_customer_algorithm" => {
+                    builder.server_side_encryption_customer_algorithm(v)
+                }
+                "server_side_encryption_customer_key" => {
+                    builder.server_side_encryption_customer_key(v)
+                }
+                "server_side_encryption_customer_key_md5" => {
+                    builder.server_side_encryption_customer_key_md5(v)
+                }
+                "disable_credential_loader" if !v.is_empty() => builder.disable_credential_loader(),
+                "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
+                _ => continue,
+            };
+        }
+
+        builder.finish().await
     }
 
     /// get_abs_path will return the absolute path of the given path in the s3 format.

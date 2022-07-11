@@ -20,9 +20,19 @@
 //!
 //! HDFS support needs to enable feature `services-hdfs`.
 //!
+//! # Configuration
+//!
+//! - `root`: Set the work dir for backend.
+//! - `name_node`: Set the name node for backend.
+//!
+//! Refer to [`Builder`]'s public API docs for more information.
+//!
 //! # Environment
 //!
-//! HDFS needs some environment set correctly.
+//! - `OPENDAL_HDFS_ROOT`
+//! - `OPENDAL_HDFS_NAME_NODE`
+//!
+//! HDFS also needs some environment set correctly.
 //!
 //! - `JAVA_HOME`: the path to java home, could be found via `java -XshowSettings:properties -version`
 //! - `HADOOP_HOME`: the path to hadoop home, opendal relays on this env to discover hadoop jars and set `CLASSPATH` automatically.
@@ -52,6 +62,36 @@
 //! `CLASSPATH` is not set correctly or your hadoop installation is incorrect.
 //!
 //! # Example
+//!
+//! ### Via Environment
+//!
+//! Set environment correctly:
+//!
+//! ```shell
+//! export OPENDAL_HDFS_ROOT=/path/to/dir/
+//! export OPENDAL_HDFS_NAME_NODE=hdfs://127.0.0.1:9000
+//! ```
+//!
+//! ```no_run
+//! use std::sync::Arc;
+//!
+//! use anyhow::Result;
+//! use opendal::Object;
+//! use opendal::Operator;
+//! use opendal::Scheme;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let op: Operator = Operator::from_env(Scheme::Hdfs).await?;
+//!
+//!     // Create an object handle to start operation on object.
+//!     let _: Object = op.object("test_file");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ### Via Builder
 //!
 //! ```
 //! use std::sync::Arc;
@@ -92,7 +132,3 @@ pub use backend::Builder;
 
 mod dir_stream;
 mod error;
-
-#[doc(hidden)]
-#[cfg(feature = "testing")]
-pub mod tests;

@@ -14,6 +14,24 @@
 
 //! Azure Storage Blob services support.
 //!
+//! # Configuration
+//!
+//! - `root`: Set the work dir for backend.
+//! - `container`: Set the container name for backend.
+//! - `endpoint`: Set the endpoint for backend.
+//! - `account_name`: Set the account_name for backend.
+//! - `account_key`: Set the account_key for backend.
+//!
+//! Refer to [`Builder`]'s public API docs for more information.
+//!
+//! # Environment
+//!
+//! - `OPENDAL_AZBLOB_ROOT`
+//! - `OPENDAL_AZBLOB_CONTAINER`
+//! - `OPENDAL_AZBLOB_ENDPOINT`
+//! - `OPENDAL_AZBLOB_ACCOUNT_NAME`
+//! - `OPENDAL_AZBLOB_ACCOUNT_KEY`
+//!
 //! # Example
 //!
 //! This example works on [Azurite](https://github.com/Azure/Azurite) for local developments.
@@ -26,6 +44,39 @@
 //! ```
 //!
 //! ## Init OpenDAL Operator
+//!
+//! ### Via Environment
+//!
+//! Set environment correctly:
+//!
+//! ```shell
+//! export OPENDAL_AZBLOB_ROOT=/path/to/dir/
+//! export OPENDAL_AZBLOB_CONTAINER=test
+//! export OPENDAL_AZBLOB_ENDPOINT=http://127.0.0.1:10000/devstoreaccount1
+//! export OPENDAL_AZBLOB_ACCOUNT_NAME=devstoreaccount1
+//! export OPENDAL_AZBLOB_ACCOUNT_KEY=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
+//! ```
+//!
+//! ```no_run
+//! use std::sync::Arc;
+//!
+//! use anyhow::Result;
+//! use opendal::Object;
+//! use opendal::Operator;
+//! use opendal::Scheme;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let op: Operator = Operator::from_env(Scheme::Azblob).await?;
+//!
+//!     // Create an object handle to start operation on object.
+//!     let _: Object = op.object("test_file");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ### Via Builder
 //!
 //! ```no_run
 //! use std::sync::Arc;
@@ -77,7 +128,3 @@ pub use backend::Backend;
 pub use backend::Builder;
 
 mod dir_stream;
-
-#[doc(hidden)]
-#[cfg(feature = "testing")]
-pub mod tests;

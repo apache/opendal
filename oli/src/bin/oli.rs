@@ -19,6 +19,50 @@
 //! 'oli' or 'oli.exe' it offers the oli command-line interface, and
 //! when it is called 'ocp' it behaves as a proxy to 'oli cp'.
 
-fn main() {
-    println!("Hello, World!")
+use std::env;
+use std::ffi::OsStr;
+use std::path::PathBuf;
+
+use anyhow::anyhow;
+use anyhow::Result;
+
+fn main() -> Result<()> {
+    // Guard against infinite proxy recursion. This mostly happens due to
+    // bugs in oli.
+    do_recursion_guard()?;
+
+    match env::args()
+        .next()
+        .map(PathBuf::from)
+        .as_ref()
+        .and_then(|a| a.file_stem())
+        .and_then(OsStr::to_str)
+    {
+        Some("oli") => {
+            oli::commands::cli::main()?;
+        }
+        Some("ocp") => {
+            oli::commands::cp::main()?;
+        }
+        Some(v) => {
+            println!("{v} is not supported")
+        }
+        None => return Err(anyhow!("couldn't determine self executable name")),
+    }
+
+    Ok(())
+}
+
+fn do_recursion_guard() -> Result<()> {
+    static OLI_RECURSION_COUNT_MAX: i32 = 20;
+
+    let recursion_count = env::var("OLI_RECURSION_COUNT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    if recursion_count > OLI_RECURSION_COUNT_MAX {
+        return Err(anyhow!("infinite recursion detected"));
+    }
+
+    Ok(())
 }

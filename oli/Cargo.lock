@@ -1008,6 +1008,7 @@ dependencies = [
 name = "oli"
 version = "0.10.0"
 dependencies = [
+ "anyhow",
  "clap",
  "env_logger",
  "log",

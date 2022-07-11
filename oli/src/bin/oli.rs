@@ -19,10 +19,12 @@
 //! 'oli' or 'oli.exe' it offers the oli command-line interface, and
 //! when it is called 'ocp' it behaves as a proxy to 'oli cp'.
 
-use anyhow::{anyhow, Result};
 use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
+
+use anyhow::anyhow;
+use anyhow::Result;
 
 fn main() -> Result<()> {
     // Guard against infinite proxy recursion. This mostly happens due to

@@ -11,9 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use clap::{App, AppSettings};
-
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
+use anyhow::Result;
+use clap::App;
+use clap::AppSettings;
 
 pub fn main() -> Result<()> {
     match cli().get_matches().subcommand() {

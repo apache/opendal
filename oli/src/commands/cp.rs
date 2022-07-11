@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use anyhow::Result;
-use clap::{App, AppSettings};
+use clap::App;
+use clap::AppSettings;
 
 pub fn main() -> Result<()> {
     let _ = cli("ocp").get_matches();

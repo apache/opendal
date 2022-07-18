@@ -76,19 +76,6 @@ jobs:
       - name: Build
         run: cargo build --all-features
 
-  build_oli:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-11
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build
-        working-directory: ./oli
-        run: cargo build
-
   unit:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -120,6 +107,19 @@ jobs:
           RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
+  build_oli:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        working-directory: ./oli
+        run: cargo build
+
   unit_oli:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -131,4 +131,30 @@ jobs:
       - uses: actions/checkout@v3
       - name: Test
         working-directory: ./oli
+        run: cargo test
+
+  build_oay:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        working-directory: ./oay
+        run: cargo build
+
+  unit_oay:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test
+        working-directory: ./oay
         run: cargo test

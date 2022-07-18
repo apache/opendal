@@ -136,7 +136,7 @@ impl Builder {
     }
 
     /// Build a HTTP backend.
-    pub async fn build(&mut self) -> Result<Arc<dyn Accessor>> {
+    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
@@ -195,6 +195,23 @@ impl Backend {
     /// Create a new builder for s3.
     pub fn build() -> Builder {
         Builder::default()
+    }
+
+    pub(crate) async fn from_iter(
+        it: impl Iterator<Item = (String, String)>,
+    ) -> Result<Arc<dyn Accessor>> {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                _ => continue,
+            };
+        }
+
+        builder.finish().await
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
@@ -612,7 +629,7 @@ mod tests {
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.insert_index("/hello");
-        let op = Operator::new(builder.build().await?);
+        let op = Operator::new(builder.finish().await?);
 
         let bs = op.object("hello").read().await?;
 
@@ -635,7 +652,7 @@ mod tests {
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.insert_index("/hello");
-        let op = Operator::new(builder.build().await?);
+        let op = Operator::new(builder.finish().await?);
 
         let bs = op.object("hello").metadata().await?;
 
@@ -656,7 +673,7 @@ mod tests {
         builder.insert_index("/hello");
         builder.insert_index("/world");
         builder.insert_index("/another/");
-        let op = Operator::new(builder.build().await?);
+        let op = Operator::new(builder.finish().await?);
 
         let bs = op.object("/").list().await?;
         let paths = bs.try_collect::<Vec<_>>().await?;

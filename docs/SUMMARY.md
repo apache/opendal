@@ -38,3 +38,4 @@
   - [0423-command-line-interface](rfcs/0423-command-line-interface.md)
   - [0429-init-from-iter](rfcs/0429-init-from-iter.md)
   - [0438-multipart](rfcs/0438-multipart.md)
+  - [0443-gateway](rfcs/0443-gateway.md)

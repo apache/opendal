@@ -1,0 +1,11 @@
+[package]
+authors = ["Databend Authors <opensource@datafuselabs.com>"]
+categories = ["filesystem"]
+description = "OpenDAL Gateway"
+edition = "2021"
+homepage = "https://opendal.databend.rs/"
+keywords = ["storage", "data", "s3", "fs", "azblob"]
+license = "Apache-2.0"
+name = "oay"
+repository = "https://github.com/datafuselabs/opendal"
+version = "0.0.0"

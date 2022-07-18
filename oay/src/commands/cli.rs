@@ -13,11 +13,14 @@
 // limitations under the License.
 use anyhow::anyhow;
 use anyhow::Result;
+use clap::crate_description;
+use clap::crate_name;
+use clap::crate_version;
 use clap::App;
 use clap::AppSettings;
-use clap::{crate_description, crate_name};
-use clap::{crate_version, Command};
-use opendal::{Operator, Scheme};
+use clap::Command;
+use opendal::Operator;
+use opendal::Scheme;
 
 pub async fn main() -> Result<()> {
     env_logger::init();

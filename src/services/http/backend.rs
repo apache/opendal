@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Error;
@@ -22,32 +21,29 @@ use std::io::Result;
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::BufMut;
 use futures::TryStreamExt;
-use http::Response;
 use http::StatusCode;
-use hyper::body::HttpBody;
-use hyper::Body;
-use log::debug;
 use log::error;
 use log::info;
+use log::{debug, warn};
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
 
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io_util::parse_content_length;
-use crate::io_util::parse_content_md5;
-use crate::io_util::parse_error_kind as parse_http_error_kind;
-use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
 use crate::io_util::HttpClient;
+use crate::io_util::{new_http_channel, parse_content_md5};
+use crate::io_util::{parse_content_length, percent_encode_path};
+use crate::io_util::{parse_error_kind as parse_http_error_kind, HttpBodyWriter};
+use crate::io_util::{parse_error_response, parse_etag};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -181,7 +177,7 @@ impl Builder {
             endpoint: endpoint.to_string(),
             root,
             client,
-            index: Arc::new(mem::take(&mut self.index)),
+            index: Arc::new(Mutex::new(mem::take(&mut self.index))),
         }))
     }
 }
@@ -192,7 +188,7 @@ pub struct Backend {
     endpoint: String,
     root: String,
     client: HttpClient,
-    index: Arc<Trie<String, ()>>,
+    index: Arc<Mutex<Trie<String, ()>>>,
 }
 
 impl Backend {
@@ -222,8 +218,33 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn create(&self, _: &OpCreate) -> Result<()> {
-        Err(ErrorKind::Unsupported.into())
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        let p = self.get_abs_path(args.path());
+
+        let req = self.http_put(&p, 0, hyper::Body::empty()).await?;
+        let resp = self.client.request(req).await.map_err(|e| {
+            error!("object {} put_object: {:?}", args.path(), e);
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("create", args.path(), anyhow!("send request: {e:?}")),
+            )
+        })?;
+
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                debug!("object {} create finished", args.path());
+                self.index
+                    .lock()
+                    .expect("lock succeed")
+                    .insert(args.path().to_string(), ());
+                Ok(())
+            }
+            _ => {
+                let err = parse_error_response("create", args.path(), parse_error_kind, resp).await;
+                warn!("object {} create: {:?}", args.path(), err);
+                Err(err)
+            }
+        }
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
@@ -259,12 +280,33 @@ impl Accessor for Backend {
                         .into_async_read(),
                 ))
             }
-            _ => Err(parse_error_response_with_body(resp, "read", &p).await),
+            _ => Err(parse_error_response("read", args.path(), parse_error_kind, resp).await),
         }
     }
 
-    async fn write(&self, _: &OpWrite) -> Result<BytesWriter> {
-        Err(ErrorKind::Unsupported.into())
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+        let p = self.get_abs_path(args.path());
+        debug!("object {} write start: size {}", &p, args.size());
+
+        let (tx, body) = new_http_channel();
+
+        let req = self.http_put(&p, args.size(), body).await?;
+
+        let bs = HttpBodyWriter::new(
+            args,
+            tx,
+            self.client.request(req),
+            HashSet::from([StatusCode::CREATED, StatusCode::OK]),
+            parse_error_kind,
+        );
+
+        // TODO: we should only update index while put succeed.
+        self.index
+            .lock()
+            .expect("lock succeed")
+            .insert(args.path().to_string(), ());
+
+        Ok(Box::new(bs))
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
@@ -326,18 +368,34 @@ impl Accessor for Backend {
                 debug!("object {} stat finished", &p);
                 Ok(m)
             }
-            _ => Err(parse_error_response_with_body(resp, "stat", &p).await),
+            _ => Err(parse_error_response("stat", args.path(), parse_error_kind, resp).await),
         }
     }
 
-    async fn delete(&self, _: &OpDelete) -> Result<()> {
-        Err(ErrorKind::Unsupported.into())
+    async fn delete(&self, args: &OpDelete) -> Result<()> {
+        let p = self.get_abs_path(args.path());
+        debug!("object {} delete start", &p);
+
+        let resp = self.http_delete(&p).await?;
+
+        match resp.status() {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
+                self.index.lock().expect("lock succeed").remove(args.path());
+                debug!("object {} delete finished", &p);
+                Ok(())
+            }
+            _ => {
+                let err = parse_error_response("delete", args.path(), parse_error_kind, resp).await;
+                warn!("object {} delete: {:?}", args.path(), err);
+                Err(err)
+            }
+        }
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = args.path().to_string();
 
-        let paths = match self.index.subtrie(&path) {
+        let paths = match self.index.lock().expect("lock succeed").subtrie(&path) {
             None => {
                 return Err(Error::new(
                     ErrorKind::NotFound,
@@ -423,6 +481,57 @@ impl Backend {
             )
         })
     }
+
+    pub(crate) async fn http_put(
+        &self,
+        path: &str,
+        size: u64,
+        body: hyper::Body,
+    ) -> Result<hyper::Request<hyper::Body>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+
+        let mut req = hyper::Request::put(&url);
+
+        // Set content length.
+        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+
+        // Set body
+        let req = req.body(body).map_err(|e| {
+            error!("object {path} put: {url} {e:?}");
+            other(ObjectError::new(
+                "write",
+                path,
+                anyhow!("build request {url}: {e:?}"),
+            ))
+        })?;
+
+        Ok(req)
+    }
+
+    pub(crate) async fn http_delete(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+
+        let req = hyper::Request::delete(&url);
+
+        // Set body
+        let req = req.body(hyper::Body::empty()).map_err(|e| {
+            error!("object {path} delete: {url} {e:?}");
+            other(ObjectError::new(
+                "delete",
+                path,
+                anyhow!("build request {url}: {e:?}"),
+            ))
+        })?;
+
+        self.client.request(req).await.map_err(|e| {
+            error!("object {path} delete: {url} {e:?}");
+
+            Error::new(
+                parse_http_error_kind(&e),
+                ObjectError::new("delete", path, anyhow!("send request: {url}: {e:?}")),
+            )
+        })
+    }
 }
 
 struct DirStream {
@@ -464,14 +573,8 @@ impl futures::Stream for DirStream {
     }
 }
 
-// Read and decode whole error response.
-async fn parse_error_response_with_body(
-    resp: Response<Body>,
-    op: &'static str,
-    path: &str,
-) -> Error {
-    let (part, mut body) = resp.into_parts();
-    let kind = match part.status {
+fn parse_error_kind(code: StatusCode) -> ErrorKind {
+    match code {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
         StatusCode::INTERNAL_SERVER_ERROR
@@ -479,43 +582,7 @@ async fn parse_error_response_with_body(
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
-    };
-
-    // Only read 4KiB from the response to avoid broken services.
-    let mut bs = Vec::new();
-    let mut limit = 4 * 1024;
-
-    while let Some(b) = body.data().await {
-        match b {
-            Ok(b) => {
-                bs.put_slice(&b[..min(b.len(), limit)]);
-                limit -= b.len();
-                if limit == 0 {
-                    break;
-                }
-            }
-            Err(e) => {
-                return other(ObjectError::new(
-                    op,
-                    path,
-                    anyhow!("parse error response parse: {:?}", e),
-                ))
-            }
-        }
     }
-
-    Error::new(
-        kind,
-        ObjectError::new(
-            op,
-            path,
-            anyhow!(
-                "response part: {:?}, body: {:?}",
-                part,
-                String::from_utf8_lossy(&bs)
-            ),
-        ),
-    )
 }
 
 #[cfg(test)]

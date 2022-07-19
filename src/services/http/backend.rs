@@ -113,7 +113,7 @@ impl Builder {
 
     pub(crate) fn insert_path(&mut self, path: &str) {
         for (idx, _) in path.match_indices('/') {
-            let p = path[idx + 1..].to_string();
+            let p = path[..=idx].to_string();
             if self.index.get(&p).is_none() {
                 debug!("insert path {} into index", p);
                 self.index.insert(p, ());
@@ -272,7 +272,7 @@ impl Backend {
         let mut index = self.index.lock().expect("lock must succeed");
 
         for (idx, _) in path.match_indices('/') {
-            let p = path[idx + 1..].to_string();
+            let p = path[..=idx].to_string();
 
             if index.get(&p).is_none() {
                 debug!("insert path {} into index", p);
@@ -516,7 +516,7 @@ impl Accessor for Backend {
         debug!("dir object {path:?} listed keys: {paths:?}");
         Ok(Box::new(DirStream {
             backend: Arc::new(self.clone()),
-            path: path.to_string(),
+            path: self.get_abs_path(path),
             paths: paths.into_iter().collect(),
             idx: 0,
         }))

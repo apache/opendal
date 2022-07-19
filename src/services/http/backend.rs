@@ -113,10 +113,16 @@ impl Builder {
 
     pub(crate) fn insert_path(&mut self, path: &str) {
         for (idx, _) in path.match_indices('/') {
-            debug!("insert path {} into index", &path[idx + 1..]);
-            self.index.insert(path[idx + 1..].to_string(), ());
+            let p = path[idx + 1..].to_string();
+            if self.index.get(&p).is_none() {
+                debug!("insert path {} into index", p);
+                self.index.insert(p, ());
+            }
         }
-        self.index.insert(path.to_string(), ());
+        if self.index.get(path).is_none() {
+            debug!("insert path {} into index", path);
+            self.index.insert(path.to_string(), ());
+        }
     }
 
     /// Insert index into backend.
@@ -263,17 +269,20 @@ impl Backend {
     }
 
     pub(crate) fn insert_path(&self, path: &str) {
+        let mut index = self.index.lock().expect("lock must succeed");
+
         for (idx, _) in path.match_indices('/') {
-            debug!("insert path {} into index", &path[idx + 1..]);
-            self.index
-                .lock()
-                .expect("lock must succeed")
-                .insert(path[idx + 1..].to_string(), ());
+            let p = path[idx + 1..].to_string();
+
+            if index.get(&p).is_none() {
+                debug!("insert path {} into index", p);
+                index.insert(p, ());
+            }
         }
-        self.index
-            .lock()
-            .expect("lock must succeed")
-            .insert(path.to_string(), ());
+        if index.get(path).is_none() {
+            debug!("insert path {} into index", path);
+            index.insert(path.to_string(), ());
+        }
     }
 }
 

@@ -105,6 +105,14 @@ impl Builder {
         self
     }
 
+    pub(crate) fn insert_path(&mut self, path: &str) {
+        for (idx, _) in path.match_indices('/') {
+            debug!("insert path {} into index", &path[idx + 1..]);
+            self.index.insert(path[idx + 1..].to_string(), ());
+        }
+        self.index.insert(path.to_string(), ());
+    }
+
     /// Insert index into backend.
     pub fn insert_index(&mut self, key: &str) -> &mut Self {
         if key.is_empty() {
@@ -117,7 +125,8 @@ impl Builder {
             key.to_string()
         };
 
-        self.index.insert(key, ());
+        self.insert_path(&key);
+
         self
     }
 
@@ -130,7 +139,7 @@ impl Builder {
                 k.to_string()
             };
 
-            self.index.insert(k, ());
+            self.insert_path(&k);
         }
         self
     }
@@ -183,12 +192,29 @@ impl Builder {
 }
 
 /// Backend is used to serve `Accessor` support for http.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Backend {
     endpoint: String,
     root: String,
     client: HttpClient,
     index: Arc<Mutex<Trie<String, ()>>>,
+}
+
+impl Debug for Backend {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Backend")
+            .field("endpoint", &self.endpoint)
+            .field("root", &self.root)
+            .field("client", &self.client)
+            .field(
+                "index",
+                &format!(
+                    "length = {}",
+                    self.index.lock().expect("lock must succeed").len()
+                ),
+            )
+            .finish()
+    }
 }
 
 impl Backend {
@@ -222,6 +248,28 @@ impl Backend {
         // root must be normalized like `/abc/`
         format!("{}{}", self.root, path)
     }
+
+    pub(crate) fn get_index_path(&self, path: &str) -> String {
+        if path.starts_with("/") {
+            path[1..].to_string()
+        } else {
+            path.to_string()
+        }
+    }
+
+    pub(crate) fn insert_path(&self, path: &str) {
+        for (idx, _) in path.match_indices('/') {
+            debug!("insert path {} into index", &path[idx + 1..]);
+            self.index
+                .lock()
+                .expect("lock must succeed")
+                .insert(path[idx + 1..].to_string(), ());
+        }
+        self.index
+            .lock()
+            .expect("lock must succeed")
+            .insert(path.to_string(), ());
+    }
 }
 
 #[async_trait]
@@ -250,10 +298,7 @@ impl Accessor for Backend {
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
                 debug!("object {} create finished", args.path());
-                self.index
-                    .lock()
-                    .expect("lock succeed")
-                    .insert(args.path().to_string(), ());
+                self.insert_path(&self.get_index_path(args.path()));
                 Ok(())
             }
             _ => {
@@ -317,11 +362,7 @@ impl Accessor for Backend {
             parse_error_kind,
         );
 
-        // TODO: we should only update index while put succeed.
-        self.index
-            .lock()
-            .expect("lock succeed")
-            .insert(args.path().to_string(), ());
+        self.insert_path(&self.get_index_path(args.path()));
 
         Ok(Box::new(bs))
     }
@@ -410,12 +451,14 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = args.path().to_string();
+        let mut path = args.path();
         if path == "/" {
-            path.clear();
+            path = ""
         }
 
-        let paths = match self.index.lock().expect("lock succeed").subtrie(&path) {
+        debug!("object {} list start", path);
+
+        let paths = match self.index.lock().expect("lock succeed").subtrie(path) {
             None => {
                 return Err(Error::new(
                     ErrorKind::NotFound,
@@ -424,21 +467,43 @@ impl Accessor for Backend {
             }
             Some(trie) => trie
                 .keys()
-                // Make sure k is at the same level with input path.
-                .filter(|k| match k[path.len()..].find('/') {
-                    None => true,
-                    Some(idx) => idx + 1 + path.len() == k.len(),
+                .filter_map(|k| {
+                    let k = k.as_str();
+
+                    // `/xyz` should not belong to `/abc`
+                    if !k.starts_with(&path) {
+                        return None;
+                    }
+
+                    // We should remove `/abc` if self
+                    if k == path {
+                        return None;
+                    }
+
+                    match k[path.len()..].find('/') {
+                        // File `/abc/def.csv` must belong to `/abc`
+                        None => Some(k.to_string()),
+                        Some(idx) => {
+                            // The index of first `/` after `/abc`.
+                            let dir_idx = idx + 1 + path.len();
+
+                            if dir_idx == k.len() {
+                                // Dir `/abc/def/` belongs to `/abc/`
+                                Some(k.to_string())
+                            } else {
+                                None
+                            }
+                        }
+                    }
                 })
-                .map(|v| v.to_string())
-                .filter(|v| v != &path)
-                .collect::<Vec<_>>(),
+                .collect::<HashSet<_>>(),
         };
 
-        debug!("dir object {} listed keys: {paths:?}", path);
+        debug!("dir object {path:?} listed keys: {paths:?}");
         Ok(Box::new(DirStream {
             backend: Arc::new(self.clone()),
-            path,
-            paths,
+            path: path.to_string(),
+            paths: paths.into_iter().collect(),
             idx: 0,
         }))
     }

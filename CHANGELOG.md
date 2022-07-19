@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - fix: Service HTTP deosn't handle dir correctly (#455)
+- fix: Service HTTP inserted with wrong key (#457)
 
 ## [v0.11.1] - 2022-07-19
 

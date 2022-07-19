@@ -12,8 +12,14 @@ updates:
     schedule:
       interval: "daily"
 
-  # Maintain dependencies for opendal_test
+  # Maintain dependencies for oay
   - package-ecosystem: "cargo"
-    directory: "/opendal_test"
+    directory: "/oay"
+    schedule:
+      interval: "daily"
+
+  # Maintain dependencies for oli
+  - package-ecosystem: "cargo"
+    directory: "/oli"
     schedule:
       interval: "daily"

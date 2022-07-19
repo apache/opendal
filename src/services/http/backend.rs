@@ -747,22 +747,27 @@ mod tests {
 
         let mock_server = MockServer::start().await;
 
+        let mut expected = vec!["another/", "hello", "world"];
+
         let mut builder = Backend::build();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        builder.insert_index("/hello");
-        builder.insert_index("/world");
-        builder.insert_index("/another/");
+        for s in expected.iter() {
+            builder.insert_index(s);
+        }
+
         let op = Operator::new(builder.finish().await?);
 
         let bs = op.object("/").list().await?;
         let paths = bs.try_collect::<Vec<_>>().await?;
-        let paths = paths
+        let mut paths = paths
             .into_iter()
             .map(|v| v.path().to_string())
             .collect::<Vec<_>>();
 
-        assert_eq!(paths, vec!["another/", "hello", "world"]);
+        paths.sort_unstable();
+        expected.sort_unstable();
+        assert_eq!(paths, expected);
         Ok(())
     }
 }

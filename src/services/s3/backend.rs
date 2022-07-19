@@ -1309,7 +1309,7 @@ impl Backend {
     }
 }
 
-pub fn parse_error_kind(code: StatusCode) -> ErrorKind {
+pub(crate) fn parse_error_kind(code: StatusCode) -> ErrorKind {
     match code {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,

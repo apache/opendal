@@ -31,7 +31,7 @@ pub enum Scheme {
     /// [hdfs][crate::services::hdfs]: Hadoop Distributed File System.
     #[cfg(feature = "services-hdfs")]
     Hdfs,
-    /// [http][crate::services::http]: HTTP read-only backend.
+    /// [http][crate::services::http]: HTTP backend.
     #[cfg(feature = "services-http")]
     Http,
     /// [memory][crate::services::memory]: In memory backend support.
@@ -71,6 +71,8 @@ impl FromStr for Scheme {
             "fs" => Ok(Scheme::Fs),
             #[cfg(feature = "services-hdfs")]
             "hdfs" => Ok(Scheme::Hdfs),
+            #[cfg(feature = "services-http")]
+            "http" | "https" => Ok(Scheme::Http),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
             v => Err(other(BackendError::new(

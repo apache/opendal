@@ -129,23 +129,10 @@ impl Operator {
             Scheme::Fs => services::fs::Backend::from_iter(it).await?,
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => services::hdfs::Backend::from_iter(it).await?,
-            Scheme::S3 => services::s3::Backend::from_iter(it).await?,
-            Scheme::Memory => services::memory::Backend::build().finish().await?,
             #[cfg(feature = "services-http")]
-            Scheme::Http => {
-                use std::collections::HashMap;
-                use std::io::Error;
-
-                use crate::error::BackendError;
-
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    BackendError::new(
-                        it.collect::<HashMap<_, _>>(),
-                        anyhow::anyhow!("backend http doesn't support init from iter"),
-                    ),
-                ));
-            }
+            Scheme::Http => services::http::Backend::from_iter(it).await?,
+            Scheme::Memory => services::memory::Backend::build().finish().await?,
+            Scheme::S3 => services::s3::Backend::from_iter(it).await?,
         };
 
         Ok(Self { accessor })

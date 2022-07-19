@@ -430,8 +430,7 @@ impl BytesRange {
     /// Range: <unit>=<range-start>-<range-end>
     /// Range: <unit>=-<suffix-length>
     pub fn from_header_range(s: &str) -> Result<Self> {
-        let s = s.to_lowercase();
-        let s = s.strip_prefix("range: bytes=").ok_or_else(|| {
+        let s = s.strip_prefix("bytes=").ok_or_else(|| {
             Error::new(
                 ErrorKind::InvalidInput,
                 anyhow!("header range is invalid: {s}"),
@@ -486,8 +485,7 @@ impl BytesRange {
     /// Content-Range: <unit> <range-start>-<range-end>/*
     /// Content-Range: <unit> */<size>
     pub fn from_header_content_range(s: &str) -> Result<Self> {
-        let s = s.to_lowercase();
-        let s = s.strip_prefix("content-range: bytes ").ok_or_else(|| {
+        let s = s.strip_prefix("bytes ").ok_or_else(|| {
             Error::new(
                 ErrorKind::InvalidInput,
                 anyhow!("header content range is invalid: {s}"),
@@ -608,27 +606,19 @@ mod tests {
         let cases = vec![
             (
                 "range-start",
-                "Range: bytes=123-",
+                "bytes=123-",
                 BytesRange::new(Some(123), None),
             ),
-            (
-                "suffix",
-                "Range: bytes=-123",
-                BytesRange::new(None, Some(124)),
-            ),
+            ("suffix", "bytes=-123", BytesRange::new(None, Some(124))),
             (
                 "range",
-                "Range: bytes=123-124",
+                "bytes=123-124",
                 BytesRange::new(Some(123), Some(2)),
             ),
-            (
-                "one byte",
-                "Range: bytes=0-0",
-                BytesRange::new(Some(0), Some(1)),
-            ),
+            ("one byte", "bytes=0-0", BytesRange::new(Some(0), Some(1))),
             (
                 "lower case header",
-                "range: bytes=0-0",
+                "bytes=0-0",
                 BytesRange::new(Some(0), Some(1)),
             ),
         ];
@@ -647,17 +637,17 @@ mod tests {
         let cases = vec![
             (
                 "range start with unknown size",
-                "Content-Range: bytes 123-123/*",
+                "bytes 123-123/*",
                 BytesRange::new(Some(123), Some(1)),
             ),
             (
                 "range start with known size",
-                "Content-Range: bytes 123-123/1",
+                "bytes 123-123/1",
                 BytesRange::new(Some(123), Some(1)),
             ),
             (
                 "only have size",
-                "Content-Range: bytes */1024",
+                "bytes */1024",
                 BytesRange::new(Some(0), Some(1024)),
             ),
         ];

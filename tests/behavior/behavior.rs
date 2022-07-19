@@ -18,7 +18,7 @@
 //!
 //! `behavior` requires most of the logic is correct, especially `write` and `delete`. We will not depends service specific functions to prepare the fixtures.
 //!
-//! For examples, we depends `write` to create a file before testing `read`. If `write` doesn't works well, we can't test `read` correctly too.
+//! For examples, we depend on `write` to create a file before testing `read`. If `write` doesn't work well, we can't test `read` correctly too.
 
 use std::collections::HashMap;
 use std::io;
@@ -107,7 +107,7 @@ macro_rules! behavior_tests {
 macro_rules! behavior_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<$service:lower>] {
+            mod [<services_ $service:lower>] {
                 use super::*;
 
                 $(
@@ -151,6 +151,12 @@ behavior_tests!(Azblob, Fs, Memory, S3);
 cfg_if::cfg_if! {
     if #[cfg(feature = "services-hdfs")] {
         behavior_tests!(Hdfs);
+    }
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "services-http")] {
+        behavior_tests!(Http);
     }
 }
 

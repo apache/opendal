@@ -33,8 +33,8 @@ use anyhow::anyhow;
 use futures::stream;
 use futures::AsyncWriteExt;
 use futures::StreamExt;
-use log::error;
 use log::warn;
+use log::{debug, error};
 use opendal::io_util::into_stream;
 use opendal::ops::BytesRange;
 use opendal::BytesReader;
@@ -75,22 +75,28 @@ impl Service {
 
         let meta = o.metadata().await?;
 
-        let r = if let Some(range) = req.headers().get(header::RANGE) {
+        let (size, r) = if let Some(range) = req.headers().get(header::RANGE) {
             let br = BytesRange::from_header_range(range.to_str().map_err(|e| {
                 Error::new(
                     ErrorKind::InvalidInput,
                     anyhow!("header range is invalid: {e}"),
                 )
             })?)?;
-            Box::new(o.range_reader(br.to_range(meta.content_length())).await?) as BytesReader
+
+            let range = br.to_range(meta.content_length());
+
+            (
+                range.size_hint().0 as u64,
+                Box::new(o.range_reader(range).await?) as BytesReader,
+            )
         } else {
-            Box::new(o.reader().await?) as BytesReader
+            (
+                meta.content_length(),
+                Box::new(o.reader().await?) as BytesReader,
+            )
         };
 
-        Ok(HttpResponse::Ok().body(SizedStream::new(
-            meta.content_length(),
-            into_stream(r, 8 * 1024),
-        )))
+        Ok(HttpResponse::Ok().body(SizedStream::new(size, into_stream(r, 8 * 1024))))
     }
 
     async fn put(&self, req: HttpRequest, body: web::Payload) -> Result<HttpResponse> {

@@ -111,8 +111,8 @@ impl Builder {
             return self;
         }
 
-        let key = if key.starts_with('/') {
-            key[1..].to_string()
+        let key = if let Some(stripped) = key.strip_prefix('/') {
+            stripped.to_string()
         } else {
             key.to_string()
         };
@@ -124,8 +124,8 @@ impl Builder {
     /// Extend index from an iterator.
     pub fn extend_index<'a>(&mut self, it: impl Iterator<Item = &'a str>) -> &mut Self {
         for k in it.filter(|v| !v.is_empty()) {
-            let k = if k.starts_with('/') {
-                k[1..].to_string()
+            let k = if let Some(stripped) = k.strip_prefix('/') {
+                stripped.to_string()
             } else {
                 k.to_string()
             };

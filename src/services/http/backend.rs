@@ -112,9 +112,9 @@ impl Builder {
         }
 
         let key = if key.starts_with('/') {
-            key.to_string()
+            key[1..].to_string()
         } else {
-            format!("/{key}")
+            key.to_string()
         };
 
         self.index.insert(key, ());
@@ -125,9 +125,9 @@ impl Builder {
     pub fn extend_index<'a>(&mut self, it: impl Iterator<Item = &'a str>) -> &mut Self {
         for k in it.filter(|v| !v.is_empty()) {
             let k = if k.starts_with('/') {
-                k.to_string()
+                k[1..].to_string()
             } else {
-                format!("/{k}")
+                k.to_string()
             };
 
             self.index.insert(k, ());

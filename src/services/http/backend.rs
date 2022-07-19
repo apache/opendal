@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Error;
@@ -29,21 +30,26 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use http::StatusCode;
+use log::debug;
 use log::error;
 use log::info;
-use log::{debug, warn};
+use log::warn;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
 
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
+use crate::io_util::new_http_channel;
+use crate::io_util::parse_content_length;
+use crate::io_util::parse_content_md5;
+use crate::io_util::parse_error_kind as parse_http_error_kind;
+use crate::io_util::parse_error_response;
+use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
+use crate::io_util::percent_encode_path;
+use crate::io_util::HttpBodyWriter;
 use crate::io_util::HttpClient;
-use crate::io_util::{new_http_channel, parse_content_md5};
-use crate::io_util::{parse_content_length, percent_encode_path};
-use crate::io_util::{parse_error_kind as parse_http_error_kind, HttpBodyWriter};
-use crate::io_util::{parse_error_response, parse_etag};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;

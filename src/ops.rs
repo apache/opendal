@@ -22,7 +22,8 @@ use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::ops::{Range, RangeBounds};
+use std::ops::Range;
+use std::ops::RangeBounds;
 
 use anyhow::anyhow;
 use time::Duration;

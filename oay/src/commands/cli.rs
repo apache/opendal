@@ -1,3 +1,5 @@
+use std::env;
+
 // Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,21 +21,12 @@ use clap::crate_version;
 use clap::App;
 use clap::AppSettings;
 use clap::Command;
-use opendal::Operator;
-use opendal::Scheme;
 
 pub async fn main() -> Result<()> {
     env_logger::init();
 
     match cli().get_matches().subcommand() {
-        Some(("http", _)) => {
-            crate::services::http::Service::new(
-                "127.0.0.1:8080",
-                Operator::from_env(Scheme::Fs).await?,
-            )
-            .start()
-            .await?
-        }
+        Some(("http", _)) => crate::services::http::Service::new().await?.start().await?,
         _ => return Err(anyhow!("not handled subcommands")),
     }
 

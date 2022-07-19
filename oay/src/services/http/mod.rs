@@ -36,7 +36,11 @@ use futures::StreamExt;
 use log::error;
 use log::warn;
 use opendal::io_util::into_stream;
+use opendal::ops::BytesRange;
+use opendal::BytesReader;
 use opendal::Operator;
+
+use crate::env;
 
 #[derive(Debug, Clone)]
 pub struct Service {
@@ -45,11 +49,11 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn new(addr: &str, op: Operator) -> Service {
-        Service {
-            addr: addr.to_string(),
-            op,
-        }
+    pub async fn new() -> Result<Service> {
+        Ok(Service {
+            addr: env::get_oay_addr(),
+            op: env::get_oay_operator().await?,
+        })
     }
 
     pub async fn start(self) -> Result<()> {
@@ -71,10 +75,16 @@ impl Service {
 
         let meta = o.metadata().await?;
 
-        let r = if let Some(_range) = req.headers().get(header::RANGE) {
-            todo!("implement range support")
+        let r = if let Some(range) = req.headers().get(header::RANGE) {
+            let br = BytesRange::from_header_range(range.to_str().map_err(|e| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    anyhow!("header range is invalid: {e}"),
+                )
+            })?)?;
+            Box::new(o.range_reader(br.to_range(meta.content_length())).await?) as BytesReader
         } else {
-            o.reader().await?
+            Box::new(o.reader().await?) as BytesReader
         };
 
         Ok(HttpResponse::Ok().body(SizedStream::new(

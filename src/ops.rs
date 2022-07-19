@@ -22,7 +22,7 @@ use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::ops::RangeBounds;
+use std::ops::{Range, RangeBounds};
 
 use anyhow::anyhow;
 use time::Duration;
@@ -524,6 +524,16 @@ impl BytesRange {
         let end: u64 = v[1].parse().map_err(parse_int_error)?;
         Ok(BytesRange::new(Some(start), Some(end - start + 1)))
     }
+
+    /// Build [`Range<u64>`] with total size.
+    pub fn to_range(&self, total_size: u64) -> Range<u64> {
+        match (self.0, self.1) {
+            (Some(offset), None) => offset..total_size,
+            (None, Some(size)) => total_size - size..total_size,
+            (Some(offset), Some(size)) => offset..offset + size,
+            _ => panic!("invalid range"),
+        }
+    }
 }
 
 impl ToString for BytesRange {
@@ -659,5 +669,41 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bytes_range_to_range() {
+        let cases = vec![
+            (
+                "offset only",
+                BytesRange::new(Some(1024), None),
+                2048,
+                1024..2048,
+            ),
+            (
+                "size only",
+                BytesRange::new(None, Some(1024)),
+                2048,
+                1024..2048,
+            ),
+            (
+                "offset zero",
+                BytesRange::new(Some(0), Some(1024)),
+                2048,
+                0..1024,
+            ),
+            (
+                "part of data",
+                BytesRange::new(Some(1024), Some(1)),
+                4096,
+                1024..1025,
+            ),
+        ];
+
+        for (name, input, input_size, expected) in cases {
+            let actual = input.to_range(input_size);
+
+            assert_eq!(expected, actual, "{name}")
+        }
     }
 }

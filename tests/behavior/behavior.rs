@@ -957,7 +957,7 @@ async fn test_walk_top_down(op: Operator) -> Result<()> {
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
-            .expect(&format!("{s} is not found in {vs:?}"))
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
     }
 
     assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
@@ -990,7 +990,7 @@ async fn test_walk_top_down_within_empty_dir(op: Operator) -> Result<()> {
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
-            .expect(&format!("{s} is not found in {vs:?}"))
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
     }
 
     assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/"));
@@ -1023,7 +1023,7 @@ async fn test_walk_bottom_up(op: Operator) -> Result<()> {
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
-            .expect(&format!("{s} is not found in {vs:?}"))
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
     }
 
     assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));

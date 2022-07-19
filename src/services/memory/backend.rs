@@ -215,7 +215,7 @@ impl Accessor for Backend {
                 }
 
                 // We should remove `/abc` if self
-                if k == &path {
+                if k == path {
                     return None;
                 }
 

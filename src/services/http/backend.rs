@@ -250,10 +250,9 @@ impl Backend {
     }
 
     pub(crate) fn get_index_path(&self, path: &str) -> String {
-        if path.starts_with("/") {
-            path[1..].to_string()
-        } else {
-            path.to_string()
+        match path.strip_prefix('/') {
+            Some(strip) => strip.to_string(),
+            None => path.to_string(),
         }
     }
 
@@ -462,7 +461,7 @@ impl Accessor for Backend {
             None => {
                 return Err(Error::new(
                     ErrorKind::NotFound,
-                    ObjectError::new("list", &path, anyhow!("no such dir")),
+                    ObjectError::new("list", path, anyhow!("no such dir")),
                 ))
             }
             Some(trie) => trie

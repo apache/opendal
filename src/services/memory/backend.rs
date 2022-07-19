@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -206,21 +207,44 @@ impl Accessor for Backend {
 
         let paths = map
             .iter()
-            .map(|(k, _)| k.clone())
-            // Make sure k is start with input path.
-            .filter(|k| k.starts_with(&path) && k != &path)
             // Make sure k is at the same level with input path.
-            .filter(|k| match k[path.len()..].find('/') {
-                None => true,
-                Some(idx) => idx + 1 + path.len() == k.len(),
+            .filter_map(|(k, _)| {
+                let k = k.as_str();
+                // `/xyz` should not belong to `/abc`
+                if !k.starts_with(&path) {
+                    return None;
+                }
+
+                // We should remove `/abc` if self
+                if k == path {
+                    return None;
+                }
+
+                match k[path.len()..].find('/') {
+                    // File `/abc/def.csv` must belong to `/abc`
+                    None => Some(k.to_string()),
+                    Some(idx) => {
+                        // The index of first `/` after `/abc`.
+                        let dir_idx = idx + 1 + path.len();
+
+                        if dir_idx == k.len() {
+                            // Dir `/abc/def/` belongs to `/abc/`
+                            Some(k.to_string())
+                        } else {
+                            // File/Dir `/abc/def/xyz` deoesn't belongs to `/abc`.
+                            // But we need to list `/abc/def` out so that we can walk down.
+                            Some(k[..dir_idx].to_string())
+                        }
+                    }
+                }
             })
-            .collect::<Vec<_>>();
+            .collect::<HashSet<_>>();
 
         debug!("dir object {} listed keys: {paths:?}", path);
         Ok(Box::new(DirStream {
             backend: Arc::new(self.clone()),
             path,
-            paths,
+            paths: paths.into_iter().collect(),
             idx: 0,
         }))
     }

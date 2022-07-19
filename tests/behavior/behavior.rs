@@ -95,6 +95,7 @@ macro_rules! behavior_tests {
 
                 test_walk_bottom_up,
                 test_walk_top_down,
+                test_walk_top_down_within_empty_dir,
                 test_remove_all,
 
                 test_presign_read,
@@ -956,7 +957,7 @@ async fn test_walk_top_down(op: Operator) -> Result<()> {
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
-            .expect("{s} is not found in {vs}")
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
     }
 
     assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
@@ -966,6 +967,37 @@ async fn test_walk_top_down(op: Operator) -> Result<()> {
     expected.sort_unstable();
     actual.sort_unstable();
     assert_eq!(actual, expected);
+    Ok(())
+}
+
+// Walk top down within empty dir should output as expected
+async fn test_walk_top_down_within_empty_dir(op: Operator) -> Result<()> {
+    let mut expected = vec!["x/", "x/x/x/x/"];
+    for path in expected.iter() {
+        op.object(path).create().await?;
+    }
+
+    let w = op.batch().walk_top_down("x/")?;
+    let mut actual = w
+        .try_collect::<Vec<_>>()
+        .await?
+        .into_iter()
+        .map(|v| v.path().to_string())
+        .collect::<Vec<_>>();
+
+    debug!("walk top down: {:?}", actual);
+
+    fn get_position(vs: &[String], s: &str) -> usize {
+        vs.iter()
+            .position(|v| v == s)
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
+    }
+
+    assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/"));
+
+    expected.sort_unstable();
+    actual.sort_unstable();
+    assert_eq!(actual, vec!["x/", "x/x/", "x/x/x/", "x/x/x/x/"]);
     Ok(())
 }
 
@@ -991,7 +1023,7 @@ async fn test_walk_bottom_up(op: Operator) -> Result<()> {
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
-            .expect("{s} is not found in {vs}")
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
     }
 
     assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));

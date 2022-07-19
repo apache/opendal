@@ -15,4 +15,8 @@ anyhow = "1.0.58"
 clap = { version = "3.2.8", features = ["cargo"] }
 env_logger = "0.9.0"
 log = "0.4.17"
-opendal = "0.10.0"
+opendal = "0.11.1"
+
+# Please comment the following patch while releasing.
+[patch.crates-io]
+opendal = { path = "../" }

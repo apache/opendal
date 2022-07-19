@@ -107,7 +107,7 @@ macro_rules! behavior_tests {
 macro_rules! behavior_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<$service:lower>] {
+            mod [<services_ $service:lower>] {
                 use super::*;
 
                 $(

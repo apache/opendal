@@ -130,7 +130,7 @@ impl Operator {
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => services::hdfs::Backend::from_iter(it).await?,
             #[cfg(feature = "services-http")]
-            Scheme::Http => services::http::Backend::build().finish().await?,
+            Scheme::Http => services::http::Backend::from_iter(it).await?,
             Scheme::Memory => services::memory::Backend::build().finish().await?,
             Scheme::S3 => services::s3::Backend::from_iter(it).await?,
         };

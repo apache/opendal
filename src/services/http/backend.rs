@@ -410,7 +410,10 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = args.path().to_string();
+        let mut path = args.path().to_string();
+        if path == "/" {
+            path.clear();
+        }
 
         let paths = match self.index.lock().expect("lock succeed").subtrie(&path) {
             None => {
@@ -427,6 +430,7 @@ impl Accessor for Backend {
                     Some(idx) => idx + 1 + path.len() == k.len(),
                 })
                 .map(|v| v.to_string())
+                .filter(|v| v != &path)
                 .collect::<Vec<_>>(),
         };
 
@@ -447,7 +451,7 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}{}", self.endpoint, path);
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let mut req = hyper::Request::get(&url);
 
@@ -477,7 +481,7 @@ impl Backend {
     }
 
     pub(crate) async fn http_head(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
-        let url = format!("{}{}", self.endpoint, path);
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let req = hyper::Request::head(&url);
 
@@ -570,9 +574,6 @@ impl futures::Stream for DirStream {
         self.idx += 1;
 
         let path = self.paths.get(idx).expect("path must valid");
-        let path = path
-            .strip_prefix(&self.path)
-            .expect("must start will list base");
 
         let de = if path.ends_with('/') {
             DirEntry::new(self.backend.clone(), ObjectMode::DIR, path)

@@ -28,7 +28,9 @@ jobs:
       - name: Start oay in background
         shell: bash
         working-directory: ./oay
-        run: cargo run -- http &
+        run: |
+          cargo build
+          cargo run -- http &
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -36,7 +38,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test http --features compress,retry,services_http -- --nocapture
+        run: cargo test http --features compress,retry,services-http -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

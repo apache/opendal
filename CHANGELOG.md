@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.11.2] - 2022-07-19
+
+### Fixed
+
+- fix: Service HTTP deosn't handle dir correctly (#455)
+- fix: Service HTTP inserted with wrong key (#457)
+
 ## [v0.11.1] - 2022-07-19
 
 ### Added
@@ -486,6 +493,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.11.2]: https://github.com/datafuselabs/opendal/compare/v0.11.1...v0.11.2
 [v0.11.1]: https://github.com/datafuselabs/opendal/compare/v0.11.0...v0.11.1
 [v0.11.0]: https://github.com/datafuselabs/opendal/compare/v0.10.0...v0.11.0
 [v0.10.0]: https://github.com/datafuselabs/opendal/compare/v0.9.1...v0.10.0

@@ -70,6 +70,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 time = "0.3.9"
 tokio = { version = "1.17.0", features = ["full"] }
+isahc = "1.7.2"
 
 [dev-dependencies]
 anyhow = "1.0.56"

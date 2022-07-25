@@ -1368,6 +1368,7 @@ dependencies = [
  "http",
  "hyper",
  "hyper-tls",
+ "isahc",
  "log",
  "md5",
  "metrics",

@@ -23,6 +23,7 @@ use bytes::BufMut;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::StreamExt;
+use isahc::AsyncReadResponseExt;
 use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
@@ -46,7 +47,7 @@ pub struct DirStream {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<bytes::Bytes>>),
+    Sending(BoxFuture<'static, Result<Vec<u8>>>),
     Listing((Output, usize, usize)),
 }
 
@@ -82,14 +83,12 @@ impl futures::Stream for DirStream {
                         );
                     }
 
-                    let body = resp.body_mut();
-                    let mut bs = bytes::BytesMut::new();
-                    while let Some(b) = body.next().await {
-                        let b = b.map_err(|e| other(ObjectError::new("list", &path, e)))?;
-                        bs.put_slice(&b)
-                    }
+                    let bs = resp
+                        .bytes()
+                        .await
+                        .map_err(|e| other(ObjectError::new("list", &path, e)))?;
 
-                    Ok(bs.freeze())
+                    Ok(bs)
                 };
                 self.state = State::Sending(Box::pin(fut));
                 self.poll_next(cx)

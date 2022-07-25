@@ -304,7 +304,9 @@ impl Accessor for Backend {
         increment_counter!("opendal_azblob_create_requests");
         let p = self.get_abs_path(args.path());
 
-        let req = self.put_blob(&p, 0, AsyncBody::empty()).await?;
+        let req = self
+            .put_blob(&p, 0, AsyncBody::from_bytes_static(""))
+            .await?;
         let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
 
@@ -364,7 +366,7 @@ impl Accessor for Backend {
         let p = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &p, args.size());
 
-        let (tx, body) = new_http_channel();
+        let (tx, body) = new_http_channel(args.size());
 
         let req = self.put_blob(&p, args.size(), body).await?;
 

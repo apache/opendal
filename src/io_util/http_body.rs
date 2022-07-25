@@ -49,12 +49,12 @@ use crate::ops::OpWrite;
 /// Create a HTTP channel.
 ///
 /// Read [`opendal::services::s3`]'s `write` implementations for more details.
-pub fn new_http_channel() -> (Sender<Bytes>, AsyncBody) {
+pub fn new_http_channel(size: u64) -> (Sender<Bytes>, AsyncBody) {
     let (tx, rx) = mpsc::channel(0);
 
     (
         tx,
-        AsyncBody::from_reader(into_reader(rx.map(Ok::<_, Error>))),
+        AsyncBody::from_reader_sized(into_reader(rx.map(Ok::<_, Error>)), size),
     )
 }
 
@@ -213,7 +213,7 @@ impl Future for ParseErrorResponse {
             Ok(size) => {
                 // Only read 4KiB from the response to avoid broken services.
                 if self.buf.len() < 4 * 1024 {
-                    self.buf.extend_from_slice(&data);
+                    self.buf.extend_from_slice(&data[..size]);
                 }
 
                 // Make sure the whole body consumed, even we don't need them.
@@ -239,7 +239,9 @@ impl Future for ParseErrorResponse {
 
 #[cfg(test)]
 mod tests {
+    use crate::io_util::HttpClient;
     use futures::SinkExt;
+    use isahc::AsyncReadResponseExt;
     use serde::Deserialize;
 
     use super::*;
@@ -252,17 +254,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_channel() {
-        let (mut tx, body) = new_http_channel();
+        let (mut tx, body) = new_http_channel(13);
 
         let fut = tokio::spawn(async {
-            let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
-            let req = hyper::Request::put("https://httpbin.org/anything")
+            let client = HttpClient::new();
+            let req = isahc::Request::put("https://httpbin.org/anything")
                 .body(body)
                 .expect("request must be valid");
-            let resp = client.request(req).await.expect("request must succeed");
-            let bs = hyper::body::to_bytes(resp.into_body())
-                .await
-                .expect("read body must succeed");
+            let mut resp = client.send_async(req).await.expect("request must succeed");
+            let bs = resp.bytes().await.expect("read body must succeed");
             serde_json::from_slice::<HttpBin>(&bs).expect("deserialize must succeed")
         });
 

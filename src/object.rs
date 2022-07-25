@@ -687,10 +687,10 @@ impl Object {
     /// async fn main() -> Result<()> {
     /// #    let op = Operator::new(memory::Backend::build().finish().await?);
     ///     let signed_req = op.object("test").presign_read(Duration::hours(1))?;
-    ///     let req = hyper::Request::builder()
+    ///     let req = isahc::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
-    ///         .body(hyper::Body::empty())?;
+    ///         .body(isahc::AsyncBody::empty())?;
     ///
     /// #    Ok(())
     /// # }
@@ -716,10 +716,10 @@ impl Object {
     /// async fn main() -> Result<()> {
     /// #    let op = Operator::new(memory::Backend::build().finish().await?);
     ///     let signed_req = op.object("test").presign_write(Duration::hours(1))?;
-    ///     let req = hyper::Request::builder()
+    ///     let req = isahc::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
-    ///         .body(hyper::Body::from("Hello, World!"))?;
+    ///         .body(isahc::AsyncBody::from("Hello, World!"))?;
     ///
     /// #    Ok(())
     /// # }

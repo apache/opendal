@@ -21,10 +21,8 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use bytes::Buf;
-use bytes::BufMut;
 use futures::future::BoxFuture;
 use futures::ready;
-use futures::StreamExt;
 use isahc::AsyncReadResponseExt;
 use log::debug;
 use quick_xml::de;

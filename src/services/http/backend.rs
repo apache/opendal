@@ -28,7 +28,6 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use http::StatusCode;
 use log::debug;
 use log::error;
@@ -685,6 +684,7 @@ fn parse_error_kind(code: StatusCode) -> ErrorKind {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use futures::TryStreamExt;
     use wiremock::matchers::method;
     use wiremock::matchers::path;
     use wiremock::Mock;

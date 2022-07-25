@@ -53,8 +53,7 @@ flagset = "0.4.3"
 futures = { version = "0.3.21", features = ["alloc"] }
 hdrs = { version = "0.1.4", optional = true, features = ["futures-io"] }
 http = "0.2.6"
-hyper = { version = "0.14.18", features = ["full"] }
-hyper-tls = "0.5.0"
+isahc = "1.7.2"
 log = "0.4.16"
 md5 = "0.7.0"
 metrics = "0.19.0"
@@ -70,7 +69,6 @@ serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 time = "0.3.9"
 tokio = { version = "1.17.0", features = ["full"] }
-isahc = "1.7.2"
 
 [dev-dependencies]
 anyhow = "1.0.56"

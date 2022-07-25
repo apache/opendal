@@ -26,6 +26,7 @@ use std::io;
 use anyhow::Result;
 use futures::TryStreamExt;
 use http::header;
+use isahc::AsyncReadResponseExt;
 use log::debug;
 use opendal::ObjectMode;
 use opendal::Operator;
@@ -1073,16 +1074,16 @@ async fn test_presign_write(op: Operator) -> Result<()> {
     let signed_req = op.object(&path).presign_write(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = hyper::Request::builder()
+    let mut req = isahc::Request::builder()
         .method(signed_req.method())
         .uri(signed_req.uri())
-        .body(hyper::Body::from(content.clone()))?;
+        .body(isahc::AsyncBody::from_bytes_static(content.clone()))?;
     *req.headers_mut() = signed_req.header().clone();
     req.headers_mut()
         .insert(header::CONTENT_LENGTH, content.len().to_string().parse()?);
 
-    let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
-    let _ = client.request(req).await?;
+    let client = isahc::HttpClient::new().expect("must init succeed");
+    let _ = client.send_async(req).await?;
 
     let meta = op
         .object(&path)
@@ -1117,22 +1118,16 @@ async fn test_presign_read(op: Operator) -> Result<()> {
     let signed_req = op.object(&path).presign_read(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = hyper::Request::builder()
+    let mut req = isahc::Request::builder()
         .method(signed_req.method())
         .uri(signed_req.uri())
-        .body(hyper::Body::empty())?;
+        .body(isahc::AsyncBody::empty())?;
     *req.headers_mut() = signed_req.header().clone();
 
-    let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
-    let resp = client.request(req).await?;
+    let client = isahc::HttpClient::new().expect("must init succeed");
+    let mut resp = client.send_async(req).await?;
 
-    let bs: Vec<u8> = resp
-        .into_body()
-        .try_fold(Vec::new(), |mut data, chunk| async move {
-            data.extend_from_slice(&chunk);
-            Ok(data)
-        })
-        .await?;
+    let bs: Vec<u8> = resp.bytes().await?;
     assert_eq!(size, bs.len(), "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

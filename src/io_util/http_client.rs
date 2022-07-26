@@ -32,7 +32,7 @@ impl HttpClient {
     pub fn new() -> Self {
         HttpClient(
             hyper::Client::builder()
-                // Disable connection pool to address weired async runtime hang.
+                // Disable connection pool to address weird async runtime hang.
                 //
                 // ref: https://github.com/datafuselabs/opendal/issues/473
                 .pool_max_idle_per_host(0)

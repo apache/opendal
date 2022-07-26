@@ -13,7 +13,7 @@ version = "0.11.2"
 [dependencies]
 actix-web = "4.1.0"
 anyhow = "1.0.58"
-clap = { version = "3.2.14", features = ["cargo"] }
+clap = { version = "3.2.15", features = ["cargo"] }
 env_logger = "0.9.0"
 futures = "0.3.21"
 log = "0.4.17"

@@ -53,7 +53,13 @@ flagset = "0.4.3"
 futures = { version = "0.3.21", features = ["alloc"] }
 hdrs = { version = "0.1.4", optional = true, features = ["futures-io"] }
 http = "0.2.6"
-hyper = { version = "0.14.18", features = ["full"] }
+hyper = { version = "0.14.20", features = [
+  "http1",
+  "http2",
+  "client",
+  "runtime",
+  "stream",
+] }
 hyper-tls = "0.5.0"
 log = "0.4.16"
 md5 = "0.7.0"
@@ -69,7 +75,7 @@ reqsign = "0.3.0"
 serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 time = "0.3.9"
-tokio = { version = "1.17.0", features = ["full"] }
+tokio = { version = "1.20.1", features = ["fs", "macros"] }
 
 [dev-dependencies]
 anyhow = "1.0.56"
@@ -88,5 +94,6 @@ rand = "0.8.5"
 serde_json = "1.0.79"
 sha2 = "0.10.2"
 size = "0.4.0"
+tokio = { version = "1.20.1", features = ["fs", "macros", "rt-multi-thread"] }
 uuid = { version = "1.0.0", features = ["serde", "v4"] }
 wiremock = "0.5.13"

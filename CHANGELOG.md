@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.11.3] - 2022-07-26
+
+### Changed
+
+- build: Remove not used features (#472)
+
+### Fixed
+
+- fix: Disable connection pool as workaround for async runtime hang (#474)
+
+### Dependencies
+
+- chore(deps): Bump clap from 3.2.12 to 3.2.15 in /oay (#461)
+- chore(deps): Bump clap from 3.2.12 to 3.2.15 in /oli (#460)
+- chore(deps): Update metrics requirement from 0.19.0 to 0.20.0 (#462)
+- chore(deps): Bump tokio from 1.20.0 to 1.20.1 in /oay (#468)
+
 ## [v0.11.2] - 2022-07-19
 
 ### Fixed
@@ -493,6 +510,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.11.3]: https://github.com/datafuselabs/opendal/compare/v0.11.2...v0.11.3
 [v0.11.2]: https://github.com/datafuselabs/opendal/compare/v0.11.1...v0.11.2
 [v0.11.1]: https://github.com/datafuselabs/opendal/compare/v0.11.0...v0.11.1
 [v0.11.0]: https://github.com/datafuselabs/opendal/compare/v0.10.0...v0.11.0

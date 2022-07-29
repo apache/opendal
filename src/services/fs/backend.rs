@@ -195,11 +195,10 @@ impl Accessor for Backend {
                 e
             })?;
 
-            nfs::OpenOptions::new()
+            std::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(&path)
-                .await
                 .map_err(|e| {
                     let e = parse_io_error(e, "create", &path);
                     error!("object {} create: {:?}", &path, e);
@@ -234,15 +233,16 @@ impl Accessor for Backend {
             args.size()
         );
 
-        let mut f = nfs::OpenOptions::new()
+        let f = std::fs::OpenOptions::new()
             .read(true)
             .open(&path)
-            .await
             .map_err(|e| {
                 let e = parse_io_error(e, "read", &path);
                 error!("object {} open: {:?}", &path, e);
                 e
             })?;
+
+        let mut f = nuclei::Handle::new(f)?;
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
@@ -301,11 +301,10 @@ impl Accessor for Backend {
             e
         })?;
 
-        let f = nfs::OpenOptions::new()
+        let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(&path)
-            .await
             .map_err(|e| {
                 let e = parse_io_error(e, "write", &path);
                 error!("object {} open: {:?}", &path, e);
@@ -313,7 +312,7 @@ impl Accessor for Backend {
             })?;
 
         debug!("object {} write finished: size {:?}", &path, args.size());
-        Ok(Box::new(f))
+        Ok(Box::new(nuclei::Handle::new(f)?))
     }
 
     #[trace("stat")]

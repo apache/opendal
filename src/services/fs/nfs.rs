@@ -35,14 +35,6 @@ pub use std::fs::{FileType, Metadata, Permissions};
 /// * `path` already points to an existing file or directory.
 /// * The current process lacks permissions to create the directory or its missing parents.
 /// * Some other I/O error occurred.
-///
-/// # Examples
-///
-/// ```no_run
-/// # futures::executor::block_on(async {
-/// opendal::services::fs::nfs::create_dir_all("./some/directory").await?;
-/// # std::io::Result::Ok(()) });
-/// ```
 pub async fn create_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref().to_owned();
     spawn_blocking(move || std::fs::create_dir_all(&path)).await
@@ -61,14 +53,6 @@ pub async fn create_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 /// * `path` does not point to an existing file or directory.
 /// * The current process lacks permissions to read metadata for the path.
 /// * Some other I/O error occurred.
-///
-/// # Examples
-///
-/// ```no_run
-/// # futures::executor::block_on(async {
-/// let perm = opendal::services::fs::nfs::metadata("a.txt").await?.permissions();
-/// # std::io::Result::Ok(()) });
-/// ```
 pub async fn metadata<P: AsRef<Path>>(path: P) -> io::Result<Metadata> {
     let path = path.as_ref().to_owned();
     spawn_blocking(move || std::fs::metadata(path)).await
@@ -86,14 +70,6 @@ pub async fn metadata<P: AsRef<Path>>(path: P) -> io::Result<Metadata> {
 /// * `path` is not an existing and empty directory.
 /// * The current process lacks permissions to remove the directory.
 /// * Some other I/O error occurred.
-///
-/// # Examples
-///
-/// ```no_run
-/// # futures::executor::block_on(async {
-/// opendal::services::fs::nfs::remove_dir("./some/directory").await?;
-/// # std::io::Result::Ok(()) });
-/// ```
 pub async fn remove_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref().to_owned();
     spawn_blocking(move || std::fs::remove_dir(&path)).await
@@ -108,14 +84,6 @@ pub async fn remove_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
 /// * `path` does not point to an existing file.
 /// * The current process lacks permissions to remove the file.
 /// * Some other I/O error occurred.
-///
-/// # Examples
-///
-/// ```no_run
-/// # futures::executor::block_on(async {
-/// opendal::services::fs::nfs::remove_file("a.txt").await?;
-/// # std::io::Result::Ok(()) });
-/// ```
 pub async fn remove_file<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref().to_owned();
     spawn_blocking(move || std::fs::remove_file(&path)).await

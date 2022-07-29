@@ -15,11 +15,17 @@ version = "0.11.3"
 all-features = true
 
 [features]
+default = ["epoll"]
 compress = ["async-compression"]
 retry = ["backon"]
 serde = ["time/serde"]
 services-hdfs = ["hdrs"]
 services-http = ["radix_trie"]
+# the io features, by default, we use `epoll`
+# to enable `iouring` we need to disable the `default` feature
+epoll = ["nuclei/epoll"]
+iouring = ["nuclei/iouring"]
+
 
 [lib]
 bench = false
@@ -38,13 +44,13 @@ required-features = ["services-hdfs"]
 
 [dependencies]
 anyhow = "1.0.56"
-async-compat = "0.2.1"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
 async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
   "futures-io",
   "all-algorithms",
 ], optional = true }
 async-trait = "0.1.53"
+blocking = "1.2.0"
 backon = { version = "0.0.2", optional = true }
 base64 = "0.13.0"
 bytes = "1.1.0"
@@ -75,7 +81,7 @@ reqsign = "0.3.0"
 serde = { version = "1.0.136", features = ["derive"] }
 thiserror = "1.0.30"
 time = "0.3.9"
-tokio = { version = "1.20.1", features = ["fs", "macros"] }
+nuclei = { version = "0.2.1", default-features = false, features = ["async-exec"] }
 
 [dev-dependencies]
 anyhow = "1.0.56"

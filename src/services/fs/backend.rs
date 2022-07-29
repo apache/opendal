@@ -20,7 +20,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use async_compat::Compat;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
@@ -31,10 +30,10 @@ use log::warn;
 use metrics::increment_counter;
 use minitrace::trace;
 use time::OffsetDateTime;
-use tokio::fs;
 
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
+use super::nfs;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
@@ -98,9 +97,9 @@ impl Builder {
         };
 
         // If root dir is not exist, we must create it.
-        if let Err(e) = fs::metadata(&root).await {
+        if let Err(e) = nfs::metadata(&root).await {
             if e.kind() == std::io::ErrorKind::NotFound {
-                fs::create_dir_all(&root)
+                nfs::create_dir_all(&root)
                     .await
                     .map_err(|e| parse_io_error(e, "build", &root))?;
             }
@@ -187,7 +186,7 @@ impl Accessor for Backend {
                 })?
                 .to_path_buf();
 
-            fs::create_dir_all(&parent).await.map_err(|e| {
+            nfs::create_dir_all(&parent).await.map_err(|e| {
                 let e = parse_io_error(e, "create", &parent.to_string_lossy());
                 error!(
                     "object {} create_dir_all for parent {:?}: {:?}",
@@ -196,7 +195,7 @@ impl Accessor for Backend {
                 e
             })?;
 
-            fs::OpenOptions::new()
+            nfs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(&path)
@@ -211,7 +210,7 @@ impl Accessor for Backend {
         }
 
         if args.mode() == ObjectMode::DIR {
-            fs::create_dir_all(&path).await.map_err(|e| {
+            nfs::create_dir_all(&path).await.map_err(|e| {
                 let e = parse_io_error(e, "create", &path);
                 error!("object {} create: {:?}", &path, e);
                 e
@@ -235,7 +234,7 @@ impl Accessor for Backend {
             args.size()
         );
 
-        let f = fs::OpenOptions::new()
+        let mut f = nfs::OpenOptions::new()
             .read(true)
             .open(&path)
             .await
@@ -244,8 +243,6 @@ impl Accessor for Backend {
                 error!("object {} open: {:?}", &path, e);
                 e
             })?;
-
-        let mut f = Compat::new(f);
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
@@ -293,7 +290,7 @@ impl Accessor for Backend {
             })?
             .to_path_buf();
 
-        fs::create_dir_all(&parent).await.map_err(|e| {
+        nfs::create_dir_all(&parent).await.map_err(|e| {
             let e = parse_io_error(e, "write", &parent.to_string_lossy());
             error!(
                 "object {} create_dir_all for parent {}: {:?}",
@@ -304,7 +301,7 @@ impl Accessor for Backend {
             e
         })?;
 
-        let f = fs::OpenOptions::new()
+        let f = nfs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(&path)
@@ -316,7 +313,7 @@ impl Accessor for Backend {
             })?;
 
         debug!("object {} write finished: size {:?}", &path, args.size());
-        Ok(Box::new(Compat::new(f)))
+        Ok(Box::new(f))
     }
 
     #[trace("stat")]
@@ -326,7 +323,7 @@ impl Accessor for Backend {
         let path = self.get_abs_path(args.path());
         debug!("object {} stat start", &path);
 
-        let meta = fs::metadata(&path).await.map_err(|e| {
+        let meta = nfs::metadata(&path).await.map_err(|e| {
             let e = parse_io_error(e, "stat", &path);
             warn!("object {} stat: {:?}", &path, e);
             e
@@ -359,7 +356,7 @@ impl Accessor for Backend {
         debug!("object {} delete start", &path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
-        let meta = fs::metadata(&path).await;
+        let meta = nfs::metadata(&path).await;
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::NotFound {
@@ -375,9 +372,9 @@ impl Accessor for Backend {
         let meta = meta.ok().unwrap();
 
         let f = if meta.is_dir() {
-            fs::remove_dir(&path).await
+            nfs::remove_dir(&path).await
         } else {
-            fs::remove_file(&path).await
+            nfs::remove_file(&path).await
         };
 
         f.map_err(|e| parse_io_error(e, "delete", &path))?;

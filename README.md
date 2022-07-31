@@ -6,7 +6,9 @@
 [crates.io]: https://crates.io/crates/opendal
 [Crate Downloads]: https://img.shields.io/crates/d/opendal.svg
 
-**Open Data Access Layer that empowers everyone to access different storage services painless and efficiently**
+**Open Data Access Layer**
+
+Access data freely, painless, and efficiently
 
 ---
 

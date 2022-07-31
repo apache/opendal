@@ -1,9 +1,10 @@
-# OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io]
+# OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io]
 
 [Build Status]: https://img.shields.io/github/workflow/status/datafuselabs/opendal/CI/main
 [actions]: https://github.com/datafuselabs/opendal/actions?query=branch%3Amain
 [Latest Version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal
+[Crate Downloads]: https://img.shields.io/crates/d/opendal.svg
 
 **Open Data Access Layer that empowers everyone to access different storage services painless and efficiently**
 

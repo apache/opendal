@@ -60,6 +60,12 @@ impl HttpClient {
     }
 }
 
+impl Default for HttpClient {
+    fn default() -> Self {
+        HttpClient::new()
+    }
+}
+
 /// Forward all function to http backend.
 impl Deref for HttpClient {
     type Target = hyper::Client<HttpsConnector<hyper::client::HttpConnector>, hyper::Body>;

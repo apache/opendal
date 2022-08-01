@@ -27,6 +27,7 @@ use anyhow::Result;
 use futures::TryStreamExt;
 use http::header;
 use log::debug;
+use opendal::io_util::HttpClient;
 use opendal::ObjectMode;
 use opendal::Operator;
 use opendal::Scheme::*;
@@ -1081,7 +1082,7 @@ async fn test_presign_write(op: Operator) -> Result<()> {
     req.headers_mut()
         .insert(header::CONTENT_LENGTH, content.len().to_string().parse()?);
 
-    let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+    let client = HttpClient::new();
     let _ = client.request(req).await?;
 
     let meta = op
@@ -1123,7 +1124,7 @@ async fn test_presign_read(op: Operator) -> Result<()> {
         .body(hyper::Body::empty())?;
     *req.headers_mut() = signed_req.header().clone();
 
-    let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+    let client = HttpClient::new();
     let resp = client.request(req).await?;
 
     let bs: Vec<u8> = resp

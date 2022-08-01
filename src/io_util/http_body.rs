@@ -236,6 +236,7 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
+    use crate::io_util::HttpClient;
 
     #[derive(Deserialize, Default)]
     #[serde(default)]
@@ -248,7 +249,7 @@ mod tests {
         let (mut tx, body) = new_http_channel();
 
         let fut = tokio::spawn(async {
-            let client = hyper::Client::builder().build(hyper_tls::HttpsConnector::new());
+            let client = HttpClient::new();
             let req = hyper::Request::put("https://httpbin.org/anything")
                 .body(body)
                 .expect("request must be valid");

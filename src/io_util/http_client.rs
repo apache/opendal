@@ -41,7 +41,7 @@ pub(crate) fn https_connector() -> HttpsConnector<hyper::client::HttpConnector> 
 pub(crate) fn https_connector() -> HttpsConnector<hyper::client::HttpConnector> {
     HttpsConnectorBuilder::new()
         .with_native_roots()
-        .https_only()
+        .https_or_http()
         .enable_http1()
         .build()
 }

@@ -44,7 +44,7 @@ pub(crate) use http_body::HttpBodyWriter;
 mod http_client;
 pub(crate) use http_client::parse_error_kind;
 pub(crate) use http_client::percent_encode_path;
-pub use http_client::HttpClient;
+pub(crate) use http_client::HttpClient;
 
 mod http_header;
 pub(crate) use http_header::parse_content_length;

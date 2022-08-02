@@ -15,8 +15,9 @@ version = "0.11.3"
 all-features = true
 
 [features]
-compress = ["async-compression"]
 default = ["hyper-tls"]
+
+compress = ["async-compression"]
 retry = ["backon"]
 rustls = ["hyper-rustls"]
 serde = ["time/serde"]

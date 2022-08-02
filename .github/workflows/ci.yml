@@ -51,6 +51,18 @@ jobs:
       - name: Build
         run: cargo build
 
+  build_rustls:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-11
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo build --no-default-features --features rustls
+
   build_all_features:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -107,6 +119,15 @@ jobs:
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
+      - name: Test rustls
+        run: cargo test --no-fail-fast --features compress,retry,rustls --no-default-features
+        env:
+          RUST_TEST_THREADS: '2'
+          RUST_LOG: DEBUG
+          RUST_BACKTRACE: full
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
 
   build_oli:
     runs-on: ${{ matrix.os }}

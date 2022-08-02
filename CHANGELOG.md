@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.11.4] - 2022-08-02
+
+### Added
+
+- feat: Support using rustls for TLS (#491)
+
+### Changed
+
+- feat: try to support epoll (#478)
+- deps: Lower the requirement of deps (#495)
+- Revert "feat: try to support epoll" (#496)
+
+### Fixed
+
+- fix: Uri encode continuation-token before signing (#494)
+
+### Docs
+
+- docs: Add downloads in README (#485)
+- docs: Update slogan for OpenDAL (#486)
+
 ## [v0.11.3] - 2022-07-26
 
 ### Changed
@@ -510,6 +531,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.11.4]: https://github.com/datafuselabs/opendal/compare/v0.11.3...v0.11.4
 [v0.11.3]: https://github.com/datafuselabs/opendal/compare/v0.11.2...v0.11.3
 [v0.11.2]: https://github.com/datafuselabs/opendal/compare/v0.11.1...v0.11.2
 [v0.11.1]: https://github.com/datafuselabs/opendal/compare/v0.11.0...v0.11.1

@@ -87,6 +87,7 @@ reqsign = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 time = "0.3"
+tokio = { version="1.20", features = ["fs"] }
 
 [dev-dependencies]
 cfg-if = "1.0"

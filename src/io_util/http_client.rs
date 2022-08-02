@@ -15,6 +15,11 @@
 use std::io::ErrorKind;
 use std::ops::Deref;
 
+#[cfg(feature = "rustls")]
+use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
+#[cfg(not(feature = "rustls"))]
+use hyper_tls::HttpsConnector;
+
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;
@@ -23,9 +28,23 @@ use percent_encoding::NON_ALPHANUMERIC;
 ///
 /// NOTE: we could change or support more underlying http backend.
 #[derive(Debug, Clone)]
-pub struct HttpClient(
-    hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
-);
+pub struct HttpClient(hyper::Client<HttpsConnector<hyper::client::HttpConnector>, hyper::Body>);
+
+#[cfg(not(feature = "rustls"))]
+#[inline]
+pub(crate) fn https_connector() -> HttpsConnector<hyper::client::HttpConnector> {
+    HttpsConnector::new()
+}
+
+#[cfg(feature = "rustls")]
+#[inline]
+pub(crate) fn https_connector() -> HttpsConnector<hyper::client::HttpConnector> {
+    HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .https_or_http()
+        .enable_http1()
+        .build()
+}
 
 impl HttpClient {
     /// Create a new http client.
@@ -36,15 +55,20 @@ impl HttpClient {
                 //
                 // ref: https://github.com/datafuselabs/opendal/issues/473
                 .pool_max_idle_per_host(0)
-                .build(hyper_tls::HttpsConnector::new()),
+                .build(https_connector()),
         )
+    }
+}
+
+impl Default for HttpClient {
+    fn default() -> Self {
+        HttpClient::new()
     }
 }
 
 /// Forward all function to http backend.
 impl Deref for HttpClient {
-    type Target =
-        hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>, hyper::Body>;
+    type Target = hyper::Client<HttpsConnector<hyper::client::HttpConnector>, hyper::Body>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

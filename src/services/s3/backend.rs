@@ -1274,8 +1274,16 @@ impl Backend {
             percent_encode_path(path)
         );
         if !continuation_token.is_empty() {
-            write!(url, "&continuation-token={continuation_token}")
-                .expect("write into string must succeed");
+            // AWS S3 could return continuation-token that contains `=`
+            // which could lead `reqsign` parse query wrongly.
+            // URL encode continuation-token before starting signing so that
+            // our signer will not be confused.
+            write!(
+                url,
+                "&continuation-token={}",
+                percent_encode_path(continuation_token)
+            )
+            .expect("write into string must succeed");
         }
 
         let mut req = hyper::Request::get(&url)

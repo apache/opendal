@@ -11,7 +11,7 @@ repository = "https://github.com/datafuselabs/opendal"
 version = "0.11.3"
 
 [dependencies]
-anyhow = "1.0.58"
+anyhow = "1.0.59"
 clap = { version = "3.2.16", features = ["cargo"] }
 env_logger = "0.9.0"
 log = "0.4.17"

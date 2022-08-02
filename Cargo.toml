@@ -17,11 +17,17 @@ all-features = true
 [features]
 default = ["hyper-tls"]
 
+# Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
+# Enable retry layer support.
 retry = ["backon"]
+# Enable rustls support.
 rustls = ["hyper-rustls"]
+# Enable serde support.
 serde = ["time/serde"]
+# Enable services hdfs support
 services-hdfs = ["hdrs"]
+# Enable services http support
 services-http = ["radix_trie"]
 
 [lib]

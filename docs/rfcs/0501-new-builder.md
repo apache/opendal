@@ -38,7 +38,7 @@ After this change, all our services builder will add a new API:
 
 ```rust
 impl Builder {
-    pub async fn build(&mut self) -> Result<Backend> {}
+    pub fn build(&mut self) -> Result<Backend> {}
 }
 ```
 

@@ -1,7 +1,7 @@
 - Proposal Name: `new_builder`
 - Start Date: 2022-08-03
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#501](https://github.com/datafuselabs/opendal/pull/501)
+- Tracking Issue: [datafuselabs/opendal#502](https://github.com/datafuselabs/opendal/issues/502)
 
 # Summary
 

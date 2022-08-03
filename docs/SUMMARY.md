@@ -39,3 +39,4 @@
   - [0429-init-from-iter](rfcs/0429-init-from-iter.md)
   - [0438-multipart](rfcs/0438-multipart.md)
   - [0443-gateway](rfcs/0443-gateway.md)
+  - [0501-new-builde](rfcs/0501-new-builder.md)

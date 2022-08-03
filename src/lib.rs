@@ -114,8 +114,6 @@ pub use object::DirStream;
 pub use object::DirStreamer;
 pub use object::Object;
 pub use object::ObjectMetadata;
-#[deprecated = "Metadata has been deprecated, use ObjectMetadata instead"]
-pub use object::ObjectMetadata as Metadata;
 pub use object::ObjectMode;
 
 mod scheme;

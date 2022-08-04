@@ -23,6 +23,7 @@ use std::thread;
 use crate::http_util::wait::forward;
 use crate::http_util::wait::timeout;
 use log::{debug, error};
+use time::Duration;
 use tokio::runtime;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::{mpsc, oneshot};
@@ -135,6 +136,24 @@ impl HttpClient {
 
     pub fn request(&self, req: Request<hyper::Body>) -> ResponseFuture {
         self.inner.request(req)
+    }
+
+    pub fn blocking_request(
+        &self,
+        req: Request<hyper::Body>,
+    ) -> hyper::Result<hyper::Response<hyper::Body>> {
+        let (tx, rx) = oneshot::channel();
+
+        self.tx.send((req, tx)).expect("core thread panicked");
+
+        let f = async move { rx.await.map_err(|_canceled| event_loop_panicked()) };
+        let result = timeout(f, Some(std::time::Duration::from_secs(10)));
+
+        match result {
+            Ok(Err(err)) => Err(err),
+            Ok(Ok(res)) => Ok(res),
+            Err(err) => unreachable!("unexpected end of request: {err:?}"),
+        }
     }
 }
 

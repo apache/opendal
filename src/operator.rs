@@ -319,6 +319,11 @@ impl Operator {
             _ => Ok(()),
         }
     }
+    
+    /// Whether this operator support sync mode
+    pub fn support_sync(&self) -> bool {
+         self.accessor.as_any().downcast_ref::<crate::services::fs::Backend>().is_some()
+    }
 }
 
 /// BatchOperator is used to take batch operations like walk_dir and remove_all, should

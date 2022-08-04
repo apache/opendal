@@ -167,10 +167,42 @@ impl Backend {
 
 // Sync api for backend.
 impl Backend {
+
+    /// Sync stat api for fs.
+    #[trace("sync_stat")]
+    pub fn sync_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        increment_counter!("opendal_fs_stat_requests");
+
+        let path = self.get_abs_path(args.path());
+        debug!("object {} stat start", &path);
+
+        let meta = std::fs::metadata(&path).map_err(|e| {
+            let e = parse_io_error(e, "stat", &path);
+            warn!("object {} stat: {:?}", &path, e);
+            e
+        })?;
+
+        let mut m = ObjectMetadata::default();
+        if meta.is_dir() {
+            m.set_mode(ObjectMode::DIR);
+        } else if meta.is_file() {
+            m.set_mode(ObjectMode::FILE);
+        } else {
+            m.set_mode(ObjectMode::Unknown);
+        }
+        m.set_content_length(meta.len() as u64);
+        m.set_last_modified(
+            meta.modified()
+                .map(OffsetDateTime::from)
+                .map_err(|e| parse_io_error(e, "stat", &path))?,
+        );
+        debug!("object {} stat finished", &path);
+        Ok(m)
+    }
     
     /// Sync read api for fs.
      #[trace("sync_read")]
-    pub fn sync_read(&self, args: &OpRead, buf: &mut Vec<u8>) -> Result<usize> {
+    pub fn sync_read(&self, args: &OpRead, buf: &mut [u8]) -> Result<()> {
         increment_counter!("opendal_fs_read_requests");
         let path = self.get_abs_path(args.path());
         debug!(
@@ -204,13 +236,14 @@ impl Backend {
             args.size()
         );
         
-        
         let result = match args.size() {
             Some(v) =>  {
                 let mut f = f.take(v);
-                f.read(buf)
+                f.read_exact(buf)
             },
-            _ => f.read(buf)
+            _ => {
+                 f.read_exact(buf)
+            }
         };
         
         result.map_err(|e| {

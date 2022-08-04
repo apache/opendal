@@ -51,6 +51,7 @@ use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
 use crate::BytesWrite;
+use crate::services::fs;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -272,6 +273,21 @@ impl Object {
         io::copy(s, &mut bs).await?;
 
         Ok(bs.into_inner())
+    }
+    
+    /// Must ensure the Accessor is fs backend
+    pub fn fs_sync_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
+        let acc: &fs::Backend = self.acc.as_any().downcast_ref().unwrap();
+        let metadata = acc.sync_stat(&OpStat::new(self.path())?)?;
+        let op = OpRead::new(self.path(), (range.start_bound(), range.end_bound()))?;
+        
+        let br = BytesRange::from(range);
+        let offset = br.offset().unwrap_or(0);
+        let size = br.size().unwrap_or(metadata.content_length() as u64 - offset);
+        let mut buffer =  Vec::with_capacity(size as usize);
+        
+        acc.sync_read(&op, &mut buffer)?;
+        Ok(buffer)
     }
 
     /// Create a new reader which can read the whole object.

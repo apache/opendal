@@ -71,7 +71,45 @@ impl Builder {
         self
     }
 
+    /// Consume current builder to build a fs backend.
+    pub fn build(&mut self) -> Result<Backend> {
+        info!("backend build started: {:?}", &self);
+
+        // Make `/` as the default of root.
+        let root = match &self.root {
+            None => "/".to_string(),
+            Some(v) => {
+                debug_assert!(!v.is_empty());
+
+                let mut v = v.clone();
+
+                if !v.starts_with('/') {
+                    return Err(other(BackendError::new(
+                        HashMap::from([("root".to_string(), v.clone())]),
+                        anyhow!("Root must start with /"),
+                    )));
+                }
+                if !v.ends_with('/') {
+                    v.push('/');
+                }
+
+                v
+            }
+        };
+
+        // If root dir is not exist, we must create it.
+        if let Err(e) = std::fs::metadata(&root) {
+            if e.kind() == ErrorKind::NotFound {
+                std::fs::create_dir_all(&root).map_err(|e| parse_io_error(e, "build", &root))?;
+            }
+        }
+
+        info!("backend build finished: {:?}", &self);
+        Ok(Backend { root })
+    }
+
     /// Consume current builder to build an fs backend.
+    #[deprecated = "Use Builder::build() instead"]
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -119,13 +157,12 @@ pub struct Backend {
 
 impl Backend {
     /// Create a builder.
+    #[deprecated = "Use Builder::default() instead"]
     pub fn build() -> Builder {
         Builder::default()
     }
 
-    pub(crate) async fn from_iter(
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Arc<dyn Accessor>> {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 
         for (k, v) in it {
@@ -136,7 +173,7 @@ impl Backend {
             };
         }
 
-        builder.finish().await
+        builder.build()
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {

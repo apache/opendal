@@ -70,7 +70,7 @@ hyper = { version = "0.14", features = [
   "stream",
 ] }
 hyper-rustls = { version = "0.23", optional = true, features = [
-  "rustls-native-certs",
+  "rustls-native-certs", "http2"
 ] }
 hyper-tls = { version = "0.5", optional = true }
 log = "0.4"

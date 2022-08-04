@@ -30,7 +30,7 @@ use serde::Deserialize;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::io_util::parse_error_response;
+use crate::http_util::parse_error_response;
 use crate::services::azblob::backend::parse_error_kind;
 use crate::DirEntry;
 use crate::ObjectMode;

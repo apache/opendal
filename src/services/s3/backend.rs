@@ -44,15 +44,15 @@ use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io_util::new_http_channel;
-use crate::io_util::parse_content_length;
-use crate::io_util::parse_error_kind as parse_http_error_kind;
-use crate::io_util::parse_error_response;
-use crate::io_util::parse_etag;
-use crate::io_util::parse_last_modified;
-use crate::io_util::percent_encode_path;
-use crate::io_util::HttpBodyWriter;
-use crate::io_util::HttpClient;
+use crate::http_util::new_http_channel;
+use crate::http_util::parse_content_length;
+use crate::http_util::parse_error_kind as parse_http_error_kind;
+use crate::http_util::parse_error_response;
+use crate::http_util::parse_etag;
+use crate::http_util::parse_last_modified;
+use crate::http_util::percent_encode_path;
+use crate::http_util::HttpBodyWriter;
+use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -522,6 +522,12 @@ impl Builder {
     }
 
     /// Finish the build process and create a new accessor.
+    pub fn build(&mut self) -> Result<Backend> {
+        todo!()
+    }
+
+    /// Finish the build process and create a new accessor.
+    #[deprecated = "Use Builder::build() instead"]
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -698,13 +704,12 @@ pub struct Backend {
 
 impl Backend {
     /// Create a new builder for s3.
+    #[deprecated = "Use Builder::default() instead"]
     pub fn build() -> Builder {
         Builder::default()
     }
 
-    pub(crate) async fn from_iter(
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Arc<dyn Accessor>> {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 
         for (k, v) in it {
@@ -735,7 +740,7 @@ impl Backend {
             };
         }
 
-        builder.finish().await
+        builder.build()
     }
 
     /// get_abs_path will return the absolute path of the given path in the s3 format.

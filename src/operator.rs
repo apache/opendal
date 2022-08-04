@@ -38,6 +38,15 @@ pub struct Operator {
     accessor: Arc<dyn Accessor>,
 }
 
+impl<A> From<A> for Operator
+where
+    A: Accessor + 'static,
+{
+    fn from(accessor: A) -> Self {
+        Operator::new(accessor)
+    }
+}
+
 impl Operator {
     /// Create a new operator.
     ///
@@ -76,8 +85,10 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(accessor: Arc<dyn Accessor>) -> Self {
-        Self { accessor }
+    pub fn new(accessor: impl Accessor + 'static) -> Self {
+        Self {
+            accessor: Arc::new(accessor),
+        }
     }
 
     /// Create a new operator from iter.
@@ -120,22 +131,19 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn from_iter(
-        scheme: Scheme,
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Self> {
-        let accessor = match scheme {
-            Scheme::Azblob => services::azblob::Backend::from_iter(it).await?,
-            Scheme::Fs => services::fs::Backend::from_iter(it).await?,
+    pub fn from_iter(scheme: Scheme, it: impl Iterator<Item = (String, String)>) -> Result<Self> {
+        let op = match scheme {
+            Scheme::Azblob => services::azblob::Backend::from_iter(it)?.into(),
+            Scheme::Fs => services::fs::Backend::from_iter(it)?.into(),
             #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => services::hdfs::Backend::from_iter(it).await?,
+            Scheme::Hdfs => services::hdfs::Backend::from_iter(it)?.into(),
             #[cfg(feature = "services-http")]
-            Scheme::Http => services::http::Backend::from_iter(it).await?,
-            Scheme::Memory => services::memory::Backend::build().finish().await?,
-            Scheme::S3 => services::s3::Backend::from_iter(it).await?,
+            Scheme::Http => services::http::Backend::from_iter(it)?.into(),
+            Scheme::Memory => services::memory::Builder::default().build()?.into(),
+            Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
         };
 
-        Ok(Self { accessor })
+        Ok(op)
     }
 
     /// Create a new operator from env.
@@ -181,7 +189,7 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn from_env(scheme: Scheme) -> Result<Self> {
+    pub fn from_env(scheme: Scheme) -> Result<Self> {
         let prefix = format!("opendal_{scheme}_");
         let envs = env::vars().filter_map(|(k, v)| {
             k.to_lowercase()
@@ -189,7 +197,7 @@ impl Operator {
                 .map(|k| (k.to_string(), v))
         });
 
-        Self::from_iter(scheme, envs).await
+        Self::from_iter(scheme, envs)
     }
 
     /// Create a new layer.

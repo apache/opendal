@@ -36,23 +36,6 @@ pub use write_observer::observe_write;
 pub use write_observer::WriteEvent;
 pub use write_observer::WriteObserver;
 
-mod http_body;
-pub(crate) use http_body::new_http_channel;
-pub(crate) use http_body::parse_error_response;
-pub(crate) use http_body::HttpBodyWriter;
-
-mod http_client;
-pub(crate) use http_client::parse_error_kind;
-pub(crate) use http_client::percent_encode_path;
-pub(crate) use http_client::HttpClient;
-
-mod http_header;
-pub(crate) use http_header::parse_content_length;
-#[cfg(feature = "services-http")]
-pub(crate) use http_header::parse_content_md5;
-pub(crate) use http_header::parse_etag;
-pub(crate) use http_header::parse_last_modified;
-
 mod seekable_reader;
 pub use seekable_reader::seekable_read;
 pub use seekable_reader::SeekableReader;

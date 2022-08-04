@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::any::Any;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -477,6 +478,10 @@ impl Accessor for Backend {
         debug!("object {} list start", &path);
 
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

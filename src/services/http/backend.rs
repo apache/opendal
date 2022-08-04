@@ -632,6 +632,10 @@ impl Backend {
             )
         })
     }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 struct DirStream {

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::any::Any;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::Error;
@@ -247,6 +248,10 @@ impl Accessor for Backend {
             paths: paths.into_iter().collect(),
             idx: 0,
         }))
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

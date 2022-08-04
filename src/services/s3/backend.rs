@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::any::Any;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -1071,6 +1072,10 @@ impl Accessor for Backend {
             parts.uri,
             parts.headers,
         ))
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

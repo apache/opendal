@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::any::Any;
 use std::fmt::Debug;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -144,6 +145,11 @@ pub trait Accessor: Send + Sync + Debug {
             ObjectError::new("presign", args.path(), anyhow!("")),
         ));
     }
+    
+    /// as_any to downcast
+    fn as_any(&self) -> &dyn Any {
+        unimplemented!()
+    }
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
@@ -173,6 +179,10 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         self.as_ref().presign(args)
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self.as_ref().as_any()
     }
 }
 

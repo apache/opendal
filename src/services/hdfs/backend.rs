@@ -424,4 +424,8 @@ impl Accessor for Backend {
 
         Ok(Box::new(rd))
     }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }

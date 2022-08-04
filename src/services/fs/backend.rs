@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::any::Any;
 use std::collections::HashMap;
 use std::io::ErrorKind;
+use std::io::Read;
 use std::io::Result;
+use std::io::Seek;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -158,6 +161,63 @@ impl Backend {
                 &path, &self.root
             ),
         }
+    }
+}
+
+
+// Sync api for backend.
+impl Backend {
+    
+    /// Sync read api for fs.
+     #[trace("sync_read")]
+    pub fn sync_read(&self, args: &OpRead, buf: &mut Vec<u8>) -> Result<usize> {
+        increment_counter!("opendal_fs_read_requests");
+        let path = self.get_abs_path(args.path());
+        debug!(
+            "object {} read start: offset {:?}, size {:?}",
+            &path,
+            args.offset(),
+            args.size()
+        );
+        
+        let mut f = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .map_err(|e| {
+                let e = parse_io_error(e, "read", &path);
+                error!("object {} open: {:?}", &path, e);
+                e
+            })?;
+    
+        if let Some(offset) = args.offset() {
+            f.seek(SeekFrom::Start(offset)).map_err(|e| {
+                let e = parse_io_error(e, "read", &path);
+                error!("object {} seek: {:?}", &path, e);
+                e
+            })?;
+        };
+        
+        debug!(
+            "object {} reader created: offset {:?}, size {:?}",
+            &path,
+            args.offset(),
+            args.size()
+        );
+        
+        
+        let result = match args.size() {
+            Some(v) =>  {
+                let mut f = f.take(v);
+                f.read(buf)
+            },
+            _ => f.read(buf)
+        };
+        
+        result.map_err(|e| {
+                let e = parse_io_error(e, "read", &path);
+                error!("object {} open: {:?}", &path, e);
+                e
+            })
     }
 }
 
@@ -402,5 +462,9 @@ impl Accessor for Backend {
         let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 
         Ok(Box::new(rd))
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

@@ -24,7 +24,7 @@ retry = ["backon"]
 # Enable rustls support.
 rustls = ["hyper-rustls"]
 # Enable serde support.
-serde = ["time/serde"]
+time-serde = ["time/serde"]
 # Enable services hdfs support
 services-hdfs = ["hdrs"]
 # Enable services http support

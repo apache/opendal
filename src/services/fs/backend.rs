@@ -202,7 +202,7 @@ impl Backend {
     
     /// Sync read api for fs.
      #[trace("sync_read")]
-    pub fn sync_read(&self, args: &OpRead, buf: &mut [u8]) -> Result<()> {
+    pub fn sync_read(&self, args: &OpRead, buf: &mut Vec<u8>) -> Result<()> {
         increment_counter!("opendal_fs_read_requests");
         let path = self.get_abs_path(args.path());
         debug!(
@@ -239,10 +239,10 @@ impl Backend {
         let result = match args.size() {
             Some(v) =>  {
                 let mut f = f.take(v);
-                f.read_exact(buf)
+                f.read_to_end(buf)
             },
             _ => {
-                 f.read_exact(buf)
+                f.read_to_end(buf)
             }
         };
         
@@ -250,7 +250,9 @@ impl Backend {
                 let e = parse_io_error(e, "read", &path);
                 error!("object {} open: {:?}", &path, e);
                 e
-            })
+            })?;
+            
+        Ok(())
     }
 }
 

@@ -14,6 +14,7 @@
 
 //! Provide backoff retry support via implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html)
 
+use std::any::Any;
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -132,6 +133,10 @@ where
 
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         self.inner.presign(args)
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self.inner.as_any()
     }
 }
 

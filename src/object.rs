@@ -284,7 +284,7 @@ impl Object {
         let br = BytesRange::from(range);
         let offset = br.offset().unwrap_or(0);
         let size = br.size().unwrap_or(metadata.content_length() as u64 - offset);
-        let mut buffer =  vec![0; size as usize];
+        let mut buffer =  Vec::with_capacity(size as usize);
         acc.sync_read(&op, &mut buffer)?;
         Ok(buffer)
     }

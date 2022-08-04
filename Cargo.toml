@@ -50,8 +50,8 @@ anyhow = "1.0"
 async-compat = "0.2"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
 async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
-  "futures-io",
-  "all-algorithms",
+    "futures-io",
+    "all-algorithms",
 ], optional = true }
 async-trait = "0.1"
 backon = { version = "0.0.2", optional = true }
@@ -63,14 +63,14 @@ futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.1", optional = true, features = ["futures-io"] }
 http = "0.2"
 hyper = { version = "0.14", features = [
-  "http1",
-  "http2",
-  "client",
-  "runtime",
-  "stream",
+    "http1",
+    "http2",
+    "client",
+    "runtime",
+    "stream",
 ] }
 hyper-rustls = { version = "0.23", optional = true, features = [
-  "rustls-native-certs", "http2"
+    "http2"
 ] }
 hyper-tls = { version = "0.5", optional = true }
 log = "0.4"
@@ -92,9 +92,9 @@ tokio = { version = "1.20", features = ["fs"] }
 [dev-dependencies]
 cfg-if = "1.0"
 criterion = { version = "0.3", features = [
-  "async",
-  "async_tokio",
-  "html_reports",
+    "async",
+    "async_tokio",
+    "html_reports",
 ] }
 dotenv = "0.15"
 env_logger = "0.9"

@@ -30,3 +30,5 @@ pub use uri::percent_encode_path;
 mod error;
 pub use error::parse_error_kind;
 pub use error::parse_error_response;
+
+mod wait;

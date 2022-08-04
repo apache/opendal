@@ -12,30 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use futures::TryFutureExt;
+use http::Request;
+use hyper::client::ResponseFuture;
+use std::io::{Error, ErrorKind};
 use std::ops::Deref;
+use std::sync::Arc;
+use std::thread;
 
-#[cfg(feature = "rustls")]
-use hyper_rustls::HttpsConnector;
-#[cfg(not(feature = "rustls"))]
-use hyper_tls::HttpsConnector;
+use crate::http_util::wait::forward;
+use crate::http_util::wait::timeout;
+use log::{debug, error};
+use tokio::runtime;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{mpsc, oneshot};
 
 /// HttpClient that used across opendal.
 ///
 /// NOTE: we could change or support more underlying http backend.
 #[derive(Debug, Clone)]
 pub struct HttpClient {
-    inner: hyper::Client<HttpsConnector<hyper::client::HttpConnector>, hyper::Body>,
+    #[cfg(feature = "rustls")]
+    inner: hyper::Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+    #[cfg(not(feature = "rustls"))]
+    inner: hyper::Client<hyper_tls::HttpsConnector<hyper::client::HttpConnector>>,
+
+    tx: UnboundedSender<(
+        hyper::Request<hyper::Body>,
+        oneshot::Sender<hyper::Result<hyper::Response<hyper::Body>>>,
+    )>,
+    handle: Arc<thread::JoinHandle<()>>,
 }
 
 #[cfg(not(feature = "rustls"))]
 #[inline]
-fn https_connector() -> HttpsConnector<hyper::client::HttpConnector> {
-    HttpsConnector::new()
+fn https_connector() -> hyper_tls::HttpsConnector<hyper::client::HttpConnector> {
+    hyper_tls::HttpsConnector::new()
 }
 
 #[cfg(feature = "rustls")]
 #[inline]
-fn https_connector() -> HttpsConnector<hyper::client::HttpConnector> {
+fn https_connector() -> hyper_rustls::HttpsConnector<hyper::client::HttpConnector> {
     hyper_rustls::HttpsConnectorBuilder::new()
         .with_native_roots()
         .https_or_http()
@@ -47,14 +64,77 @@ fn https_connector() -> HttpsConnector<hyper::client::HttpConnector> {
 impl HttpClient {
     /// Create a new http client.
     pub fn new() -> Self {
-        HttpClient {
-            inner: hyper::Client::builder()
-                // Disable connection pool to address weird async runtime hang.
-                //
-                // ref: https://github.com/datafuselabs/opendal/issues/473
-                .pool_max_idle_per_host(0)
-                .build(https_connector()),
+        let hc = hyper::Client::builder()
+            // Disable connection pool to address weird async runtime hang.
+            //
+            // ref: https://github.com/datafuselabs/opendal/issues/473
+            .pool_max_idle_per_host(0)
+            .build(https_connector());
+        let shc = hc.clone();
+
+        // Borrowed a lot from reqwest::blocking.
+        let (tx, rx) = mpsc::unbounded_channel::<(
+            hyper::Request<hyper::Body>,
+            oneshot::Sender<hyper::Result<hyper::Response<hyper::Body>>>,
+        )>();
+        let (spawn_tx, spawn_rx) = oneshot::channel::<std::io::Result<()>>();
+        let handle = thread::Builder::new()
+            .name("opendal-http-sync-runtime".into())
+            .spawn(move || {
+                let rt = match runtime::Builder::new_current_thread().enable_all().build() {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if let Err(e) = spawn_tx.send(Err(e)) {
+                            error!("failed to communicate runtime creation failure: {:?}", e);
+                        }
+                        return;
+                    }
+                };
+
+                let f = async move {
+                    if let Err(e) = spawn_tx.send(Ok(())) {
+                        error!("failed to communicate successful startup: {:?}", e);
+                        return;
+                    }
+
+                    let mut rx = rx;
+                    let shc = shc;
+
+                    while let Some((req, req_tx)) = rx.recv().await {
+                        let req_fut = shc.request(req);
+                        tokio::spawn(forward(req_fut, req_tx));
+                    }
+
+                    debug!("({:?}) Receiver is shutdown", thread::current().id());
+                };
+
+                debug!("({:?}) start runtime::block_on", thread::current().id());
+                rt.block_on(f);
+                debug!("({:?}) end runtime::block_on", thread::current().id());
+                drop(rt);
+                debug!("({:?}) finished", thread::current().id());
+            })
+            .expect("start internal sync runtime failed");
+
+        // Wait for the runtime thread to start up...
+        match timeout(
+            spawn_rx.map_err(|err| Error::new(ErrorKind::NotConnected, "cancelled")),
+            None,
+        ) {
+            Ok(Ok(())) => (),
+            Ok(Err(err)) => panic!("start internal sync runtime failed: {err:?}"),
+            Err(_canceled) => event_loop_panicked(),
         }
+
+        HttpClient {
+            inner: hc,
+            tx,
+            handle: Arc::new(handle),
+        }
+    }
+
+    pub fn request(&self, req: Request<hyper::Body>) -> ResponseFuture {
+        self.inner.request(req)
     }
 }
 
@@ -64,11 +144,13 @@ impl Default for HttpClient {
     }
 }
 
-/// Forward all function to http backend.
-impl Deref for HttpClient {
-    type Target = hyper::Client<HttpsConnector<hyper::client::HttpConnector>, hyper::Body>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
+#[cold]
+#[inline(never)]
+fn event_loop_panicked() -> ! {
+    // The only possible reason there would be a Canceled error
+    // is if the thread running the event loop panicked. We could return
+    // an Err here, like a BrokenPipe, but the Client is not
+    // recoverable. Additionally, the panic in the other thread
+    // is not normal, and should likely be propagated.
+    panic!("event loop thread panicked");
 }

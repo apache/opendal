@@ -81,8 +81,7 @@ pub struct ReadObserver<F: FnMut(ReadEvent)> {
 }
 
 impl<F> AsyncRead for ReadObserver<F>
-where
-    F: FnMut(ReadEvent),
+where F: FnMut(ReadEvent)
 {
     fn poll_read(
         mut self: Pin<&mut Self>,

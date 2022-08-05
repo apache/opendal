@@ -73,8 +73,7 @@ enum State {
 }
 
 impl<S> AsyncRead for IntoReader<S>
-where
-    S: BytesStream,
+where S: BytesStream
 {
     fn poll_read(
         mut self: Pin<&mut Self>,

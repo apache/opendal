@@ -237,12 +237,12 @@ impl Future for ParseErrorResponse {
 
 #[cfg(test)]
 mod tests {
-    use crate::io_util::HttpClient;
     use futures::SinkExt;
     use isahc::AsyncReadResponseExt;
     use serde::Deserialize;
 
     use super::*;
+    use crate::io_util::HttpClient;
 
     #[derive(Deserialize, Default)]
     #[serde(default)]

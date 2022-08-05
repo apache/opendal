@@ -16,7 +16,6 @@ use std::io::ErrorKind;
 use std::ops::Deref;
 
 use futures::future::BoxFuture;
-
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;

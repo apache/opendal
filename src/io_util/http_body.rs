@@ -243,7 +243,6 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
-    use crate::io_util::HttpClient;
 
     #[derive(Deserialize, Default)]
     #[serde(default)]

@@ -17,11 +17,6 @@ use std::ops::Deref;
 
 use futures::future::BoxFuture;
 
-#[cfg(feature = "rustls")]
-use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
-#[cfg(not(feature = "rustls"))]
-use hyper_tls::HttpsConnector;
-
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;

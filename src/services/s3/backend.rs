@@ -1614,6 +1614,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_region() {
+        let _ = env_logger::try_init();
+
         let client = HttpClient::new();
 
         let endpoint_cases = vec![

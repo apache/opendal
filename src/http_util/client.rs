@@ -85,17 +85,17 @@ impl HttpClient {
                 let rt = match runtime::Builder::new_current_thread().enable_all().build() {
                     Ok(v) => v,
                     Err(e) => {
-                        if let Err(e) = spawn_tx.send(Err(e)) {
-                            error!("failed to communicate runtime creation failure: {:?}", e);
+                        if let Err(_) = spawn_tx.send(Err(e)) {
+                            panic!("failed to communicate successful startup");
                         }
                         return;
                     }
                 };
 
                 let f = async move {
-                    if let Err(e) = spawn_tx.send(Ok(())) {
-                        error!("failed to communicate successful startup: {:?}", e);
-                        return;
+                    if let Err(_) = spawn_tx.send(Ok(())) {
+                        debug!("failed to communicate successful startup");
+                        panic!("failed to communicate successful startup");
                     }
 
                     let mut rx = rx;

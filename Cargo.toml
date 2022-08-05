@@ -15,14 +15,12 @@ version = "0.11.4"
 all-features = true
 
 [features]
-default = ["hyper-tls"]
-
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable retry layer support.
 retry = ["backon"]
 # Enable rustls support.
-rustls = ["hyper-rustls"]
+rustls = ["isahc/rustls-tls", "isahc/rustls-tls-native-certs"]
 # Enable serde support.
 serde = ["time/serde"]
 # Enable services hdfs support
@@ -62,17 +60,7 @@ flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.1", optional = true, features = ["futures-io"] }
 http = "0.2"
-hyper = { version = "0.14", features = [
-  "http1",
-  "http2",
-  "client",
-  "runtime",
-  "stream",
-] }
-hyper-rustls = { version = "0.23", optional = true, features = [
-  "rustls-native-certs",
-] }
-hyper-tls = { version = "0.5", optional = true }
+isahc = { git = "https://github.com/sagebind/isahc/", rev = "2cb2fe4b1fecd33377e579596f45577380991067" }
 log = "0.4"
 md5 = "0.7"
 metrics = "0.20"

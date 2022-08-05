@@ -27,29 +27,33 @@ use bytes::Bytes;
 use futures::channel::mpsc;
 use futures::channel::mpsc::Sender;
 use futures::ready;
+use futures::AsyncRead;
 use futures::AsyncWrite;
 use futures::SinkExt;
 use futures::StreamExt;
 use http::response::Parts;
 use http::Response;
 use http::StatusCode;
-use hyper::body::HttpBody;
-use hyper::client::ResponseFuture;
-use hyper::Body;
+use isahc::AsyncBody;
 use log::debug;
 use pin_project::pin_project;
 
+use super::HttpResponseFuture;
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::io_util::into_reader;
 use crate::ops::OpWrite;
 
 /// Create a HTTP channel.
 ///
 /// Read [`opendal::services::s3`]'s `write` implementations for more details.
-pub fn new_http_channel() -> (Sender<Bytes>, Body) {
+pub fn new_http_channel(size: u64) -> (Sender<Bytes>, AsyncBody) {
     let (tx, rx) = mpsc::channel(0);
 
-    (tx, Body::wrap_stream(rx.map(Ok::<_, Error>)))
+    (
+        tx,
+        AsyncBody::from_reader_sized(into_reader(rx.map(Ok::<_, Error>)), size),
+    )
 }
 
 #[pin_project]
@@ -62,7 +66,7 @@ pub struct HttpBodyWriter {
 }
 
 enum State {
-    Sending(ResponseFuture),
+    Sending(HttpResponseFuture),
     /// this variant is 232 bytes.
     ParseError(Box<ParseErrorResponse>),
 }
@@ -81,7 +85,7 @@ impl HttpBodyWriter {
     pub fn new(
         op: &OpWrite,
         tx: Sender<Bytes>,
-        fut: ResponseFuture,
+        fut: HttpResponseFuture,
         accepted_codes: HashSet<StatusCode>,
         error_parser: fn(StatusCode) -> ErrorKind,
     ) -> HttpBodyWriter {
@@ -161,7 +165,7 @@ pub fn parse_error_response(
     op: &'static str,
     path: &str,
     parser: fn(StatusCode) -> ErrorKind,
-    resp: Response<Body>,
+    resp: Response<isahc::AsyncBody>,
 ) -> ParseErrorResponse {
     let (parts, body) = resp.into_parts();
 
@@ -180,7 +184,7 @@ pub struct ParseErrorResponse {
     path: String,
     parser: fn(StatusCode) -> ErrorKind,
     parts: Parts,
-    body: Body,
+    body: isahc::AsyncBody,
 
     buf: Vec<u8>,
 }
@@ -189,8 +193,9 @@ impl Future for ParseErrorResponse {
     type Output = Error;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match ready!(Pin::new(&mut self.body).poll_data(cx)) {
-            None => Poll::Ready(Error::new(
+        let mut data = vec![0; 1024];
+        match ready!(Pin::new(&mut self.body).poll_read(cx, &mut data)) {
+            Ok(0) => Poll::Ready(Error::new(
                 (self.parser)(self.parts.status),
                 ObjectError::new(
                     self.op,
@@ -203,16 +208,16 @@ impl Future for ParseErrorResponse {
                     ),
                 ),
             )),
-            Some(Ok(data)) => {
+            Ok(size) => {
                 // Only read 4KiB from the response to avoid broken services.
                 if self.buf.len() < 4 * 1024 {
-                    self.buf.extend_from_slice(&data);
+                    self.buf.extend_from_slice(&data[..size]);
                 }
 
                 // Make sure the whole body consumed, even we don't need them.
                 self.poll(cx)
             }
-            Some(Err(e)) => Poll::Ready(Error::new(
+            Err(e) => Poll::Ready(Error::new(
                 (self.parser)(self.parts.status),
                 ObjectError::new(
                     self.op,
@@ -233,6 +238,7 @@ impl Future for ParseErrorResponse {
 #[cfg(test)]
 mod tests {
     use futures::SinkExt;
+    use isahc::AsyncReadResponseExt;
     use serde::Deserialize;
 
     use super::*;
@@ -246,17 +252,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_channel() {
-        let (mut tx, body) = new_http_channel();
+        let (mut tx, body) = new_http_channel(13);
 
         let fut = tokio::spawn(async {
             let client = HttpClient::new();
-            let req = hyper::Request::put("https://httpbin.org/anything")
+            let req = isahc::Request::put("https://httpbin.org/anything")
                 .body(body)
                 .expect("request must be valid");
-            let resp = client.request(req).await.expect("request must succeed");
-            let bs = hyper::body::to_bytes(resp.into_body())
-                .await
-                .expect("read body must succeed");
+            let mut resp = client.send_async(req).await.expect("request must succeed");
+            let bs = resp.bytes().await.expect("read body must succeed");
             serde_json::from_slice::<HttpBin>(&bs).expect("deserialize must succeed")
         });
 

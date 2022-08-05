@@ -24,7 +24,6 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::HeaderValue;
 use http::StatusCode;
@@ -444,8 +443,8 @@ impl Builder {
         let url = format!("{endpoint}/{bucket}");
         debug!("backend detect region with url: {url}");
 
-        let req = hyper::Request::head(&url)
-            .body(hyper::Body::empty())
+        let req = isahc::Request::head(&url)
+            .body(isahc::AsyncBody::empty())
             .map_err(|e| {
                 error!("backend detect_region {}: {:?}", url, e);
                 other(BackendError::new(
@@ -454,7 +453,7 @@ impl Builder {
                 ))
             })?;
 
-        let res = client.request(req).await.map_err(|e| {
+        let res = client.send_async(req).await.map_err(|e| {
             error!("backend detect_region: {}: {:?}", url, e);
             other(BackendError::new(
                 context.clone(),
@@ -843,8 +842,10 @@ impl Accessor for Backend {
         increment_counter!("opendal_s3_create_requests");
         let p = self.get_abs_path(args.path());
 
-        let req = self.put_object(&p, 0, hyper::Body::empty()).await?;
-        let resp = self.client.request(req).await.map_err(|e| {
+        let req = self
+            .put_object(&p, 0, isahc::AsyncBody::from_bytes_static(""))
+            .await?;
+        let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
             Error::new(
                 parse_http_error_kind(&e),
@@ -894,12 +895,7 @@ impl Accessor for Backend {
                     args.size()
                 );
 
-                Ok(Box::new(
-                    resp.into_body()
-                        .into_stream()
-                        .map_err(move |e| other(ObjectError::new("read", &p, e)))
-                        .into_async_read(),
-                ))
+                Ok(Box::new(resp.into_body()))
             }
             _ => {
                 let err = parse_error_response("read", args.path(), parse_error_kind, resp).await;
@@ -914,14 +910,14 @@ impl Accessor for Backend {
         let p = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &p, args.size());
 
-        let (tx, body) = new_http_channel();
+        let (tx, body) = new_http_channel(args.size());
 
         let req = self.put_object(&p, args.size(), body).await?;
 
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.request(req),
+            self.client.send(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_error_kind,
         );
@@ -1038,7 +1034,7 @@ impl Accessor for Backend {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             Operation::Read => self.get_object_request(&path, None, None)?,
-            Operation::Write => self.put_object_request(&path, None, hyper::Body::empty())?,
+            Operation::Write => self.put_object_request(&path, None, isahc::AsyncBody::empty())?,
             op => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
@@ -1080,10 +1076,10 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<hyper::Request<hyper::Body>> {
+    ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = hyper::Request::get(&url);
+        let mut req = isahc::Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -1096,7 +1092,7 @@ impl Backend {
         // TODO: how will this work with presign?
         req = self.insert_sse_headers(req, false);
 
-        let req = req.body(hyper::Body::empty()).map_err(|e| {
+        let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} get_object: {url} {e:?}");
             other(ObjectError::new(
                 "read",
@@ -1114,7 +1110,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<hyper::Response<hyper::Body>> {
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
         let url = req.uri().to_string();
 
@@ -1127,7 +1123,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} get_object: {url} {e:?}");
 
             Error::new(
@@ -1141,11 +1137,11 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        body: hyper::Body,
-    ) -> Result<hyper::Request<hyper::Body>> {
+        body: isahc::AsyncBody,
+    ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = hyper::Request::put(&url);
+        let mut req = isahc::Request::put(&url);
 
         // Set content length.
         if let Some(size) = size {
@@ -1174,8 +1170,8 @@ impl Backend {
         &self,
         path: &str,
         size: u64,
-        body: hyper::Body,
-    ) -> Result<hyper::Request<hyper::Body>> {
+        body: isahc::AsyncBody,
+    ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let mut req = self.put_object_request(path, Some(size), body)?;
         let url = req.uri().to_string();
 
@@ -1192,15 +1188,18 @@ impl Backend {
     }
 
     #[trace("head_object")]
-    pub(crate) async fn head_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+    pub(crate) async fn head_object(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = hyper::Request::head(&url);
+        let mut req = isahc::Request::head(&url);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
 
-        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} head_object: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
@@ -1218,7 +1217,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} head_object: {url} {e:?}");
 
             Error::new(
@@ -1229,11 +1228,14 @@ impl Backend {
     }
 
     #[trace("delete_object")]
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+    pub(crate) async fn delete_object(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = hyper::Request::delete(&url)
-            .body(hyper::Body::empty())
+        let mut req = isahc::Request::delete(&url)
+            .body(isahc::AsyncBody::empty())
             .map_err(|e| {
                 error!("object {path} delete_object: {url} {e:?}");
                 other(ObjectError::new(
@@ -1252,7 +1254,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} delete_object: {url} {e:?}");
 
             Error::new(
@@ -1267,7 +1269,7 @@ impl Backend {
         &self,
         path: &str,
         continuation_token: &str,
-    ) -> Result<hyper::Response<hyper::Body>> {
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let mut url = format!(
             "{}?list-type=2&delimiter=/&prefix={}",
             self.endpoint,
@@ -1286,8 +1288,8 @@ impl Backend {
             .expect("write into string must succeed");
         }
 
-        let mut req = hyper::Request::get(&url)
-            .body(hyper::Body::empty())
+        let mut req = isahc::Request::get(&url)
+            .body(isahc::AsyncBody::empty())
             .map_err(|e| {
                 error!("object {path} list_objects: {url} {e:?}");
                 other(ObjectError::new(
@@ -1306,7 +1308,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} list_object: {url} {e:?}");
 
             Error::new(

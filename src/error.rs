@@ -87,6 +87,8 @@ impl ObjectError {
 
 /// Copied for [`io::Error::other`], should be removed after `io_error_other` stable.
 pub(crate) fn other<E>(error: E) -> io::Error
-where E: Into<Box<dyn std::error::Error + Send + Sync>> {
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
     io::Error::new(io::ErrorKind::Other, error.into())
 }

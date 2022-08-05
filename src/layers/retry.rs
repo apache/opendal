@@ -61,7 +61,8 @@ use crate::ObjectMetadata;
 /// # }
 /// ```
 impl<B: 'static> Layer for B
-where B: backon::Backoff + Debug + Send + Sync
+where
+    B: backon::Backoff + Debug + Send + Sync,
 {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
         Arc::new(RetryableAccessor::create(inner, self.clone()))
@@ -75,7 +76,8 @@ struct RetryableAccessor<B: backon::Backoff + Debug + Send + Sync> {
 }
 
 impl<B> RetryableAccessor<B>
-where B: backon::Backoff + Debug + Send + Sync
+where
+    B: backon::Backoff + Debug + Send + Sync,
 {
     fn create(inner: Arc<dyn Accessor>, backoff: B) -> Self {
         Self { inner, backoff }
@@ -84,7 +86,8 @@ where B: backon::Backoff + Debug + Send + Sync
 
 #[async_trait]
 impl<B> Accessor for RetryableAccessor<B>
-where B: backon::Backoff + Debug + Send + Sync
+where
+    B: backon::Backoff + Debug + Send + Sync,
 {
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()

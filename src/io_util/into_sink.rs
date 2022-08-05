@@ -63,7 +63,8 @@ pub struct IntoSink<W: BytesWrite> {
 }
 
 impl<W> IntoSink<W>
-where W: BytesWrite
+where
+    W: BytesWrite,
 {
     pub fn into_inner(self) -> W {
         self.w
@@ -85,7 +86,8 @@ where W: BytesWrite
 }
 
 impl<W> Sink<Bytes> for IntoSink<W>
-where W: BytesWrite
+where
+    W: BytesWrite,
 {
     type Error = Error;
 

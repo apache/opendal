@@ -66,7 +66,8 @@ pub struct IntoStream<R: BytesRead> {
 }
 
 impl<R> Stream for IntoStream<R>
-where R: BytesRead
+where
+    R: BytesRead,
 {
     type Item = Result<Bytes>;
 

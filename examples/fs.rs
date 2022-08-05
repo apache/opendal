@@ -41,16 +41,14 @@ Available Environment Values:
     );
 
     // Create fs backend builder.
-    let mut builder: Builder = fs::Backend::build();
+    let mut builder: Builder = fs::Builder::default();
     // Set the root for fs, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.
     builder.root(&env::var("OPENDAL_FS_ROOT").unwrap_or_else(|_| "/tmp".to_string()));
-    // Build the `Accessor`.
-    let accessor: Arc<dyn Accessor> = builder.finish().await?;
 
-    // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(accessor);
+    // Use `Operator` normally.
+    let op: Operator = Operator::new(builder.build()?);
 
     let path = uuid::Uuid::new_v4().to_string();
 

@@ -237,7 +237,7 @@ mod tests {
     use log::debug;
 
     use super::*;
-    use crate::services::memory::Backend;
+    use crate::services::memory::Builder;
     use crate::Operator;
 
     fn get_position(vs: &[String], s: &str) -> usize {
@@ -250,7 +250,7 @@ mod tests {
     async fn test_walk_top_down() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let op = Operator::new(Backend::build().finish().await?);
+        let op = Operator::new(Builder::default().build()?);
         let mut expected = vec![
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         ];
@@ -282,7 +282,7 @@ mod tests {
     async fn test_walk_bottom_up() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let op = Operator::new(Backend::build().finish().await?);
+        let op = Operator::new(Builder::default().build()?);
         let mut expected = vec![
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         ];

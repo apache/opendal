@@ -193,7 +193,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader() -> Result<()> {
-        let f = Operator::new(fs::Backend::build().finish().await.unwrap());
+        let f = Operator::new(fs::Builder::default().build().unwrap());
 
         let path = format!("/tmp/{}", uuid::Uuid::new_v4());
 

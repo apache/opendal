@@ -46,7 +46,7 @@ Available Environment Values:
     );
 
     // Create fs backend builder.
-    let mut builder: Builder = azblob::Backend::build();
+    let mut builder: Builder = azblob::Builder::default();
     // Set the root, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.
@@ -72,11 +72,9 @@ Available Environment Values:
         &env::var("OPENDAL_AZBLOB_ACCOUNT_KEY")
             .unwrap_or_else(|_| "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==".to_string()),
     );
-    // Build the `Accessor`.
-    let accessor: Arc<dyn Accessor> = builder.finish().await?;
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(accessor);
+    let op: Operator = Operator::new(builder.build()?);
 
     let path = uuid::Uuid::new_v4().to_string();
 

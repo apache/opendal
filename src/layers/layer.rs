@@ -99,7 +99,7 @@ mod tests {
             deleted: Arc::new(Mutex::new(false)),
         };
 
-        let op = Operator::new(fs::Backend::build().finish().await.unwrap()).layer(&test);
+        let op = Operator::new(fs::Builder::default().build().unwrap()).layer(&test);
 
         op.object("xxxxx").delete().await.unwrap();
 

@@ -21,17 +21,15 @@ use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder: Builder = s3::Backend::build();
+    let mut builder: Builder = s3::Builder::default();
 
     // Setup builders
 
     // Enable SSE-C
     builder.server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
 
-    let acc = builder.finish().await?;
-    info!("accessor: {:?}", acc);
-
-    let _ = Operator::new(builder.finish().await?);
+    let op = Operator::new(builder.build()?);
+    info!("operator: {:?}", op);
 
     // Writing your testing code here.
 

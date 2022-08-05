@@ -710,11 +710,11 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let mut builder = Backend::build();
+        let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.insert_index("/hello");
-        let op = Operator::new(builder.finish().await?);
+        let op = Operator::new(builder.build()?);
 
         let bs = op.object("hello").read().await?;
 
@@ -733,11 +733,11 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let mut builder = Backend::build();
+        let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.insert_index("/hello");
-        let op = Operator::new(builder.finish().await?);
+        let op = Operator::new(builder.build()?);
 
         let bs = op.object("hello").metadata().await?;
 
@@ -754,14 +754,14 @@ mod tests {
 
         let mut expected = vec!["another/", "hello", "world"];
 
-        let mut builder = Backend::build();
+        let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         for s in expected.iter() {
             builder.insert_index(s);
         }
 
-        let op = Operator::new(builder.finish().await?);
+        let op = Operator::new(builder.build()?);
 
         let bs = op.object("/").list().await?;
         let paths = bs.try_collect::<Vec<_>>().await?;

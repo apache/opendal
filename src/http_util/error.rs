@@ -57,8 +57,8 @@ pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
     }
 }
 
-/// parse_http_error_code will parse HTTP status code into `ErrorKind`
-pub fn parse_http_error_code(code: StatusCode) -> ErrorKind {
+/// parse_error_status_code will parse HTTP status code into `ErrorKind`
+pub fn parse_error_status_code(code: StatusCode) -> ErrorKind {
     match code {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,

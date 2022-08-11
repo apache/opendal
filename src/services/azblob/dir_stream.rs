@@ -30,7 +30,7 @@ use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
-use crate::http_util::parse_http_error_code;
+use crate::http_util::parse_error_status_code;
 use crate::DirEntry;
 use crate::ObjectMode;
 
@@ -79,7 +79,7 @@ impl futures::Stream for DirStream {
                         return Err(parse_error_response(
                             "list",
                             &path,
-                            parse_http_error_code,
+                            parse_error_status_code,
                             resp,
                         )
                         .await);

@@ -31,4 +31,4 @@ pub use uri::percent_encode_path;
 mod error;
 pub use error::parse_error_kind;
 pub use error::parse_error_response;
-pub use error::parse_http_error_code;
+pub use error::parse_error_status_code;

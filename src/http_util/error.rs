@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::error::ObjectError;
+use std::future::Future;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+
 use anyhow::anyhow;
 use futures::ready;
 use futures::AsyncRead;
 use http::response::Parts;
-use http::{Response, StatusCode};
-use std::future::Future;
-use std::io::{Error, ErrorKind};
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use http::Response;
+use http::StatusCode;
+
+use crate::error::ObjectError;
 
 /// Parse isahc error into `ErrorKind`.
 pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
@@ -33,6 +38,12 @@ pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
         // client, or if a system error occurred when trying to initialize an I/O
         // driver.
         isahc::error::ErrorKind::ConnectionFailed => ErrorKind::Interrupted,
+        // Failed to resolve a host name.
+        //
+        // This could be caused by any number of problems, including failure to
+        // reach a DNS server, misconfigured resolver configuration, or the
+        // hostname simply does not exist.
+        isahc::error::ErrorKind::NameResolution => ErrorKind::Interrupted,
         // An I/O error either sending the request or reading the response. This
         // could be caused by a problem on the client machine, a problem on the
         // server machine, or a problem with the network between the two.

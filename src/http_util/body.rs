@@ -22,17 +22,13 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bytes::Bytes;
 use futures::channel::mpsc;
 use futures::channel::mpsc::Sender;
 use futures::ready;
-use futures::AsyncRead;
 use futures::AsyncWrite;
 use futures::SinkExt;
 use futures::StreamExt;
-use http::response::Parts;
-use http::Response;
 use http::StatusCode;
 use isahc::AsyncBody;
 use log::debug;

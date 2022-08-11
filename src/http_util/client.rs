@@ -13,15 +13,7 @@
 // limitations under the License.
 
 use futures::future::BoxFuture;
-use futures::TryFutureExt;
 use http::Request;
-use std::io::{Error, ErrorKind};
-use std::ops::Deref;
-use std::sync::Arc;
-use std::thread;
-
-use log::{debug, error};
-use time::Duration;
 
 pub type HttpResponseFuture =
     BoxFuture<'static, Result<isahc::Response<isahc::AsyncBody>, isahc::Error>>;

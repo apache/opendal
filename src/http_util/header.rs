@@ -36,6 +36,7 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
 }
 
 /// Parse content md5 from header map.
+#[allow(unused)]
 pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
     match headers.get(HeaderName::from_static("content-md5")) {
         None => Ok(None),

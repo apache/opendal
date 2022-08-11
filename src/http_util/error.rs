@@ -15,27 +15,34 @@
 use crate::error::ObjectError;
 use anyhow::anyhow;
 use futures::ready;
+use futures::AsyncRead;
 use http::response::Parts;
 use http::{Response, StatusCode};
-use hyper::body::HttpBody;
-use hyper::Body;
 use std::future::Future;
 use std::io::{Error, ErrorKind};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-/// Parse hyper error into `ErrorKind`.
-///
-/// It's safe to retry the following errors:
-///
-/// - is_canceled(): Request that was canceled.
-/// - is_connect(): an error from Connect.
-/// - is_timeout(): the error was caused by a timeout.
-pub fn parse_error_kind(err: &hyper::Error) -> ErrorKind {
-    if err.is_canceled() || err.is_connect() || err.is_timeout() {
-        ErrorKind::Interrupted
-    } else {
-        ErrorKind::Other
+/// Parse isahc error into `ErrorKind`.
+pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
+    match err.kind() {
+        // The HTTP client failed to initialize.
+        //
+        // This error can occur when trying to create a client with invalid
+        // configuration, if there were insufficient resources to create the
+        // client, or if a system error occurred when trying to initialize an I/O
+        // driver.
+        isahc::error::ErrorKind::ConnectionFailed => ErrorKind::Interrupted,
+        // An I/O error either sending the request or reading the response. This
+        // could be caused by a problem on the client machine, a problem on the
+        // server machine, or a problem with the network between the two.
+        //
+        // You can get more details about the underlying I/O error with
+        // [`Error::source`][std::error::Error::source].
+        isahc::error::ErrorKind::Io => ErrorKind::Interrupted,
+        // A request or operation took longer than the configured timeout time.
+        isahc::error::ErrorKind::Timeout => ErrorKind::Interrupted,
+        _ => ErrorKind::Other,
     }
 }
 
@@ -44,7 +51,7 @@ pub fn parse_error_response(
     op: &'static str,
     path: &str,
     parser: fn(StatusCode) -> ErrorKind,
-    resp: Response<Body>,
+    resp: Response<isahc::AsyncBody>,
 ) -> ParseErrorResponse {
     let (parts, body) = resp.into_parts();
 
@@ -63,7 +70,7 @@ pub struct ParseErrorResponse {
     path: String,
     parser: fn(StatusCode) -> ErrorKind,
     parts: Parts,
-    body: Body,
+    body: isahc::AsyncBody,
 
     buf: Vec<u8>,
 }
@@ -72,8 +79,9 @@ impl Future for ParseErrorResponse {
     type Output = Error;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match ready!(Pin::new(&mut self.body).poll_data(cx)) {
-            None => Poll::Ready(Error::new(
+        let mut data = vec![0; 1024];
+        match ready!(Pin::new(&mut self.body).poll_read(cx, &mut data)) {
+            Ok(0) => Poll::Ready(Error::new(
                 (self.parser)(self.parts.status),
                 ObjectError::new(
                     self.op,
@@ -86,16 +94,16 @@ impl Future for ParseErrorResponse {
                     ),
                 ),
             )),
-            Some(Ok(data)) => {
+            Ok(size) => {
                 // Only read 4KiB from the response to avoid broken services.
                 if self.buf.len() < 4 * 1024 {
-                    self.buf.extend_from_slice(&data);
+                    self.buf.extend_from_slice(&data[..size]);
                 }
 
                 // Make sure the whole body consumed, even we don't need them.
                 self.poll(cx)
             }
-            Some(Err(e)) => Poll::Ready(Error::new(
+            Err(e) => Poll::Ready(Error::new(
                 (self.parser)(self.parts.status),
                 ObjectError::new(
                     self.op,

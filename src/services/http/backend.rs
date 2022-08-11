@@ -372,7 +372,7 @@ impl Accessor for Backend {
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.send(req),
+            self.client.send_async(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_error_kind,
         );

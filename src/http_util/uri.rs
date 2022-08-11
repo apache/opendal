@@ -35,19 +35,10 @@ impl HttpClient {
         HttpClient(isahc::HttpClient::new().expect("client init must succeed"))
     }
 
-    pub(crate) fn send(&self, req: isahc::Request<isahc::AsyncBody>) -> HttpResponseFuture {
+    pub fn send_async(&self, req: isahc::Request<isahc::AsyncBody>) -> HttpResponseFuture {
         let client = self.clone();
 
         Box::pin(async move { client.send_async(req).await })
-    }
-}
-
-/// Forward all function to http backend.
-impl Deref for HttpClient {
-    type Target = isahc::HttpClient;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 

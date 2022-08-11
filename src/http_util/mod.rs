@@ -17,6 +17,7 @@ pub use body::HttpBodyWriter;
 
 mod client;
 pub use client::HttpClient;
+pub use client::HttpResponseFuture;
 
 mod header;
 pub use header::parse_content_length;
@@ -30,5 +31,3 @@ pub use uri::percent_encode_path;
 mod error;
 pub use error::parse_error_kind;
 pub use error::parse_error_response;
-
-mod wait;

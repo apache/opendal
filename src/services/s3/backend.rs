@@ -563,8 +563,8 @@ impl Builder {
         let url = format!("{endpoint}/{bucket}");
         debug!("backend detect region with url: {url}");
 
-        let req = hyper::Request::head(&url)
-            .body(hyper::Body::empty())
+        let req = http::Request::head(&url)
+            .body(isahc::Body::empty())
             .map_err(|e| {
                 error!("backend detect_region {}: {:?}", url, e);
                 other(BackendError::new(
@@ -573,7 +573,7 @@ impl Builder {
                 ))
             })?;
 
-        let res = client.blocking_request(req).map_err(|e| {
+        let res = client.send(req).map_err(|e| {
             error!("backend detect_region: {}: {:?}", url, e);
             other(BackendError::new(
                 context.clone(),
@@ -1194,7 +1194,7 @@ impl Accessor for Backend {
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.send(req),
+            self.client.send_async(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_error_kind,
         );

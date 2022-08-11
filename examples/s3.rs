@@ -14,13 +14,11 @@
 
 //! Example for initiating a s3 backend.
 use std::env;
-use std::sync::Arc;
 
 use anyhow::Result;
 use log::info;
 use opendal::services::s3;
 use opendal::services::s3::Builder;
-use opendal::Accessor;
 use opendal::Operator;
 
 #[tokio::main]

@@ -15,13 +15,11 @@
 //! Example for initiating a fs backend.
 
 use std::env;
-use std::sync::Arc;
 
 use anyhow::Result;
 use log::info;
 use opendal::services::fs;
 use opendal::services::fs::Builder;
-use opendal::Accessor;
 use opendal::Operator;
 
 #[tokio::main]

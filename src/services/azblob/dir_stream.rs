@@ -76,9 +76,13 @@ impl futures::Stream for DirStream {
                     let mut resp = backend.list_blobs(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
-                        return Err(
-                            parse_error_response("list", &path, parse_http_error_code, resp).await
-                        );
+                        return Err(parse_error_response(
+                            "list",
+                            &path,
+                            parse_http_error_code,
+                            resp,
+                        )
+                        .await);
                     }
 
                     let bs = resp

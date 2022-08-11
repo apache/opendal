@@ -15,13 +15,11 @@
 //! Example for initiating a azblob backend.
 
 use std::env;
-use std::sync::Arc;
 
 use anyhow::Result;
 use log::info;
 use opendal::services::azblob;
 use opendal::services::azblob::Builder;
-use opendal::Accessor;
 use opendal::Operator;
 
 #[tokio::main]

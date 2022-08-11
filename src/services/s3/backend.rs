@@ -597,7 +597,7 @@ impl Builder {
                     .to_str()
                     .map_err(|e| other(BackendError::new(context.clone(), e)))?
                     .to_string();
-                Ok((endpoint.to_string(), region))
+                Ok((endpoint, region))
             }
             // The endpoint should move, return with constructed endpoint
             StatusCode::MOVED_PERMANENTLY => {

@@ -48,7 +48,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Init Operator
-//!     let op = Operator::from_env(Scheme::S3).await?;
+//!     let op = Operator::from_env(Scheme::S3)?;
 //!
 //!     // Create object handler.
 //!     let o: Object = op.object("test_file");

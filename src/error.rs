@@ -20,11 +20,12 @@
 //! # use anyhow::Result;
 //! # use opendal::ObjectMode;
 //! # use opendal::Operator;
+//! # use opendal::Scheme;
 //! use std::io::ErrorKind;
 //! # use opendal::services::fs;
 //! # #[tokio::main]
 //! # async fn main() -> Result<()> {
-//! # let op = Operator::new(fs::Backend::build().root("/tmp").finish().await?);
+//! let op = Operator::from_env(Scheme::Fs)?;
 //! if let Err(e) = op.object("test_file").metadata().await {
 //!     if e.kind() == ErrorKind::NotFound {
 //!         println!("object not exist")

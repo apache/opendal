@@ -40,15 +40,15 @@ use crate::ObjectMetadata;
 ///
 /// ```no_run
 /// # use opendal::Operator;
-/// # use opendal::services::memory;
+/// # use opendal::Scheme;
 /// # use anyhow::Result;
+/// # use futures::{AsyncReadExt, AsyncSeekExt};
 /// use std::io::SeekFrom;
 ///
-/// # use futures::{AsyncReadExt, AsyncSeekExt};
 /// use opendal::io_util::seekable_read;
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-/// # let op = Operator::new(memory::Backend::build().finish().await?);
+/// let op = Operator::from_env(Scheme::Memory)?;
 /// let o = op.object("test");
 /// let mut r = seekable_read(&o, 10..);
 /// r.seek(SeekFrom::Current(10)).await?;
@@ -188,12 +188,12 @@ mod tests {
     use futures::AsyncSeekExt;
 
     use super::*;
-    use crate::services::fs;
     use crate::Operator;
+    use crate::Scheme;
 
     #[tokio::test]
     async fn test_reader() -> Result<()> {
-        let f = Operator::new(fs::Builder::default().build().unwrap());
+        let f = Operator::from_env(Scheme::Fs)?;
 
         let path = format!("/tmp/{}", uuid::Uuid::new_v4());
 

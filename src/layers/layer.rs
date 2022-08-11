@@ -59,9 +59,9 @@ mod tests {
 
     use super::*;
     use crate::ops::OpDelete;
-    use crate::services::fs;
     use crate::Accessor;
     use crate::Operator;
+    use crate::Scheme;
 
     #[derive(Debug)]
     struct Test {
@@ -99,7 +99,7 @@ mod tests {
             deleted: Arc::new(Mutex::new(false)),
         };
 
-        let op = Operator::new(fs::Builder::default().build().unwrap()).layer(&test);
+        let op = Operator::from_env(Scheme::Fs).unwrap().layer(&test);
 
         op.object("xxxxx").delete().await.unwrap();
 

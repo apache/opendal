@@ -4,22 +4,22 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
 
   # Maintain dependencies for opendal
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
 
   # Maintain dependencies for oay
   - package-ecosystem: "cargo"
     directory: "/oay"
     schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Maintain dependencies for oli
   - package-ecosystem: "cargo"
     directory: "/oli"
     schedule:
-      interval: "daily"
+      interval: "monthly"

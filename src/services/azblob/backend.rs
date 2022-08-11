@@ -18,7 +18,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Result;
 use std::mem;
 use std::sync::Arc;
@@ -44,6 +43,7 @@ use crate::error::ObjectError;
 use crate::io_util::new_http_channel;
 use crate::io_util::parse_content_length;
 use crate::io_util::parse_error_kind as parse_http_error_kind;
+use crate::io_util::parse_http_error_code;
 use crate::io_util::parse_error_response;
 use crate::io_util::parse_etag;
 use crate::io_util::parse_last_modified;
@@ -321,7 +321,7 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err = parse_error_response("create", args.path(), parse_error_kind, resp).await;
+                let err = parse_error_response("create", args.path(), parse_http_error_code, resp).await;
                 warn!("object {} create: {:?}", args.path(), err);
                 Err(err)
             }
@@ -353,7 +353,7 @@ impl Accessor for Backend {
                 Ok(Box::new(resp.into_body()))
             }
             _ => {
-                let err = parse_error_response("read", args.path(), parse_error_kind, resp).await;
+                let err = parse_error_response("read", args.path(), parse_http_error_code, resp).await;
                 warn!("object {} read: {:?}", args.path(), err);
                 Err(err)
             }
@@ -374,7 +374,7 @@ impl Accessor for Backend {
             tx,
             self.client.send(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
-            parse_error_kind,
+            parse_http_error_code,
         );
 
         Ok(Box::new(bs))
@@ -437,7 +437,7 @@ impl Accessor for Backend {
                 Ok(m)
             }
             _ => {
-                let err = parse_error_response("stat", args.path(), parse_error_kind, resp).await;
+                let err = parse_error_response("stat", args.path(), parse_http_error_code, resp).await;
                 warn!("object {} stat: {:?}", args.path(), err);
                 Err(err)
             }
@@ -458,7 +458,7 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err = parse_error_response("delete", args.path(), parse_error_kind, resp).await;
+                let err = parse_error_response("delete", args.path(), parse_http_error_code, resp).await;
                 warn!("object {} delete: {:?}", args.path(), err);
                 Err(err)
             }
@@ -696,17 +696,5 @@ impl Backend {
                 ObjectError::new("list", path, anyhow!("send request {url}: {e:?}")),
             )
         })
-    }
-}
-
-pub fn parse_error_kind(code: StatusCode) -> ErrorKind {
-    match code {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
     }
 }

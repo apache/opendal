@@ -19,6 +19,7 @@ use futures::future::BoxFuture;
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;
+use http::StatusCode;
 
 pub type HttpResponseFuture =
     BoxFuture<'static, Result<isahc::Response<isahc::AsyncBody>, isahc::Error>>;
@@ -65,6 +66,20 @@ pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
         ErrorKind::Other
     }
 }
+
+/// Parse HTTP error into `ErrorKind`
+pub fn parse_http_error_code(code: StatusCode) -> ErrorKind {
+    match code {
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
+        _ => ErrorKind::Other,
+    }
+}
+
 
 /// PATH_ENCODE_SET is the encode set for http url path.
 ///

@@ -30,7 +30,7 @@ use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
-use crate::services::azblob::backend::parse_error_kind;
+use crate::http_util::parse_error_status_code;
 use crate::DirEntry;
 use crate::ObjectMode;
 
@@ -76,9 +76,13 @@ impl futures::Stream for DirStream {
                     let mut resp = backend.list_blobs(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
-                        return Err(
-                            parse_error_response("list", &path, parse_error_kind, resp).await
-                        );
+                        return Err(parse_error_response(
+                            "list",
+                            &path,
+                            parse_error_status_code,
+                            resp,
+                        )
+                        .await);
                     }
 
                     let bs = resp

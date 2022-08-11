@@ -57,6 +57,19 @@ pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
     }
 }
 
+/// parse_error_status_code will parse HTTP status code into `ErrorKind`
+pub fn parse_error_status_code(code: StatusCode) -> ErrorKind {
+    match code {
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
+        _ => ErrorKind::Other,
+    }
+}
+
 /// parse_error_response will try to read and parse error response.
 pub fn parse_error_response(
     op: &'static str,

@@ -44,6 +44,7 @@ use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_md5;
 use crate::http_util::parse_error_kind as parse_http_error_kind;
 use crate::http_util::parse_error_response;
+use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
@@ -322,7 +323,9 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err = parse_error_response("create", args.path(), parse_error_kind, resp).await;
+                let err =
+                    parse_error_response("create", args.path(), parse_error_status_code, resp)
+                        .await;
                 warn!("object {} create: {:?}", args.path(), err);
                 Err(err)
             }
@@ -357,7 +360,9 @@ impl Accessor for Backend {
 
                 Ok(Box::new(resp.into_body()))
             }
-            _ => Err(parse_error_response("read", args.path(), parse_error_kind, resp).await),
+            _ => {
+                Err(parse_error_response("read", args.path(), parse_error_status_code, resp).await)
+            }
         }
     }
 
@@ -374,7 +379,7 @@ impl Accessor for Backend {
             tx,
             self.client.send_async(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
-            parse_error_kind,
+            parse_error_status_code,
         );
 
         self.insert_path(&self.get_index_path(args.path()));
@@ -441,7 +446,9 @@ impl Accessor for Backend {
                 debug!("object {} stat finished", &p);
                 Ok(m)
             }
-            _ => Err(parse_error_response("stat", args.path(), parse_error_kind, resp).await),
+            _ => {
+                Err(parse_error_response("stat", args.path(), parse_error_status_code, resp).await)
+            }
         }
     }
 
@@ -458,7 +465,9 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err = parse_error_response("delete", args.path(), parse_error_kind, resp).await;
+                let err =
+                    parse_error_response("delete", args.path(), parse_error_status_code, resp)
+                        .await;
                 warn!("object {} delete: {:?}", args.path(), err);
                 Err(err)
             }
@@ -671,18 +680,6 @@ impl futures::Stream for DirStream {
             de.path()
         );
         Poll::Ready(Some(Ok(de)))
-    }
-}
-
-fn parse_error_kind(code: StatusCode) -> ErrorKind {
-    match code {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
     }
 }
 

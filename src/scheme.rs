@@ -34,6 +34,9 @@ pub enum Scheme {
     /// [http][crate::services::http]: HTTP backend.
     #[cfg(feature = "services-http")]
     Http,
+    /// [gcs][crate::services::gcs]: Google Cloud Storage backend.
+    #[cfg(feature = "services-gcs")]
+    Gcs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.
@@ -53,6 +56,8 @@ impl Display for Scheme {
             Scheme::Fs => write!(f, "fs"),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => write!(f, "hdfs"),
+            #[cfg(feature = "services-gcs")]
+            Scheme::Gcs => write!(f, "gcs"),
             #[cfg(feature = "services-http")]
             Scheme::Http => write!(f, "http"),
             Scheme::Memory => write!(f, "memory"),
@@ -73,6 +78,8 @@ impl FromStr for Scheme {
             "hdfs" => Ok(Scheme::Hdfs),
             #[cfg(feature = "services-http")]
             "http" | "https" => Ok(Scheme::Http),
+            #[cfg(feature = "services-gcs")]
+            "gcs" => Ok(Scheme::Gcs),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
             v => Err(other(BackendError::new(

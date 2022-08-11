@@ -27,6 +27,8 @@ serde = ["time/serde"]
 services-hdfs = ["hdrs"]
 # Enable services http support
 services-http = ["radix_trie"]
+# Enable services google cloud storage support
+services-gcs = []
 
 [lib]
 bench = false

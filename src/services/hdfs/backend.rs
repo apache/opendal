@@ -88,7 +88,7 @@ impl Builder {
     }
 
     /// Finish the building and create hdfs backend.
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+    pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
 
         let name_node = match &self.name_node {
@@ -150,10 +150,16 @@ impl Builder {
         }
 
         info!("backend build finished: {:?}", &self);
-        Ok(Arc::new(Backend {
+        Ok(Backend {
             root,
             client: Arc::new(client),
-        }))
+        })
+    }
+
+    /// Finish the building and create hdfs backend.
+    #[deprecated = "Use Builder::build() instead"]
+    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+        Ok(Arc::new(self.build()?))
     }
 }
 
@@ -170,13 +176,12 @@ unsafe impl Sync for Backend {}
 
 impl Backend {
     /// Create a builder.
+    #[deprecated = "Use Builder::default() instead"]
     pub fn build() -> Builder {
         Builder::default()
     }
 
-    pub(crate) async fn from_iter(
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Arc<dyn Accessor>> {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 
         for (k, v) in it {
@@ -188,7 +193,7 @@ impl Backend {
             };
         }
 
-        builder.finish().await
+        builder.build()
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {

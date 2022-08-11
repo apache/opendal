@@ -11,27 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+mod body;
+pub use body::new_http_channel;
+pub use body::HttpBodyWriter;
 
-//! Example for initiating a s3 backend with SSE-KMS and AWS managed key.
-use anyhow::Result;
-use log::info;
-use opendal::services::s3;
-use opendal::services::s3::Builder;
-use opendal::Operator;
+mod client;
+pub use client::HttpClient;
+pub use client::HttpResponseFuture;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let mut builder: Builder = s3::Builder::default();
+mod header;
+pub use header::parse_content_length;
+pub use header::parse_content_md5;
+pub use header::parse_etag;
+pub use header::parse_last_modified;
 
-    // Setup builders
+mod uri;
+pub use uri::percent_encode_path;
 
-    // Enable SSE-KMS with aws managed kms key
-    builder.server_side_encryption_with_aws_managed_kms_key();
-
-    let op = Operator::new(builder.build()?);
-    info!("operator: {:?}", op);
-
-    // Writing your testing code here.
-
-    Ok(())
-}
+mod error;
+pub use error::parse_error_kind;
+pub use error::parse_error_response;
+pub use error::parse_http_error_code;

@@ -22,17 +22,13 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bytes::Bytes;
 use futures::channel::mpsc;
 use futures::channel::mpsc::Sender;
 use futures::ready;
-use futures::AsyncRead;
 use futures::AsyncWrite;
 use futures::SinkExt;
 use futures::StreamExt;
-use http::response::Parts;
-use http::Response;
 use http::StatusCode;
 use isahc::AsyncBody;
 use log::debug;
@@ -40,7 +36,8 @@ use pin_project::pin_project;
 
 use super::HttpResponseFuture;
 use crate::error::other;
-use crate::error::ObjectError;
+use crate::http_util::error::ParseErrorResponse;
+use crate::http_util::parse_error_response;
 use crate::io_util::into_reader;
 use crate::ops::OpWrite;
 
@@ -72,7 +69,7 @@ enum State {
 }
 
 impl HttpBodyWriter {
-    /// Create a HTTP body writer.
+    /// Create an HTTP body writer.
     ///
     /// # Params
     ///
@@ -160,81 +157,6 @@ impl AsyncWrite for HttpBodyWriter {
     }
 }
 
-/// parse_error_response will try to read and parse error response.
-pub fn parse_error_response(
-    op: &'static str,
-    path: &str,
-    parser: fn(StatusCode) -> ErrorKind,
-    resp: Response<isahc::AsyncBody>,
-) -> ParseErrorResponse {
-    let (parts, body) = resp.into_parts();
-
-    ParseErrorResponse {
-        op,
-        path: path.to_string(),
-        parser,
-        parts,
-        body,
-        buf: Vec::with_capacity(1024),
-    }
-}
-
-pub struct ParseErrorResponse {
-    op: &'static str,
-    path: String,
-    parser: fn(StatusCode) -> ErrorKind,
-    parts: Parts,
-    body: isahc::AsyncBody,
-
-    buf: Vec<u8>,
-}
-
-impl Future for ParseErrorResponse {
-    type Output = Error;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut data = vec![0; 1024];
-        match ready!(Pin::new(&mut self.body).poll_read(cx, &mut data)) {
-            Ok(0) => Poll::Ready(Error::new(
-                (self.parser)(self.parts.status),
-                ObjectError::new(
-                    self.op,
-                    &self.path,
-                    anyhow!(
-                        "status code: {:?}, headers: {:?}, body: {:?}",
-                        self.parts.status,
-                        self.parts.headers,
-                        String::from_utf8_lossy(&self.buf)
-                    ),
-                ),
-            )),
-            Ok(size) => {
-                // Only read 4KiB from the response to avoid broken services.
-                if self.buf.len() < 4 * 1024 {
-                    self.buf.extend_from_slice(&data[..size]);
-                }
-
-                // Make sure the whole body consumed, even we don't need them.
-                self.poll(cx)
-            }
-            Err(e) => Poll::Ready(Error::new(
-                (self.parser)(self.parts.status),
-                ObjectError::new(
-                    self.op,
-                    &self.path,
-                    anyhow!(
-                        "status code: {:?}, headers: {:?}, read body: {:?}, remaining {:?}",
-                        self.parts.status,
-                        self.parts.headers,
-                        String::from_utf8_lossy(&self.buf),
-                        e
-                    ),
-                ),
-            )),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use futures::SinkExt;
@@ -242,7 +164,7 @@ mod tests {
     use serde::Deserialize;
 
     use super::*;
-    use crate::io_util::HttpClient;
+    use crate::http_util::HttpClient;
 
     #[derive(Deserialize, Default)]
     #[serde(default)]

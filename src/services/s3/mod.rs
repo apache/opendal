@@ -100,7 +100,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::S3).await?;
+//!     let op: Operator = Operator::from_env(Scheme::S3)?;
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");
@@ -116,7 +116,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::s3;
-//! use opendal::services::s3::Builder;
 //! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
@@ -124,7 +123,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create s3 backend builder.
-//!     let mut builder: Builder = s3::Backend::build();
+//!     let mut builder = s3::Builder::default();
 //!     // Set the root for s3, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.
@@ -148,11 +147,9 @@
 //!     // send request without signing like anonymous user.
 //!     builder.access_key_id("access_key_id");
 //!     builder.secret_access_key("secret_access_key");
-//!     // Build the `Accessor`.
-//!     let accessor: Arc<dyn Accessor> = builder.finish().await?;
 //!
 //!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-//!     let op: Operator = Operator::new(accessor);
+//!     let op: Operator = Operator::new(builder.build()?);
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

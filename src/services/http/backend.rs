@@ -39,17 +39,17 @@ use radix_trie::TrieCommon;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io_util::new_http_channel;
-use crate::io_util::parse_content_length;
-use crate::io_util::parse_content_md5;
-use crate::io_util::parse_error_kind as parse_http_error_kind;
-use crate::io_util::parse_http_error_code;
-use crate::io_util::parse_error_response;
-use crate::io_util::parse_etag;
-use crate::io_util::parse_last_modified;
-use crate::io_util::percent_encode_path;
-use crate::io_util::HttpBodyWriter;
-use crate::io_util::HttpClient;
+use crate::http_util::new_http_channel;
+use crate::http_util::parse_content_length;
+use crate::http_util::parse_content_md5;
+use crate::http_util::parse_error_kind as parse_http_error_kind;
+use crate::http_util::parse_http_error_code;
+use crate::http_util::parse_error_response;
+use crate::http_util::parse_etag;
+use crate::http_util::parse_last_modified;
+use crate::http_util::percent_encode_path;
+use crate::http_util::HttpBodyWriter;
+use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -157,7 +157,7 @@ impl Builder {
     }
 
     /// Build a HTTP backend.
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+    pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
@@ -194,12 +194,18 @@ impl Builder {
         let client = HttpClient::new();
 
         info!("backend build finished: {:?}", &self);
-        Ok(Arc::new(Backend {
+        Ok(Backend {
             endpoint: endpoint.to_string(),
             root,
             client,
             index: Arc::new(Mutex::new(mem::take(&mut self.index))),
-        }))
+        })
+    }
+
+    /// Build a HTTP backend.
+    #[deprecated = "Use Builder::build() instead"]
+    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+        Ok(Arc::new(self.build()?))
     }
 }
 
@@ -231,13 +237,12 @@ impl Debug for Backend {
 
 impl Backend {
     /// Create a new builder for s3.
+    #[deprecated = "Use Builder::default() instead"]
     pub fn build() -> Builder {
         Builder::default()
     }
 
-    pub(crate) async fn from_iter(
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Arc<dyn Accessor>> {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 
         for (k, v) in it {
@@ -249,7 +254,7 @@ impl Backend {
             };
         }
 
-        builder.finish().await
+        builder.build()
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
@@ -368,7 +373,7 @@ impl Accessor for Backend {
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.send(req),
+            self.client.send_async(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_http_error_code,
         );
@@ -694,11 +699,11 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let mut builder = Backend::build();
+        let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.insert_index("/hello");
-        let op = Operator::new(builder.finish().await?);
+        let op = Operator::new(builder.build()?);
 
         let bs = op.object("hello").read().await?;
 
@@ -717,11 +722,11 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let mut builder = Backend::build();
+        let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         builder.insert_index("/hello");
-        let op = Operator::new(builder.finish().await?);
+        let op = Operator::new(builder.build()?);
 
         let bs = op.object("hello").metadata().await?;
 
@@ -738,14 +743,14 @@ mod tests {
 
         let mut expected = vec!["another/", "hello", "world"];
 
-        let mut builder = Backend::build();
+        let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         for s in expected.iter() {
             builder.insert_index(s);
         }
 
-        let op = Operator::new(builder.finish().await?);
+        let op = Operator::new(builder.build()?);
 
         let bs = op.object("/").list().await?;
         let paths = bs.try_collect::<Vec<_>>().await?;

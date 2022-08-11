@@ -50,11 +50,11 @@ use crate::ObjectMetadata;
 /// # use opendal::services::fs::Builder;
 /// use backon::ExponentialBackoff;
 /// use opendal::Operator;
+/// use opendal::Scheme;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
-/// #     let accessor = fs::Backend::build().finish().await?;
-/// let op = Operator::new(accessor).layer(ExponentialBackoff::default());
+/// let op = Operator::from_env(Scheme::Fs)?.layer(ExponentialBackoff::default());
 /// // All operations will be retried if the error is retryable
 /// let _ = op.object("test_file").read();
 /// # Ok(())

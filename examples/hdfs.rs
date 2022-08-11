@@ -14,13 +14,11 @@
 //! Example for initiating a fs backend.
 
 use std::env;
-use std::sync::Arc;
 
 use anyhow::Result;
 use log::info;
 use opendal::services::hdfs;
 use opendal::services::hdfs::Builder;
-use opendal::Accessor;
 use opendal::Operator;
 
 #[tokio::main]
@@ -41,7 +39,7 @@ Available Environment Values:
     );
 
     // Create fs backend builder.
-    let mut builder: Builder = hdfs::Backend::build();
+    let mut builder: Builder = hdfs::Builder::default();
     // Set the root for hdfs, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.
@@ -51,11 +49,9 @@ Available Environment Values:
     // Use `default` as default value.
     builder
         .name_node(&env::var("OPENDAL_HDFS_NAME_NODE").unwrap_or_else(|_| "default".to_string()));
-    // Build the `Accessor`.
-    let accessor: Arc<dyn Accessor> = builder.finish().await?;
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(accessor);
+    let op: Operator = Operator::new(builder.build()?);
 
     let path = uuid::Uuid::new_v4().to_string();
 

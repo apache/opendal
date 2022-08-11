@@ -38,6 +38,15 @@ pub struct Operator {
     accessor: Arc<dyn Accessor>,
 }
 
+impl<A> From<A> for Operator
+where
+    A: Accessor + 'static,
+{
+    fn from(accessor: A) -> Self {
+        Operator::new(accessor)
+    }
+}
+
 impl Operator {
     /// Create a new operator.
     ///
@@ -46,29 +55,23 @@ impl Operator {
     /// Read more backend init examples in [examples](https://github.com/datafuselabs/opendal/tree/main/examples).
     ///
     /// ```
-    /// use std::sync::Arc;
-    ///
-    /// /// Example for initiating a fs backend.
-    /// use anyhow::Result;
-    /// use opendal::services::fs;
-    /// use opendal::services::fs::Builder;
-    /// use opendal::Accessor;
-    /// use opendal::Object;
-    /// use opendal::Operator;
-    ///
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// # use opendal::services::fs;
+    /// # use opendal::Accessor;
+    /// # use opendal::Object;
+    /// # use opendal::Operator;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
     ///     // Create fs backend builder.
-    ///     let mut builder: Builder = fs::Backend::build();
+    ///     let mut builder = fs::Builder::default();
     ///     // Set the root for fs, all operations will happen under this root.
     ///     //
     ///     // NOTE: the root must be absolute path.
     ///     builder.root("/tmp");
-    ///     // Build the `Accessor`.
-    ///     let accessor: Arc<dyn Accessor> = builder.finish().await?;
     ///
     ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    ///     let op: Operator = Operator::new(accessor);
+    ///     let op: Operator = Operator::new(builder.build()?);
     ///
     ///     // Create an object handle to start operation on object.
     ///     let _: Object = op.object("test_file");
@@ -76,8 +79,10 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(accessor: Arc<dyn Accessor>) -> Self {
-        Self { accessor }
+    pub fn new(accessor: impl Accessor + 'static) -> Self {
+        Self {
+            accessor: Arc::new(accessor),
+        }
     }
 
     /// Create a new operator from iter.
@@ -94,25 +99,19 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// use std::sync::Arc;
-    ///
-    /// /// Example for initiating a fs backend.
-    /// use anyhow::Result;
-    /// use opendal::services::fs;
-    /// use opendal::services::fs::Builder;
-    /// use opendal::Accessor;
-    /// use opendal::Object;
-    /// use opendal::Operator;
-    /// use opendal::Scheme;
-    ///
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// # use opendal::services::fs;
+    /// # use opendal::Accessor;
+    /// # use opendal::Object;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
-    ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     ///     let op: Operator = Operator::from_iter(
     ///         Scheme::Fs,
     ///         [("root".to_string(), "/tmp".to_string())].into_iter(),
-    ///     )
-    ///     .await?;
+    ///     )?;
     ///
     ///     // Create an object handle to start operation on object.
     ///     let _: Object = op.object("test_file");
@@ -120,22 +119,19 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn from_iter(
-        scheme: Scheme,
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Self> {
-        let accessor = match scheme {
-            Scheme::Azblob => services::azblob::Backend::from_iter(it).await?,
-            Scheme::Fs => services::fs::Backend::from_iter(it).await?,
+    pub fn from_iter(scheme: Scheme, it: impl Iterator<Item = (String, String)>) -> Result<Self> {
+        let op = match scheme {
+            Scheme::Azblob => services::azblob::Backend::from_iter(it)?.into(),
+            Scheme::Fs => services::fs::Backend::from_iter(it)?.into(),
             #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => services::hdfs::Backend::from_iter(it).await?,
+            Scheme::Hdfs => services::hdfs::Backend::from_iter(it)?.into(),
             #[cfg(feature = "services-http")]
-            Scheme::Http => services::http::Backend::from_iter(it).await?,
-            Scheme::Memory => services::memory::Backend::build().finish().await?,
-            Scheme::S3 => services::s3::Backend::from_iter(it).await?,
+            Scheme::Http => services::http::Backend::from_iter(it)?.into(),
+            Scheme::Memory => services::memory::Builder::default().build()?.into(),
+            Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
         };
 
-        Ok(Self { accessor })
+        Ok(op)
     }
 
     /// Create a new operator from env.
@@ -159,21 +155,15 @@ impl Operator {
     /// Please refer different backends for detailed config options.
     ///
     /// ```
-    /// use std::sync::Arc;
-    ///
-    /// /// Example for initiating a fs backend.
-    /// use anyhow::Result;
-    /// use opendal::services::fs;
-    /// use opendal::services::fs::Builder;
-    /// use opendal::Accessor;
-    /// use opendal::Object;
-    /// use opendal::Operator;
-    /// use opendal::Scheme;
-    ///
+    /// # use anyhow::Result;
+    /// # use opendal::Accessor;
+    /// # use opendal::Object;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
     ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    ///     let op: Operator = Operator::from_env(Scheme::Fs).await?;
+    ///     let op: Operator = Operator::from_env(Scheme::Fs)?;
     ///
     ///     // Create an object handle to start operation on object.
     ///     let _: Object = op.object("test_file");
@@ -181,7 +171,7 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn from_env(scheme: Scheme) -> Result<Self> {
+    pub fn from_env(scheme: Scheme) -> Result<Self> {
         let prefix = format!("opendal_{scheme}_");
         let envs = env::vars().filter_map(|(k, v)| {
             k.to_lowercase()
@@ -189,7 +179,7 @@ impl Operator {
                 .map(|k| (k.to_string(), v))
         });
 
-        Self::from_iter(scheme, envs).await
+        Self::from_iter(scheme, envs)
     }
 
     /// Create a new layer.
@@ -235,11 +225,11 @@ impl Operator {
     /// # use opendal::services::fs::Builder;
     /// use backon::ExponentialBackoff;
     /// use opendal::Operator;
+    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # let accessor = fs::Backend::build().finish().await?;
-    /// let op = Operator::new(accessor).with_backoff(ExponentialBackoff::default());
+    /// let op = Operator::from_env(Scheme::Fs)?.with_backoff(ExponentialBackoff::default());
     /// // All operations will be retried if the error is retryable
     /// let _ = op.object("test_file").read();
     /// # Ok(())
@@ -268,11 +258,11 @@ impl Operator {
     /// # use opendal::services::fs;
     /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
+    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # let accessor = fs::Backend::build().finish().await?;
-    /// let op = Operator::new(accessor);
+    /// let op = Operator::from_env(Scheme::Fs)?;
     /// let meta = op.metadata();
     /// # Ok(())
     /// # }
@@ -302,11 +292,11 @@ impl Operator {
     /// # use opendal::services::fs;
     /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
+    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # let accessor = fs::Backend::build().finish().await?;
-    /// let op = Operator::new(accessor);
+    /// let op = Operator::from_env(Scheme::Fs)?;
     /// op.check().await?;
     /// # Ok(())
     /// # }

@@ -12,74 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::ErrorKind;
-use std::ops::Deref;
-
-use futures::future::BoxFuture;
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;
-use http::StatusCode;
-
-pub type HttpResponseFuture =
-    BoxFuture<'static, Result<isahc::Response<isahc::AsyncBody>, isahc::Error>>;
-
-/// HttpClient that used across opendal.
-///
-/// NOTE: we could change or support more underlying http backend.
-#[derive(Debug, Clone)]
-pub struct HttpClient(isahc::HttpClient);
-
-impl HttpClient {
-    /// Create a new http client.
-    pub fn new() -> Self {
-        HttpClient(isahc::HttpClient::new().expect("client init must succeed"))
-    }
-
-    pub(crate) fn send(&self, req: isahc::Request<isahc::AsyncBody>) -> HttpResponseFuture {
-        let client = self.clone();
-
-        Box::pin(async move { client.send_async(req).await })
-    }
-}
-
-/// Forward all function to http backend.
-impl Deref for HttpClient {
-    type Target = isahc::HttpClient;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-/// Parse hyper error into `ErrorKind`.
-///
-/// It's safe to retry the following errors:
-///
-/// - is_canceled(): Request that was canceled.
-/// - is_connect(): an error from Connect.
-/// - is_timeout(): the error was caused by a timeout.
-pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
-    if err.is_network() || err.is_timeout() {
-        ErrorKind::Interrupted
-    } else {
-        ErrorKind::Other
-    }
-}
-
-/// Parse HTTP error into `ErrorKind`
-pub fn parse_http_error_code(code: StatusCode) -> ErrorKind {
-    match code {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
-    }
-}
-
 
 /// PATH_ENCODE_SET is the encode set for http url path.
 ///

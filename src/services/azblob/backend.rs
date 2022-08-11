@@ -25,10 +25,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use http::header::HeaderName;
 use http::StatusCode;
-use hyper::Body;
+use isahc::AsyncBody;
 use log::debug;
 use log::error;
 use log::info;
@@ -309,8 +308,10 @@ impl Accessor for Backend {
         increment_counter!("opendal_azblob_create_requests");
         let p = self.get_abs_path(args.path());
 
-        let req = self.put_blob(&p, 0, Body::empty()).await?;
-        let resp = self.client.request(req).await.map_err(|e| {
+        let req = self
+            .put_blob(&p, 0, AsyncBody::from_bytes_static(""))
+            .await?;
+        let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
 
             Error::new(
@@ -354,12 +355,7 @@ impl Accessor for Backend {
                     args.size()
                 );
 
-                Ok(Box::new(
-                    resp.into_body()
-                        .into_stream()
-                        .map_err(move |e| other(ObjectError::new("read", &p, e)))
-                        .into_async_read(),
-                ))
+                Ok(Box::new(resp.into_body()))
             }
             _ => {
                 let err = parse_error_response("read", args.path(), parse_error_kind, resp).await;
@@ -374,14 +370,14 @@ impl Accessor for Backend {
         let p = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &p, args.size());
 
-        let (tx, body) = new_http_channel();
+        let (tx, body) = new_http_channel(args.size());
 
         let req = self.put_blob(&p, args.size(), body).await?;
 
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.request(req),
+            self.client.send(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_error_kind,
         );
@@ -492,7 +488,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<hyper::Response<hyper::Body>> {
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -500,7 +496,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = hyper::Request::get(&url);
+        let mut req = isahc::Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -509,7 +505,7 @@ impl Backend {
             );
         }
 
-        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} get_blob: {url} {e:?}");
             other(ObjectError::new(
                 "read",
@@ -527,7 +523,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} get_blob: {url} {e:?}");
             Error::new(
                 parse_http_error_kind(&e),
@@ -541,8 +537,8 @@ impl Backend {
         &self,
         path: &str,
         size: u64,
-        body: Body,
-    ) -> Result<hyper::Request<hyper::Body>> {
+        body: AsyncBody,
+    ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -550,7 +546,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = hyper::Request::put(&url);
+        let mut req = isahc::Request::put(&url);
 
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
@@ -582,7 +578,7 @@ impl Backend {
     pub(crate) async fn get_blob_properties(
         &self,
         path: &str,
-    ) -> Result<hyper::Response<hyper::Body>> {
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -590,9 +586,9 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = hyper::Request::head(&url);
+        let req = isahc::Request::head(&url);
 
-        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} get_blob_properties: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
@@ -610,7 +606,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} get_blob_properties: {url} {e:?}");
             Error::new(
                 parse_http_error_kind(&e),
@@ -620,7 +616,10 @@ impl Backend {
     }
 
     #[trace("delete_blob")]
-    pub(crate) async fn delete_blob(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+    pub(crate) async fn delete_blob(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -628,9 +627,9 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = hyper::Request::delete(&url);
+        let req = isahc::Request::delete(&url);
 
-        let mut req = req.body(hyper::Body::empty()).map_err(|e| {
+        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} delete_blob: {url} {e:?}");
             other(ObjectError::new(
                 "delete",
@@ -648,7 +647,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} delete_object: {url} {e:?}");
             Error::new(
                 parse_http_error_kind(&e),
@@ -662,7 +661,7 @@ impl Backend {
         &self,
         path: &str,
         next_marker: &str,
-    ) -> Result<hyper::Response<hyper::Body>> {
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let mut url = format!(
             "{}/{}?restype=container&comp=list&delimiter=/",
             self.endpoint, self.container
@@ -675,8 +674,8 @@ impl Backend {
             write!(url, "&marker={next_marker}").expect("write into string must succeed");
         }
 
-        let mut req = hyper::Request::get(&url)
-            .body(hyper::Body::empty())
+        let mut req = isahc::Request::get(&url)
+            .body(isahc::AsyncBody::empty())
             .map_err(|e| {
                 error!("object {path} list_blobs: {url} {e:?}");
                 other(ObjectError::new(
@@ -695,7 +694,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} list_blobs: {url} {e:?}");
             Error::new(
                 parse_http_error_kind(&e),

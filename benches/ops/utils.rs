@@ -24,7 +24,7 @@ pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
 async fn service(scheme: Scheme) -> Option<Operator> {
-    let test_key = format!("opendal_{scheme}_test");
+    let test_key = format!("opendal_{scheme}_test").to_uppercase();
     if let Ok(test) = env::var(test_key) {
         if test == "on" {
             Some(
@@ -39,6 +39,8 @@ async fn service(scheme: Scheme) -> Option<Operator> {
 }
 
 pub fn services() -> Vec<(&'static str, Option<Operator>)> {
+    let _ = dotenv::dotenv();
+
     TOKIO.block_on(async {
         vec![
             ("fs", service(Scheme::Fs).await),

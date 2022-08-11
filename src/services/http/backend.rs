@@ -28,7 +28,6 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use http::StatusCode;
 use log::debug;
 use log::error;
@@ -305,8 +304,10 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
 
-        let req = self.http_put(&p, 0, hyper::Body::empty()).await?;
-        let resp = self.client.request(req).await.map_err(|e| {
+        let req = self
+            .http_put(&p, 0, isahc::AsyncBody::from_bytes_static(""))
+            .await?;
+        let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
             Error::new(
                 parse_http_error_kind(&e),
@@ -354,12 +355,7 @@ impl Accessor for Backend {
                     args.size()
                 );
 
-                Ok(Box::new(
-                    resp.into_body()
-                        .into_stream()
-                        .map_err(move |e| other(ObjectError::new("read", &p, e)))
-                        .into_async_read(),
-                ))
+                Ok(Box::new(resp.into_body()))
             }
             _ => Err(parse_error_response("read", args.path(), parse_error_kind, resp).await),
         }
@@ -369,14 +365,14 @@ impl Accessor for Backend {
         let p = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &p, args.size());
 
-        let (tx, body) = new_http_channel();
+        let (tx, body) = new_http_channel(args.size());
 
         let req = self.http_put(&p, args.size(), body).await?;
 
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.request(req),
+            self.client.send(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_error_kind,
         );
@@ -534,10 +530,10 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<hyper::Response<hyper::Body>> {
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = hyper::Request::get(&url);
+        let mut req = isahc::Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -546,7 +542,7 @@ impl Backend {
             );
         }
 
-        let req = req.body(hyper::Body::empty()).map_err(|e| {
+        let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} http_get: {url} {e:?}");
             other(ObjectError::new(
                 "read",
@@ -555,7 +551,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} http_get: {url} {e:?}");
             Error::new(
                 parse_http_error_kind(&e),
@@ -564,12 +560,12 @@ impl Backend {
         })
     }
 
-    pub(crate) async fn http_head(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+    pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
-        let req = hyper::Request::head(&url);
+        let req = isahc::Request::head(&url);
 
-        let req = req.body(hyper::Body::empty()).map_err(|e| {
+        let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} http_head: {url} {e:?}");
             other(ObjectError::new(
                 "stat",
@@ -578,7 +574,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} http_head: {url} {e:?}");
             Error::new(
                 parse_http_error_kind(&e),
@@ -591,11 +587,11 @@ impl Backend {
         &self,
         path: &str,
         size: u64,
-        body: hyper::Body,
-    ) -> Result<hyper::Request<hyper::Body>> {
+        body: isahc::AsyncBody,
+    ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = hyper::Request::put(&url);
+        let mut req = isahc::Request::put(&url);
 
         // Set content length.
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
@@ -613,13 +609,16 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn http_delete(&self, path: &str) -> Result<hyper::Response<hyper::Body>> {
+    pub(crate) async fn http_delete(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let req = hyper::Request::delete(&url);
+        let req = isahc::Request::delete(&url);
 
         // Set body
-        let req = req.body(hyper::Body::empty()).map_err(|e| {
+        let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} delete: {url} {e:?}");
             other(ObjectError::new(
                 "delete",
@@ -628,7 +627,7 @@ impl Backend {
             ))
         })?;
 
-        self.client.request(req).await.map_err(|e| {
+        self.client.send_async(req).await.map_err(|e| {
             error!("object {path} delete: {url} {e:?}");
 
             Error::new(
@@ -690,6 +689,7 @@ fn parse_error_kind(code: StatusCode) -> ErrorKind {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use futures::TryStreamExt;
     use wiremock::matchers::method;
     use wiremock::matchers::path;
     use wiremock::Mock;

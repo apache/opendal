@@ -48,7 +48,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Init Operator
-//!     let op = Operator::from_env(Scheme::S3).await?;
+//!     let op = Operator::from_env(Scheme::S3)?;
 //!
 //!     // Create object handler.
 //!     let o: Object = op.object("test_file");
@@ -128,4 +128,5 @@ pub mod services;
 //
 // Please don't export any type from this module.
 mod error;
+mod http_util;
 mod path;

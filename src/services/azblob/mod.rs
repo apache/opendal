@@ -67,7 +67,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Azblob).await?;
+//!     let op: Operator = Operator::from_env(Scheme::Azblob)?;
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");
@@ -83,7 +83,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::azblob;
-//! use opendal::services::azblob::Builder;
 //! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
@@ -91,7 +90,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create azblob backend builder.
-//!     let mut builder: Builder = azblob::Backend::build();
+//!     let mut builder = azblob::Builder::default();
 //!     // Set the root for azblob, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.
@@ -111,11 +110,9 @@
 //!     // send request without signing like anonymous user.
 //!     builder.account_name("devstoreaccount1");
 //!     builder.account_key("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
-//!     // Build the `Accessor`.
-//!     let accessor: Arc<dyn Accessor> = builder.finish().await?;
 //!
 //!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-//!     let op: Operator = Operator::new(accessor);
+//!     let op: Operator = Operator::new(builder.build()?);
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

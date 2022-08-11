@@ -14,13 +14,11 @@
 
 //! Example for initiating a s3 backend.
 use std::env;
-use std::sync::Arc;
 
 use anyhow::Result;
 use log::info;
 use opendal::services::s3;
 use opendal::services::s3::Builder;
-use opendal::Accessor;
 use opendal::Operator;
 
 #[tokio::main]
@@ -45,7 +43,7 @@ Available Environment Values:
     );
 
     // Create s3 backend builder.
-    let mut builder: Builder = s3::Backend::build();
+    let mut builder: Builder = s3::Builder::default();
     // Set the root for s3, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.
@@ -80,11 +78,10 @@ Available Environment Values:
         &env::var("OPENDAL_S3_SECRET_ACCESS_KEY")
             .expect("env OPENDAL_S3_SECRET_ACCESS_KEY not set"),
     );
-    // Build the `Accessor`.
-    let accessor: Arc<dyn Accessor> = builder.finish().await?;
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(accessor);
+    let op: Operator = Operator::new(builder.build()?);
+    info!("operator: {:?}", op);
 
     let path = uuid::Uuid::new_v4().to_string();
 

@@ -41,15 +41,15 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io_util::new_http_channel;
-use crate::io_util::parse_content_length;
-use crate::io_util::parse_error_kind as parse_http_error_kind;
-use crate::io_util::parse_error_response;
-use crate::io_util::parse_etag;
-use crate::io_util::parse_last_modified;
-use crate::io_util::percent_encode_path;
-use crate::io_util::HttpBodyWriter;
-use crate::io_util::HttpClient;
+use crate::http_util::new_http_channel;
+use crate::http_util::parse_content_length;
+use crate::http_util::parse_error_kind as parse_http_error_kind;
+use crate::http_util::parse_error_response;
+use crate::http_util::parse_etag;
+use crate::http_util::parse_last_modified;
+use crate::http_util::percent_encode_path;
+use crate::http_util::HttpBodyWriter;
+use crate::http_util::HttpClient;
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -155,7 +155,7 @@ impl Builder {
     }
 
     /// Consume builder to build an azblob backend.
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+    pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
 
         let root = match &self.root {
@@ -215,14 +215,20 @@ impl Builder {
             .map_err(|e| other(BackendError::new(context, e)))?;
 
         info!("backend build finished: {:?}", &self);
-        Ok(Arc::new(Backend {
+        Ok(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
             container: self.container.clone(),
             client,
             _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
-        }))
+        })
+    }
+
+    /// Consume builder to build an azblob backend.
+    #[deprecated = "Use Builder::build() instead"]
+    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+        Ok(Arc::new(self.build()?))
     }
 }
 
@@ -239,13 +245,12 @@ pub struct Backend {
 
 impl Backend {
     /// Create a builder for azblob.
+    #[deprecated = "Use Builder::default() instead"]
     pub fn build() -> Builder {
         Builder::default()
     }
 
-    pub(crate) async fn from_iter(
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Arc<dyn Accessor>> {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 
         for (k, v) in it {
@@ -260,7 +265,7 @@ impl Backend {
             };
         }
 
-        builder.finish().await
+        builder.build()
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
@@ -372,7 +377,7 @@ impl Accessor for Backend {
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.send(req),
+            self.client.send_async(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_error_kind,
         );

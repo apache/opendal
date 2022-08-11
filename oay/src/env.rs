@@ -41,7 +41,7 @@ pub async fn get_oay_operator() -> Result<Operator> {
             .map(|k| (k.to_string(), v))
     });
 
-    let op = Operator::from_iter(scheme, envs).await?;
+    let op = Operator::from_iter(scheme, envs)?;
 
     Ok(op)
 }

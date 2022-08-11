@@ -28,9 +28,7 @@ async fn service(scheme: Scheme) -> Option<Operator> {
     if let Ok(test) = env::var(test_key) {
         if test == "on" {
             Some(
-                Operator::from_env(scheme)
-                    .await
-                    .unwrap_or_else(|_| panic!("init {scheme} must succeed")),
+                Operator::from_env(scheme).unwrap_or_else(|_| panic!("init {scheme} must succeed")),
             )
         } else {
             None

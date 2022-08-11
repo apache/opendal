@@ -43,15 +43,15 @@ use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::io_util::new_http_channel;
-use crate::io_util::parse_content_length;
-use crate::io_util::parse_error_kind as parse_http_error_kind;
-use crate::io_util::parse_error_response;
-use crate::io_util::parse_etag;
-use crate::io_util::parse_last_modified;
-use crate::io_util::percent_encode_path;
-use crate::io_util::HttpBodyWriter;
-use crate::io_util::HttpClient;
+use crate::http_util::new_http_channel;
+use crate::http_util::parse_content_length;
+use crate::http_util::parse_error_kind as parse_http_error_kind;
+use crate::http_util::parse_error_response;
+use crate::http_util::parse_etag;
+use crate::http_util::parse_last_modified;
+use crate::http_util::percent_encode_path;
+use crate::http_util::HttpBodyWriter;
+use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -520,7 +520,285 @@ impl Builder {
         }
     }
 
+    /// Read RFC-0057: Auto Region for detailed behavior.
+    ///
+    /// - If region is already known, the region will be returned directly.
+    /// - If region is not known, we will send API to `{endpoint}/{bucket}` to get
+    ///   `x-amz-bucket-region`, use `us-east-1` if not found.
+    ///
+    /// Returning endpoint will trim bucket name:
+    ///
+    /// - `https://bucket_name.s3.amazonaws.com` => `https://s3.amazonaws.com`
+    fn detect_regionx(
+        &self,
+        client: &HttpClient,
+        bucket: &str,
+        context: &HashMap<String, String>,
+    ) -> Result<(String, String)> {
+        let mut endpoint = match &self.endpoint {
+            Some(endpoint) => {
+                if endpoint.starts_with("http") {
+                    endpoint.to_string()
+                } else {
+                    // Prefix https if endpoint doesn't start with scheme.
+                    format!("https://{}", endpoint)
+                }
+            }
+            None => "https://s3.amazonaws.com".to_string(),
+        };
+
+        // If endpoint contains bucket name, we should trim them.
+        endpoint = endpoint.replace(&format!("//{bucket}."), "//");
+
+        if let Some(region) = &self.region {
+            let endpoint = if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
+                template.replace("{region}", region)
+            } else {
+                endpoint.to_string()
+            };
+
+            return Ok((endpoint, region.to_string()));
+        }
+
+        let url = format!("{endpoint}/{bucket}");
+        debug!("backend detect region with url: {url}");
+
+        let req = http::Request::head(&url)
+            .body(isahc::Body::empty())
+            .map_err(|e| {
+                error!("backend detect_region {}: {:?}", url, e);
+                other(BackendError::new(
+                    context.clone(),
+                    anyhow!("build request {}: {:?}", url, e),
+                ))
+            })?;
+
+        let res = client.send(req).map_err(|e| {
+            error!("backend detect_region: {}: {:?}", url, e);
+            other(BackendError::new(
+                context.clone(),
+                anyhow!("sending request: {}: {:?}", url, e),
+            ))
+        })?;
+
+        debug!(
+            "auto detect region got response: status {:?}, header: {:?}",
+            res.status(),
+            res.headers()
+        );
+        match res.status() {
+            // The endpoint works, return with not changed endpoint and
+            // default region.
+            StatusCode::OK | StatusCode::FORBIDDEN => {
+                let region = res
+                    .headers()
+                    .get("x-amz-bucket-region")
+                    .unwrap_or(&HeaderValue::from_static("us-east-1"))
+                    .to_str()
+                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
+                    .to_string();
+                Ok((endpoint, region))
+            }
+            // The endpoint should move, return with constructed endpoint
+            StatusCode::MOVED_PERMANENTLY => {
+                let region = res
+                    .headers()
+                    .get("x-amz-bucket-region")
+                    .ok_or_else(|| {
+                        other(BackendError::new(
+                            context.clone(),
+                            anyhow!("can't detect region automatically, region is empty"),
+                        ))
+                    })?
+                    .to_str()
+                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
+                    .to_string();
+                let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "can't detect region automatically, no valid endpoint template for {}",
+                            &endpoint
+                        ),
+                    ))
+                })?;
+
+                let endpoint = template.replace("{region}", &region);
+
+                Ok((endpoint, region))
+            }
+            // Unexpected status code
+            code => {
+                return Err(other(BackendError::new(
+                    context.clone(),
+                    anyhow!(
+                        "can't detect region automatically, unexpected response: status code {}",
+                        code
+                    ),
+                )))
+            }
+        }
+    }
+
     /// Finish the build process and create a new accessor.
+    pub fn build(&mut self) -> Result<Backend> {
+        info!("backend build started: {:?}", &self);
+
+        let root = match &self.root {
+            // Use "/" as root if user not specified.
+            None => "/".to_string(),
+            Some(v) => {
+                let mut v = v
+                    .split('/')
+                    .filter(|v| !v.is_empty())
+                    .collect::<Vec<&str>>()
+                    .join("/");
+                if !v.starts_with('/') {
+                    v.insert(0, '/');
+                }
+                if !v.ends_with('/') {
+                    v.push('/')
+                }
+                v
+            }
+        };
+        info!("backend use root {}", &root);
+
+        // Handle endpoint, region and bucket name.
+        let bucket = match self.bucket.is_empty() {
+            false => Ok(&self.bucket),
+            true => Err(other(BackendError::new(
+                HashMap::from([("bucket".to_string(), "".to_string())]),
+                anyhow!("bucket is empty"),
+            ))),
+        }?;
+        debug!("backend use bucket {}", &bucket);
+
+        // Setup error context so that we don't need to construct many times.
+        let mut context: HashMap<String, String> =
+            HashMap::from([("bucket".to_string(), bucket.to_string())]);
+
+        let server_side_encryption = match &self.server_side_encryption {
+            None => None,
+            Some(v) => Some(v.parse().map_err(|e| {
+                other(BackendError::new(
+                    context.clone(),
+                    anyhow!("server_side_encryption value {} invalid: {}", v, e),
+                ))
+            })?),
+        };
+
+        let server_side_encryption_aws_kms_key_id =
+            match &self.server_side_encryption_aws_kms_key_id {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "server_side_encryption_aws_kms_key_id value {} invalid: {}",
+                            v,
+                            e
+                        ),
+                    ))
+                })?),
+            };
+
+        let server_side_encryption_customer_algorithm =
+            match &self.server_side_encryption_customer_algorithm {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "server_side_encryption_customer_algorithm value {} invalid: {}",
+                            v,
+                            e
+                        ),
+                    ))
+                })?),
+            };
+
+        let server_side_encryption_customer_key = match &self.server_side_encryption_customer_key {
+            None => None,
+            Some(v) => Some(v.parse().map_err(|e| {
+                other(BackendError::new(
+                    context.clone(),
+                    anyhow!(
+                        "server_side_encryption_customer_key value {} invalid: {}",
+                        v,
+                        e
+                    ),
+                ))
+            })?),
+        };
+        let server_side_encryption_customer_key_md5 =
+            match &self.server_side_encryption_customer_key_md5 {
+                None => None,
+                Some(v) => Some(v.parse().map_err(|e| {
+                    other(BackendError::new(
+                        context.clone(),
+                        anyhow!(
+                            "server_side_encryption_customer_key_md5 value {} invalid: {}",
+                            v,
+                            e
+                        ),
+                    ))
+                })?),
+            };
+
+        let client = HttpClient::new();
+
+        let (mut endpoint, region) = self.detect_regionx(&client, bucket, &context)?;
+        // Construct endpoint which contains bucket name.
+        if self.enable_virtual_host_style {
+            endpoint = endpoint.replace("//", &format!("//{bucket}."))
+        } else {
+            write!(endpoint, "/{bucket}").expect("write into string must succeed");
+        }
+        context.insert("endpoint".to_string(), endpoint.clone());
+        context.insert("region".to_string(), region.clone());
+        debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
+
+        let mut signer_builder = Signer::builder();
+        signer_builder.service("s3");
+        signer_builder.region(&region);
+        signer_builder.allow_anonymous();
+        if self.disable_credential_loader {
+            signer_builder.credential_loader({
+                let mut chain = CredentialLoadChain::default();
+                chain.push(DummyLoader {});
+
+                chain
+            });
+        }
+
+        if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
+            signer_builder.access_key(ak);
+            signer_builder.secret_key(sk);
+        }
+
+        let signer = signer_builder
+            .build()
+            .map_err(|e| other(BackendError::new(context, e)))?;
+
+        info!("backend build finished: {:?}", &self);
+        Ok(Backend {
+            root,
+            endpoint,
+            signer: Arc::new(signer),
+            bucket: self.bucket.clone(),
+            client,
+
+            server_side_encryption,
+            server_side_encryption_aws_kms_key_id,
+            server_side_encryption_customer_algorithm,
+            server_side_encryption_customer_key,
+            server_side_encryption_customer_key_md5,
+        })
+    }
+
+    /// Finish the build process and create a new accessor.
+    #[deprecated = "Use Builder::build() instead"]
     pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
         info!("backend build started: {:?}", &self);
 
@@ -697,13 +975,12 @@ pub struct Backend {
 
 impl Backend {
     /// Create a new builder for s3.
+    #[deprecated = "Use Builder::default() instead"]
     pub fn build() -> Builder {
         Builder::default()
     }
 
-    pub(crate) async fn from_iter(
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<Arc<dyn Accessor>> {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 
         for (k, v) in it {
@@ -734,7 +1011,7 @@ impl Backend {
             };
         }
 
-        builder.finish().await
+        builder.build()
     }
 
     /// get_abs_path will return the absolute path of the given path in the s3 format.
@@ -917,7 +1194,7 @@ impl Accessor for Backend {
         let bs = HttpBodyWriter::new(
             args,
             tx,
-            self.client.send(req),
+            self.client.send_async(req),
             HashSet::from([StatusCode::CREATED, StatusCode::OK]),
             parse_error_kind,
         );
@@ -1339,6 +1616,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_region() {
+        let _ = env_logger::try_init();
+
         let client = HttpClient::new();
 
         let endpoint_cases = vec![

@@ -33,4 +33,7 @@ pub use error::new_request_build_error;
 pub use error::new_request_send_error;
 pub use error::new_request_sign_error;
 pub use error::parse_error_response;
+pub use error::parse_error_response_x;
 pub use error::parse_error_status_code;
+pub use error::ErrorResponse;
+pub use error::ErrorResponseFuture;

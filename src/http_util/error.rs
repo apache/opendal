@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::future::Future;
+use std::io;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::pin::Pin;
@@ -20,11 +21,13 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
+use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use http::response::Parts;
-use http::Response;
 use http::StatusCode;
+use http::{HeaderMap, HeaderValue, Response};
+use isahc::{AsyncBody, AsyncReadResponseExt};
 
 use crate::error::other;
 use crate::error::ObjectError;
@@ -79,6 +82,71 @@ pub fn new_request_send_error(op: &'static str, path: &str, err: isahc::Error) -
         kind,
         ObjectError::new(op, path, anyhow!("sending request:  {err:?}")),
     )
+}
+
+pub struct ErrorResponse {
+    parts: Parts,
+    body: Vec<u8>,
+}
+
+impl ErrorResponse {
+    pub fn status_code(&self) -> StatusCode {
+        self.parts.status
+    }
+
+    pub fn headers(&self) -> &HeaderMap<HeaderValue> {
+        &self.parts.headers
+    }
+
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+}
+
+pub struct ErrorResponseFuture {
+    resp: Option<Response<AsyncBody>>,
+    state: State,
+}
+
+enum State {
+    Idle,
+    Reading(BoxFuture<'static, io::Result<ErrorResponse>>),
+}
+
+pub fn parse_error_response_x(resp: Response<AsyncBody>) -> ErrorResponseFuture {
+    ErrorResponseFuture {
+        resp: Some(resp),
+        state: State::Idle,
+    }
+}
+
+impl Future for ErrorResponseFuture {
+    type Output = io::Result<ErrorResponse>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match &mut self.state {
+            State::Idle => {
+                let (parts, mut body) = self
+                    .resp
+                    .take()
+                    .expect("ErrorResponseFuture in idle state must contains valid response")
+                    .into_parts();
+
+                let mut buf = match body.len() {
+                    None => Vec::new(),
+                    Some(v) => Vec::with_capacity(v as usize),
+                };
+
+                let future = async move {
+                    futures::io::copy(&mut body, &mut buf).await?;
+                    Ok(ErrorResponse { parts, body: buf })
+                };
+                self.state = State::Reading(Box::pin(future));
+                self.poll(cx)
+            }
+            State::Reading(fut) => Pin::new(fut).poll(cx),
+        }
+    }
 }
 
 /// parse_error_status_code will parse HTTP status code into `ErrorKind`

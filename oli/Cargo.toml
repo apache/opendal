@@ -8,14 +8,14 @@ keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oli"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.11.4"
+version = "0.12.0"
 
 [dependencies]
 anyhow = "1.0"
 clap = { version = "3.2", features = ["cargo"] }
 env_logger = "0.9"
 log = "0.4"
-opendal = "0.11.4"
+opendal = "0.12.0"
 
 # Please comment the following patch while releasing.
 [patch.crates-io]

@@ -30,6 +30,7 @@ You may be looking for:
 - Access different storage system in the same way
 - Native decompress support
 - Native service-side encryption support
+- Powerful [`Layer`](https://docs.rs/opendal/latest/opendal/trait.Layer.html)
 - **100%** documents covered
 - Behavior tests for all services
 
@@ -38,45 +39,52 @@ You may be looking for:
 ```rust
 use anyhow::Result;
 use futures::StreamExt;
+use futures::TryStreamExt;
+use opendal::DirEntry;
+use opendal::DirStreamer;
+use opendal::Object;
+use opendal::ObjectMetadata;
 use opendal::ObjectMode;
 use opendal::Operator;
-use opendal::Metadata;
-use opendal::Object;
-use opendal::ObjectStreamer;
 use opendal::Scheme;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Init Operator from env.
-    let op = Operator::from_env(Scheme::S3).await?;
+    // Init Operator
+    let op = Operator::from_env(Scheme::Fs)?;
 
     // Create object handler.
-    let o: Object = op.object("test_file");
+    let o = op.object("test_file");
 
     // Write data info object;
-    let _: () = o.write("Hello, World!").await?;
+    o.write("Hello, World!").await?;
 
     // Read data from object;
-    let bs: Vec<u8> = o.read().await?;
+    let bs = o.read().await?;
 
     // Read range from object;
-    let bs: Vec<u8> = o.range_read(1..=11).await?;
+    let bs = o.range_read(1..=11).await?;
 
-    // Get object's Metadata
-    let meta: Metadata = o.metadata().await?;
-    let path: &str = meta.path();
-    let mode: ObjectMode = meta.mode();
-    let length: u64 = meta.content_length();
-    let content_md5: Option<String> = meta.content_md5();
+    // Get object's path
+    let name = o.name();
+    let path = o.path();
+
+    // Fetch more meta about object.
+    let meta = o.metadata().await?;
+    let mode = meta.mode();
+    let length = meta.content_length();
+    let content_md5 = meta.content_md5();
+    let etag = meta.etag();
 
     // Delete object.
-    let _: () = o.delete().await?;
+    o.delete().await?;
 
     // List dir object.
-    let o: Object = op.object("test_dir/");
-    let mut obs: ObjectStreamer = o.list().await?;
-    while let Some(entry) = obs.next().await {
-        let entry: Object = entry?;
+    let o = op.object("test_dir/");
+    let mut ds = o.list().await?;
+    while let Some(entry) = ds.try_next().await? {
+        let path = entry.path();
+        let mode = entry.mode();
     }
 
     Ok(())

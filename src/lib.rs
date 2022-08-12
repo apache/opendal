@@ -31,12 +31,15 @@
 //! - `retry`: Enable operator retry support.
 //! - `services-hdfs`: Enable hdfs service support.
 //! - `services-http`: Enable http service support.
+//! - `rustls`: Use rustls instead openssl for https connection
+//! - `serde`: Implement serde::{Serialize,Deserialize} for ObjectMetadata.
 //!
 //! # Example
 //!
 //! ```no_run
 //! use anyhow::Result;
 //! use futures::StreamExt;
+//! use futures::TryStreamExt;
 //! use opendal::DirEntry;
 //! use opendal::DirStreamer;
 //! use opendal::Object;
@@ -48,37 +51,40 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Init Operator
-//!     let op = Operator::from_env(Scheme::S3)?;
+//!     let op = Operator::from_env(Scheme::Fs)?;
 //!
 //!     // Create object handler.
-//!     let o: Object = op.object("test_file");
+//!     let o = op.object("test_file");
 //!
 //!     // Write data info object;
-//!     let _: () = o.write("Hello, World!").await?;
+//!     o.write("Hello, World!").await?;
 //!
 //!     // Read data from object;
-//!     let bs: Vec<u8> = o.read().await?;
+//!     let bs = o.read().await?;
 //!
 //!     // Read range from object;
-//!     let bs: Vec<u8> = o.range_read(1..=11).await?;
+//!     let bs = o.range_read(1..=11).await?;
 //!
-//!     // Get object's Metadata
-//!     let name: &str = o.name();
-//!     let path: &str = o.path();
-//!     let meta: ObjectMetadata = o.metadata().await?;
-//!     let mode: ObjectMode = meta.mode();
-//!     let length: u64 = meta.content_length();
-//!     let content_md5: Option<&str> = meta.content_md5();
-//!     let etag: Option<&str> = meta.etag();
+//!     // Get object's path
+//!     let name = o.name();
+//!     let path = o.path();
+//!
+//!     // Fetch more meta about object.
+//!     let meta = o.metadata().await?;
+//!     let mode = meta.mode();
+//!     let length = meta.content_length();
+//!     let content_md5 = meta.content_md5();
+//!     let etag = meta.etag();
 //!
 //!     // Delete object.
-//!     let _: () = o.delete().await?;
+//!     o.delete().await?;
 //!
 //!     // List dir object.
-//!     let o: Object = op.object("test_dir/");
-//!     let mut obs: DirStreamer = o.list().await?;
-//!     while let Some(entry) = obs.next().await {
-//!         let entry: DirEntry = entry?;
+//!     let o = op.object("test_dir/");
+//!     let mut ds = o.list().await?;
+//!     while let Some(entry) = ds.try_next().await? {
+//!         let path = entry.path();
+//!         let mode = entry.mode();
 //!     }
 //!
 //!     Ok(())

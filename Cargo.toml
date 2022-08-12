@@ -60,7 +60,7 @@ flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.1", optional = true, features = ["futures-io"] }
 http = "0.2"
-isahc = { git = "https://github.com/sagebind/isahc/", rev = "2cb2fe4b1fecd33377e579596f45577380991067" }
+isahc = { package = "isahc-opendal-workaround", version = "2.0.0-opendal.1" }
 log = "0.4"
 md5 = "0.7"
 metrics = "0.20"

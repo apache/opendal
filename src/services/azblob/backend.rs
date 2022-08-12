@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -35,6 +34,7 @@ use minitrace::trace;
 use reqsign::services::azure::storage::Signer;
 
 use super::dir_stream::DirStream;
+use super::error::parse_error;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
@@ -45,7 +45,6 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_error_response;
-use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
@@ -323,9 +322,8 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err =
-                    parse_error_response("create", args.path(), parse_error_status_code, resp)
-                        .await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("create", args.path(), er);
                 warn!("object {} create: {:?}", args.path(), err);
                 Err(err)
             }
@@ -357,8 +355,8 @@ impl Accessor for Backend {
                 Ok(Box::new(resp.into_body()))
             }
             _ => {
-                let err =
-                    parse_error_response("read", args.path(), parse_error_status_code, resp).await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("read", args.path(), er);
                 warn!("object {} read: {:?}", args.path(), err);
                 Err(err)
             }
@@ -378,8 +376,8 @@ impl Accessor for Backend {
             args,
             tx,
             self.client.send_async(req),
-            HashSet::from([StatusCode::CREATED, StatusCode::OK]),
-            parse_error_status_code,
+            |v| v == StatusCode::CREATED || v == StatusCode::OK,
+            parse_error,
         );
 
         Ok(Box::new(bs))
@@ -442,8 +440,8 @@ impl Accessor for Backend {
                 Ok(m)
             }
             _ => {
-                let err =
-                    parse_error_response("stat", args.path(), parse_error_status_code, resp).await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("stat", args.path(), er);
                 warn!("object {} stat: {:?}", args.path(), err);
                 Err(err)
             }
@@ -464,9 +462,8 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err =
-                    parse_error_response("delete", args.path(), parse_error_status_code, resp)
-                        .await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("delete", args.path(), er);
                 warn!("object {} delete: {:?}", args.path(), err);
                 Err(err)
             }

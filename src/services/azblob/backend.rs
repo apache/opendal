@@ -40,9 +40,6 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_http_channel;
-use crate::http_util::parse_content_length;
-use crate::http_util::parse_error_kind as parse_http_error_kind;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
@@ -50,6 +47,9 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
+use crate::http_util::{new_http_channel, new_request_send_error};
+use crate::http_util::{new_request_build_error, parse_content_length};
+use crate::http_util::{new_request_sign_error, parse_error_kind as parse_http_error_kind};
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -313,11 +313,7 @@ impl Accessor for Backend {
             .await?;
         let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("create", args.path(), anyhow!("send request: {e:?}")),
-            )
+            new_request_send_error("create", args.path(), e)
         })?;
 
         match resp.status() {
@@ -512,29 +508,18 @@ impl Backend {
         }
 
         let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} get_blob: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} get_blob: {e:?}");
+            new_request_build_error("read", path, e)
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} get_blob: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            error!("object {path} get_blob: {e:?}");
+            new_request_sign_error("read", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} get_blob: {url} {e:?}");
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("read", path, anyhow!("send request {url}: {e:?}")),
-            )
+            new_request_send_error("read", path, e)
         })
     }
 
@@ -561,20 +546,12 @@ impl Backend {
         // Set body
         let mut req = req.body(body).map_err(|e| {
             error!("object {path} put_blob: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("write", path, e)
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} put_blob: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            new_request_sign_error("write", path, e)
         })?;
 
         Ok(req)
@@ -596,28 +573,17 @@ impl Backend {
 
         let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} get_blob_properties: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("stat", path, e)
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} get_blob_properties: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            new_request_sign_error("stat", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} get_blob_properties: {url} {e:?}");
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("stat", path, anyhow!("send request {url}: {e:?}")),
-            )
+            new_request_send_error("stat", path, e)
         })
     }
 
@@ -637,28 +603,17 @@ impl Backend {
 
         let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} delete_blob: {url} {e:?}");
-            other(ObjectError::new(
-                "delete",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("delete", path, e)
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} delete_blob: {url} {e:?}");
-            other(ObjectError::new(
-                "delete",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            new_request_sign_error("delete", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} delete_object: {url} {e:?}");
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("delete", path, anyhow!("send request {url}: {e:?}")),
-            )
+            new_request_send_error("delete", path, e)
         })
     }
 
@@ -684,28 +639,17 @@ impl Backend {
             .body(isahc::AsyncBody::empty())
             .map_err(|e| {
                 error!("object {path} list_blobs: {url} {e:?}");
-                other(ObjectError::new(
-                    "list",
-                    path,
-                    anyhow!("build request {url}: {e:?}"),
-                ))
+                new_request_build_error("list", path, e)
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {} list_blobs: {url} {:?}", path, e);
-            other(ObjectError::new(
-                "list",
-                path,
-                anyhow!("sign request {url}: {:?}", e),
-            ))
+            new_request_sign_error("list", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} list_blobs: {url} {e:?}");
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("list", path, anyhow!("send request {url}: {e:?}")),
-            )
+            new_request_send_error("list", path, e)
         })
     }
 }

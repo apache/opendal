@@ -43,8 +43,11 @@ use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
+use crate::http_util::new_http_channel;
+use crate::http_util::new_request_build_error;
+use crate::http_util::new_request_send_error;
+use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_content_length;
-
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
@@ -52,9 +55,6 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
-use crate::http_util::{
-    new_http_channel, new_request_build_error, new_request_send_error, new_request_sign_error,
-};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;

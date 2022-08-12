@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::future::Future;
-
 use std::io::Error;
 use std::io::ErrorKind;
 use std::pin::Pin;
@@ -27,7 +26,8 @@ use http::response::Parts;
 use http::Response;
 use http::StatusCode;
 
-use crate::error::{other, ObjectError};
+use crate::error::other;
+use crate::error::ObjectError;
 
 /// Create error happened during building http request.
 pub fn new_request_build_error(op: &'static str, path: &str, err: http::Error) -> Error {

@@ -13,10 +13,8 @@
 // limitations under the License.
 
 use std::borrow::BorrowMut;
-
 use std::future::Future;
 use std::io::Error;
-
 use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
@@ -36,8 +34,9 @@ use pin_project::pin_project;
 
 use super::HttpResponseFuture;
 use crate::error::other;
-use crate::http_util::error::{ErrorResponse, ErrorResponseFuture};
-use crate::http_util::{parse_error_response_x};
+use crate::http_util::error::ErrorResponse;
+use crate::http_util::error::ErrorResponseFuture;
+use crate::http_util::parse_error_response;
 use crate::io_util::into_reader;
 use crate::ops::OpWrite;
 
@@ -105,7 +104,7 @@ impl HttpBodyWriter {
                         return Poll::Ready(Ok(()));
                     }
 
-                    self.state = State::Error(parse_error_response_x(resp));
+                    self.state = State::Error(parse_error_response(resp));
                     self.poll_response(cx)
                 }
                 // TODO: we need to inject an object error here.

@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::error::ObjectError;
-use crate::http_util::ErrorResponse;
+use std::io::Error;
+use std::io::ErrorKind;
+
 use anyhow::anyhow;
 use http::StatusCode;
-use std::io::{Error, ErrorKind};
+
+use crate::error::ObjectError;
+use crate::http_util::ErrorResponse;
 
 pub fn parse_error(op: &'static str, path: &str, er: ErrorResponse) -> Error {
     let kind = match er.status_code() {

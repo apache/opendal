@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use std::borrow::BorrowMut;
-use std::collections::HashSet;
+
 use std::future::Future;
 use std::io::Error;
-use std::io::ErrorKind;
+
 use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
@@ -36,8 +36,8 @@ use pin_project::pin_project;
 
 use super::HttpResponseFuture;
 use crate::error::other;
-use crate::http_util::error::{ErrorResponse, ErrorResponseFuture, ParseErrorResponse};
-use crate::http_util::{parse_error_response, parse_error_response_x};
+use crate::http_util::error::{ErrorResponse, ErrorResponseFuture};
+use crate::http_util::{parse_error_response_x};
 use crate::io_util::into_reader;
 use crate::ops::OpWrite;
 

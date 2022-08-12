@@ -28,11 +28,12 @@ use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
 
+use super::error::parse_error;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::http_util::parse_error_response;
 use crate::http_util::parse_error_status_code;
+use crate::http_util::{parse_error_response, parse_error_response_x};
 use crate::DirEntry;
 use crate::ObjectMode;
 
@@ -78,13 +79,9 @@ impl futures::Stream for DirStream {
                     let mut resp = backend.list_objects(&path, &token).await?;
 
                     if resp.status() != http::StatusCode::OK {
-                        return Err(parse_error_response(
-                            "list",
-                            &path,
-                            parse_error_status_code,
-                            resp,
-                        )
-                        .await);
+                        let er = parse_error_response_x(resp).await?;
+                        let err = parse_error("list", &path, er);
+                        return Err(err);
                     }
 
                     let bs = resp.bytes().await.map_err(|e| {

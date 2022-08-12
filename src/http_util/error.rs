@@ -27,7 +27,7 @@ use futures::AsyncRead;
 use http::response::Parts;
 use http::StatusCode;
 use http::{HeaderMap, HeaderValue, Response};
-use isahc::{AsyncBody, AsyncReadResponseExt};
+use isahc::{AsyncBody};
 
 use crate::error::other;
 use crate::error::ObjectError;

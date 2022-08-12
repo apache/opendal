@@ -2,6 +2,36 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgraded to v0.12
+
+OpenDAL introduces breaking changes for services initiation.
+
+Since v0.12, `Operator::new` will accept `impl Accessor + 'static` instead of `Arc<dyn Accessor>`:
+
+```rust
+impl Operator {
+    pub fn new(accessor: impl Accessor + 'static) -> Self { .. }
+}
+```
+
+Every service's `Builder` now have a `build()` API which can be run without async:
+
+```rust
+let mut builder = fs::Builder::default();
+let op: Operator = Operator::new(builder.build()?);
+```
+
+Along with these changes, `Operator::from_iter` and `Operator::from_env` now is a blocking API too.
+
+The following APIs have been deprecated:
+
+- All services `Builder::finish()` (replaced by `Builder::build()`)
+- All services `Backend::build()` (replace by `Builder::default()`)
+
+The following APIs have been removed:
+
+- public struct `Metadata` (deprecated in v0.8, replaced by `ObjectMetadata`)
+
 ## Upgraded to v0.8
 
 OpenDAL introduces a breaking change of `list` related operations in v0.8.

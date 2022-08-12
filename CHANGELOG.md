@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.12.0] - 2022-08-12
+
+### Added
+
+- RFC-0501: New Builder (#501)
+- feat: Implement RFC-0501 New Builder (#510)
+
+### Changed
+
+- feat: Use isahc to replace hyper (#471)
+- refactor: make parse http error code public (#511)
+- refactor: Extrace new http error APIs (#515)
+- refactor: Simplify the error response parse logic (#516)
+
+### Removed
+
+- refactor: Remove deprecated struct Metadata (#503)
+
 ## [v0.11.4] - 2022-08-02
 
 ### Added
@@ -531,6 +549,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.12.0]: https://github.com/datafuselabs/opendal/compare/v0.11.4...v0.12.0
 [v0.11.4]: https://github.com/datafuselabs/opendal/compare/v0.11.3...v0.11.4
 [v0.11.3]: https://github.com/datafuselabs/opendal/compare/v0.11.2...v0.11.3
 [v0.11.2]: https://github.com/datafuselabs/opendal/compare/v0.11.1...v0.11.2

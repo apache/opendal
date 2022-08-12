@@ -45,7 +45,6 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_content_length;
 
-
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
@@ -378,13 +377,7 @@ impl Accessor for Backend {
             args,
             tx,
             self.client.send_async(req),
-            |v| {
-                if v == StatusCode::CREATED || v == StatusCode::OK {
-                    true
-                } else {
-                    false
-                }
-            },
+            |v| v == StatusCode::CREATED || v == StatusCode::OK,
             parse_error,
         );
 

@@ -32,8 +32,8 @@ use super::error::parse_error;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::http_util::parse_error_status_code;
-use crate::http_util::{parse_error_response, parse_error_response_x};
+
+use crate::http_util::{parse_error_response_x};
 use crate::DirEntry;
 use crate::ObjectMode;
 

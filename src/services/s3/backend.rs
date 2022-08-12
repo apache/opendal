@@ -1199,13 +1199,7 @@ impl Accessor for Backend {
             args,
             tx,
             self.client.send_async(req),
-            |v| {
-                if v == StatusCode::CREATED || v == StatusCode::OK {
-                    true
-                } else {
-                    false
-                }
-            },
+            |v| v == StatusCode::CREATED || v == StatusCode::OK,
             parse_error,
         );
 

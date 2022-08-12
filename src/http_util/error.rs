@@ -27,7 +27,7 @@ use futures::AsyncRead;
 use http::response::Parts;
 use http::StatusCode;
 use http::{HeaderMap, HeaderValue, Response};
-use isahc::{AsyncBody};
+use isahc::AsyncBody;
 
 use crate::error::other;
 use crate::error::ObjectError;
@@ -146,38 +146,6 @@ impl Future for ErrorResponseFuture {
             }
             State::Reading(fut) => Pin::new(fut).poll(cx),
         }
-    }
-}
-
-/// parse_error_status_code will parse HTTP status code into `ErrorKind`
-pub fn parse_error_status_code(code: StatusCode) -> ErrorKind {
-    match code {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
-    }
-}
-
-/// parse_error_response will try to read and parse error response.
-pub fn parse_error_response(
-    op: &'static str,
-    path: &str,
-    parser: fn(StatusCode) -> ErrorKind,
-    resp: Response<isahc::AsyncBody>,
-) -> ParseErrorResponse {
-    let (parts, body) = resp.into_parts();
-
-    ParseErrorResponse {
-        op,
-        path: path.to_string(),
-        parser,
-        parts,
-        body,
-        buf: Vec::with_capacity(1024),
     }
 }
 

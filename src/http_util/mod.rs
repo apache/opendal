@@ -29,6 +29,8 @@ mod uri;
 pub use uri::percent_encode_path;
 
 mod error;
-pub use error::parse_error_kind;
+pub use error::new_request_build_error;
+pub use error::new_request_send_error;
+pub use error::new_request_sign_error;
 pub use error::parse_error_response;
 pub use error::parse_error_status_code;

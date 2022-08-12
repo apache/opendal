@@ -26,11 +26,30 @@ use http::response::Parts;
 use http::Response;
 use http::StatusCode;
 
+use crate::error::other;
 use crate::error::ObjectError;
 
-/// Parse isahc error into `ErrorKind`.
-pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
-    match err.kind() {
+/// Create error happened during building http request.
+pub fn new_request_build_error(op: &'static str, path: &str, err: http::Error) -> Error {
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("building request: {err:?}"),
+    ))
+}
+
+/// Create error happened during signing http request.
+pub fn new_request_sign_error(op: &'static str, path: &str, err: anyhow::Error) -> Error {
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("signing request: {err:?}"),
+    ))
+}
+
+/// Create error happened during sending http request.
+pub fn new_request_send_error(op: &'static str, path: &str, err: isahc::Error) -> Error {
+    let kind = match err.kind() {
         // The HTTP client failed to initialize.
         //
         // This error can occur when trying to create a client with invalid
@@ -54,7 +73,12 @@ pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
         // A request or operation took longer than the configured timeout time.
         isahc::error::ErrorKind::Timeout => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
-    }
+    };
+
+    Error::new(
+        kind,
+        ObjectError::new(op, path, anyhow!("sending request:  {err:?}")),
+    )
 }
 
 /// parse_error_status_code will parse HTTP status code into `ErrorKind`

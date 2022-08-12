@@ -44,8 +44,10 @@ use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::http_util::new_http_channel;
+use crate::http_util::new_request_build_error;
+use crate::http_util::new_request_send_error;
+use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_content_length;
-use crate::http_util::parse_error_kind as parse_http_error_kind;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
@@ -1125,10 +1127,7 @@ impl Accessor for Backend {
             .await?;
         let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("create", args.path(), anyhow!("send request: {e:?}")),
-            )
+            new_request_send_error("create", args.path(), e)
         })?;
 
         match resp.status() {
@@ -1336,11 +1335,7 @@ impl Accessor for Backend {
             .sign_query(&mut req, args.expire())
             .map_err(|e| {
                 error!("object {path} presign: {url} {e:?}");
-                other(ObjectError::new(
-                    "presign",
-                    &path,
-                    anyhow!("sign request: {url}: {e:?}"),
-                ))
+                new_request_sign_error("presign", args.path(), e)
             })?;
 
         // We don't need this request anymore, consume it directly.
@@ -1377,12 +1372,8 @@ impl Backend {
         req = self.insert_sse_headers(req, false);
 
         let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} get_object: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} get_object: {e:?}");
+            new_request_build_error("read", path, e)
         })?;
 
         Ok(req)
@@ -1396,24 +1387,15 @@ impl Backend {
         size: Option<u64>,
     ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
-        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} get_object: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            error!("object {path} get_object: {e:?}");
+            new_request_sign_error("read", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} get_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("read", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} get_object: {e:?}");
+            new_request_send_error("read", path, e)
         })
     }
 
@@ -1439,11 +1421,7 @@ impl Backend {
         // Set body
         let req = req.body(body).map_err(|e| {
             error!("object {path} put_object: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("write", path, e)
         })?;
 
         Ok(req)
@@ -1457,15 +1435,10 @@ impl Backend {
         body: isahc::AsyncBody,
     ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let mut req = self.put_object_request(path, Some(size), body)?;
-        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} put_object: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            error!("object {path} put_object: {e:?}");
+            new_request_sign_error("write", path, e)
         })?;
 
         Ok(req)
@@ -1484,30 +1457,18 @@ impl Backend {
         req = self.insert_sse_headers(req, false);
 
         let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} head_object: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} head_object: {e:?}");
+            new_request_build_error("stat", path, e)
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} head_object: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            error!("object {path} head_object: {e:?}");
+            new_request_sign_error("stat", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} head_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("stat", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} head_object: {e:?}");
+            new_request_send_error("stat", path, e)
         })
     }
 
@@ -1521,30 +1482,18 @@ impl Backend {
         let mut req = isahc::Request::delete(&url)
             .body(isahc::AsyncBody::empty())
             .map_err(|e| {
-                error!("object {path} delete_object: {url} {e:?}");
-                other(ObjectError::new(
-                    "delete",
-                    path,
-                    anyhow!("build request {url}: {e:?}"),
-                ))
+                error!("object {path} delete_object: {e:?}");
+                new_request_build_error("delete", path, e)
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} delete_object: {url} {e:?}");
-            other(ObjectError::new(
-                "delete",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            error!("object {path} delete_object: {e:?}");
+            new_request_sign_error("delete", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} delete_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("delete", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} delete_object: {e:?}");
+            new_request_send_error("delete", path, e)
         })
     }
 
@@ -1575,30 +1524,18 @@ impl Backend {
         let mut req = isahc::Request::get(&url)
             .body(isahc::AsyncBody::empty())
             .map_err(|e| {
-                error!("object {path} list_objects: {url} {e:?}");
-                other(ObjectError::new(
-                    "list",
-                    path,
-                    anyhow!("build request {url}: {e:?}"),
-                ))
+                error!("object {path} list_objects: {e:?}");
+                new_request_build_error("list", path, e)
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} list_objects: {url} {e:?}");
-            other(ObjectError::new(
-                "list",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            error!("object {path} list_objects: {e:?}");
+            new_request_sign_error("list", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} list_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("list", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} list_object: {e:?}");
+            new_request_send_error("list", path, e)
         })
     }
 }

@@ -40,9 +40,10 @@ use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::http_util::new_http_channel;
+use crate::http_util::new_request_build_error;
+use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_md5;
-use crate::http_util::parse_error_kind as parse_http_error_kind;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
@@ -310,10 +311,7 @@ impl Accessor for Backend {
             .await?;
         let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("create", args.path(), anyhow!("send request: {e:?}")),
-            )
+            new_request_send_error("create", args.path(), e)
         })?;
 
         match resp.status() {
@@ -552,20 +550,13 @@ impl Backend {
         }
 
         let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} http_get: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} http_get: {e:?}");
+            new_request_build_error("read", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} http_get: {url} {e:?}");
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("read", path, anyhow!("send request {url}: {e:?}")),
-            )
+            error!("object {path} http_get: {e:?}");
+            new_request_send_error("read", path, e)
         })
     }
 
@@ -575,20 +566,13 @@ impl Backend {
         let req = isahc::Request::head(&url);
 
         let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} http_head: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} http_head: {e:?}");
+            new_request_build_error("stat", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} http_head: {url} {e:?}");
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("stat", path, anyhow!("send request {url}: {e:?}")),
-            )
+            error!("object {path} http_head: {e:?}");
+            new_request_send_error("stat", path, e)
         })
     }
 
@@ -607,12 +591,8 @@ impl Backend {
 
         // Set body
         let req = req.body(body).map_err(|e| {
-            error!("object {path} put: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} put: {e:?}");
+            new_request_build_error("write", path, e)
         })?;
 
         Ok(req)
@@ -628,21 +608,13 @@ impl Backend {
 
         // Set body
         let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} delete: {url} {e:?}");
-            other(ObjectError::new(
-                "delete",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} delete: {e:?}");
+            new_request_build_error("delete", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} delete: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("delete", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} delete: {e:?}");
+            new_request_send_error("delete", path, e)
         })
     }
 }

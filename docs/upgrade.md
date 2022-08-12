@@ -23,6 +23,8 @@ let op: Operator = Operator::new(builder.build()?);
 
 Along with these changes, `Operator::from_iter` and `Operator::from_env` now is a blocking API too.
 
+For more information about this change, please refer to [RFC-0501: New Builder](https://opendal.databend.rs/rfcs/0501-new-builder.html).
+
 The following APIs have been deprecated:
 
 - All services `Builder::finish()` (replaced by `Builder::build()`)

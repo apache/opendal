@@ -62,6 +62,7 @@ pub struct Builder {
 }
 
 impl Builder {
+    /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if root.is_empty() {
             self.root = None;
@@ -71,11 +72,13 @@ impl Builder {
         self
     }
 
+    /// set the container's name
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         self.bucket = bucket.to_string();
         self
     }
 
+    /// set the endpoint GCS service uses
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
             None
@@ -85,6 +88,7 @@ impl Builder {
         self
     }
 
+    /// set the credentials string used for OAuth2
     pub fn credentials(&mut self, credentials: &str) -> &mut Self {
         if !credentials.is_empty() {
             self.credentials = Some(String::from(credentials));
@@ -203,11 +207,13 @@ impl Debug for Backend {
 }
 
 impl Backend {
-    pub fn builder() -> Builder {
+    /// Create a new builder for GCS
+    #[deprecated = "Use Builder::default() instead"]
+    pub fn build() -> Builder {
         Builder::default()
     }
 
-    // normalized paths, relative path -> absolute path
+    /// normalized paths, relative path -> absolute path
     pub fn get_abs_path(&self, path: &str) -> String {
         if path == "/" {
             return self.root.trim_start_matches('/').to_string();
@@ -218,7 +224,7 @@ impl Backend {
             .to_string()
     }
 
-    // absolute path -> relative path
+    /// convert paths, absolute path -> relative path
     pub fn get_rel_path(&self, path: &str) -> String {
         let path = format!("/{}", path);
 

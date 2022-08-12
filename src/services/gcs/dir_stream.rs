@@ -19,9 +19,7 @@ use std::task::{Context, Poll};
 
 use anyhow::anyhow;
 use bytes::Buf;
-use futures::future::BoxFuture;
-use futures::Future;
-use futures::{ready, Stream};
+use futures::{future::BoxFuture, ready, Future, Stream};
 use isahc::AsyncReadResponseExt;
 use serde::Deserialize;
 use serde_json::de;
@@ -49,6 +47,7 @@ pub struct DirStream {
 }
 
 impl DirStream {
+    /// Generate a new directory walker
     pub fn new(backend: Arc<Backend>, path: &str) -> Self {
         Self {
             backend,

@@ -13,15 +13,17 @@
 // limitations under the License.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Formatter, Write};
 use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
 
 use anyhow::anyhow;
+use async_trait::async_trait;
 use http::StatusCode;
 use isahc::AsyncBody;
 use log::{debug, error, info, warn};
 use metrics::increment_counter;
+use minitrace::trace;
 use reqsign::services::google::Signer;
 
 use crate::accessor::AccessorCapability;
@@ -39,13 +41,13 @@ use crate::services::gcs::dir_stream::DirStream;
 use crate::AccessorMetadata;
 use crate::{Accessor, BytesReader, BytesWriter, DirStreamer, ObjectMetadata, ObjectMode, Scheme};
 
-const DEFAULT_GCS_ENDPOINT: &'static str = "https://storage.googleapis.com";
-const DEFAULT_GCS_AUTH: &'static str = "https://www.googleapis.com/auth";
+const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
+const DEFAULT_GCS_AUTH: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
 // TODO: Server side encryption support
 
 /// GCS storage backend builder
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Builder {
     /// root URI, all operations happens under `root`
     root: Option<String>,
@@ -57,17 +59,6 @@ pub struct Builder {
 
     /// credential string for GCS service
     credentials: Option<String>,
-}
-
-impl Default for Builder {
-    fn default() -> Self {
-        Self {
-            root: None,
-            bucket: "".to_string(),
-            endpoint: None,
-            credentials: None,
-        }
-    }
 }
 
 impl Builder {
@@ -94,8 +85,15 @@ impl Builder {
         self
     }
 
+    pub fn credentials(&mut self, credentials: &str) -> &mut Self {
+        if !credentials.is_empty() {
+            self.credentials = Some(String::from(credentials));
+        }
+        self
+    }
+
     /// Establish connection to GCS and finish making GCS backend
-    pub fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
+    pub fn build(&mut self) -> Result<Backend> {
         log::info!("backend build started: {:?}", self);
 
         let root = match &self.root {
@@ -104,7 +102,7 @@ impl Builder {
                 // remove successive '/'s
                 let mut v = v
                     .split('/')
-                    .filter(|s: &str| !s.is_empty())
+                    .filter(|s| !s.is_empty())
                     .collect::<Vec<&str>>()
                     .join("/");
                 // path should start with '/'
@@ -130,23 +128,22 @@ impl Builder {
         }?;
 
         // setup error context
-        let mut cxt = HashMap::from([("bucket".to_string(), bucket.to_string())]);
+        let mut ctx = HashMap::from([("bucket".to_string(), bucket.to_string())]);
 
         // TODO: server side encryption
 
         // build http client
         let client = HttpClient::new();
-        let endpoint = self.endpoint.unwrap_or(DEFAULT_GCS_ENDPOINT.to_string());
-        cxt.insert("endpoint".to_string(), endpoint);
-        log::debug!("backend use endpoint: {}", endpoint);
+        let endpoint = self
+            .endpoint
+            .clone()
+            .unwrap_or_else(|| DEFAULT_GCS_ENDPOINT.to_string());
+        ctx.insert("endpoint".to_string(), endpoint.clone());
+
+        debug!("backend use endpoint: {}", endpoint);
 
         // build signer
-        let auth_url = [
-            DEFAULT_GCS_AUTH.to_string(),
-            bucket,
-            "read_write".to_string(),
-        ]
-        .join("/");
+        let auth_url = DEFAULT_GCS_AUTH.to_string();
         let mut signer_builder = Signer::builder();
         signer_builder.scope(auth_url.as_str());
         if let Some(cred) = &self.credentials {
@@ -159,13 +156,13 @@ impl Builder {
 
         let backend = Backend {
             root,
-            endpoint: endpoint.clone(),
+            endpoint,
             bucket: bucket.clone(),
             signer,
             client,
         };
 
-        Ok(Arc::new(Backend))
+        Ok(backend)
     }
 }
 impl Debug for Builder {
@@ -182,7 +179,7 @@ impl Debug for Builder {
     }
 }
 /// GCS storage backend
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Backend {
     endpoint: String,
     bucket: String,
@@ -191,6 +188,18 @@ pub struct Backend {
 
     client: HttpClient,
     signer: Arc<Signer>,
+}
+
+impl Debug for Backend {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut de = f.debug_struct("Backend");
+        de.field("endpoint", &self.endpoint)
+            .field("bucket", &self.bucket)
+            .field("root", &self.root)
+            .field("client", &self.client)
+            .field("signer", &"<redacted>")
+            .finish()
+    }
 }
 
 impl Backend {
@@ -220,6 +229,21 @@ impl Backend {
                 &path, &self.root
             ),
         }
+    }
+
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
+        let mut builder = Builder::default();
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "bucket" => builder.bucket(v),
+                "endpoint" => builder.endpoint(v),
+                "credentials" => builder.credentials(v),
+                _ => continue,
+            };
+        }
+        builder.build()
     }
 }
 
@@ -354,7 +378,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::get(&url);
+        let req = isahc::Request::get(&url);
 
         let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             error!("object {path} get_object_metadata: {url} {e:?}");
@@ -504,19 +528,14 @@ impl Accessor for Backend {
             )
         })?;
 
-        match resp.status() {
-            // 2xx is all ok
-            StatusCode(num) if 200 <= num && num < 300 => {
-                debug!("object {} create finished", args.path());
-                Ok(())
-            }
-            _ => {
-                let err =
-                    parse_error_response("create", args.path(), parse_error_status_code, resp)
-                        .await;
-                warn!("object {} create: {:?}", args.path(), err);
-                Err(err)
-            }
+        if resp.status().is_success() {
+            debug!("object {} create finished", args.path());
+            Ok(())
+        } else {
+            let err =
+                parse_error_response("create", args.path(), parse_error_status_code, resp).await;
+            warn!("object {} create: {:?}", args.path(), err);
+            Err(err)
         }
     }
     #[trace("read")]
@@ -539,23 +558,20 @@ impl Accessor for Backend {
                 e
             })?;
 
-        match resp.status() {
-            StatusCode(x) if 200 <= x && x < 300 => {
-                debug!(
-                    "object {} reader created: offset {:?}, size {:?}",
-                    &p,
-                    args.offset(),
-                    args.size()
-                );
+        if resp.status().is_success() {
+            debug!(
+                "object {} reader created: offset {:?}, size {:?}",
+                &p,
+                args.offset(),
+                args.size()
+            );
 
-                Ok(Box::new(resp.into_body()))
-            }
-            _ => {
-                let err =
-                    parse_error_response("read", args.path(), parse_error_status_code, resp).await;
-                warn!("object {} read: {:?}", args.path(), err);
-                Err(err)
-            }
+            Ok(Box::new(resp.into_body()))
+        } else {
+            let err =
+                parse_error_response("read", args.path(), parse_error_status_code, resp).await;
+            warn!("object {} read: {:?}", args.path(), err);
+            Err(err)
         }
     }
 
@@ -597,51 +613,47 @@ impl Accessor for Backend {
 
         let resp = self.get_object_metadata(&p).await?;
 
-        match resp.status() {
-            StatusCode(code) if 200 <= code && code < 300 => {
-                let mut m = ObjectMetadata::default();
+        if resp.status().is_success() {
+            let mut m = ObjectMetadata::default();
 
-                if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
-                {
-                    m.set_content_length(v);
-                }
-
-                if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
-                {
-                    m.set_etag(v);
-                    m.set_content_md5(v.trim_matches('"'));
-                }
-
-                if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
-                {
-                    m.set_last_modified(v);
-                }
-
-                if p.ends_with('/') {
-                    m.set_mode(ObjectMode::DIR);
-                } else {
-                    m.set_mode(ObjectMode::FILE);
-                };
-
-                debug!("object {} stat finished: {:?}", &p, m);
-                Ok(m)
+            if let Some(v) = parse_content_length(resp.headers())
+                .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+            {
+                m.set_content_length(v);
             }
-            StatusCode::NOT_FOUND if p.ends_with('/') => {
-                let mut m = ObjectMetadata::default();
+
+            if let Some(v) =
+                parse_etag(resp.headers()).map_err(|e| other(ObjectError::new("stat", &p, e)))?
+            {
+                m.set_etag(v);
+                m.set_content_md5(v.trim_matches('"'));
+            }
+
+            if let Some(v) = parse_last_modified(resp.headers())
+                .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+            {
+                m.set_last_modified(v);
+            }
+
+            if p.ends_with('/') {
                 m.set_mode(ObjectMode::DIR);
+            } else {
+                m.set_mode(ObjectMode::FILE);
+            };
 
-                debug!("object {} stat finished", &p);
-                Ok(m)
-            }
-            _ => {
-                let err =
-                    parse_error_response("stat", args.path(), parse_error_status_code, resp).await;
-                warn!("object {} stat: {:?}", args.path(), err);
-                Err(err)
-            }
+            debug!("object {} stat finished: {:?}", &p, m);
+            Ok(m)
+        } else if resp.status() == StatusCode::NOT_FOUND && p.ends_with('/') {
+            let mut m = ObjectMetadata::default();
+            m.set_mode(ObjectMode::DIR);
+
+            debug!("object {} stat finished", &p);
+            Ok(m)
+        } else {
+            let err =
+                parse_error_response("stat", args.path(), parse_error_status_code, resp).await;
+            warn!("object {} stat: {:?}", args.path(), err);
+            Err(err)
         }
     }
 
@@ -654,18 +666,14 @@ impl Accessor for Backend {
 
         let resp = self.delete_object(&p).await?;
 
-        match resp.status() {
-            StatusCode(code) if 200 <= code && code < 300 => {
-                debug!("object {} delete finished", &p);
-                Ok(())
-            }
-            _ => {
-                let err =
-                    parse_error_response("delete", args.path(), parse_error_status_code, resp)
-                        .await;
-                warn!("object {} delete: {:?}", args.path(), err);
-                Err(err)
-            }
+        if resp.status().is_success() {
+            debug!("object {} delete finished", &p);
+            Ok(())
+        } else {
+            let err =
+                parse_error_response("delete", args.path(), parse_error_status_code, resp).await;
+            warn!("object {} delete: {:?}", args.path(), err);
+            Err(err)
         }
     }
 
@@ -707,16 +715,14 @@ impl Accessor for Backend {
         };
         let url = req.uri().to_string();
 
-        self.signer
-            .sign_query(&mut req, args.expire())
-            .map_err(|e| {
-                error!("object {path} presign: {url} {e:?}");
-                other(ObjectError::new(
-                    "presign",
-                    &path,
-                    anyhow!("sign request: {url}: {e:?}"),
-                ))
-            })?;
+        self.signer.sign(&mut req).map_err(|e| {
+            error!("object {path} presign: {url} {e:?}");
+            other(ObjectError::new(
+                "presign",
+                &path,
+                anyhow!("sign request: {url}: {e:?}"),
+            ))
+        })?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

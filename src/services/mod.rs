@@ -21,7 +21,6 @@
 
 pub mod azblob;
 pub mod fs;
-#[cfg(feature = "services-gcs")]
 pub mod gcs;
 #[cfg(feature = "services-hdfs")]
 pub mod hdfs;

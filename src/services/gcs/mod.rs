@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// GCS offers Google Cloud Storage support for OpenDAL
+//! Google Cloud Storage support for OpenDAL.
+//!
+//! # Configuration
+//!
+//! - `root`: Set the work directory for backend
+//! - `bucket`: Set the container name for backend
+//! - `endpoint`: Customizable endpoint setting
+//! - `credentials`: Credential string for GCS OAuth2
 mod backend;
+pub use backend::Backend;
+pub use backend::Builder;
+
 mod dir_stream;

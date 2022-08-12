@@ -18,10 +18,12 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use anyhow::anyhow;
+use bytes::Buf;
 use futures::future::BoxFuture;
-use futures::task::Spawn;
+use futures::Future;
 use futures::{ready, Stream};
 use isahc::AsyncReadResponseExt;
+use serde::Deserialize;
 use serde_json::de;
 
 use crate::error::{other, ObjectError};
@@ -62,7 +64,7 @@ impl DirStream {
 impl Stream for DirStream {
     type Item = Result<DirEntry>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
 
         match &mut self.state {
@@ -73,8 +75,7 @@ impl Stream for DirStream {
                 let fut = async move {
                     let mut resp = backend.list_objects(&path, token.as_str()).await?;
 
-                    let status = resp.status();
-                    if status > 300 {
+                    if !resp.status().is_success() {
                         let e = parse_error_response("list", &path, parse_error_status_code, resp)
                             .await;
                         return Err(e);
@@ -91,11 +92,11 @@ impl Stream for DirStream {
                 };
 
                 self.state = State::Pending(Box::pin(fut));
-                self.pool_next(cx)
+                self.poll_next(cx)
             }
             State::Pending(fut) => {
-                let bytes = ready!(Pin::new(fut).pool(cx))?;
-                let output: Output = serde_json::de::from_reader(bytes.reader()).map_err(|e| {
+                let bytes = ready!(Pin::new(fut).poll(cx))?;
+                let output: Output = de::from_reader(bytes.reader()).map_err(|e| {
                     other(ObjectError::new(
                         "list",
                         &self.path,
@@ -144,7 +145,7 @@ impl Stream for DirStream {
 
                     let de = DirEntry::new(
                         backend.clone(),
-                        ObjectMode::File,
+                        ObjectMode::FILE,
                         &backend.get_rel_path(&object.key),
                     );
 
@@ -164,7 +165,7 @@ impl Stream for DirStream {
                 }
 
                 self.state = State::Standby;
-                self.pool_next(cx)
+                self.poll_next(cx)
             }
         }
     }

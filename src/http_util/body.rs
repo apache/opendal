@@ -13,10 +13,8 @@
 // limitations under the License.
 
 use std::borrow::BorrowMut;
-use std::collections::HashSet;
 use std::future::Future;
 use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
@@ -36,7 +34,8 @@ use pin_project::pin_project;
 
 use super::HttpResponseFuture;
 use crate::error::other;
-use crate::http_util::error::ParseErrorResponse;
+use crate::http_util::error::ErrorResponse;
+use crate::http_util::error::ErrorResponseFuture;
 use crate::http_util::parse_error_response;
 use crate::io_util::into_reader;
 use crate::ops::OpWrite;
@@ -58,14 +57,13 @@ pub struct HttpBodyWriter {
     op: OpWrite,
     tx: Sender<Bytes>,
     state: State,
-    accepted_codes: HashSet<http::StatusCode>,
-    error_parser: fn(http::StatusCode) -> ErrorKind,
+    ok_checker: fn(StatusCode) -> bool,
+    error_parser: fn(&'static str, &str, ErrorResponse) -> Error,
 }
 
 enum State {
     Sending(HttpResponseFuture),
-    /// this variant is 232 bytes.
-    ParseError(Box<ParseErrorResponse>),
+    Error(ErrorResponseFuture),
 }
 
 impl HttpBodyWriter {
@@ -83,43 +81,41 @@ impl HttpBodyWriter {
         op: &OpWrite,
         tx: Sender<Bytes>,
         fut: HttpResponseFuture,
-        accepted_codes: HashSet<StatusCode>,
-        error_parser: fn(StatusCode) -> ErrorKind,
+        ok_checker: fn(StatusCode) -> bool,
+        error_parser: fn(&'static str, &str, ErrorResponse) -> Error,
     ) -> HttpBodyWriter {
         HttpBodyWriter {
             op: op.clone(),
             tx,
             state: State::Sending(fut),
-            accepted_codes,
+            ok_checker,
             error_parser,
         }
     }
 
     fn poll_response(&mut self, cx: &mut Context<'_>) -> Poll<std::result::Result<(), Error>> {
         let op = &self.op;
-        let accepted_codes = &self.accepted_codes;
 
         match self.state.borrow_mut() {
             State::Sending(fut) => match Pin::new(fut).poll(cx) {
                 Poll::Ready(Ok(resp)) => {
-                    if accepted_codes.contains(&resp.status()) {
+                    if (self.ok_checker)(resp.status()) {
                         debug!("object {} write finished: size {:?}", op.path(), op.size());
                         return Poll::Ready(Ok(()));
                     }
 
-                    self.state = State::ParseError(Box::new(parse_error_response(
-                        "write",
-                        op.path(),
-                        self.error_parser,
-                        resp,
-                    )));
+                    self.state = State::Error(parse_error_response(resp));
                     self.poll_response(cx)
                 }
                 // TODO: we need to inject an object error here.
                 Poll::Ready(Err(e)) => Poll::Ready(Err(other(e))),
                 Poll::Pending => Poll::Pending,
             },
-            State::ParseError(resp) => Poll::Ready(Err(ready!(Pin::new(resp).poll(cx)))),
+            State::Error(resp) => {
+                let er = ready!(Pin::new(resp).poll(cx))?;
+                let err = (self.error_parser)("write", op.path(), er);
+                Poll::Ready(Err(err))
+            }
         }
     }
 }

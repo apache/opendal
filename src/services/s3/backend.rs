@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -39,15 +38,17 @@ use reqsign::services::aws::loader::DummyLoader;
 use reqsign::services::aws::v4::Signer;
 
 use super::dir_stream::DirStream;
+use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::http_util::new_http_channel;
+use crate::http_util::new_request_build_error;
+use crate::http_util::new_request_send_error;
+use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_content_length;
-use crate::http_util::parse_error_kind as parse_http_error_kind;
 use crate::http_util::parse_error_response;
-use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
@@ -1125,10 +1126,7 @@ impl Accessor for Backend {
             .await?;
         let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} put_object: {:?}", args.path(), e);
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("create", args.path(), anyhow!("send request: {e:?}")),
-            )
+            new_request_send_error("create", args.path(), e)
         })?;
 
         match resp.status() {
@@ -1137,9 +1135,8 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err =
-                    parse_error_response("create", args.path(), parse_error_status_code, resp)
-                        .await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("create", args.path(), er);
                 warn!("object {} create: {:?}", args.path(), err);
                 Err(err)
             }
@@ -1178,8 +1175,8 @@ impl Accessor for Backend {
                 Ok(Box::new(resp.into_body()))
             }
             _ => {
-                let err =
-                    parse_error_response("read", args.path(), parse_error_status_code, resp).await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("read", args.path(), er);
                 warn!("object {} read: {:?}", args.path(), err);
                 Err(err)
             }
@@ -1199,8 +1196,8 @@ impl Accessor for Backend {
             args,
             tx,
             self.client.send_async(req),
-            HashSet::from([StatusCode::CREATED, StatusCode::OK]),
-            parse_error_status_code,
+            |v| v == StatusCode::CREATED || v == StatusCode::OK,
+            parse_error,
         );
 
         Ok(Box::new(bs))
@@ -1264,8 +1261,8 @@ impl Accessor for Backend {
                 Ok(m)
             }
             _ => {
-                let err =
-                    parse_error_response("stat", args.path(), parse_error_status_code, resp).await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("stat", args.path(), er);
                 warn!("object {} stat: {:?}", args.path(), err);
                 Err(err)
             }
@@ -1287,9 +1284,8 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let err =
-                    parse_error_response("delete", args.path(), parse_error_status_code, resp)
-                        .await;
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("delete", args.path(), er);
                 warn!("object {} delete: {:?}", args.path(), err);
                 Err(err)
             }
@@ -1336,11 +1332,7 @@ impl Accessor for Backend {
             .sign_query(&mut req, args.expire())
             .map_err(|e| {
                 error!("object {path} presign: {url} {e:?}");
-                other(ObjectError::new(
-                    "presign",
-                    &path,
-                    anyhow!("sign request: {url}: {e:?}"),
-                ))
+                new_request_sign_error("presign", args.path(), e)
             })?;
 
         // We don't need this request anymore, consume it directly.
@@ -1377,12 +1369,8 @@ impl Backend {
         req = self.insert_sse_headers(req, false);
 
         let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} get_object: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} get_object: {e:?}");
+            new_request_build_error("read", path, e)
         })?;
 
         Ok(req)
@@ -1396,24 +1384,15 @@ impl Backend {
         size: Option<u64>,
     ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
-        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} get_object: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            error!("object {path} get_object: {e:?}");
+            new_request_sign_error("read", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} get_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("read", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} get_object: {e:?}");
+            new_request_send_error("read", path, e)
         })
     }
 
@@ -1439,11 +1418,7 @@ impl Backend {
         // Set body
         let req = req.body(body).map_err(|e| {
             error!("object {path} put_object: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("write", path, e)
         })?;
 
         Ok(req)
@@ -1457,15 +1432,10 @@ impl Backend {
         body: isahc::AsyncBody,
     ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let mut req = self.put_object_request(path, Some(size), body)?;
-        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} put_object: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            error!("object {path} put_object: {e:?}");
+            new_request_sign_error("write", path, e)
         })?;
 
         Ok(req)
@@ -1484,30 +1454,18 @@ impl Backend {
         req = self.insert_sse_headers(req, false);
 
         let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} head_object: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            error!("object {path} head_object: {e:?}");
+            new_request_build_error("stat", path, e)
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} head_object: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            error!("object {path} head_object: {e:?}");
+            new_request_sign_error("stat", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} head_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("stat", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} head_object: {e:?}");
+            new_request_send_error("stat", path, e)
         })
     }
 
@@ -1521,30 +1479,18 @@ impl Backend {
         let mut req = isahc::Request::delete(&url)
             .body(isahc::AsyncBody::empty())
             .map_err(|e| {
-                error!("object {path} delete_object: {url} {e:?}");
-                other(ObjectError::new(
-                    "delete",
-                    path,
-                    anyhow!("build request {url}: {e:?}"),
-                ))
+                error!("object {path} delete_object: {e:?}");
+                new_request_build_error("delete", path, e)
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} delete_object: {url} {e:?}");
-            other(ObjectError::new(
-                "delete",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            error!("object {path} delete_object: {e:?}");
+            new_request_sign_error("delete", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} delete_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("delete", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} delete_object: {e:?}");
+            new_request_send_error("delete", path, e)
         })
     }
 
@@ -1575,30 +1521,18 @@ impl Backend {
         let mut req = isahc::Request::get(&url)
             .body(isahc::AsyncBody::empty())
             .map_err(|e| {
-                error!("object {path} list_objects: {url} {e:?}");
-                other(ObjectError::new(
-                    "list",
-                    path,
-                    anyhow!("build request {url}: {e:?}"),
-                ))
+                error!("object {path} list_objects: {e:?}");
+                new_request_build_error("list", path, e)
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} list_objects: {url} {e:?}");
-            other(ObjectError::new(
-                "list",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            error!("object {path} list_objects: {e:?}");
+            new_request_sign_error("list", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} list_object: {url} {e:?}");
-
-            Error::new(
-                parse_http_error_kind(&e),
-                ObjectError::new("list", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            error!("object {path} list_object: {e:?}");
+            new_request_send_error("list", path, e)
         })
     }
 }

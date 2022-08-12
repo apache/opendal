@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::io::Error;
+
 use std::io::Result;
 use std::mem;
 use std::sync::Arc;
@@ -49,7 +49,7 @@ use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
 use crate::http_util::{new_http_channel, new_request_send_error};
 use crate::http_util::{new_request_build_error, parse_content_length};
-use crate::http_util::{new_request_sign_error, parse_error_kind as parse_http_error_kind};
+use crate::http_util::{new_request_sign_error};
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;

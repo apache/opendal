@@ -40,7 +40,6 @@ use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::http_util::parse_content_md5;
-use crate::http_util::parse_error_kind as parse_http_error_kind;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;

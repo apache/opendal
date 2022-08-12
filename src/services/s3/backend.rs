@@ -44,7 +44,7 @@ use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::http_util::parse_content_length;
-use crate::http_util::parse_error_kind as parse_http_error_kind;
+
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_error_status_code;
 use crate::http_util::parse_etag;
@@ -1387,7 +1387,6 @@ impl Backend {
         size: Option<u64>,
     ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
-        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} get_object: {e:?}");
@@ -1436,7 +1435,6 @@ impl Backend {
         body: isahc::AsyncBody,
     ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let mut req = self.put_object_request(path, Some(size), body)?;
-        let url = req.uri().to_string();
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} put_object: {e:?}");

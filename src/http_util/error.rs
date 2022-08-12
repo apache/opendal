@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::future::Future;
-use std::io;
+
 use std::io::Error;
 use std::io::ErrorKind;
 use std::pin::Pin;
@@ -24,12 +24,10 @@ use anyhow::anyhow;
 use futures::ready;
 use futures::AsyncRead;
 use http::response::Parts;
+use http::Response;
 use http::StatusCode;
-use http::{request, Response};
-use log::error;
 
 use crate::error::{other, ObjectError};
-use crate::ops::Operation;
 
 /// Create error happened during building http request.
 pub fn new_request_build_error(op: &'static str, path: &str, err: http::Error) -> Error {
@@ -81,35 +79,6 @@ pub fn new_request_send_error(op: &'static str, path: &str, err: isahc::Error) -
         kind,
         ObjectError::new(op, path, anyhow!("sending request:  {err:?}")),
     )
-}
-
-/// Parse isahc error into `ErrorKind`.
-pub fn parse_error_kind(err: &isahc::Error) -> ErrorKind {
-    match err.kind() {
-        // The HTTP client failed to initialize.
-        //
-        // This error can occur when trying to create a client with invalid
-        // configuration, if there were insufficient resources to create the
-        // client, or if a system error occurred when trying to initialize an I/O
-        // driver.
-        isahc::error::ErrorKind::ConnectionFailed => ErrorKind::Interrupted,
-        // Failed to resolve a host name.
-        //
-        // This could be caused by any number of problems, including failure to
-        // reach a DNS server, misconfigured resolver configuration, or the
-        // hostname simply does not exist.
-        isahc::error::ErrorKind::NameResolution => ErrorKind::Interrupted,
-        // An I/O error either sending the request or reading the response. This
-        // could be caused by a problem on the client machine, a problem on the
-        // server machine, or a problem with the network between the two.
-        //
-        // You can get more details about the underlying I/O error with
-        // [`Error::source`][std::error::Error::source].
-        isahc::error::ErrorKind::Io => ErrorKind::Interrupted,
-        // A request or operation took longer than the configured timeout time.
-        isahc::error::ErrorKind::Timeout => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
-    }
 }
 
 /// parse_error_status_code will parse HTTP status code into `ErrorKind`

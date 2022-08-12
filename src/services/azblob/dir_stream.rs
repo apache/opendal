@@ -26,11 +26,11 @@ use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
 
+use super::error::parse_error;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
-use crate::services::azblob::error::parse_error;
 use crate::DirEntry;
 use crate::ObjectMode;
 

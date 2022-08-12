@@ -37,17 +37,5 @@ pub fn parse_error(op: &'static str, path: &str, er: ErrorResponse) -> Error {
         _ => ErrorKind::Other,
     };
 
-    Error::new(
-        kind,
-        ObjectError::new(
-            op,
-            path,
-            anyhow!(
-                "status code: {:?}, headers: {:?}, body: {:?}",
-                er.status_code(),
-                er.headers(),
-                er.body()
-            ),
-        ),
-    )
+    Error::new(kind, ObjectError::new(op, path, anyhow!("{er}")))
 }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::io;
 use std::io::Error;
@@ -106,6 +108,18 @@ impl ErrorResponse {
     /// Get http error response body content (in bytes).
     pub fn body(&self) -> &[u8] {
         &self.body
+    }
+}
+
+impl Display for ErrorResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "status code: {:?}, headers: {:?}, body: {:?}",
+            self.status_code(),
+            self.headers(),
+            String::from_utf8_lossy(self.body())
+        )
     }
 }
 

@@ -12,8 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Providing Layer trait and its implementations.
+//!
+//! # Available Layers
+//!
+//! - [`MetricsLayer`]: add metrics for OpenDAL, requires feature `layers-metrics`
+
 mod layer;
 pub use layer::Layer;
 
-#[cfg(feature = "retry")]
+#[cfg(feature = "layers-metrics")]
+mod metrics;
+#[cfg(feature = "layers-metrics")]
+pub use self::metrics::MetricsLayer;
+
+#[cfg(feature = "layers-retry")]
 mod retry;

@@ -235,7 +235,7 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(feature = "retry")]
+    #[cfg(feature = "layers-retry")]
     #[must_use]
     pub fn with_backoff(
         self,

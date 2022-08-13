@@ -107,9 +107,6 @@ pub use io::BytesStream;
 pub use io::BytesWrite;
 pub use io::BytesWriter;
 
-mod layers;
-pub use layers::Layer;
-
 mod operator;
 pub use operator::BatchOperator;
 pub use operator::Operator;
@@ -127,6 +124,8 @@ pub use scheme::Scheme;
 
 // Public modules, they will be accessed via `opendal::io_util::Xxxx`
 pub mod io_util;
+pub mod layers;
+pub use layers::Layer;
 pub mod ops;
 pub mod services;
 

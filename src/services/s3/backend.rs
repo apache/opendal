@@ -30,7 +30,6 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use metrics::increment_counter;
 use minitrace::trace;
 use once_cell::sync::Lazy;
 use reqsign::services::aws::loader::CredentialLoadChain;
@@ -1118,7 +1117,6 @@ impl Accessor for Backend {
 
     #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        increment_counter!("opendal_s3_create_requests");
         let p = self.get_abs_path(args.path());
 
         let req = self
@@ -1145,8 +1143,6 @@ impl Accessor for Backend {
 
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        increment_counter!("opendal_s3_read_requests");
-
         let p = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
@@ -1205,8 +1201,6 @@ impl Accessor for Backend {
 
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        increment_counter!("opendal_s3_stat_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} stat start", &p);
 
@@ -1271,8 +1265,6 @@ impl Accessor for Backend {
 
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        increment_counter!("opendal_s3_delete_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} delete start", &p);
 
@@ -1294,8 +1286,6 @@ impl Accessor for Backend {
 
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        increment_counter!("opendal_s3_list_requests");
-
         let mut path = self.get_abs_path(args.path());
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {
@@ -1307,8 +1297,6 @@ impl Accessor for Backend {
     }
 
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        increment_counter!("opendal_s3_presign_requests");
-
         let path = self.get_abs_path(args.path());
 
         // We will not send this request out, just for signing.

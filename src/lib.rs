@@ -31,6 +31,7 @@
 //!
 //! - `layers-retry`: Enable operator retry support.
 //! - `layers-metrics`: Enable operator metrics support.
+//! - `layers-tracing`: Enable operator tracing support.
 //!
 //! ## Services
 //!

@@ -30,7 +30,6 @@ use bytes::Bytes;
 use futures::io::Cursor;
 use futures::AsyncWrite;
 use log::debug;
-use minitrace::trace;
 use parking_lot::Mutex;
 
 use crate::error::other;
@@ -96,7 +95,6 @@ impl Accessor for Backend {
         am
     }
 
-    #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = args.path();
 
@@ -117,7 +115,6 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = args.path();
 
@@ -156,7 +153,6 @@ impl Accessor for Backend {
         Ok(Box::new(Cursor::new(data)))
     }
 
-    #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let path = args.path();
 
@@ -168,7 +164,6 @@ impl Accessor for Backend {
         }))
     }
 
-    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = args.path();
 
@@ -195,7 +190,6 @@ impl Accessor for Backend {
         Ok(meta)
     }
 
-    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = args.path();
 
@@ -205,7 +199,6 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let mut path = args.path().to_string();
         if path == "/" {

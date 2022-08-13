@@ -22,10 +22,14 @@ rustls = ["isahc/rustls-tls", "isahc/rustls-tls-native-certs"]
 # Enable serde support.
 serde = ["time/serde"]
 
+# Enable all layers.
+layers-all = ["layers-metrics", "layers-retry", "layers-tracing"]
 # Enable layers metrics support
 layers-metrics = ["metrics"]
 # Enable layers retry support.
 layers-retry = ["backon"]
+# Enable layers tracing support.
+layers-tracing = ["tracing"]
 # DEPRACATED: use layers-retry instead
 retry = ["layers-retry"]
 
@@ -70,7 +74,6 @@ isahc = { package = "isahc-opendal-workaround", version = "2.0.0-opendal.1" }
 log = "0.4"
 md5 = "0.7"
 metrics = { version = "0.20", optional = true }
-minitrace = "0.4"
 once_cell = "1.10"
 parking_lot = "0.12"
 percent-encoding = "2.1"
@@ -82,6 +85,7 @@ serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }
+tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
 cfg-if = "1.0"

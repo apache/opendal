@@ -12,32 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter, Write};
 use std::io::{Error, ErrorKind, Result};
 use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::Buf;
+use futures::AsyncReadExt;
 use http::StatusCode;
 use isahc::AsyncBody;
 use log::{debug, error, info, warn};
 use metrics::increment_counter;
 use minitrace::trace;
 use reqsign::services::google::Signer;
+use serde_json::{de, Value};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use crate::accessor::AccessorCapability;
 use crate::error::{other, BackendError, ObjectError};
 use crate::http_util::{
-    new_http_channel, parse_content_length, parse_error_kind, parse_error_response,
-    parse_error_status_code, parse_etag, parse_last_modified, percent_encode_path, HttpBodyWriter,
-    HttpClient,
+    new_http_channel, new_request_send_error, parse_error_response,
+    percent_encode_path, HttpBodyWriter, HttpClient,
 };
 use crate::ops::{
     BytesRange, OpCreate, OpDelete, OpList, OpPresign, OpRead, OpStat, OpWrite, Operation,
     PresignedRequest,
 };
 use crate::services::gcs::dir_stream::DirStream;
+use crate::services::gcs::error::parse_error;
 use crate::AccessorMetadata;
 use crate::{Accessor, BytesReader, BytesWriter, DirStreamer, ObjectMetadata, ObjectMode, Scheme};
 
@@ -309,11 +314,7 @@ impl Backend {
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} get_object: {url} {e:?}");
-
-            Error::new(
-                parse_error_kind(&e),
-                ObjectError::new("read", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            new_request_send_error("read", path, e)
         })
     }
 
@@ -406,11 +407,7 @@ impl Backend {
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} get_object_metadata: {url} {e:?}");
-
-            Error::new(
-                parse_error_kind(&e),
-                ObjectError::new("stat", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            new_request_send_error("stat", path, e)
         })
     }
 
@@ -445,11 +442,7 @@ impl Backend {
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} delete_object: {url} {e:?}");
-
-            Error::new(
-                parse_error_kind(&e),
-                ObjectError::new("delete", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            new_request_send_error("delete", path, e)
         })
     }
 
@@ -498,11 +491,7 @@ impl Backend {
 
         self.client.send_async(req).await.map_err(|e| {
             error!("object {path} list_object: {url} {e:?}");
-
-            Error::new(
-                parse_error_kind(&e),
-                ObjectError::new("list", path, anyhow!("send request: {url}: {e:?}")),
-            )
+            new_request_send_error("list", path, e)
         })
     }
 }
@@ -528,20 +517,21 @@ impl Accessor for Backend {
             .await?;
         let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} insert_object: {:?}", p, e);
-            Error::new(
-                parse_error_kind(&e),
-                ObjectError::new("create", args.path(), anyhow!("send request: {e:?}")),
-            )
+            new_request_send_error("create", args.path(), e)
         })?;
 
         if resp.status().is_success() {
             debug!("object {} create finished", args.path());
             Ok(())
         } else {
-            let err =
-                parse_error_response("create", args.path(), parse_error_status_code, resp).await;
-            warn!("object {} create: {:?}", args.path(), err);
-            Err(err)
+            warn!(
+                "object {} create returned status code: {}",
+                args.path(),
+                resp.status()
+            );
+            let er = parse_error_response(resp).await?;
+            let e = parse_error("create", args.path(), er);
+            Err(e)
         }
     }
     #[trace("read")]
@@ -574,10 +564,14 @@ impl Accessor for Backend {
 
             Ok(Box::new(resp.into_body()))
         } else {
-            let err =
-                parse_error_response("read", args.path(), parse_error_status_code, resp).await;
-            warn!("object {} read: {:?}", args.path(), err);
-            Err(err)
+            warn!(
+                "object {} read with status code: {}",
+                args.path(),
+                resp.status()
+            );
+            let er = parse_error_response(resp).await?;
+            let e = parse_error("read", args.path(), er);
+            Err(e)
         }
     }
 
@@ -594,8 +588,8 @@ impl Accessor for Backend {
             args,
             tx,
             self.client.send_async(req),
-            HashSet::from([StatusCode::CREATED, StatusCode::OK]),
-            parse_error_status_code,
+            |c| (200..300).contains(&c.as_u16()),
+            parse_error,
         );
 
         Ok(Box::new(bs))
@@ -617,28 +611,40 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.get_object_metadata(&p).await?;
+        let mut resp = self.get_object_metadata(&p).await?;
 
         if resp.status().is_success() {
             let mut m = ObjectMetadata::default();
+            // read http response body
+            let mut v = Vec::new();
+            resp.body_mut().read(&mut v).await.map_err(|e| {
+                error!("GCS backend failed to read response body: {:?}", e);
+                e
+            })?;
+            let j_object: Value =
+                de::from_reader(v.reader()).map_err(|e| other(ObjectError::new("stat", &p, e)))?;
 
-            if let Some(v) = parse_content_length(resp.headers())
-                .map_err(|e| other(ObjectError::new("stat", &p, e)))?
-            {
-                m.set_content_length(v);
+            if let Some(Value::Number(content_length)) = j_object.get("size") {
+                if content_length.is_u64() {
+                    m.set_content_length(content_length.as_u64().unwrap());
+                }
             }
 
-            if let Some(v) =
-                parse_etag(resp.headers()).map_err(|e| other(ObjectError::new("stat", &p, e)))?
-            {
-                m.set_etag(v);
-                m.set_content_md5(v.trim_matches('"'));
+            if let Some(Value::String(etag)) = j_object.get("etag") {
+                m.set_etag(etag.as_str());
             }
 
-            if let Some(v) = parse_last_modified(resp.headers())
-                .map_err(|e| other(ObjectError::new("stat", &p, e)))?
-            {
-                m.set_last_modified(v);
+            if let Some(Value::String(last_modified)) = j_object.get("last_modified") {
+                let datetime =
+                    OffsetDateTime::parse(last_modified.as_str(), &Rfc3339).map_err(|e| {
+                        error!("GCS backend failed to parse datetime in stat");
+                        other(ObjectError::new("stat", &p, e))
+                    })?;
+                m.set_last_modified(datetime);
+            }
+
+            if let Some(Value::String(md5_hash)) = j_object.get("md5Hash") {
+                m.set_content_md5(md5_hash.as_str());
             }
 
             if p.ends_with('/') {
@@ -656,10 +662,9 @@ impl Accessor for Backend {
             debug!("object {} stat finished", &p);
             Ok(m)
         } else {
-            let err =
-                parse_error_response("stat", args.path(), parse_error_status_code, resp).await;
-            warn!("object {} stat: {:?}", args.path(), err);
-            Err(err)
+            let er = parse_error_response(resp).await?;
+            let e = parse_error("stat", args.path(), er);
+            Err(e)
         }
     }
 
@@ -676,9 +681,8 @@ impl Accessor for Backend {
             debug!("object {} delete finished", &p);
             Ok(())
         } else {
-            let err =
-                parse_error_response("delete", args.path(), parse_error_status_code, resp).await;
-            warn!("object {} delete: {:?}", args.path(), err);
+            let er = parse_error_response(resp).await?;
+            let err = parse_error("delete", args.path(), er);
             Err(err)
         }
     }

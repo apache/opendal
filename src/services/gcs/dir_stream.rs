@@ -25,8 +25,9 @@ use serde::Deserialize;
 use serde_json::de;
 
 use crate::error::{other, ObjectError};
-use crate::http_util::{parse_error_response, parse_error_status_code};
+use crate::http_util::parse_error_response;
 use crate::services::gcs::backend::Backend;
+use crate::services::gcs::error::parse_error;
 use crate::{DirEntry, ObjectMode};
 
 enum State {
@@ -75,9 +76,10 @@ impl Stream for DirStream {
                     let mut resp = backend.list_objects(&path, token.as_str()).await?;
 
                     if !resp.status().is_success() {
-                        let e = parse_error_response("list", &path, parse_error_status_code, resp)
-                            .await;
-                        return Err(e);
+                        log::error!("GCS failed to list objects, status code: {}", resp.status());
+                        let er = parse_error_response(resp).await?;
+                        let err = parse_error("list", path.as_ref(), er);
+                        return Err(err);
                     }
                     let bytes = resp.bytes().await.map_err(|e| {
                         other(ObjectError::new(

@@ -22,10 +22,13 @@ rustls = ["isahc/rustls-tls", "isahc/rustls-tls-native-certs"]
 # Enable serde support.
 serde = ["time/serde"]
 
+# Enable all layers.
+layers-all = ["layers-metrics", "layers-retry", "layers-tracing"]
 # Enable layers metrics support
 layers-metrics = ["metrics"]
 # Enable layers retry support.
 layers-retry = ["backon"]
+# Enable layers tracing support.
 layers-tracing = ["tracing"]
 # DEPRACATED: use layers-retry instead
 retry = ["layers-retry"]

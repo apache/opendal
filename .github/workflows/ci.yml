@@ -45,7 +45,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Build
@@ -57,7 +56,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Build
@@ -69,7 +67,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Checkout python env
@@ -95,7 +92,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Checkout python env
@@ -113,7 +109,7 @@ jobs:
           hdfs-version: "3.3.2"
 
       - name: Test
-        run: cargo test --no-fail-fast --features compress,retry
+        run: cargo test --no-fail-fast --features compress,layers-metrics,layers-retry
         env:
           RUST_TEST_THREADS: '2'
           RUST_LOG: DEBUG
@@ -121,7 +117,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Test rustls
-        run: cargo test --no-fail-fast --features compress,retry,rustls --no-default-features
+        run: cargo test --no-fail-fast --features compress,layers-metrics,layers-retry,rustls
         env:
           RUST_TEST_THREADS: '2'
           RUST_LOG: DEBUG
@@ -135,7 +131,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Build
@@ -148,7 +143,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Test
@@ -161,7 +155,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Build
@@ -174,7 +167,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-11
     steps:
       - uses: actions/checkout@v3
       - name: Test

@@ -21,16 +21,18 @@ compress = ["async-compression"]
 rustls = ["isahc/rustls-tls", "isahc/rustls-tls-native-certs"]
 # Enable serde support.
 serde = ["time/serde"]
-# Enable services hdfs support
-services-hdfs = ["hdrs"]
-# Enable services http support
-services-http = ["radix_trie"]
+
 # Enable layers metrics support
 layers-metrics = ["metrics"]
 # Enable layers retry support.
 layers-retry = ["backon"]
 # DEPRACATED: use layers-retry instead
 retry = ["layers-retry"]
+
+# Enable services hdfs support
+services-hdfs = ["hdrs"]
+# Enable services http support
+services-http = ["radix_trie"]
 
 [lib]
 bench = false

@@ -27,10 +27,19 @@
 //!
 //! # Optional features
 //!
-//! - `compress`: Enable object decompress read support.
-//! - `retry`: Enable operator retry support.
+//! ## Layers
+//!
+//! - `layers-retry`: Enable operator retry support.
+//! - `layers-metrics`: Enable operator metrics support.
+//!
+//! ## Services
+//!
 //! - `services-hdfs`: Enable hdfs service support.
 //! - `services-http`: Enable http service support.
+//!
+//! ## Dependencies features
+//!
+//! - `compress`: Enable object decompress read support.
 //! - `rustls`: Use rustls instead openssl for https connection
 //! - `serde`: Implement serde::{Serialize,Deserialize} for ObjectMetadata.
 //!

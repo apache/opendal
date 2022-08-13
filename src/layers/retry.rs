@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Provide backoff retry support via implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html)
-
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use backon::Backoff;
 use backon::Retryable;
 
 use crate::ops::OpCreate;
@@ -38,56 +37,68 @@ use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
 
-/// Implement [`Layer`] for [`backon::Backoff`](https://docs.rs/backon/latest/backon/trait.Backoff.html) so that all backoff can be used as a layer
+/// RetryLayer will add retry for OpenDAL.
 ///
-/// # Example
-///
+/// # Examples
 ///
 /// ```
-/// # use std::sync::Arc;
-/// # use anyhow::Result;
-/// # use opendal::services::fs;
-/// # use opendal::services::fs::Builder;
+/// use anyhow::Result;
 /// use backon::ExponentialBackoff;
+/// use opendal::layers::RetryLayer;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// let op = Operator::from_env(Scheme::Fs)?.layer(ExponentialBackoff::default());
-/// // All operations will be retried if the error is retryable
-/// let _ = op.object("test_file").read();
-/// # Ok(())
-/// # }
+/// let _ = Operator::from_env(Scheme::Fs)
+///     .expect("must init")
+///     .layer(RetryLayer::new(ExponentialBackoff::default()));
 /// ```
-impl<B: 'static> Layer for B
+pub struct RetryLayer<B: Backoff + Send + Sync + Debug + 'static>(B);
+
+impl<B> RetryLayer<B>
 where
-    B: backon::Backoff + Debug + Send + Sync,
+    B: Backoff + Send + Sync + Debug + 'static,
+{
+    /// Create a new retry layer.
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use backon::ExponentialBackoff;
+    /// use opendal::layers::RetryLayer;
+    /// use opendal::Operator;
+    /// use opendal::Scheme;
+    ///
+    /// let _ = Operator::from_env(Scheme::Fs)
+    ///     .expect("must init")
+    ///     .layer(RetryLayer::new(ExponentialBackoff::default()));
+    /// ```
+    pub fn new(b: B) -> Self {
+        Self(b)
+    }
+}
+
+impl<B> Layer for RetryLayer<B>
+where
+    B: Backoff + Send + Sync + Debug + 'static,
 {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(RetryableAccessor::create(inner, self.clone()))
+        Arc::new(RetryAccessor {
+            inner,
+            backoff: self.0.clone(),
+        })
     }
 }
 
 #[derive(Debug)]
-struct RetryableAccessor<B: backon::Backoff + Debug + Send + Sync> {
+struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
     inner: Arc<dyn Accessor>,
     backoff: B,
 }
 
-impl<B> RetryableAccessor<B>
-where
-    B: backon::Backoff + Debug + Send + Sync,
-{
-    fn create(inner: Arc<dyn Accessor>, backoff: B) -> Self {
-        Self { inner, backoff }
-    }
-}
-
 #[async_trait]
-impl<B> Accessor for RetryableAccessor<B>
+impl<B> Accessor for RetryAccessor<B>
 where
-    B: backon::Backoff + Debug + Send + Sync,
+    B: Backoff + Debug + Send + Sync,
 {
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()
@@ -147,6 +158,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use crate::error::other;
+    use crate::layers::RetryLayer;
     use crate::ops::OpRead;
     use crate::Accessor;
     use crate::BytesReader;
@@ -180,7 +192,7 @@ mod tests {
         let backoff = ConstantBackoff::default()
             .with_delay(Duration::from_micros(1))
             .with_max_times(10);
-        let op = Operator::new(srv.clone()).layer(backoff);
+        let op = Operator::new(srv.clone()).layer(RetryLayer::new(backoff));
 
         let result = op.object("retryable_error").read().await;
         assert!(result.is_err());
@@ -196,7 +208,7 @@ mod tests {
         let srv = Arc::new(MockService::default());
 
         let backoff = ConstantBackoff::default();
-        let op = Operator::new(srv.clone()).layer(backoff);
+        let op = Operator::new(srv.clone()).layer(RetryLayer::new(backoff));
 
         let result = op.object("not_retryable_error").read().await;
         assert!(result.is_err());

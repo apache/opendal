@@ -28,7 +28,6 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use minitrace::trace;
 use time::OffsetDateTime;
 use tokio::fs;
 
@@ -259,7 +258,6 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = self.get_abs_path(args.path());
         debug!(
@@ -303,7 +301,6 @@ impl Accessor for Backend {
         Ok(Box::new(r))
     }
 
-    #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let path = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &path, args.size());
@@ -351,7 +348,6 @@ impl Accessor for Backend {
         Ok(Box::new(Compat::new(f)))
     }
 
-    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = self.get_abs_path(args.path());
         debug!("object {} stat start", &path);
@@ -381,7 +377,6 @@ impl Accessor for Backend {
         Ok(m)
     }
 
-    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = self.get_abs_path(args.path());
         debug!("object {} delete start", &path);
@@ -414,7 +409,6 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);

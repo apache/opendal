@@ -29,7 +29,6 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use metrics::increment_counter;
 use minitrace::trace;
 use reqsign::services::azure::storage::Signer;
 
@@ -305,7 +304,6 @@ impl Accessor for Backend {
 
     #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        increment_counter!("opendal_azblob_create_requests");
         let p = self.get_abs_path(args.path());
 
         let req = self
@@ -332,8 +330,6 @@ impl Accessor for Backend {
 
     #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        increment_counter!("opendal_azblob_read_requests");
-
         let p = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
@@ -385,8 +381,6 @@ impl Accessor for Backend {
 
     #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        increment_counter!("opendal_azure_stat_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} stat start", &p);
 
@@ -450,8 +444,6 @@ impl Accessor for Backend {
 
     #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        increment_counter!("opendal_azure_delete_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} delete start", &p);
 
@@ -472,8 +464,6 @@ impl Accessor for Backend {
 
     #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        increment_counter!("opendal_azblob_list_requests");
-
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 

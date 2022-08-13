@@ -40,6 +40,13 @@ pub enum Scheme {
     S3,
 }
 
+impl Scheme {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+}
+
 impl Default for Scheme {
     fn default() -> Self {
         Self::Memory
@@ -79,6 +86,21 @@ impl FromStr for Scheme {
                 Default::default(),
                 anyhow!("{} is not supported", v),
             ))),
+        }
+    }
+}
+
+impl From<Scheme> for &'static str {
+    fn from(v: Scheme) -> Self {
+        match v {
+            Scheme::Azblob => "azblob",
+            Scheme::Fs => "fs",
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs => "hdfs",
+            #[cfg(feature = "services-http")]
+            Scheme::Http => "http",
+            Scheme::Memory => "memory",
+            Scheme::S3 => "s3",
         }
     }
 }

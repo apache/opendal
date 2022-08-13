@@ -53,6 +53,13 @@ pub enum Operation {
     Presign,
 }
 
+impl Operation {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+}
+
 impl Default for Operation {
     fn default() -> Self {
         Operation::Metadata
@@ -70,6 +77,21 @@ impl Display for Operation {
             Operation::Delete => write!(f, "delete"),
             Operation::List => write!(f, "list"),
             Operation::Presign => write!(f, "presign"),
+        }
+    }
+}
+
+impl From<Operation> for &'static str {
+    fn from(v: Operation) -> &'static str {
+        match v {
+            Operation::Metadata => "metadata",
+            Operation::Create => "create",
+            Operation::Read => "read",
+            Operation::Write => "write",
+            Operation::Stat => "stat",
+            Operation::Delete => "delete",
+            Operation::List => "list",
+            Operation::Presign => "presign",
         }
     }
 }

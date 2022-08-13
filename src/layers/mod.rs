@@ -16,7 +16,8 @@
 //!
 //! # Available Layers
 //!
-//! - [`MetricsLayer`]: add metrics for OpenDAL, requires feature `layers-metrics`
+//! - [`MetricsLayer`]: Add metrics for OpenDAL, requires feature `layers-metrics`
+//! - [`RetryLayer`]: Add retry for OpenDAL, requires feature `layers-retry`
 
 mod layer;
 pub use layer::Layer;
@@ -28,3 +29,5 @@ pub use self::metrics::MetricsLayer;
 
 #[cfg(feature = "layers-retry")]
 mod retry;
+#[cfg(feature = "layers-retry")]
+pub use self::retry::RetryLayer;

@@ -32,16 +32,22 @@ use crate::Accessor;
 /// use opendal::Accessor;
 /// use opendal::Layer;
 ///
+/// /// Implement the real accessor logic here.
 /// #[derive(Debug)]
-/// struct Trace {
+/// struct TraceAccessor {
 ///     inner: Arc<dyn Accessor>,
 /// }
 ///
-/// impl Accessor for Trace {}
+/// impl Accessor for TraceAccessor {}
 ///
-/// impl Layer for Trace {
+/// /// The public struct that exposed to users.
+/// ///
+/// /// Will be used like `op.layer(TraceLayer)`
+/// struct TraceLayer;
+///
+/// impl Layer for TraceLayer {
 ///     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-///         Arc::new(Trace { inner })
+///         Arc::new(TraceAccessor { inner })
 ///     }
 /// }
 /// ```

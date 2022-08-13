@@ -237,11 +237,12 @@ impl Operator {
     /// ```
     #[cfg(feature = "layers-retry")]
     #[must_use]
+    #[deprecated = "Use `Operator::layer` and `RetryLayer` directly"]
     pub fn with_backoff(
         self,
         backoff: impl backon::Backoff + Send + Sync + std::fmt::Debug + 'static,
     ) -> Self {
-        self.layer(backoff)
+        self.layer(crate::layers::RetryLayer::new(backoff))
     }
 
     fn inner(&self) -> Arc<dyn Accessor> {

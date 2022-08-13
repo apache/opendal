@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter, Write};
-use std::io::{Error, ErrorKind, Result};
+use std::io::Result;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -31,15 +31,13 @@ use serde_json::{de, Value};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use crate::accessor::AccessorCapability;
 use crate::error::{other, BackendError, ObjectError};
 use crate::http_util::{
-    new_http_channel, new_request_send_error, parse_error_response,
-    percent_encode_path, HttpBodyWriter, HttpClient,
+    new_http_channel, new_request_send_error, parse_error_response, percent_encode_path,
+    HttpBodyWriter, HttpClient,
 };
 use crate::ops::{
-    BytesRange, OpCreate, OpDelete, OpList, OpPresign, OpRead, OpStat, OpWrite, Operation,
-    PresignedRequest,
+    BytesRange, OpCreate, OpDelete, OpList, OpPresign, OpRead, OpStat, OpWrite, PresignedRequest,
 };
 use crate::services::gcs::dir_stream::DirStream;
 use crate::services::gcs::error::parse_error;
@@ -502,8 +500,7 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.root)
-            .set_name(&self.bucket)
-            .set_capabilities(AccessorCapability::Presign);
+            .set_name(&self.bucket);
         am
     }
 
@@ -701,47 +698,8 @@ impl Accessor for Backend {
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        increment_counter!("opendal_gcs_presign_requests");
-
-        let path = self.get_abs_path(args.path());
-
-        // We will not send this request out, just for signing.
-        let mut req = match args.operation() {
-            Operation::Read => self.get_object_request(&path, None, None)?,
-            Operation::Write => {
-                self.insert_object_request(&path, None, isahc::AsyncBody::empty())?
-            }
-            op => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    ObjectError::new(
-                        "presign",
-                        &path,
-                        anyhow!("presign for {op} is not supported"),
-                    ),
-                ))
-            }
-        };
-        let url = req.uri().to_string();
-
-        self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} presign: {url} {e:?}");
-            other(ObjectError::new(
-                "presign",
-                &path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
-        })?;
-
-        // We don't need this request anymore, consume it directly.
-        let (parts, _) = req.into_parts();
-
-        Ok(PresignedRequest::new(
-            parts.method,
-            parts.uri,
-            parts.headers,
-        ))
+    fn presign(&self, _args: &OpPresign) -> Result<PresignedRequest> {
+        unimplemented!()
     }
 }
 

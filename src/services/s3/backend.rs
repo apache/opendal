@@ -30,8 +30,6 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use metrics::increment_counter;
-use minitrace::trace;
 use once_cell::sync::Lazy;
 use reqsign::services::aws::loader::CredentialLoadChain;
 use reqsign::services::aws::loader::DummyLoader;
@@ -1116,9 +1114,7 @@ impl Accessor for Backend {
         am
     }
 
-    #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        increment_counter!("opendal_s3_create_requests");
         let p = self.get_abs_path(args.path());
 
         let req = self
@@ -1143,10 +1139,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        increment_counter!("opendal_s3_read_requests");
-
         let p = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
@@ -1183,7 +1176,6 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &p, args.size());
@@ -1203,10 +1195,7 @@ impl Accessor for Backend {
         Ok(Box::new(bs))
     }
 
-    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        increment_counter!("opendal_s3_stat_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} stat start", &p);
 
@@ -1269,10 +1258,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        increment_counter!("opendal_s3_delete_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} delete start", &p);
 
@@ -1292,10 +1278,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        increment_counter!("opendal_s3_list_requests");
-
         let mut path = self.get_abs_path(args.path());
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {
@@ -1307,8 +1290,6 @@ impl Accessor for Backend {
     }
 
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        increment_counter!("opendal_s3_presign_requests");
-
         let path = self.get_abs_path(args.path());
 
         // We will not send this request out, just for signing.
@@ -1376,7 +1357,6 @@ impl Backend {
         Ok(req)
     }
 
-    #[trace("get_object")]
     pub(crate) async fn get_object(
         &self,
         path: &str,
@@ -1424,7 +1404,6 @@ impl Backend {
         Ok(req)
     }
 
-    #[trace("put_object")]
     pub(crate) async fn put_object(
         &self,
         path: &str,
@@ -1441,7 +1420,6 @@ impl Backend {
         Ok(req)
     }
 
-    #[trace("head_object")]
     pub(crate) async fn head_object(
         &self,
         path: &str,
@@ -1469,7 +1447,6 @@ impl Backend {
         })
     }
 
-    #[trace("delete_object")]
     pub(crate) async fn delete_object(
         &self,
         path: &str,
@@ -1494,7 +1471,6 @@ impl Backend {
         })
     }
 
-    #[trace("list_objects")]
     pub(crate) async fn list_objects(
         &self,
         path: &str,

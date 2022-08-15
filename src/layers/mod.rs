@@ -12,8 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Providing Layer trait and its implementations.
+//!
+//! # Available Layers
+//!
+//! - [`MetricsLayer`]: Add metrics for OpenDAL, requires feature `layers-metrics`
+//! - [`RetryLayer`]: Add retry for OpenDAL, requires feature `layers-retry`
+//! - [`TracingLayer`]: Add tracing for OpenDAL, requires feature `layers-tracing`
+
 mod layer;
 pub use layer::Layer;
 
-#[cfg(feature = "retry")]
+#[cfg(feature = "layers-metrics")]
+mod metrics;
+#[cfg(feature = "layers-metrics")]
+pub use self::metrics::MetricsLayer;
+
+#[cfg(feature = "layers-retry")]
 mod retry;
+#[cfg(feature = "layers-retry")]
+pub use self::retry::RetryLayer;
+
+#[cfg(feature = "layers-tracing")]
+mod tracing;
+#[cfg(feature = "layers-tracing")]
+pub use self::tracing::TracingLayer;

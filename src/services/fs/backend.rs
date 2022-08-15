@@ -28,8 +28,6 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use metrics::increment_counter;
-use minitrace::trace;
 use time::OffsetDateTime;
 use tokio::fs;
 
@@ -260,10 +258,7 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        increment_counter!("opendal_fs_read_requests");
-
         let path = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
@@ -306,10 +301,7 @@ impl Accessor for Backend {
         Ok(Box::new(r))
     }
 
-    #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        increment_counter!("opendal_fs_write_requests");
-
         let path = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &path, args.size());
 
@@ -356,10 +348,7 @@ impl Accessor for Backend {
         Ok(Box::new(Compat::new(f)))
     }
 
-    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        increment_counter!("opendal_fs_stat_requests");
-
         let path = self.get_abs_path(args.path());
         debug!("object {} stat start", &path);
 
@@ -388,10 +377,7 @@ impl Accessor for Backend {
         Ok(m)
     }
 
-    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        increment_counter!("opendal_fs_delete_requests");
-
         let path = self.get_abs_path(args.path());
         debug!("object {} delete start", &path);
 
@@ -423,10 +409,7 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        increment_counter!("opendal_fs_list_requests");
-
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 

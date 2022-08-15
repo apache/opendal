@@ -29,8 +29,6 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use metrics::increment_counter;
-use minitrace::trace;
 use reqsign::services::azure::storage::Signer;
 
 use super::dir_stream::DirStream;
@@ -303,9 +301,7 @@ impl Accessor for Backend {
         am
     }
 
-    #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        increment_counter!("opendal_azblob_create_requests");
         let p = self.get_abs_path(args.path());
 
         let req = self
@@ -330,10 +326,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        increment_counter!("opendal_azblob_read_requests");
-
         let p = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
@@ -363,7 +356,6 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &p, args.size());
@@ -383,10 +375,7 @@ impl Accessor for Backend {
         Ok(Box::new(bs))
     }
 
-    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        increment_counter!("opendal_azure_stat_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} stat start", &p);
 
@@ -448,10 +437,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        increment_counter!("opendal_azure_delete_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} delete start", &p);
 
@@ -470,10 +456,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        increment_counter!("opendal_azblob_list_requests");
-
         let path = self.get_abs_path(args.path());
         debug!("object {} list start", &path);
 
@@ -482,7 +465,6 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    #[trace("get_blob")]
     pub(crate) async fn get_blob(
         &self,
         path: &str,
@@ -521,7 +503,6 @@ impl Backend {
         })
     }
 
-    #[trace("put_blob")]
     pub(crate) async fn put_blob(
         &self,
         path: &str,
@@ -555,7 +536,6 @@ impl Backend {
         Ok(req)
     }
 
-    #[trace("get_blob_properties")]
     pub(crate) async fn get_blob_properties(
         &self,
         path: &str,
@@ -585,7 +565,6 @@ impl Backend {
         })
     }
 
-    #[trace("delete_blob")]
     pub(crate) async fn delete_blob(
         &self,
         path: &str,
@@ -615,7 +594,6 @@ impl Backend {
         })
     }
 
-    #[trace("list_blobs")]
     pub(crate) async fn list_blobs(
         &self,
         path: &str,

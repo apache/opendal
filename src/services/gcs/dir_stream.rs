@@ -78,7 +78,7 @@ impl Stream for DirStream {
                     if !resp.status().is_success() {
                         log::error!("GCS failed to list objects, status code: {}", resp.status());
                         let er = parse_error_response(resp).await?;
-                        let err = parse_error("list", path.as_ref(), er);
+                        let err = parse_error("list", &path, er);
                         return Err(err);
                     }
                     let bytes = resp.bytes().await.map_err(|e| {
@@ -138,16 +138,14 @@ impl Stream for DirStream {
                     let object = &objects[*objects_idx];
                     *objects_idx += 1;
 
-                    // TODO: don't really know if GCS also return the dir itself in contents
-                    // just in case
-                    if object.key.ends_with('/') {
+                    if object.name.ends_with('/') {
                         continue;
                     }
 
                     let de = DirEntry::new(
                         backend.clone(),
                         ObjectMode::FILE,
-                        &backend.get_rel_path(&object.key),
+                        &backend.get_rel_path(&object.name),
                     );
 
                     log::debug!(
@@ -177,7 +175,7 @@ impl Stream for DirStream {
 /// refer to https://cloud.google.com/storage/docs/json_api/v1/objects/list for details
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-pub struct Output {
+struct Output {
     /// The kind of item this is.
     /// For lists of objects, this is always "storage#objects"
     kind: String,
@@ -195,8 +193,115 @@ pub struct Output {
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OutputContent {
-    key: String,
-    size: u64,
+    name: String,
+    size: String,
 }
 
-// TODO: Add tests for GCS DirStream
+#[cfg(test)]
+mod ds_test {
+    use crate::services::gcs::dir_stream::Output;
+
+    #[test]
+    fn test_de_list() {
+        let names = vec![
+            "/home/datafuselabs/",
+            "/home/datafuselabs/databend.txt",
+            "/home/datafuselabs/cache-server.md",
+        ];
+        let sizes = vec![10000, 5000, 5000];
+        let objects = names
+            .iter()
+            .zip(sizes.iter())
+            .map(|(&name, size)| mock_object(name.to_string(), *size))
+            .collect();
+        let list = mock_list(objects);
+
+        let output_list = serde_json::de::from_str::<Output>(list.as_str());
+        assert!(output_list.is_ok());
+        let output_list = output_list.unwrap();
+        assert_eq!(output_list.items.len(), 3);
+        for (idx, item) in output_list.items.iter().enumerate() {
+            assert_eq!(item.name, names[idx]);
+            let size_res = item.size.as_str().parse();
+            assert!(size_res.is_ok());
+            let size: u64 = size_res.unwrap();
+            assert_eq!(size, sizes[idx]);
+        }
+    }
+
+    fn mock_object(name: String, size: u64) -> String {
+        let template: &str = r#"
+        {
+            "kind": "storage#object",
+            "id": "example value",
+            "selfLink": "example value",
+            "mediaLink": "example value",
+            "name": "{name}",
+            "bucket": "example value",
+            "generation": "0",
+            "metageneration": "0",
+            "contentType": "example value",
+            "storageClass": "example value",
+            "size": "{size}",
+            "md5Hash": "example value",
+            "contentEncoding": "example value",
+            "contentDisposition": "example value",
+            "contentLanguage": "example value",
+            "cacheControl": "example value",
+            "crc32c": "example value",
+            "componentCount": 0,
+            "etag": "example value",
+            "kmsKeyName": "example value",
+            "temporaryHold": false,
+            "eventBasedHold": false,
+            "retentionExpirationTime": "2019-08-10T11:45:14+09:00",
+            "timeCreated": "2019-08-10T11:45:14+09:00",
+            "updated": "2019-08-10T11:45:14+09:00",
+            "timeDeleted": "2019-08-10T11:45:14+09:00",
+            "timeStorageClassUpdated": "2019-08-10T11:45:14+09:00",
+            "customTime": "2019-08-10T11:45:14+09:00",
+            "metadata": {
+              "example_key": "example value"
+            },
+            "acl": [
+              "<acl data>"
+            ],
+            "owner": {
+              "entity": "example value",
+              "entityId": "example value"
+            },
+            "customerEncryption": {
+              "encryptionAlgorithm": "example value",
+              "keySha256": "example value"
+            }
+        }
+        "#;
+        template
+            .replace("{name}", name.as_str())
+            .replace("{size}", size.to_string().as_str())
+    }
+    fn mock_list(items: Vec<String>) -> String {
+        let template = r#"
+        {
+          "kind": "storage#objects",
+          "nextPageToken": "4238898",
+          "prefixes": [
+            "4238898"
+          ],
+          "items": {items}
+        }
+        "#;
+        let mut list = String::from("[");
+        let nums = items.len();
+        for (idx, item) in items.iter().enumerate() {
+            if idx != 0 {
+                list += ",";
+            }
+            list += item.as_str();
+            if idx + 1 == nums {
+                list += "]";
+            }
+        }
+        template.replace("{items}", list.as_str())
+    }
+}

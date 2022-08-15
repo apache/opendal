@@ -23,7 +23,10 @@ use http::StatusCode;
 use isahc::{AsyncBody, AsyncReadResponseExt};
 use log::{debug, error, info, warn};
 use reqsign::services::google::Signer;
+use serde::Deserialize;
 use serde_json::de;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use crate::error::{other, BackendError, ObjectError};
 use crate::http_util::{
@@ -33,7 +36,6 @@ use crate::http_util::{
 use crate::ops::{BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
 use crate::services::gcs::dir_stream::DirStream;
 use crate::services::gcs::error::parse_error;
-use crate::services::gcs::meta::{GcsMeta, RawMeta};
 use crate::AccessorMetadata;
 use crate::{Accessor, BytesReader, BytesWriter, DirStreamer, ObjectMetadata, ObjectMode, Scheme};
 
@@ -60,11 +62,10 @@ pub struct Builder {
 impl Builder {
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
-        if root.is_empty() {
-            self.root = None;
-        } else {
-            self.root = Some(root.to_string());
+        if !root.is_empty() {
+            self.root = Some(root.to_string())
         }
+
         self
     }
 
@@ -76,10 +77,8 @@ impl Builder {
 
     /// set the endpoint GCS service uses
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
-            None
-        } else {
-            Some(endpoint.to_string())
+        if !endpoint.is_empty() {
+            self.endpoint = Some(endpoint.to_string())
         };
         self
     }
@@ -87,14 +86,14 @@ impl Builder {
     /// set the credentials string used for OAuth2
     pub fn credentials(&mut self, credentials: &str) -> &mut Self {
         if !credentials.is_empty() {
-            self.credentials = Some(String::from(credentials));
-        }
+            self.credentials = Some(String::from(credentials))
+        };
         self
     }
 
     /// Establish connection to GCS and finish making GCS backend
     pub fn build(&mut self) -> Result<Backend> {
-        log::info!("backend build started: {:?}", self);
+        info!("backend build started: {:?}", self);
 
         let root = match &self.root {
             None => "/".to_string(),
@@ -140,7 +139,7 @@ impl Builder {
             .unwrap_or_else(|| DEFAULT_GCS_ENDPOINT.to_string());
         ctx.insert("endpoint".to_string(), endpoint.clone());
 
-        debug!("backend use endpoint: {}", endpoint);
+        debug!("backend use endpoint: {endpoint}");
 
         // build signer
         let auth_url = DEFAULT_GCS_AUTH.to_string();
@@ -165,6 +164,7 @@ impl Builder {
         Ok(backend)
     }
 }
+
 impl Debug for Builder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
@@ -178,6 +178,7 @@ impl Debug for Builder {
         ds.finish()
     }
 }
+
 /// GCS storage backend
 #[derive(Clone)]
 pub struct Backend {
@@ -267,7 +268,7 @@ impl Backend {
         }
 
         let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            log::error!("object {path} get_object: {url} {e:?}");
+            error!("object {path} get_object: {url} {e:?}");
             new_request_build_error("read", path, e)
         })?;
 
@@ -436,6 +437,20 @@ impl Backend {
     }
 }
 
+/// `RawMeta` is an intermediate type able to
+/// deserialize directly from JSON data.
+///
+/// In OpenDAL, `ObjectMetadata`'s `last_modified` field's type is `time::OffsetDateTime`,
+/// which could only be represented as strings in JSON files.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct RawMeta {
+    pub size: String, // string formatted unsigned long
+    pub etag: String,
+    pub last_modified: String, // rfc3339 styled datetime string
+    pub md5_hash: String,
+}
+
 #[async_trait]
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
@@ -549,8 +564,7 @@ impl Accessor for Backend {
                 error!("GCS backend failed to read response body: {:?}", e);
                 e
             })?;
-
-            let raw: RawMeta = de::from_slice(&slc[..]).map_err(|e| {
+            let meta: RawMeta = de::from_slice(&slc[..]).map_err(|e| {
                 error!(
                     "GCS backend failed to parse response body into JSON: {:?}",
                     e
@@ -558,15 +572,20 @@ impl Accessor for Backend {
                 other(ObjectError::new("stat", &p, e))
             })?;
 
-            let meta = GcsMeta::try_from(raw).map_err(|e| {
-                error!("GCS backend failed to parse datetime in stat: {:?}", e);
+            let size = meta.size.as_str().parse::<u64>().map_err(|e| {
+                error!("GCS backend failed to parse size of object: {:?}", e);
                 other(ObjectError::new("stat", &p, e))
             })?;
+            let datetime =
+                OffsetDateTime::parse(&meta.last_modified.as_str(), &Rfc3339).map_err(|e| {
+                    error!("GCS backend failed to parse datetime in stat: {:?}", e);
+                    other(ObjectError::new("stat", &p, e))
+                })?;
 
-            m.set_content_length(meta.size);
+            m.set_content_length(size);
             m.set_etag(meta.etag.as_str());
-            m.set_last_modified(meta.last_modified);
             m.set_content_md5(meta.md5_hash.as_str());
+            m.set_last_modified(datetime);
 
             if p.ends_with('/') {
                 m.set_mode(ObjectMode::DIR);
@@ -616,8 +635,6 @@ impl Accessor for Backend {
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 
-    // PreSign will return an Err
-    //
     // inherits the default implementation of Accessor.
 }
 

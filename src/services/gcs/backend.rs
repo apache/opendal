@@ -27,13 +27,13 @@ use serde_json::de;
 
 use crate::error::{other, BackendError, ObjectError};
 use crate::http_util::{
-    new_http_channel, new_request_send_error, parse_error_response, percent_encode_path,
-    HttpBodyWriter, HttpClient,
+    new_http_channel, new_request_build_error, new_request_send_error, new_request_sign_error,
+    parse_error_response, percent_encode_path, HttpBodyWriter, HttpClient,
 };
 use crate::ops::{BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
 use crate::services::gcs::dir_stream::DirStream;
 use crate::services::gcs::error::parse_error;
-use crate::services::gcs::object::{GcsMeta, RawMeta};
+use crate::services::gcs::meta::{GcsMeta, RawMeta};
 use crate::AccessorMetadata;
 use crate::{Accessor, BytesReader, BytesWriter, DirStreamer, ObjectMetadata, ObjectMode, Scheme};
 
@@ -268,11 +268,7 @@ impl Backend {
 
         let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
             log::error!("object {path} get_object: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("read", path, e)
         })?;
 
         Ok(req)
@@ -289,11 +285,7 @@ impl Backend {
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} get_object: {url} {e:?}");
-            other(ObjectError::new(
-                "read",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            new_request_sign_error("read", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
@@ -325,11 +317,7 @@ impl Backend {
         // Set body
         let req = req.body(body).map_err(|e| {
             error!("object {path} put_object: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("write", path, e)
         })?;
 
         Ok(req)
@@ -346,11 +334,7 @@ impl Backend {
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} insert_object: {url} {e:?}");
-            other(ObjectError::new(
-                "write",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            new_request_sign_error("write", path, e)
         })?;
 
         Ok(req)
@@ -369,22 +353,14 @@ impl Backend {
 
         let req = isahc::Request::get(&url);
 
-        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
+        let mut req = req.body(AsyncBody::empty()).map_err(|e| {
             error!("object {path} get_object_metadata: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("build request {url}: {e:?}"),
-            ))
+            new_request_build_error("stat", path, e)
         })?;
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} get_object_metadata: {url} {e:?}");
-            other(ObjectError::new(
-                "stat",
-                path,
-                anyhow!("sign request: {url}: {e:?}"),
-            ))
+            new_request_sign_error("stat", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
@@ -405,20 +381,12 @@ impl Backend {
             .body(AsyncBody::empty())
             .map_err(|e| {
                 error!("object {path} delete_object: {url} {e:?}");
-                other(ObjectError::new(
-                    "delete",
-                    path,
-                    anyhow!("build request {url}: {e:?}"),
-                ))
+                new_request_build_error("delete", path, e)
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} delete_object: {url} {e:?}");
-            other(ObjectError::new(
-                "delete",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            new_request_sign_error("delete", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
@@ -453,20 +421,12 @@ impl Backend {
             .body(AsyncBody::empty())
             .map_err(|e| {
                 error!("object {path} list_objects: {url} {e:?}");
-                other(ObjectError::new(
-                    "list",
-                    path,
-                    anyhow!("build request {url}: {e:?}"),
-                ))
+                new_request_build_error("list", path, e)
             })?;
 
         self.signer.sign(&mut req).map_err(|e| {
             error!("object {path} list_objects: {url} {e:?}");
-            other(ObjectError::new(
-                "list",
-                path,
-                anyhow!("sign request {url}: {e:?}"),
-            ))
+            new_request_sign_error("list", path, e)
         })?;
 
         self.client.send_async(req).await.map_err(|e| {
@@ -598,15 +558,15 @@ impl Accessor for Backend {
                 other(ObjectError::new("stat", &p, e))
             })?;
 
-            let obj = GcsMeta::try_from(r).map_err(|e| {
+            let meta = GcsMeta::try_from(r).map_err(|e| {
                 error!("GCS backend failed to parse datetime in stat: {:?}", e);
                 other(ObjectError::new("stat", &p, e))
             })?;
 
-            m.set_content_length(obj.size);
-            m.set_etag(obj.etag.as_str());
-            m.set_last_modified(obj.last_modified);
-            m.set_content_md5(obj.md5_hash.as_str());
+            m.set_content_length(meta.size);
+            m.set_etag(meta.etag.as_str());
+            m.set_last_modified(meta.last_modified);
+            m.set_content_md5(meta.md5_hash.as_str());
 
             if p.ends_with('/') {
                 m.set_mode(ObjectMode::DIR);

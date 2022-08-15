@@ -19,15 +19,11 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::Buf;
-use futures::AsyncReadExt;
 use http::StatusCode;
-use isahc::AsyncBody;
+use isahc::{AsyncBody, AsyncReadResponseExt};
 use log::{debug, error, info, warn};
 use reqsign::services::google::Signer;
-use serde_json::{de, Value};
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
+use serde_json::de;
 
 use crate::error::{other, BackendError, ObjectError};
 use crate::http_util::{
@@ -37,6 +33,7 @@ use crate::http_util::{
 use crate::ops::{BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
 use crate::services::gcs::dir_stream::DirStream;
 use crate::services::gcs::error::parse_error;
+use crate::services::gcs::object::{GcsMeta, RawMeta};
 use crate::AccessorMetadata;
 use crate::{Accessor, BytesReader, BytesWriter, DirStreamer, ObjectMetadata, ObjectMode, Scheme};
 
@@ -206,12 +203,6 @@ impl Debug for Backend {
 }
 
 impl Backend {
-    /// Create a new builder for GCS
-    #[deprecated = "Use Builder::default() instead"]
-    pub fn build() -> Builder {
-        Builder::default()
-    }
-
     /// normalized paths, relative path -> absolute path
     pub fn get_abs_path(&self, path: &str) -> String {
         if path == "/" {
@@ -315,8 +306,8 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        body: isahc::AsyncBody,
-    ) -> Result<isahc::Request<isahc::AsyncBody>> {
+        body: AsyncBody,
+    ) -> Result<isahc::Request<AsyncBody>> {
         let url = format!(
             "{}/upload/storage/b/{}/o?name={}",
             self.endpoint,
@@ -594,36 +585,28 @@ impl Accessor for Backend {
         if resp.status().is_success() {
             let mut m = ObjectMetadata::default();
             // read http response body
-            let mut v = Vec::new();
-            resp.body_mut().read(&mut v).await.map_err(|e| {
+            let v = resp.bytes().await.map_err(|e| {
                 error!("GCS backend failed to read response body: {:?}", e);
                 e
             })?;
-            let j_object: Value =
-                de::from_reader(v.reader()).map_err(|e| other(ObjectError::new("stat", &p, e)))?;
 
-            if let Some(Value::Number(content_length)) = j_object.get("size") {
-                if content_length.is_u64() {
-                    m.set_content_length(content_length.as_u64().unwrap());
-                }
-            }
+            let r: RawMeta = de::from_slice(&v[..]).map_err(|e| {
+                error!(
+                    "GCS backend failed to parse response body into JSON: {:?}",
+                    e
+                );
+                other(ObjectError::new("stat", &p, e))
+            })?;
 
-            if let Some(Value::String(etag)) = j_object.get("etag") {
-                m.set_etag(etag.as_str());
-            }
+            let obj = GcsMeta::try_from(r).map_err(|e| {
+                error!("GCS backend failed to parse datetime in stat: {:?}", e);
+                other(ObjectError::new("stat", &p, e))
+            })?;
 
-            if let Some(Value::String(last_modified)) = j_object.get("last_modified") {
-                let datetime =
-                    OffsetDateTime::parse(last_modified.as_str(), &Rfc3339).map_err(|e| {
-                        error!("GCS backend failed to parse datetime in stat");
-                        other(ObjectError::new("stat", &p, e))
-                    })?;
-                m.set_last_modified(datetime);
-            }
-
-            if let Some(Value::String(md5_hash)) = j_object.get("md5Hash") {
-                m.set_content_md5(md5_hash.as_str());
-            }
+            m.set_content_length(obj.size);
+            m.set_etag(obj.etag.as_str());
+            m.set_last_modified(obj.last_modified);
+            m.set_content_md5(obj.md5_hash.as_str());
 
             if p.ends_with('/') {
                 m.set_mode(ObjectMode::DIR);

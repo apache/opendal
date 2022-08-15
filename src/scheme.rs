@@ -22,7 +22,7 @@ use crate::error::other;
 use crate::error::BackendError;
 
 /// Backends that OpenDAL supports
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Scheme {
     /// [azblob][crate::services::azblob]: Azure Storage Blob services.
     Azblob,
@@ -34,6 +34,8 @@ pub enum Scheme {
     /// [http][crate::services::http]: HTTP backend.
     #[cfg(feature = "services-http")]
     Http,
+    /// [gcs][crate::services::gcs]: Google Cloud Storage backend.
+    Gcs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.
@@ -60,6 +62,7 @@ impl Display for Scheme {
             Scheme::Fs => write!(f, "fs"),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => write!(f, "hdfs"),
+            Scheme::Gcs => write!(f, "gcs"),
             #[cfg(feature = "services-http")]
             Scheme::Http => write!(f, "http"),
             Scheme::Memory => write!(f, "memory"),
@@ -80,6 +83,7 @@ impl FromStr for Scheme {
             "hdfs" => Ok(Scheme::Hdfs),
             #[cfg(feature = "services-http")]
             "http" | "https" => Ok(Scheme::Http),
+            "gcs" => Ok(Scheme::Gcs),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
             v => Err(other(BackendError::new(
@@ -99,6 +103,7 @@ impl From<Scheme> for &'static str {
             Scheme::Hdfs => "hdfs",
             #[cfg(feature = "services-http")]
             Scheme::Http => "http",
+            Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
             Scheme::S3 => "s3",
         }

@@ -12,19 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing specific services support.
+//! Google Cloud Storage support for OpenDAL.
 //!
-//! In order to implement a service, we need the following things:
+//! # Configuration
 //!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
+//! - `root`: Set the work directory for backend
+//! - `bucket`: Set the container name for backend
+//! - `endpoint`: Customizable endpoint setting
+//! - `credentials`: Credential string for GCS OAuth2
+mod backend;
+pub use backend::Backend;
+pub use backend::Builder;
 
-pub mod azblob;
-pub mod fs;
-pub mod gcs;
-#[cfg(feature = "services-hdfs")]
-pub mod hdfs;
-#[cfg(feature = "services-http")]
-pub mod http;
-pub mod memory;
-pub mod s3;
+mod dir_stream;
+mod error;

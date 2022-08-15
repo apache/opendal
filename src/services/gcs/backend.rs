@@ -545,12 +545,12 @@ impl Accessor for Backend {
         if resp.status().is_success() {
             let mut m = ObjectMetadata::default();
             // read http response body
-            let v = resp.bytes().await.map_err(|e| {
+            let slc = resp.bytes().await.map_err(|e| {
                 error!("GCS backend failed to read response body: {:?}", e);
                 e
             })?;
 
-            let r: RawMeta = de::from_slice(&v[..]).map_err(|e| {
+            let raw: RawMeta = de::from_slice(&slc[..]).map_err(|e| {
                 error!(
                     "GCS backend failed to parse response body into JSON: {:?}",
                     e
@@ -558,7 +558,7 @@ impl Accessor for Backend {
                 other(ObjectError::new("stat", &p, e))
             })?;
 
-            let meta = GcsMeta::try_from(r).map_err(|e| {
+            let meta = GcsMeta::try_from(raw).map_err(|e| {
                 error!("GCS backend failed to parse datetime in stat: {:?}", e);
                 other(ObjectError::new("stat", &p, e))
             })?;

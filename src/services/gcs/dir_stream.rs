@@ -203,24 +203,32 @@ mod ds_test {
 
     #[test]
     fn test_de_list() {
-        let names = vec![
-            "/home/datafuselabs/",
-            "/home/datafuselabs/databend.txt",
-            "/home/datafuselabs/cache-server.md",
-        ];
-        let sizes = vec![10000, 5000, 5000];
-        let objects = names
-            .iter()
-            .zip(sizes.iter())
-            .map(|(&name, size)| mock_object(name.to_string(), *size))
-            .collect();
-        let list = mock_list(objects);
+        let names = vec!["1.png", "2.png"];
+        let sizes = vec![56535, 45506];
 
-        let output_list = serde_json::de::from_str::<Output>(list.as_str());
-        assert!(output_list.is_ok());
-        let output_list = output_list.unwrap();
-        assert_eq!(output_list.items.len(), 3);
-        for (idx, item) in output_list.items.iter().enumerate() {
+        let list_continuous = serde_json::de::from_str::<Output>(LIST_CONTINUOUS);
+        assert!(list_continuous.is_ok());
+        let list_continuous = list_continuous.unwrap();
+        assert_eq!(
+            list_continuous.next_page_token,
+            Some("CgYxMC5wbmc=".to_string())
+        );
+        assert_eq!(list_continuous.items.len(), 2);
+        for (idx, item) in list_continuous.items.iter().enumerate() {
+            assert_eq!(item.name, names[idx]);
+            let size_res = item.size.as_str().parse();
+            assert!(size_res.is_ok());
+            let size: u64 = size_res.unwrap();
+            assert_eq!(size, sizes[idx]);
+        }
+
+        let list_discrete = serde_json::de::from_str::<Output>(LIST_DISCRETE);
+        assert!(list_discrete.is_ok());
+        let list_discrete = list_discrete.unwrap();
+        assert!(list_discrete.next_page_token.is_none());
+        assert_eq!(list_discrete.items.len(), 2);
+
+        for (idx, item) in list_discrete.items.iter().enumerate() {
             assert_eq!(item.name, names[idx]);
             let size_res = item.size.as_str().parse();
             assert!(size_res.is_ok());
@@ -229,79 +237,103 @@ mod ds_test {
         }
     }
 
-    fn mock_object(name: String, size: u64) -> String {
-        let template: &str = r#"
-        {
-            "kind": "storage#object",
-            "id": "example value",
-            "selfLink": "example value",
-            "mediaLink": "example value",
-            "name": "{name}",
-            "bucket": "example value",
-            "generation": "0",
-            "metageneration": "0",
-            "contentType": "example value",
-            "storageClass": "example value",
-            "size": "{size}",
-            "md5Hash": "example value",
-            "contentEncoding": "example value",
-            "contentDisposition": "example value",
-            "contentLanguage": "example value",
-            "cacheControl": "example value",
-            "crc32c": "example value",
-            "componentCount": 0,
-            "etag": "example value",
-            "kmsKeyName": "example value",
-            "temporaryHold": false,
-            "eventBasedHold": false,
-            "retentionExpirationTime": "2019-08-10T11:45:14+09:00",
-            "timeCreated": "2019-08-10T11:45:14+09:00",
-            "updated": "2019-08-10T11:45:14+09:00",
-            "timeDeleted": "2019-08-10T11:45:14+09:00",
-            "timeStorageClassUpdated": "2019-08-10T11:45:14+09:00",
-            "customTime": "2019-08-10T11:45:14+09:00",
-            "metadata": {
-              "example_key": "example value"
-            },
-            "acl": [
-              "<acl data>"
-            ],
-            "owner": {
-              "entity": "example value",
-              "entityId": "example value"
-            },
-            "customerEncryption": {
-              "encryptionAlgorithm": "example value",
-              "keySha256": "example value"
-            }
-        }
-        "#;
-        template
-            .replace("{name}", name.as_str())
-            .replace("{size}", size.to_string().as_str())
+    const LIST_DISCRETE: &str = r#"
+    {
+  "kind": "storage#objects",
+  "prefixes": [
+    "dir/",
+    "test/"
+  ],
+  "items": [
+    {
+      "kind": "storage#object",
+      "id": "example/1.png/1660563214863653",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+      "name": "1.png",
+      "bucket": "example",
+      "generation": "1660563214863653",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "56535",
+      "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+      "crc32c": "j/un9g==",
+      "etag": "CKWasoTgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.866Z",
+      "updated": "2022-08-15T11:33:34.866Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+    },
+    {
+      "kind": "storage#object",
+      "id": "example/2.png/1660563214883337",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/2.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/2.png?generation=1660563214883337&alt=media",
+      "name": "2.png",
+      "bucket": "example",
+      "generation": "1660563214883337",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "45506",
+      "md5Hash": "e6LsGusU7pFJZk+114NV1g==",
+      "crc32c": "L00QAg==",
+      "etag": "CIm0s4TgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.886Z",
+      "updated": "2022-08-15T11:33:34.886Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.886Z"
     }
-    fn mock_list(items: Vec<String>) -> String {
-        let template = r#"
-        {
-          "kind": "storage#objects",
-          "nextPageToken": "4238898",
-          "prefixes": [
-            "4238898"
-          ],
-          "items": {items}
-        }
-        "#;
-        let mut list = String::from("[");
-        let nums = items.len();
-        for (idx, item) in items.iter().enumerate() {
-            if idx != 0 {
-                list += ",";
-            }
-            list += item.as_str();
-            if idx + 1 == nums {
-                list += "]";
-            }
-        }
-        template.replace("{items}", list.as_str())
+  ]
+}
+    "#;
+    const LIST_CONTINUOUS: &str = r#"
+    {
+  "kind": "storage#objects",
+  "prefixes": [
+    "dir/",
+    "test/"
+  ],
+  "nextPageToken": "CgYxMC5wbmc=",
+  "items": [
+    {
+      "kind": "storage#object",
+      "id": "example/1.png/1660563214863653",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+      "name": "1.png",
+      "bucket": "example",
+      "generation": "1660563214863653",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "56535",
+      "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+      "crc32c": "j/un9g==",
+      "etag": "CKWasoTgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.866Z",
+      "updated": "2022-08-15T11:33:34.866Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+    },
+    {
+      "kind": "storage#object",
+      "id": "example/2.png/1660563214883337",
+      "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/2.png",
+      "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/2.png?generation=1660563214883337&alt=media",
+      "name": "2.png",
+      "bucket": "example",
+      "generation": "1660563214883337",
+      "metageneration": "1",
+      "contentType": "image/png",
+      "storageClass": "STANDARD",
+      "size": "45506",
+      "md5Hash": "e6LsGusU7pFJZk+114NV1g==",
+      "crc32c": "L00QAg==",
+      "etag": "CIm0s4TgyPkCEAE=",
+      "timeCreated": "2022-08-15T11:33:34.886Z",
+      "updated": "2022-08-15T11:33:34.886Z",
+      "timeStorageClassUpdated": "2022-08-15T11:33:34.886Z"
     }
+  ]
+}
+    "#;
 }

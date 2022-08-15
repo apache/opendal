@@ -86,7 +86,7 @@ impl Builder {
     /// set the credentials string used for OAuth2
     pub fn credentials(&mut self, credentials: &str) -> &mut Self {
         if !credentials.is_empty() {
-            self.credentials = Some(String::from(credentials))
+            self.credentials = Some(credentials.to_string())
         };
         self
     }
@@ -144,9 +144,9 @@ impl Builder {
         // build signer
         let auth_url = DEFAULT_GCS_AUTH.to_string();
         let mut signer_builder = Signer::builder();
-        signer_builder.scope(auth_url.as_str());
+        signer_builder.scope(&auth_url);
         if let Some(cred) = &self.credentials {
-            signer_builder.credential_from_content(cred.as_str());
+            signer_builder.credential_from_content(cred);
         }
         let signer = signer_builder
             .build()
@@ -444,10 +444,10 @@ impl Backend {
 /// which could only be represented as strings in JSON files.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct RawMeta {
+struct RawMeta {
     pub size: String, // string formatted unsigned long
     pub etag: String,
-    pub last_modified: String, // rfc3339 styled datetime string
+    pub updated: String, // rfc3339 styled datetime string
     pub md5_hash: String,
 }
 
@@ -464,7 +464,7 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
         let req = self
-            .insert_object(p.as_str(), 0, AsyncBody::from_bytes_static(b""))
+            .insert_object(&p, 0, AsyncBody::from_bytes_static(b""))
             .await?;
         let resp = self.client.send_async(req).await.map_err(|e| {
             error!("object {} insert_object: {:?}", p, e);
@@ -572,19 +572,19 @@ impl Accessor for Backend {
                 other(ObjectError::new("stat", &p, e))
             })?;
 
-            let size = meta.size.as_str().parse::<u64>().map_err(|e| {
+            m.set_etag(&meta.etag);
+            m.set_content_md5(&meta.md5_hash);
+
+            let size = meta.size.parse::<u64>().map_err(|e| {
                 error!("GCS backend failed to parse size of object: {:?}", e);
                 other(ObjectError::new("stat", &p, e))
             })?;
-            let datetime =
-                OffsetDateTime::parse(meta.last_modified.as_str(), &Rfc3339).map_err(|e| {
-                    error!("GCS backend failed to parse datetime in stat: {:?}", e);
-                    other(ObjectError::new("stat", &p, e))
-                })?;
-
             m.set_content_length(size);
-            m.set_etag(meta.etag.as_str());
-            m.set_content_md5(meta.md5_hash.as_str());
+
+            let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
+                error!("GCS backend failed to parse datetime in stat: {:?}", e);
+                other(ObjectError::new("stat", &p, e))
+            })?;
             m.set_last_modified(datetime);
 
             if p.ends_with('/') {
@@ -638,4 +638,43 @@ impl Accessor for Backend {
     // inherits the default implementation of Accessor.
 }
 
-// TODO: Add tests for GCS backend
+#[cfg(test)]
+mod backend_test {
+    use crate::services::gcs::backend::RawMeta;
+    use time::format_description::well_known::Rfc3339;
+    use time::OffsetDateTime;
+
+    #[test]
+    fn raw_meta_test() {
+        let raw_meta = serde_json::de::from_str::<RawMeta>(META_JSON);
+        assert!(raw_meta.is_ok());
+        let meta = raw_meta.unwrap();
+        assert_eq!(meta.size, "56535");
+        assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
+        assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
+        assert!(OffsetDateTime::parse(&meta.updated, &Rfc3339).is_ok());
+    }
+
+    const META_JSON: &str = r#"
+    {
+  "kind": "storage#object",
+  "id": "example/1.png/1660563214863653",
+  "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
+  "mediaLink": "https://content-storage.googleapis.com/download/storage/v1/b/example/o/1.png?generation=1660563214863653&alt=media",
+  "name": "1.png",
+  "bucket": "example",
+  "generation": "1660563214863653",
+  "metageneration": "1",
+  "contentType": "image/png",
+  "storageClass": "STANDARD",
+  "size": "56535",
+  "md5Hash": "fHcEH1vPwA6eTPqxuasXcg==",
+  "crc32c": "j/un9g==",
+  "etag": "CKWasoTgyPkCEAE=",
+  "timeCreated": "2022-08-15T11:33:34.866Z",
+  "updated": "2022-08-15T11:33:34.866Z",
+  "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
+}
+    "#;
+}

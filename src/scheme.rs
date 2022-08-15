@@ -103,6 +103,7 @@ impl From<Scheme> for &'static str {
             Scheme::Hdfs => "hdfs",
             #[cfg(feature = "services-http")]
             Scheme::Http => "http",
+            Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
             Scheme::S3 => "s3",
         }

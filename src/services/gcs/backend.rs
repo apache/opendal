@@ -24,8 +24,6 @@ use futures::AsyncReadExt;
 use http::StatusCode;
 use isahc::AsyncBody;
 use log::{debug, error, info, warn};
-use metrics::increment_counter;
-use minitrace::trace;
 use reqsign::services::google::Signer;
 use serde_json::{de, Value};
 use time::format_description::well_known::Rfc3339;
@@ -289,7 +287,6 @@ impl Backend {
         Ok(req)
     }
 
-    #[trace("get_object")]
     pub(crate) async fn get_object(
         &self,
         path: &str,
@@ -347,7 +344,6 @@ impl Backend {
         Ok(req)
     }
 
-    #[trace("insert_object")]
     pub(crate) async fn insert_object(
         &self,
         path: &str,
@@ -369,7 +365,6 @@ impl Backend {
         Ok(req)
     }
 
-    #[trace("get_object_metadata")]
     pub(crate) async fn get_object_metadata(
         &self,
         path: &str,
@@ -407,7 +402,6 @@ impl Backend {
         })
     }
 
-    #[trace("delete_object")]
     pub(crate) async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -442,7 +436,6 @@ impl Backend {
         })
     }
 
-    #[trace("list_objects")]
     pub(crate) async fn list_objects(
         &self,
         path: &str,
@@ -502,10 +495,7 @@ impl Accessor for Backend {
         am
     }
 
-    #[trace("create")]
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        increment_counter!("opendal_gcs_read_request");
-
         let p = self.get_abs_path(args.path());
         let req = self
             .insert_object(p.as_str(), 0, AsyncBody::from_bytes_static(b""))
@@ -529,10 +519,7 @@ impl Accessor for Backend {
             Err(e)
         }
     }
-    #[trace("read")]
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        increment_counter!("opendal_gcs_read_requests");
-
         let p = self.get_abs_path(args.path());
         debug!(
             "object {} read start: offset {:?}, size {:?}",
@@ -570,7 +557,6 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("write")]
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &p, args.size());
@@ -590,10 +576,7 @@ impl Accessor for Backend {
         Ok(Box::new(bs))
     }
 
-    #[trace("stat")]
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        increment_counter!("opendal_gcs_stat_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} stat start", &p);
 
@@ -663,10 +646,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("delete")]
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        increment_counter!("opendal_gcs_delete_requests");
-
         let p = self.get_abs_path(args.path());
         debug!("object {} delete start", &p);
 
@@ -682,10 +662,7 @@ impl Accessor for Backend {
         }
     }
 
-    #[trace("list")]
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        increment_counter!("opendal_gcs_list_requests");
-
         let mut path = self.get_abs_path(args.path());
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {

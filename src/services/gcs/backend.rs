@@ -36,9 +36,7 @@ use crate::http_util::{
     new_http_channel, new_request_send_error, parse_error_response, percent_encode_path,
     HttpBodyWriter, HttpClient,
 };
-use crate::ops::{
-    BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite,
-};
+use crate::ops::{BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
 use crate::services::gcs::dir_stream::DirStream;
 use crate::services::gcs::error::parse_error;
 use crate::AccessorMetadata;

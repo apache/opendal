@@ -37,7 +37,7 @@ use crate::http_util::{
     HttpBodyWriter, HttpClient,
 };
 use crate::ops::{
-    BytesRange, OpCreate, OpDelete, OpList, OpPresign, OpRead, OpStat, OpWrite, PresignedRequest,
+    BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite,
 };
 use crate::services::gcs::dir_stream::DirStream;
 use crate::services::gcs::error::parse_error;
@@ -698,9 +698,9 @@ impl Accessor for Backend {
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 
-    fn presign(&self, _args: &OpPresign) -> Result<PresignedRequest> {
-        unimplemented!()
-    }
+    // PreSign will return an Err
+    //
+    // inherits the default implementation of Accessor.
 }
 
 // TODO: Add tests for GCS backend

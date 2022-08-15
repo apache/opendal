@@ -577,7 +577,7 @@ impl Accessor for Backend {
                 other(ObjectError::new("stat", &p, e))
             })?;
             let datetime =
-                OffsetDateTime::parse(&meta.last_modified.as_str(), &Rfc3339).map_err(|e| {
+                OffsetDateTime::parse(meta.last_modified.as_str(), &Rfc3339).map_err(|e| {
                     error!("GCS backend failed to parse datetime in stat: {:?}", e);
                     other(ObjectError::new("stat", &p, e))
                 })?;

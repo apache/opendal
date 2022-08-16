@@ -12,13 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::ops::*;
-use crate::{
-    Accessor, AccessorMetadata, BytesReader, BytesWriter, DirStreamer, Layer, ObjectMetadata,
-};
-use async_trait::async_trait;
 use std::io::Result;
 use std::sync::Arc;
+
+use async_trait::async_trait;
+
+use crate::ops::*;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::DirStreamer;
+use crate::Layer;
+use crate::ObjectMetadata;
 
 /// TracingLayer will add tracing for OpenDAL.
 ///

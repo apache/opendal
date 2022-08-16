@@ -13,31 +13,55 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter, Write};
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Write;
 use std::io::Result;
 use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::StatusCode;
-use isahc::{AsyncBody, AsyncReadResponseExt};
-use log::{debug, error, info, warn};
+use isahc::AsyncBody;
+use isahc::AsyncReadResponseExt;
+use log::debug;
+use log::error;
+use log::info;
+use log::warn;
 use reqsign::services::google::Signer;
 use serde::Deserialize;
-use serde_json::de;
+use serde_json;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use crate::error::{other, BackendError, ObjectError};
-use crate::http_util::{
-    new_http_channel, new_request_build_error, new_request_send_error, new_request_sign_error,
-    parse_error_response, percent_encode_path, HttpBodyWriter, HttpClient,
-};
-use crate::ops::{BytesRange, OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite};
-use crate::services::gcs::dir_stream::DirStream;
-use crate::services::gcs::error::parse_error;
+use super::dir_stream::DirStream;
+use super::error::parse_error;
+use crate::error::other;
+use crate::error::BackendError;
+use crate::error::ObjectError;
+use crate::http_util::new_http_channel;
+use crate::http_util::new_request_build_error;
+use crate::http_util::new_request_send_error;
+use crate::http_util::new_request_sign_error;
+use crate::http_util::parse_error_response;
+use crate::http_util::percent_encode_path;
+use crate::http_util::HttpBodyWriter;
+use crate::http_util::HttpClient;
+use crate::ops::BytesRange;
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::Accessor;
 use crate::AccessorMetadata;
-use crate::{Accessor, BytesReader, BytesWriter, DirStreamer, ObjectMetadata, ObjectMode, Scheme};
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
+use crate::Scheme;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_AUTH: &str = "https://www.googleapis.com/auth/devstorage.read_write";
@@ -244,6 +268,190 @@ impl Backend {
     }
 }
 
+#[async_trait]
+impl Accessor for Backend {
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::Gcs)
+            .set_root(&self.root)
+            .set_name(&self.bucket);
+        am
+    }
+
+    async fn create(&self, args: &OpCreate) -> Result<()> {
+        let p = self.get_abs_path(args.path());
+        let req = self
+            .insert_object(&p, 0, AsyncBody::from_bytes_static(b""))
+            .await?;
+        let resp = self.client.send_async(req).await.map_err(|e| {
+            error!("object {} insert_object: {:?}", p, e);
+            new_request_send_error("create", args.path(), e)
+        })?;
+
+        if resp.status().is_success() {
+            debug!("object {} create finished", args.path());
+            Ok(())
+        } else {
+            warn!(
+                "object {} create returned status code: {}",
+                args.path(),
+                resp.status()
+            );
+            let er = parse_error_response(resp).await?;
+            let e = parse_error("create", args.path(), er);
+            Err(e)
+        }
+    }
+    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
+        let p = self.get_abs_path(args.path());
+        debug!(
+            "object {} read start: offset {:?}, size {:?}",
+            &p,
+            args.offset(),
+            args.size()
+        );
+
+        let resp = self
+            .get_object(&p, args.offset(), args.size())
+            .await
+            .map_err(|e| {
+                error!("object {} get_object: {:?}", p, e);
+                e
+            })?;
+
+        if resp.status().is_success() {
+            debug!(
+                "object {} reader created: offset {:?}, size {:?}",
+                &p,
+                args.offset(),
+                args.size()
+            );
+
+            Ok(Box::new(resp.into_body()))
+        } else {
+            warn!(
+                "object {} read with status code: {}",
+                args.path(),
+                resp.status()
+            );
+            let er = parse_error_response(resp).await?;
+            let e = parse_error("read", args.path(), er);
+            Err(e)
+        }
+    }
+
+    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+        let p = self.get_abs_path(args.path());
+        debug!("object {} write start: size {}", &p, args.size());
+
+        let (tx, body) = new_http_channel(args.size());
+
+        let req = self.insert_object(&p, args.size(), body).await?;
+
+        let bs = HttpBodyWriter::new(
+            args,
+            tx,
+            self.client.send_async(req),
+            |c| (200..300).contains(&c.as_u16()),
+            parse_error,
+        );
+
+        Ok(Box::new(bs))
+    }
+
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        let p = self.get_abs_path(args.path());
+        debug!("object {} stat start", &p);
+
+        // Stat root always returns a DIR.
+        if self.get_rel_path(&p).is_empty() {
+            let mut m = ObjectMetadata::default();
+            m.set_mode(ObjectMode::DIR);
+
+            debug!("backed root object stat finished");
+            return Ok(m);
+        }
+
+        let mut resp = self.get_object_metadata(&p).await?;
+
+        if resp.status().is_success() {
+            let mut m = ObjectMetadata::default();
+            // read http response body
+            let slc = resp.bytes().await.map_err(|e| {
+                error!("GCS backend failed to read response body: {e:?}");
+                e
+            })?;
+            let meta: GetObjectJsonResponse = serde_json::from_slice(&slc).map_err(|e| {
+                error!("GCS backend failed to parse response body into JSON: {e:?}");
+                other(ObjectError::new("stat", &p, e))
+            })?;
+
+            m.set_etag(&meta.etag);
+            m.set_content_md5(&meta.md5_hash);
+
+            let size = meta.size.parse::<u64>().map_err(|e| {
+                error!("GCS backend failed to parse size of object: {:?}", e);
+                other(ObjectError::new("stat", &p, e))
+            })?;
+            m.set_content_length(size);
+
+            let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
+                error!("GCS backend failed to parse datetime in stat: {:?}", e);
+                other(ObjectError::new("stat", &p, e))
+            })?;
+            m.set_last_modified(datetime);
+
+            if p.ends_with('/') {
+                m.set_mode(ObjectMode::DIR);
+            } else {
+                m.set_mode(ObjectMode::FILE);
+            };
+
+            debug!("object {} stat finished: {:?}", &p, m);
+            Ok(m)
+        } else if resp.status() == StatusCode::NOT_FOUND && p.ends_with('/') {
+            let mut m = ObjectMetadata::default();
+            m.set_mode(ObjectMode::DIR);
+
+            debug!("object {} stat finished", &p);
+            Ok(m)
+        } else {
+            let er = parse_error_response(resp).await?;
+            let e = parse_error("stat", args.path(), er);
+            Err(e)
+        }
+    }
+
+    async fn delete(&self, args: &OpDelete) -> Result<()> {
+        let p = self.get_abs_path(args.path());
+        debug!("object {} delete start", &p);
+
+        let resp = self.delete_object(&p).await?;
+
+        if resp.status().is_success() {
+            debug!("object {} delete finished", &p);
+            Ok(())
+        } else {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error("delete", args.path(), er);
+            Err(err)
+        }
+    }
+
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
+        let mut path = self.get_abs_path(args.path());
+        // Make sure list path is endswith '/'
+        if !path.ends_with('/') && !path.is_empty() {
+            path.push('/')
+        }
+        debug!("object {} list start", &path);
+
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
+    }
+
+    // inherits the default implementation of Accessor.
+}
+
 impl Backend {
     pub(crate) fn get_object_request(
         &self,
@@ -437,227 +645,35 @@ impl Backend {
     }
 }
 
-/// `RawMeta` is an intermediate type able to
-/// deserialize directly from JSON data.
-///
-/// In OpenDAL, `ObjectMetadata`'s `last_modified` field's type is `time::OffsetDateTime`,
-/// which could only be represented as strings in JSON files.
+/// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct RawMeta {
-    pub size: String, // string formatted unsigned long
-    pub etag: String,
-    pub updated: String, // rfc3339 styled datetime string
-    pub md5_hash: String,
-}
-
-#[async_trait]
-impl Accessor for Backend {
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::Gcs)
-            .set_root(&self.root)
-            .set_name(&self.bucket);
-        am
-    }
-
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = self.get_abs_path(args.path());
-        let req = self
-            .insert_object(&p, 0, AsyncBody::from_bytes_static(b""))
-            .await?;
-        let resp = self.client.send_async(req).await.map_err(|e| {
-            error!("object {} insert_object: {:?}", p, e);
-            new_request_send_error("create", args.path(), e)
-        })?;
-
-        if resp.status().is_success() {
-            debug!("object {} create finished", args.path());
-            Ok(())
-        } else {
-            warn!(
-                "object {} create returned status code: {}",
-                args.path(),
-                resp.status()
-            );
-            let er = parse_error_response(resp).await?;
-            let e = parse_error("create", args.path(), er);
-            Err(e)
-        }
-    }
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = self.get_abs_path(args.path());
-        debug!(
-            "object {} read start: offset {:?}, size {:?}",
-            &p,
-            args.offset(),
-            args.size()
-        );
-
-        let resp = self
-            .get_object(&p, args.offset(), args.size())
-            .await
-            .map_err(|e| {
-                error!("object {} get_object: {:?}", p, e);
-                e
-            })?;
-
-        if resp.status().is_success() {
-            debug!(
-                "object {} reader created: offset {:?}, size {:?}",
-                &p,
-                args.offset(),
-                args.size()
-            );
-
-            Ok(Box::new(resp.into_body()))
-        } else {
-            warn!(
-                "object {} read with status code: {}",
-                args.path(),
-                resp.status()
-            );
-            let er = parse_error_response(resp).await?;
-            let e = parse_error("read", args.path(), er);
-            Err(e)
-        }
-    }
-
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let p = self.get_abs_path(args.path());
-        debug!("object {} write start: size {}", &p, args.size());
-
-        let (tx, body) = new_http_channel(args.size());
-
-        let req = self.insert_object(&p, args.size(), body).await?;
-
-        let bs = HttpBodyWriter::new(
-            args,
-            tx,
-            self.client.send_async(req),
-            |c| (200..300).contains(&c.as_u16()),
-            parse_error,
-        );
-
-        Ok(Box::new(bs))
-    }
-
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = self.get_abs_path(args.path());
-        debug!("object {} stat start", &p);
-
-        // Stat root always returns a DIR.
-        if self.get_rel_path(&p).is_empty() {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            debug!("backed root object stat finished");
-            return Ok(m);
-        }
-
-        let mut resp = self.get_object_metadata(&p).await?;
-
-        if resp.status().is_success() {
-            let mut m = ObjectMetadata::default();
-            // read http response body
-            let slc = resp.bytes().await.map_err(|e| {
-                error!("GCS backend failed to read response body: {:?}", e);
-                e
-            })?;
-            let meta: RawMeta = de::from_slice(&slc[..]).map_err(|e| {
-                error!(
-                    "GCS backend failed to parse response body into JSON: {:?}",
-                    e
-                );
-                other(ObjectError::new("stat", &p, e))
-            })?;
-
-            m.set_etag(&meta.etag);
-            m.set_content_md5(&meta.md5_hash);
-
-            let size = meta.size.parse::<u64>().map_err(|e| {
-                error!("GCS backend failed to parse size of object: {:?}", e);
-                other(ObjectError::new("stat", &p, e))
-            })?;
-            m.set_content_length(size);
-
-            let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                error!("GCS backend failed to parse datetime in stat: {:?}", e);
-                other(ObjectError::new("stat", &p, e))
-            })?;
-            m.set_last_modified(datetime);
-
-            if p.ends_with('/') {
-                m.set_mode(ObjectMode::DIR);
-            } else {
-                m.set_mode(ObjectMode::FILE);
-            };
-
-            debug!("object {} stat finished: {:?}", &p, m);
-            Ok(m)
-        } else if resp.status() == StatusCode::NOT_FOUND && p.ends_with('/') {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            debug!("object {} stat finished", &p);
-            Ok(m)
-        } else {
-            let er = parse_error_response(resp).await?;
-            let e = parse_error("stat", args.path(), er);
-            Err(e)
-        }
-    }
-
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = self.get_abs_path(args.path());
-        debug!("object {} delete start", &p);
-
-        let resp = self.delete_object(&p).await?;
-
-        if resp.status().is_success() {
-            debug!("object {} delete finished", &p);
-            Ok(())
-        } else {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error("delete", args.path(), er);
-            Err(err)
-        }
-    }
-
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = self.get_abs_path(args.path());
-        // Make sure list path is endswith '/'
-        if !path.ends_with('/') && !path.is_empty() {
-            path.push('/')
-        }
-        debug!("object {} list start", &path);
-
-        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
-    }
-
-    // inherits the default implementation of Accessor.
+struct GetObjectJsonResponse {
+    /// GCS will return size in string.
+    ///
+    /// For example: `"size": "56535"`
+    size: String,
+    /// etag is not quoted.
+    ///
+    /// For example: `"etag": "CKWasoTgyPkCEAE="`
+    etag: String,
+    /// RFC3339 styled datetime string.
+    ///
+    /// For example: `"updated": "2022-08-15T11:33:34.866Z"`
+    updated: String,
+    /// Content md5 hash
+    ///
+    /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
+    md5_hash: String,
 }
 
 #[cfg(test)]
-mod backend_test {
-    use crate::services::gcs::backend::RawMeta;
-    use time::format_description::well_known::Rfc3339;
-    use time::OffsetDateTime;
+mod tests {
+    use super::*;
 
     #[test]
-    fn raw_meta_test() {
-        let raw_meta = serde_json::de::from_str::<RawMeta>(META_JSON);
-        assert!(raw_meta.is_ok());
-        let meta = raw_meta.unwrap();
-        assert_eq!(meta.size, "56535");
-        assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
-        assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
-        assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
-        assert!(OffsetDateTime::parse(&meta.updated, &Rfc3339).is_ok());
-    }
-
-    const META_JSON: &str = r#"
-    {
+    fn test_deserialize_get_object_json_response() {
+        let content = r#"{
   "kind": "storage#object",
   "id": "example/1.png/1660563214863653",
   "selfLink": "https://www.googleapis.com/storage/v1/b/example/o/1.png",
@@ -675,6 +691,14 @@ mod backend_test {
   "timeCreated": "2022-08-15T11:33:34.866Z",
   "updated": "2022-08-15T11:33:34.866Z",
   "timeStorageClassUpdated": "2022-08-15T11:33:34.866Z"
-}
-    "#;
+}"#;
+
+        let meta: GetObjectJsonResponse =
+            serde_json::from_str(content).expect("json Deserialize must succeed");
+
+        assert_eq!(meta.size, "56535");
+        assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
+        assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
+    }
 }

@@ -78,7 +78,7 @@ pub struct Builder {
     endpoint: Option<String>,
 
     /// credential string for GCS service
-    credentials: Option<String>,
+    credential: Option<String>,
 }
 
 impl Builder {
@@ -105,10 +105,10 @@ impl Builder {
         self
     }
 
-    /// set the credentials string used for OAuth2
-    pub fn credentials(&mut self, credentials: &str) -> &mut Self {
-        if !credentials.is_empty() {
-            self.credentials = Some(credentials.to_string())
+    /// set the base64 hashed credentials string used for OAuth2
+    pub fn credential(&mut self, credential: &str) -> &mut Self {
+        if !credential.is_empty() {
+            self.credential = Some(credential.to_string())
         };
         self
     }
@@ -167,7 +167,7 @@ impl Builder {
         let auth_url = DEFAULT_GCS_AUTH.to_string();
         let mut signer_builder = Signer::builder();
         signer_builder.scope(&auth_url);
-        if let Some(cred) = &self.credentials {
+        if let Some(cred) = &self.credential {
             signer_builder.credential_from_content(cred);
         }
         let signer = signer_builder
@@ -194,7 +194,7 @@ impl Debug for Builder {
         ds.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint);
-        if self.credentials.is_some() {
+        if self.credential.is_some() {
             ds.field("credentials", &"<redacted>");
         }
         ds.finish()
@@ -258,7 +258,7 @@ impl Backend {
                 "root" => builder.root(v),
                 "bucket" => builder.bucket(v),
                 "endpoint" => builder.endpoint(v),
-                "credentials" => builder.credentials(v),
+                "credential" => builder.credential(v),
                 _ => continue,
             };
         }

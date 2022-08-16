@@ -34,6 +34,7 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::uri::percent_encode_path;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -42,7 +43,6 @@ use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_error_response;
-use crate::http_util::percent_encode_path;
 use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
@@ -403,7 +403,8 @@ impl Accessor for Backend {
 
         let resp = self.delete_object(&p).await?;
 
-        if resp.status().is_success() {
+        // deleting not existing objects is ok
+        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
@@ -480,7 +481,7 @@ impl Backend {
         body: AsyncBody,
     ) -> Result<isahc::Request<AsyncBody>> {
         let url = format!(
-            "{}/upload/storage/b/{}/o?name={}",
+            "{}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
             self.endpoint,
             self.bucket,
             percent_encode_path(path)

@@ -30,9 +30,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
-use log::error;
 use log::info;
-use log::warn;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
 
@@ -493,7 +491,6 @@ impl Accessor for Backend {
 
         Ok(Box::new(DirStream {
             backend: Arc::new(self.clone()),
-            path: self.get_abs_path(path),
             paths: paths.into_iter().collect(),
             idx: 0,
         }))
@@ -586,7 +583,6 @@ impl Backend {
 
 struct DirStream {
     backend: Arc<Backend>,
-    path: String,
     paths: Vec<String>,
     idx: usize,
 }

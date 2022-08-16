@@ -29,7 +29,6 @@ use http::StatusCode;
 use log::debug;
 use log::error;
 use log::info;
-
 use once_cell::sync::Lazy;
 use reqsign::services::aws::loader::CredentialLoadChain;
 use reqsign::services::aws::loader::DummyLoader;

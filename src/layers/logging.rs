@@ -13,27 +13,32 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::{ErrorKind, Result};
+use std::io::ErrorKind;
+use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use log::{debug, error, warn};
+use log::debug;
+use log::error;
+use log::warn;
 
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
 use crate::ops::PresignedRequest;
-use crate::ops::{OpCreate, Operation};
+use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::BytesWriter;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
-use crate::{Accessor, Scheme};
+use crate::Scheme;
 
 /// LoggingLayer will add logging for OpenDAL.
 ///

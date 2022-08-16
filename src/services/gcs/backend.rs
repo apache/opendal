@@ -25,9 +25,7 @@ use http::StatusCode;
 use isahc::AsyncBody;
 use isahc::AsyncReadResponseExt;
 use log::debug;
-
 use log::info;
-
 use reqsign::services::google::Signer;
 use serde::Deserialize;
 use serde_json;

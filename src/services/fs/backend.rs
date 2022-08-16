@@ -24,9 +24,7 @@ use async_compat::Compat;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-
 use log::info;
-
 use time::OffsetDateTime;
 use tokio::fs;
 
@@ -221,29 +219,24 @@ impl Accessor for Backend {
                 })?
                 .to_path_buf();
 
-            fs::create_dir_all(&parent).await.map_err(|e| {
-                let e = parse_io_error(e, "create", &parent.to_string_lossy());
-                e
-            })?;
+            fs::create_dir_all(&parent)
+                .await
+                .map_err(|e| parse_io_error(e, "create", &parent.to_string_lossy()))?;
 
             fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(&path)
                 .await
-                .map_err(|e| {
-                    let e = parse_io_error(e, "create", &path);
-                    e
-                })?;
+                .map_err(|e| parse_io_error(e, "create", &path))?;
 
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
-            fs::create_dir_all(&path).await.map_err(|e| {
-                let e = parse_io_error(e, "create", &path);
-                e
-            })?;
+            fs::create_dir_all(&path)
+                .await
+                .map_err(|e| parse_io_error(e, "create", &path))?;
 
             return Ok(());
         }
@@ -258,18 +251,14 @@ impl Accessor for Backend {
             .read(true)
             .open(&path)
             .await
-            .map_err(|e| {
-                let e = parse_io_error(e, "read", &path);
-                e
-            })?;
+            .map_err(|e| parse_io_error(e, "read", &path))?;
 
         let mut f = Compat::new(f);
 
         if let Some(offset) = args.offset() {
-            f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
-                let e = parse_io_error(e, "read", &path);
-                e
-            })?;
+            f.seek(SeekFrom::Start(offset))
+                .await
+                .map_err(|e| parse_io_error(e, "read", &path))?;
         };
 
         let r: BytesReader = match args.size() {
@@ -300,10 +289,9 @@ impl Accessor for Backend {
             })?
             .to_path_buf();
 
-        fs::create_dir_all(&parent).await.map_err(|e| {
-            let e = parse_io_error(e, "write", &parent.to_string_lossy());
-            e
-        })?;
+        fs::create_dir_all(&parent)
+            .await
+            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
 
         let f = fs::OpenOptions::new()
             .create(true)

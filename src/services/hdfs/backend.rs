@@ -25,9 +25,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use log::debug;
-use log::error;
 use log::info;
-use log::warn;
 use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;

@@ -29,7 +29,6 @@ use bytes::BufMut;
 use bytes::Bytes;
 use futures::io::Cursor;
 use futures::AsyncWrite;
-use log::debug;
 use parking_lot::Mutex;
 
 use crate::error::other;
@@ -242,10 +241,8 @@ impl Accessor for Backend {
             })
             .collect::<HashSet<_>>();
 
-        debug!("dir object {} listed keys: {paths:?}", path);
         Ok(Box::new(DirStream {
             backend: Arc::new(self.clone()),
-            path,
             paths: paths.into_iter().collect(),
             idx: 0,
         }))
@@ -298,7 +295,6 @@ impl AsyncWrite for MapWriter {
 
 struct DirStream {
     backend: Arc<Backend>,
-    path: String,
     paths: Vec<String>,
     idx: usize,
 }

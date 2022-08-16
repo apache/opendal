@@ -77,6 +77,15 @@ pub fn new_request_send_error(op: &'static str, path: &str, err: isahc::Error) -
         isahc::error::ErrorKind::Io => ErrorKind::Interrupted,
         // A request or operation took longer than the configured timeout time.
         isahc::error::ErrorKind::Timeout => ErrorKind::Interrupted,
+        // isahc docs said:
+        // > The server made an unrecoverable HTTP protocol violation. This indicates
+        // > a bug in the server. Retrying a request that returns this error is likely
+        // > to produce the same error.
+        //
+        // However, retrying this can still be helpful as services like s3 could recover
+        // this error very soon.
+        // For example: https://github.com/datafuselabs/opendal/issues/525
+        isahc::error::ErrorKind::ProtocolViolation => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
     };
 

@@ -25,7 +25,7 @@ jobs:
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_GCS_TEST: ${{ secrets.OPENDAL_S3_TEST }}
+          OPENDAL_GCS_TEST: ${{ secrets.OPENDAL_GCS_TEST }}
           OPENDAL_GCS_ROOT: ${{ secrets.OPENDAL_GCS_ROOT }}
           OPENDAL_GCS_BUCKET: ${{ secrets.OPENDAL_GCS_BUCKET }}
           OPENDAL_GCS_CREDENTIAL: ${{ secrets.OPENDAL_GCS_CREDENTIAL }}

@@ -23,6 +23,9 @@
 mod layer;
 pub use layer::Layer;
 
+mod logging;
+pub use logging::LoggingLayer;
+
 #[cfg(feature = "layers-metrics")]
 mod metrics;
 #[cfg(feature = "layers-metrics")]

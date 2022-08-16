@@ -26,9 +26,7 @@ use http::header::HeaderName;
 use http::StatusCode;
 use isahc::AsyncBody;
 use log::debug;
-use log::error;
 use log::info;
-use log::warn;
 use reqsign::services::azure::storage::Signer;
 
 use super::dir_stream::DirStream;
@@ -307,20 +305,17 @@ impl Accessor for Backend {
         let req = self
             .put_blob(&p, 0, AsyncBody::from_bytes_static(""))
             .await?;
-        let resp = self.client.send_async(req).await.map_err(|e| {
-            error!("object {} put_object: {:?}", args.path(), e);
-            new_request_send_error("create", args.path(), e)
-        })?;
+        let resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("create", args.path(), e))?;
 
         match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => {
-                debug!("object {} create finished", args.path());
-                Ok(())
-            }
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("create", args.path(), er);
-                warn!("object {} create: {:?}", args.path(), err);
                 Err(err)
             }
         }
@@ -328,29 +323,13 @@ impl Accessor for Backend {
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let p = self.get_abs_path(args.path());
-        debug!(
-            "object {} read start: offset {:?}, size {:?}",
-            &p,
-            args.offset(),
-            args.size()
-        );
 
         let resp = self.get_blob(&p, args.offset(), args.size()).await?;
         match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                debug!(
-                    "object {} reader created: offset {:?}, size {:?}",
-                    &p,
-                    args.offset(),
-                    args.size()
-                );
-
-                Ok(Box::new(resp.into_body()))
-            }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(Box::new(resp.into_body())),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("read", args.path(), er);
-                warn!("object {} read: {:?}", args.path(), err);
                 Err(err)
             }
         }
@@ -358,8 +337,6 @@ impl Accessor for Backend {
 
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(args.path());
-        debug!("object {} write start: size {}", &p, args.size());
-
         let (tx, body) = new_http_channel(args.size());
 
         let req = self.put_blob(&p, args.size(), body).await?;
@@ -377,14 +354,11 @@ impl Accessor for Backend {
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let p = self.get_abs_path(args.path());
-        debug!("object {} stat start", &p);
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
-
-            debug!("backed root object stat finished");
             return Ok(m);
         }
 
@@ -418,20 +392,17 @@ impl Accessor for Backend {
                     m.set_mode(ObjectMode::FILE);
                 };
 
-                debug!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
                 m.set_mode(ObjectMode::DIR);
 
-                debug!("object {} stat finished", &p);
                 Ok(m)
             }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("stat", args.path(), er);
-                warn!("object {} stat: {:?}", args.path(), err);
                 Err(err)
             }
         }
@@ -439,18 +410,13 @@ impl Accessor for Backend {
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let p = self.get_abs_path(args.path());
-        debug!("object {} delete start", &p);
 
         let resp = self.delete_blob(&p).await?;
         match resp.status() {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {
-                debug!("object {} delete finished", &p);
-                Ok(())
-            }
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("delete", args.path(), er);
-                warn!("object {} delete: {:?}", args.path(), err);
                 Err(err)
             }
         }
@@ -458,7 +424,6 @@ impl Accessor for Backend {
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} list start", &path);
 
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
@@ -487,20 +452,18 @@ impl Backend {
             );
         }
 
-        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} get_blob: {e:?}");
-            new_request_build_error("read", path, e)
-        })?;
+        let mut req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("read", path, e))?;
 
-        self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} get_blob: {e:?}");
-            new_request_sign_error("read", path, e)
-        })?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("read", path, e))?;
 
-        self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} get_blob: {url} {e:?}");
-            new_request_send_error("read", path, e)
-        })
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("read", path, e))
     }
 
     pub(crate) async fn put_blob(
@@ -523,15 +486,13 @@ impl Backend {
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
-        let mut req = req.body(body).map_err(|e| {
-            error!("object {path} put_blob: {url} {e:?}");
-            new_request_build_error("write", path, e)
-        })?;
+        let mut req = req
+            .body(body)
+            .map_err(|e| new_request_build_error("write", path, e))?;
 
-        self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} put_blob: {url} {e:?}");
-            new_request_sign_error("write", path, e)
-        })?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("write", path, e))?;
 
         Ok(req)
     }
@@ -549,20 +510,18 @@ impl Backend {
 
         let req = isahc::Request::head(&url);
 
-        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} get_blob_properties: {url} {e:?}");
-            new_request_build_error("stat", path, e)
-        })?;
+        let mut req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("stat", path, e))?;
 
-        self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} get_blob_properties: {url} {e:?}");
-            new_request_sign_error("stat", path, e)
-        })?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("stat", path, e))?;
 
-        self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} get_blob_properties: {url} {e:?}");
-            new_request_send_error("stat", path, e)
-        })
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("stat", path, e))
     }
 
     pub(crate) async fn delete_blob(
@@ -578,20 +537,18 @@ impl Backend {
 
         let req = isahc::Request::delete(&url);
 
-        let mut req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} delete_blob: {url} {e:?}");
-            new_request_build_error("delete", path, e)
-        })?;
+        let mut req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("delete", path, e))?;
 
-        self.signer.sign(&mut req).map_err(|e| {
-            error!("object {path} delete_blob: {url} {e:?}");
-            new_request_sign_error("delete", path, e)
-        })?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("delete", path, e))?;
 
-        self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} delete_object: {url} {e:?}");
-            new_request_send_error("delete", path, e)
-        })
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("delete", path, e))
     }
 
     pub(crate) async fn list_blobs(
@@ -613,19 +570,15 @@ impl Backend {
 
         let mut req = isahc::Request::get(&url)
             .body(isahc::AsyncBody::empty())
-            .map_err(|e| {
-                error!("object {path} list_blobs: {url} {e:?}");
-                new_request_build_error("list", path, e)
-            })?;
+            .map_err(|e| new_request_build_error("list", path, e))?;
 
-        self.signer.sign(&mut req).map_err(|e| {
-            error!("object {} list_blobs: {url} {:?}", path, e);
-            new_request_sign_error("list", path, e)
-        })?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("list", path, e))?;
 
-        self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} list_blobs: {url} {e:?}");
-            new_request_send_error("list", path, e)
-        })
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("list", path, e))
     }
 }

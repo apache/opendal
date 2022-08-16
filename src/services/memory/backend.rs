@@ -322,12 +322,6 @@ impl futures::Stream for DirStream {
             DirEntry::new(self.backend.clone(), ObjectMode::FILE, path)
         };
 
-        debug!(
-            "dir object {} got entry, mode: {}, path: {}",
-            &self.path,
-            de.mode(),
-            de.path()
-        );
         Poll::Ready(Some(Ok(de)))
     }
 }

@@ -224,10 +224,6 @@ impl Accessor for Backend {
 
             fs::create_dir_all(&parent).await.map_err(|e| {
                 let e = parse_io_error(e, "create", &parent.to_string_lossy());
-                error!(
-                    "object {} create_dir_all for parent {:?}: {:?}",
-                    &path, &parent, e
-                );
                 e
             })?;
 
@@ -238,7 +234,6 @@ impl Accessor for Backend {
                 .await
                 .map_err(|e| {
                     let e = parse_io_error(e, "create", &path);
-                    error!("object {} create: {:?}", &path, e);
                     e
                 })?;
 
@@ -248,7 +243,6 @@ impl Accessor for Backend {
         if args.mode() == ObjectMode::DIR {
             fs::create_dir_all(&path).await.map_err(|e| {
                 let e = parse_io_error(e, "create", &path);
-                error!("object {} create: {:?}", &path, e);
                 e
             })?;
 
@@ -260,12 +254,6 @@ impl Accessor for Backend {
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = self.get_abs_path(args.path());
-        debug!(
-            "object {} read start: offset {:?}, size {:?}",
-            &path,
-            args.offset(),
-            args.size()
-        );
 
         let f = fs::OpenOptions::new()
             .read(true)
@@ -273,7 +261,6 @@ impl Accessor for Backend {
             .await
             .map_err(|e| {
                 let e = parse_io_error(e, "read", &path);
-                error!("object {} open: {:?}", &path, e);
                 e
             })?;
 
@@ -282,7 +269,6 @@ impl Accessor for Backend {
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset)).await.map_err(|e| {
                 let e = parse_io_error(e, "read", &path);
-                error!("object {} seek: {:?}", &path, e);
                 e
             })?;
         };
@@ -292,18 +278,11 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
-        debug!(
-            "object {} reader created: offset {:?}, size {:?}",
-            &path,
-            args.offset(),
-            args.size()
-        );
         Ok(Box::new(r))
     }
 
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} write start: size {}", &path, args.size());
 
         // Create dir before write path.
         //
@@ -324,12 +303,6 @@ impl Accessor for Backend {
 
         fs::create_dir_all(&parent).await.map_err(|e| {
             let e = parse_io_error(e, "write", &parent.to_string_lossy());
-            error!(
-                "object {} create_dir_all for parent {}: {:?}",
-                &path,
-                &parent.to_string_lossy(),
-                e
-            );
             e
         })?;
 
@@ -338,25 +311,17 @@ impl Accessor for Backend {
             .write(true)
             .open(&path)
             .await
-            .map_err(|e| {
-                let e = parse_io_error(e, "write", &path);
-                error!("object {} open: {:?}", &path, e);
-                e
-            })?;
+            .map_err(|e| parse_io_error(e, "write", &path))?;
 
-        debug!("object {} write finished: size {:?}", &path, args.size());
         Ok(Box::new(Compat::new(f)))
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} stat start", &path);
 
-        let meta = fs::metadata(&path).await.map_err(|e| {
-            let e = parse_io_error(e, "stat", &path);
-            warn!("object {} stat: {:?}", &path, e);
-            e
-        })?;
+        let meta = fs::metadata(&path)
+            .await
+            .map_err(|e| parse_io_error(e, "stat", &path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -373,13 +338,11 @@ impl Accessor for Backend {
                 .map_err(|e| parse_io_error(e, "stat", &path))?,
         );
 
-        debug!("object {} stat finished", &path);
         Ok(m)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} delete start", &path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
         let meta = fs::metadata(&path).await;
@@ -388,9 +351,7 @@ impl Accessor for Backend {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                let e = parse_io_error(err, "delete", &path);
-                error!("object {} delete: {:?}", &path, e);
-                Err(e)
+                Err(parse_io_error(err, "delete", &path))
             };
         }
 
@@ -405,19 +366,13 @@ impl Accessor for Backend {
 
         f.map_err(|e| parse_io_error(e, "delete", &path))?;
 
-        debug!("object {} delete finished", &path);
         Ok(())
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} list start", &path);
 
-        let f = std::fs::read_dir(&path).map_err(|e| {
-            let e = parse_io_error(e, "list", &path);
-            error!("object {} list: {:?}", &path, e);
-            e
-        })?;
+        let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, "list", &path))?;
 
         let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 

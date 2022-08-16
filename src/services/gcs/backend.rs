@@ -34,6 +34,7 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::uri::percent_encode_path;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -42,7 +43,6 @@ use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_error_response;
-use crate::http_util::percent_encode_path;
 use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
@@ -78,7 +78,7 @@ pub struct Builder {
     endpoint: Option<String>,
 
     /// credential string for GCS service
-    credentials: Option<String>,
+    credential: Option<String>,
 }
 
 impl Builder {
@@ -105,10 +105,10 @@ impl Builder {
         self
     }
 
-    /// set the credentials string used for OAuth2
-    pub fn credentials(&mut self, credentials: &str) -> &mut Self {
-        if !credentials.is_empty() {
-            self.credentials = Some(credentials.to_string())
+    /// set the base64 hashed credentials string used for OAuth2
+    pub fn credential(&mut self, credential: &str) -> &mut Self {
+        if !credential.is_empty() {
+            self.credential = Some(credential.to_string())
         };
         self
     }
@@ -167,7 +167,7 @@ impl Builder {
         let auth_url = DEFAULT_GCS_AUTH.to_string();
         let mut signer_builder = Signer::builder();
         signer_builder.scope(&auth_url);
-        if let Some(cred) = &self.credentials {
+        if let Some(cred) = &self.credential {
             signer_builder.credential_from_content(cred);
         }
         let signer = signer_builder
@@ -194,7 +194,7 @@ impl Debug for Builder {
         ds.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint);
-        if self.credentials.is_some() {
+        if self.credential.is_some() {
             ds.field("credentials", &"<redacted>");
         }
         ds.finish()
@@ -258,7 +258,7 @@ impl Backend {
                 "root" => builder.root(v),
                 "bucket" => builder.bucket(v),
                 "endpoint" => builder.endpoint(v),
-                "credentials" => builder.credentials(v),
+                "credential" => builder.credential(v),
                 _ => continue,
             };
         }
@@ -403,7 +403,8 @@ impl Accessor for Backend {
 
         let resp = self.delete_object(&p).await?;
 
-        if resp.status().is_success() {
+        // deleting not existing objects is ok
+        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
@@ -480,7 +481,7 @@ impl Backend {
         body: AsyncBody,
     ) -> Result<isahc::Request<AsyncBody>> {
         let url = format!(
-            "{}/upload/storage/b/{}/o?name={}",
+            "{}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
             self.endpoint,
             self.bucket,
             percent_encode_path(path)

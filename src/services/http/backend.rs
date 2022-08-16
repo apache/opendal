@@ -30,9 +30,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
-use log::error;
 use log::info;
-use log::warn;
 use radix_trie::Trie;
 use radix_trie::TrieCommon;
 
@@ -309,21 +307,20 @@ impl Accessor for Backend {
         let req = self
             .http_put(&p, 0, isahc::AsyncBody::from_bytes_static(""))
             .await?;
-        let resp = self.client.send_async(req).await.map_err(|e| {
-            error!("object {} put_object: {:?}", args.path(), e);
-            new_request_send_error("create", args.path(), e)
-        })?;
+        let resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("create", args.path(), e))?;
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
-                debug!("object {} create finished", args.path());
                 self.insert_path(&self.get_index_path(args.path()));
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("create", args.path(), er);
-                warn!("object {} create: {:?}", args.path(), err);
                 Err(err)
             }
         }
@@ -331,32 +328,11 @@ impl Accessor for Backend {
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let p = self.get_abs_path(args.path());
-        debug!(
-            "object {} read start: offset {:?}, size {:?}",
-            &p,
-            args.offset(),
-            args.size()
-        );
 
-        let resp = self
-            .http_get(&p, args.offset(), args.size())
-            .await
-            .map_err(|e| {
-                error!("object {} http_get: {:?}", p, e);
-                e
-            })?;
+        let resp = self.http_get(&p, args.offset(), args.size()).await?;
 
         match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                debug!(
-                    "object {} reader created: offset {:?}, size {:?}",
-                    &p,
-                    args.offset(),
-                    args.size()
-                );
-
-                Ok(Box::new(resp.into_body()))
-            }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(Box::new(resp.into_body())),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("read", args.path(), er);
@@ -367,7 +343,6 @@ impl Accessor for Backend {
 
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         let p = self.get_abs_path(args.path());
-        debug!("object {} write start: size {}", &p, args.size());
 
         let (tx, body) = new_http_channel(args.size());
 
@@ -388,14 +363,12 @@ impl Accessor for Backend {
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let p = self.get_abs_path(args.path());
-        debug!("object {} stat start", &p);
 
         // Stat root always returns a DIR.
         if p == self.root {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
-            debug!("backed root object stat finished");
             return Ok(m);
         }
 
@@ -435,14 +408,12 @@ impl Accessor for Backend {
                     m.set_mode(ObjectMode::FILE);
                 };
 
-                debug!("object {} stat finished: {:?}", &p, m);
                 Ok(m)
             }
             StatusCode::NOT_FOUND if p.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
                 m.set_mode(ObjectMode::DIR);
 
-                debug!("object {} stat finished", &p);
                 Ok(m)
             }
             _ => {
@@ -455,20 +426,17 @@ impl Accessor for Backend {
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let p = self.get_abs_path(args.path());
-        debug!("object {} delete start", &p);
 
         let resp = self.http_delete(&p).await?;
 
         match resp.status() {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
                 self.index.lock().expect("lock succeed").remove(args.path());
-                debug!("object {} delete finished", &p);
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("delete", args.path(), er);
-                warn!("object {} delete: {:?}", args.path(), err);
                 Err(err)
             }
         }
@@ -479,8 +447,6 @@ impl Accessor for Backend {
         if path == "/" {
             path = ""
         }
-
-        debug!("object {} list start", path);
 
         let paths = match self.index.lock().expect("lock succeed").subtrie(path) {
             None => {
@@ -523,10 +489,8 @@ impl Accessor for Backend {
                 .collect::<HashSet<_>>(),
         };
 
-        debug!("dir object {path:?} listed keys: {paths:?}");
         Ok(Box::new(DirStream {
             backend: Arc::new(self.clone()),
-            path: self.get_abs_path(path),
             paths: paths.into_iter().collect(),
             idx: 0,
         }))
@@ -551,15 +515,14 @@ impl Backend {
             );
         }
 
-        let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} http_get: {e:?}");
-            new_request_build_error("read", path, e)
-        })?;
+        let req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("read", path, e))?;
 
-        self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} http_get: {e:?}");
-            new_request_send_error("read", path, e)
-        })
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("read", path, e))
     }
 
     pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<isahc::AsyncBody>> {
@@ -567,15 +530,14 @@ impl Backend {
 
         let req = isahc::Request::head(&url);
 
-        let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} http_head: {e:?}");
-            new_request_build_error("stat", path, e)
-        })?;
+        let req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("stat", path, e))?;
 
-        self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} http_head: {e:?}");
-            new_request_send_error("stat", path, e)
-        })
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("stat", path, e))
     }
 
     pub(crate) async fn http_put(
@@ -592,10 +554,9 @@ impl Backend {
         req = req.header(http::header::CONTENT_LENGTH, size.to_string());
 
         // Set body
-        let req = req.body(body).map_err(|e| {
-            error!("object {path} put: {e:?}");
-            new_request_build_error("write", path, e)
-        })?;
+        let req = req
+            .body(body)
+            .map_err(|e| new_request_build_error("write", path, e))?;
 
         Ok(req)
     }
@@ -609,21 +570,19 @@ impl Backend {
         let req = isahc::Request::delete(&url);
 
         // Set body
-        let req = req.body(isahc::AsyncBody::empty()).map_err(|e| {
-            error!("object {path} delete: {e:?}");
-            new_request_build_error("delete", path, e)
-        })?;
+        let req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("delete", path, e))?;
 
-        self.client.send_async(req).await.map_err(|e| {
-            error!("object {path} delete: {e:?}");
-            new_request_send_error("delete", path, e)
-        })
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("delete", path, e))
     }
 }
 
 struct DirStream {
     backend: Arc<Backend>,
-    path: String,
     paths: Vec<String>,
     idx: usize,
 }
@@ -647,12 +606,6 @@ impl futures::Stream for DirStream {
             DirEntry::new(self.backend.clone(), ObjectMode::FILE, path)
         };
 
-        debug!(
-            "dir object {} got entry, mode: {}, path: {}",
-            &self.path,
-            de.mode(),
-            de.path()
-        );
         Poll::Ready(Some(Ok(de)))
     }
 }

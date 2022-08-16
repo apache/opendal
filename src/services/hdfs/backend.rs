@@ -25,9 +25,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use log::debug;
-use log::error;
 use log::info;
-use log::warn;
 use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
@@ -246,11 +244,7 @@ impl Accessor for Backend {
 
                 self.client
                     .create_dir(&parent.to_string_lossy())
-                    .map_err(|e| {
-                        let e = parse_io_error(e, "create", &parent.to_string_lossy());
-                        error!("object {} mkdir for parent {:?}: {:?}", &path, &parent, e);
-                        e
-                    })?;
+                    .map_err(|e| parse_io_error(e, "create", &parent.to_string_lossy()))?;
 
                 self.client
                     .open_file()
@@ -258,23 +252,15 @@ impl Accessor for Backend {
                     .write(true)
                     .truncate(true)
                     .open(&path)
-                    .map_err(|e| {
-                        let e = parse_io_error(e, "create", &path);
-                        error!("object {} create: {:?}", &path, e);
-                        e
-                    })?;
+                    .map_err(|e| parse_io_error(e, "create", &path))?;
 
-                debug!("object {path} created file");
                 Ok(())
             }
             ObjectMode::DIR => {
-                self.client.create_dir(&path).map_err(|e| {
-                    let e = parse_io_error(e, "create", &path);
-                    error!("object {} create: {:?}", &path, e);
-                    e
-                })?;
+                self.client
+                    .create_dir(&path)
+                    .map_err(|e| parse_io_error(e, "create", &path))?;
 
-                debug!("object {path} created dir");
                 Ok(())
             }
             ObjectMode::Unknown => unreachable!(),
@@ -284,21 +270,11 @@ impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = self.get_abs_path(args.path());
 
-        debug!(
-            "object {} read start: offset {:?}, size {:?}",
-            &path,
-            args.offset(),
-            args.size()
-        );
-
         let mut f = self.client.open_file().read(true).open(&path)?;
 
         if let Some(offset) = args.offset() {
-            f.seek(SeekFrom::Start(offset)).map_err(|e| {
-                let e = parse_io_error(e, "read", &path);
-                error!("object {} seek: {:?}", &path, e);
-                e
-            })?;
+            f.seek(SeekFrom::Start(offset))
+                .map_err(|e| parse_io_error(e, "read", &path))?;
         };
 
         let f: BytesReader = match args.size() {
@@ -306,12 +282,6 @@ impl Accessor for Backend {
             Some(size) => Box::new(f.take(size)),
         };
 
-        debug!(
-            "object {} reader created: offset {:?}, size {:?}",
-            &path,
-            args.offset(),
-            args.size()
-        );
         Ok(f)
     }
 
@@ -332,16 +302,7 @@ impl Accessor for Backend {
 
         self.client
             .create_dir(&parent.to_string_lossy())
-            .map_err(|e| {
-                let e = parse_io_error(e, "write", &parent.to_string_lossy());
-                error!(
-                    "object {} create_dir_all for parent {}: {:?}",
-                    &path,
-                    &parent.to_string_lossy(),
-                    e
-                );
-                e
-            })?;
+            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
 
         let f = self
             .client
@@ -350,19 +311,16 @@ impl Accessor for Backend {
             .write(true)
             .open(&path)?;
 
-        debug!("object {} write finished: size {:?}", &path, args.size());
         Ok(Box::new(f))
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} stat start", &path);
 
-        let meta = self.client.metadata(&path).map_err(|e| {
-            let e = parse_io_error(e, "stat", &path);
-            warn!("object {} stat: {:?}", &path, e);
-            e
-        })?;
+        let meta = self
+            .client
+            .metadata(&path)
+            .map_err(|e| parse_io_error(e, "stat", &path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -373,13 +331,11 @@ impl Accessor for Backend {
         m.set_content_length(meta.len());
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
 
-        debug!("object {} stat finished: {:?}", &path, m);
         Ok(m)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} delete start", &path);
 
         let meta = self.client.metadata(&path);
 
@@ -387,9 +343,7 @@ impl Accessor for Backend {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                let e = parse_io_error(err, "delete", &path);
-                error!("object {} delete: {:?}", &path, e);
-                Err(e)
+                Err(parse_io_error(err, "delete", &path))
             };
         }
 
@@ -404,19 +358,16 @@ impl Accessor for Backend {
 
         result.map_err(|e| parse_io_error(e, "delete", &path))?;
 
-        debug!("object {} delete finished", &path);
         Ok(())
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = self.get_abs_path(args.path());
-        debug!("object {} list start", &path);
 
-        let f = self.client.read_dir(&path).map_err(|e| {
-            let e = parse_io_error(e, "list", &path);
-            error!("object {} list: {:?}", &path, e);
-            e
-        })?;
+        let f = self
+            .client
+            .read_dir(&path)
+            .map_err(|e| parse_io_error(e, "list", &path))?;
 
         let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 

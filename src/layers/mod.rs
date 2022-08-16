@@ -16,12 +16,16 @@
 //!
 //! # Available Layers
 //!
+//! - [`LoggingLayer`]: Add logging for OpenDAL.
 //! - [`MetricsLayer`]: Add metrics for OpenDAL, requires feature `layers-metrics`
 //! - [`RetryLayer`]: Add retry for OpenDAL, requires feature `layers-retry`
 //! - [`TracingLayer`]: Add tracing for OpenDAL, requires feature `layers-tracing`
 
 mod layer;
 pub use layer::Layer;
+
+mod logging;
+pub use logging::LoggingLayer;
 
 #[cfg(feature = "layers-metrics")]
 mod metrics;

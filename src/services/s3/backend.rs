@@ -497,8 +497,7 @@ impl Builder {
                     other(BackendError::new(
                         context.clone(),
                         anyhow!(
-                            "can't detect region automatically, no valid endpoint template for {}",
-                            &endpoint
+                            "can't detect region automatically, no valid endpoint template for {endpoint}",
                         ),
                     ))
                 })?;
@@ -508,15 +507,12 @@ impl Builder {
                 Ok((endpoint, region))
             }
             // Unexpected status code
-            code => {
-                return Err(other(BackendError::new(
-                    context.clone(),
-                    anyhow!(
-                        "can't detect region automatically, unexpected response: status code {}",
-                        code
-                    ),
-                )))
-            }
+            code => Err(other(BackendError::new(
+                context.clone(),
+                anyhow!(
+                    "can't detect region automatically, unexpected response: status code {code}",
+                ),
+            ))),
         }
     }
 
@@ -617,8 +613,7 @@ impl Builder {
                     other(BackendError::new(
                         context.clone(),
                         anyhow!(
-                            "can't detect region automatically, no valid endpoint template for {}",
-                            &endpoint
+                            "can't detect region automatically, no valid endpoint template for {endpoint}",
                         ),
                     ))
                 })?;
@@ -628,15 +623,12 @@ impl Builder {
                 Ok((endpoint, region))
             }
             // Unexpected status code
-            code => {
-                return Err(other(BackendError::new(
-                    context.clone(),
-                    anyhow!(
-                        "can't detect region automatically, unexpected response: status code {}",
-                        code
-                    ),
-                )))
-            }
+            code => Err(other(BackendError::new(
+                context.clone(),
+                anyhow!(
+                    "can't detect region automatically, unexpected response: status code {code}",
+                ),
+            ))),
         }
     }
 

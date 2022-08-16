@@ -15,26 +15,27 @@
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use anyhow::anyhow;
-use bytes::Buf;
-use futures::{future::BoxFuture, ready, Future, Stream};
+use futures::future::BoxFuture;
+use futures::ready;
+use futures::Future;
+use futures::Stream;
 use isahc::AsyncReadResponseExt;
+use log::debug;
+use log::error;
 use serde::Deserialize;
-use serde_json::de;
+use serde_json;
 
-use crate::error::{other, ObjectError};
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
 use crate::services::gcs::backend::Backend;
 use crate::services::gcs::error::parse_error;
-use crate::{DirEntry, ObjectMode};
-
-enum State {
-    Standby,
-    Pending(BoxFuture<'static, Result<Vec<u8>>>),
-    Walking((Output, usize, usize)),
-}
+use crate::DirEntry;
+use crate::ObjectMode;
 
 /// DirStream takes over task of listing objects and
 /// helps walking directory
@@ -47,13 +48,19 @@ pub struct DirStream {
     state: State,
 }
 
+enum State {
+    Standby,
+    Pending(BoxFuture<'static, Result<Vec<u8>>>),
+    Walking((ListResponse, usize, usize)),
+}
+
 impl DirStream {
     /// Generate a new directory walker
     pub fn new(backend: Arc<Backend>, path: &str) -> Self {
         Self {
             backend,
             path: path.to_string(),
-            page_token: "".to_string(), // don't know if it works?
+            page_token: "".to_string(),
 
             done: false,
             state: State::Standby,
@@ -76,7 +83,7 @@ impl Stream for DirStream {
                     let mut resp = backend.list_objects(&path, token.as_str()).await?;
 
                     if !resp.status().is_success() {
-                        log::error!("GCS failed to list objects, status code: {}", resp.status());
+                        error!("GCS failed to list objects, status code: {}", resp.status());
                         let er = parse_error_response(resp).await?;
                         let err = parse_error("list", &path, er);
                         return Err(err);
@@ -97,7 +104,7 @@ impl Stream for DirStream {
             }
             State::Pending(fut) => {
                 let bytes = ready!(Pin::new(fut).poll(cx))?;
-                let output: Output = de::from_reader(bytes.reader()).map_err(|e| {
+                let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
                     other(ObjectError::new(
                         "list",
                         &self.path,
@@ -125,7 +132,7 @@ impl Stream for DirStream {
                         &backend.get_rel_path(prefix),
                     );
 
-                    log::debug!(
+                    debug!(
                         "object {} got entry, mode: {}, path: {}",
                         &self.path,
                         de.path(),
@@ -148,7 +155,7 @@ impl Stream for DirStream {
                         &backend.get_rel_path(&object.name),
                     );
 
-                    log::debug!(
+                    debug!(
                         "dir object {} got entry, mode: {}, path: {}",
                         &self.path,
                         de.mode(),
@@ -159,7 +166,7 @@ impl Stream for DirStream {
 
                 // end of asynchronous iteration
                 if self.done {
-                    log::debug!("object {} list done", &self.path);
+                    debug!("object {} list done", &self.path);
                     return Poll::Ready(None);
                 }
 
@@ -175,10 +182,7 @@ impl Stream for DirStream {
 /// refer to https://cloud.google.com/storage/docs/json_api/v1/objects/list for details
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-struct Output {
-    /// The kind of item this is.
-    /// For lists of objects, this is always "storage#objects"
-    kind: String,
+struct ListResponse {
     /// The continuation token.
     ///
     /// If this is the last page of results, then no continuation token is returned.
@@ -187,57 +191,23 @@ struct Output {
     /// but were excluded from [items] because of a delimiter.
     prefixes: Vec<String>,
     /// The list of objects, ordered lexicographically by name.
-    items: Vec<OutputContent>,
+    items: Vec<ListResponseItem>,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct OutputContent {
+struct ListResponseItem {
     name: String,
     size: String,
 }
 
 #[cfg(test)]
-mod ds_test {
-    use crate::services::gcs::dir_stream::Output;
+mod tests {
+    use super::*;
 
     #[test]
-    fn test_de_list() {
-        let names = vec!["1.png", "2.png"];
-        let sizes = vec![56535, 45506];
-
-        let list_continuous = serde_json::de::from_str::<Output>(LIST_CONTINUOUS);
-        assert!(list_continuous.is_ok());
-        let list_continuous = list_continuous.unwrap();
-        assert_eq!(
-            list_continuous.next_page_token,
-            Some("CgYxMC5wbmc=".to_string())
-        );
-        assert_eq!(list_continuous.items.len(), 2);
-        for (idx, item) in list_continuous.items.iter().enumerate() {
-            assert_eq!(item.name, names[idx]);
-            let size_res = item.size.as_str().parse();
-            assert!(size_res.is_ok());
-            let size: u64 = size_res.unwrap();
-            assert_eq!(size, sizes[idx]);
-        }
-
-        let list_discrete = serde_json::de::from_str::<Output>(LIST_DISCRETE);
-        assert!(list_discrete.is_ok());
-        let list_discrete = list_discrete.unwrap();
-        assert!(list_discrete.next_page_token.is_none());
-        assert_eq!(list_discrete.items.len(), 2);
-
-        for (idx, item) in list_discrete.items.iter().enumerate() {
-            assert_eq!(item.name, names[idx]);
-            let size_res = item.size.as_str().parse();
-            assert!(size_res.is_ok());
-            let size: u64 = size_res.unwrap();
-            assert_eq!(size, sizes[idx]);
-        }
-    }
-
-    const LIST_DISCRETE: &str = r#"
+    fn test_deserialize_list_response() {
+        let content = r#"
     {
   "kind": "storage#objects",
   "prefixes": [
@@ -286,7 +256,21 @@ mod ds_test {
   ]
 }
     "#;
-    const LIST_CONTINUOUS: &str = r#"
+
+        let output: ListResponse =
+            serde_json::from_str(content).expect("JSON deserialize must succeed");
+        assert!(output.next_page_token.is_none());
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].name, "1.png");
+        assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[1].name, "2.png");
+        assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.prefixes, vec!["dir/", "test/"])
+    }
+
+    #[test]
+    fn test_deserialize_list_response_with_next_page_token() {
+        let content = r#"
     {
   "kind": "storage#objects",
   "prefixes": [
@@ -336,4 +320,15 @@ mod ds_test {
   ]
 }
     "#;
+
+        let output: ListResponse =
+            serde_json::from_str(content).expect("JSON deserialize must succeed");
+        assert_eq!(output.next_page_token, Some("CgYxMC5wbmc=".to_string()));
+        assert_eq!(output.items.len(), 2);
+        assert_eq!(output.items[0].name, "1.png");
+        assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[1].name, "2.png");
+        assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.prefixes, vec!["dir/", "test/"])
+    }
 }

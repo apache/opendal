@@ -29,7 +29,8 @@ static GCS_PATH_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
 
 /// percent_encode_path will do percent encoding for http encode path.
 ///
-/// Follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent) which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`
+/// Follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent)
+/// which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . *`
 ///
 /// GCS does not allow '/'s in paths, this should also be dealt with
 pub(super) fn percent_encode_path(path: &str) -> String {

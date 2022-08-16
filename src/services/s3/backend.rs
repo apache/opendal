@@ -29,7 +29,7 @@ use http::StatusCode;
 use log::debug;
 use log::error;
 use log::info;
-use log::warn;
+
 use once_cell::sync::Lazy;
 use reqsign::services::aws::loader::CredentialLoadChain;
 use reqsign::services::aws::loader::DummyLoader;
@@ -1262,7 +1262,6 @@ impl Accessor for Backend {
                 ))
             }
         };
-        let url = req.uri().to_string();
 
         self.signer
             .sign_query(&mut req, args.expire())

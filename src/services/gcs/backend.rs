@@ -25,9 +25,9 @@ use http::StatusCode;
 use isahc::AsyncBody;
 use isahc::AsyncReadResponseExt;
 use log::debug;
-use log::error;
+
 use log::info;
-use log::warn;
+
 use reqsign::services::google::Signer;
 use serde::Deserialize;
 use serde_json;
@@ -464,7 +464,6 @@ impl Backend {
         size: Option<u64>,
     ) -> Result<isahc::Response<isahc::AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
-        let url = req.uri().to_string();
 
         self.signer
             .sign(&mut req)
@@ -511,7 +510,6 @@ impl Backend {
         body: isahc::AsyncBody,
     ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let mut req = self.insert_object_request(path, Some(size), body)?;
-        let url = req.uri().to_string();
 
         self.signer
             .sign(&mut req)

@@ -19,7 +19,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
-use bytes::Buf;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
@@ -28,7 +27,7 @@ use isahc::AsyncReadResponseExt;
 use log::debug;
 use log::error;
 use serde::Deserialize;
-use serde_json::de;
+use serde_json;
 
 use crate::error::other;
 use crate::error::ObjectError;
@@ -105,7 +104,7 @@ impl Stream for DirStream {
             }
             State::Pending(fut) => {
                 let bytes = ready!(Pin::new(fut).poll(cx))?;
-                let output: ListResponse = de::from_reader(bytes.reader()).map_err(|e| {
+                let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
                     other(ObjectError::new(
                         "list",
                         &self.path,

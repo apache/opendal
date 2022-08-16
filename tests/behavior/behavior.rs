@@ -28,6 +28,7 @@ use futures::TryStreamExt;
 use http::header;
 use isahc::AsyncReadResponseExt;
 use log::debug;
+use opendal::layers::*;
 use opendal::ObjectMode;
 use opendal::Operator;
 use opendal::Scheme::*;
@@ -139,7 +140,7 @@ macro_rules! behavior_test {
                         let root = format!("{}{}/", root, uuid::Uuid::new_v4());
                         cfg.insert("root".into(), root);
 
-                        let op = Operator::from_iter($service, cfg.into_iter())?;
+                        let op = Operator::from_iter($service, cfg.into_iter())?.layer(LoggingLayer);
                         super::$test(op).await
                     }
                 )*

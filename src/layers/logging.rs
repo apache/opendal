@@ -51,6 +51,12 @@ use crate::Scheme;
 ///   - `errored`: the operation returns an expected error like `NotFound`.
 ///   - `failed`: the operation returns an unexpected error.
 ///
+/// # Todo
+///
+/// We should migrate to log's kv api after it's ready.
+///
+/// Tracking issue: https://github.com/rust-lang/log/issues/328
+///
 /// # Examples
 ///
 /// ```
@@ -86,49 +92,62 @@ struct LoggingAccessor {
 impl Accessor for LoggingAccessor {
     fn metadata(&self) -> AccessorMetadata {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Metadata.into_static();
-            "started");
+            target: "opendal::services",
+            "service={} operation={} -> started",
+            self.scheme,
+            Operation::Metadata
+        );
         let result = self.inner.metadata();
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Metadata.into_static();
-            "finished: {:?}", result);
+            target: "opendal::services",
+            "service={} operation={} -> finished: {:?}",
+            self.scheme,
+            Operation::Metadata,
+            result
+        );
 
         result
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Create.into_static(),
-            path = args.path();
-            "started");
+            target: "opendal::services",
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::Create,
+            args.path()
+        );
 
         self.inner
             .create(args)
             .await
             .map(|v| {
                 debug!(
-                    service = self.scheme.into_static(),
-                    operation = Operation::Create.into_static(),
-                    path = args.path();
-                    "finished");
+                    target: "opendal::services",
+                    "service={} operation={} path={} -> finished",
+                    self.scheme,
+                    Operation::Create,
+                    args.path()
+                );
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Create.into_static(),
-                        path = args.path();
-                        "failed: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> failed: {err:?}",
+                        self.scheme,
+                        Operation::Create,
+                        args.path()
+                    );
                 } else {
                     warn!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Create.into_static(),
-                        path = args.path();
-                        "errored: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> errored: {err:?}",
+                        self.scheme,
+                        Operation::Create,
+                        args.path()
+                    );
                 };
                 err
             })
@@ -136,43 +155,33 @@ impl Accessor for LoggingAccessor {
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Read.into_static(),
-            path = args.path(),
-            offset = format!("{:?}", args.offset()),
-            size = format!("{:?}", args.size());
-            "started");
+            target: "opendal::services",
+            "service={} operation={} path={} offset={:?} size={:?} -> started",
+            self.scheme,
+            Operation::Read,
+            args.path(),
+            args.offset(),
+            args.size()
+        );
 
         self.inner
             .read(args)
             .await
             .map(|v| {
                 debug!(
-                    service = self.scheme.into_static(),
-                    operation = Operation::Read.into_static(),
-                    path = args.path(),
-                    offset = format!("{:?}", args.offset()),
-                    size = format!("{:?}", args.size());
-                    "got reader");
+                    target: "opendal::services",
+                    "service={} operation={} path={} offset={:?} size={:?} -> got reader", self.scheme, Operation::Read, args.path(),args.offset(),  args.size() );
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Read.into_static(),
-                        path = args.path(),
-                        offset = format!("{:?}", args.offset()),
-                        size = format!("{:?}", args.size());
-                        "failed: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} offset={:?} size={:?} -> failed: {err:?}", self.scheme, Operation::Read, args.path(),args.offset(),  args.size());
                 } else {
                     warn!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Read.into_static(),
-                         path = args.path(),
-                        offset = format!("{:?}", args.offset()),
-                        size = format!("{:?}", args.size());
-                        "errored: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} offset={:?} size={:?} -> errored: {err:?}",self.scheme, Operation::Read, args.path(),args.offset(),  args.size());
                 };
                 err
             })
@@ -180,39 +189,47 @@ impl Accessor for LoggingAccessor {
 
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Write.into_static(),
-            path = args.path(),
-            size = format!("{:?}", args.size());
-            "started");
+            target: "opendal::services",
+            "service={} operation={} path={} size={:?} -> started",
+            self.scheme,
+            Operation::Write,
+            args.path(),
+            args.size()
+        );
 
         self.inner
             .write(args)
             .await
             .map(|v| {
                 debug!(
-                    service = self.scheme.into_static(),
-                    operation = Operation::Write.into_static(),
-                    path = args.path(),
-                    size = format!("{:?}", args.size());
-                    "got writer");
+                    target: "opendal::services",
+                    "service={} operation={} path={} size={:?} -> got writer",
+                    self.scheme,
+                    Operation::Write,
+                    args.path(),
+                    args.size()
+                );
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Write.into_static(),
-                        path = args.path(),
-                        size = format!("{:?}", args.size());
-                        "failed: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} size={:?} -> failed: {err:?}",
+                        self.scheme,
+                        Operation::Write,
+                        args.path(),
+                        args.size()
+                    );
                 } else {
                     warn!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Write.into_static(),
-                         path = args.path(),
-                        size = format!("{:?}", args.size());
-                        "errored: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} size={:?} -> errored: {err:?}",
+                        self.scheme,
+                        Operation::Write,
+                        args.path(),
+                        args.size()
+                    );
                 };
                 err
             })
@@ -220,35 +237,43 @@ impl Accessor for LoggingAccessor {
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Stat.into_static(),
-            path = args.path();
-            "started");
+            target: "opendal::services",
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::Stat,
+            args.path()
+        );
 
         self.inner
             .stat(args)
             .await
             .map(|v| {
                 debug!(
-                    service = self.scheme.into_static(),
-                    operation = Operation::Stat.into_static(),
-                    path = args.path();
-                    "finished: {v:?}");
+                    target: "opendal::services",
+                    "service={} operation={} path={} -> finished: {v:?}",
+                    self.scheme,
+                    Operation::Stat,
+                    args.path()
+                );
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Stat.into_static(),
-                        path = args.path();
-                        "failed: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> failed: {err:?}",
+                        self.scheme,
+                        Operation::Stat,
+                        args.path()
+                    );
                 } else {
                     warn!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Stat.into_static(),
-                         path = args.path();
-                        "errored: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> errored: {err:?}",
+                        self.scheme,
+                        Operation::Stat,
+                        args.path()
+                    );
                 };
                 err
             })
@@ -256,35 +281,34 @@ impl Accessor for LoggingAccessor {
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Delete.into_static(),
-            path = args.path();
-            "started");
+            target: "opendal::services",
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::Delete,
+            args.path()
+        );
 
         self.inner
             .delete(args)
             .await
             .map(|v| {
                 debug!(
-                    service = self.scheme.into_static(),
-                    operation = Operation::Delete.into_static(),
-                    path = args.path();
-                    "finished");
+                    target: "opendal::services",
+                    "service={} operation={} path={} -> finished",self.scheme, Operation::Delete, args.path());
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
+                        target: "opendal::services",
                         service = self.scheme.into_static(),
                         operation = Operation::Delete.into_static(),
                         path = args.path();
-                        "failed: {err:?}");
+                        "service={} operation={} path={} -> failed: {err:?}",self.scheme, Operation::Delete, args.path());
                 } else {
                     warn!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Delete.into_static(),
-                         path = args.path();
-                        "errored: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> errored: {err:?}",self.scheme, Operation::Delete, args.path());
                 };
                 err
             })
@@ -292,35 +316,43 @@ impl Accessor for LoggingAccessor {
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::List.into_static(),
-            path = args.path();
-            "started");
+            target: "opendal::services",
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::List,
+            args.path()
+        );
 
         self.inner
             .list(args)
             .await
             .map(|v| {
                 debug!(
-                    service = self.scheme.into_static(),
-                    operation = Operation::List.into_static(),
-                    path = args.path();
-                    "got dir streamer");
+                    target: "opendal::services",
+                    "service={} operation={} path={} -> got dir streamer",
+                    self.scheme,
+                    Operation::List,
+                    args.path()
+                );
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::List.into_static(),
-                        path = args.path();
-                        "failed: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> failed: {err:?}",
+                        self.scheme,
+                        Operation::List,
+                        args.path()
+                    );
                 } else {
                     warn!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::List.into_static(),
-                         path = args.path();
-                        "errored: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> errored: {err:?}",
+                        self.scheme,
+                        Operation::List,
+                        args.path()
+                    );
                 };
                 err
             })
@@ -328,33 +360,42 @@ impl Accessor for LoggingAccessor {
 
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         debug!(
-            service = self.scheme.into_static(),
-            operation = Operation::Presign.into_static();
-            "started");
+            target: "opendal::services",
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::Presign,
+            args.path()
+        );
 
         self.inner
             .presign(args)
             .map(|v| {
                 debug!(
-                    service = self.scheme.into_static(),
-                    operation = Operation::Presign.into_static(),
-                    path = args.path();
-                    "finished: {v:?}");
+                    target: "opendal::services",
+                    "service={} operation={} path={} -> finished: {v:?}",
+                    self.scheme,
+                    Operation::Presign,
+                    args.path()
+                );
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Presign.into_static(),
-                        path = args.path();
-                        "failed: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> failed: {err:?}",
+                        self.scheme,
+                        Operation::Presign,
+                        args.path()
+                    );
                 } else {
                     warn!(
-                        service = self.scheme.into_static(),
-                        operation = Operation::Presign.into_static(),
-                         path = args.path();
-                        "errored: {err:?}");
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> errored: {err:?}",
+                        self.scheme,
+                        Operation::Presign,
+                        args.path()
+                    );
                 };
                 err
             })

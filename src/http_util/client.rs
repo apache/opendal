@@ -27,7 +27,13 @@ pub struct HttpClient(isahc::HttpClient);
 impl HttpClient {
     /// Create a new http client.
     pub fn new() -> Self {
-        HttpClient(isahc::HttpClient::new().expect("client init must succeed"))
+        HttpClient(
+            isahc::HttpClient::builder()
+                .max_connections(128)
+                .max_connections_per_host(64)
+                .build()
+                .expect("client init must succeed"),
+        )
     }
 
     pub fn send(

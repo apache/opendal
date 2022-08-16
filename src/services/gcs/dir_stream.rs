@@ -264,7 +264,7 @@ mod tests {
         assert_eq!(output.items[0].name, "1.png");
         assert_eq!(output.items[0].size, "56535");
         assert_eq!(output.items[1].name, "2.png");
-        assert_eq!(output.items[1].name, "45506");
+        assert_eq!(output.items[1].size, "45506");
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 
@@ -328,7 +328,7 @@ mod tests {
         assert_eq!(output.items[0].name, "1.png");
         assert_eq!(output.items[0].size, "56535");
         assert_eq!(output.items[1].name, "2.png");
-        assert_eq!(output.items[1].name, "45506");
+        assert_eq!(output.items[1].size, "45506");
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 }

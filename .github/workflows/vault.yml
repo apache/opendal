@@ -24,7 +24,8 @@ jobs:
           url: https://opendal-public-vault-2fc069f0.61d164a8.z1.hashicorp.cloud:8200/
           method: jwt
           role: ci
+          namespace: admin/opendal
           secrets: |
-            secret/test test | TEST;
+            /cubbyhole/test test | TEST;
       - name: Test
         run: echo $TEST

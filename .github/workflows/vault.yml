@@ -23,6 +23,7 @@ jobs:
         with:
           url: https://opendal-public-vault-2fc069f0.61d164a8.z1.hashicorp.cloud:8200/
           method: jwt
+          role: ci
           secrets: |
             secret/test test | TEST;
       - name: Test

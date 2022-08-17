@@ -40,6 +40,8 @@ pub enum Scheme {
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
+    /// [obs][crate::services::obs]: Huaweicloud OBS services.
+    OBS,
 }
 
 impl Scheme {
@@ -67,6 +69,7 @@ impl Display for Scheme {
             Scheme::Http => write!(f, "http"),
             Scheme::Memory => write!(f, "memory"),
             Scheme::S3 => write!(f, "s3"),
+            Scheme::OBS => write!(f, "obs"),
         }
     }
 }
@@ -86,6 +89,7 @@ impl FromStr for Scheme {
             "gcs" => Ok(Scheme::Gcs),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
+            "obs" => Ok(Scheme::OBS),
             v => Err(other(BackendError::new(
                 Default::default(),
                 anyhow!("{} is not supported", v),
@@ -106,6 +110,7 @@ impl From<Scheme> for &'static str {
             Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
             Scheme::S3 => "s3",
+            Scheme::OBS => "obs",
         }
     }
 }

@@ -1,0 +1,29 @@
+name: Test Vault
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+jobs:
+  test:
+    permissions:
+      contents: read
+      id-token: write
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Import Secrets
+        uses: hashicorp/vault-action@v2.4.0
+        with:
+          url: https://opendal-public-vault-2fc069f0.61d164a8.z1.hashicorp.cloud:8200/
+          method: jwt
+          secrets: |
+            secret/test test | TEST;
+      - name: Test
+        run: echo $TEST

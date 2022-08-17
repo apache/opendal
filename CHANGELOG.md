@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.13.0] - 2022-08-17
+
+### Added
+
+- feat: Refactor metrics and hide under feature layers-metrics (#521)
+- feat(layer): Add TracingLayer support (#523)
+- feature: Google Cloud Storage support skeleton (#513)
+- feat: Add LoggingLayer to replace service internal logs (#526)
+- feat: Implement integration tests for gcs (#532)
+- docs: Add docs for new layers (#534)
+- docs: Add docs for gcs backend (#535)
+
+### Changed
+
+- refactor: Rewrite retry layer support (#522)
+
+### Fixed
+
+- fix: Make ProtocolViolation a retryable error (#528)
+
 ## [v0.12.0] - 2022-08-12
 
 ### Added
@@ -549,6 +569,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.13.0]: https://github.com/datafuselabs/opendal/compare/v0.12.0...v0.13.0
 [v0.12.0]: https://github.com/datafuselabs/opendal/compare/v0.11.4...v0.12.0
 [v0.11.4]: https://github.com/datafuselabs/opendal/compare/v0.11.3...v0.11.4
 [v0.11.3]: https://github.com/datafuselabs/opendal/compare/v0.11.2...v0.11.3

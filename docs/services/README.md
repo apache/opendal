@@ -13,3 +13,4 @@ OpenDAL supports the following services:
 - [fs](./fs.md): POSIX alike file system
 - [hdfs](./hdfs.md): Hadoop Distributed File System
 - [s3](./s3.md): AWS S3 compatible storage service
+- [gcs](./gcs.md): Google Cloud Storage service

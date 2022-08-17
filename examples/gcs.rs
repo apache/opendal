@@ -18,18 +18,19 @@ use std::env;
 use anyhow::Result;
 use log::info;
 
-use opendal::services::gcs;
 use gcs::Builder;
+use opendal::services::gcs;
 use opendal::Operator;
 
 #[tokio::main]
-async fn main() -> Result<()>{
+async fn main() -> Result<()> {
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "debug");
     }
     env_logger::init();
 
-    println!(r#"
+    println!(
+        r#"
     OpenDAL GCS example.
 
     Available Environment Variables:
@@ -37,7 +38,8 @@ async fn main() -> Result<()>{
     - OPENDAL_GCS_BUCKET: bucket name, required
     - OPENDAL_GCS_ROOT: working directory of OpenDAL, default is "/", optional
     - OPENDAL_GCS_CREDENTIAL: OAUTH2 token for authentication, required
-    "#);
+    "#
+    );
 
     // create builder
     let mut builder = Builder::default();
@@ -51,7 +53,9 @@ async fn main() -> Result<()>{
     // could be considered as a fixed prefix for all paths you past into the backend
     builder.root(&env::var("OPENDAL_GCS_ROOT").unwrap_or("".to_string()));
     // OAUTH2 base64 credentials
-    builder.credential(&env::var("OPENDAL_GCS_CREDENTIAL").expect("env OPENDAL_GCS_CREDENTIAL not set"));
+    builder.credential(
+        &env::var("OPENDAL_GCS_CREDENTIAL").expect("env OPENDAL_GCS_CREDENTIAL not set"),
+    );
 
     let op = Operator::new(builder.build()?);
     info!("operator: {:?}", op);

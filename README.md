@@ -18,19 +18,20 @@ You may be looking for:
 
 ## Services
 
-- [azblob](https://docs.rs/opendal/latest/opendal/services/azblob/index.html): Azure Storage Blob services.
-- [fs](https://docs.rs/opendal/latest/opendal/services/fs/index.html): POSIX alike file system.
-- [hdfs](https://docs.rs/opendal/latest/opendal/services/hdfs/index.html): Hadoop Distributed File System(HDFS).
-- [http](https://docs.rs/opendal/latest/opendal/services/http/index.html): HTTP read-only services.
-- [memory](https://docs.rs/opendal/latest/opendal/services/memory/index.html): In memory backend.
-- [s3](https://docs.rs/opendal/latest/opendal/services/s3/index.html): AWS S3 alike services.
+- [azblob](https://opendal.databend.rs/opendal/services/azblob/index.html): Azure Storage Blob services.
+- [fs](https://opendal.databend.rs/opendal/services/fs/index.html): POSIX alike file system.
+- [gcs](https://opendal.databend.rs/opendal/services/gcs/index.html): Google Cloud Storage Service.
+- [hdfs](https://opendal.databend.rs/opendal/services/hdfs/index.html): Hadoop Distributed File System(HDFS).
+- [http](https://opendal.databend.rs/opendal/services/http/index.html): HTTP read-only services.
+- [memory](https://opendal.databend.rs/opendal/services/memory/index.html): In memory backend.
+- [s3](https://opendal.databend.rs/opendal/services/s3/index.html): AWS S3 alike services.
 
 ## Features
 
 - Access different storage system in the same way
 - Native decompress support
 - Native service-side encryption support
-- Powerful [`Layer`](https://docs.rs/opendal/latest/opendal/trait.Layer.html)
+- Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.htmll)
 - **100%** documents covered
 - Behavior tests for all services
 

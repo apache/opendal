@@ -20,6 +20,7 @@
 //! | -------- | ----------- |
 //! | [azblob][crate::services::azblob] | Azure Storage Blob services. |
 //! | [fs][crate::services::fs] | POSIX alike file system. |
+//! | [gcs][crate::services::gcs] | Google Cloud Storage service. |
 //! | [hdfs][crate::services::hdfs] | Hadoop Distributed File System(HDFS). |
 //! | [http][crate::services::http] | HTTP read-only backend. |
 //! | [memory][crate::services::memory] | In memory backend support. |

@@ -18,8 +18,7 @@ use std::env;
 use anyhow::Result;
 use log::info;
 
-use gcs::Builder;
-use opendal::services::gcs;
+use opendal::services::gcs::Builder;
 use opendal::Operator;
 
 #[tokio::main]

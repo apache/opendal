@@ -11,6 +11,6 @@ OpenDAL supports the following services:
 
 - [azblob](./azblob.md): Azure blob storage service
 - [fs](./fs.md): POSIX alike file system
+- [gcs](./gcs.md): Google Cloud Storage service
 - [hdfs](./hdfs.md): Hadoop Distributed File System
 - [s3](./s3.md): AWS S3 compatible storage service
-- [gcs](./gcs.md): Google Cloud Storage service

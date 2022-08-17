@@ -19,7 +19,7 @@ use opendal::Scheme;
 #[tokio::main]
 async fn main() -> Result<()> {
     // init operator from env vars
-    let op = Operator::from_env(Scheme::Gcs).await?;
+    let _op = Operator::from_env(Scheme::Gcs)?;
 }
 ```
 

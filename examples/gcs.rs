@@ -44,13 +44,13 @@ async fn main() -> Result<()> {
     let mut builder = Builder::default();
 
     // set the endpoint for GCS or GCS alike services
-    builder.endpoint(&env::var("OPENDAL_GCS_ENDPOINT").unwrap_or("".to_string()));
+    builder.endpoint(&env::var("OPENDAL_GCS_ENDPOINT").unwrap_or_else(|_| "".to_string()));
     // set the bucket used for OpenDAL service
     builder.bucket(&env::var("OPENDAL_GCS_BUCKET").expect("env OPENDAL_GCS_BUCKET not set"));
     // set the working directory for OpenDAL service
     //
     // could be considered as a fixed prefix for all paths you past into the backend
-    builder.root(&env::var("OPENDAL_GCS_ROOT").unwrap_or("".to_string()));
+    builder.root(&env::var("OPENDAL_GCS_ROOT").unwrap_or_else(|_| "".to_string()));
     // OAUTH2 base64 credentials
     builder.credential(
         &env::var("OPENDAL_GCS_CREDENTIAL").expect("env OPENDAL_GCS_CREDENTIAL not set"),

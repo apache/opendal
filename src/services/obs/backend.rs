@@ -21,6 +21,8 @@ use async_trait::async_trait;
 use http::StatusCode;
 use log::debug;
 use log::info;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use reqsign::services::huaweicloud::obs::Signer;
 
 use crate::error::{other, BackendError};
@@ -38,6 +40,9 @@ use crate::{
 
 use super::error::parse_error;
 
+static OBS_DEFAULT_ENDPOINT_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new("^(https://)?obs.([a-z]+-[a-z]+-[0-9]+).myhuaweicloud.com$").unwrap());
+
 /// Builder for Huaweicloud OBS services
 #[derive(Default, Clone)]
 pub struct Builder {
@@ -46,7 +51,6 @@ pub struct Builder {
     access_key_id: Option<String>,
     secret_access_key: Option<String>,
     bucket: Option<String>,
-    auth_bucket: Option<String>,
 }
 
 impl Debug for Builder {
@@ -57,7 +61,6 @@ impl Debug for Builder {
             .field("access_key_id", &"<redacted>")
             .field("secret_access_key", &"<redacted>")
             .field("bucket", &self.bucket)
-            .field("auth_bucket", &self.auth_bucket)
             .finish()
     }
 }
@@ -76,9 +79,12 @@ impl Builder {
 
     /// Set endpoint of this backend.
     ///
-    /// Endpoint must be full uri, e.g.
+    /// Both huaweicloud default domain and user domain endpoints are allowed.
+    /// Please DO NOT add the bucket name to the endpoint.
     ///
-    /// - `https://bucketname.obs.cn-north-4.myhuaweicloud.com`
+    /// - `https://obs.cn-north-4.myhuaweicloud.com`
+    /// - `obs.cn-north-4.myhuaweicloud.com` (https by default)
+    /// - `http://127.0.0.1:9000`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
@@ -110,22 +116,10 @@ impl Builder {
     }
 
     /// Set bucket of this backend.
-    /// - If it is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
+    /// The param is required.
     pub fn bucket(&mut self, bucket: &str) -> &mut Self {
         if !bucket.is_empty() {
             self.bucket = Some(bucket.to_string());
-        }
-
-        self
-    }
-
-    /// Set bucket in CanonicalizedResource of this backend.
-    /// - If it is set, we will take user's input first.
-    /// - If not, we will try to load it from environment.
-    pub fn auth_bucket(&mut self, auth_bucket: &str) -> &mut Self {
-        if !auth_bucket.is_empty() {
-            self.auth_bucket = Some(auth_bucket.to_string());
         }
 
         self
@@ -156,40 +150,37 @@ impl Builder {
 
         info!("backend use root {}", root);
 
-        // Handle endpoint and bucket.
-        let auth_bucket = match &self.auth_bucket {
-            Some(auth_bucket) => Ok(auth_bucket.clone()),
+        let bucket = match &self.bucket {
+            Some(bucket) => Ok(bucket.to_string()),
             None => Err(other(BackendError::new(
-                HashMap::from([("auth_bucket".to_string(), "".to_string())]),
-                anyhow!("auth_bucket is empty"),
+                HashMap::from([("bucket".to_string(), "".to_string())]),
+                anyhow!("bucket is empty"),
             ))),
         }?;
-
-        debug!("backend use auth_bucket {}", &auth_bucket);
-
-        let bucket = match &self.bucket {
-            Some(bucket) => bucket.to_string(),
-            None => "".to_string(),
-        };
         debug!("backend use bucket {}", &bucket);
 
-        if !bucket.is_empty() && bucket != auth_bucket {
-            return Err(other(BackendError::new(
-                HashMap::from([
-                    ("auth_bucket".to_string(), auth_bucket),
-                    ("bucket".to_string(), bucket.to_string()),
-                ]),
-                anyhow!("bucket is set but not equal to auth_bucket"),
-            )));
-        }
+        let is_obs_default_endpoint = OBS_DEFAULT_ENDPOINT_PATTERN.is_match(&endpoint);
 
         let endpoint = match &self.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
+            Some(endpoint) => {
+                let mut endpoint = if endpoint.starts_with("http") || endpoint.starts_with("https")
+                {
+                    endpoint.to_string()
+                } else {
+                    format!("https://{}", endpoint)
+                };
+                // Add bucket name prefix to obs default endpoint
+                if is_obs_default_endpoint {
+                    endpoint = endpoint.replace("://", &format!("://{}.", bucket));
+                };
+                Ok(endpoint)
+            }
             None => Err(other(BackendError::new(
                 HashMap::from([("endpoint".to_string(), "".to_string())]),
                 anyhow!("endpoint is empty"),
             ))),
         }?;
+
         debug!("backend use endpoint {}", &endpoint);
 
         let context = HashMap::from([
@@ -208,8 +199,21 @@ impl Builder {
                 .secret_key(secret_access_key);
         }
 
-        // Bucket name must be set in CanonicalizedResource.
-        signer_builder.bucket(&auth_bucket);
+        // Set the bucket name in CanonicalizedResource.
+        // 1. If the bucket is bound to a user domain name, use the user domain name as the bucket name,
+        // for example, `/obs.ccc.com/object`. `obs.ccc.com` is the user domain name bound to the bucket.
+        // 2. If you do not access OBS using a user domain name, this field is in the format of `/bucket/object`.
+        //
+        // Please refer to this doc for more details:
+        // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0010.html
+        if is_obs_default_endpoint {
+            signer_builder.bucket(&bucket);
+        } else {
+            let user_domain = endpoint
+                .trim_start_matches("http://")
+                .trim_start_matches("https://");
+            signer_builder.bucket(user_domain);
+        }
 
         let signer = signer_builder
             .build()
@@ -320,16 +324,7 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<isahc::Response<isahc::AsyncBody>> {
-        let url = if self.bucket.is_empty() {
-            format!("{}/{}", self.endpoint, percent_encode_path(path))
-        } else {
-            format!(
-                "{}.{}/{}",
-                self.bucket,
-                self.endpoint,
-                percent_encode_path(path)
-            )
-        };
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::get(&url);
 

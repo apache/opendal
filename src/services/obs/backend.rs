@@ -18,13 +18,12 @@ use std::{fmt::Debug, sync::Arc};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::StatusCode;
+use http::{StatusCode, Uri};
 use log::debug;
 use log::info;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use reqsign::services::huaweicloud::obs::Signer;
 
+use super::error::parse_error;
 use crate::error::{other, BackendError};
 use crate::http_util::{
     new_request_build_error, new_request_send_error, new_request_sign_error, parse_error_response,
@@ -37,11 +36,6 @@ use crate::{
     ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite},
     Accessor, AccessorMetadata, BytesReader, BytesWriter, DirStreamer, ObjectMetadata,
 };
-
-use super::error::parse_error;
-
-static OBS_DEFAULT_ENDPOINT_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new("^(https://)?obs.([a-z]+-[a-z]+-[0-9]+).myhuaweicloud.com$").unwrap());
 
 /// Builder for Huaweicloud OBS services
 #[derive(Default, Clone)]
@@ -84,7 +78,7 @@ impl Builder {
     ///
     /// - `https://obs.cn-north-4.myhuaweicloud.com`
     /// - `obs.cn-north-4.myhuaweicloud.com` (https by default)
-    /// - `http://127.0.0.1:9000`
+    /// - `https://custom.obs.com` (port should not be set)
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
@@ -159,27 +153,32 @@ impl Builder {
         }?;
         debug!("backend use bucket {}", &bucket);
 
-        let mut is_obs_default_endpoint = false;
-        let endpoint = match &self.endpoint {
-            Some(endpoint) => {
-                let mut endpoint = if endpoint.starts_with("http") || endpoint.starts_with("https")
-                {
-                    endpoint.to_string()
-                } else {
-                    format!("https://{}", endpoint)
-                };
-                // Add bucket name prefix to obs default endpoint
-                if OBS_DEFAULT_ENDPOINT_PATTERN.is_match(&endpoint) {
-                    endpoint = endpoint.replace("://", &format!("://{}.", bucket));
-                    is_obs_default_endpoint = true;
-                };
-                Ok(endpoint)
-            }
+        let uri = match &self.endpoint {
+            Some(endpoint) => endpoint.parse::<Uri>().map_err(|_| {
+                other(BackendError::new(
+                    HashMap::from([("endpoint".to_string(), "".to_string())]),
+                    anyhow!("endpoint is invalid"),
+                ))
+            }),
             None => Err(other(BackendError::new(
                 HashMap::from([("endpoint".to_string(), "".to_string())]),
                 anyhow!("endpoint is empty"),
             ))),
         }?;
+
+        let scheme = match uri.scheme_str() {
+            Some(scheme) => scheme.to_string(),
+            None => "https".to_string(),
+        };
+
+        let (endpoint, is_obs_default) = {
+            let host = uri.host().unwrap_or_default().to_string();
+            if host.starts_with("obs.") && host.ends_with(".myhuaweicloud.com") {
+                (format!("{}.{}", bucket, host), true)
+            } else {
+                (host, false)
+            }
+        };
 
         debug!("backend use endpoint {}", &endpoint);
 
@@ -206,13 +205,10 @@ impl Builder {
         //
         // Please refer to this doc for more details:
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0010.html
-        if is_obs_default_endpoint {
+        if is_obs_default {
             signer_builder.bucket(&bucket);
         } else {
-            let user_domain = endpoint
-                .trim_start_matches("http://")
-                .trim_start_matches("https://");
-            signer_builder.bucket(user_domain);
+            signer_builder.bucket(&endpoint);
         }
 
         let signer = signer_builder
@@ -223,7 +219,7 @@ impl Builder {
         Ok(Backend {
             client,
             root,
-            endpoint,
+            endpoint: format!("{}://{}", &scheme, &endpoint),
             signer: Arc::new(signer),
             bucket,
         })

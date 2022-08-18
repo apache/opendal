@@ -134,6 +134,7 @@ impl Operator {
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
             Scheme::Gcs => services::gcs::Backend::from_iter(it)?.into(),
             Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
+            Scheme::Obs => services::obs::Backend::from_iter(it)?.into(),
             Scheme::Custom(v) => {
                 return Err(other(BackendError::new(
                     HashMap::default(),

@@ -36,6 +36,8 @@ pub enum Scheme {
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
+    /// [obs][crate::services::obs]: Huaweicloud OBS services.
+    Obs,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -71,6 +73,7 @@ impl Display for Scheme {
             Scheme::Memory => write!(f, "memory"),
             Scheme::S3 => write!(f, "s3"),
             Scheme::Custom(v) => write!(f, "{v}"),
+            Scheme::Obs => write!(f, "obs"),
         }
     }
 }
@@ -90,6 +93,7 @@ impl FromStr for Scheme {
             "gcs" => Ok(Scheme::Gcs),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
+            "obs" => Ok(Scheme::Obs),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -107,6 +111,7 @@ impl From<Scheme> for &'static str {
             Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
             Scheme::S3 => "s3",
+            Scheme::Obs => "obs",
             Scheme::Custom(v) => v,
         }
     }

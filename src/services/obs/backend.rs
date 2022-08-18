@@ -276,8 +276,7 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Obs)
             .set_root(&self.root)
-            .set_name(&self.bucket)
-            .set_capabilities(None);
+            .set_name(&self.bucket);
 
         am
     }

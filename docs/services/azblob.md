@@ -37,7 +37,7 @@ use opendal::Scheme;
 #[tokio::main]
 async fn main() -> Result<()> {
     // Init Operator from env.
-    let op = Operator::from_env(Scheme::Azblob).await?;
+    let op = Operator::from_env(Scheme::Azblob)?;
 }
 ```
 

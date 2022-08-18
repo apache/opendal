@@ -1,15 +1,15 @@
 [package]
 authors = ["Databend Authors <opensource@datafuselabs.com>"]
 categories = ["filesystem"]
-description = "Open Data Access Layer that empowers everyone to access different storage services painless and efficiently."
+description = "OpenDAL: Access data freely, painless, and efficiently."
 edition = "2021"
 exclude = ["docs/"]
 homepage = "https://opendal.databend.rs/"
-keywords = ["storage", "data", "s3", "fs", "azblob"]
+keywords = ["storage", "data", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.12.0"
+version = "0.13.0"
 
 [package.metadata.docs.rs]
 all-features = true

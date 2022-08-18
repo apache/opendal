@@ -159,8 +159,7 @@ impl Builder {
         }?;
         debug!("backend use bucket {}", &bucket);
 
-        let is_obs_default_endpoint = OBS_DEFAULT_ENDPOINT_PATTERN.is_match(&endpoint);
-
+        let mut is_obs_default_endpoint = false;
         let endpoint = match &self.endpoint {
             Some(endpoint) => {
                 let mut endpoint = if endpoint.starts_with("http") || endpoint.starts_with("https")
@@ -170,8 +169,9 @@ impl Builder {
                     format!("https://{}", endpoint)
                 };
                 // Add bucket name prefix to obs default endpoint
-                if is_obs_default_endpoint {
+                if OBS_DEFAULT_ENDPOINT_PATTERN.is_match(&endpoint) {
                     endpoint = endpoint.replace("://", &format!("://{}.", bucket));
+                    is_obs_default_endpoint = true;
                 };
                 Ok(endpoint)
             }

@@ -278,6 +278,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
+        let _ = args;
         todo!()
     }
 
@@ -296,18 +297,22 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+        let _ = args;
         todo!()
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        let _ = args;
         todo!()
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
+        let _ = args;
         todo!()
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
+        let _ = args;
         todo!()
     }
 }

@@ -329,6 +329,18 @@ impl BatchOperator {
         BatchOperator { src: op }
     }
 
+    /// Walk a dir in the best way that suitable for underlying storage.
+    ///
+    /// The returning order could be differ for different underlying storage.
+    /// And could be changed at any time. Users MUST NOT relay on the order.
+    pub fn walk(&self, path: &str) -> Result<DirStreamer> {
+        // # TODO
+        //
+        // After https://github.com/datafuselabs/opendal/issues/353, we can
+        // use prefix list for walk_bottom_up.
+        self.walk_top_down(path)
+    }
+
     /// Walk a dir in top down way: list current dir first and then list nested dir.
     ///
     /// Refer to [`TopDownWalker`] for more about the behavior details.

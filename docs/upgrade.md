@@ -2,7 +2,25 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
-## Upgraded to v0.12
+## Upgrade to v0.13
+
+OpenDAL deprecate `Operator::with_backoff` since v0.13.
+
+Please use [`RetryLayer`](https://opendal.databend.rs/opendal/layers/struct.RetryLayer.html) instead:
+
+```rust
+use anyhow::Result;
+use backon::ExponentialBackoff;
+use opendal::layers::RetryLayer;
+use opendal::Operator;
+use opendal::Scheme;
+
+let _ = Operator::from_env(Scheme::Fs)
+    .expect("must init")
+    .layer(RetryLayer::new(ExponentialBackoff::default()));
+```
+
+## Upgrade to v0.12
 
 OpenDAL introduces breaking changes for services initiation.
 
@@ -34,7 +52,7 @@ The following APIs have been removed:
 
 - public struct `Metadata` (deprecated in v0.8, replaced by `ObjectMetadata`)
 
-## Upgraded to v0.8
+## Upgrade to v0.8
 
 OpenDAL introduces a breaking change of `list` related operations in v0.8.
 
@@ -64,7 +82,7 @@ let o: Object = de.into()
 
 Since `v0.8`, `opendal::Metadata` has been deprecated by `opendal::ObjectMetadata`.
 
-## Upgraded to v0.7
+## Upgrade to v0.7
 
 OpenDAL introduces a breaking change of `decompress_read` related in v0.7.
 
@@ -83,7 +101,7 @@ So users should match and check the `None` case:
 let bs = o.decompress_read().await?.expect("must have valid compress algorithm");
 ```
 
-## Upgraded to v0.4
+## Upgrade to v0.4
 
 OpenDAL introduces many breaking changes in v0.4.
 

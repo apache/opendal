@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::env;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
+use crate::error::other;
+use crate::error::BackendError;
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::services;
@@ -131,6 +135,12 @@ impl Operator {
             Scheme::Gcs => services::gcs::Backend::from_iter(it)?.into(),
             Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
             Scheme::Obs => services::obs::Backend::from_iter(it)?.into(),
+            Scheme::Custom(v) => {
+                return Err(other(BackendError::new(
+                    HashMap::default(),
+                    anyhow!("custom service {v} is not supported"),
+                )))
+            }
         };
 
         Ok(op)
@@ -328,6 +338,18 @@ pub struct BatchOperator {
 impl BatchOperator {
     pub(crate) fn new(op: Operator) -> Self {
         BatchOperator { src: op }
+    }
+
+    /// Walk a dir in the best way that suitable for underlying storage.
+    ///
+    /// The returning order could be differ for different underlying storage.
+    /// And could be changed at any time. Users MUST NOT relay on the order.
+    pub fn walk(&self, path: &str) -> Result<DirStreamer> {
+        // # TODO
+        //
+        // After https://github.com/datafuselabs/opendal/issues/353, we can
+        // use prefix list for walk_bottom_up.
+        self.walk_top_down(path)
     }
 
     /// Walk a dir in top down way: list current dir first and then list nested dir.

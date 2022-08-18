@@ -15,3 +15,7 @@
 //! Huawei Cloud OBS services support.
 //! TODO: more docs
 mod backend;
+pub use backend::Backend;
+pub use backend::Builder;
+
+mod error;

@@ -130,7 +130,7 @@ impl Operator {
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
             Scheme::Gcs => services::gcs::Backend::from_iter(it)?.into(),
             Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
-            Scheme::OBS => todo!(),
+            Scheme::Obs => services::obs::Backend::from_iter(it)?.into(),
         };
 
         Ok(op)

@@ -17,7 +17,6 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-
 use opendal::services::gcs::Builder;
 use opendal::Operator;
 

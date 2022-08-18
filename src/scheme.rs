@@ -16,30 +16,33 @@ use std::fmt::Formatter;
 use std::io;
 use std::str::FromStr;
 
-use anyhow::anyhow;
-
-use crate::error::other;
-use crate::error::BackendError;
-
 /// Backends that OpenDAL supports
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Scheme {
     /// [azblob][crate::services::azblob]: Azure Storage Blob services.
     Azblob,
     /// [fs][crate::services::fs]: POSIX alike file system.
     Fs,
+    /// [gcs][crate::services::gcs]: Google Cloud Storage backend.
+    Gcs,
     /// [hdfs][crate::services::hdfs]: Hadoop Distributed File System.
     #[cfg(feature = "services-hdfs")]
     Hdfs,
     /// [http][crate::services::http]: HTTP backend.
     #[cfg(feature = "services-http")]
     Http,
-    /// [gcs][crate::services::gcs]: Google Cloud Storage backend.
-    Gcs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
+    /// Custom that allow users to implement services outside of OpenDAL.
+    ///
+    /// # NOTE
+    ///
+    /// - Custom must not overwrite any existing services name.
+    /// - Custom must be lower cases.
+    Custom(&'static str),
 }
 
 impl Scheme {
@@ -67,6 +70,7 @@ impl Display for Scheme {
             Scheme::Http => write!(f, "http"),
             Scheme::Memory => write!(f, "memory"),
             Scheme::S3 => write!(f, "s3"),
+            Scheme::Custom(v) => write!(f, "{v}"),
         }
     }
 }
@@ -86,10 +90,7 @@ impl FromStr for Scheme {
             "gcs" => Ok(Scheme::Gcs),
             "memory" => Ok(Scheme::Memory),
             "s3" => Ok(Scheme::S3),
-            v => Err(other(BackendError::new(
-                Default::default(),
-                anyhow!("{} is not supported", v),
-            ))),
+            _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
 }
@@ -106,6 +107,7 @@ impl From<Scheme> for &'static str {
             Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
             Scheme::S3 => "s3",
+            Scheme::Custom(v) => v,
         }
     }
 }

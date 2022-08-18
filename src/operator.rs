@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::env;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
+use crate::error::other;
+use crate::error::BackendError;
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::services;
@@ -130,6 +134,12 @@ impl Operator {
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
             Scheme::Gcs => services::gcs::Backend::from_iter(it)?.into(),
             Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
+            Scheme::Custom(v) => {
+                return Err(other(BackendError::new(
+                    HashMap::default(),
+                    anyhow!("custom service {v} is not supported"),
+                )))
+            }
         };
 
         Ok(op)

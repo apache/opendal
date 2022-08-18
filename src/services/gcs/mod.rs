@@ -44,9 +44,9 @@
 //! ```
 //! ```no_run
 //! use anyhow::Result;
+//! use opendal::Object;
 //! use opendal::Operator;
 //! use opendal::Scheme;
-//! use opendal::Object;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
@@ -63,10 +63,9 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//!
+//! use opendal::services::gcs;
 //! use opendal::Object;
 //! use opendal::Operator;
-//! use opendal::services::gcs;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {

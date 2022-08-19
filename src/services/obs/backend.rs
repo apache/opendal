@@ -24,18 +24,18 @@ use log::info;
 use reqsign::services::huaweicloud::obs::Signer;
 
 use super::error::parse_error;
-use crate::error::{other, BackendError};
+use crate::error::{other, BackendError, ObjectError};
 use crate::http_util::{
-    new_request_build_error, new_request_send_error, new_request_sign_error, parse_error_response,
-    percent_encode_path,
+    new_request_build_error, new_request_send_error, new_request_sign_error, parse_content_length,
+    parse_error_response, parse_etag, parse_last_modified, percent_encode_path,
 };
 use crate::ops::BytesRange;
-use crate::Scheme;
 use crate::{
     http_util::HttpClient,
     ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite},
     Accessor, AccessorMetadata, BytesReader, BytesWriter, DirStreamer, ObjectMetadata,
 };
+use crate::{ObjectMode, Scheme};
 
 /// Builder for Huaweicloud OBS services
 #[derive(Default, Clone)]
@@ -264,6 +264,18 @@ impl Backend {
             .trim_start_matches('/')
             .to_string()
     }
+
+    pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        let path = format!("/{}", path);
+
+        match path.strip_prefix(&self.root) {
+            Some(v) => v.to_string(),
+            None => unreachable!(
+                "invalid path {} that not start with backend root {}",
+                &path, &self.root
+            ),
+        }
+    }
 }
 
 #[async_trait]
@@ -302,8 +314,61 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let _ = args;
-        todo!()
+        let p = self.get_abs_path(args.path());
+
+        // Stat root always returns a DIR.
+        if self.get_rel_path(&p).is_empty() {
+            let mut m = ObjectMetadata::default();
+            m.set_mode(ObjectMode::DIR);
+            return Ok(m);
+        }
+
+        let resp = self.get_object_metadata(&p).await?;
+
+        // The response is very similar to azblob.
+        match resp.status() {
+            http::StatusCode::OK => {
+                let mut m = ObjectMetadata::default();
+
+                if let Some(v) = parse_content_length(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
+                    m.set_content_length(v);
+                }
+
+                if let Some(v) = parse_etag(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
+                    m.set_etag(v);
+                    m.set_content_md5(v.trim_matches('"'));
+                }
+
+                if let Some(v) = parse_last_modified(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
+                    m.set_last_modified(v);
+                }
+
+                if p.ends_with('/') {
+                    m.set_mode(ObjectMode::DIR);
+                } else {
+                    m.set_mode(ObjectMode::FILE);
+                };
+
+                Ok(m)
+            }
+            StatusCode::NOT_FOUND if p.ends_with('/') => {
+                let mut m = ObjectMetadata::default();
+                m.set_mode(ObjectMode::DIR);
+
+                Ok(m)
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("stat", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
@@ -347,5 +412,30 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("read", path, e))
+    }
+
+    pub(crate) async fn get_object_metadata(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+
+        // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
+        // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0084.html
+
+        let req = isahc::Request::head(&url);
+
+        let mut req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("stat", path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("stat", path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("stat", path, e))
     }
 }

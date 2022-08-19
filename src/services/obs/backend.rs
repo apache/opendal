@@ -372,8 +372,17 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let _ = args;
-        todo!()
+        let p = self.get_abs_path(args.path());
+
+        let resp = self.delete_object(&p).await?;
+        match resp.status() {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("delete", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
@@ -437,5 +446,27 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("stat", path, e))
+    }
+
+    pub(crate) async fn delete_object(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+
+        let req = isahc::Request::delete(&url);
+
+        let mut req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("delete", path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("delete", path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("delete", path, e))
     }
 }

@@ -31,7 +31,7 @@ You may be looking for:
 - Access different storage system in the same way
 - Native decompress support
 - Native service-side encryption support
-- Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.htmll)
+- Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.html)
 - **100%** documents covered
 - Behavior tests for all services
 

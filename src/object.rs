@@ -231,7 +231,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.read().await?;
     /// # Ok(())
     /// # }
@@ -257,7 +257,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.range_read(1024..2048).await?;
     /// # Ok(())
     /// # }
@@ -293,7 +293,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.reader().await?;
     /// # Ok(())
     /// # }
@@ -316,7 +316,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.range_reader(1024..2048).await?;
     /// # Ok(())
     /// # }
@@ -379,7 +379,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.decompress_read().await?.expect("must read succeed");
     /// # Ok(())
     /// # }
@@ -414,7 +414,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.decompress_reader().await?;
     /// # Ok(())
     /// # }
@@ -450,7 +450,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.decompress_read_with(CompressAlgorithm::Gzip).await?;
     /// # Ok(())
     /// # }
@@ -484,7 +484,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.decompress_reader_with(CompressAlgorithm::Gzip).await?;
     /// # Ok(())
     /// # }

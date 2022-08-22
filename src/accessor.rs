@@ -98,6 +98,11 @@ pub trait Accessor: Send + Sync + Debug {
         unimplemented!()
     }
 
+    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        let (_, _) = (args, r);
+        unimplemented!()
+    }
+
     /// Invoke the `stat` operation on the specified path.
     ///
     /// # Behavior

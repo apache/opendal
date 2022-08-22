@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::mem;
+use std::{io, mem};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -161,6 +161,28 @@ impl Accessor for Backend {
             map: self.inner.clone(),
             buf: Default::default(),
         }))
+    }
+
+    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        let path = args.path();
+
+        let mut buf = Vec::with_capacity(args.size() as usize);
+        let n = futures::io::copy(r, &mut buf).await?;
+        if n != args.size() {
+            return Err(other(ObjectError::new(
+                "write",
+                &path,
+                anyhow!(
+                    "write short, expect {} actual {}",
+                    args.size(),
+                    n
+                ),
+            )));
+        }
+        let mut map = self.inner.lock();
+        map.insert(path.to_string(), Bytes::from(buf));
+
+        Ok(n)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {

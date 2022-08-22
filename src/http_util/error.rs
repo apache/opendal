@@ -95,6 +95,14 @@ pub fn new_request_send_error(op: &'static str, path: &str, err: isahc::Error) -
     )
 }
 
+/// Create error happened during consuming http response.
+pub fn new_response_consume_error(op: &'static str, path: &str, err: Error) -> Error {
+    Error::new(
+        err.kind(),
+        ObjectError::new(op, path, anyhow!("consuming response: {err:?}")),
+    )
+}
+
 /// ErrorResponse carries HTTP status code, headers and body.
 ///
 /// This struct should only be used to parse error response which is small.

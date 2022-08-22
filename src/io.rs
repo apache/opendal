@@ -22,8 +22,8 @@ use futures::Sink;
 use futures::Stream;
 
 /// BytesRead represents a reader of bytes.
-pub trait BytesRead: AsyncRead + Unpin + Send {}
-impl<T> BytesRead for T where T: AsyncRead + Unpin + Send {}
+pub trait BytesRead: AsyncRead + Unpin + Send + Sync {}
+impl<T> BytesRead for T where T: AsyncRead + Unpin + Send + Sync {}
 
 /// BytesReader is a boxed dyn [`BytesRead`].
 pub type BytesReader = Box<dyn BytesRead>;

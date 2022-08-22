@@ -29,6 +29,7 @@ use std::task::Poll;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::StatusCode;
+use isahc::{AsyncBody, AsyncReadResponseExt};
 use log::debug;
 use log::info;
 use radix_trie::Trie;
@@ -38,7 +39,7 @@ use super::error::parse_error;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_http_channel;
+use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
@@ -359,6 +360,34 @@ impl Accessor for Backend {
         self.insert_path(&self.get_index_path(args.path()));
 
         Ok(Box::new(bs))
+    }
+
+    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        let p = self.get_abs_path(args.path());
+
+        let req = self.http_put(&p, args.size(), AsyncBody::from_reader_sized(r, args.size())).await?;
+
+        let mut resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("write", args.path(), e))?;
+
+
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                self.insert_path(&self.get_index_path(args.path()));
+                resp.consume()
+                    .await
+                    .map_err(|err| new_response_consume_error("write", &p, err))?;
+                Ok(args.size())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("write", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {

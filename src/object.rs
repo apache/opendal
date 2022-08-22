@@ -19,6 +19,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
+use bytes::Bytes;
 
 use futures::io;
 use futures::io::Cursor;
@@ -529,6 +530,18 @@ impl Object {
 
         s.write_all(bs.as_ref()).await?;
         s.close().await?;
+
+        Ok(())
+    }
+
+    pub async fn writex(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+        let bs = bs.into();
+        let op = OpWrite::new(self.path(), bs.len() as u64)?;
+
+
+        let r = io::Cursor::new(bs);
+
+        let _ = self.acc.writex(&op, Box::new(r)).await?;
 
         Ok(())
     }

@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::StatusCode;
+use http::{Request, StatusCode};
 use isahc::AsyncBody;
 use isahc::AsyncReadResponseExt;
 use log::debug;
@@ -38,7 +38,7 @@ use super::uri::percent_encode_path;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_http_channel;
+use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -278,16 +278,23 @@ impl Accessor for Backend {
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
-        let req = self
-            .insert_object(&p, 0, AsyncBody::from_bytes_static(b""))
-            .await?;
-        let resp = self
-            .client
+
+        let mut req = self
+            .insert_object_request(&p, AsyncBody::from_bytes_static(b""))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("create", &p, e))?;
+
+        let mut resp =  self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("create", args.path(), e))?;
+            .map_err(|e| new_request_send_error("create", &p, e))?;
 
         if resp.status().is_success() {
+            resp.consume()
+                .await
+                .map_err(|err| new_response_consume_error("create", &p, err))?;
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
@@ -295,6 +302,7 @@ impl Accessor for Backend {
             Err(e)
         }
     }
+
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let p = self.get_abs_path(args.path());
 
@@ -314,7 +322,7 @@ impl Accessor for Backend {
 
         let (tx, body) = new_http_channel(args.size());
 
-        let req = self.insert_object(&p, args.size(), body).await?;
+        let req = self.insert_object_request(&p, body)?;
 
         let bs = HttpBodyWriter::new(
             args,
@@ -325,6 +333,34 @@ impl Accessor for Backend {
         );
 
         Ok(Box::new(bs))
+    }
+
+    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        let p = self.get_abs_path(args.path());
+
+        let mut req = self.insert_object_request(&p,  AsyncBody::from_reader_sized(r, args.size()))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("create", &p, e))?;
+
+        let mut resp =  self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("create", &p, e))?;
+
+
+        if (200..300).contains(&resp.status().as_u16()) {
+            resp.consume()
+                .await
+                .map_err(|err| new_response_consume_error("write", args.path(), err))?;
+            Ok(args.size())
+        } else {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error("read", args.path(), er);
+            Err(err)
+        }
+
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
@@ -477,9 +513,8 @@ impl Backend {
     pub(crate) fn insert_object_request(
         &self,
         path: &str,
-        size: Option<u64>,
         body: AsyncBody,
-    ) -> Result<isahc::Request<AsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
             self.endpoint,
@@ -489,30 +524,10 @@ impl Backend {
 
         let mut req = isahc::Request::post(&url);
 
-        // Set content length.
-        if let Some(size) = size {
-            req = req.header(http::header::CONTENT_LENGTH, size.to_string());
-        }
-
         // Set body
-        let req = req
+        let mut req = req
             .body(body)
             .map_err(|e| new_request_build_error("write", path, e))?;
-
-        Ok(req)
-    }
-
-    pub(crate) async fn insert_object(
-        &self,
-        path: &str,
-        size: u64,
-        body: isahc::AsyncBody,
-    ) -> Result<isahc::Request<isahc::AsyncBody>> {
-        let mut req = self.insert_object_request(path, Some(size), body)?;
-
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error("write", path, e))?;
 
         Ok(req)
     }

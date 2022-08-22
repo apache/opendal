@@ -303,6 +303,44 @@ impl Accessor for Backend {
         Ok(Box::new(Compat::new(f)))
     }
 
+    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        let path = self.get_abs_path(args.path());
+
+        // Create dir before write path.
+        //
+        // TODO(xuanwo): There are many works to do here:
+        //   - Is it safe to create dir concurrently?
+        //   - Do we need to extract this logic as new util functions?
+        //   - Is it better to check the parent dir exists before call mkdir?
+        let parent = PathBuf::from(&path)
+            .parent()
+            .ok_or_else(|| {
+                other(ObjectError::new(
+                    "write",
+                    &path,
+                    anyhow!("malformed path: {:?}", &path),
+                ))
+            })?
+            .to_path_buf();
+
+        fs::create_dir_all(&parent)
+            .await
+            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
+
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&path)
+            .await
+            .map_err(|e| parse_io_error(e, "write", &path))?;
+
+        let mut f = Compat::new(f);
+
+      let size =   futures::io::copy(r, &mut f).await?;
+
+        Ok(size)
+    }
+
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = self.get_abs_path(args.path());
 

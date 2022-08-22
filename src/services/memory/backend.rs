@@ -17,11 +17,11 @@ use std::collections::HashSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::{io, mem};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::{io, mem};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -152,7 +152,6 @@ impl Accessor for Backend {
         Ok(Box::new(Cursor::new(data)))
     }
 
-
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = args.path();
 
@@ -162,11 +161,7 @@ impl Accessor for Backend {
             return Err(other(ObjectError::new(
                 "write",
                 &path,
-                anyhow!(
-                    "write short, expect {} actual {}",
-                    args.size(),
-                    n
-                ),
+                anyhow!("write short, expect {} actual {}", args.size(), n),
             )));
         }
         let mut map = self.inner.lock();

@@ -269,7 +269,6 @@ impl Accessor for Backend {
         Ok(Box::new(r))
     }
 
-
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = self.get_abs_path(args.path());
 
@@ -303,7 +302,7 @@ impl Accessor for Backend {
 
         let mut f = Compat::new(f);
 
-      let size =   futures::io::copy(r, &mut f).await?;
+        let size = futures::io::copy(r, &mut f).await?;
 
         Ok(size)
     }

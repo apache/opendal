@@ -41,7 +41,6 @@ use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -52,6 +51,7 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
+use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -1109,14 +1109,14 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
 
-        let mut req = self
-            .put_object_request(&p,  isahc::AsyncBody::from_bytes_static(""))?;
+        let mut req = self.put_object_request(&p, isahc::AsyncBody::from_bytes_static(""))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error("create", &p, e))?;
 
-        let mut resp =  self.client
+        let mut resp = self
+            .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("create", &p, e))?;
@@ -1127,7 +1127,7 @@ impl Accessor for Backend {
                     .await
                     .map_err(|err| new_response_consume_error("create", &p, err))?;
                 Ok(())
-            },
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("create", args.path(), er);
@@ -1160,7 +1160,8 @@ impl Accessor for Backend {
             .sign(&mut req)
             .map_err(|e| new_request_sign_error("write", &p, e))?;
 
-        let mut resp =  self.client
+        let mut resp = self
+            .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("write", &p, e))?;

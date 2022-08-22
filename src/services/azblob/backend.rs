@@ -302,13 +302,14 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
 
-        let mut req = self.put_blob_request(&p,  AsyncBody::from_bytes_static(""))?;
+        let mut req = self.put_blob_request(&p, AsyncBody::from_bytes_static(""))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error("create", &p, e))?;
 
-        let mut resp =  self.client
+        let mut resp = self
+            .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("create", &p, e))?;
@@ -319,7 +320,7 @@ impl Accessor for Backend {
                     .await
                     .map_err(|err| new_response_consume_error("write", args.path(), err))?;
                 Ok(())
-            },
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("create", args.path(), er);
@@ -345,16 +346,14 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
-        let mut req = self.put_blob_request(
-            &p,
-            AsyncBody::from_reader_sized(r, args.size()),
-        )?;
+        let mut req = self.put_blob_request(&p, AsyncBody::from_reader_sized(r, args.size()))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error("write", &p, e))?;
 
-        let mut resp =  self.client
+        let mut resp = self
+            .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("write", &p, e))?;
@@ -511,7 +510,6 @@ impl Backend {
 
         Ok(req)
     }
-
 
     pub(crate) async fn get_blob_properties(
         &self,

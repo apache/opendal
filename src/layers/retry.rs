@@ -117,10 +117,8 @@ where
             .await
     }
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        { || self.inner.write(args, r) }
-            .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
-            .await
+        // Write can't retry, until can reset this reader.
+        self.inner.write(args, r).await
     }
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         { || self.inner.stat(args) }

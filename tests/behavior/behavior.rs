@@ -328,7 +328,7 @@ async fn test_write(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op.object(&path).write(&content).await?;
+    op.object(&path).write(content).await?;
 
     let meta = op
         .object(&path)
@@ -349,7 +349,7 @@ async fn test_write_with_dir_path(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
     let (content, _) = gen_bytes();
 
-    let result = op.object(&path).write(&content).await;
+    let result = op.object(&path).write(content).await;
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Is a directory"));
 
@@ -362,7 +362,7 @@ async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
-    op.object(&path).write(&content).await?;
+    op.object(&path).write(content).await?;
 
     let meta = op
         .object(&path)
@@ -385,7 +385,7 @@ async fn test_stat(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content)
         .await
         .expect("write must succeed");
 
@@ -423,7 +423,7 @@ async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content)
         .await
         .expect("write must succeed");
 
@@ -445,7 +445,7 @@ async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content)
         .await
         .expect("write must succeed");
 
@@ -489,7 +489,7 @@ async fn test_read_full(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content.clone())
         .await
         .expect("write must succeed");
 
@@ -516,7 +516,7 @@ async fn test_read_range(op: Operator) -> Result<()> {
     let (offset, length) = gen_offset_length(size as usize);
 
     op.object(&path)
-        .write(&content)
+        .write(content.clone())
         .await
         .expect("write must succeed");
 
@@ -581,7 +581,7 @@ async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -618,7 +618,7 @@ async fn test_read_decompress_gzip_with(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -653,7 +653,7 @@ async fn test_read_decompress_zstd(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -690,7 +690,7 @@ async fn test_read_decompress_zstd_with(op: Operator) -> Result<()> {
     encoder.close().await?;
     let compressed_content = encoder.into_inner();
 
-    op.object(&path).write(&compressed_content).await?;
+    op.object(&path).write(compressed_content).await?;
 
     let bs = op
         .object(&path)
@@ -713,7 +713,7 @@ async fn test_read_with_special_chars(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content.clone())
         .await
         .expect("write must succeed");
 
@@ -739,7 +739,7 @@ async fn test_list_dir(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content)
         .await
         .expect("write must succeed");
 
@@ -883,7 +883,7 @@ async fn test_delete(op: Operator) -> Result<()> {
     let (content, _) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content)
         .await
         .expect("write must succeed");
 
@@ -916,7 +916,7 @@ async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
     let (content, _) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content)
         .await
         .expect("write must succeed");
 
@@ -1112,7 +1112,7 @@ async fn test_presign_read(op: Operator) -> Result<()> {
     let (content, size) = gen_bytes();
 
     op.object(&path)
-        .write(&content)
+        .write(content.clone())
         .await
         .expect("write must succeed");
 

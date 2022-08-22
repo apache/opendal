@@ -38,13 +38,13 @@ use super::uri::percent_encode_path;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
+use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -279,14 +279,14 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
 
-        let mut req = self
-            .insert_object_request(&p, AsyncBody::from_bytes_static(b""))?;
+        let mut req = self.insert_object_request(&p, AsyncBody::from_bytes_static(b""))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error("create", &p, e))?;
 
-        let mut resp =  self.client
+        let mut resp = self
+            .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("create", &p, e))?;
@@ -320,17 +320,18 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
-        let mut req = self.insert_object_request(&p,  AsyncBody::from_reader_sized(r, args.size()))?;
+        let mut req =
+            self.insert_object_request(&p, AsyncBody::from_reader_sized(r, args.size()))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error("create", &p, e))?;
 
-        let mut resp =  self.client
+        let mut resp = self
+            .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("create", &p, e))?;
-
 
         if (200..300).contains(&resp.status().as_u16()) {
             resp.consume()
@@ -342,7 +343,6 @@ impl Accessor for Backend {
             let err = parse_error("read", args.path(), er);
             Err(err)
         }
-
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {

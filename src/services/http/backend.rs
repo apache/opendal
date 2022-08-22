@@ -39,7 +39,6 @@ use super::error::parse_error;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
@@ -50,6 +49,7 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
+use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -342,18 +342,22 @@ impl Accessor for Backend {
         }
     }
 
-
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
-        let req = self.http_put(&p, args.size(), AsyncBody::from_reader_sized(r, args.size())).await?;
+        let req = self
+            .http_put(
+                &p,
+                args.size(),
+                AsyncBody::from_reader_sized(r, args.size()),
+            )
+            .await?;
 
         let mut resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("write", args.path(), e))?;
-
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {

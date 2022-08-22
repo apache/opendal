@@ -21,7 +21,8 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::{Request, StatusCode};
+use http::Request;
+use http::StatusCode;
 use isahc::AsyncBody;
 use isahc::AsyncReadResponseExt;
 use log::debug;
@@ -41,9 +42,8 @@ use crate::error::ObjectError;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
-use crate::http_util::parse_error_response;
-
 use crate::http_util::new_response_consume_error;
+use crate::http_util::parse_error_response;
 use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -55,7 +55,6 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;

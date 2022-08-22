@@ -33,7 +33,6 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::PresignedRequest;
 use crate::BytesReader;
-
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::Scheme;

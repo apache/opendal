@@ -42,7 +42,6 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-
 use crate::DirEntry;
 use crate::DirStreamer;
 use crate::ObjectMetadata;

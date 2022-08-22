@@ -1128,7 +1128,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -1148,7 +1148,7 @@ checksum = "18a6dbe30758c9f83eb00cbea4ac95966305f5a7772f3f42ebfc7fc7eddbd8e1"
 
 [[package]]
 name = "opendal"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "async-compat",
@@ -1413,9 +1413,9 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "reqsign"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e8cdb1fd992664b9ec136dc07ea1d4b6e9debc099a1ad691c2eaad1b1efdb08"
+checksum = "089ba78fc07022b47d4cde6cebafbf2e756609ec3e83198c238529dcc59c4d17"
 dependencies = [
  "anyhow",
  "backon",
@@ -1435,6 +1435,7 @@ dependencies = [
  "rust-ini",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "time",
 ]

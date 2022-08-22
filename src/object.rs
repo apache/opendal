@@ -535,34 +535,6 @@ impl Object {
         Ok(())
     }
 
-    /// Create a new writer which can write data into the object.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use opendal::services::memory;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
-    /// use bytes::Bytes;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # use futures::AsyncWriteExt;
-    /// let op = Operator::from_env(Scheme::Memory)?;
-    /// let o = op.object("path/to/file");
-    /// let mut w = o.writer(4096).await?;
-    /// w.write(&[1; 4096]);
-    /// w.close();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
-        Ok(Vec::new())
-    }
-
     /// Delete object.
     ///
     /// # Notes

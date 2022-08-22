@@ -12,11 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Huawei Cloud OBS services support.
-//! TODO: more docs
-mod backend;
-pub use backend::Backend;
-pub use backend::Builder;
+use std::io::Result;
+use std::sync::Arc;
 
-mod error;
-mod dir_stream;
+use futures::future::BoxFuture;
+
+use crate::services::obs::Backend;
+
+pub struct DirStream {
+    backend: Arc<Backend>,
+    path: String,
+
+    next_marker: String,
+    done: bool,
+    state: State,
+}
+
+enum State {
+    Idle,
+    Sending(BoxFuture<'static, Result<Vec<u8>>>),
+    Listing((Output, usize, usize)),
+}

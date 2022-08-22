@@ -19,6 +19,7 @@ use std::{fmt::Debug, sync::Arc};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::{StatusCode, Uri};
+use isahc::AsyncBody;
 use log::debug;
 use log::info;
 use reqsign::services::huaweicloud::obs::Signer;
@@ -26,8 +27,9 @@ use reqsign::services::huaweicloud::obs::Signer;
 use super::error::parse_error;
 use crate::error::{other, BackendError, ObjectError};
 use crate::http_util::{
-    new_request_build_error, new_request_send_error, new_request_sign_error, parse_content_length,
-    parse_error_response, parse_etag, parse_last_modified, percent_encode_path,
+    new_http_channel, new_request_build_error, new_request_send_error, new_request_sign_error,
+    parse_content_length, parse_error_response, parse_etag, parse_last_modified,
+    percent_encode_path, HttpBodyWriter,
 };
 use crate::ops::BytesRange;
 use crate::{
@@ -290,8 +292,25 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let _ = args;
-        todo!()
+        let p = self.get_abs_path(args.path());
+
+        let req = self
+            .put_object(&p, 0, AsyncBody::from_bytes_static(""))
+            .await?;
+        let resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("create", args.path(), e))?;
+
+        match resp.status() {
+            StatusCode::OK => Ok(()),
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("create", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
@@ -309,8 +328,20 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let _ = args;
-        todo!()
+        let p = self.get_abs_path(args.path());
+        let (tx, body) = new_http_channel(args.size());
+
+        let req = self.put_object(&p, args.size(), body).await?;
+
+        let bs = HttpBodyWriter::new(
+            args,
+            tx,
+            self.client.send_async(req),
+            |v| v == StatusCode::OK,
+            parse_error,
+        );
+
+        Ok(Box::new(bs))
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
@@ -421,6 +452,29 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("read", path, e))
+    }
+
+    pub(crate) async fn put_object(
+        &self,
+        path: &str,
+        size: u64,
+        body: AsyncBody,
+    ) -> Result<isahc::Request<AsyncBody>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+
+        let mut req = isahc::Request::put(&url);
+
+        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+
+        let mut req = req
+            .body(body)
+            .map_err(|e| new_request_build_error("write", path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("write", path, e))?;
+
+        Ok(req)
     }
 
     pub(crate) async fn get_object_metadata(

@@ -297,7 +297,7 @@ impl Accessor for Backend {
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error("create", args.path(), er);
+            let e = parse_error("create", &p, er);
             Err(e)
         }
     }
@@ -324,22 +324,22 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error("create", &p, e))?;
+            .map_err(|e| new_request_sign_error("write", &p, e))?;
 
         let mut resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("create", &p, e))?;
+            .map_err(|e| new_request_send_error("write", &p, e))?;
 
         if (200..300).contains(&resp.status().as_u16()) {
             resp.consume()
                 .await
-                .map_err(|err| new_response_consume_error("write", args.path(), err))?;
+                .map_err(|err| new_response_consume_error("write", &p, err))?;
             Ok(args.size())
         } else {
             let er = parse_error_response(resp).await?;
-            let err = parse_error("read", args.path(), er);
+            let err = parse_error("write", &p, er);
             Err(err)
         }
     }

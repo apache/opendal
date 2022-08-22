@@ -318,12 +318,12 @@ impl Accessor for Backend {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.consume()
                     .await
-                    .map_err(|err| new_response_consume_error("write", args.path(), err))?;
+                    .map_err(|err| new_response_consume_error("write", &p, err))?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error("create", args.path(), er);
+                let err = parse_error("create", &p, er);
                 Err(err)
             }
         }

@@ -152,18 +152,8 @@ impl Accessor for Backend {
         Ok(Box::new(Cursor::new(data)))
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let path = args.path();
 
-        Ok(Box::new(MapWriter {
-            path: path.to_string(),
-            size: args.size(),
-            map: self.inner.clone(),
-            buf: Default::default(),
-        }))
-    }
-
-    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = args.path();
 
         let mut buf = Vec::with_capacity(args.size() as usize);

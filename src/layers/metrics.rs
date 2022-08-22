@@ -149,7 +149,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -157,7 +157,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.write(args).await;
+        let result = self.inner.write(args, r).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(

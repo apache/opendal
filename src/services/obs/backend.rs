@@ -308,8 +308,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let _ = args;
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         todo!()
     }
 

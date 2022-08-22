@@ -52,6 +52,7 @@ use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
 use crate::BytesWrite;
+use crate::http_util::new_http_channel;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -524,24 +525,12 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write(&self, bs: impl AsRef<[u8]>) -> Result<()> {
-        let op = OpWrite::new(self.path(), bs.as_ref().len() as u64)?;
-        let mut s = self.acc.write(&op).await?;
-
-        s.write_all(bs.as_ref()).await?;
-        s.close().await?;
-
-        Ok(())
-    }
-
-    pub async fn writex(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
         let bs = bs.into();
+
         let op = OpWrite::new(self.path(), bs.len() as u64)?;
-
-
         let r = io::Cursor::new(bs);
-
-        let _ = self.acc.writex(&op, Box::new(r)).await?;
+        let _ = self.acc.write(&op, Box::new(r)).await?;
 
         Ok(())
     }
@@ -571,10 +560,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
-        let op = OpWrite::new(self.path(), size);
-        let s = self.acc.write(&op?).await?;
-
-        Ok(s)
+        Ok(Vec::new())
     }
 
     /// Delete object.

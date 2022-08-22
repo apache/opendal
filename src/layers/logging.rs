@@ -187,7 +187,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} size={:?} -> started",
@@ -198,12 +198,12 @@ impl Accessor for LoggingAccessor {
         );
 
         self.inner
-            .write(args)
+            .write(args, r)
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} size={:?} -> got writer",
+                    "service={} operation={} path={} size={:?} -> written",
                     self.scheme,
                     Operation::Write,
                     args.path(),

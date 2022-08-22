@@ -116,8 +116,8 @@ where
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        { || self.inner.write(args) }
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        { || self.inner.write(args, r) }
             .retry(self.backoff.clone())
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
             .await

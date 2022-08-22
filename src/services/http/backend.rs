@@ -342,27 +342,8 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let p = self.get_abs_path(args.path());
 
-        let (tx, body) = new_http_channel(args.size());
-
-        let req = self.http_put(&p, args.size(), body).await?;
-
-        let bs = HttpBodyWriter::new(
-            args,
-            tx,
-            self.client.send_async(req),
-            |v| v == StatusCode::CREATED || v == StatusCode::OK,
-            parse_error,
-        );
-
-        self.insert_path(&self.get_index_path(args.path()));
-
-        Ok(Box::new(bs))
-    }
-
-    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
         let req = self.http_put(&p, args.size(), AsyncBody::from_reader_sized(r, args.size())).await?;

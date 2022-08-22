@@ -78,8 +78,8 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument]
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        self.inner.write(args).await
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        self.inner.write(args, r).await
     }
 
     #[tracing::instrument]

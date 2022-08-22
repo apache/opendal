@@ -317,25 +317,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let p = self.get_abs_path(args.path());
-
-        let (tx, body) = new_http_channel(args.size());
-
-        let req = self.insert_object_request(&p, body)?;
-
-        let bs = HttpBodyWriter::new(
-            args,
-            tx,
-            self.client.send_async(req),
-            |c| (200..300).contains(&c.as_u16()),
-            parse_error,
-        );
-
-        Ok(Box::new(bs))
-    }
-
-    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
         let mut req = self.insert_object_request(&p,  AsyncBody::from_reader_sized(r, args.size()))?;

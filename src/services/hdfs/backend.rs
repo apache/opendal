@@ -285,36 +285,7 @@ impl Accessor for Backend {
         Ok(f)
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let path = self.get_abs_path(args.path());
-        debug!("object {} write start: size {}", &path, args.size());
-
-        let parent = PathBuf::from(&path)
-            .parent()
-            .ok_or_else(|| {
-                other(ObjectError::new(
-                    "write",
-                    &path,
-                    anyhow!("malformed path: {:?}", &path),
-                ))
-            })?
-            .to_path_buf();
-
-        self.client
-            .create_dir(&parent.to_string_lossy())
-            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
-
-        let f = self
-            .client
-            .open_file()
-            .create(true)
-            .write(true)
-            .open(&path)?;
-
-        Ok(Box::new(f))
-    }
-
-    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &path, args.size());
 

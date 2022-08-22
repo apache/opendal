@@ -88,17 +88,12 @@ pub trait Accessor: Send + Sync + Debug {
     }
 
     /// Invoke the `write` operation on the specified path, returns a
-    /// [`BytesWriter`][crate::BytesWriter] if operate successful.
+    /// written size if operate successful.
     ///
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let _ = args;
-        unimplemented!()
-    }
-
-    async fn writex(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let (_, _) = (args, r);
         unimplemented!()
     }
@@ -164,8 +159,8 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         self.as_ref().read(args).await
     }
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        self.as_ref().write(args).await
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        self.as_ref().write(args, r).await
     }
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         self.as_ref().stat(args).await

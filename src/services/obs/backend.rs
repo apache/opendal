@@ -13,29 +13,41 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::io::Result;
-use std::{fmt::Debug, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::{StatusCode, Uri};
+use http::StatusCode;
+use http::Uri;
 use log::debug;
 use log::info;
 use reqsign::services::huaweicloud::obs::Signer;
 
 use super::error::parse_error;
-use crate::error::{other, BackendError};
-use crate::http_util::{
-    new_request_build_error, new_request_send_error, new_request_sign_error, parse_error_response,
-    percent_encode_path,
-};
+use crate::error::other;
+use crate::error::BackendError;
+use crate::http_util::new_request_build_error;
+use crate::http_util::new_request_send_error;
+use crate::http_util::new_request_sign_error;
+use crate::http_util::parse_error_response;
+use crate::http_util::percent_encode_path;
+use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
 use crate::Scheme;
-use crate::{
-    http_util::HttpClient,
-    ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite},
-    Accessor, AccessorMetadata, BytesReader, BytesWriter, DirStreamer, ObjectMetadata,
-};
 
 /// Builder for Huaweicloud OBS services
 #[derive(Default, Clone)]

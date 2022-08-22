@@ -42,9 +42,9 @@ use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_error_response;
-use crate::http_util::HttpBodyWriter;
+
+use crate::http_util::new_response_consume_error;
 use crate::http_util::HttpClient;
-use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -55,7 +55,7 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
+
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
@@ -504,10 +504,10 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::post(&url);
+        let req = isahc::Request::post(&url);
 
         // Set body
-        let mut req = req
+        let req = req
             .body(body)
             .map_err(|e| new_request_build_error("write", path, e))?;
 

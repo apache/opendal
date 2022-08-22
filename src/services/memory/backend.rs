@@ -17,11 +17,11 @@ use std::collections::HashSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use std::{io, mem};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -42,7 +42,7 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
+
 use crate::DirEntry;
 use crate::DirStreamer;
 use crate::ObjectMetadata;

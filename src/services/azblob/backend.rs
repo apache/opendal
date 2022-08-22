@@ -43,9 +43,9 @@ use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
-use crate::http_util::HttpBodyWriter;
+
+use crate::http_util::new_response_consume_error;
 use crate::http_util::HttpClient;
-use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -56,7 +56,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::BytesWriter;
+
 use crate::DirStreamer;
 use crate::ObjectMode;
 use crate::Scheme;
@@ -504,7 +504,7 @@ impl Backend {
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
-        let mut req = req
+        let req = req
             .body(body)
             .map_err(|e| new_request_build_error("write", path, e))?;
 

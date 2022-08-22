@@ -34,7 +34,7 @@ use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
+
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;

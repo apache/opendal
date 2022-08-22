@@ -44,7 +44,7 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
+
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::Scheme;
@@ -308,7 +308,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, _args: &OpWrite, _r: BytesReader) -> Result<u64> {
         todo!()
     }
 

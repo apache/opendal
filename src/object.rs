@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bytes::Bytes;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -31,7 +30,6 @@ use serde::Serialize;
 use time::Duration;
 use time::OffsetDateTime;
 
-use crate::http_util::new_http_channel;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
@@ -52,7 +50,6 @@ use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
-use crate::BytesWrite;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]

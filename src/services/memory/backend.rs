@@ -160,7 +160,7 @@ impl Accessor for Backend {
         if n != args.size() {
             return Err(other(ObjectError::new(
                 "write",
-                &path,
+                path,
                 anyhow!("write short, expect {} actual {}", args.size(), n),
             )));
         }

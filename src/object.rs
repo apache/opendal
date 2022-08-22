@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use futures::io;
 use futures::io::Cursor;
-use futures::AsyncWriteExt;
 #[cfg(feature = "serde")]
 use serde::Deserialize;
 #[cfg(feature = "serde")]

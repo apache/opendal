@@ -13,31 +13,51 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Write;
 use std::io::Result;
-use std::{fmt::Debug, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::{StatusCode, Uri};
+use http::StatusCode;
+use http::Uri;
 use isahc::AsyncBody;
 use log::debug;
 use log::info;
 use reqsign::services::huaweicloud::obs::Signer;
 
 use super::error::parse_error;
-use crate::error::{other, BackendError, ObjectError};
-use crate::http_util::{
-    new_http_channel, new_request_build_error, new_request_send_error, new_request_sign_error,
-    parse_content_length, parse_error_response, parse_etag, parse_last_modified,
-    percent_encode_path, HttpBodyWriter,
-};
+use crate::error::other;
+use crate::error::BackendError;
+use crate::error::ObjectError;
+use crate::http_util::new_http_channel;
+use crate::http_util::new_request_build_error;
+use crate::http_util::new_request_send_error;
+use crate::http_util::new_request_sign_error;
+use crate::http_util::parse_content_length;
+use crate::http_util::parse_error_response;
+use crate::http_util::parse_etag;
+use crate::http_util::parse_last_modified;
+use crate::http_util::percent_encode_path;
+use crate::http_util::HttpBodyWriter;
+use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
-use crate::{
-    http_util::HttpClient,
-    ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite},
-    Accessor, AccessorMetadata, BytesReader, BytesWriter, DirStreamer, ObjectMetadata,
-};
-use crate::{ObjectMode, Scheme};
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::services::obs::dir_stream::DirStream;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BytesReader;
+use crate::BytesWriter;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
+use crate::Scheme;
 
 /// Builder for Huaweicloud OBS services
 #[derive(Default, Clone)]
@@ -417,8 +437,9 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let _ = args;
-        todo!()
+        let path = self.get_abs_path(args.path());
+
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 }
 
@@ -522,5 +543,33 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("delete", path, e))
+    }
+
+    pub(crate) async fn list_objects(
+        &self,
+        path: &str,
+        next_marker: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+        let mut url = format!("{}?delimiter=/", self.endpoint);
+        if !path.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(path))
+                .expect("write into string must succeed");
+        }
+        if !next_marker.is_empty() {
+            write!(url, "&marker={next_marker}").expect("write into string must succeed");
+        }
+
+        let mut req = isahc::Request::get(&url)
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("list", path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("list", path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("list", path, e))
     }
 }

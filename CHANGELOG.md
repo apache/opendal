@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.13.1] - 2022-08-22
+
+### Added
+
+- feat: Add walk for BatchOperator (#543)
+- feat: Mark Scheme non_exhaustive and extendable (#544)
+- feat: Try to limit the max_connections for http client  (#545)
+- feat: Implement huaweicloud obs service read support (#540)
+
+### Docs
+
+-  docs: Fix gcs is missing from index (#546)
+
 ## [v0.13.0] - 2022-08-17
 
 ### Added
@@ -569,6 +582,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.13.1]: https://github.com/datafuselabs/opendal/compare/v0.13.0...v0.13.1
 [v0.13.0]: https://github.com/datafuselabs/opendal/compare/v0.12.0...v0.13.0
 [v0.12.0]: https://github.com/datafuselabs/opendal/compare/v0.11.4...v0.12.0
 [v0.11.4]: https://github.com/datafuselabs/opendal/compare/v0.11.3...v0.11.4

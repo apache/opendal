@@ -1,7 +1,7 @@
 - Proposal Name: `write_refactor`
 - Start Date: 2022-08-22
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#554](https://github.com/datafuselabs/opendal/pull/554)
+- Tracking Issue: [datafuselabs/opendal#555](https://github.com/datafuselabs/opendal/issues/555)
 
 # Summary
 
@@ -31,7 +31,7 @@ However, we are meeting the following problems:
 
 - Performance: HTTP body channel is mush slower than read from Reader directly.
 - Complicity: Service implementer have to deal with APIs like `new_http_channel`.
-- Extendability: Current design can't be extended to multipart APIs.
+- Extensibility: Current design can't be extended to multipart APIs.
 
 # Guide-level explanation
 

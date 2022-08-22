@@ -47,9 +47,9 @@ use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
-use crate::http_util::HttpBodyWriter;
+
+use crate::http_util::new_response_consume_error;
 use crate::http_util::HttpClient;
-use crate::http_util::{new_http_channel, new_response_consume_error};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -60,7 +60,7 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
+
 use crate::DirEntry;
 use crate::DirStreamer;
 use crate::ObjectMetadata;

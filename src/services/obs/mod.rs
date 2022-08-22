@@ -18,5 +18,5 @@ mod backend;
 pub use backend::Backend;
 pub use backend::Builder;
 
-mod error;
 mod dir_stream;
+mod error;

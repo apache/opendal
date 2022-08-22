@@ -24,6 +24,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::HeaderName;
+use http::header::CONTENT_LENGTH;
 use http::HeaderValue;
 use http::StatusCode;
 use isahc::AsyncBody;
@@ -1347,11 +1348,15 @@ impl Backend {
     pub(crate) fn put_object_request(
         &self,
         path: &str,
-        body: isahc::AsyncBody,
+        body: AsyncBody,
     ) -> Result<isahc::Request<isahc::AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::put(&url);
+
+        if let Some(content_length) = body.len() {
+            req = req.header(CONTENT_LENGTH, content_length)
+        }
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);

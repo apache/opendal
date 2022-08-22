@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use http::header::CONTENT_LENGTH;
 use http::Request;
 use http::StatusCode;
 use isahc::AsyncBody;
@@ -503,7 +504,11 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(&url);
+        let mut req = isahc::Request::post(&url);
+
+        if let Some(content_length) = body.len() {
+            req = req.header(CONTENT_LENGTH, content_length)
+        }
 
         // Set body
         let req = req

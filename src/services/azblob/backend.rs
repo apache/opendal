@@ -23,6 +23,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::HeaderName;
+use http::header::CONTENT_LENGTH;
 use http::Request;
 use http::StatusCode;
 use isahc::AsyncBody;
@@ -500,6 +501,10 @@ impl Backend {
         );
 
         let mut req = isahc::Request::put(&url);
+
+        if let Some(content_length) = body.len() {
+            req = req.header(CONTENT_LENGTH, content_length)
+        }
 
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 

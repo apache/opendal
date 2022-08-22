@@ -28,6 +28,7 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use http::header::CONTENT_LENGTH;
 use http::StatusCode;
 use isahc::AsyncBody;
 use isahc::AsyncReadResponseExt;
@@ -304,9 +305,7 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
 
-        let req = self
-            .http_put(&p, 0, isahc::AsyncBody::from_bytes_static(""))
-            .await?;
+        let req = self.http_put(&p, AsyncBody::from_bytes_static("")).await?;
         let resp = self
             .client
             .send_async(req)
@@ -345,11 +344,7 @@ impl Accessor for Backend {
         let p = self.get_abs_path(args.path());
 
         let req = self
-            .http_put(
-                &p,
-                args.size(),
-                AsyncBody::from_reader_sized(r, args.size()),
-            )
+            .http_put(&p, AsyncBody::from_reader_sized(r, args.size()))
             .await?;
 
         let mut resp = self
@@ -556,15 +551,15 @@ impl Backend {
     pub(crate) async fn http_put(
         &self,
         path: &str,
-        size: u64,
-        body: isahc::AsyncBody,
-    ) -> Result<isahc::Request<isahc::AsyncBody>> {
+        body: AsyncBody,
+    ) -> Result<isahc::Request<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::put(&url);
 
-        // Set content length.
-        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+        if let Some(content_length) = body.len() {
+            req = req.header(CONTENT_LENGTH, content_length)
+        }
 
         // Set body
         let req = req

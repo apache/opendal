@@ -1137,6 +1137,7 @@ dependencies = [
  "futures",
  "log",
  "opendal",
+ "sluice",
  "tokio",
 ]
 

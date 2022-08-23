@@ -46,6 +46,7 @@ use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::HttpClient;
+use crate::io_util::unshared_reader;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -320,8 +321,10 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
-        let mut req =
-            self.insert_object_request(&p, AsyncBody::from_reader_sized(r, args.size()))?;
+        let mut req = self.insert_object_request(
+            &p,
+            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
+        )?;
 
         self.signer
             .sign(&mut req)

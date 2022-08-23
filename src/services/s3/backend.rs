@@ -53,6 +53,7 @@ use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpClient;
+use crate::io_util::unshared_reader;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -1154,7 +1155,10 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
-        let mut req = self.put_object_request(&p, AsyncBody::from_reader_sized(r, args.size()))?;
+        let mut req = self.put_object_request(
+            &p,
+            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
+        )?;
 
         self.signer
             .sign(&mut req)

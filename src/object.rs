@@ -527,7 +527,39 @@ impl Object {
         let op = OpWrite::new(self.path(), bs.len() as u64)?;
         let r = io::Cursor::new(bs);
         let _ = self.acc.write(&op, Box::new(r)).await?;
+        Ok(())
+    }
 
+    /// Write data into object from a [`BytesRead`].
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// # use opendal::Scheme;
+    /// use bytes::Bytes;
+    /// use futures::io::Cursor;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// let r = Cursor::new(vec![0; 4096]);
+    /// let _ = o.write_from(4096, r).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
+        let op = OpWrite::new(self.path(), size)?;
+        let _ = self.acc.write(&op, Box::new(br)).await?;
         Ok(())
     }
 

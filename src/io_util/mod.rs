@@ -56,3 +56,6 @@ pub use compress::DecompressState;
 mod walk;
 pub use walk::BottomUpWalker;
 pub use walk::TopDownWalker;
+
+mod unshared_reader;
+pub use unshared_reader::unshared_reader;

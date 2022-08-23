@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Write;
 use std::io::Result;
 use std::sync::Arc;
 
@@ -28,10 +29,14 @@ use reqsign::services::huaweicloud::obs::Signer;
 use super::error::parse_error;
 use crate::error::other;
 use crate::error::BackendError;
+use crate::error::ObjectError;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
+use crate::http_util::parse_content_length;
 use crate::http_util::parse_error_response;
+use crate::http_util::parse_etag;
+use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
@@ -41,11 +46,13 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::services::obs::dir_stream::DirStream;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
+use crate::ObjectMode;
 use crate::Scheme;
 
 /// Builder for Huaweicloud OBS services
@@ -275,6 +282,18 @@ impl Backend {
             .trim_start_matches('/')
             .to_string()
     }
+
+    pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        let path = format!("/{}", path);
+
+        match path.strip_prefix(&self.root) {
+            Some(v) => v.to_string(),
+            None => unreachable!(
+                "invalid path {} that not start with backend root {}",
+                &path, &self.root
+            ),
+        }
+    }
 }
 
 #[async_trait]
@@ -312,18 +331,81 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let _ = args;
-        todo!()
+        let p = self.get_abs_path(args.path());
+
+        // Stat root always returns a DIR.
+        if self.get_rel_path(&p).is_empty() {
+            let mut m = ObjectMetadata::default();
+            m.set_mode(ObjectMode::DIR);
+            return Ok(m);
+        }
+
+        let resp = self.get_head_object(&p).await?;
+
+        // The response is very similar to azblob.
+        match resp.status() {
+            http::StatusCode::OK => {
+                let mut m = ObjectMetadata::default();
+
+                if let Some(v) = parse_content_length(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
+                    m.set_content_length(v);
+                }
+
+                if let Some(v) = parse_etag(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
+                    m.set_etag(v);
+                    m.set_content_md5(v.trim_matches('"'));
+                }
+
+                if let Some(v) = parse_last_modified(resp.headers())
+                    .map_err(|e| other(ObjectError::new("stat", &p, e)))?
+                {
+                    m.set_last_modified(v);
+                }
+
+                if p.ends_with('/') {
+                    m.set_mode(ObjectMode::DIR);
+                } else {
+                    m.set_mode(ObjectMode::FILE);
+                };
+
+                Ok(m)
+            }
+            StatusCode::NOT_FOUND if p.ends_with('/') => {
+                let mut m = ObjectMetadata::default();
+                m.set_mode(ObjectMode::DIR);
+
+                Ok(m)
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("stat", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let _ = args;
-        todo!()
+        let p = self.get_abs_path(args.path());
+
+        let resp = self.delete_object(&p).await?;
+        match resp.status() {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("delete", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let _ = args;
-        todo!()
+        let path = self.get_abs_path(args.path());
+
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 }
 
@@ -357,5 +439,80 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error("read", path, e))
+    }
+
+    pub(crate) async fn get_head_object(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+
+        // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
+        // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0084.html
+
+        let req = isahc::Request::head(&url);
+
+        let mut req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("stat", path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("stat", path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("stat", path, e))
+    }
+
+    pub(crate) async fn delete_object(
+        &self,
+        path: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+
+        let req = isahc::Request::delete(&url);
+
+        let mut req = req
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("delete", path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("delete", path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("delete", path, e))
+    }
+
+    pub(crate) async fn list_objects(
+        &self,
+        path: &str,
+        next_marker: &str,
+    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+        let mut url = format!("{}?delimiter=/", self.endpoint);
+        if !path.is_empty() {
+            write!(url, "&prefix={}", percent_encode_path(path))
+                .expect("write into string must succeed");
+        }
+        if !next_marker.is_empty() {
+            write!(url, "&marker={next_marker}").expect("write into string must succeed");
+        }
+
+        let mut req = isahc::Request::get(&url)
+            .body(isahc::AsyncBody::empty())
+            .map_err(|e| new_request_build_error("list", path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("list", path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("list", path, e))
     }
 }

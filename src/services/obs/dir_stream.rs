@@ -172,7 +172,6 @@ struct Output {
     contents: Vec<Content>,
     common_prefixes: Option<Vec<CommonPrefix>>,
     marker: String,
-    #[serde(rename = "NextMarker")]
     next_marker: Option<String>,
 }
 
@@ -235,5 +234,26 @@ mod tests {
         );
         let out: Output = de::from_reader(bs.reader()).expect("must success");
         println!("{:?}", out);
+
+        assert_eq!(out.name, "examplebucket".to_string());
+        assert_eq!(out.prefix, "obj".to_string());
+        assert_eq!(out.marker, "obj002".to_string());
+        assert_eq!(out.next_marker, Some("obj004".to_string()),);
+        assert_eq!(
+            out.contents.iter().map(|v| v.key).collect::<Vec<String>>(),
+            ["obj002", "obj003"],
+        );
+        assert_eq!(
+            out.contents.iter().map(|v| v.size).collect::<Vec<u64>>(),
+            [9, 10],
+        );
+        assert_eq!(
+            out.common_prefixes
+                .unwrap()
+                .iter()
+                .map(|v| v.prefix)
+                .collect::<Vec<String>>(),
+            ["hello", "world"],
+        )
     }
 }

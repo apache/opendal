@@ -1368,7 +1368,7 @@ impl Backend {
         //      |
         //      = note: see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information
         if !body.is_empty() {
-            if let Some(content_length) = body.len()  {
+            if let Some(content_length) = body.len() {
                 req = req.header(CONTENT_LENGTH, content_length)
             }
         }

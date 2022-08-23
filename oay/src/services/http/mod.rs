@@ -146,6 +146,8 @@ impl Service {
                         pw.write_all(&bs).await?;
                     }
 
+                    pw.close().await?;
+
                     Ok::<(), Error>(())
                 }
             )?;

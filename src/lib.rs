@@ -104,9 +104,9 @@
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]
-// Add options below to allow/deny Clippy lints.
 // Deny unused qualifications.
 #![deny(unused_qualifications)]
+// Add options below to allow/deny Clippy lints.
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod accessor;

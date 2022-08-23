@@ -453,7 +453,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Request<isahc::AsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let url = format!(
             "{}/storage/v1/b/{}/o/{}?alt=media",
             self.endpoint,
@@ -471,7 +471,7 @@ impl Backend {
         }
 
         let req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("read", path, e))?;
 
         Ok(req)
@@ -482,7 +482,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
 
         self.signer
@@ -524,7 +524,7 @@ impl Backend {
     pub(crate) async fn get_object_metadata(
         &self,
         path: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,

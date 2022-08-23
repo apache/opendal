@@ -28,7 +28,10 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use http::header::CONTENT_LENGTH;
 use http::StatusCode;
+use isahc::AsyncBody;
+use isahc::AsyncReadResponseExt;
 use log::debug;
 use log::info;
 use radix_trie::Trie;
@@ -38,17 +41,17 @@ use super::error::parse_error;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_http_channel;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
+use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_md5;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
-use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
+use crate::io_util::unshared_reader;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -59,7 +62,6 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
 use crate::DirEntry;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
@@ -304,9 +306,7 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
 
-        let req = self
-            .http_put(&p, 0, isahc::AsyncBody::from_bytes_static(""))
-            .await?;
+        let req = self.http_put(&p, AsyncBody::from_bytes_static("")).await?;
         let resp = self
             .client
             .send_async(req)
@@ -341,24 +341,36 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
 
-        let (tx, body) = new_http_channel(args.size());
+        let req = self
+            .http_put(
+                &p,
+                AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
+            )
+            .await?;
 
-        let req = self.http_put(&p, args.size(), body).await?;
+        let mut resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("write", args.path(), e))?;
 
-        let bs = HttpBodyWriter::new(
-            args,
-            tx,
-            self.client.send_async(req),
-            |v| v == StatusCode::CREATED || v == StatusCode::OK,
-            parse_error,
-        );
-
-        self.insert_path(&self.get_index_path(args.path()));
-
-        Ok(Box::new(bs))
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                self.insert_path(&self.get_index_path(args.path()));
+                resp.consume()
+                    .await
+                    .map_err(|err| new_response_consume_error("write", &p, err))?;
+                Ok(args.size())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("write", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
@@ -543,15 +555,15 @@ impl Backend {
     pub(crate) async fn http_put(
         &self,
         path: &str,
-        size: u64,
-        body: isahc::AsyncBody,
-    ) -> Result<isahc::Request<isahc::AsyncBody>> {
+        body: AsyncBody,
+    ) -> Result<isahc::Request<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::put(&url);
 
-        // Set content length.
-        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+        if let Some(content_length) = body.len() {
+            req = req.header(CONTENT_LENGTH, content_length)
+        }
 
         // Set body
         let req = req

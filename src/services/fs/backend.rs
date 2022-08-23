@@ -42,7 +42,6 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::BytesWriter;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
@@ -269,7 +268,7 @@ impl Accessor for Backend {
         Ok(Box::new(r))
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = self.get_abs_path(args.path());
 
         // Create dir before write path.
@@ -300,7 +299,11 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_io_error(e, "write", &path))?;
 
-        Ok(Box::new(Compat::new(f)))
+        let mut f = Compat::new(f);
+
+        let size = futures::io::copy(r, &mut f).await?;
+
+        Ok(size)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {

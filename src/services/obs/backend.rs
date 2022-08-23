@@ -50,7 +50,6 @@ use crate::services::obs::dir_stream::DirStream;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
@@ -327,8 +326,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        let _ = args;
+    async fn write(&self, _args: &OpWrite, _r: BytesReader) -> Result<u64> {
         todo!()
     }
 

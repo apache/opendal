@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 use futures::io;
 use futures::io::Cursor;
-use futures::AsyncWriteExt;
 #[cfg(feature = "serde")]
 use serde::Deserialize;
 #[cfg(feature = "serde")]
@@ -50,7 +49,6 @@ use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
-use crate::BytesWrite;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -233,7 +231,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.read().await?;
     /// # Ok(())
     /// # }
@@ -259,7 +257,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.range_read(1024..2048).await?;
     /// # Ok(())
     /// # }
@@ -295,7 +293,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.reader().await?;
     /// # Ok(())
     /// # }
@@ -318,7 +316,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// # let o = op.object("path/to/file");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.range_reader(1024..2048).await?;
     /// # Ok(())
     /// # }
@@ -381,7 +379,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.decompress_read().await?.expect("must read succeed");
     /// # Ok(())
     /// # }
@@ -416,7 +414,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.decompress_reader().await?;
     /// # Ok(())
     /// # }
@@ -452,7 +450,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.decompress_read_with(CompressAlgorithm::Gzip).await?;
     /// # Ok(())
     /// # }
@@ -486,7 +484,7 @@ impl Object {
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file.gz");
-    /// # o.write(&vec![0; 4096]).await?;
+    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.decompress_reader_with(CompressAlgorithm::Gzip).await?;
     /// # Ok(())
     /// # }
@@ -523,17 +521,20 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write(&self, bs: impl AsRef<[u8]>) -> Result<()> {
-        let op = OpWrite::new(self.path(), bs.as_ref().len() as u64)?;
-        let mut s = self.acc.write(&op).await?;
+    pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+        let bs = bs.into();
 
-        s.write_all(bs.as_ref()).await?;
-        s.close().await?;
-
+        let op = OpWrite::new(self.path(), bs.len() as u64)?;
+        let r = io::Cursor::new(bs);
+        let _ = self.acc.write(&op, Box::new(r)).await?;
         Ok(())
     }
 
-    /// Create a new writer which can write data into the object.
+    /// Write data into object from a [`BytesRead`].
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
     ///
     /// # Examples
     ///
@@ -545,23 +546,21 @@ impl Object {
     /// # use futures::SinkExt;
     /// # use opendal::Scheme;
     /// use bytes::Bytes;
+    /// use futures::io::Cursor;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// # use futures::AsyncWriteExt;
-    /// let op = Operator::from_env(Scheme::Memory)?;
+    /// # let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/file");
-    /// let mut w = o.writer(4096).await?;
-    /// w.write(&[1; 4096]);
-    /// w.close();
+    /// let r = Cursor::new(vec![0; 4096]);
+    /// let _ = o.write_from(4096, r).await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn writer(&self, size: u64) -> Result<impl BytesWrite> {
-        let op = OpWrite::new(self.path(), size);
-        let s = self.acc.write(&op?).await?;
-
-        Ok(s)
+    pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
+        let op = OpWrite::new(self.path(), size)?;
+        let _ = self.acc.write(&op, Box::new(br)).await?;
+        Ok(())
     }
 
     /// Delete object.

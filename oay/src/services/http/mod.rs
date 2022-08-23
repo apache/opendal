@@ -31,6 +31,7 @@ use actix_web::HttpResponse;
 use actix_web::HttpServer;
 use anyhow::anyhow;
 use futures::stream;
+use futures::try_join;
 use futures::AsyncWriteExt;
 use futures::StreamExt;
 use log::error;
@@ -99,7 +100,7 @@ impl Service {
         Ok(HttpResponse::Ok().body(SizedStream::new(size, into_stream(r, 8 * 1024))))
     }
 
-    async fn put(&self, req: HttpRequest, body: web::Payload) -> Result<HttpResponse> {
+    async fn put(&self, req: HttpRequest, mut body: web::Payload) -> Result<HttpResponse> {
         let o = self.op.object(req.path());
 
         let content_length: u64 = req
@@ -129,23 +130,27 @@ impl Service {
         if content_length == 0 {
             o.create().await?
         } else {
-            let mut w = o.writer(content_length).await?;
-            let mut r = body;
+            let (pr, mut pw) = sluice::pipe::pipe();
 
-            let mut n = 0u64;
-            while let Some(bs) = r.next().await {
-                let bs = bs.map_err(|e| {
-                    Error::new(ErrorKind::UnexpectedEof, anyhow!("read body: {e:?}"))
-                })?;
-                w.write_all(&bs).await?;
-                n += bs.len() as u64;
-            }
+            try_join!(
+                async {
+                    o.write_from(content_length, pr).await?;
 
-            w.close().await?;
+                    Ok::<(), Error>(())
+                },
+                async {
+                    while let Some(bs) = body.next().await {
+                        let bs = bs.map_err(|e| {
+                            Error::new(ErrorKind::UnexpectedEof, anyhow!("read body: {e:?}"))
+                        })?;
+                        pw.write_all(&bs).await?;
+                    }
 
-            if content_length != n {
-                return Err(Error::new(ErrorKind::UnexpectedEof, anyhow!("short read")));
-            }
+                    pw.close().await?;
+
+                    Ok::<(), Error>(())
+                }
+            )?;
         }
 
         Ok(HttpResponse::new(StatusCode::CREATED))

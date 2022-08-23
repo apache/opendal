@@ -11,10 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-mod body;
-pub use body::new_http_channel;
-pub use body::HttpBodyWriter;
-
 mod client;
 pub use client::HttpClient;
 pub use client::HttpResponseFuture;
@@ -32,6 +28,7 @@ mod error;
 pub use error::new_request_build_error;
 pub use error::new_request_send_error;
 pub use error::new_request_sign_error;
+pub use error::new_response_consume_error;
 pub use error::parse_error_response;
 pub use error::ErrorResponse;
 pub use error::ErrorResponseFuture;

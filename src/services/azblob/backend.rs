@@ -23,8 +23,11 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::HeaderName;
+use http::header::CONTENT_LENGTH;
+use http::Request;
 use http::StatusCode;
 use isahc::AsyncBody;
+use isahc::AsyncReadResponseExt;
 use log::debug;
 use log::info;
 use reqsign::services::azure::storage::Signer;
@@ -35,17 +38,17 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_http_channel;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
+use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
-use crate::http_util::HttpBodyWriter;
 use crate::http_util::HttpClient;
+use crate::io_util::unshared_reader;
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -56,7 +59,6 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::BytesWriter;
 use crate::DirStreamer;
 use crate::ObjectMode;
 use crate::Scheme;
@@ -302,20 +304,28 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = self.get_abs_path(args.path());
 
-        let req = self
-            .put_blob(&p, 0, AsyncBody::from_bytes_static(""))
-            .await?;
-        let resp = self
+        let mut req = self.put_blob_request(&p, AsyncBody::from_bytes_static(""))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("create", &p, e))?;
+
+        let mut resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("create", args.path(), e))?;
+            .map_err(|e| new_request_send_error("create", &p, e))?;
 
         match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.consume()
+                    .await
+                    .map_err(|err| new_response_consume_error("write", &p, err))?;
+                Ok(())
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error("create", args.path(), er);
+                let err = parse_error("create", &p, er);
                 Err(err)
             }
         }
@@ -335,21 +345,37 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = self.get_abs_path(args.path());
-        let (tx, body) = new_http_channel(args.size());
 
-        let req = self.put_blob(&p, args.size(), body).await?;
+        let mut req = self.put_blob_request(
+            &p,
+            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
+        )?;
 
-        let bs = HttpBodyWriter::new(
-            args,
-            tx,
-            self.client.send_async(req),
-            |v| v == StatusCode::CREATED || v == StatusCode::OK,
-            parse_error,
-        );
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error("write", &p, e))?;
 
-        Ok(Box::new(bs))
+        let mut resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error("write", &p, e))?;
+
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.consume()
+                    .await
+                    .map_err(|err| new_response_consume_error("write", &p, err))?;
+                Ok(args.size())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error("write", args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
@@ -466,12 +492,11 @@ impl Backend {
             .map_err(|e| new_request_send_error("read", path, e))
     }
 
-    pub(crate) async fn put_blob(
+    pub(crate) fn put_blob_request(
         &self,
         path: &str,
-        size: u64,
         body: AsyncBody,
-    ) -> Result<isahc::Request<isahc::AsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -481,18 +506,16 @@ impl Backend {
 
         let mut req = isahc::Request::put(&url);
 
-        req = req.header(http::header::CONTENT_LENGTH, size.to_string());
+        if let Some(content_length) = body.len() {
+            req = req.header(CONTENT_LENGTH, content_length)
+        }
 
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
 
         // Set body
-        let mut req = req
+        let req = req
             .body(body)
             .map_err(|e| new_request_build_error("write", path, e))?;
-
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error("write", path, e))?;
 
         Ok(req)
     }

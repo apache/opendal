@@ -42,7 +42,6 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
 use crate::DirEntry;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
@@ -152,15 +151,22 @@ impl Accessor for Backend {
         Ok(Box::new(Cursor::new(data)))
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = args.path();
 
-        Ok(Box::new(MapWriter {
-            path: path.to_string(),
-            size: args.size(),
-            map: self.inner.clone(),
-            buf: Default::default(),
-        }))
+        let mut buf = Vec::with_capacity(args.size() as usize);
+        let n = futures::io::copy(r, &mut buf).await?;
+        if n != args.size() {
+            return Err(other(ObjectError::new(
+                "write",
+                path,
+                anyhow!("write short, expect {} actual {}", args.size(), n),
+            )));
+        }
+        let mut map = self.inner.lock();
+        map.insert(path.to_string(), Bytes::from(buf));
+
+        Ok(n)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {

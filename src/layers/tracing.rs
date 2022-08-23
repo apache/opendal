@@ -28,7 +28,6 @@ use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
@@ -77,9 +76,9 @@ impl Accessor for TracingAccessor {
         self.inner.read(args).await
     }
 
-    #[tracing::instrument]
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
-        self.inner.write(args).await
+    #[tracing::instrument(skip(r))]
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        self.inner.write(args, r).await
     }
 
     #[tracing::instrument]

@@ -42,7 +42,6 @@ use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::BytesWriter;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
@@ -285,7 +284,7 @@ impl Accessor for Backend {
         Ok(f)
     }
 
-    async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = self.get_abs_path(args.path());
         debug!("object {} write start: size {}", &path, args.size());
 
@@ -304,14 +303,16 @@ impl Accessor for Backend {
             .create_dir(&parent.to_string_lossy())
             .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
 
-        let f = self
+        let mut f = self
             .client
             .open_file()
             .create(true)
             .write(true)
             .open(&path)?;
 
-        Ok(Box::new(f))
+        let n = futures::io::copy(r, &mut f).await?;
+
+        Ok(n)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {

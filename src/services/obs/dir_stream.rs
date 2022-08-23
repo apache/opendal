@@ -233,14 +233,16 @@ mod tests {
 </ListBucketResult>"#,
         );
         let out: Output = de::from_reader(bs.reader()).expect("must success");
-        println!("{:?}", out);
 
         assert_eq!(out.name, "examplebucket".to_string());
         assert_eq!(out.prefix, "obj".to_string());
         assert_eq!(out.marker, "obj002".to_string());
         assert_eq!(out.next_marker, Some("obj004".to_string()),);
         assert_eq!(
-            out.contents.iter().map(|v| v.key).collect::<Vec<String>>(),
+            out.contents
+                .iter()
+                .map(|v| v.key.clone())
+                .collect::<Vec<String>>(),
             ["obj002", "obj003"],
         );
         assert_eq!(
@@ -251,7 +253,7 @@ mod tests {
             out.common_prefixes
                 .unwrap()
                 .iter()
-                .map(|v| v.prefix)
+                .map(|v| v.prefix.clone())
                 .collect::<Vec<String>>(),
             ["hello", "world"],
         )

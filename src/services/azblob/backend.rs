@@ -390,7 +390,7 @@ impl Accessor for Backend {
 
         let resp = self.get_blob_properties(&p).await?;
         match resp.status() {
-            http::StatusCode::OK => {
+            StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
@@ -461,7 +461,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -479,7 +479,7 @@ impl Backend {
         }
 
         let mut req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("read", path, e))?;
 
         self.signer
@@ -523,7 +523,7 @@ impl Backend {
     pub(crate) async fn get_blob_properties(
         &self,
         path: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -534,7 +534,7 @@ impl Backend {
         let req = isahc::Request::head(&url);
 
         let mut req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("stat", path, e))?;
 
         self.signer
@@ -547,10 +547,7 @@ impl Backend {
             .map_err(|e| new_request_send_error("stat", path, e))
     }
 
-    pub(crate) async fn delete_blob(
-        &self,
-        path: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    pub(crate) async fn delete_blob(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -561,7 +558,7 @@ impl Backend {
         let req = isahc::Request::delete(&url);
 
         let mut req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("delete", path, e))?;
 
         self.signer
@@ -578,7 +575,7 @@ impl Backend {
         &self,
         path: &str,
         next_marker: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let mut url = format!(
             "{}/{}?restype=container&comp=list&delimiter=/",
             self.endpoint, self.container
@@ -592,7 +589,7 @@ impl Backend {
         }
 
         let mut req = isahc::Request::get(&url)
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("list", path, e))?;
 
         self.signer

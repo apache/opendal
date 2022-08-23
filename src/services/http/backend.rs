@@ -515,7 +515,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::get(&url);
@@ -528,7 +528,7 @@ impl Backend {
         }
 
         let req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("read", path, e))?;
 
         self.client
@@ -537,13 +537,13 @@ impl Backend {
             .map_err(|e| new_request_send_error("read", path, e))
     }
 
-    pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<isahc::AsyncBody>> {
+    pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let req = isahc::Request::head(&url);
 
         let req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("stat", path, e))?;
 
         self.client
@@ -573,17 +573,14 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn http_delete(
-        &self,
-        path: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    pub(crate) async fn http_delete(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let req = isahc::Request::delete(&url);
 
         // Set body
         let req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("delete", path, e))?;
 
         self.client

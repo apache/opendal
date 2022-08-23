@@ -62,7 +62,7 @@ pub struct IntoStream<R: BytesRead> {
     #[pin]
     r: R,
     cap: usize,
-    buf: bytes::BytesMut,
+    buf: BytesMut,
 }
 
 impl<R> Stream for IntoStream<R>

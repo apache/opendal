@@ -70,7 +70,7 @@ impl Builder {
 /// Backend is used to serve `Accessor` support in memory.
 #[derive(Debug, Clone)]
 pub struct Backend {
-    inner: Arc<Mutex<HashMap<String, bytes::Bytes>>>,
+    inner: Arc<Mutex<HashMap<String, Bytes>>>,
 }
 
 impl Backend {
@@ -258,7 +258,7 @@ impl Accessor for Backend {
 struct MapWriter {
     path: String,
     size: u64,
-    map: Arc<Mutex<HashMap<String, bytes::Bytes>>>,
+    map: Arc<Mutex<HashMap<String, Bytes>>>,
 
     buf: bytes::BytesMut,
 }

@@ -51,7 +51,7 @@ use crate::BytesWrite;
 pub fn into_sink<W: BytesWrite>(w: W) -> IntoSink<W> {
     IntoSink {
         w,
-        buf: bytes::Bytes::new(),
+        buf: Bytes::new(),
     }
 }
 
@@ -59,7 +59,7 @@ pub fn into_sink<W: BytesWrite>(w: W) -> IntoSink<W> {
 pub struct IntoSink<W: BytesWrite> {
     #[pin]
     w: W,
-    buf: bytes::Bytes,
+    buf: Bytes,
 }
 
 impl<W> IntoSink<W>

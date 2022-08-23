@@ -28,9 +28,9 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
         None => Ok(None),
         Some(v) => Ok(Some(
             v.to_str()
-                .map_err(|e| anyhow!("parse {} header: {:?}", http::header::CONTENT_LENGTH, e))?
+                .map_err(|e| anyhow!("parse {} header: {:?}", CONTENT_LENGTH, e))?
                 .parse::<u64>()
-                .map_err(|e| anyhow!("parse {} header: {:?}", http::header::CONTENT_LENGTH, e))?,
+                .map_err(|e| anyhow!("parse {} header: {:?}", CONTENT_LENGTH, e))?,
         )),
     }
 }
@@ -55,9 +55,9 @@ pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>
         Some(v) => {
             let v = v
                 .to_str()
-                .map_err(|e| anyhow!("parse {} header: {:?}", http::header::LAST_MODIFIED, e))?;
+                .map_err(|e| anyhow!("parse {} header: {:?}", LAST_MODIFIED, e))?;
             let t = OffsetDateTime::parse(v, &Rfc2822)
-                .map_err(|e| anyhow!("parse {} header: {:?}", http::header::LAST_MODIFIED, e))?;
+                .map_err(|e| anyhow!("parse {} header: {:?}", LAST_MODIFIED, e))?;
 
             Ok(Some(t))
         }

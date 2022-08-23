@@ -1358,8 +1358,19 @@ impl Backend {
 
         let mut req = isahc::Request::put(&url);
 
-        if let Some(content_length) = body.len() {
-            req = req.header(CONTENT_LENGTH, content_length)
+        // TODO: we can use if-let in the future.
+        //
+        // error[E0658]: `let` expressions in this position are unstable
+        //     --> src/services/s3/backend.rs:1361:12
+        //      |
+        // 1361 |         if let Some(content_length) = body.len() && !body.is_empty() {
+        //      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        //      |
+        //      = note: see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information
+        if !body.is_empty() {
+            if let Some(content_length) = body.len()  {
+                req = req.header(CONTENT_LENGTH, content_length)
+            }
         }
 
         // Set SSE headers.

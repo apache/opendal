@@ -342,7 +342,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.get_object_metadata(&p).await?;
+        let resp = self.get_head_object(&p).await?;
 
         // The response is very similar to azblob.
         match resp.status() {
@@ -443,7 +443,7 @@ impl Backend {
             .map_err(|e| new_request_send_error("read", path, e))
     }
 
-    pub(crate) async fn get_object_metadata(
+    pub(crate) async fn get_head_object(
         &self,
         path: &str,
     ) -> Result<isahc::Response<isahc::AsyncBody>> {

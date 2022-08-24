@@ -5,7 +5,7 @@
 
 # Summary
 
-Reuse metadata returned during listing, by extending `DirEntry` with more metadata fields.
+Reuse metadata returned during listing, by defining a new `MetaLite` struct storing some metadata fields, and embedding it to `DirEntry`.
 
 
 # Motivation
@@ -58,7 +58,7 @@ while let Some(Ok(file)) = dir_stream.next().await {
 
 This RFC suggests embedding some metadata fields in `DirEntry`
 ```rust
-struct Metadata {
+struct MetaLite {
     pub content_length: u64,  // size of file
     pub last_modified: OffsetDateTime,
     pub created: OffsetDateTime,    // time created
@@ -69,8 +69,8 @@ pub struct DirEntry {
     mode: ObjectMode,
     path: String,
     
-    // newly add metadata fields
-    metadata: Option<Metadata>,
+    // newly add metadata struct
+    metadata: Option<MetaLite>,
 }
 
 impl DirEntry {
@@ -97,13 +97,15 @@ As you can see, for those services returning metadata when listing, the operatio
  
 Add complexity to `DirEntry`. To use the improved features of `DirEntry`, users have to explicitly check the existence of metadata fields.
 
+The size of `DirEntry` increased from 40 bytes to 80 bytes, a 100% percent growth requires more memory.
+
 # Rational and alternatives
 
-The largest drawback of performance usually comes from network or hard disk operations. By extending the fields of DirEntry, we could avoid many redundant requests.
+The largest drawback of performance usually comes from network or hard disk operations. By adding an `MetaLite` field in `DirEntry`, we could avoid many redundant requests.
 
 ## alternative implementation
 
-Simply extend the `DirEntry` structure as:
+Simply extend `DirEntry`:
 ```rust
 pub struct DirEntry {
     acc: Arc<dyn Accessor>,
@@ -117,7 +119,7 @@ pub struct DirEntry {
     created: Option<u64>,    // time created
 }
 ```
-The reason why not do as so is that the existence of those newly added metadata fields is highly correlated. If one field does not exist, the others neither.
+The reason why not preferred is that the existence of those newly added metadata fields is highly correlated. If one field does not exist, the others neither.
 
 By wrapping them together in an embedded structure, we can save 8 bytes of space for each `DirEntry` object. In the future, more metadata fields may be added to `DirEntry`, then a lot more space could be saved.
 
@@ -136,11 +138,17 @@ Add more metadata fields to DirEntry, like:
 
 - accessed: the last access timestamp of object
 
-## Compact Metadata Fields to Inner Struct
-The existence of metadata fields are highly associated. If one of them does not exist, the others neither. By compressing them in an inner option struct, we just need to judge once whether those fields present, and save some bytes for our struct.
-```rust
-
-```
-
 ## Simplified Get
-Users have to explicitly check if those metadata fields actual present in the DirEntry. This could be done inside their getters.
+Users have to explicitly check if those metadata fields actual present in the DirEntry. This may be done inside the getter itself.
+```rust
+let path = file.path();
+
+// if content_length is not exist
+// this getter will automatically fetch from the storage service.
+let size = file.content_length().await?;
+
+// the previous getter can cache metadata fetched from service
+// so this function could return instantly.
+let created = file.created().await?;
+println!("size of file {} is {}B, created at {}", path, size, created);
+```

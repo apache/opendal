@@ -84,11 +84,11 @@ pub struct DirEntry {
 
 impl DirEntry {
     // get size of file
-    pub fn len(&self) -> Option<u64> {
+    pub fn content_length(&self) -> Option<u64> {
         self.content_length
     }
     // get the last modified time
-    pub fn modified(&self) -> Option<OffsetDateTime> {
+    pub fn last_modified(&self) -> Option<OffsetDateTime> {
         self.last_modified
     }
     // get the create time

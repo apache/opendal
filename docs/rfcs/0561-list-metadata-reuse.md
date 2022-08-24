@@ -50,7 +50,6 @@ while let Some(Ok(file)) = dir_stream.next().await {
     let name = file.path();
     println!("size of file {} is {}B", path, size);
 }
-
 ```
 
 # Reference-level explanation
@@ -63,6 +62,7 @@ struct MetaLite {
     pub last_modified: OffsetDateTime,
     pub created: OffsetDateTime,    // time created
 }
+
 pub struct DirEntry {
     acc: Arc<dyn Accessor>,
     

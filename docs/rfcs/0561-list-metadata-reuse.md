@@ -7,7 +7,6 @@
 
 Reuse metadata returned during listing, by defining a new `MetaLite` struct storing some metadata fields, and embedding it to `DirEntry`.
 
-
 # Motivation
 
 Users may expect to browse metadata of some directories' child files and directories. `list()` seems to be an ideal way to complete this job. 
@@ -33,14 +32,14 @@ while let Some(Ok(file)) = dir_stream.next().await {
 }
 ```
 
-But...wait! many storage-services returns object metadata when listing, like HDFS, AWS and GCS. The rust standard library
-returns metadata when listing local file systems, too.
+But...wait! many storage-services returns object metadata when listing, like HDFS, AWS and GCS. The rust standard library returns metadata when listing local file systems, too.
 
 In the previous versions of OpenDAL we just simply ignored them. This wastes users' time on requesting on metadata.
 
 # Guide-level explanation
 
 The loop in main will be changed to the following code with this RFC:
+
 ```rust
 while let Some(Ok(file)) = dir_stream.next().await {
     let size = if let Some(len) = file.content_length() {
@@ -57,6 +56,7 @@ while let Some(Ok(file)) = dir_stream.next().await {
 # Reference-level explanation
 
 This RFC suggests embedding some metadata fields in `DirEntry`
+
 ```rust
 struct MetaLite {
     pub content_length: u64,  // size of file
@@ -106,6 +106,7 @@ The largest drawback of performance usually comes from network or hard disk oper
 ## alternative implementation
 
 Simply extend `DirEntry`:
+
 ```rust
 pub struct DirEntry {
     acc: Arc<dyn Accessor>,
@@ -119,6 +120,7 @@ pub struct DirEntry {
     created: Option<u64>,    // time created
 }
 ```
+
 The reason why not preferred is that the existence of those newly added metadata fields is highly correlated. If one field does not exist, the others neither.
 
 By wrapping them together in an embedded structure, we can save 8 bytes of space for each `DirEntry` object. In the future, more metadata fields may be added to `DirEntry`, then a lot more space could be saved.
@@ -134,12 +136,15 @@ None.
 # Future possibilities
 
 ## More Fields
+
 Add more metadata fields to DirEntry, like:
 
 - accessed: the last access timestamp of object
 
 ## Simplified Get
+
 Users have to explicitly check if those metadata fields actual present in the DirEntry. This may be done inside the getter itself.
+
 ```rust
 let path = file.path();
 

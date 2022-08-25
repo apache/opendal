@@ -34,6 +34,14 @@ pub enum Operation {
     List,
     /// Operation for [`crate::Accessor::presign`]
     Presign,
+    /// Operation for [`crate::Accessor::create_multipart`]
+    CreateMultipart,
+    /// Operation for [`crate::Accessor::write_multipart`]
+    WriteMultipart,
+    /// Operation for [`crate::Accessor::complete_multipart`]
+    CompleteMultipart,
+    /// Operation for [`crate::Accessor::abort_multipart`]
+    AbortMultipart,
 }
 
 impl Operation {
@@ -60,6 +68,10 @@ impl Display for Operation {
             Operation::Delete => write!(f, "delete"),
             Operation::List => write!(f, "list"),
             Operation::Presign => write!(f, "presign"),
+            Operation::CreateMultipart => write!(f, "create_multipart"),
+            Operation::WriteMultipart => write!(f, "write_multipart"),
+            Operation::CompleteMultipart => write!(f, "complete_multipart"),
+            Operation::AbortMultipart => write!(f, "abort_multipart"),
         }
     }
 }
@@ -75,6 +87,10 @@ impl From<Operation> for &'static str {
             Operation::Delete => "delete",
             Operation::List => "list",
             Operation::Presign => "presign",
+            Operation::CreateMultipart => "create_multipart",
+            Operation::WriteMultipart => "write_multipart",
+            Operation::CompleteMultipart => "complete_multipart",
+            Operation::AbortMultipart => "abort_multipart",
         }
     }
 }

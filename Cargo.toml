@@ -107,3 +107,4 @@ size = "0.4"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 wiremock = "0.5"
+pretty_assertions = "1"

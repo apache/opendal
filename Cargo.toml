@@ -20,7 +20,7 @@ compress = ["async-compression"]
 # Enable rustls support.
 rustls = ["isahc/rustls-tls", "isahc/rustls-tls-native-certs"]
 # Enable serde support.
-serde = ["time/serde"]
+ serde = ["time/serde"]
 
 # Enable all layers.
 layers-all = ["layers-metrics", "layers-retry", "layers-tracing"]
@@ -89,6 +89,7 @@ thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
+suppaftp = {version = "^4.4.0", features = ["secure"]}
 
 [dev-dependencies]
 cfg-if = "1.0"

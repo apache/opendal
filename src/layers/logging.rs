@@ -22,13 +22,17 @@ use log::debug;
 use log::error;
 use log::warn;
 
+use crate::ops::OpAbortMultipart;
+use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
@@ -300,9 +304,6 @@ impl Accessor for LoggingAccessor {
                 if err.kind() == ErrorKind::Other {
                     error!(
                         target: "opendal::services",
-                        service = self.scheme.into_static(),
-                        operation = Operation::Delete.into_static(),
-                        path = args.path();
                         "service={} operation={} path={} -> failed: {err:?}",self.scheme, Operation::Delete, args.path());
                 } else {
                     warn!(
@@ -395,6 +396,160 @@ impl Accessor for LoggingAccessor {
                         Operation::Presign,
                         args.path()
                     );
+                };
+                err
+            })
+    }
+
+    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+        debug!(
+            target: "opendal::services",
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::CreateMultipart,
+            args.path()
+        );
+
+        self.inner
+            .create_multipart(args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: "opendal::services",
+                    "service={} operation={} path={} -> finished",self.scheme, Operation::CreateMultipart, args.path());
+                v
+            })
+            .map_err(|err| {
+                if err.kind() == ErrorKind::Other {
+                    error!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> failed: {err:?}",self.scheme, Operation::CreateMultipart, args.path());
+                } else {
+                    warn!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} -> errored: {err:?}",self.scheme, Operation::CreateMultipart, args.path());
+                };
+                err
+            })
+    }
+
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+        debug!(
+            target: "opendal::services",
+            "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",
+            self.scheme,
+            Operation::WriteMultipart,
+            args.path(),
+            args.upload_id(),
+            args.part_number(),
+            args.size()
+        );
+
+        self.inner
+            .write_multipart(args, r)
+            .await
+            .map(|v| {
+                debug!(
+                    target: "opendal::services",
+                    "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> written",
+                    self.scheme,
+                    Operation::WriteMultipart,
+                    args.path(),
+                    args.upload_id(),
+                    args.part_number(),
+                    args.size()
+                );
+                v
+            })
+            .map_err(|err| {
+                if err.kind() == ErrorKind::Other {
+                    error!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> failed: {err:?}",
+                        self.scheme,
+                        Operation::WriteMultipart,
+                        args.path(),
+                        args.upload_id(),
+                        args.part_number(),
+                        args.size()
+                    );
+                } else {
+                    warn!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> errored: {err:?}",
+                        self.scheme,
+                        Operation::WriteMultipart,
+                        args.path(),
+                        args.upload_id(),
+                        args.part_number(),
+                        args.size()
+                    );
+                };
+                err
+            })
+    }
+
+    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+        debug!(
+            target: "opendal::services",
+            "service={} operation={} path={} upload_id={} -> started",
+            self.scheme,
+            Operation::CompleteMultipart,
+            args.path(),
+            args.upload_id(),
+        );
+
+        self.inner
+            .complete_multipart(args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: "opendal::services",
+                    "service={} operation={} path={} upload_id={} -> finished",self.scheme, Operation::CompleteMultipart, args.path(),args.upload_id());
+                v
+            })
+            .map_err(|err| {
+                if err.kind() == ErrorKind::Other {
+                    error!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} upload_id={} -> failed: {err:?}",self.scheme, Operation::CompleteMultipart, args.path(),args.upload_id());
+                } else {
+                    warn!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} upload_id={} -> errored: {err:?}",self.scheme, Operation::CompleteMultipart, args.path(),args.upload_id());
+                };
+                err
+            })
+    }
+
+    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+        debug!(
+            target: "opendal::services",
+            "service={} operation={} path={} upload_id={} -> started",
+            self.scheme,
+            Operation::AbortMultipart,
+            args.path(),
+            args.upload_id()
+        );
+
+        self.inner
+            .abort_multipart(args)
+            .await
+            .map(|v| {
+                debug!(
+                    target: "opendal::services",
+                    "service={} operation={} path={} upload_id={} -> finished",self.scheme, Operation::AbortMultipart, args.path(),args.upload_id());
+                v
+            })
+            .map_err(|err| {
+                if err.kind() == ErrorKind::Other {
+                    error!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} upload_id={} -> failed: {err:?}",self.scheme, Operation::AbortMultipart, args.path(),args.upload_id());
+                } else {
+                    warn!(
+                        target: "opendal::services",
+                        "service={} operation={} path={} upload_id={} -> errored: {err:?}",self.scheme, Operation::AbortMultipart, args.path(),args.upload_id());
                 };
                 err
             })

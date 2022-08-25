@@ -39,6 +39,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
+use crate::io_util::into_reader;
 
 // Builder for ftp backend.
 #[derive(Default)]
@@ -281,18 +282,24 @@ impl Backend {
            Ok(reader)
     }
 
-    pub(crate) async fn ftp_put(&self, path: &str, fi) -> Result<TcpStream> {
+    pub(crate) async fn ftp_put(&self, path: &str, r:  BytesReader) -> Result<u64> {
         let url = format!("{}/{}:{}", self.endpoint, path, self.port);
 
         let mut ftp_stream = self.ftp_connect(&url)?;
+        let mut buf = Vec::new();
+        r.read(buf)
+        let mut r= r;
+        a.read_to_end(&mut buf).await?;
 
-        let reader = ftp_stream.put_with_stream(&url)
-        .map_err(|e| new_request_put_error("put", &url, e))?
-        .into_tcp_stream();
-        Ok(reader)
+        let n = ftp_stream.put_file(&url, &mut buf.as_slice())
+        .map_err(|e| new_request_put_error("put", &url, e))?;
+        Ok(n)
     }
     
     pub(crate) async fn ftp_delete(&self) -> Result<()>{
+
+    }
+    pub(crate) async fn ftp_append(&self) -> Result<()>{
 
     }
 

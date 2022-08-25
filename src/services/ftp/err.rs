@@ -95,7 +95,7 @@ impl ErrorResponse {
 impl Display for ErrorResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write! {
-            f
+            f,
             "status code: {:?}, body: {:?}",
             self.status_code(),
             String::from_utf8_lossy(self.body())

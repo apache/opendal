@@ -5,7 +5,7 @@
 
 # Summary
 
-Reuse metadata returned during listing, by defining a new `MetaLite` struct storing some metadata fields, and embedding it to `DirEntry`.
+Reuse metadata returned during listing, by extending `DirEntry` with some metadata fields.
 
 # Motivation
 
@@ -54,7 +54,51 @@ while let Some(Ok(file)) = dir_stream.next().await {
 
 # Reference-level explanation
 
-This RFC suggests embedding some metadata fields in `DirEntry`
+Extend `DirEntry` with metadata fields:
+
+```rust
+pub struct DirEntry {
+    acc: Arc<dyn Accessor>,
+
+    mode: ObjectMode,
+    path: String,
+
+    // newly add metadata fields
+    content_length: Option<u64>,  // size of file
+    last_modified: Option<OffsetDateTime>,
+    created: Option<OffsetDateTime>,    // time created
+}
+
+impl DirEntry {
+    pub fn content_length(&self) -> Option<u64> {
+        self.content_length
+    }
+    pub fn last_modified(&self) -> Option<OffsetDateTime> {
+        self.last_modified
+    }
+    pub fn created(&self) -> Option<OffsetDateTime> {
+        self.created
+    }
+}
+```
+
+For all services that supplies metadata during listing, like AWS, GCS and HDFS. Those optional fields will be filled up; Meanwhile for those services doesn't return metadata during listing, like in memory storages, just left them as `None`.
+
+As you can see, for those services returning metadata when listing, the operation of listing metadata will save many unnecessary requests.
+
+# Drawbacks
+ 
+Add complexity to `DirEntry`. To use the improved features of `DirEntry`, users have to explicitly check the existence of metadata fields.
+
+The size of `DirEntry` increased from 40 bytes to 80 bytes, a 100% percent growth requires more memory.
+
+# Rational and alternatives
+
+The largest drawback of performance usually comes from network or hard disk operations. By letting `DirEntry` storing some metadata, many redundant requests could be avoided.
+
+## Embed a Structure Containing Metadata
+
+Define a `MetaLite` structure containing some metadata fields, and embed it in `DirEntry`
 
 ```rust
 struct MetaLite {
@@ -89,41 +133,44 @@ impl DirEntry {
 }
 ```
 
-For all services that supplies metadata during listing, like AWS, GCS and HDFS. Those optional fields will be filled up; Meanwhile for those services doesn't return metadata during listing, like in memory storages, just left them as `None`.
+The existence of those newly added metadata fields is highly correlated. If one field does not exist, the others neither.
 
-As you can see, for those services returning metadata when listing, the operation of listing metadata will save many unnecessary requests.
+By wrapping them together in an embedded structure, 8 bytes of space for each `DirEntry` object could be saved. In the future, more metadata fields may be added to `DirEntry`, then a lot more space could be saved.
 
-# Drawbacks
- 
-Add complexity to `DirEntry`. To use the improved features of `DirEntry`, users have to explicitly check the existence of metadata fields.
+This approach could be slower because some intermediate functions are involved. But it's worth sacrificing rarely used features' performance to save memory.
 
-The size of `DirEntry` increased from 40 bytes to 80 bytes, a 100% percent growth requires more memory.
+## Embed a `ObjectMetadata` into `DirEntry`
 
-# Rational and alternatives
-
-The largest drawback of performance usually comes from network or hard disk operations. By adding an `MetaLite` field in `DirEntry`, we could avoid many redundant requests.
-
-## alternative implementation
-
-Simply extend `DirEntry`:
+- Embed a `ObjectMetadata` struct into `DirEntry`
+- Remove the `ObjectMode` field in `DirEntry`
+- Change `ObjectMetadata`'s `content_length` field's type to `Option<u64>`.
 
 ```rust
 pub struct DirEntry {
     acc: Arc<dyn Accessor>,
 
-    mode: ObjectMode,
+    // - mode: ObjectMode, removed
     path: String,
 
-    // newly add metadata fields
-    content_length: Option<u64>,  // size of file
-    last_modified: Option<u64>,
-    created: Option<u64>,    // time created
+    // newly add metadata struct
+    metadata: ObjectMetadata,
+}
+
+impl DirEntry {
+    pub fn mode(&self) -> ObjectMode {
+        self.metadata.mode()
+    }
+    pub fn content_length(&self) -> Option<u64> {
+        self.metadata.content_length()
+    }
+    pub fn content_md5(&self) -> Option<&str> {
+        self.metadata.content_md5()
+    }
+    // other metadata getters...
 }
 ```
 
-The reason why not preferred is that the existence of those newly added metadata fields is highly correlated. If one field does not exist, the others neither.
-
-By wrapping them together in an embedded structure, we can save 8 bytes of space for each `DirEntry` object. In the future, more metadata fields may be added to `DirEntry`, then a lot more space could be saved.
+In the degree of memory layout, it's the same as proposed way in this RFC. This approach offers more metadata fields and fewer changes to code.
 
 # Prior art
 
@@ -134,6 +181,10 @@ None.
 None.
 
 # Future possibilities
+
+## Switch to Alternative Implement Approaches
+
+As the growing of metadata fields, someday the alternatives could be better. And other RFCs will be raised then.
 
 ## More Fields
 

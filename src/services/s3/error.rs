@@ -26,7 +26,7 @@ use crate::http_util::ErrorResponse;
 /// # TODO
 ///
 /// In the future, we may have our own error struct.
-pub fn parse_error(op: &'static str, path: &str, er: ErrorResponse) -> Error {
+pub fn parse_error(op: impl Into<&'static str>, path: &str, er: ErrorResponse) -> Error {
     let kind = match er.status_code() {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,

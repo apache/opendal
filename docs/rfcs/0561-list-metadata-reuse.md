@@ -65,8 +65,8 @@ pub struct DirEntry {
 
     // newly add metadata fields
     content_length: Option<u64>,  // size of file
+    content_md5: Option<String>,
     last_modified: Option<OffsetDateTime>,
-    created: Option<OffsetDateTime>,    // time created
 }
 
 impl DirEntry {
@@ -76,8 +76,8 @@ impl DirEntry {
     pub fn last_modified(&self) -> Option<OffsetDateTime> {
         self.last_modified
     }
-    pub fn created(&self) -> Option<OffsetDateTime> {
-        self.created
+    pub fn content_md5(&self) -> Option<OffsetDateTime> {
+        self.content_md5
     }
 }
 ```
@@ -103,8 +103,8 @@ Define a `MetaLite` structure containing some metadata fields, and embed it in `
 ```rust
 struct MetaLite {
     pub content_length: u64,  // size of file
+    pub content_md5: String,
     pub last_modified: OffsetDateTime,
-    pub created: OffsetDateTime,    // time created
 }
 
 pub struct DirEntry {
@@ -126,9 +126,9 @@ impl DirEntry {
     pub fn last_modified(&self) -> Option<OffsetDateTime> {
         self.metadata.as_ref().map(|m| m.last_modified)
     }
-    // get the create time
-    pub fn created(&self) -> Option<OffsetDateTime> {
-        self.metadata.as_ref().map(|m| m.created)
+    // get md5 message digest
+    pub fn content_md5(&self) -> Option<String> {
+        self.metadata.as_ref().map(|m| m.content_md5)
     }
 }
 ```
@@ -205,6 +205,6 @@ let size = file.content_length().await?;
 
 // the previous getter can cache metadata fetched from service
 // so this function could return instantly.
-let created = file.created().await?;
-println!("size of file {} is {}B, created at {}", path, size, created);
+let md5 = file.content_md5().await?;
+println!("size of file {} is {}B, md5 outcome of file is {}", path, size, md5);
 ```

@@ -46,3 +46,4 @@
   - [0443-gateway](rfcs/0443-gateway.md)
   - [0501-new-builder](rfcs/0501-new-builder.md)
   - [0554-write-refactor](rfcs/0554-write-refactor.md)
+  - [0561-list-metadata-reused](rfcs/0561-list-metadata-reuse.md)

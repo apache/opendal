@@ -9,9 +9,9 @@ Reuse metadata returned during listing, by extending `DirEntry` with some metada
 
 # Motivation
 
-Users may expect to browse metadata of some directories' child files and directories. `list()` seems to be an ideal way to complete this job. 
+Users may expect to browse metadata of some directories' child files and directories. Using `walk()` of `BatchOperator` seems to be an ideal way to complete this job. 
 
-Thus, they start iterating on it, but soon they realized the `DirEntry`, which could only offer the name (or path, more precisely) and access mode of the object.
+Thus, they start iterating on it, but soon they realized the `DirEntry`, could only offer the name (or path, more precisely) and access mode of the object, and it's not enough.
 
 So they have to call `metadata()` for each name they extracted from the iterator.
 
@@ -34,7 +34,7 @@ while let Some(Ok(file)) = dir_stream.next().await {
 
 But...wait! many storage-services returns object metadata when listing, like HDFS, AWS and GCS. The rust standard library returns metadata when listing local file systems, too.
 
-In the previous versions of OpenDAL we just simply ignored them. This wastes users' time on requesting on metadata.
+In the previous versions of OpenDAL those fields were just get ignored. This wastes users' time on requesting on metadata.
 
 # Guide-level explanation
 

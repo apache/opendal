@@ -48,7 +48,7 @@ use thiserror::Error;
 /// Please wrap in [`std::io::Error`] instead.
 #[derive(Error, Debug)]
 #[error("backend error: (context: {context:?}, source: {source})")]
-pub(crate) struct BackendError {
+pub struct BackendError {
     context: HashMap<String, String>,
     source: anyhow::Error,
 }
@@ -70,16 +70,19 @@ impl BackendError {
 /// Please wrap in [`std::io::Error`] with correct [`std::io::ErrorKind`] instead.
 #[derive(Error, Debug)]
 #[error("object error: (op: {op}, path: {path}, source: {source})")]
-pub(crate) struct ObjectError {
+pub struct ObjectError {
+    /// TODO: refactor op with `Operation`
+    ///
+    /// ref: https://github.com/datafuselabs/opendal/issues/562
     op: &'static str,
     path: String,
     source: anyhow::Error,
 }
 
 impl ObjectError {
-    pub fn new(op: &'static str, path: &str, source: impl Into<anyhow::Error>) -> Self {
+    pub fn new(op: impl Into<&'static str>, path: &str, source: impl Into<anyhow::Error>) -> Self {
         ObjectError {
-            op,
+            op: op.into(),
             path: path.to_string(),
             source: source.into(),
         }
@@ -87,9 +90,25 @@ impl ObjectError {
 }
 
 /// Copied for [`io::Error::other`], should be removed after `io_error_other` stable.
-pub(crate) fn other<E>(error: E) -> io::Error
+///
+/// TODO:
+///
+/// - Refactor this into `new_other_object_error` and `new_other_backend_error`
+pub fn other<E>(error: E) -> io::Error
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     io::Error::new(io::ErrorKind::Other, error.into())
+}
+
+/// Creates new Unsupported Object Error.
+pub fn new_unsupported_object_error(op: impl Into<&'static str>, path: &str) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::Unsupported,
+        ObjectError::new(
+            op,
+            path,
+            anyhow::anyhow!("operation is not supported by underlying services"),
+        ),
+    )
 }

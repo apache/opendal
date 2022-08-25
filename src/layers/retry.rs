@@ -21,13 +21,17 @@ use async_trait::async_trait;
 use backon::Backoff;
 use backon::Retryable;
 
+use crate::ops::OpAbortMultipart;
+use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -140,6 +144,29 @@ where
 
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         self.inner.presign(args)
+    }
+
+    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+        { || self.inner.create_multipart(args) }
+            .retry(self.backoff.clone())
+            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .await
+    }
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+        // Write can't retry, until can reset this reader.
+        self.inner.write_multipart(args, r).await
+    }
+    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+        { || self.inner.complete_multipart(args) }
+            .retry(self.backoff.clone())
+            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .await
+    }
+    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+        { || self.inner.abort_multipart(args) }
+            .retry(self.backoff.clone())
+            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .await
     }
 }
 

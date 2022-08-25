@@ -39,6 +39,12 @@ mod op_stat;
 pub use op_stat::OpStat;
 mod op_write;
 pub use op_write::OpWrite;
+mod op_multipart;
+pub use op_multipart::OpAbortMultipart;
+pub use op_multipart::OpCompleteMultipart;
+pub use op_multipart::OpCreateMultipart;
+pub use op_multipart::OpWriteMultipart;
+pub use op_multipart::Part;
 
 mod bytes_range;
 pub use bytes_range::BytesRange;

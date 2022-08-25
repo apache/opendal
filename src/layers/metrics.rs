@@ -21,13 +21,17 @@ use async_trait::async_trait;
 use metrics::histogram;
 use metrics::increment_counter;
 
+use crate::ops::OpAbortMultipart;
+use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
@@ -243,6 +247,86 @@ impl Accessor for MetricsAccessor {
             METRIC_REQUESTS_DURATION_SECONDS, dur,
             LABEL_SERVICE => self.meta.scheme().into_static(),
             LABEL_OPERATION => Operation::Presign.into_static(),
+        );
+
+        result
+    }
+
+    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::CreateMultipart.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.create_multipart(args).await;
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::CreateMultipart.into_static(),
+        );
+
+        result
+    }
+
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::WriteMultipart.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.write_multipart(args, r).await;
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::WriteMultipart.into_static(),
+        );
+
+        result
+    }
+
+    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.complete_multipart(args).await;
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
+        );
+
+        result
+    }
+
+    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::AbortMultipart.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.abort_multipart(args).await;
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::AbortMultipart.into_static(),
         );
 
         result

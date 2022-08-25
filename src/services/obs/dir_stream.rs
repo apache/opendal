@@ -12,28 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bytes::Buf;
-use futures::Future;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::error::other;
-use crate::error::ObjectError;
-use crate::http_util::parse_error_response;
-use crate::DirEntry;
-use crate::ObjectMode;
+use bytes::Buf;
 use futures::future::BoxFuture;
 use futures::ready;
+use futures::Future;
 use isahc::AsyncReadResponseExt;
 use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
 
+use crate::error::other;
+use crate::error::ObjectError;
+use crate::http_util::parse_error_response;
 use crate::services::obs::error::parse_error;
 use crate::services::obs::Backend;
+use crate::DirEntry;
+use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -190,8 +190,9 @@ struct Content {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Buf;
+
+    use super::*;
 
     #[test]
     fn test_parse_xml() {

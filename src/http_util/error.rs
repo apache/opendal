@@ -35,7 +35,7 @@ use crate::error::other;
 use crate::error::ObjectError;
 
 /// Create error happened during building http request.
-pub fn new_request_build_error(op: &'static str, path: &str, err: http::Error) -> Error {
+pub fn new_request_build_error(op: impl Into<&'static str>, path: &str, err: http::Error) -> Error {
     other(ObjectError::new(
         op,
         path,
@@ -44,7 +44,11 @@ pub fn new_request_build_error(op: &'static str, path: &str, err: http::Error) -
 }
 
 /// Create error happened during signing http request.
-pub fn new_request_sign_error(op: &'static str, path: &str, err: anyhow::Error) -> Error {
+pub fn new_request_sign_error(
+    op: impl Into<&'static str>,
+    path: &str,
+    err: anyhow::Error,
+) -> Error {
     other(ObjectError::new(
         op,
         path,
@@ -53,7 +57,7 @@ pub fn new_request_sign_error(op: &'static str, path: &str, err: anyhow::Error) 
 }
 
 /// Create error happened during sending http request.
-pub fn new_request_send_error(op: &'static str, path: &str, err: isahc::Error) -> Error {
+pub fn new_request_send_error(op: impl Into<&'static str>, path: &str, err: isahc::Error) -> Error {
     let kind = match err.kind() {
         // The HTTP client failed to initialize.
         //
@@ -96,7 +100,7 @@ pub fn new_request_send_error(op: &'static str, path: &str, err: isahc::Error) -
 }
 
 /// Create error happened during consuming http response.
-pub fn new_response_consume_error(op: &'static str, path: &str, err: Error) -> Error {
+pub fn new_response_consume_error(op: impl Into<&'static str>, path: &str, err: Error) -> Error {
     Error::new(
         err.kind(),
         ObjectError::new(op, path, anyhow!("consuming response: {err:?}")),

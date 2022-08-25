@@ -36,6 +36,8 @@ use once_cell::sync::Lazy;
 use reqsign::services::aws::loader::CredentialLoadChain;
 use reqsign::services::aws::loader::DummyLoader;
 use reqsign::services::aws::v4::Signer;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
@@ -55,14 +57,19 @@ use crate::http_util::percent_encode_path;
 use crate::http_util::HttpClient;
 use crate::io_util::unshared_reader;
 use crate::ops::BytesRange;
+use crate::ops::OpAbortMultipart;
+use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
+use crate::ops::Part;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -1300,10 +1307,121 @@ impl Accessor for Backend {
             parts.headers,
         ))
     }
+
+    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+        let path = self.get_abs_path(args.path());
+
+        let mut resp = self.s3_initiate_multipart_upload(&path).await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                let bs = resp.bytes().await.map_err(|e| {
+                    new_response_consume_error(Operation::CreateMultipart, &path, e)
+                })?;
+
+                let result: InitiateMultipartUploadResult = quick_xml::de::from_slice(&bs)
+                    .map_err(|err| {
+                        other(ObjectError::new(
+                            Operation::CreateMultipart,
+                            &path,
+                            anyhow!("parse xml: {err:?}"),
+                        ))
+                    })?;
+
+                Ok(result.upload_id)
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::CreateMultipart, args.path(), er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+        let p = self.get_abs_path(args.path());
+
+        let mut req = self.s3_upload_part_request(
+            &p,
+            args.upload_id(),
+            args.part_number(),
+            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
+        )?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::WriteMultipart, &p, e))?;
+
+        let mut resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::WriteMultipart, &p, e))?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                resp.consume().await.map_err(|err| {
+                    new_response_consume_error(Operation::WriteMultipart, &p, err)
+                })?;
+                Ok(args.size())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::WriteMultipart, args.path(), er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+        let path = self.get_abs_path(args.path());
+
+        let mut resp = self
+            .s3_complete_multipart_upload(&path, args.upload_id(), args.parts())
+            .await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                resp.consume().await.map_err(|e| {
+                    new_response_consume_error(Operation::CompleteMultipart, &path, e)
+                })?;
+
+                Ok(())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::CompleteMultipart, args.path(), er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+        let path = self.get_abs_path(args.path());
+
+        let mut resp = self
+            .s3_abort_multipart_upload(&path, args.upload_id())
+            .await?;
+
+        match resp.status() {
+            StatusCode::NO_CONTENT => {
+                resp.consume()
+                    .await
+                    .map_err(|e| new_response_consume_error(Operation::AbortMultipart, &path, e))?;
+
+                Ok(())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::AbortMultipart, args.path(), er);
+                Err(err)
+            }
+        }
+    }
 }
 
 impl Backend {
-    pub(crate) fn get_object_request(
+    fn get_object_request(
         &self,
         path: &str,
         offset: Option<u64>,
@@ -1331,7 +1449,7 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn get_object(
+    async fn get_object(
         &self,
         path: &str,
         offset: Option<u64>,
@@ -1349,11 +1467,7 @@ impl Backend {
             .map_err(|e| new_request_send_error("read", path, e))
     }
 
-    pub(crate) fn put_object_request(
-        &self,
-        path: &str,
-        body: AsyncBody,
-    ) -> Result<isahc::Request<AsyncBody>> {
+    fn put_object_request(&self, path: &str, body: AsyncBody) -> Result<isahc::Request<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::put(&url);
@@ -1384,7 +1498,7 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn head_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn head_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::head(&url);
@@ -1406,7 +1520,7 @@ impl Backend {
             .map_err(|e| new_request_send_error("stat", path, e))
     }
 
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::delete(&url)
@@ -1423,7 +1537,9 @@ impl Backend {
             .map_err(|e| new_request_send_error("delete", path, e))
     }
 
-    pub(crate) async fn list_objects(
+    /// Make this functions as `pub(suber)` because `DirStream` depends
+    /// on this.
+    pub(super) async fn list_objects(
         &self,
         path: &str,
         continuation_token: &str,
@@ -1459,10 +1575,184 @@ impl Backend {
             .await
             .map_err(|e| new_request_send_error("list", path, e))
     }
+
+    async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(path));
+
+        let mut req = isahc::Request::post(&url)
+            .body(AsyncBody::empty())
+            .map_err(|e| new_request_build_error(Operation::CreateMultipart, path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::CreateMultipart, path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::CreateMultipart, path, e))
+    }
+
+    fn s3_upload_part_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        body: AsyncBody,
+    ) -> Result<isahc::Request<AsyncBody>> {
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            percent_encode_path(path),
+            part_number,
+            upload_id
+        );
+
+        let mut req = isahc::Request::put(&url);
+
+        if !body.is_empty() {
+            if let Some(content_length) = body.len() {
+                req = req.header(CONTENT_LENGTH, content_length)
+            }
+        }
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        // Set body
+        let req = req
+            .body(body)
+            .map_err(|e| new_request_build_error(Operation::WriteMultipart, path, e))?;
+
+        Ok(req)
+    }
+
+    async fn s3_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: &[Part],
+    ) -> Result<isahc::Response<AsyncBody>> {
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(path),
+            upload_id
+        );
+
+        let req = isahc::Request::post(&url);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
+            part: parts
+                .iter()
+                .map(|v| CompleteMultipartUploadRequestPart {
+                    part_number: v.part_number(),
+                    etag: v.etag().to_string(),
+                })
+                .collect(),
+        })
+        .map_err(|err| {
+            other(ObjectError::new(
+                Operation::CompleteMultipart,
+                path,
+                anyhow!("build xml: {err:?}"),
+            ))
+        })?;
+        let mut req = req
+            .body(AsyncBody::from(content))
+            .map_err(|e| new_request_build_error(Operation::CompleteMultipart, path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::CompleteMultipart, path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::CompleteMultipart, path, e))
+    }
+
+    async fn s3_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<isahc::Response<AsyncBody>> {
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(path),
+            upload_id,
+        );
+
+        let mut req = isahc::Request::delete(&url)
+            .body(AsyncBody::empty())
+            .map_err(|e| new_request_build_error(Operation::AbortMultipart, path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::AbortMultipart, path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::AbortMultipart, path, e))
+    }
+}
+
+/// Result of CreateMultipartUpload
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct InitiateMultipartUploadResult {
+    upload_id: String,
+}
+
+/// Request of CompleteMultipartUploadRequest
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+struct CompleteMultipartUploadRequest {
+    part: Vec<CompleteMultipartUploadRequestPart>,
+}
+
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct CompleteMultipartUploadRequestPart {
+    #[serde(rename = "$unflatten=PartNumber")]
+    part_number: usize,
+    /// # TODO
+    ///
+    /// quick-xml will do escape on `"` which leads to our serialized output is
+    /// not the same as aws s3's example.
+    ///
+    /// Ideally, we could use `serialize_with` to address this (buf failed)
+    ///
+    /// ```ignore
+    /// #[derive(Default, Debug, Serialize)]
+    /// #[serde(default, rename_all = "PascalCase")]
+    /// struct CompleteMultipartUploadRequestPart {
+    ///     #[serde(rename = "$unflatten=PartNumber")]
+    ///     part_number: usize,
+    ///     #[serde(rename = "$unflatten=ETag", serialize_with = "partial_escape")]
+    ///     etag: String,
+    /// }
+    ///
+    /// fn partial_escape<S>(s: &str, ser: S) -> std::result::Result<S::Ok, S::Error>
+    /// where
+    ///     S: serde::Serializer,
+    /// {
+    ///     ser.serialize_str(&String::from_utf8_lossy(
+    ///         &quick_xml::escape::partial_escape(s.as_bytes()),
+    ///     ))
+    /// }
+    /// ```
+    ///
+    /// ref: <https://github.com/tafia/quick-xml/issues/362>
+    #[serde(rename = "$unflatten=ETag")]
+    etag: String,
 }
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
     use itertools::iproduct;
 
     use super::*;
@@ -1498,5 +1788,73 @@ mod tests {
             assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
             assert_eq!(region, "us-east-2");
         }
+    }
+
+    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
+    #[test]
+    fn test_deserialize_initiate_multipart_upload_result() {
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+            <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+              <Bucket>example-bucket</Bucket>
+              <Key>example-object</Key>
+              <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
+            </InitiateMultipartUploadResult>"#,
+        );
+
+        let out: InitiateMultipartUploadResult =
+            quick_xml::de::from_slice(&bs).expect("must success");
+
+        assert_eq!(
+            out.upload_id,
+            "VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA"
+        )
+    }
+
+    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html#API_CompleteMultipartUpload_Examples
+    #[test]
+    fn test_serialize_complete_multipart_upload_request() {
+        let req = CompleteMultipartUploadRequest {
+            part: vec![
+                CompleteMultipartUploadRequestPart {
+                    part_number: 1,
+                    etag: "\"a54357aff0632cce46d942af68356b38\"".to_string(),
+                },
+                CompleteMultipartUploadRequestPart {
+                    part_number: 2,
+                    etag: "\"0c78aef83f66abc1fa1e8477f296d394\"".to_string(),
+                },
+                CompleteMultipartUploadRequestPart {
+                    part_number: 3,
+                    etag: "\"acbd18db4cc2f85cedef654fccc4a4d8\"".to_string(),
+                },
+            ],
+        };
+
+        let actual = quick_xml::se::to_string(&req).expect("must succeed");
+
+        pretty_assertions::assert_eq!(
+            actual,
+            r#"<CompleteMultipartUpload>
+             <Part>
+                <PartNumber>1</PartNumber>
+               <ETag>"a54357aff0632cce46d942af68356b38"</ETag>
+             </Part>
+             <Part>
+                <PartNumber>2</PartNumber>
+               <ETag>"0c78aef83f66abc1fa1e8477f296d394"</ETag>
+             </Part>
+             <Part>
+               <PartNumber>3</PartNumber>
+               <ETag>"acbd18db4cc2f85cedef654fccc4a4d8"</ETag>
+             </Part>
+            </CompleteMultipartUpload>"#
+                // Cleanup space
+                .replace(' ', "")
+                // Cleanup new line
+                .replace('\n', "")
+                // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
+                .replace('"', "&quot;")
+        )
     }
 }

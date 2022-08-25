@@ -373,8 +373,6 @@ impl Accessor for Backend {
             .map_err(|e| new_request_send_error("write", &p, e))?;
 
         match resp.status() {
-            // Unlike azblob,
-            // 返回201、202的，204，206
             StatusCode::CREATED | StatusCode::OK => {
                 resp.consume()
                     .await
@@ -513,7 +511,6 @@ impl Backend {
             req = req.header(CONTENT_LENGTH, content_length)
         }
 
-        // Set body
         let req = req
             .body(body)
             .map_err(|e| new_request_build_error("write", path, e))?;

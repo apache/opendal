@@ -403,7 +403,7 @@ impl Accessor for Backend {
 
         // The response is very similar to azblob.
         match resp.status() {
-            http::StatusCode::OK => {
+            StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
@@ -474,7 +474,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::get(&url);
@@ -487,7 +487,7 @@ impl Backend {
         }
 
         let mut req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("read", path, e))?;
 
         self.signer
@@ -521,10 +521,7 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn get_head_object(
-        &self,
-        path: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    pub(crate) async fn get_head_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
@@ -533,7 +530,7 @@ impl Backend {
         let req = isahc::Request::head(&url);
 
         let mut req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("stat", path, e))?;
 
         self.signer
@@ -546,16 +543,13 @@ impl Backend {
             .map_err(|e| new_request_send_error("stat", path, e))
     }
 
-    pub(crate) async fn delete_object(
-        &self,
-        path: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    pub(crate) async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let req = isahc::Request::delete(&url);
 
         let mut req = req
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("delete", path, e))?;
 
         self.signer
@@ -572,7 +566,7 @@ impl Backend {
         &self,
         path: &str,
         next_marker: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>> {
+    ) -> Result<isahc::Response<AsyncBody>> {
         let mut url = format!("{}?delimiter=/", self.endpoint);
         if !path.is_empty() {
             write!(url, "&prefix={}", percent_encode_path(path))
@@ -583,7 +577,7 @@ impl Backend {
         }
 
         let mut req = isahc::Request::get(&url)
-            .body(isahc::AsyncBody::empty())
+            .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error("list", path, e))?;
 
         self.signer

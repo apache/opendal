@@ -320,7 +320,7 @@ impl Accessor for Backend {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.consume()
                     .await
-                    .map_err(|err| new_response_consume_error("write", &p, err))?;
+                    .map_err(|err| new_response_consume_error("create", &p, err))?;
                 Ok(())
             }
             _ => {

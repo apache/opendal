@@ -13,24 +13,26 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
 
-use crate::error::ObjectError;
+use crate::error::new_unsupported_object_error;
+use crate::ops::OpAbortMultipart;
+use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::OpWriteMultipart;
+use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::BytesReader;
 use crate::DirStreamer;
@@ -138,9 +140,53 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        return Err(Error::new(
-            ErrorKind::Unsupported,
-            ObjectError::new("presign", args.path(), anyhow!("")),
+        return Err(new_unsupported_object_error(
+            Operation::Presign,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `create_multipart` operation on the specified path.
+    ///
+    /// # Behavior
+    ///
+    /// - This op returns a `upload_id` which is required to for following APIs.
+    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::CreateMultipart,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `write_multipart` operation on the specified path.
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+        let (_, _) = (args, r);
+
+        return Err(new_unsupported_object_error(
+            Operation::WriteMultipart,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `complete_multipart` operation on the specified path.
+    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::CompleteMultipart,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `abort_multipart` operation on the specified path.
+    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::AbortMultipart,
+            args.path(),
         ));
     }
 }
@@ -172,6 +218,18 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         self.as_ref().presign(args)
+    }
+    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+        self.as_ref().create_multipart(args).await
+    }
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+        self.as_ref().write_multipart(args, r).await
+    }
+    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+        self.as_ref().complete_multipart(args).await
+    }
+    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+        self.as_ref().abort_multipart(args).await
     }
 }
 
@@ -225,6 +283,11 @@ impl AccessorMetadata {
         self.capabilities.contains(AccessorCapability::Presign)
     }
 
+    /// Check if current backend supports multipart operations or not.
+    pub fn can_multipart(&self) -> bool {
+        self.capabilities.contains(AccessorCapability::Multipart)
+    }
+
     pub(crate) fn set_capabilities(
         &mut self,
         capabilities: impl Into<FlagSet<AccessorCapability>>,
@@ -239,5 +302,7 @@ flags! {
     pub(crate) enum AccessorCapability: u32 {
         /// Add this capability if service supports `presign`
         Presign,
+        /// Add this capability if service supports `multipart`
+        Multipart,
     }
 }

@@ -170,7 +170,7 @@ impl futures::Stream for DirStream {
                     );
 
                     // record metadata
-                    de.set_etag(object.e_tag.clone().trim_matches('\"').to_string());
+                    de.set_etag(object.etag.clone().trim_matches('\"'));
                     de.set_content_length(object.size);
 
                     let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
@@ -232,7 +232,8 @@ struct OutputContent {
     key: String,
     size: u64,
     last_modified: String,
-    e_tag: String,
+    #[serde(rename = "ETag")]
+    etag: String,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]
@@ -296,14 +297,14 @@ mod tests {
                 OutputContent {
                     key: "photos/2006".to_string(),
                     size: 56,
-                    e_tag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
+                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
                     last_modified: "2016-04-30T23:51:29.000Z".to_string(),
                 },
                 OutputContent {
                     key: "photos/2007".to_string(),
                     size: 100,
                     last_modified: "2016-04-30T23:51:29.000Z".to_string(),
-                    e_tag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
+                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
                 }
             ]
         )

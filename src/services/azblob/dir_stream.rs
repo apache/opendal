@@ -153,9 +153,9 @@ impl futures::Stream for DirStream {
                         &backend.get_rel_path(&object.name),
                     );
 
-                    de.set_etag(object.properties.etag.clone());
+                    de.set_etag(object.properties.etag.as_str());
                     de.set_content_length(object.properties.content_length);
-                    de.set_content_md5(object.properties.content_md5.clone());
+                    de.set_content_md5(object.properties.content_md5.as_str());
 
                     let dt =
                         OffsetDateTime::parse(object.properties.last_modified.as_str(), &Rfc2822)

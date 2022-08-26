@@ -84,8 +84,7 @@ impl futures::Stream for DirStream {
                     d.set_content_length(metadata.len());
                     // last_modified is not available in all platforms.
                     // it's ok not setting it here.
-                    if let Ok(last_modified) = metadata.modified().map(OffsetDateTime::from)
-                    {
+                    if let Ok(last_modified) = metadata.modified().map(OffsetDateTime::from) {
                         d.set_last_modified(last_modified);
                     }
                 }

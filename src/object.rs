@@ -978,8 +978,8 @@ impl DirEntry {
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
     /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
-    pub fn etag(&self) -> Option<String> {
-        self.etag.clone()
+    pub fn etag(&self) -> Option<&str> {
+        self.etag.as_deref()
     }
 
     /// The size of `DirEntry`'s corresponding object
@@ -998,8 +998,8 @@ impl DirEntry {
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
     /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
-    pub fn content_md5(&self) -> Option<String> {
-        self.content_md5.clone()
+    pub fn content_md5(&self) -> Option<&str> {
+        self.content_md5.as_deref()
     }
 
     /// The last modified UTC datetime of `DirEntry`'s corresponding object
@@ -1025,8 +1025,8 @@ impl DirEntry {
 // implement setters for DirEntry's metadata fields
 impl DirEntry {
     /// record the ETag of `DirEntry`'s corresponding object
-    pub(crate) fn set_etag(&mut self, etag: String) {
-        self.etag = Some(etag)
+    pub(crate) fn set_etag(&mut self, etag: &str) {
+        self.etag = Some(etag.to_string())
     }
     /// record the last modified time of `DirEntry`'s corresponding object
     pub(crate) fn set_last_modified(&mut self, last_modified: OffsetDateTime) {
@@ -1037,8 +1037,8 @@ impl DirEntry {
         self.content_length = Some(content_length)
     }
     /// record the content's md5 of `DirEntry`'s corresponding object
-    pub(crate) fn set_content_md5(&mut self, content_md5: String) {
-        self.content_md5 = Some(content_md5)
+    pub(crate) fn set_content_md5(&mut self, content_md5: &str) {
+        self.content_md5 = Some(content_md5.to_string())
     }
 }
 

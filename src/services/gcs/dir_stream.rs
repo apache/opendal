@@ -163,8 +163,8 @@ impl Stream for DirStream {
                     );
 
                     // set metadata fields
-                    de.set_content_md5(object.md5_hash.clone());
-                    de.set_etag(object.etag.clone());
+                    de.set_content_md5(object.md5_hash.as_str());
+                    de.set_etag(object.etag.as_str());
 
                     let size = object.size.parse().map_err(|e| {
                         other(ObjectError::new(

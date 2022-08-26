@@ -133,6 +133,10 @@ pub use object::Object;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
 
+mod multipart;
+pub use multipart::MultipartObject;
+pub use multipart::PartObject;
+
 mod scheme;
 pub use scheme::Scheme;
 

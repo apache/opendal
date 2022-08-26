@@ -22,6 +22,7 @@ use log::debug;
 use log::error;
 use log::warn;
 
+use crate::multipart::PartObject;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -433,7 +434,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<PartObject> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",

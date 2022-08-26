@@ -21,6 +21,7 @@ use flagset::flags;
 use flagset::FlagSet;
 
 use crate::error::new_unsupported_object_error;
+use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -161,7 +162,7 @@ pub trait Accessor: Send + Sync + Debug {
     }
 
     /// Invoke the `write_multipart` operation on the specified path.
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         let (_, _) = (args, r);
 
         return Err(new_unsupported_object_error(
@@ -222,7 +223,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
         self.as_ref().create_multipart(args).await
     }
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         self.as_ref().write_multipart(args, r).await
     }
     async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {

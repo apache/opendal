@@ -16,41 +16,73 @@ use std::io::Result;
 
 use time::Duration;
 
-use super::Operation;
+use crate::ops::OpRead;
+use crate::ops::OpWrite;
+use crate::ops::OpWriteMultipart;
 
 /// Args for `presign` operation.
 ///
 /// The path must be normalized.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct OpPresign {
-    path: String,
-    op: Operation,
     expire: Duration,
+
+    op: PresignOperation,
 }
 
 impl OpPresign {
     /// Create a new `OpPresign`.
-    pub fn new(path: &str, op: Operation, expire: Duration) -> Result<Self> {
-        Ok(Self {
-            path: path.to_string(),
-            op,
-            expire,
-        })
+    pub fn new(op: PresignOperation, expire: Duration) -> Result<Self> {
+        Ok(Self { op, expire })
     }
 
     /// Get path from op.
     pub fn path(&self) -> &str {
-        &self.path
+        match &self.op {
+            PresignOperation::Read(v) => v.path(),
+            PresignOperation::Write(v) => v.path(),
+            PresignOperation::WriteMultipart(v) => v.path(),
+        }
     }
 
     /// Get operation from op.
-    pub fn operation(&self) -> Operation {
-        self.op
+    pub fn operation(&self) -> &PresignOperation {
+        &self.op
     }
 
     /// Get expire from op.
     pub fn expire(&self) -> Duration {
         self.expire
+    }
+}
+
+/// Presign operation used for presign.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum PresignOperation {
+    /// Presign a read operation.
+    Read(OpRead),
+    /// Presign a write operation.
+    Write(OpWrite),
+    /// Presign a write multipart operation.
+    WriteMultipart(OpWriteMultipart),
+}
+
+impl From<OpRead> for PresignOperation {
+    fn from(v: OpRead) -> Self {
+        Self::Read(v)
+    }
+}
+
+impl From<OpWrite> for PresignOperation {
+    fn from(v: OpWrite) -> Self {
+        Self::Write(v)
+    }
+}
+
+impl From<OpWriteMultipart> for PresignOperation {
+    fn from(v: OpWriteMultipart) -> Self {
+        Self::WriteMultipart(v)
     }
 }
 

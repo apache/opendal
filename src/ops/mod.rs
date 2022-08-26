@@ -32,6 +32,7 @@ mod op_list;
 pub use op_list::OpList;
 mod op_presign;
 pub use op_presign::OpPresign;
+pub use op_presign::PresignOperation;
 pub use op_presign::PresignedRequest;
 mod op_read;
 pub use op_read::OpRead;
@@ -44,7 +45,6 @@ pub use op_multipart::OpAbortMultipart;
 pub use op_multipart::OpCompleteMultipart;
 pub use op_multipart::OpCreateMultipart;
 pub use op_multipart::OpWriteMultipart;
-pub use op_multipart::Part;
 
 mod bytes_range;
 pub use bytes_range::BytesRange;

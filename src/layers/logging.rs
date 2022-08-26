@@ -59,7 +59,7 @@ use crate::Scheme;
 ///
 /// We should migrate to log's kv api after it's ready.
 ///
-/// Tracking issue: https://github.com/rust-lang/log/issues/328
+/// Tracking issue: <https://github.com/rust-lang/log/issues/328>
 ///
 /// # Examples
 ///

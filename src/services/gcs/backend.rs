@@ -75,7 +75,7 @@ pub struct Builder {
     /// bucket name
     bucket: String,
     /// endpoint URI of GCS service,
-    /// default is "https://storage.googleapis.com"
+    /// default is `https://storage.googleapis.com`
     endpoint: Option<String>,
 
     /// credential string for GCS service

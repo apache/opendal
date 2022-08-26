@@ -24,6 +24,15 @@ pub fn gen_bytes() -> (Vec<u8>, usize) {
     (content, size)
 }
 
+pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {
+    let mut rng = thread_rng();
+
+    let mut content = vec![0; size];
+    rng.fill_bytes(&mut content);
+
+    content
+}
+
 pub fn gen_offset_length(size: usize) -> (u64, u64) {
     let mut rng = thread_rng();
 

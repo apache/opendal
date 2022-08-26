@@ -16,8 +16,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
 
@@ -71,6 +69,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
+use crate::ops::PresignOperation;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -1165,18 +1164,14 @@ impl Accessor for Backend {
 
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            Operation::Read => self.get_object_request(&path, None, None)?,
-            Operation::Write => self.put_object_request(&path, AsyncBody::empty())?,
-            op => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    ObjectError::new(
-                        "presign",
-                        &path,
-                        anyhow!("presign for {op} is not supported"),
-                    ),
-                ))
-            }
+            PresignOperation::Read(v) => self.get_object_request(&path, v.offset(), v.size())?,
+            PresignOperation::Write(_) => self.put_object_request(&path, AsyncBody::empty())?,
+            PresignOperation::WriteMultipart(v) => self.s3_upload_part_request(
+                &path,
+                v.upload_id(),
+                v.part_number(),
+                AsyncBody::empty(),
+            )?,
         };
 
         self.signer

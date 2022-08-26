@@ -32,6 +32,7 @@ mod op_list;
 pub use op_list::OpList;
 mod op_presign;
 pub use op_presign::OpPresign;
+pub use op_presign::PresignOperation;
 pub use op_presign::PresignedRequest;
 mod op_read;
 pub use op_read::OpRead;

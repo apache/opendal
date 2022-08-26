@@ -16,10 +16,13 @@ use std::io::Result;
 use std::sync::Arc;
 
 use futures::io::Cursor;
+use time::Duration;
 
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
+use crate::ops::OpPresign;
 use crate::ops::OpWriteMultipart;
+use crate::ops::PresignedRequest;
 use crate::path::normalize_path;
 use crate::Accessor;
 use crate::Object;
@@ -88,6 +91,20 @@ impl ObjectMultipart {
     pub async fn abort(&self) -> Result<()> {
         let op = OpAbortMultipart::new(&self.path, &self.upload_id)?;
         self.acc.abort_multipart(&op).await
+    }
+
+    /// Presign an operation for write multipart.
+    ///
+    /// # TODO
+    ///
+    /// User need to handle the response by self which may differ for different platforms.
+    pub fn presign_write(&self, part_number: usize, expire: Duration) -> Result<PresignedRequest> {
+        let op = OpPresign::new(
+            OpWriteMultipart::new(&self.path, &self.upload_id, part_number, 0)?.into(),
+            expire,
+        )?;
+
+        self.acc.presign(&op)
     }
 }
 

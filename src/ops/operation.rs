@@ -17,6 +17,7 @@ use std::fmt::Formatter;
 
 /// Operation is the name for APIs in `Accessor`.
 #[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
 pub enum Operation {
     /// Operation for [`crate::Accessor::metadata`]
     Metadata,

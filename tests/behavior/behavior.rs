@@ -26,10 +26,12 @@ use std::io;
 use anyhow::Result;
 use futures::TryStreamExt;
 use http::header;
+use http::header::ETAG;
 use isahc::AsyncReadResponseExt;
 use log::debug;
 use opendal::layers::*;
 use opendal::ObjectMode;
+use opendal::ObjectPart;
 use opendal::Operator;
 use opendal::Scheme::*;
 use sha2::Digest;
@@ -105,6 +107,7 @@ macro_rules! behavior_tests {
 
                 test_multipart_complete,
                 test_multipart_abort,
+                test_presign_write_multipart,
             );
         )*
     };
@@ -1186,6 +1189,10 @@ async fn test_multipart_complete(op: Operator) -> Result<()> {
         "complete content"
     );
 
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
     Ok(())
 }
 
@@ -1211,6 +1218,51 @@ async fn test_multipart_abort(op: Operator) -> Result<()> {
 
     // Abort
     mp.abort().await?;
+    Ok(())
+}
 
+/// Presign write multipart should succeed.
+async fn test_presign_write_multipart(op: Operator) -> Result<()> {
+    // Ignore this test if not supported.
+    if !op.metadata().can_presign() || !op.metadata().can_multipart() {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    // Create multipart
+    let mp = op.object(&path).create_multipart().await?;
+
+    let (content, size) = gen_bytes();
+
+    let signed_req = mp.presign_write(1, Duration::hours(1))?;
+    debug!("Generated request: {signed_req:?}");
+
+    let mut req = isahc::Request::builder()
+        .method(signed_req.method())
+        .uri(signed_req.uri())
+        .body(isahc::AsyncBody::from_bytes_static(content.clone()))?;
+    *req.headers_mut() = signed_req.header().clone();
+    req.headers_mut()
+        .insert(header::CONTENT_LENGTH, content.len().to_string().parse()?);
+
+    let client = isahc::HttpClient::new().expect("must init succeed");
+    let resp = client.send_async(req).await?;
+    let etag = resp
+        .headers()
+        .get(ETAG)
+        .expect("must have etag")
+        .to_str()
+        .expect("must be valid string");
+
+    let o = mp.complete(vec![ObjectPart::new(1, etag)]).await?;
+
+    let meta = o.metadata().await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
     Ok(())
 }

@@ -46,7 +46,6 @@ use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
@@ -718,7 +717,7 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(self.path(), Operation::Read, expire)?;
+        let op = OpPresign::new(OpRead::new(self.path(), ..)?.into(), expire)?;
 
         self.acc.presign(&op)
     }
@@ -748,7 +747,7 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(self.path(), Operation::Write, expire)?;
+        let op = OpPresign::new(OpWrite::new(self.path(), 0)?.into(), expire)?;
 
         self.acc.presign(&op)
     }

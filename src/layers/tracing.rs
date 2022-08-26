@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::multipart::PartObject;
+use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -112,7 +112,7 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(skip(r))]
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<PartObject> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         self.inner.write_multipart(args, r).await
     }
 

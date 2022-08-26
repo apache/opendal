@@ -56,7 +56,7 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpClient;
 use crate::io_util::unshared_reader;
-use crate::multipart::PartObject;
+use crate::multipart::ObjectPart;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
@@ -1338,7 +1338,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<PartObject> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         let p = self.get_abs_path(args.path());
 
         let mut req = self.s3_upload_part_request(
@@ -1375,7 +1375,7 @@ impl Accessor for Backend {
                     new_response_consume_error(Operation::WriteMultipart, &p, err)
                 })?;
 
-                Ok(PartObject::new(args.part_number(), &etag))
+                Ok(ObjectPart::new(args.part_number(), &etag))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -1643,7 +1643,7 @@ impl Backend {
         &self,
         path: &str,
         upload_id: &str,
-        parts: &[PartObject],
+        parts: &[ObjectPart],
     ) -> Result<isahc::Response<AsyncBody>> {
         let url = format!(
             "{}/{}?uploadId={}",

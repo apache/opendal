@@ -36,7 +36,7 @@ use crate::io_util::CompressAlgorithm;
 #[cfg(feature = "compress")]
 use crate::io_util::DecompressReader;
 use crate::io_util::SeekableReader;
-use crate::multipart::MultipartObject;
+use crate::multipart::ObjectMultipart;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpCreateMultipart;
@@ -754,12 +754,12 @@ impl Object {
     }
 
     /// Construct a multipart with existing upload id.
-    pub fn to_multipart(&self, upload_id: &str) -> MultipartObject {
-        MultipartObject::new(self.acc.clone(), &self.path, upload_id)
+    pub fn to_multipart(&self, upload_id: &str) -> ObjectMultipart {
+        ObjectMultipart::new(self.acc.clone(), &self.path, upload_id)
     }
 
     /// Create a new multipart for current path.
-    pub async fn create_multipart(&self) -> Result<MultipartObject> {
+    pub async fn create_multipart(&self) -> Result<ObjectMultipart> {
         let op = OpCreateMultipart::new(self.path())?;
         let upload_id = self.acc.create_multipart(&op).await?;
         Ok(self.to_multipart(&upload_id))

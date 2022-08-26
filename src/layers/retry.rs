@@ -21,7 +21,7 @@ use async_trait::async_trait;
 use backon::Backoff;
 use backon::Retryable;
 
-use crate::multipart::PartObject;
+use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -153,7 +153,7 @@ where
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<PartObject> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         // Write can't retry, until can reset this reader.
         self.inner.write_multipart(args, r).await
     }

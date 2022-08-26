@@ -18,7 +18,7 @@ use anyhow::anyhow;
 
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::multipart::PartObject;
+use crate::multipart::ObjectPart;
 use crate::ops::Operation;
 
 /// Args for `create_multipart` operation.
@@ -113,14 +113,14 @@ impl OpWriteMultipart {
 pub struct OpCompleteMultipart {
     path: String,
     upload_id: String,
-    parts: Vec<PartObject>,
+    parts: Vec<ObjectPart>,
 }
 
 impl OpCompleteMultipart {
     /// Create a new `OpCompleteMultipart`.
     ///
     /// If input path is not a file path, an error will be returned.
-    pub fn new(path: &str, upload_id: &str, parts: Vec<PartObject>) -> Result<Self> {
+    pub fn new(path: &str, upload_id: &str, parts: Vec<ObjectPart>) -> Result<Self> {
         if path.ends_with('/') {
             return Err(other(ObjectError::new(
                 Operation::CompleteMultipart,
@@ -147,7 +147,7 @@ impl OpCompleteMultipart {
     }
 
     /// Get parts from option.
-    pub fn parts(&self) -> &[PartObject] {
+    pub fn parts(&self) -> &[ObjectPart] {
         &self.parts
     }
 }

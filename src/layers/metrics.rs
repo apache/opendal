@@ -21,7 +21,7 @@ use async_trait::async_trait;
 use metrics::histogram;
 use metrics::increment_counter;
 
-use crate::multipart::PartObject;
+use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -273,7 +273,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<PartObject> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),

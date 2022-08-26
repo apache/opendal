@@ -23,8 +23,8 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
+use http::header::{HeaderName, CONTENT_TYPE};
 use http::HeaderValue;
 use http::StatusCode;
 use isahc::AsyncBody;
@@ -417,123 +417,7 @@ impl Builder {
     /// Returning endpoint will trim bucket name:
     ///
     /// - `https://bucket_name.s3.amazonaws.com` => `https://s3.amazonaws.com`
-    async fn detect_region(
-        &self,
-        client: &HttpClient,
-        bucket: &str,
-        context: &HashMap<String, String>,
-    ) -> Result<(String, String)> {
-        let mut endpoint = match &self.endpoint {
-            Some(endpoint) => {
-                if endpoint.starts_with("http") {
-                    endpoint.to_string()
-                } else {
-                    // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{}", endpoint)
-                }
-            }
-            None => "https://s3.amazonaws.com".to_string(),
-        };
-
-        // If endpoint contains bucket name, we should trim them.
-        endpoint = endpoint.replace(&format!("//{bucket}."), "//");
-
-        if let Some(region) = &self.region {
-            let endpoint = if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
-                template.replace("{region}", region)
-            } else {
-                endpoint.to_string()
-            };
-
-            return Ok((endpoint, region.to_string()));
-        }
-
-        let url = format!("{endpoint}/{bucket}");
-        debug!("backend detect region with url: {url}");
-
-        let req = isahc::Request::head(&url)
-            .body(AsyncBody::empty())
-            .map_err(|e| {
-                error!("backend detect_region {}: {:?}", url, e);
-                other(BackendError::new(
-                    context.clone(),
-                    anyhow!("build request {}: {:?}", url, e),
-                ))
-            })?;
-
-        let res = client.send_async(req).await.map_err(|e| {
-            error!("backend detect_region: {}: {:?}", url, e);
-            other(BackendError::new(
-                context.clone(),
-                anyhow!("sending request: {}: {:?}", url, e),
-            ))
-        })?;
-
-        debug!(
-            "auto detect region got response: status {:?}, header: {:?}",
-            res.status(),
-            res.headers()
-        );
-        match res.status() {
-            // The endpoint works, return with not changed endpoint and
-            // default region.
-            StatusCode::OK | StatusCode::FORBIDDEN => {
-                let region = res
-                    .headers()
-                    .get("x-amz-bucket-region")
-                    .unwrap_or(&HeaderValue::from_static("us-east-1"))
-                    .to_str()
-                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
-                    .to_string();
-                Ok((endpoint.to_string(), region))
-            }
-            // The endpoint should move, return with constructed endpoint
-            StatusCode::MOVED_PERMANENTLY => {
-                let region = res
-                    .headers()
-                    .get("x-amz-bucket-region")
-                    .ok_or_else(|| {
-                        other(BackendError::new(
-                            context.clone(),
-                            anyhow!("can't detect region automatically, region is empty"),
-                        ))
-                    })?
-                    .to_str()
-                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
-                    .to_string();
-                let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
-                    other(BackendError::new(
-                        context.clone(),
-                        anyhow!(
-                            "can't detect region automatically, no valid endpoint template for {endpoint}",
-                        ),
-                    ))
-                })?;
-
-                let endpoint = template.replace("{region}", &region);
-
-                Ok((endpoint, region))
-            }
-            // Unexpected status code
-            code => Err(other(BackendError::new(
-                context.clone(),
-                anyhow!(
-                    "can't detect region automatically, unexpected response: status code {code}",
-                ),
-            ))),
-        }
-    }
-
-    /// Read RFC-0057: Auto Region for detailed behavior.
-    ///
-    /// - If region is already known, the region will be returned directly.
-    /// - If region is not known, we will send API to `{endpoint}/{bucket}` to get
-    ///   `x-amz-bucket-region`, use `us-east-1` if not found.
-    ///
-    /// Returning endpoint will trim bucket name:
-    ///
-    /// - `https://bucket_name.s3.amazonaws.com` => `https://s3.amazonaws.com`
-    fn detect_regionx(
+    fn detect_region(
         &self,
         client: &HttpClient,
         bucket: &str,
@@ -748,7 +632,7 @@ impl Builder {
 
         let client = HttpClient::new();
 
-        let (mut endpoint, region) = self.detect_regionx(&client, bucket, &context)?;
+        let (mut endpoint, region) = self.detect_region(&client, bucket, &context)?;
         // Construct endpoint which contains bucket name.
         if self.enable_virtual_host_style {
             endpoint = endpoint.replace("//", &format!("//{bucket}."))
@@ -906,7 +790,7 @@ impl Builder {
 
         let client = HttpClient::new();
 
-        let (mut endpoint, region) = self.detect_region(&client, bucket, &context).await?;
+        let (mut endpoint, region) = self.detect_region(&client, bucket, &context)?;
         // Construct endpoint which contains bucket name.
         if self.enable_virtual_host_style {
             endpoint = endpoint.replace("//", &format!("//{bucket}."))
@@ -1109,7 +993,7 @@ impl Accessor for Backend {
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(AccessorCapability::Presign);
+            .set_capabilities(AccessorCapability::Presign | AccessorCapability::Multipart);
 
         am
     }
@@ -1670,6 +1554,11 @@ impl Backend {
                 anyhow!("build xml: {err:?}"),
             ))
         })?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+
         let mut req = req
             .body(AsyncBody::from(content))
             .map_err(|e| new_request_build_error(Operation::CompleteMultipart, path, e))?;
@@ -1795,7 +1684,6 @@ mod tests {
 
             let (endpoint, region) = b
                 .detect_region(&client, "test", &HashMap::new())
-                .await
                 .expect("detect region must success");
             assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
             assert_eq!(region, "us-east-2");

@@ -16,7 +16,7 @@
 //!
 //! # Note
 //!
-//! `behavior` requires most of the logic is correct, especially `write` and `delete`. We will not depends service specific functions to prepare the fixtures.
+//! `behavior` requires most of the logic is correct, especially `write` and `delete`. We will not depend on service specific functions to prepare the fixtures.
 //!
 //! For examples, we depend on `write` to create a file before testing `read`. If `write` doesn't work well, we can't test `read` correctly too.
 
@@ -102,6 +102,9 @@ macro_rules! behavior_tests {
 
                 test_presign_read,
                 test_presign_write,
+
+                test_multipart_complete,
+                test_multipart_abort,
             );
         )*
     };
@@ -1140,5 +1143,74 @@ async fn test_presign_read(op: Operator) -> Result<()> {
         .delete()
         .await
         .expect("delete must succeed");
+    Ok(())
+}
+
+// Multipart complete should succeed.
+async fn test_multipart_complete(op: Operator) -> Result<()> {
+    // Ignore this test if not supported.
+    if !op.metadata().can_multipart() {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    // Create multipart
+    let mp = op.object(&path).create_multipart().await?;
+
+    // Upload first part
+    let mut p1_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let p1 = mp.write(1, p1_content.clone()).await?;
+
+    // Upload second part
+    let mut p2_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let p2 = mp.write(2, p2_content.clone()).await?;
+
+    // Complete
+    let o = mp.complete(vec![p1, p2]).await?;
+
+    let meta = o.metadata().await?;
+
+    assert_eq!(10 * 1024 * 1024, meta.content_length(), "complete size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(o.read().await?)),
+        format!(
+            "{:x}",
+            Sha256::digest({
+                let mut bs = Vec::with_capacity(10 * 1024 * 1024);
+                bs.append(&mut p1_content);
+                bs.append(&mut p2_content);
+                bs
+            })
+        ),
+        "complete content"
+    );
+
+    Ok(())
+}
+
+// Multipart abort should succeed.
+async fn test_multipart_abort(op: Operator) -> Result<()> {
+    // Ignore this test if not supported.
+    if !op.metadata().can_multipart() {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    // Create multipart
+    let mp = op.object(&path).create_multipart().await?;
+
+    // Upload first part
+    let p1_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let _ = mp.write(1, p1_content).await?;
+
+    // Upload second part
+    let p2_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let _ = mp.write(2, p2_content).await?;
+
+    // Abort
+    mp.abort().await?;
+
     Ok(())
 }

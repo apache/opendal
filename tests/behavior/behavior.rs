@@ -155,7 +155,7 @@ macro_rules! behavior_test {
     };
 }
 
-behavior_tests!(Azblob, Fs, Memory, S3, Gcs);
+behavior_tests!(Azblob, Fs, Memory, S3, Gcs, Obs);
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "services-hdfs")] {

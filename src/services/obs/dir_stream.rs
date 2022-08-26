@@ -99,8 +99,9 @@ impl futures::Stream for DirStream {
                 // Try our best to check whether this list is done.
                 //
                 // - Check `next_marker`
-                if let Some(next_marker) = output.next_marker.as_ref() {
-                    self.done = next_marker.is_empty();
+                self.done = match output.next_marker.as_ref() {
+                    None => true,
+                    Some(next_marker) => next_marker.is_empty(),
                 };
                 self.next_marker = output.next_marker.clone().unwrap_or_default();
                 self.state = State::Listing((output, 0, 0));

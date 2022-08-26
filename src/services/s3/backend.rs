@@ -23,8 +23,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
-use http::header::{HeaderName, CONTENT_TYPE};
+use http::header::CONTENT_TYPE;
 use http::HeaderValue;
 use http::StatusCode;
 use isahc::AsyncBody;

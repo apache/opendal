@@ -80,7 +80,7 @@ percent-encoding = "2.1"
 pin-project = "1.0"
 quick-xml = { version = "0.23", features = ["serialize"] }
 radix_trie = { version = "0.2", optional = true }
-reqsign = "0.4"
+reqsign = { git = "https://github.com/Xuanwo/reqsign", branch = "main" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
@@ -100,6 +100,7 @@ env_logger = "0.9"
 itertools = "0.10"
 num-traits = "0.2"
 paste = "1.0"
+pretty_assertions = "1"
 rand = "0.8"
 serde_json = "1.0"
 sha2 = "0.10"
@@ -107,4 +108,3 @@ size = "0.4"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 wiremock = "0.5"
-pretty_assertions = "1"

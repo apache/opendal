@@ -18,6 +18,7 @@ use anyhow::anyhow;
 
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::ops::Operation;
 
 /// Args for `list` operation.
 ///
@@ -34,7 +35,7 @@ impl OpList {
     pub fn new(path: &str) -> Result<Self> {
         if !path.ends_with('/') {
             return Err(other(ObjectError::new(
-                "list",
+                Operation::List,
                 path,
                 anyhow!("Not a directory"),
             )));

@@ -18,6 +18,7 @@ use anyhow::anyhow;
 
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::ops::Operation;
 
 /// Args for `write` operation.
 ///
@@ -35,7 +36,7 @@ impl OpWrite {
     pub fn new(path: &str, size: u64) -> Result<Self> {
         if path.ends_with('/') {
             return Err(other(ObjectError::new(
-                "write",
+                Operation::Write,
                 path,
                 anyhow!("Is a directory"),
             )));

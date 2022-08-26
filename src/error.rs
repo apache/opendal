@@ -40,6 +40,8 @@ use std::io;
 
 use thiserror::Error;
 
+use crate::ops::Operation;
+
 /// BackendError carries backend related context.
 ///
 /// # Notes
@@ -74,15 +76,15 @@ pub struct ObjectError {
     /// TODO: refactor op with `Operation`
     ///
     /// ref: https://github.com/datafuselabs/opendal/issues/562
-    op: &'static str,
+    op: Operation,
     path: String,
     source: anyhow::Error,
 }
 
 impl ObjectError {
-    pub fn new(op: impl Into<&'static str>, path: &str, source: impl Into<anyhow::Error>) -> Self {
+    pub fn new(op: Operation, path: &str, source: impl Into<anyhow::Error>) -> Self {
         ObjectError {
-            op: op.into(),
+            op,
             path: path.to_string(),
             source: source.into(),
         }
@@ -102,7 +104,7 @@ where
 }
 
 /// Creates new Unsupported Object Error.
-pub fn new_unsupported_object_error(op: impl Into<&'static str>, path: &str) -> io::Error {
+pub fn new_unsupported_object_error(op: Operation, path: &str) -> io::Error {
     io::Error::new(
         io::ErrorKind::Unsupported,
         ObjectError::new(

@@ -19,6 +19,7 @@ use anyhow::anyhow;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::ObjectMode;
+use crate::ops::Operation;
 
 /// Args for `create` operation.
 ///
@@ -38,7 +39,7 @@ impl OpCreate {
             ObjectMode::FILE => {
                 if path.ends_with('/') {
                     return Err(other(ObjectError::new(
-                        "create",
+                        Operation::Create,
                         path,
                         anyhow!("Is a directory"),
                     )));
@@ -51,7 +52,7 @@ impl OpCreate {
             ObjectMode::DIR => {
                 if !path.ends_with('/') {
                     return Err(other(ObjectError::new(
-                        "create",
+                        Operation::Create,
                         path,
                         anyhow!("Not a directory"),
                     )));
@@ -63,7 +64,7 @@ impl OpCreate {
                 })
             }
             ObjectMode::Unknown => Err(other(ObjectError::new(
-                "create",
+                Operation::Create,
                 path,
                 anyhow!("create unknown object mode is not supported"),
             ))),

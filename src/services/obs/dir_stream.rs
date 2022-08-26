@@ -34,6 +34,7 @@ use crate::services::obs::error::parse_error;
 use crate::services::obs::Backend;
 use crate::DirEntry;
 use crate::ObjectMode;
+use crate::ops::Operation;
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -77,14 +78,14 @@ impl futures::Stream for DirStream {
 
                     if resp.status() != http::StatusCode::OK {
                         let er = parse_error_response(resp).await?;
-                        let err = parse_error("list", &path, er);
+                        let err = parse_error(Operation::List, &path, er);
                         return Err(err);
                     }
 
                     let bs = resp
                         .bytes()
                         .await
-                        .map_err(|e| other(ObjectError::new("list", &path, e)))?;
+                        .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;
 
                     Ok(bs)
                 };
@@ -94,7 +95,7 @@ impl futures::Stream for DirStream {
             State::Sending(fut) => {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
                 let output: Output = de::from_reader(bs.reader())
-                    .map_err(|e| other(ObjectError::new("list", &self.path, e)))?;
+                    .map_err(|e| other(ObjectError::new(Operation::List, &self.path, e)))?;
 
                 // Try our best to check whether this list is done.
                 //

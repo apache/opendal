@@ -15,12 +15,13 @@
 use std::io::Error;
 
 use crate::error::ObjectError;
+use crate::ops::Operation;
 
 /// Parse all path related errors.
 ///
 /// ## Notes
 ///
 /// Skip utf-8 check to allow invalid path input.
-pub fn parse_io_error(err: Error, op: &'static str, path: &str) -> Error {
+pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {
     Error::new(err.kind(), ObjectError::new(op, path, err))
 }

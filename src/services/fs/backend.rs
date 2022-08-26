@@ -34,7 +34,7 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::ops::OpCreate;
+use crate::ops::{OpCreate, Operation};
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
@@ -211,7 +211,7 @@ impl Accessor for Backend {
                 .parent()
                 .ok_or_else(|| {
                     other(ObjectError::new(
-                        "create",
+                        Operation::Create,
                         &path,
                         anyhow!("malformed path: {:?}", &path),
                     ))
@@ -220,14 +220,14 @@ impl Accessor for Backend {
 
             fs::create_dir_all(&parent)
                 .await
-                .map_err(|e| parse_io_error(e, "create", &parent.to_string_lossy()))?;
+                .map_err(|e| parse_io_error(e, Operation::Create, &parent.to_string_lossy()))?;
 
             fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(&path)
                 .await
-                .map_err(|e| parse_io_error(e, "create", &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
 
             return Ok(());
         }
@@ -235,7 +235,7 @@ impl Accessor for Backend {
         if args.mode() == ObjectMode::DIR {
             fs::create_dir_all(&path)
                 .await
-                .map_err(|e| parse_io_error(e, "create", &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
 
             return Ok(());
         }
@@ -250,14 +250,14 @@ impl Accessor for Backend {
             .read(true)
             .open(&path)
             .await
-            .map_err(|e| parse_io_error(e, "read", &path))?;
+            .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
 
         let mut f = Compat::new(f);
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset))
                 .await
-                .map_err(|e| parse_io_error(e, "read", &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
         };
 
         let r: BytesReader = match args.size() {
@@ -281,7 +281,7 @@ impl Accessor for Backend {
             .parent()
             .ok_or_else(|| {
                 other(ObjectError::new(
-                    "write",
+                    Operation::Write,
                     &path,
                     anyhow!("malformed path: {:?}", &path),
                 ))
@@ -290,14 +290,14 @@ impl Accessor for Backend {
 
         fs::create_dir_all(&parent)
             .await
-            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
+            .map_err(|e| parse_io_error(e, Operation::Write, &parent.to_string_lossy()))?;
 
         let f = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(&path)
             .await
-            .map_err(|e| parse_io_error(e, "write", &path))?;
+            .map_err(|e| parse_io_error(e, Operation::Write, &path))?;
 
         let mut f = Compat::new(f);
 
@@ -311,7 +311,7 @@ impl Accessor for Backend {
 
         let meta = fs::metadata(&path)
             .await
-            .map_err(|e| parse_io_error(e, "stat", &path))?;
+            .map_err(|e| parse_io_error(e, Operation::Stat, &path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -325,7 +325,7 @@ impl Accessor for Backend {
         m.set_last_modified(
             meta.modified()
                 .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, "stat", &path))?,
+                .map_err(|e| parse_io_error(e, Operation::Stat, &path))?,
         );
 
         Ok(m)
@@ -341,7 +341,7 @@ impl Accessor for Backend {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, "delete", &path))
+                Err(parse_io_error(err, Operation::Delete, &path))
             };
         }
 
@@ -354,7 +354,7 @@ impl Accessor for Backend {
             fs::remove_file(&path).await
         };
 
-        f.map_err(|e| parse_io_error(e, "delete", &path))?;
+        f.map_err(|e| parse_io_error(e, Operation::Delete, &path))?;
 
         Ok(())
     }
@@ -362,7 +362,7 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = self.get_abs_path(args.path());
 
-        let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, "list", &path))?;
+        let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
         let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 

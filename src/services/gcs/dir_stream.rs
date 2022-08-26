@@ -38,6 +38,7 @@ use crate::services::gcs::backend::Backend;
 use crate::services::gcs::error::parse_error;
 use crate::DirEntry;
 use crate::ObjectMode;
+use crate::ops::Operation;
 
 /// DirStream takes over task of listing objects and
 /// helps walking directory
@@ -88,12 +89,12 @@ impl Stream for DirStream {
                     if !resp.status().is_success() {
                         error!("GCS failed to list objects, status code: {}", resp.status());
                         let er = parse_error_response(resp).await?;
-                        let err = parse_error("list", &path, er);
+                        let err = parse_error(Operation::List, &path, er);
                         return Err(err);
                     }
                     let bytes = resp.bytes().await.map_err(|e| {
                         other(ObjectError::new(
-                            "list",
+                            Operation::List,
                             &path,
                             anyhow!("read body: {:?}", e),
                         ))
@@ -109,7 +110,7 @@ impl Stream for DirStream {
                 let bytes = ready!(Pin::new(fut).poll(cx))?;
                 let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
                     other(ObjectError::new(
-                        "list",
+                        Operation::List,
                         &self.path,
                         anyhow!("deserialize list_bucket output: {:?}", e),
                     ))
@@ -168,7 +169,7 @@ impl Stream for DirStream {
 
                     let size = object.size.parse().map_err(|e| {
                         other(ObjectError::new(
-                            "list",
+                            Operation::List,
                             path.as_str(),
                             anyhow!("parse object size: {e:?}"),
                         ))
@@ -178,7 +179,7 @@ impl Stream for DirStream {
                     let dt =
                         OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
                             other(ObjectError::new(
-                                "list",
+                                Operation::List,
                                 &self.path,
                                 anyhow!("parse last modified RFC3339 datetime: {e:?}"),
                             ))

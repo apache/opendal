@@ -37,6 +37,7 @@ use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
 use crate::DirEntry;
 use crate::ObjectMode;
+use crate::ops::Operation;
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -81,13 +82,13 @@ impl futures::Stream for DirStream {
 
                     if resp.status() != http::StatusCode::OK {
                         let er = parse_error_response(resp).await?;
-                        let err = parse_error("list", &path, er);
+                        let err = parse_error(Operation::List, &path, er);
                         return Err(err);
                     }
 
                     let bs = resp.bytes().await.map_err(|e| {
                         other(ObjectError::new(
-                            "list",
+                            Operation::List,
                             &path,
                             anyhow!("read body: {:?}", e),
                         ))
@@ -102,7 +103,7 @@ impl futures::Stream for DirStream {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
                 let output: Output = de::from_reader(bs.reader()).map_err(|e| {
                     other(ObjectError::new(
-                        "list",
+                        Operation::List,
                         &self.path,
                         anyhow!("deserialize list_bucket output: {:?}", e),
                     ))
@@ -176,7 +177,7 @@ impl futures::Stream for DirStream {
                     let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
                         .map_err(|e| {
                             other(ObjectError::new(
-                                "list",
+                                Operation::List,
                                 &self.path,
                                 anyhow!("parse last modified RFC3339 datetime: {e:?}"),
                             ))

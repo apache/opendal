@@ -173,12 +173,14 @@ impl futures::Stream for DirStream {
                     de.set_etag(object.e_tag.clone().trim_matches('\"').to_string());
                     de.set_content_length(object.size);
 
-                    let dt =  OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339).map_err(|e|
+                    let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
+                        .map_err(|e| {
                             other(ObjectError::new(
                                 "list",
                                 &self.path,
                                 anyhow!("parse last modified RFC3339 datetime: {e:?}"),
-                            )))?;
+                            ))
+                        })?;
                     de.set_last_modified(dt);
 
                     debug!(

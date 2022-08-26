@@ -166,20 +166,23 @@ impl Stream for DirStream {
                     de.set_content_md5(object.md5_hash.clone());
                     de.set_etag(object.etag.clone());
 
-                    let size = object.size.parse().map_err(|e|
-                            other(ObjectError::new(
-                                "list",
-                                path.as_str(),
-                                anyhow!("parse object size: {e:?}"),
-                            )))?;
+                    let size = object.size.parse().map_err(|e| {
+                        other(ObjectError::new(
+                            "list",
+                            path.as_str(),
+                            anyhow!("parse object size: {e:?}"),
+                        ))
+                    })?;
                     de.set_content_length(size);
 
-                    let dt =  OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err( |e|
-                             other(ObjectError::new(
+                    let dt =
+                        OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
+                            other(ObjectError::new(
                                 "list",
                                 &self.path,
                                 anyhow!("parse last modified RFC3339 datetime: {e:?}"),
-                            )))?;
+                            ))
+                        })?;
                     de.set_last_modified(dt);
 
                     debug!(
@@ -300,18 +303,12 @@ mod tests {
         assert_eq!(output.items[0].size, "56535");
         assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
-        assert_eq!(
-            output.items[0].updated,
-            "2022-08-15T11:33:34.866Z"
-        );
+        assert_eq!(output.items[0].updated, "2022-08-15T11:33:34.866Z");
         assert_eq!(output.items[1].name, "2.png");
         assert_eq!(output.items[1].size, "45506");
         assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
         assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
-        assert_eq!(
-            output.items[1].updated,
-            "2022-08-15T11:33:34.886Z"
-        );
+        assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 
@@ -376,18 +373,12 @@ mod tests {
         assert_eq!(output.items[0].size, "56535");
         assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
-        assert_eq!(
-            output.items[0].updated,
-            "2022-08-15T11:33:34.866Z"
-        );
+        assert_eq!(output.items[0].updated, "2022-08-15T11:33:34.866Z");
         assert_eq!(output.items[1].name, "2.png");
         assert_eq!(output.items[1].size, "45506");
         assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
         assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
-        assert_eq!(
-            output.items[1].updated,
-            "2022-08-15T11:33:34.886Z"
-        );
+        assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 }

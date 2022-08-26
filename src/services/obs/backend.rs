@@ -450,7 +450,7 @@ impl Accessor for Backend {
 
         let resp = self.delete_object(&p).await?;
         match resp.status() {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error("delete", args.path(), er);

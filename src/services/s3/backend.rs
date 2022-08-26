@@ -1475,7 +1475,12 @@ impl Backend {
     async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::post(&url)
+        let req = isahc::Request::post(&url);
+
+        // Set SSE headers.
+        let req = self.insert_sse_headers(req, true);
+
+        let mut req = req
             .body(AsyncBody::empty())
             .map_err(|e| new_request_build_error(Operation::CreateMultipart, path, e))?;
 
@@ -1537,6 +1542,9 @@ impl Backend {
         );
 
         let req = isahc::Request::post(&url);
+
+        // Set SSE headers.
+        let req = self.insert_sse_headers(req, true);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts

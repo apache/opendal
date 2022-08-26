@@ -56,6 +56,7 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpClient;
 use crate::io_util::unshared_reader;
+use crate::multipart::ObjectPart;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
@@ -69,7 +70,6 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
-use crate::ops::Part;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -1338,7 +1338,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         let p = self.get_abs_path(args.path());
 
         let mut req = self.s3_upload_part_request(
@@ -1360,10 +1360,22 @@ impl Accessor for Backend {
 
         match resp.status() {
             StatusCode::OK => {
+                let etag = parse_etag(resp.headers())
+                    .map_err(|e| other(ObjectError::new(Operation::WriteMultipart, &p, e)))?
+                    .ok_or_else(|| {
+                        other(ObjectError::new(
+                            Operation::WriteMultipart,
+                            &p,
+                            anyhow!("ETag not present in returning response"),
+                        ))
+                    })?
+                    .to_string();
+
                 resp.consume().await.map_err(|err| {
                     new_response_consume_error(Operation::WriteMultipart, &p, err)
                 })?;
-                Ok(args.size())
+
+                Ok(ObjectPart::new(args.part_number(), &etag))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -1631,7 +1643,7 @@ impl Backend {
         &self,
         path: &str,
         upload_id: &str,
-        parts: &[Part],
+        parts: &[ObjectPart],
     ) -> Result<isahc::Response<AsyncBody>> {
         let url = format!(
             "{}/{}?uploadId={}",

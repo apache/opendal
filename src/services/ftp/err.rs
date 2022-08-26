@@ -64,7 +64,11 @@ pub fn new_request_quit_error(op: &'static str, path: &str, err: FtpError) -> Er
 
 // Create error happened during retrieving from ftp server.
 pub fn new_request_retr_error(op: &'static str, path: &str, err: FtpError) -> Error {
-    other(ObjectError::new(op, path, anyhow!("retrieve request: {err:?}")))
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("retrieve request: {err:?}"),
+    ))
 }
 
 // Create error happened during putting to ftp server.
@@ -74,9 +78,49 @@ pub fn new_request_put_error(op: &'static str, path: &str, err: FtpError) -> Err
 
 // Create error happened during finalizing stream.
 pub fn new_request_finalize_error(op: &'static str, path: &str, err: FtpError) -> Error {
-    other(ObjectError::new(op, path, anyhow!("finalize request: {err:?}")))
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("finalize request: {err:?}"),
+    ))
 }
 
+// Create error happended uring appending to ftp server.
+pub fn new_request_append_error(op: &'static str, path: &str, err: FtpError) -> Error {
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("append request: {err:?}"),
+    ))
+}
+
+// Create error happened during removeing from ftp server.
+pub fn new_request_remove_error(op: &'static str, path: &str, err: FtpError) -> Error {
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("remove request: {err:?}"),
+    ))
+}
+
+// Create error happened during listing from ftp server.
+pub fn new_request_list_error(op: &'static str, path: &str, err: FtpError) -> Error {
+    other(ObjectError::new(op, path, anyhow!("list request: {err:?}")))
+}
+
+// Create error happened during making directory to ftp server.
+pub fn new_request_mkdir_error(op: &'static str, path: &str, err: FtpError) -> Error {
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("mkdir request: {err:?}"),
+    ))
+}
+
+// Create error happened during  retrieving modification time of the file to ftp server.
+pub fn new_request_mdtm_error(op: &'static str, path: &str, err: FtpError) -> Error {
+    other(ObjectError::new(op, path, anyhow!("mdtm request: {err:?}")))
+}
 pub struct ErrorResponse {
     status: Status,
     body: Vec<u8>,
@@ -106,14 +150,14 @@ impl Display for ErrorResponse {
 pub fn parse_error(op: &'static str, path: &str, err: FtpError) -> Error {
     let kind = match err {
         FtpError::BadResponse => ErrorKind::InvalidData,
-        FtpError::ConnectionError(e) => e.kind(),
-        FtpError::InvalidAddress(e) => ErrorKind::AddrNotAvailable,
-        FtpError::SecureError(e) => ErrorKind::PermissionDenied,
-        FtpError::UnexpectedResponse(resp) => ErrorKind::ConnectionRefused,
+        FtpError::ConnectionError(ref e) => e.kind(),
+        FtpError::InvalidAddress(_) => ErrorKind::AddrNotAvailable,
+        FtpError::SecureError(_) => ErrorKind::PermissionDenied,
+        FtpError::UnexpectedResponse(_) => ErrorKind::ConnectionRefused,
         _ => ErrorKind::Other,
     };
     Error::new(kind, ObjectError::new(op, path, anyhow!(err)))
 }
-pub fn parse_io_error(err: Error, op: &'static str, path: &str) -> Error{
+pub fn parse_io_error(err: Error, op: &'static str, path: &str) -> Error {
     Error::new(err.kind(), ObjectError::new(op, path, err))
 }

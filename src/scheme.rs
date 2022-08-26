@@ -39,6 +39,9 @@ pub enum Scheme {
     /// [http][crate::services::http]: HTTP backend.
     #[cfg(feature = "services-http")]
     Http,
+    /// [ftp][crate::services::ftp]: FTP backend.
+    #[cfg(feature = "services-ftp")]
+    Ftp,
     /// [ipfs][crate::services::ipfs]: IPFS mutable file system
     Ipfs,
     /// [memory][crate::services::memory]: In memory backend support.
@@ -47,7 +50,7 @@ pub enum Scheme {
     Obs,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
-    /// Custom that allow users to implement services outside OpenDAL.
+    /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
     ///
@@ -79,6 +82,8 @@ impl Display for Scheme {
             Scheme::Gcs => write!(f, "gcs"),
             #[cfg(feature = "services-http")]
             Scheme::Http => write!(f, "http"),
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => write!(f, "ftp"),
             Scheme::Ipfs => write!(f, "ipfs"),
             Scheme::Memory => write!(f, "memory"),
             Scheme::Obs => write!(f, "obs"),
@@ -101,6 +106,8 @@ impl FromStr for Scheme {
             "hdfs" => Ok(Scheme::Hdfs),
             #[cfg(feature = "services-http")]
             "http" | "https" => Ok(Scheme::Http),
+            #[cfg(feature = "services-ftp")]
+            "ftp" => Ok(Scheme::Ftp),
             "ipfs" => Ok(Scheme::Ipfs),
             "memory" => Ok(Scheme::Memory),
             "obs" => Ok(Scheme::Obs),
@@ -120,7 +127,10 @@ impl From<Scheme> for &'static str {
             Scheme::Hdfs => "hdfs",
             #[cfg(feature = "services-http")]
             Scheme::Http => "http",
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
+            Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
             Scheme::Obs => "obs",
             Scheme::S3 => "s3",

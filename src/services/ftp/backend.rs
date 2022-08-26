@@ -4,42 +4,53 @@ use std::fmt::Formatter;
 use std::io::Cursor;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::SeekFrom;
 use std::io::Result;
-//use std::io::Error;
+use std::io::SeekFrom;
 use std::str;
+use std::str::FromStr;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
-use futures::AsyncSeekExt;
+use futures::AsyncRead;
 use futures::AsyncReadExt;
+use futures::AsyncSeekExt;
 use log::info;
+use suppaftp::list::File;
 use suppaftp::native_tls::{TlsConnector, TlsStream};
-use suppaftp::types::{FileType, Response};
 use suppaftp::{FtpError, FtpResult, FtpStream, Status};
+use time::OffsetDateTime;
 
+use super::dir_stream::DirStream;
+use super::dir_stream::ReadDir;
+use super::err::new_request_append_error;
 use super::err::new_request_connection_error;
+use super::err::new_request_list_error;
+use super::err::new_request_mdtm_error;
+use super::err::new_request_mkdir_error;
+use super::err::new_request_put_error;
 use super::err::new_request_quit_error;
+use super::err::new_request_remove_error;
+use super::err::new_request_retr_error;
 use super::err::new_request_secure_error;
 use super::err::new_request_sign_error;
-use super::err::new_request_retr_error;
-use super::err::new_request_put_error;
-use super::err::parse_error;
 use super::err::parse_io_error;
-use crate::DirStreamer;
-use crate::ObjectMetadata;
 use crate::error::other;
 use crate::error::BackendError;
+use crate::io_util::unshared_reader;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::path;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::io_util::into_reader;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 
 // Builder for ftp backend.
 #[derive(Default)]
@@ -202,22 +213,70 @@ impl Debug for Backend {
     }
 }
 
+impl Backend {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                _ => continue,
+            };
+        }
+        builder.build()
+    }
+
+    pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        match path.strip_prefix(&self.root) {
+            Some(v) => v.to_string(),
+            None => unreachable!(
+                "invalid path{} that does not start with backend root {}",
+                &path, &self.root
+            ),
+        }
+    }
+
+    pub(crate) fn get_abs_path(&self, path: &str) -> String {
+        if path == "/" {
+            return self.root.to_string();
+        }
+        format!("{}{}", self.root, path)
+    }
+}
+
 #[async_trait]
 impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        unimplemented!()
+        let path = self.get_abs_path(args.path());
+
+        if args.mode() == ObjectMode::FILE {
+            self.ftp_put(&path).await?;
+
+            return Ok(());
+        }
+
+        if args.mode() == ObjectMode::DIR {
+            self.ftp_mkdir(&path).await?;
+
+            return Ok(());
+        }
+
+        unreachable!()
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let reader = self
-            .ftp_get(&args.path())
-            .await?;
+        let path = self.get_abs_path(args.path());
+
+        let reader = self.ftp_get(&path).await?;
+
         let mut reader = Compat::new(reader);
 
-        if let Some(offset) = args.offset(){
-            reader.seek(SeekFrom::Start(offset))
-            .await
-            .map_err(|e| parse_io_error(e, "read", args.path()))?;
+        if let Some(offset) = args.offset() {
+            reader
+                .seek(SeekFrom::Start(offset))
+                .await
+                .map_err(|e| parse_io_error(e, "read", args.path()))?;
         }
 
         let r: BytesReader = match args.size() {
@@ -228,32 +287,72 @@ impl Accessor for Backend {
         Ok(r)
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64>{
-        unimplemented!()
+    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        let path = self.get_abs_path(args.path());
+
+        let n = self.ftp_append(&path, unshared_reader(r)).await?;
+
+        Ok(n)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata>{
-        unimplemented!()
+    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        let path = self.get_abs_path(args.path());
+
+        if path == self.root {
+            let mut meta = ObjectMetadata::default();
+            meta.set_mode(ObjectMode::DIR);
+            return Ok(meta);
+        }
+
+        let resp = self.ftp_stat(&path).await?;
+
+        let mut meta = ObjectMetadata::default();
+
+        if resp.is_file() {
+            meta.set_mode(ObjectMode::FILE);
+        } else if resp.is_directory() {
+            meta.set_mode(ObjectMode::DIR);
+        } else {
+            meta.set_mode(ObjectMode::Unknown);
+        }
+
+        meta.set_content_length(resp.size() as u64);
+
+        meta.set_last_modified(OffsetDateTime::from(resp.modified()));
+
+        Ok(meta)
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()>{
-        unimplemented!()
+    async fn delete(&self, args: &OpDelete) -> Result<()> {
+        let path = self.get_abs_path(args.path());
+
+        self.ftp_delete(&path).await?;
+
+        Ok(())
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer>{
-        unimplemented!()
+    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
+        let path = self.get_abs_path(args.path());
+
+        let rd = self.ftp_list(&path).await?;
+
+        Ok(Box::new(DirStream::new(
+            Arc::new(self.clone()),
+            path.as_str(),
+            rd,
+        )))
     }
 }
 
 impl Backend {
     pub(crate) fn ftp_connect(&self, url: &String) -> Result<FtpStream> {
         let mut ftp_stream = FtpStream::connect(url)
-        .map_err(|e| new_request_connection_error("connection", &url, e))?;
+            .map_err(|e| new_request_connection_error("connection", &url, e))?;
 
         // switch to secure mode if tls mode is on.
         if self.tls {
             ftp_stream = ftp_stream
-                .into_secure(TlsConnector::new(), &self.endpoint)
+                .into_secure(TlsConnector::new().unwrap(), &self.endpoint)
                 .map_err(|e| new_request_secure_error("connection", &url, e))?;
         }
 
@@ -271,37 +370,110 @@ impl Backend {
         let url = format!("{}/{}:{}", self.endpoint, path, self.port);
 
         let mut ftp_stream = self.ftp_connect(&url)?;
-        
-        let reader = ftp_stream.retr_as_buffer(&url)
-        .map_err(|e| new_request_retr_error("get", &url, e))?;
+
+        let reader = ftp_stream
+            .retr_as_buffer(&url)
+            .map_err(|e| new_request_retr_error("get", &url, e))?;
 
         ftp_stream
             .quit()
             .map_err(|e| new_request_quit_error("get", &url, e))?;
-        
-           Ok(reader)
+
+        Ok(reader)
     }
 
-    pub(crate) async fn ftp_put(&self, path: &str, r:  BytesReader) -> Result<u64> {
+    pub(crate) async fn ftp_put(&self, path: &str) -> Result<u64> {
         let url = format!("{}/{}:{}", self.endpoint, path, self.port);
 
         let mut ftp_stream = self.ftp_connect(&url)?;
-        let mut buf = Vec::new();
-        r.read(buf)
-        let mut r= r;
-        a.read_to_end(&mut buf).await?;
 
-        let n = ftp_stream.put_file(&url, &mut buf.as_slice())
-        .map_err(|e| new_request_put_error("put", &url, e))?;
+        let n = ftp_stream
+            .put_file(&url, &mut "".as_bytes())
+            .map_err(|e| new_request_put_error("put", &url, e))?;
         Ok(n)
     }
-    
-    pub(crate) async fn ftp_delete(&self) -> Result<()>{
 
+    pub(crate) async fn ftp_mkdir(&self, path: &str) -> Result<()> {
+        let url = format!("{}/{}:{}", self.endpoint, path, self.port);
+
+        let mut ftp_stream = self.ftp_connect(&url)?;
+        ftp_stream
+            .mkdir(&url)
+            .map_err(|e| new_request_mkdir_error("mkdir", &url, e))?;
+
+        Ok(())
     }
-    pub(crate) async fn ftp_append(&self) -> Result<()>{
 
+    pub(crate) async fn ftp_delete(&self, path: &str) -> Result<()> {
+        let url = format!("{}/{}:{}", self.endpoint, path, self.port);
+
+        let mut ftp_stream = self.ftp_connect(&url)?;
+
+        ftp_stream
+            .rm(&url)
+            .map_err(|e| new_request_remove_error("delete", &url, e))?;
+
+        Ok(())
     }
 
+    pub(crate) async fn ftp_append<R>(&self, path: &str, r: R) -> Result<u64>
+    where
+        R: AsyncRead + Send + Sync + 'static,
+    {
+        let url = format!("{}/{}:{}", self.endpoint, path, self.port);
 
+        let mut ftp_stream = self.ftp_connect(&url)?;
+
+        let mut reader = Box::pin(r);
+
+        let mut buf = Vec::new();
+
+        reader.read_to_end(&mut buf);
+
+        let n = ftp_stream
+            .append_file(&url, &mut buf.as_slice())
+            .map_err(|e| new_request_append_error("append", &url, e))?;
+
+        Ok(n)
+    }
+
+    pub(crate) async fn ftp_stat(&self, path: &str) -> Result<File> {
+        let url = format!("{}/{}:{}", self.endpoint, path, self.port);
+
+        let mut ftp_stream = self.ftp_connect(&url)?;
+
+        let mut buf = String::new();
+
+        ftp_stream
+            .retr(&url, |stream| {
+                stream
+                    .read_to_string(&mut buf)
+                    .map_err(|e| FtpError::ConnectionError(e))
+            })
+            .map_err(|e| new_request_retr_error("stat", &url, e))?;
+
+        ftp_stream
+            .quit()
+            .map_err(|e| new_request_quit_error("stat", &url, e))?;
+
+        let file =
+            File::from_str(buf.as_str()).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        Ok(file)
+    }
+
+    pub(crate) async fn ftp_list(&self, path: &str) -> Result<ReadDir> {
+        let url = format!("{}/{}:{}", self.endpoint, path, self.port);
+
+        let mut ftp_stream = self.ftp_connect(&url)?;
+
+        let files = ftp_stream
+            .list(Some(url.as_ref()))
+            .map_err(|e| new_request_list_error("list", &url, e))?;
+
+        let dir = ReadDir::new(files);
+
+        Ok(dir)
+    }
 }
+

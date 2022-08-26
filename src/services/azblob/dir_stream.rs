@@ -17,6 +17,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use anyhow::anyhow;
 
 use bytes::Buf;
 use futures::future::BoxFuture;
@@ -25,6 +26,8 @@ use isahc::AsyncReadResponseExt;
 use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
+use time::format_description::well_known::{Rfc2822};
+use time::OffsetDateTime;
 
 use super::error::parse_error;
 use super::Backend;
@@ -119,11 +122,15 @@ impl futures::Stream for DirStream {
                         );
 
                         debug!(
-                            "dir object {} got entry, mode: {}, path: {}",
-                            &self.path,
-                            de.mode(),
-                            de.path()
-                        );
+                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
+                        &self.path,
+                        de.mode(),
+                        de.path(),
+                        de.content_length(),
+                        de.last_modified(),
+                        de.content_md5(),
+                        de.etag()
+                    );
                         return Poll::Ready(Some(Ok(de)));
                     }
                 };
@@ -140,19 +147,35 @@ impl futures::Stream for DirStream {
                         continue;
                     }
 
-                    let de = DirEntry::new(
+                    let mut de = DirEntry::new(
                         backend.clone(),
                         ObjectMode::FILE,
                         &backend.get_rel_path(&object.name),
                     );
 
+                    de.set_etag(object.properties.etag.clone());
+                    de.set_content_length(object.properties.content_length);
+                    de.set_content_md5(object.properties.content_md5.clone());
+
+                    let dt = OffsetDateTime::parse(object.properties.last_modified.as_str(), &Rfc2822).map_err(|e|
+                        other(ObjectError::new(
+                            "list",
+                            &self.path,
+                            anyhow!("parse last modified RFC2822 datetime: {e:?}"),
+                        )))?;
+                    de.set_last_modified(dt);
+
                     debug!(
-                        "dir object {} got entry, mode: {}, path: {}",
+                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
                         &self.path,
                         de.mode(),
                         de.path(),
+                        de.content_length(),
+                        de.last_modified(),
+                        de.content_md5(),
+                        de.etag()
                     );
-                    return Poll::Ready(Some(Ok(de)));
+                   return Poll::Ready(Some(Ok(de)));
                 }
 
                 if self.done {
@@ -200,6 +223,11 @@ struct Blob {
 struct Properties {
     #[serde(rename = "Content-Length")]
     content_length: u64,
+    #[serde(rename = "Last-Modified")]
+    last_modified: String,
+    #[serde(rename = "Content-MD5")]
+    content_md5: String,
+    etag: String,
 }
 
 #[cfg(test)]
@@ -316,6 +344,30 @@ mod tests {
                 .map(|v| v.properties.content_length)
                 .collect::<Vec<u64>>(),
             [3485277, 2471869, 1259677]
+        );
+        assert_eq!(
+            out.blobs
+                .blob
+                .iter()
+                .map(|v| v.properties.content_md5.clone())
+                .collect::<Vec<String>>(),
+            ["llJ/+jOlx5GdA1sL7SdKuw==".to_string(), "xmgUltSnopLSJOukgCHFtg==".to_string(), "AxTiFXHwrXKaZC5b7ZRybw==".to_string()]
+        );
+        assert_eq!(
+            out.blobs
+                .blob
+                .iter()
+                .map(|v| v.properties.last_modified.clone())
+                .collect::<Vec<String>>(),
+            ["Sun, 20 Mar 2022 11:29:03 GMT".to_string(), "Tue, 29 Mar 2022 01:54:07 GMT".to_string(), "Sun, 20 Mar 2022 11:31:57 GMT".to_string()]
+        );
+        assert_eq!(
+            out.blobs
+                .blob
+                .iter()
+                .map(|v| v.properties.etag.clone())
+                .collect::<Vec<String>>(),
+            ["0x8DA0A64D66790C3".to_string(), "0x8DA112702D88FE4".to_string(), "0x8DA0A653DC82981".to_string()]
         );
         assert_eq!(
             out.blobs

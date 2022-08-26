@@ -28,6 +28,8 @@ use log::debug;
 use log::error;
 use serde::Deserialize;
 use serde_json;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use crate::error::other;
 use crate::error::ObjectError;
@@ -73,6 +75,7 @@ impl Stream for DirStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
+        let path = self.path.clone();
 
         match &mut self.state {
             State::Standby => {
@@ -133,10 +136,14 @@ impl Stream for DirStream {
                     );
 
                     debug!(
-                        "object {} got entry, mode: {}, path: {}",
+                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
                         &self.path,
+                        de.mode(),
                         de.path(),
-                        de.mode()
+                        de.content_length(),
+                        de.last_modified(),
+                        de.content_md5(),
+                        de.etag()
                     );
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -149,17 +156,41 @@ impl Stream for DirStream {
                         continue;
                     }
 
-                    let de = DirEntry::new(
+                    let mut de = DirEntry::new(
                         backend.clone(),
                         ObjectMode::FILE,
                         &backend.get_rel_path(&object.name),
                     );
 
+                    // set metadata fields
+                    de.set_content_md5(object.md5_hash.clone());
+                    de.set_etag(object.etag.clone());
+
+                    let size = object.size.parse().map_err(|e|
+                            other(ObjectError::new(
+                                "list",
+                                path.as_str(),
+                                anyhow!("parse object size: {e:?}"),
+                            )))?;
+                    de.set_content_length(size);
+
+                    let dt =  OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err( |e|
+                             other(ObjectError::new(
+                                "list",
+                                &self.path,
+                                anyhow!("parse last modified RFC3339 datetime: {e:?}"),
+                            )))?;
+                    de.set_last_modified(dt);
+
                     debug!(
-                        "dir object {} got entry, mode: {}, path: {}",
+                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
                         &self.path,
                         de.mode(),
-                        de.path()
+                        de.path(),
+                        de.content_length(),
+                        de.last_modified(),
+                        de.content_md5(),
+                        de.etag()
                     );
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -199,6 +230,10 @@ struct ListResponse {
 struct ListResponseItem {
     name: String,
     size: String,
+    // metadata
+    etag: String,
+    md5_hash: String,
+    updated: String,
 }
 
 #[cfg(test)]
@@ -263,8 +298,20 @@ mod tests {
         assert_eq!(output.items.len(), 2);
         assert_eq!(output.items[0].name, "1.png");
         assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(
+            output.items[0].updated,
+            "2022-08-15T11:33:34.866Z"
+        );
         assert_eq!(output.items[1].name, "2.png");
         assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
+        assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
+        assert_eq!(
+            output.items[1].updated,
+            "2022-08-15T11:33:34.886Z"
+        );
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 
@@ -327,8 +374,20 @@ mod tests {
         assert_eq!(output.items.len(), 2);
         assert_eq!(output.items[0].name, "1.png");
         assert_eq!(output.items[0].size, "56535");
+        assert_eq!(output.items[0].md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
+        assert_eq!(output.items[0].etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(
+            output.items[0].updated,
+            "2022-08-15T11:33:34.866Z"
+        );
         assert_eq!(output.items[1].name, "2.png");
         assert_eq!(output.items[1].size, "45506");
+        assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
+        assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
+        assert_eq!(
+            output.items[1].updated,
+            "2022-08-15T11:33:34.886Z"
+        );
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 }

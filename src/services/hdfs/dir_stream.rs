@@ -52,7 +52,7 @@ impl futures::Stream for DirStream {
             Some(de) => {
                 let path = self.backend.get_rel_path(de.path());
 
-                let d = if de.is_file() {
+                let mut d = if de.is_file() {
                     DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
                 } else if de.is_dir() {
                     // Make sure we are returning the correct path.
@@ -61,11 +61,19 @@ impl futures::Stream for DirStream {
                     DirEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
                 };
 
+                // set metadata fields of `DirEntry`
+                d.set_content_length(de.len());
+                d.set_last_modified(time::OffsetDateTime::from(de.modified()));
+
                 debug!(
-                    "dir object {} got entry, mode: {}, path: {}",
+                    "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
                     &self.path,
                     d.mode(),
-                    d.path()
+                    d.path(),
+                    d.content_length(),
+                    d.last_modified(),
+                    d.content_md5(),
+                    d.etag()
                 );
                 Poll::Ready(Some(Ok(d)))
             }

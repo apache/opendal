@@ -20,6 +20,7 @@ use std::task::Poll;
 
 use log::debug;
 use log::error;
+use time::OffsetDateTime;
 
 use super::error::parse_io_error;
 use super::Backend;
@@ -65,7 +66,7 @@ impl futures::Stream for DirStream {
                 // the target file type.
                 let file_type = de.file_type()?;
 
-                let d = if file_type.is_file() {
+                let mut d = if file_type.is_file() {
                     DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
@@ -78,12 +79,26 @@ impl futures::Stream for DirStream {
                     DirEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
                 };
 
+                // metadata may not available on all platforms, it's ok not setting it here
+                if let Ok(metadata) = de.metadata() {
+                    d.set_content_length(metadata.len());
+                    // last_modified is not available in all platforms.
+                    // it's ok not setting it here.
+                    if let Ok(last_modified) = metadata.modified().map(OffsetDateTime::from) {
+                        d.set_last_modified(last_modified);
+                    }
+                }
+
                 debug!(
-                    "dir object {} got entry, mode: {}, path: {}",
-                    &self.path,
-                    d.mode(),
-                    d.path()
-                );
+                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
+                        &self.path,
+                        d.mode(),
+                        d.path(),
+                        d.content_length(),
+                        d.last_modified(),
+                        d.content_md5(),
+                        d.etag()
+                    );
                 Poll::Ready(Some(Ok(d)))
             }
         }

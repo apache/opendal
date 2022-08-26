@@ -27,6 +27,8 @@ use isahc::AsyncReadResponseExt;
 use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use super::error::parse_error;
 use super::Backend;
@@ -137,10 +139,14 @@ impl futures::Stream for DirStream {
                     );
 
                     debug!(
-                        "object {} got entry, mode: {}, path: {}",
+                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
                         &self.path,
+                        de.mode(),
                         de.path(),
-                        de.mode()
+                        de.content_length(),
+                        de.last_modified(),
+                        de.content_md5(),
+                        de.etag()
                     );
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -157,17 +163,35 @@ impl futures::Stream for DirStream {
                         continue;
                     }
 
-                    let de = DirEntry::new(
+                    let mut de = DirEntry::new(
                         backend.clone(),
                         ObjectMode::FILE,
                         &backend.get_rel_path(&object.key),
                     );
 
+                    // record metadata
+                    de.set_etag(object.etag.clone().trim_matches('\"'));
+                    de.set_content_length(object.size);
+
+                    let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
+                        .map_err(|e| {
+                            other(ObjectError::new(
+                                "list",
+                                &self.path,
+                                anyhow!("parse last modified RFC3339 datetime: {e:?}"),
+                            ))
+                        })?;
+                    de.set_last_modified(dt);
+
                     debug!(
-                        "dir object {} got entry, mode: {}, path: {}",
+                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
                         &self.path,
                         de.mode(),
-                        de.path()
+                        de.path(),
+                        de.content_length(),
+                        de.last_modified(),
+                        de.content_md5(),
+                        de.etag()
                     );
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -207,6 +231,9 @@ struct Output {
 struct OutputContent {
     key: String,
     size: u64,
+    last_modified: String,
+    #[serde(rename = "ETag")]
+    etag: String,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]
@@ -269,11 +296,15 @@ mod tests {
             vec![
                 OutputContent {
                     key: "photos/2006".to_string(),
-                    size: 56
+                    size: 56,
+                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
                 },
                 OutputContent {
                     key: "photos/2007".to_string(),
-                    size: 100
+                    size: 100,
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
                 }
             ]
         )

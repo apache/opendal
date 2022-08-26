@@ -16,7 +16,7 @@
 //!
 //! # Note
 //!
-//! `behavior` requires most of the logic is correct, especially `write` and `delete`. We will not depends service specific functions to prepare the fixtures.
+//! `behavior` requires most of the logic is correct, especially `write` and `delete`. We will not depend on service specific functions to prepare the fixtures.
 //!
 //! For examples, we depend on `write` to create a file before testing `read`. If `write` doesn't work well, we can't test `read` correctly too.
 
@@ -26,10 +26,12 @@ use std::io;
 use anyhow::Result;
 use futures::TryStreamExt;
 use http::header;
+use http::header::ETAG;
 use isahc::AsyncReadResponseExt;
 use log::debug;
 use opendal::layers::*;
 use opendal::ObjectMode;
+use opendal::ObjectPart;
 use opendal::Operator;
 use opendal::Scheme::*;
 use sha2::Digest;
@@ -102,6 +104,10 @@ macro_rules! behavior_tests {
 
                 test_presign_read,
                 test_presign_write,
+
+                test_multipart_complete,
+                test_multipart_abort,
+                test_presign_write_multipart,
             );
         )*
     };
@@ -1135,6 +1141,124 @@ async fn test_presign_read(op: Operator) -> Result<()> {
         format!("{:x}", Sha256::digest(&content)),
         "read content"
     );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+// Multipart complete should succeed.
+async fn test_multipart_complete(op: Operator) -> Result<()> {
+    // Ignore this test if not supported.
+    if !op.metadata().can_multipart() {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    // Create multipart
+    let mp = op.object(&path).create_multipart().await?;
+
+    // Upload first part
+    let mut p1_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let p1 = mp.write(1, p1_content.clone()).await?;
+
+    // Upload second part
+    let mut p2_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let p2 = mp.write(2, p2_content.clone()).await?;
+
+    // Complete
+    let o = mp.complete(vec![p1, p2]).await?;
+
+    let meta = o.metadata().await?;
+
+    assert_eq!(10 * 1024 * 1024, meta.content_length(), "complete size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(o.read().await?)),
+        format!(
+            "{:x}",
+            Sha256::digest({
+                let mut bs = Vec::with_capacity(10 * 1024 * 1024);
+                bs.append(&mut p1_content);
+                bs.append(&mut p2_content);
+                bs
+            })
+        ),
+        "complete content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+// Multipart abort should succeed.
+async fn test_multipart_abort(op: Operator) -> Result<()> {
+    // Ignore this test if not supported.
+    if !op.metadata().can_multipart() {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    // Create multipart
+    let mp = op.object(&path).create_multipart().await?;
+
+    // Upload first part
+    let p1_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let _ = mp.write(1, p1_content).await?;
+
+    // Upload second part
+    let p2_content = gen_fixed_bytes(5 * 1024 * 1024);
+    let _ = mp.write(2, p2_content).await?;
+
+    // Abort
+    mp.abort().await?;
+    Ok(())
+}
+
+/// Presign write multipart should succeed.
+async fn test_presign_write_multipart(op: Operator) -> Result<()> {
+    // Ignore this test if not supported.
+    if !op.metadata().can_presign() || !op.metadata().can_multipart() {
+        return Ok(());
+    }
+
+    let path = uuid::Uuid::new_v4().to_string();
+
+    // Create multipart
+    let mp = op.object(&path).create_multipart().await?;
+
+    let (content, size) = gen_bytes();
+
+    let signed_req = mp.presign_write(1, Duration::hours(1))?;
+    debug!("Generated request: {signed_req:?}");
+
+    let mut req = isahc::Request::builder()
+        .method(signed_req.method())
+        .uri(signed_req.uri())
+        .body(isahc::AsyncBody::from_bytes_static(content.clone()))?;
+    *req.headers_mut() = signed_req.header().clone();
+    req.headers_mut()
+        .insert(header::CONTENT_LENGTH, content.len().to_string().parse()?);
+
+    let client = isahc::HttpClient::new().expect("must init succeed");
+    let resp = client.send_async(req).await?;
+    let etag = resp
+        .headers()
+        .get(ETAG)
+        .expect("must have etag")
+        .to_str()
+        .expect("must be valid string");
+
+    let o = mp.complete(vec![ObjectPart::new(1, etag)]).await?;
+
+    let meta = o.metadata().await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
         .delete()

@@ -36,15 +36,16 @@ use crate::io_util::CompressAlgorithm;
 #[cfg(feature = "compress")]
 use crate::io_util::DecompressReader;
 use crate::io_util::SeekableReader;
+use crate::multipart::ObjectMultipart;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
@@ -716,7 +717,7 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(self.path(), Operation::Read, expire)?;
+        let op = OpPresign::new(OpRead::new(self.path(), ..)?.into(), expire)?;
 
         self.acc.presign(&op)
     }
@@ -746,9 +747,21 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(self.path(), Operation::Write, expire)?;
+        let op = OpPresign::new(OpWrite::new(self.path(), 0)?.into(), expire)?;
 
         self.acc.presign(&op)
+    }
+
+    /// Construct a multipart with existing upload id.
+    pub fn to_multipart(&self, upload_id: &str) -> ObjectMultipart {
+        ObjectMultipart::new(self.acc.clone(), &self.path, upload_id)
+    }
+
+    /// Create a new multipart for current path.
+    pub async fn create_multipart(&self) -> Result<ObjectMultipart> {
+        let op = OpCreateMultipart::new(self.path())?;
+        let upload_id = self.acc.create_multipart(&op).await?;
+        Ok(self.to_multipart(&upload_id))
     }
 }
 

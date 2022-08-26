@@ -22,6 +22,7 @@ use log::debug;
 use log::error;
 use log::warn;
 
+use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -58,7 +59,7 @@ use crate::Scheme;
 ///
 /// We should migrate to log's kv api after it's ready.
 ///
-/// Tracking issue: https://github.com/rust-lang/log/issues/328
+/// Tracking issue: <https://github.com/rust-lang/log/issues/328>
 ///
 /// # Examples
 ///
@@ -433,7 +434,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<u64> {
+    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",

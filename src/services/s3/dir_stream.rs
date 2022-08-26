@@ -281,7 +281,6 @@ mod tests {
 
         let out: Output = de::from_reader(bs.reader()).expect("must success");
 
-        println!("{:?}", out);
         assert!(!out.is_truncated.unwrap());
         assert!(out.next_continuation_token.is_none());
         assert_eq!(

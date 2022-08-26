@@ -25,6 +25,7 @@ You may be looking for:
 - [http](https://opendal.databend.rs/opendal/services/http/index.html): HTTP read-only services.
 - [memory](https://opendal.databend.rs/opendal/services/memory/index.html): In memory backend.
 - [s3](https://opendal.databend.rs/opendal/services/s3/index.html): AWS S3 alike services.
+- [obs](https://opendal.databend.rs/opendal/services/obs/index.html): Huawei Cloud Object Storage Service (OBS).
 
 ## Features
 

@@ -73,7 +73,7 @@ pub struct Builder {
     root: Option<String>,
     user: Option<String>,
     password: Option<String>,
-    tls: Option<bool>,
+    tls: Option<String>,
 }
 
 impl Debug for Builder {
@@ -142,8 +142,13 @@ impl Builder {
     }
 
     /// set tls for ftp backend.
-    pub fn tls(&mut self, tls: bool) -> &mut Self {
-        self.tls = Some(tls);
+    pub fn tls(&mut self, tls: &str) -> &mut Self {
+        self.tls = if tls.is_empty(){
+            Some("false".to_string())
+        }else{
+            Some(tls.to_string())
+        };
+
         self
     }
 
@@ -198,7 +203,13 @@ impl Builder {
 
         let tls = match &self.tls {
             None => false,
-            Some(v) => *v,
+            Some(v) =>{
+                if v == "true"{
+                    true
+                }else{
+                    false
+                }
+            }
         };
 
         info!("ftp backend finished: {:?}", &self);
@@ -208,7 +219,6 @@ impl Builder {
             root,
             credential,
             tls,
-            //stream,
         })
     }
 }

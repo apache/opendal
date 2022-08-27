@@ -73,9 +73,6 @@ impl BackendError {
 #[derive(Error, Debug)]
 #[error("object error: (op: {op}, path: {path}, source: {source})")]
 pub struct ObjectError {
-    /// TODO: refactor op with `Operation`
-    ///
-    /// ref: https://github.com/datafuselabs/opendal/issues/562
     op: Operation,
     path: String,
     source: anyhow::Error,

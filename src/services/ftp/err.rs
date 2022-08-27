@@ -13,12 +13,8 @@
 // limitations under the License.
 
 use anyhow::anyhow;
-use std::fmt::Display;
-use std::fmt::Formatter;
 use std::io::Error;
-use std::io::ErrorKind;
 use suppaftp::FtpError;
-use suppaftp::Status;
 
 use crate::error::other;
 use crate::error::ObjectError;
@@ -76,15 +72,6 @@ pub fn new_request_put_error(op: &'static str, path: &str, err: FtpError) -> Err
     other(ObjectError::new(op, path, anyhow!("put request: {err:?}")))
 }
 
-// Create error happened during finalizing stream.
-pub fn new_request_finalize_error(op: &'static str, path: &str, err: FtpError) -> Error {
-    other(ObjectError::new(
-        op,
-        path,
-        anyhow!("finalize request: {err:?}"),
-    ))
-}
-
 // Create error happended uring appending to ftp server.
 pub fn new_request_append_error(op: &'static str, path: &str, err: FtpError) -> Error {
     other(ObjectError::new(
@@ -117,47 +104,14 @@ pub fn new_request_mkdir_error(op: &'static str, path: &str, err: FtpError) -> E
     ))
 }
 
-// Create error happened during  retrieving modification time of the file to ftp server.
-pub fn new_request_mdtm_error(op: &'static str, path: &str, err: FtpError) -> Error {
-    other(ObjectError::new(op, path, anyhow!("mdtm request: {err:?}")))
-}
-pub struct ErrorResponse {
-    status: Status,
-    body: Vec<u8>,
-}
-
-impl ErrorResponse {
-    pub fn status_code(&self) -> Status {
-        self.status
-    }
-
-    pub fn body(&self) -> &[u8] {
-        &self.body
-    }
+pub fn new_request_root_eror(op: &'static str, path: &str, err: FtpError) -> Error {
+    other(ObjectError::new(
+        op,
+        path,
+        anyhow!("change root request: {err:?}"),
+    ))
 }
 
-impl Display for ErrorResponse {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write! {
-            f,
-            "status code: {:?}, body: {:?}",
-            self.status_code(),
-            String::from_utf8_lossy(self.body())
-        }
-    }
-}
-
-pub fn parse_error(op: &'static str, path: &str, err: FtpError) -> Error {
-    let kind = match err {
-        FtpError::BadResponse => ErrorKind::InvalidData,
-        FtpError::ConnectionError(ref e) => e.kind(),
-        FtpError::InvalidAddress(_) => ErrorKind::AddrNotAvailable,
-        FtpError::SecureError(_) => ErrorKind::PermissionDenied,
-        FtpError::UnexpectedResponse(_) => ErrorKind::ConnectionRefused,
-        _ => ErrorKind::Other,
-    };
-    Error::new(kind, ObjectError::new(op, path, anyhow!(err)))
-}
 pub fn parse_io_error(err: Error, op: &'static str, path: &str) -> Error {
     Error::new(err.kind(), ObjectError::new(op, path, err))
 }

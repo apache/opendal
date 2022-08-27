@@ -42,10 +42,7 @@ impl Iterator for ReadDir {
 
 impl ReadDir {
     pub fn new(files: Vec<String>) -> ReadDir {
-        ReadDir {
-            files: files,
-            index: 0,
-        }
+        ReadDir { files, index: 0 }
     }
 }
 

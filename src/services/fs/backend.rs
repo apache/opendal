@@ -34,12 +34,12 @@ use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::ops::{OpCreate, Operation};
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{OpCreate, Operation};
 use crate::Accessor;
 use crate::BytesReader;
 use crate::DirStreamer;
@@ -94,7 +94,8 @@ impl Builder {
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
             if e.kind() == ErrorKind::NotFound {
-                std::fs::create_dir_all(&root).map_err(|e| parse_io_error(e, "build", &root))?;
+                std::fs::create_dir_all(&root)
+                    .map_err(|e| other(anyhow!("create dir in {} error {:?}", &root, e)))?;
             }
         }
 
@@ -134,7 +135,7 @@ impl Builder {
             if e.kind() == std::io::ErrorKind::NotFound {
                 fs::create_dir_all(&root)
                     .await
-                    .map_err(|e| parse_io_error(e, "build", &root))?;
+                    .map_err(|e| other(anyhow!("create dir in {} error {:?}", &root, e)))?;
             }
         }
 

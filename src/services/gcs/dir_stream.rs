@@ -34,11 +34,11 @@ use time::OffsetDateTime;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
+use crate::ops::Operation;
 use crate::services::gcs::backend::Backend;
 use crate::services::gcs::error::parse_error;
 use crate::DirEntry;
 use crate::ObjectMode;
-use crate::ops::Operation;
 
 /// DirStream takes over task of listing objects and
 /// helps walking directory

@@ -24,9 +24,9 @@ use time::OffsetDateTime;
 
 use super::error::parse_io_error;
 use super::Backend;
+use crate::ops::Operation;
 use crate::DirEntry;
 use crate::ObjectMode;
-use crate::ops::Operation;
 
 pub struct DirStream {
     backend: Arc<Backend>,

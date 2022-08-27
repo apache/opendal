@@ -35,9 +35,9 @@ use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
+use crate::ops::Operation;
 use crate::DirEntry;
 use crate::ObjectMode;
-use crate::ops::Operation;
 
 pub struct DirStream {
     backend: Arc<Backend>,

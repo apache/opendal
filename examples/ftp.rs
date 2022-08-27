@@ -15,7 +15,6 @@
 //! Example for initiating a ftp backend.
 
 use std::env;
-
 use anyhow::Result;
 use log::info;
 use opendal::services::ftp;
@@ -46,19 +45,13 @@ Available Environment Values:
     let mut builder: Builder = ftp::Builder::default();
     builder.root(&env::var("OPENDAL_FTP_ROOT").unwrap_or_else(|_| "/ftp".to_string()));
     // Set the root for ftp, all operations will happen under this root.
-    //
+
     // NOTE: the root must be absolute path.
     builder.endpoint(&env::var("OPENDAL_FTP_ENDPOINT").unwrap_or_else(|_| "127.0.0.1".to_string()));
     builder.user(&env::var("OPENDAL_FTP_USER").unwrap_or_else(|_| "".to_string()));
     builder.password(&env::var("OPENDAL_FTP_PWD").unwrap_or_else(|_| "".to_string()));
     builder.port(&env::var("OPENDAL_FTP_PORT").unwrap_or_else(|_| "21".to_string()));
-    let tls = &env::var("OPENDAL_FTP_TLS").unwrap_or_else(|_| "false".to_string());
-
-    builder.tls(match tls.as_str() {
-        "Yes" => true,
-        "No" => false,
-        _ => false,
-    });
+    builder.tls(&env::var("OPENDAL_FTP_TLS").unwrap_or_else(|_| "false".to_string()));
 
     // Use `Operator` normally.
     let op: Operator = Operator::new(builder.build()?);

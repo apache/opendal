@@ -143,9 +143,9 @@ impl Builder {
 
     /// set tls for ftp backend.
     pub fn tls(&mut self, tls: &str) -> &mut Self {
-        self.tls = if tls.is_empty(){
+        self.tls = if tls.is_empty() {
             Some("false".to_string())
-        }else{
+        } else {
             Some(tls.to_string())
         };
 
@@ -203,10 +203,10 @@ impl Builder {
 
         let tls = match &self.tls {
             None => false,
-            Some(v) =>{
-                if v == "true"{
+            Some(v) => {
+                if v == "true" {
                     true
-                }else{
+                } else {
                     false
                 }
             }

@@ -33,12 +33,12 @@ use parking_lot::Mutex;
 
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{OpCreate, Operation};
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -121,7 +121,7 @@ impl Accessor for Backend {
         let data = map.get(path).ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
-                ObjectError::new("read", path, anyhow!("key not exists in map")),
+                ObjectError::new(Operation::Read, path, anyhow!("key not exists in map")),
             )
         })?;
 
@@ -129,7 +129,7 @@ impl Accessor for Backend {
         if let Some(offset) = args.offset() {
             if offset >= data.len() as u64 {
                 return Err(other(ObjectError::new(
-                    "read",
+                    Operation::Read,
                     path,
                     anyhow!("offset out of bound {} >= {}", offset, data.len()),
                 )));
@@ -140,7 +140,7 @@ impl Accessor for Backend {
         if let Some(size) = args.size() {
             if size > data.len() as u64 {
                 return Err(other(ObjectError::new(
-                    "read",
+                    Operation::Read,
                     path,
                     anyhow!("size out of bound {} > {}", size, data.len()),
                 )));
@@ -158,7 +158,7 @@ impl Accessor for Backend {
         let n = futures::io::copy(r, &mut buf).await?;
         if n != args.size() {
             return Err(other(ObjectError::new(
-                "write",
+                Operation::Write,
                 path,
                 anyhow!("write short, expect {} actual {}", args.size(), n),
             )));
@@ -184,7 +184,7 @@ impl Accessor for Backend {
         let data = map.get(path).ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
-                ObjectError::new("read", path, anyhow!("key not exists in map")),
+                ObjectError::new(Operation::Read, path, anyhow!("key not exists in map")),
             )
         })?;
 
@@ -281,7 +281,7 @@ impl AsyncWrite for MapWriter {
     fn poll_close(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         if self.buf.len() != self.size as usize {
             return Poll::Ready(Err(other(ObjectError::new(
-                "write",
+                Operation::Write,
                 &self.path,
                 anyhow!(
                     "write short, expect {} actual {}",

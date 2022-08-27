@@ -24,6 +24,7 @@ use time::OffsetDateTime;
 
 use super::error::parse_io_error;
 use super::Backend;
+use crate::ops::Operation;
 use crate::DirEntry;
 use crate::ObjectMode;
 
@@ -55,7 +56,7 @@ impl futures::Stream for DirStream {
             }
             Some(Err(e)) => {
                 error!("dir object {} list: {:?}", &self.path, e);
-                Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path))))
+                Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path))))
             }
             Some(Ok(de)) => {
                 let path = self.backend.get_rel_path(&de.path().to_string_lossy());

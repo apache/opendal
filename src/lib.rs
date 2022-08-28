@@ -24,6 +24,7 @@
 //! | [hdfs][crate::services::hdfs] | Hadoop Distributed File System(HDFS). |
 //! | [http][crate::services::http] | HTTP read-only backend. |
 //! | [memory][crate::services::memory] | In memory backend support. |
+//! | [obs][crate::services::obs] | Huawei Cloud OBS service. |
 //! | [s3][crate::services::s3] | AWS S3 alike services. |
 //!
 //! # Optional features

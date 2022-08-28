@@ -41,7 +41,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test hdfs --features compress,retry,services-hdfs -- --nocapture
+        run: cargo test hdfs --features compress,layers-retry,services-hdfs -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

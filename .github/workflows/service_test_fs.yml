@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Test
         shell: bash
-        run: cargo test fs --features compress,retry -- --nocapture
+        run: cargo test fs --features compress,layers-retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

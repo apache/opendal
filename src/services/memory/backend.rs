@@ -60,26 +60,12 @@ impl Builder {
             inner: Arc::new(Mutex::new(HashMap::default())),
         })
     }
-
-    /// Consume builder to build a memory backend.
-    #[deprecated = "Use Builder::build() instead"]
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        Ok(Arc::new(self.build()?))
-    }
 }
 
 /// Backend is used to serve `Accessor` support in memory.
 #[derive(Debug, Clone)]
 pub struct Backend {
     inner: Arc<Mutex<HashMap<String, Bytes>>>,
-}
-
-impl Backend {
-    /// Create a builder.
-    #[deprecated = "Use Builder::default() instead"]
-    pub fn build() -> Builder {
-        Builder::default()
-    }
 }
 
 #[async_trait]

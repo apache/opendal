@@ -223,12 +223,6 @@ impl Builder {
             _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
         })
     }
-
-    /// Consume builder to build an azblob backend.
-    #[deprecated = "Use Builder::build() instead"]
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        Ok(Arc::new(self.build()?))
-    }
 }
 
 /// Backend for azblob services.
@@ -243,12 +237,6 @@ pub struct Backend {
 }
 
 impl Backend {
-    /// Create a builder for azblob.
-    #[deprecated = "Use Builder::default() instead"]
-    pub fn build() -> Builder {
-        Builder::default()
-    }
-
     pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 

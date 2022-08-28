@@ -224,39 +224,6 @@ impl Operator {
         }
     }
 
-    /// Configure backoff for operators
-    ///
-    /// This function only provided if feature `retry` is enabled.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
-    /// use backon::ExponentialBackoff;
-    /// use opendal::Operator;
-    /// use opendal::Scheme;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Fs)?.with_backoff(ExponentialBackoff::default());
-    /// // All operations will be retried if the error is retryable
-    /// let _ = op.object("test_file").read();
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[cfg(feature = "layers-retry")]
-    #[must_use]
-    #[deprecated = "Use `Operator::layer` and `RetryLayer` directly"]
-    pub fn with_backoff(
-        self,
-        backoff: impl backon::Backoff + Send + Sync + std::fmt::Debug + 'static,
-    ) -> Self {
-        self.layer(crate::layers::RetryLayer::new(backoff))
-    }
-
     fn inner(&self) -> Arc<dyn Accessor> {
         self.accessor.clone()
     }

@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.14.0] - 2022-08-28
+
+### Added
+
+- RFC-0554: Write Refactor (#554)
+- feat: Implement huaweicloud obs service other op support (#557)
+- feat: Add new operations in Accessor (#564)
+- feat: Implement obs create and write (#565)
+- feat(services/s3): Implement Multipart support (#571)
+- feat: Implement MultipartObject public API (#574)
+- feat: Implement integration tests for multipart (#575)
+- feat: Implement presign for write multipart (#576)
+- test: Add assert of public struct size (#578)
+- feat: List metadata reuse (#577)
+- feat: Implement integration test for obs (#572)
+
+### Changed
+
+- refactor(ops): Promote ops as a parent mod (#553)
+- refactor: Implement RFC-0554 Write Refactor (#556)
+- refactor: Remove all unused qualifications (#560)
+- refactor: Fix typo in azblob backend (#569)
+- refactor: change ObjectError's op from &'static str to Operation (#580)
+
+### Deleted
+
+- refactor: Remove deprecated APIs (#582)
+
+### Docs
+
+- docs: Add docs for obs service (#579)
+
 ## [v0.13.1] - 2022-08-22
 
 ### Added
@@ -582,6 +614,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.14.0]: https://github.com/datafuselabs/opendal/compare/v0.13.1...v0.14.0
 [v0.13.1]: https://github.com/datafuselabs/opendal/compare/v0.13.0...v0.13.1
 [v0.13.0]: https://github.com/datafuselabs/opendal/compare/v0.12.0...v0.13.0
 [v0.12.0]: https://github.com/datafuselabs/opendal/compare/v0.11.4...v0.12.0

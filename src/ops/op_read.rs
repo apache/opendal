@@ -20,6 +20,7 @@ use anyhow::anyhow;
 use super::BytesRange;
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::ops::Operation;
 
 /// Args for `read` operation.
 ///
@@ -38,7 +39,7 @@ impl OpRead {
     pub fn new(path: &str, range: impl RangeBounds<u64>) -> Result<Self> {
         if path.ends_with('/') {
             return Err(other(ObjectError::new(
-                "read",
+                Operation::Read,
                 path,
                 anyhow!("Is a directory"),
             )));
@@ -60,7 +61,7 @@ impl OpRead {
     ) -> Result<Self> {
         if path.ends_with('/') {
             return Err(other(ObjectError::new(
-                "read",
+                Operation::Read,
                 path,
                 anyhow!("Is a directory"),
             )));

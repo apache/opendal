@@ -47,13 +47,13 @@ use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::HttpClient;
 use crate::io_util::unshared_reader;
-use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{BytesRange, Operation};
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -284,22 +284,22 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error("create", &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
 
         let mut resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("create", &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Create, &p, e))?;
 
         if resp.status().is_success() {
             resp.consume()
                 .await
-                .map_err(|err| new_response_consume_error("create", &p, err))?;
+                .map_err(|err| new_response_consume_error(Operation::Create, &p, err))?;
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error("create", &p, er);
+            let e = parse_error(Operation::Create, &p, er);
             Err(e)
         }
     }
@@ -313,7 +313,7 @@ impl Accessor for Backend {
             Ok(Box::new(resp.into_body()))
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error("read", args.path(), er);
+            let e = parse_error(Operation::Read, args.path(), er);
             Err(e)
         }
     }
@@ -328,22 +328,22 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error("write", &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
 
         let mut resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("write", &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
 
         if (200..300).contains(&resp.status().as_u16()) {
             resp.consume()
                 .await
-                .map_err(|err| new_response_consume_error("write", &p, err))?;
+                .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
             Ok(args.size())
         } else {
             let er = parse_error_response(resp).await?;
-            let err = parse_error("write", &p, er);
+            let err = parse_error(Operation::Write, &p, er);
             Err(err)
         }
     }
@@ -366,14 +366,14 @@ impl Accessor for Backend {
             // read http response body
             let slc = resp.bytes().await.map_err(|e| {
                 other(ObjectError::new(
-                    "stat",
+                    Operation::Stat,
                     &p,
                     anyhow!("read response body: {e:?}"),
                 ))
             })?;
             let meta: GetObjectJsonResponse = serde_json::from_slice(&slc).map_err(|e| {
                 other(ObjectError::new(
-                    "stat",
+                    Operation::Stat,
                     &p,
                     anyhow!("parse response body into JSON: {e:?}"),
                 ))
@@ -384,7 +384,7 @@ impl Accessor for Backend {
 
             let size = meta.size.parse::<u64>().map_err(|e| {
                 other(ObjectError::new(
-                    "stat",
+                    Operation::Stat,
                     &p,
                     anyhow!("parse object size: {e:?}"),
                 ))
@@ -393,7 +393,7 @@ impl Accessor for Backend {
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
                 other(ObjectError::new(
-                    "stat",
+                    Operation::Stat,
                     &p,
                     anyhow!("parse object updated: {e:?}"),
                 ))
@@ -414,7 +414,7 @@ impl Accessor for Backend {
             Ok(m)
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error("stat", args.path(), er);
+            let e = parse_error(Operation::Stat, args.path(), er);
             Err(e)
         }
     }
@@ -429,7 +429,7 @@ impl Accessor for Backend {
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
-            let err = parse_error("delete", args.path(), er);
+            let err = parse_error(Operation::Delete, args.path(), er);
             Err(err)
         }
     }
@@ -472,7 +472,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::empty())
-            .map_err(|e| new_request_build_error("read", path, e))?;
+            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
 
         Ok(req)
     }
@@ -487,12 +487,12 @@ impl Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error("read", path, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Read, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("read", path, e))
+            .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
     pub(crate) fn insert_object_request(
@@ -516,7 +516,7 @@ impl Backend {
         // Set body
         let req = req
             .body(body)
-            .map_err(|e| new_request_build_error("write", path, e))?;
+            .map_err(|e| new_request_build_error(Operation::Write, path, e))?;
 
         Ok(req)
     }
@@ -536,16 +536,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::empty())
-            .map_err(|e| new_request_build_error("stat", path, e))?;
+            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error("stat", path, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Stat, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("stat", path, e))
+            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
     pub(crate) async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
@@ -558,16 +558,16 @@ impl Backend {
 
         let mut req = isahc::Request::delete(&url)
             .body(AsyncBody::empty())
-            .map_err(|e| new_request_build_error("delete", path, e))?;
+            .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error("delete", path, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Delete, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("delete", path, e))
+            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 
     pub(crate) async fn list_objects(
@@ -594,16 +594,16 @@ impl Backend {
 
         let mut req = isahc::Request::get(&url)
             .body(AsyncBody::empty())
-            .map_err(|e| new_request_build_error("list", path, e))?;
+            .map_err(|e| new_request_build_error(Operation::List, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error("list", path, e))?;
+            .map_err(|e| new_request_sign_error(Operation::List, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error("list", path, e))
+            .map_err(|e| new_request_send_error(Operation::List, path, e))
     }
 }
 

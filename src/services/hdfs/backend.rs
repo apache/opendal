@@ -33,12 +33,12 @@ use super::error::parse_io_error;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::{OpCreate, Operation};
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -234,7 +234,7 @@ impl Accessor for Backend {
                     .parent()
                     .ok_or_else(|| {
                         other(ObjectError::new(
-                            "create",
+                            Operation::Create,
                             &path,
                             anyhow!("malformed path: {:?}", &path),
                         ))
@@ -243,7 +243,7 @@ impl Accessor for Backend {
 
                 self.client
                     .create_dir(&parent.to_string_lossy())
-                    .map_err(|e| parse_io_error(e, "create", &parent.to_string_lossy()))?;
+                    .map_err(|e| parse_io_error(e, Operation::Create, &parent.to_string_lossy()))?;
 
                 self.client
                     .open_file()
@@ -251,14 +251,14 @@ impl Accessor for Backend {
                     .write(true)
                     .truncate(true)
                     .open(&path)
-                    .map_err(|e| parse_io_error(e, "create", &path))?;
+                    .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
 
                 Ok(())
             }
             ObjectMode::DIR => {
                 self.client
                     .create_dir(&path)
-                    .map_err(|e| parse_io_error(e, "create", &path))?;
+                    .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
 
                 Ok(())
             }
@@ -273,7 +273,7 @@ impl Accessor for Backend {
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset))
-                .map_err(|e| parse_io_error(e, "read", &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
         };
 
         let f: BytesReader = match args.size() {
@@ -292,7 +292,7 @@ impl Accessor for Backend {
             .parent()
             .ok_or_else(|| {
                 other(ObjectError::new(
-                    "write",
+                    Operation::Write,
                     &path,
                     anyhow!("malformed path: {:?}", &path),
                 ))
@@ -301,7 +301,7 @@ impl Accessor for Backend {
 
         self.client
             .create_dir(&parent.to_string_lossy())
-            .map_err(|e| parse_io_error(e, "write", &parent.to_string_lossy()))?;
+            .map_err(|e| parse_io_error(e, Operation::Write, &parent.to_string_lossy()))?;
 
         let mut f = self
             .client
@@ -321,7 +321,7 @@ impl Accessor for Backend {
         let meta = self
             .client
             .metadata(&path)
-            .map_err(|e| parse_io_error(e, "stat", &path))?;
+            .map_err(|e| parse_io_error(e, Operation::Stat, &path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -344,7 +344,7 @@ impl Accessor for Backend {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, "delete", &path))
+                Err(parse_io_error(err, Operation::Delete, &path))
             };
         }
 
@@ -357,7 +357,7 @@ impl Accessor for Backend {
             self.client.remove_file(&path)
         };
 
-        result.map_err(|e| parse_io_error(e, "delete", &path))?;
+        result.map_err(|e| parse_io_error(e, Operation::Delete, &path))?;
 
         Ok(())
     }
@@ -368,7 +368,7 @@ impl Accessor for Backend {
         let f = self
             .client
             .read_dir(&path)
-            .map_err(|e| parse_io_error(e, "list", &path))?;
+            .map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
         let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 

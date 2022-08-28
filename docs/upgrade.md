@@ -2,6 +2,34 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.14
+
+OpenDAL v0.14 removed all deprecated APIs in previous versions, including:
+
+- `Operator::with_backoff` in v0.13
+- All services `Builder::finish()` in v0.12
+- All services `Backend::build()` in v0.12
+
+Please visit related version's upgrade guide for migration.
+
+And in OpenDAL v0.14, we introduce a break change for `write` operations.
+
+```diff
+pub trait Accessor {
+    - async fn write(&self, args: &OpWrite) -> Result<BytesWriter> {}
+    + async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {}
+}
+```
+
+The following APIs have affected by this change:
+
+- `Object::write` now accept `impl Into<Vec<u8>>` instead of `AsRef<&[u8]>`
+- `Object::writer` has been removed.
+- `Object::write_from` has been added to support write from a reader.
+- All layers should be refactored to adapt new `Accessor` trait.
+
+For more information about this change, please refer to [RFC-0554: Write Refactor](https://opendal.databend.rs/rfcs/0554-write-refactor.html).
+
 ## Upgrade to v0.13
 
 OpenDAL deprecate `Operator::with_backoff` since v0.13.

@@ -24,16 +24,29 @@ You may be looking for:
 - [hdfs](https://opendal.databend.rs/opendal/services/hdfs/index.html): Hadoop Distributed File System(HDFS).
 - [http](https://opendal.databend.rs/opendal/services/http/index.html): HTTP read-only services.
 - [memory](https://opendal.databend.rs/opendal/services/memory/index.html): In memory backend.
+- [obs](https://opendal.databend.rs/opendal/services/obs/index.html): Huawei Cloud Object Storage Service (OBS).
 - [s3](https://opendal.databend.rs/opendal/services/s3/index.html): AWS S3 alike services.
 
 ## Features
 
-- Access different storage system in the same way
+Access data **freely**
+
+- Access different storage services in the same way
+- Behavior tests for all services
+
+Access data **painless**
+
+- **100%** documents covered
+- Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.html)
+- Automatic [retry](https://opendal.databend.rs/opendal/layers/struct.RetryLayer.html) support
+- Full observability support: [logging](https://opendal.databend.rs/opendal/layers/struct.LoggingLayer.html), [tracing](https://opendal.databend.rs/opendal/layers/struct.TracingLayer.html), [metrics](https://opendal.databend.rs/opendal/layers/struct.MetricsLayer.html).
 - Native decompress support
 - Native service-side encryption support
-- Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.html)
-- **100%** documents covered
-- Behavior tests for all services
+
+Access data **efficiently**
+
+- Zero cost: mapping to underlying API calls directly
+- [Auto metadata reuse](https://opendal.databend.rs/rfcs/0561-list-metadata-reuse.html): avoid extra `metadata` calls
 
 ## Quickstart
 

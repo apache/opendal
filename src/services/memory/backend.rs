@@ -33,12 +33,13 @@ use parking_lot::Mutex;
 
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{OpCreate, Operation};
+use crate::ops::Operation;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;

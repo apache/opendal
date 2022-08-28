@@ -17,6 +17,10 @@ Then start our azblob examples
 OPENDAL_AZBLOB_CONTAINER=test cargo run --example azblob
 ```
 
+## Example
+
+### Via Environment
+
 All config could be passed via environment:
 
 - `OPENDAL_AZBLOB_ROOT`: root path, default: /
@@ -24,10 +28,6 @@ All config could be passed via environment:
 - `OPENDAL_AZBLOB_ENDPOINT`: endpoint of your container
 - `OPENDAL_AZBLOB_ACCOUNT_NAME`: account name
 - `OPENDAL_AZBLOB_ACCOUNT_KEY`: account key
-
-## Example
-
-### Via Environment
 
 ```rust
 use anyhow::Result;

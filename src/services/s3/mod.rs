@@ -148,7 +148,6 @@
 //!     builder.access_key_id("access_key_id");
 //!     builder.secret_access_key("secret_access_key");
 //!
-//!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
 //!     let op: Operator = Operator::new(builder.build()?);
 //!
 //!     // Create an object handle to start operation on object.

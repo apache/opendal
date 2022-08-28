@@ -8,13 +8,13 @@ We can run this example via:
 cargo run --example fs
 ```
 
-All config could be passed via environment:
-
-- `OPENDAL_FS_ROOT`: root path, default: `/tmp`
-
 ## Example
 
 ### Via Environment
+
+All config could be passed via environment:
+
+- `OPENDAL_FS_ROOT`: root path, default: `/tmp`
 
 ```rust
 use anyhow::Result;

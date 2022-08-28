@@ -81,7 +81,7 @@
 //!     builder.credential("authentication token");
 //!
 //!     let op: Operator = Operator::new(builder.build()?);
-//!     let _obj: Object = op.object("test_file");
+//!     let _: Object = op.object("test_file");
 //!     Ok(())
 //! }
 //! ```

@@ -1,5 +1,3 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
 // Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,10 +11,19 @@ use std::fmt::Formatter;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::io;
 use std::str::FromStr;
 
-/// Backends that OpenDAL supports
+/// Services that OpenDAL supports
+///
+/// # Notes
+///
+/// - Scheme is `non_exhaustive`, new variant COULD be added at any time.
+/// - New variant SHOULD be added in alphabet orders,
+/// - Users MUST NOT relay on its order.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Scheme {
@@ -34,16 +41,16 @@ pub enum Scheme {
     Http,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
+    /// [obs][crate::services::obs]: Huawei Cloud OBS services.
+    Obs,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
-    /// [obs][crate::services::obs]: Huaweicloud OBS services.
-    Obs,
-    /// Custom that allow users to implement services outside of OpenDAL.
+    /// Custom that allow users to implement services outside OpenDAL.
     ///
     /// # NOTE
     ///
     /// - Custom must not overwrite any existing services name.
-    /// - Custom must be lower cases.
+    /// - Custom must be lowed cases.
     Custom(&'static str),
 }
 
@@ -71,9 +78,9 @@ impl Display for Scheme {
             #[cfg(feature = "services-http")]
             Scheme::Http => write!(f, "http"),
             Scheme::Memory => write!(f, "memory"),
+            Scheme::Obs => write!(f, "obs"),
             Scheme::S3 => write!(f, "s3"),
             Scheme::Custom(v) => write!(f, "{v}"),
-            Scheme::Obs => write!(f, "obs"),
         }
     }
 }
@@ -92,8 +99,8 @@ impl FromStr for Scheme {
             "http" | "https" => Ok(Scheme::Http),
             "gcs" => Ok(Scheme::Gcs),
             "memory" => Ok(Scheme::Memory),
-            "s3" => Ok(Scheme::S3),
             "obs" => Ok(Scheme::Obs),
+            "s3" => Ok(Scheme::S3),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -110,8 +117,8 @@ impl From<Scheme> for &'static str {
             Scheme::Http => "http",
             Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
-            Scheme::S3 => "s3",
             Scheme::Obs => "obs",
+            Scheme::S3 => "s3",
             Scheme::Custom(v) => v,
         }
     }

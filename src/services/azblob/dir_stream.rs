@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use anyhow::anyhow;
 use std::future::Future;
 use std::io::Result;
 use std::pin::Pin;
@@ -19,6 +18,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
 use bytes::Buf;
 use futures::future::BoxFuture;
 use futures::ready;

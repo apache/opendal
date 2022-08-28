@@ -156,8 +156,9 @@ mod path;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::mem::size_of;
+
+    use super::*;
 
     /// This is not a real test case.
     ///

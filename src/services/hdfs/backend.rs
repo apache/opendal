@@ -152,12 +152,6 @@ impl Builder {
             client: Arc::new(client),
         })
     }
-
-    /// Finish the building and create hdfs backend.
-    #[deprecated = "Use Builder::build() instead"]
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        Ok(Arc::new(self.build()?))
-    }
 }
 
 /// Backend for hdfs services.
@@ -172,12 +166,6 @@ unsafe impl Send for Backend {}
 unsafe impl Sync for Backend {}
 
 impl Backend {
-    /// Create a builder.
-    #[deprecated = "Use Builder::default() instead"]
-    pub fn build() -> Builder {
-        Builder::default()
-    }
-
     pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 

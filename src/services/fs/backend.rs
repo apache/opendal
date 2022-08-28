@@ -103,46 +103,6 @@ impl Builder {
         info!("backend build finished: {:?}", &self);
         Ok(Backend { root })
     }
-
-    /// Consume current builder to build an fs backend.
-    #[deprecated = "Use Builder::build() instead"]
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        info!("backend build started: {:?}", &self);
-
-        // Make `/` as the default of root.
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                debug_assert!(!v.is_empty());
-
-                let mut v = v.clone();
-
-                if !v.starts_with('/') {
-                    return Err(other(BackendError::new(
-                        HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("Root must start with /"),
-                    )));
-                }
-                if !v.ends_with('/') {
-                    v.push('/');
-                }
-
-                v
-            }
-        };
-
-        // If root dir is not exist, we must create it.
-        if let Err(e) = fs::metadata(&root).await {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                fs::create_dir_all(&root)
-                    .await
-                    .map_err(|e| other(anyhow!("create dir in {} error {:?}", &root, e)))?;
-            }
-        }
-
-        info!("backend build finished: {:?}", &self);
-        Ok(Arc::new(Backend { root }))
-    }
 }
 
 /// Backend is used to serve `Accessor` support for posix alike fs.
@@ -152,12 +112,6 @@ pub struct Backend {
 }
 
 impl Backend {
-    /// Create a builder.
-    #[deprecated = "Use Builder::default() instead"]
-    pub fn build() -> Builder {
-        Builder::default()
-    }
-
     pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 

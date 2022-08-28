@@ -37,7 +37,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test http --features compress,retry,services-http -- --nocapture
+        run: cargo test http --features compress,layers-retry,services-http -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

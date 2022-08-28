@@ -30,8 +30,6 @@ layers-metrics = ["metrics"]
 layers-retry = ["backon"]
 # Enable layers tracing support.
 layers-tracing = ["tracing"]
-# DEPRACATED: use layers-retry instead
-retry = ["layers-retry"]
 
 # Enable services hdfs support
 services-hdfs = ["hdrs"]

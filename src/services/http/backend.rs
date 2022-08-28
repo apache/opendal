@@ -203,12 +203,6 @@ impl Builder {
             index: Arc::new(Mutex::new(mem::take(&mut self.index))),
         })
     }
-
-    /// Build a HTTP backend.
-    #[deprecated = "Use Builder::build() instead"]
-    pub async fn finish(&mut self) -> Result<Arc<dyn Accessor>> {
-        Ok(Arc::new(self.build()?))
-    }
 }
 
 /// Backend is used to serve `Accessor` support for http.
@@ -238,12 +232,6 @@ impl Debug for Backend {
 }
 
 impl Backend {
-    /// Create a new builder for s3.
-    #[deprecated = "Use Builder::default() instead"]
-    pub fn build() -> Builder {
-        Builder::default()
-    }
-
     pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
 

@@ -29,12 +29,12 @@ You may be looking for:
 
 ## Features
 
-**Access data freely**
+Access data **freely**
 
 - Access different storage services in the same way
 - Behavior tests for all services
 
-**Access data painless**
+Access data **painless**
 
 - **100%** documents covered
 - Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.html)
@@ -43,7 +43,7 @@ You may be looking for:
 - Native decompress support
 - Native service-side encryption support
 
-**Access data efficiently**
+Access data **efficiently**
 
 - Zero cost: mapping to underlying API calls directly
 - [Auto metadata reuse](https://opendal.databend.rs/rfcs/0561-list-metadata-reuse.html): avoid extra `metadata` calls

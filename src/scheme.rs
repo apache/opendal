@@ -39,6 +39,8 @@ pub enum Scheme {
     /// [http][crate::services::http]: HTTP backend.
     #[cfg(feature = "services-http")]
     Http,
+    /// [ipfs][crate::services::ipfs]: IPFS mutable file system
+    Ipfs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [obs][crate::services::obs]: Huawei Cloud OBS services.
@@ -52,8 +54,6 @@ pub enum Scheme {
     /// - Custom must not overwrite any existing services name.
     /// - Custom must be lowed cases.
     Custom(&'static str),
-    /// [ipfs][crate::services::ipfs]: IPFS mutable file system
-    Ipfs,
 }
 
 impl Scheme {
@@ -96,11 +96,11 @@ impl FromStr for Scheme {
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
             "fs" => Ok(Scheme::Fs),
+            "gcs" => Ok(Scheme::Gcs),
             #[cfg(feature = "services-hdfs")]
             "hdfs" => Ok(Scheme::Hdfs),
             #[cfg(feature = "services-http")]
             "http" | "https" => Ok(Scheme::Http),
-            "gcs" => Ok(Scheme::Gcs),
             "ipfs" => Ok(Scheme::Ipfs),
             "memory" => Ok(Scheme::Memory),
             "obs" => Ok(Scheme::Obs),
@@ -115,11 +115,11 @@ impl From<Scheme> for &'static str {
         match v {
             Scheme::Azblob => "azblob",
             Scheme::Fs => "fs",
+            Scheme::Gcs => "gcs",
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => "hdfs",
             #[cfg(feature = "services-http")]
             Scheme::Http => "http",
-            Scheme::Gcs => "gcs",
             Scheme::Ipfs => "ipfs",
             Scheme::Memory => "memory",
             Scheme::Obs => "obs",

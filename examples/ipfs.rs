@@ -17,7 +17,8 @@ use std::env;
 use anyhow::Result;
 use futures::StreamExt;
 use log::info;
-use opendal::{services::ipfs, Operator};
+use opendal::services::ipfs;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,7 +37,7 @@ Available Environment Values:
 "#
     );
 
-    let mut builder = ipfs::Backend::build();
+    let mut builder = ipfs::Builder::default();
     // root must be absolute path in MFS.
     builder.root(&env::var("OPENDAL_IPFS_ROOT").unwrap_or_else(|_| "/".to_string()));
     builder.endpoint(

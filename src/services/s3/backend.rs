@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::Buf;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -1035,7 +1036,7 @@ impl Accessor for Backend {
                     new_response_consume_error(Operation::CreateMultipart, &path, e)
                 })?;
 
-                let result: InitiateMultipartUploadResult = quick_xml::de::from_slice(&bs)
+                let result: InitiateMultipartUploadResult = quick_xml::de::from_reader(bs.reader())
                     .map_err(|err| {
                         other(ObjectError::new(
                             Operation::CreateMultipart,
@@ -1493,6 +1494,7 @@ struct CompleteMultipartUploadRequestPart {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Buf;
     use bytes::Bytes;
     use itertools::iproduct;
 
@@ -1543,7 +1545,7 @@ mod tests {
         );
 
         let out: InitiateMultipartUploadResult =
-            quick_xml::de::from_slice(&bs).expect("must success");
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
 
         assert_eq!(
             out.upload_id,

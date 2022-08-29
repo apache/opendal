@@ -15,8 +15,10 @@
 //! IPFS file system support.
 
 mod backend;
+pub use backend::Backend;
+
 mod builder;
+pub use builder::Builder;
+
 mod dir_stream;
 mod error;
-mod rpc;
-pub use backend::Backend;

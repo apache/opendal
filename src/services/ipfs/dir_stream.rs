@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
-use serde::Deserialize;
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -23,10 +19,13 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
+use futures::future::BoxFuture;
+use futures::ready;
+use futures::Future;
 use isahc::AsyncReadResponseExt;
+use serde::Deserialize;
 
 use super::Backend;
-
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::ops::Operation;
@@ -91,7 +90,7 @@ impl futures::Stream for DirStream {
                 let path = self.path.clone();
 
                 let fut = async move {
-                    let mut resp = backend.files_list(&path).await?;
+                    let mut resp = backend.ipfs_ls(&path).await?;
 
                     let bs = resp.bytes().await.map_err(|e| {
                         other(ObjectError::new(

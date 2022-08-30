@@ -59,8 +59,7 @@ use crate::ObjectMetadata;
 pub struct RetryLayer<B: Backoff + Send + Sync + Debug + 'static>(B);
 
 impl<B> RetryLayer<B>
-where
-    B: Backoff + Send + Sync + Debug + 'static,
+where B: Backoff + Send + Sync + Debug + 'static
 {
     /// Create a new retry layer.
     /// # Examples
@@ -82,8 +81,7 @@ where
 }
 
 impl<B> Layer for RetryLayer<B>
-where
-    B: Backoff + Send + Sync + Debug + 'static,
+where B: Backoff + Send + Sync + Debug + 'static
 {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
         Arc::new(RetryAccessor {
@@ -101,8 +99,7 @@ struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
 
 #[async_trait]
 impl<B> Accessor for RetryAccessor<B>
-where
-    B: Backoff + Debug + Send + Sync,
+where B: Backoff + Debug + Send + Sync
 {
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()
@@ -196,7 +193,7 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, args: &OpRead) -> std::io::Result<BytesReader> {
+        async fn read(&self, args: &OpRead) -> io::Result<BytesReader> {
             let mut attempt = self.attempt.lock().await;
             *attempt += 1;
 

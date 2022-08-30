@@ -13,14 +13,17 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io::ErrorKind;
+use std::io::IoSliceMut;
 use std::io::Result;
-use std::io::{ErrorKind, IoSliceMut};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::{AsyncRead, Stream};
+use futures::AsyncRead;
+use futures::Stream;
 use log::debug;
 use log::error;
 use log::warn;
@@ -40,12 +43,14 @@ use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BytesReader;
+use crate::DirEntry;
+use crate::DirStream;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
 use crate::Scheme;
-use crate::{AccessorMetadata, DirStream};
-use crate::{BytesReader, DirEntry};
 
 /// LoggingLayer will add logging for OpenDAL.
 ///

@@ -43,8 +43,7 @@ pub struct Operator {
 }
 
 impl<A> From<A> for Operator
-where
-    A: Accessor + 'static,
+where A: Accessor + 'static
 {
     fn from(accessor: A) -> Self {
         Operator::new(accessor)

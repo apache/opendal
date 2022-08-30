@@ -180,8 +180,7 @@ impl ToString for BytesRange {
 }
 
 impl<T> From<T> for BytesRange
-where
-    T: RangeBounds<u64>,
+where T: RangeBounds<u64>
 {
     fn from(range: T) -> Self {
         let offset = match range.start_bound().cloned() {

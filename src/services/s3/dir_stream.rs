@@ -292,19 +292,22 @@ mod tests {
                 .collect::<Vec<String>>(),
             vec!["photos/2006/February/", "photos/2006/January/"]
         );
-        assert_eq!(out.contents, vec![
-            OutputContent {
-                key: "photos/2006".to_string(),
-                size: 56,
-                etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
-                last_modified: "2016-04-30T23:51:29.000Z".to_string(),
-            },
-            OutputContent {
-                key: "photos/2007".to_string(),
-                size: 100,
-                last_modified: "2016-04-30T23:51:29.000Z".to_string(),
-                etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
-            }
-        ])
+        assert_eq!(
+            out.contents,
+            vec![
+                OutputContent {
+                    key: "photos/2006".to_string(),
+                    size: 56,
+                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                },
+                OutputContent {
+                    key: "photos/2007".to_string(),
+                    size: 100,
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                    etag: "\"d41d8cd98f00b204e9800998ecf8427e\"".to_string(),
+                }
+            ]
+        )
     }
 }

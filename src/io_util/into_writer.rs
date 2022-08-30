@@ -58,7 +58,8 @@ pub struct IntoWriter<S: BytesSink> {
 }
 
 impl<S> IntoWriter<S>
-where S: BytesSink
+where
+    S: BytesSink,
 {
     pub fn into_inner(self) -> S {
         self.s
@@ -66,7 +67,8 @@ where S: BytesSink
 }
 
 impl<S> AsyncWrite for IntoWriter<S>
-where S: BytesSink
+where
+    S: BytesSink,
 {
     fn poll_write(
         mut self: Pin<&mut Self>,

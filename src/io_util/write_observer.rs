@@ -85,7 +85,8 @@ pub struct WriteObserver<F: FnMut(WriteEvent)> {
 }
 
 impl<F> AsyncWrite for WriteObserver<F>
-where F: FnMut(WriteEvent)
+where
+    F: FnMut(WriteEvent),
 {
     fn poll_write(
         mut self: Pin<&mut Self>,

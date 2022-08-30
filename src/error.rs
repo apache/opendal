@@ -94,7 +94,9 @@ impl ObjectError {
 ///
 /// - Refactor this into `new_other_object_error` and `new_other_backend_error`
 pub fn other<E>(error: E) -> io::Error
-where E: Into<Box<dyn std::error::Error + Send + Sync>> {
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
     io::Error::new(io::ErrorKind::Other, error.into())
 }
 

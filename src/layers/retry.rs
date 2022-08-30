@@ -59,7 +59,8 @@ use crate::ObjectMetadata;
 pub struct RetryLayer<B: Backoff + Send + Sync + Debug + 'static>(B);
 
 impl<B> RetryLayer<B>
-where B: Backoff + Send + Sync + Debug + 'static
+where
+    B: Backoff + Send + Sync + Debug + 'static,
 {
     /// Create a new retry layer.
     /// # Examples
@@ -81,7 +82,8 @@ where B: Backoff + Send + Sync + Debug + 'static
 }
 
 impl<B> Layer for RetryLayer<B>
-where B: Backoff + Send + Sync + Debug + 'static
+where
+    B: Backoff + Send + Sync + Debug + 'static,
 {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
         Arc::new(RetryAccessor {
@@ -99,7 +101,8 @@ struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
 
 #[async_trait]
 impl<B> Accessor for RetryAccessor<B>
-where B: Backoff + Debug + Send + Sync
+where
+    B: Backoff + Debug + Send + Sync,
 {
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()

@@ -51,8 +51,13 @@ use crate::Scheme;
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
 static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_seconds";
+/// Metrics of Failed requests, poll ok but outcome is error
+static METRIC_REQUESTS_FAIL: &str = "opendal_requests_fail";
+/// Metrics of Errored requests, poll error
+static METRIC_REQUESTS_ERROR: &str = "opendal_requests_error";
 static METRIC_BYTES_READ: &str = "opendal_bytes_read";
 static METRIC_BYTES_WRITTEN: &str = "opendal_bytes_written";
+
 static LABEL_SERVICE: &str = "service";
 static LABEL_OPERATION: &str = "operation";
 
@@ -117,29 +122,45 @@ impl AsyncRead for MetricReader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        Pin::new(&mut (*self.inner)).poll_read(cx, buf).map(|res| {
-            if let Ok(bytes) = res {
-                let bytes = bytes as u64;
-                match self.op {
-                    Operation::Read => {
-                        counter!(
-                            METRIC_BYTES_READ, bytes,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
+        Pin::new(&mut (*self.inner))
+            .poll_read(cx, buf)
+            .map(|res| {
+                if let Ok(bytes) = res {
+                    let bytes = bytes as u64;
+                    match self.op {
+                        Operation::Read => {
+                            counter!(
+                                METRIC_BYTES_READ, bytes,
+                                LABEL_SERVICE => self.scheme.into_static(),
+                                LABEL_OPERATION => self.op.into_static(),
+                            );
+                        }
+                        Operation::Write => {
+                            counter!(
+                                METRIC_BYTES_WRITTEN, bytes,
+                                LABEL_SERVICE => self.scheme.into_static(),
+                                LABEL_OPERATION => self.op.into_static(),
+                            );
+                        }
+                        _ => {}
                     }
-                    Operation::Write => {
-                        counter!(
-                            METRIC_BYTES_WRITTEN, bytes,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
-                    }
-                    _ => {}
-                }
-            };
-            res
-        })
+                } else {
+                    increment_counter!(
+                        METRIC_REQUESTS_FAIL,
+                        LABEL_SERVICE => self.scheme.into_static(),
+                        LABEL_OPERATION => self.op.into_static(),
+                    );
+                };
+                res
+            })
+            .map_err(|e| {
+                increment_counter!(
+                    METRIC_REQUESTS_ERROR,
+                    LABEL_SERVICE => self.scheme.into_static(),
+                    LABEL_OPERATION => self.op.into_static(),
+                );
+                e
+            })
     }
 
     fn poll_read_vectored(
@@ -169,8 +190,22 @@ impl AsyncRead for MetricReader {
                         }
                         _ => {}
                     }
+                } else {
+                    increment_counter!(
+                        METRIC_REQUESTS_FAIL,
+                        LABEL_SERVICE => self.scheme.into_static(),
+                        LABEL_OPERATION => self.op.into_static(),
+                    );
                 };
                 res
+            })
+            .map_err(|e| {
+                increment_counter!(
+                    METRIC_REQUESTS_ERROR,
+                    LABEL_SERVICE => self.scheme.into_static(),
+                    LABEL_OPERATION => self.op.into_static(),
+                );
+                e
             })
     }
 }

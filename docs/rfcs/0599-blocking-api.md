@@ -1,7 +1,7 @@
 - Proposal Name: `blocking_api`
 - Start Date: 2022-08-30
 - RFC PR: [datafuselabs/opendal#599](https://github.com/datafuselabs/opendal/pull/599)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- Tracking Issue: [datafuselabs/opendal#601](https://github.com/datafuselabs/opendal/issues/601)
 
 # Summary
 

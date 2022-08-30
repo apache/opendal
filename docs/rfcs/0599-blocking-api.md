@@ -138,6 +138,12 @@ In this way:
 - We can't provide two kinds of API at the same time.
 - Users must decide to use `async` or `sync` at compile time.
 
+## Use blocking IO functions in local fs services
+
+> Can we use blocking IO functions in local fs services to implement Accessor's asynchronous functions directly? What is the drawback of our current non-blocking API?
+
+We can't run blocking IO functions inside the `async` context. We need to let the local thread pool execute them and use `mio` to listen to the events. If we do so, congrats, we are building `tokio::fs` again!
+
 # Prior art
 
 None

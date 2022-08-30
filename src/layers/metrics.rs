@@ -13,16 +13,19 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::{IoSliceMut, Result};
+use std::io::IoSliceMut;
+use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 use std::time::Instant;
 
 use async_trait::async_trait;
 use futures::AsyncRead;
+use metrics::counter;
+use metrics::histogram;
 use metrics::increment_counter;
-use metrics::{counter, histogram};
 
 use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
@@ -38,12 +41,13 @@ use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
+use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
-use crate::{Accessor, Scheme};
-use crate::{AccessorMetadata, DirEntry};
+use crate::Scheme;
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
 static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_seconds";

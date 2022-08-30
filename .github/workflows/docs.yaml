@@ -56,6 +56,6 @@ jobs:
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           alias-domains: |
-            opendal-pr-{{PR_NUMBER}}.vercel.app
+            opendal-git-{{BRANCH}}.vercel.app
           scope: databend
           working-directory: ./target/book

@@ -1160,7 +1160,7 @@ impl Backend {
 
         let mut req = isahc::Request::get(&url);
 
-        if offset.is_some() || size.is_some() {
+        if offset.unwrap_or_default() != 0 || size.is_some() {
             req = req.header(
                 http::header::RANGE,
                 BytesRange::new(offset, size).to_string(),

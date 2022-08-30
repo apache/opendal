@@ -745,7 +745,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -762,7 +762,7 @@ checksum = "18a6dbe30758c9f83eb00cbea4ac95966305f5a7772f3f42ebfc7fc7eddbd8e1"
 
 [[package]]
 name = "opendal"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "anyhow",
  "async-compat",
@@ -779,7 +779,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "pin-project",
- "quick-xml",
+ "quick-xml 0.24.0",
  "reqsign",
  "serde",
  "serde_json",
@@ -944,6 +944,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "678404d55890514fa1c01fe98cf280b674db93944fdcb70310dd3be1d0d63be7"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1039,7 +1049,7 @@ dependencies = [
  "log",
  "once_cell",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.23.0",
  "rust-ini",
  "serde",
  "serde_json",

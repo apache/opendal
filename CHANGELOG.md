@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.14.1] - 2022-08-30
+
+### Added
+
+- feat: Add IPFS backend (#481)
+- refactor: IPFS service cleanup (#590)
+
+### Docs
+
+- docs: Add obs in OpenDAL lib docs (#585)
+
+### Fixed
+
+- fix(services/s3): If input range is `0..`, don't insert range header (#592)
+
 ## [v0.14.0] - 2022-08-28
 
 ### Added
@@ -614,6 +629,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.14.1]: https://github.com/datafuselabs/opendal/compare/v0.14.0...v0.14.1
 [v0.14.0]: https://github.com/datafuselabs/opendal/compare/v0.13.1...v0.14.0
 [v0.13.1]: https://github.com/datafuselabs/opendal/compare/v0.13.0...v0.13.1
 [v0.13.0]: https://github.com/datafuselabs/opendal/compare/v0.12.0...v0.13.0

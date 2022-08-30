@@ -13,11 +13,14 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
 use std::io::Result;
+use std::io::{ErrorKind, IoSliceMut};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
+use futures::AsyncRead;
 use log::debug;
 use log::error;
 use log::warn;
@@ -36,13 +39,13 @@ use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
-use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
 use crate::Scheme;
+use crate::{Accessor, BytesRead};
 
 /// LoggingLayer will add logging for OpenDAL.
 ///
@@ -82,6 +85,70 @@ impl Layer for LoggingLayer {
         Arc::new(LoggingAccessor {
             scheme: meta.scheme(),
             inner,
+        })
+    }
+}
+trait A: Send + Unpin {}
+
+pub struct LoggingReader {
+    scheme: Scheme,
+    path: String,
+    offset: Option<u64>,
+    have_read: usize,
+    to_read: Option<u64>,
+    inner: BytesReader
+}
+
+impl A for LoggingReader {}
+
+impl LoggingReader {
+    pub(crate) fn new(scheme: Scheme, args: &OpRead, reader: BytesReader) -> Self {
+        let path = args.path().to_string();
+        let offset = args.offset();
+        let size = args.size();
+        Self {
+            scheme,
+            path,
+            offset,
+            have_read: 0,
+            to_read: size,
+            inner: reader
+        }
+    }
+}
+
+impl AsyncRead for LoggingReader {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner)).poll_read(cx, buf).map(|r|{
+            if let Ok(r) = r {
+                self.have_read += r;
+            }
+            debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> got: {:?}", self.scheme, Operation::Read, self.path, self.to_read, self.have_read, r);
+            r
+        }).map_err(|e| {
+            error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> errored: {:?}", self.scheme, Operation::Read, self.path, self.to_read, self.have_read, e);
+            e
+        })
+    }
+
+    fn poll_read_vectored(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner)).poll_read_vectored(cx, bufs).map(|r|{
+            if let Ok(r) = r {
+                self.have_read += r;
+            }
+            debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> got: {:?}", self.scheme, Operation::Read, self.path, self.to_read, self.have_read, r);
+            r
+        }).map_err(|e| {
+            error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> errored: {:?}", self.scheme, Operation::Read, self.path, self.to_read, self.have_read, e);
+            e
         })
     }
 }
@@ -174,8 +241,15 @@ impl Accessor for LoggingAccessor {
             .map(|v| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} offset={:?} size={:?} -> got reader", self.scheme, Operation::Read, args.path(),args.offset(),  args.size() );
-                v
+                    "service={} operation={} path={} offset={:?} size={:?} -> got reader",
+                    self.scheme,
+                    Operation::Read,
+                    args.path(),
+                    args.offset(),
+                    args.size()
+                );
+                let r =LoggingReader::new(self.scheme.clone(), args, v);
+                Box::new(r)
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {

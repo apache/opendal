@@ -13,11 +13,14 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
 use std::io::Result;
+use std::io::{ErrorKind, IoSliceMut};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
+use futures::{AsyncRead, Stream};
 use log::debug;
 use log::error;
 use log::warn;
@@ -37,12 +40,12 @@ use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BytesReader;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
 use crate::Scheme;
+use crate::{AccessorMetadata, DirStream};
+use crate::{BytesReader, DirEntry};
 
 /// LoggingLayer will add logging for OpenDAL.
 ///
@@ -82,6 +85,140 @@ impl Layer for LoggingLayer {
         Arc::new(LoggingAccessor {
             scheme: meta.scheme(),
             inner,
+        })
+    }
+}
+
+/// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
+pub struct LoggingReader {
+    scheme: Scheme,
+    path: String,
+    op: Operation,
+    have_read: usize,
+    to_read: Option<u64>,
+    inner: BytesReader,
+}
+
+impl LoggingReader {
+    pub(crate) fn make_reader(
+        scheme: Scheme,
+        op: Operation,
+        path: &str,
+        size: Option<u64>,
+        reader: BytesReader,
+    ) -> BytesReader {
+        let r = Self {
+            scheme,
+            op,
+            path: path.to_string(),
+            have_read: 0,
+            to_read: size,
+            inner: reader,
+        };
+        Box::new(r)
+    }
+}
+
+impl AsyncRead for LoggingReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner)).poll_read(cx, buf).map(|r|{
+           match r {
+           Ok(r) => {
+               self.have_read += r;
+               debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.to_read, self.have_read, r);
+               Ok(r)
+           },
+               Err(e) => {
+                debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.to_read, self.have_read, e);
+                   Err(e)
+            }
+        }
+        }).map_err(|e| {
+            error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path, self.to_read, self.have_read, e);
+            e
+        })
+    }
+
+    fn poll_read_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner)).poll_read_vectored(cx, bufs).map(|r|{
+            match r {
+                Ok(r) => {
+                    self.have_read += r;
+                    debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> got: {:?}", self.scheme, self.op, self.path,  self.to_read, self.have_read, r);
+                    Ok(r)
+                },
+                Err(e) => {
+                    debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> failed: {:?}", self.scheme, self.op, self.path,  self.to_read, self.have_read, e);
+                    Err(e)
+                }
+            }
+        }).map_err(|e| {
+            error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> errored: {:?}", self.scheme, Operation::Read, self.path, self.to_read, self.have_read, e);
+            e
+        })
+    }
+}
+
+pub struct LoggingStreamer {
+    scheme: Scheme,
+    path: String,
+    inner: DirStreamer,
+}
+
+impl LoggingStreamer {
+    pub(crate) fn new(scheme: Scheme, args: &OpList, streamer: Box<dyn DirStream>) -> Self {
+        Self {
+            scheme,
+            path: args.path().to_string(),
+            inner: streamer,
+        }
+    }
+}
+
+impl Stream for LoggingStreamer {
+    type Item = Result<DirEntry>;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut (*self.inner)).poll_next(cx).map(|o| {
+            if let Some(o) = o {
+                match o {
+                    Ok(dir) => {
+                        debug!(target: "opendal::service",
+                            "service={} operation={} path={} -> got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content md5: {:?}, etag: {:?}",
+                            self.scheme,
+                            Operation::List,
+                            self.path,
+                            dir.mode(),
+                            dir.path(),
+                            dir.content_length(),
+                            dir.last_modified(),
+                            dir.content_md5(),
+                            dir.etag()
+                        );
+                        Some(Ok(dir))
+                    },
+                    Err(e) => {
+                        error!(
+                            target: "opendal::services",
+                            "service={} operation={} path={} -> failed: {:?}",
+                            self.scheme,
+                            Operation::List,
+                            self.path,
+                            e
+                        );
+                        Some(Err(e))
+                    },
+                }
+            } else {
+                None
+            }
         })
     }
 }
@@ -174,8 +311,14 @@ impl Accessor for LoggingAccessor {
             .map(|v| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} offset={:?} size={:?} -> got reader", self.scheme, Operation::Read, args.path(),args.offset(),  args.size() );
-                v
+                    "service={} operation={} path={} offset={:?} size={:?} -> got reader",
+                    self.scheme,
+                    Operation::Read,
+                    args.path(),
+                    args.offset(),
+                    args.size()
+                );
+                LoggingReader::make_reader(self.scheme, Operation::Read, args.path(), args.size(), v)
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
@@ -200,6 +343,8 @@ impl Accessor for LoggingAccessor {
             args.path(),
             args.size()
         );
+
+        let r = LoggingReader::make_reader(self.scheme, Operation::Write, args.path(), None, r);
 
         self.inner
             .write(args, r)
@@ -335,7 +480,8 @@ impl Accessor for LoggingAccessor {
                     Operation::List,
                     args.path()
                 );
-                v
+                let streamer = LoggingStreamer::new(self.scheme, args, v);
+                Box::new(streamer) as DirStreamer
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
@@ -445,6 +591,8 @@ impl Accessor for LoggingAccessor {
             args.part_number(),
             args.size()
         );
+
+        let r = LoggingReader::make_reader(self.scheme, Operation::Write, args.path(), None, r);
 
         self.inner
             .write_multipart(args, r)

@@ -48,3 +48,4 @@
   - [0501-new-builder](rfcs/0501-new-builder.md)
   - [0554-write-refactor](rfcs/0554-write-refactor.md)
   - [0561-list-metadata-reused](rfcs/0561-list-metadata-reuse.md)
+  - [0599-blocking-api](rfcs/0599-blocking-api.md)

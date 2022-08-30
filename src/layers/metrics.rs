@@ -13,13 +13,16 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::Result;
+use std::io::{IoSliceMut, Result};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Instant;
 
 use async_trait::async_trait;
-use metrics::histogram;
+use futures::AsyncRead;
 use metrics::increment_counter;
+use metrics::{counter, histogram};
 
 use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
@@ -35,15 +38,17 @@ use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
-use crate::Accessor;
-use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
+use crate::{Accessor, Scheme};
+use crate::{AccessorMetadata, DirEntry};
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
 static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_seconds";
+static METRIC_BYTES_READ: &str = "opendal_bytes_read";
+static METRIC_BYTES_WRITTEN: &str = "opendal_bytes_written";
 static LABEL_SERVICE: &str = "service";
 static LABEL_OPERATION: &str = "operation";
 
@@ -82,6 +87,87 @@ impl Layer for MetricsLayer {
         let meta = inner.metadata();
 
         Arc::new(MetricsAccessor { meta, inner })
+    }
+}
+
+pub struct MetricReader {
+    scheme: Scheme,
+    op: Operation,
+    inner: BytesReader,
+}
+
+impl MetricReader {
+    pub(crate) fn make_reader(scheme: Scheme, op: Operation, reader: BytesReader) -> BytesReader {
+        let r = Self {
+            scheme,
+            op,
+            inner: reader,
+        };
+        Box::new(r)
+    }
+}
+
+impl AsyncRead for MetricReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner)).poll_read(cx, buf).map(|res| {
+            if let Ok(bytes) = res {
+                let bytes = bytes as u64;
+                match self.op {
+                    Operation::Read => {
+                        counter!(
+                            METRIC_BYTES_READ, bytes,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
+                    }
+                    Operation::Write => {
+                        counter!(
+                            METRIC_BYTES_WRITTEN, bytes,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
+                    }
+                    _ => {}
+                }
+            };
+            res
+        })
+    }
+
+    fn poll_read_vectored(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner))
+            .poll_read_vectored(cx, bufs)
+            .map(|res| {
+                if let Ok(bytes) = res {
+                    let bytes = bytes as u64;
+                    match self.op {
+                        Operation::Read => {
+                            counter!(
+                                METRIC_BYTES_READ, bytes,
+                                LABEL_SERVICE => self.scheme.into_static(),
+                                LABEL_OPERATION => self.op.into_static(),
+                            );
+                        }
+                        Operation::Write => {
+                            counter!(
+                                METRIC_BYTES_WRITTEN, bytes,
+                                LABEL_SERVICE => self.scheme.into_static(),
+                                LABEL_OPERATION => self.op.into_static(),
+                            );
+                        }
+                        _ => {}
+                    }
+                };
+                res
+            })
     }
 }
 
@@ -141,7 +227,10 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.read(args).await;
+        let result =
+            self.inner.read(args).await.map(|reader| {
+                MetricReader::make_reader(self.meta.scheme(), Operation::Read, reader)
+            });
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -159,6 +248,8 @@ impl Accessor for MetricsAccessor {
             LABEL_SERVICE => self.meta.scheme().into_static(),
             LABEL_OPERATION => Operation::Write.into_static(),
         );
+
+        let r = MetricReader::make_reader(self.meta.scheme(), Operation::Write, r);
 
         let start = Instant::now();
         let result = self.inner.write(args, r).await;
@@ -279,6 +370,8 @@ impl Accessor for MetricsAccessor {
             LABEL_SERVICE => self.meta.scheme().into_static(),
             LABEL_OPERATION => Operation::WriteMultipart.into_static(),
         );
+
+        let r = MetricReader::make_reader(self.meta.scheme(), Operation::Write, r);
 
         let start = Instant::now();
         let result = self.inner.write_multipart(args, r).await;

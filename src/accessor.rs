@@ -58,11 +58,16 @@ use crate::{BlockingBytesReader, DirIterator};
 /// | [`write`][crate::Accessor::write] | - |
 /// | [`delete`][crate::Accessor::delete] | - |
 /// | [`list`][crate::Accessor::list] | - |
-/// | [`presign`][crate::Accessor::presign] | [`Presign`][AccessorCapability::Presign] |
-/// | [`create_multipart`][crate::Accessor::create_multipart] | [`Multipart`][AccessorCapability::Multipart] |
-/// | [`write_multipart`][crate::Accessor::write_multipart] | [`Multipart`][AccessorCapability::Multipart] |
-/// | [`complete_multipart`][crate::Accessor::complete_multipart] | [`Multipart`][AccessorCapability::Multipart] |
-/// | [`abort_multipart`][crate::Accessor::abort_multipart] | [`Multipart`][AccessorCapability::Multipart] |
+/// | [`presign`][crate::Accessor::presign] | `Presign` |
+/// | [`create_multipart`][crate::Accessor::create_multipart] | `Multipart` |
+/// | [`write_multipart`][crate::Accessor::write_multipart] | `Multipart` |
+/// | [`complete_multipart`][crate::Accessor::complete_multipart] | `Multipart` |
+/// | [`abort_multipart`][crate::Accessor::abort_multipart] | `Multipart` |
+/// | [`blocking_create`][crate::Accessor::blocking_create] | `Blocking` |
+/// | [`blocking_read`][crate::Accessor::blocking_read] | `Blocking` |
+/// | [`blocking_write`][crate::Accessor::blocking_write] | `Blocking` |
+/// | [`blocking_delete`][crate::Accessor::blocking_delete] | `Blocking` |
+/// | [`blocking_list`][crate::Accessor::blocking_list] | `Blocking` |
 ///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.
@@ -150,7 +155,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Presign`][AccessorCapability::Presign]
+    /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         return Err(new_unsupported_object_error(
@@ -163,7 +168,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
+    /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
         let _ = args;
@@ -178,7 +183,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
+    /// - Require capability: `Multipart`
     async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         let (_, _) = (args, r);
 
@@ -192,7 +197,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
+    /// - Require capability: `Multipart`
     async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
         let _ = args;
 
@@ -206,7 +211,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
+    /// - Require capability: `Multipart`
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
         let _ = args;
 
@@ -222,7 +227,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    /// - Require capability: `Blocking`
     fn blocking_create(&self, args: &OpCreate) -> Result<()> {
         let _ = args;
 
@@ -238,7 +243,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    /// - Require capability: `Blocking`
     fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
         let _ = args;
 
@@ -254,7 +259,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    /// - Require capability: `Blocking`
     fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
         let (_, _) = (args, r);
 
@@ -270,7 +275,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    /// - Require capability: `Blocking`
     fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let _ = args;
 
@@ -286,7 +291,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    /// - Require capability: `Blocking`
     fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
         let _ = args;
 
@@ -302,7 +307,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
-    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    /// - Require capability: `Blocking`
     fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
         let _ = args;
 

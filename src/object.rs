@@ -387,16 +387,15 @@ impl Object {
         let mut s = self.acc.blocking_read(&op)?;
 
         let br = BytesRange::from(range);
-        let buffer = if let Some(range_size) = br.size() {
+        let mut buffer = if let Some(range_size) = br.size() {
             Vec::with_capacity(range_size as usize)
         } else {
             Vec::with_capacity(4 * 1024 * 1024)
         };
-        let mut bs = std::io::Cursor::new(buffer);
 
-        std::io::copy(&mut s, &mut bs)?;
+        std::io::copy(&mut s, &mut buffer)?;
 
-        Ok(bs.into_inner())
+        Ok(buffer)
     }
 
     /// Create a new reader which can read the whole object.
@@ -1015,6 +1014,33 @@ impl Object {
     /// ```
     pub async fn is_exist(&self) -> Result<bool> {
         let r = self.metadata().await;
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => Ok(false),
+                _ => Err(err),
+            },
+        }
+    }
+
+    /// Check if this object exists or not.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use opendal::services::memory;
+    /// use opendal::Operator;
+    /// use opendal::Scheme;
+    /// fn main() -> Result<()> {
+    ///     let op = Operator::from_env(Scheme::Memory)?;
+    ///     let _ = op.object("test").blocking_is_exist()?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn blocking_is_exist(&self) -> Result<bool> {
+        let r = self.blocking_metadata();
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {

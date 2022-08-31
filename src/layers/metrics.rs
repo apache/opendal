@@ -14,6 +14,7 @@
 
 use std::fmt::Debug;
 use std::io::ErrorKind;
+use std::io::Read;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -43,7 +44,9 @@ use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::DirIterator;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
@@ -96,73 +99,6 @@ impl Layer for MetricsLayer {
         let meta = inner.metadata();
 
         Arc::new(MetricsAccessor { meta, inner })
-    }
-}
-
-struct MetricReader {
-    scheme: Scheme,
-    op: Operation,
-    inner: BytesReader,
-}
-
-impl MetricReader {
-    fn new(scheme: Scheme, op: Operation, reader: BytesReader) -> Self {
-        Self {
-            scheme,
-            op,
-            inner: reader,
-        }
-    }
-}
-
-impl AsyncRead for MetricReader {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        Pin::new(&mut (*self.inner))
-            .poll_read(cx, buf)
-            .map(|res| match res {
-                Ok(bytes) => {
-                    match self.op {
-                        Operation::Read => {
-                            counter!(
-                                METRIC_BYTES_READ_TOTAL, bytes as u64,
-                                LABEL_SERVICE => self.scheme.into_static(),
-                                LABEL_OPERATION => self.op.into_static(),
-                            );
-                        }
-                        Operation::Write => {
-                            counter!(
-                                METRIC_BYTES_WRITTEN_TOTAL, bytes as u64,
-                                LABEL_SERVICE => self.scheme.into_static(),
-                                LABEL_OPERATION => self.op.into_static(),
-                            );
-                        }
-                        _ => {
-                            unreachable!();
-                        }
-                    };
-                    Ok(bytes)
-                }
-                Err(e) => {
-                    if e.kind() == ErrorKind::Other {
-                        increment_counter!(
-                            METRIC_FAILURES_TOTAL,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
-                    } else {
-                        increment_counter!(
-                            METRIC_ERRORS_TOTAL,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
-                    }
-                    Err(e)
-                }
-            })
     }
 }
 
@@ -422,5 +358,257 @@ impl Accessor for MetricsAccessor {
         );
 
         result
+    }
+
+    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.blocking_create(args);
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+        );
+
+        result
+    }
+
+    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingRead.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.blocking_read(args).map(|reader| {
+            Box::new(BlockingMetricReader::new(
+                self.meta.scheme(),
+                Operation::BlockingRead,
+                reader,
+            )) as BlockingBytesReader
+        });
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingRead.into_static(),
+        );
+
+        result
+    }
+
+    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingWrite.into_static(),
+        );
+
+        let r = Box::new(BlockingMetricReader::new(
+            self.meta.scheme(),
+            Operation::BlockingWrite,
+            r,
+        ));
+
+        let start = Instant::now();
+        let result = self.inner.blocking_write(args, r);
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingWrite.into_static(),
+        );
+
+        result
+    }
+
+    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingStat.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.blocking_stat(args);
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingStat.into_static(),
+        );
+
+        result
+    }
+
+    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingDelete.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.blocking_delete(args);
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingDelete.into_static(),
+        );
+
+        result
+    }
+
+    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+        increment_counter!(
+            METRIC_REQUESTS_TOTAL,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingList.into_static(),
+        );
+
+        let start = Instant::now();
+        let result = self.inner.blocking_list(args);
+        let dur = start.elapsed().as_secs_f64();
+
+        histogram!(
+            METRIC_REQUESTS_DURATION_SECONDS, dur,
+            LABEL_SERVICE => self.meta.scheme().into_static(),
+            LABEL_OPERATION => Operation::BlockingList.into_static(),
+        );
+
+        result
+    }
+}
+
+struct MetricReader {
+    scheme: Scheme,
+    op: Operation,
+    inner: BytesReader,
+}
+
+impl MetricReader {
+    fn new(scheme: Scheme, op: Operation, inner: BytesReader) -> Self {
+        Self { scheme, op, inner }
+    }
+}
+
+impl AsyncRead for MetricReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner))
+            .poll_read(cx, buf)
+            .map(|res| match res {
+                Ok(bytes) => {
+                    match self.op {
+                        Operation::Read => {
+                            counter!(
+                                METRIC_BYTES_READ_TOTAL, bytes as u64,
+                                LABEL_SERVICE => self.scheme.into_static(),
+                                LABEL_OPERATION => self.op.into_static(),
+                            );
+                        }
+                        Operation::Write => {
+                            counter!(
+                                METRIC_BYTES_WRITTEN_TOTAL, bytes as u64,
+                                LABEL_SERVICE => self.scheme.into_static(),
+                                LABEL_OPERATION => self.op.into_static(),
+                            );
+                        }
+                        _ => {
+                            unreachable!();
+                        }
+                    };
+                    Ok(bytes)
+                }
+                Err(e) => {
+                    if e.kind() == ErrorKind::Other {
+                        increment_counter!(
+                            METRIC_FAILURES_TOTAL,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
+                    } else {
+                        increment_counter!(
+                            METRIC_ERRORS_TOTAL,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
+                    }
+                    Err(e)
+                }
+            })
+    }
+}
+
+struct BlockingMetricReader {
+    scheme: Scheme,
+    op: Operation,
+    inner: BlockingBytesReader,
+}
+
+impl BlockingMetricReader {
+    fn new(scheme: Scheme, op: Operation, inner: BlockingBytesReader) -> Self {
+        Self { scheme, op, inner }
+    }
+}
+
+impl Read for BlockingMetricReader {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.inner
+            .read(buf)
+            .map(|n| {
+                match self.op {
+                    Operation::Read => {
+                        counter!(
+                            METRIC_BYTES_READ_TOTAL, n as u64,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
+                    }
+                    Operation::Write => {
+                        counter!(
+                            METRIC_BYTES_WRITTEN_TOTAL, n as u64,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
+                    }
+                    _ => {
+                        unreachable!();
+                    }
+                }
+                n
+            })
+            .map_err(|e| {
+                if e.kind() == ErrorKind::Other {
+                    increment_counter!(
+                        METRIC_FAILURES_TOTAL,
+                        LABEL_SERVICE => self.scheme.into_static(),
+                        LABEL_OPERATION => self.op.into_static(),
+                    );
+                } else {
+                    increment_counter!(
+                        METRIC_ERRORS_TOTAL,
+                        LABEL_SERVICE => self.scheme.into_static(),
+                        LABEL_OPERATION => self.op.into_static(),
+                    );
+                }
+                e
+            })
     }
 }

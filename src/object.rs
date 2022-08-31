@@ -1027,7 +1027,7 @@ impl Object {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```no_run
     /// use anyhow::Result;
     /// use opendal::services::memory;
     /// use opendal::Operator;

@@ -125,20 +125,20 @@ impl AsyncRead for LoggingReader {
             Poll::Ready(res) => match res {
                 Ok(n) => {
                     self.has_read += n as u64;
-                    trace!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.has_read, n);
+                    trace!(target: "opendal::services", "service={} operation={} path={} has_read={} -> got: {}B", self.scheme, self.op, self.path, self.has_read, n);
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => {
                     if e.kind() == ErrorKind::Other {
-                        error!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path, self.has_read, e);
+                        error!(target: "opendal::services", "service={} operation={} path={} has_read={} -> failed: {:?}", self.scheme, self.op, self.path, self.has_read, e);
                     } else {
-                        warn!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
+                        warn!(target: "opendal::services", "service={} operation={} path={} has_read={} -> errored: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
                     }
                     Poll::Ready(Err(e))
                 }
             },
             Poll::Pending => {
-                trace!(target: "opendal::services", "service={} operation={} path={} has_read={} poll -> Pending", self.scheme, self.op, self.path, self.has_read);
+                trace!(target: "opendal::services", "service={} operation={} path={} has_read={} -> pending", self.scheme, self.op, self.path, self.has_read);
                 Poll::Pending
             }
         }
@@ -170,7 +170,7 @@ impl Stream for LoggingStreamer {
                     Ok(de) => {
                         trace!(
                             target: "opendal::service",
-                            "service={} operation={} path={} -> got entry, mode: {}, path: {}",
+                            "service={} operation={} path={} -> got entry: mode={} path={}",
                             self.scheme,
                             Operation::List,
                             self.path,
@@ -204,7 +204,7 @@ impl Stream for LoggingStreamer {
                 },
                 None => {
                     debug!(target: "opendal::service",
-                    "service={} operation={} path={} -> Finished",
+                    "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::List,
                     self.path
@@ -214,7 +214,7 @@ impl Stream for LoggingStreamer {
             },
             Poll::Pending => {
                 trace!(target: "opendal::service",
-                    "service={} operation={} path={} -> Pending",
+                    "service={} operation={} path={} -> pending",
                     self.scheme,
                     Operation::List,
                     self.path

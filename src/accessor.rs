@@ -35,11 +35,12 @@ use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::DirIterator;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::Scheme;
-use crate::{BlockingBytesReader, DirIterator};
 
 /// Underlying trait of all backends for implementors.
 ///

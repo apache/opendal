@@ -160,6 +160,15 @@ impl DirEntry {
 
         self.acc.stat(&op).await
     }
+
+    /// Fetch metadata about this dir entry.
+    ///
+    /// The same with [`Object::blocking_metadata()`]
+    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+        let op = OpStat::new(self.path())?;
+
+        self.acc.blocking_stat(&op)
+    }
 }
 
 // implement setters for DirEntry's metadata fields

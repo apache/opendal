@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 use std::io::ErrorKind;
+use std::io::Read;
 use std::io::Result;
 use std::io::SeekFrom;
 use std::path::PathBuf;
@@ -337,28 +338,29 @@ impl Accessor for Backend {
                 .parent()
                 .ok_or_else(|| {
                     other(ObjectError::new(
-                        Operation::Create,
+                        Operation::BlockingCreate,
                         &path,
                         anyhow!("malformed path: {:?}", &path),
                     ))
                 })?
                 .to_path_buf();
 
-            std::fs::create_dir_all(&parent)
-                .map_err(|e| parse_io_error(e, Operation::Create, &parent.to_string_lossy()))?;
+            std::fs::create_dir_all(&parent).map_err(|e| {
+                parse_io_error(e, Operation::BlockingCreate, &parent.to_string_lossy())
+            })?;
 
             std::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(&path)
-                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, &path))?;
 
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
             std::fs::create_dir_all(&path)
-                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, &path))?;
 
             return Ok(());
         }
@@ -374,14 +376,19 @@ impl Accessor for Backend {
         let mut f = std::fs::OpenOptions::new()
             .read(true)
             .open(&path)
-            .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
+            .map_err(|e| parse_io_error(e, Operation::BlockingRead, &path))?;
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset))
-                .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::BlockingRead, &path))?;
         };
 
-        Ok(Box::new(f))
+        let f: BlockingBytesReader = match args.size() {
+            Some(size) => Box::new(f.take(size)),
+            None => Box::new(f),
+        };
+
+        Ok(f)
     }
 
     fn blocking_write(&self, args: &OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
@@ -397,7 +404,7 @@ impl Accessor for Backend {
             .parent()
             .ok_or_else(|| {
                 other(ObjectError::new(
-                    Operation::Write,
+                    Operation::BlockingWrite,
                     &path,
                     anyhow!("malformed path: {:?}", &path),
                 ))
@@ -405,13 +412,13 @@ impl Accessor for Backend {
             .to_path_buf();
 
         std::fs::create_dir_all(&parent)
-            .map_err(|e| parse_io_error(e, Operation::Write, &parent.to_string_lossy()))?;
+            .map_err(|e| parse_io_error(e, Operation::BlockingWrite, &parent.to_string_lossy()))?;
 
         let mut f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(&path)
-            .map_err(|e| parse_io_error(e, Operation::Write, &path))?;
+            .map_err(|e| parse_io_error(e, Operation::BlockingWrite, &path))?;
 
         let size = std::io::copy(&mut r, &mut f)?;
 
@@ -421,8 +428,8 @@ impl Accessor for Backend {
     fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = self.get_abs_path(args.path());
 
-        let meta =
-            std::fs::metadata(&path).map_err(|e| parse_io_error(e, Operation::Stat, &path))?;
+        let meta = std::fs::metadata(&path)
+            .map_err(|e| parse_io_error(e, Operation::BlockingStat, &path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -436,7 +443,7 @@ impl Accessor for Backend {
         m.set_last_modified(
             meta.modified()
                 .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, Operation::Stat, &path))?,
+                .map_err(|e| parse_io_error(e, Operation::BlockingStat, &path))?,
         );
 
         Ok(m)
@@ -452,7 +459,7 @@ impl Accessor for Backend {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, Operation::Delete, &path))
+                Err(parse_io_error(err, Operation::BlockingDelete, &path))
             };
         }
 
@@ -465,7 +472,7 @@ impl Accessor for Backend {
             std::fs::remove_file(&path)
         };
 
-        f.map_err(|e| parse_io_error(e, Operation::Delete, &path))?;
+        f.map_err(|e| parse_io_error(e, Operation::BlockingDelete, &path))?;
 
         Ok(())
     }
@@ -473,7 +480,8 @@ impl Accessor for Backend {
     fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
         let path = self.get_abs_path(args.path());
 
-        let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, Operation::List, &path))?;
+        let f = std::fs::read_dir(&path)
+            .map_err(|e| parse_io_error(e, Operation::BlockingList, &path))?;
 
         let acc = Arc::new(self.clone());
 
@@ -519,7 +527,7 @@ impl Accessor for Backend {
                 Ok(d)
             }
 
-            Err(err) => Err(parse_io_error(err, Operation::List, &path)),
+            Err(err) => Err(parse_io_error(err, Operation::BlockingList, &path)),
         });
 
         Ok(Box::new(f))

@@ -24,7 +24,6 @@ use futures::ready;
 use futures::Future;
 use futures::Stream;
 use isahc::AsyncReadResponseExt;
-
 use serde::Deserialize;
 use serde_json;
 use time::format_description::well_known::Rfc3339;

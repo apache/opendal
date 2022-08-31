@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io::ErrorKind;
+use std::io::Read;
 use std::io::Result;
-use std::io::{ErrorKind, Read};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -41,13 +42,15 @@ use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignedRequest;
+use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::DirIterator;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
 use crate::Scheme;
-use crate::{Accessor, BlockingBytesReader, DirIterator};
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
 static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_seconds";

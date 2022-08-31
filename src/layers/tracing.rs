@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::{Read, Result};
+use std::io::Read;
+use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -36,13 +37,15 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
+use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::DirEntry;
+use crate::DirIterator;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
-use crate::{Accessor, BlockingBytesReader, DirIterator};
 
 /// TracingLayer will add tracing for OpenDAL.
 ///

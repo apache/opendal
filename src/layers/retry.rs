@@ -35,12 +35,14 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
+use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::DirIterator;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
-use crate::{Accessor, BlockingBytesReader, DirIterator};
 
 /// RetryLayer will add retry for OpenDAL.
 ///

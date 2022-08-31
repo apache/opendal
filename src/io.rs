@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Error;
+use std::io::Read;
 use std::io::Result;
-use std::io::{Error, Read};
 
 use bytes::Bytes;
 use futures::AsyncRead;
@@ -30,6 +31,7 @@ pub type BytesReader = Box<dyn BytesRead>;
 
 /// BlockingBytesRead represents a blocking reader of bytes.
 pub trait BlockingBytesRead: Read {}
+impl<T> BlockingBytesRead for T where T: Read {}
 
 /// BlockingBytesReader is a boxed dyn [`BlockingBytesRead`].
 pub type BlockingBytesReader = Box<dyn BlockingBytesRead>;

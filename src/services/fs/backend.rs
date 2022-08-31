@@ -30,6 +30,7 @@ use tokio::fs;
 
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
+use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
@@ -42,7 +43,10 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
 use crate::Accessor;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::DirEntry;
+use crate::DirIterator;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
@@ -154,7 +158,7 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root)
-            .set_capabilities(None);
+            .set_capabilities(AccessorCapability::Blocking);
 
         am
     }
@@ -323,5 +327,201 @@ impl Accessor for Backend {
         let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
 
         Ok(Box::new(rd))
+    }
+
+    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+        let path = self.get_abs_path(args.path());
+
+        if args.mode() == ObjectMode::FILE {
+            let parent = PathBuf::from(&path)
+                .parent()
+                .ok_or_else(|| {
+                    other(ObjectError::new(
+                        Operation::Create,
+                        &path,
+                        anyhow!("malformed path: {:?}", &path),
+                    ))
+                })?
+                .to_path_buf();
+
+            std::fs::create_dir_all(&parent)
+                .map_err(|e| parse_io_error(e, Operation::Create, &parent.to_string_lossy()))?;
+
+            std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(&path)
+                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+
+            return Ok(());
+        }
+
+        if args.mode() == ObjectMode::DIR {
+            std::fs::create_dir_all(&path)
+                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+
+            return Ok(());
+        }
+
+        unreachable!()
+    }
+
+    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+        use std::io::Seek;
+
+        let path = self.get_abs_path(args.path());
+
+        let mut f = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&path)
+            .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
+
+        if let Some(offset) = args.offset() {
+            f.seek(SeekFrom::Start(offset))
+                .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
+        };
+
+        Ok(Box::new(f))
+    }
+
+    fn blocking_write(&self, args: &OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
+        let path = self.get_abs_path(args.path());
+
+        // Create dir before write path.
+        //
+        // TODO(xuanwo): There are many works to do here:
+        //   - Is it safe to create dir concurrently?
+        //   - Do we need to extract this logic as new util functions?
+        //   - Is it better to check the parent dir exists before call mkdir?
+        let parent = PathBuf::from(&path)
+            .parent()
+            .ok_or_else(|| {
+                other(ObjectError::new(
+                    Operation::Write,
+                    &path,
+                    anyhow!("malformed path: {:?}", &path),
+                ))
+            })?
+            .to_path_buf();
+
+        std::fs::create_dir_all(&parent)
+            .map_err(|e| parse_io_error(e, Operation::Write, &parent.to_string_lossy()))?;
+
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&path)
+            .map_err(|e| parse_io_error(e, Operation::Write, &path))?;
+
+        let size = std::io::copy(&mut r, &mut f)?;
+
+        Ok(size)
+    }
+
+    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        let path = self.get_abs_path(args.path());
+
+        let meta =
+            std::fs::metadata(&path).map_err(|e| parse_io_error(e, Operation::Stat, &path))?;
+
+        let mut m = ObjectMetadata::default();
+        if meta.is_dir() {
+            m.set_mode(ObjectMode::DIR);
+        } else if meta.is_file() {
+            m.set_mode(ObjectMode::FILE);
+        } else {
+            m.set_mode(ObjectMode::Unknown);
+        }
+        m.set_content_length(meta.len() as u64);
+        m.set_last_modified(
+            meta.modified()
+                .map(OffsetDateTime::from)
+                .map_err(|e| parse_io_error(e, Operation::Stat, &path))?,
+        );
+
+        Ok(m)
+    }
+
+    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+        let path = self.get_abs_path(args.path());
+
+        // PathBuf.is_dir() is not free, call metadata directly instead.
+        let meta = std::fs::metadata(&path);
+
+        if let Err(err) = meta {
+            return if err.kind() == ErrorKind::NotFound {
+                Ok(())
+            } else {
+                Err(parse_io_error(err, Operation::Delete, &path))
+            };
+        }
+
+        // Safety: Err branch has been checked, it's OK to unwrap.
+        let meta = meta.ok().unwrap();
+
+        let f = if meta.is_dir() {
+            std::fs::remove_dir(&path)
+        } else {
+            std::fs::remove_file(&path)
+        };
+
+        f.map_err(|e| parse_io_error(e, Operation::Delete, &path))?;
+
+        Ok(())
+    }
+
+    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+        let path = self.get_abs_path(args.path());
+
+        let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, Operation::List, &path))?;
+
+        let acc = Arc::new(self.clone());
+
+        let root = self.root.clone();
+        // TODO: maybe we should extract this function.
+        let get_rel_path = move |v: &str| match v.strip_prefix(&root) {
+            Some(p) => p.to_string(),
+            None => unreachable!(
+                "invalid path {} that not start with backend root {}",
+                &v, &root
+            ),
+        };
+
+        let f = f.map(move |v| match v {
+            Ok(de) => {
+                let path = get_rel_path(&de.path().to_string_lossy());
+
+                // On Windows and most Unix platforms this function is free
+                // (no extra system calls needed), but some Unix platforms may
+                // require the equivalent call to symlink_metadata to learn about
+                // the target file type.
+                let file_type = de.file_type()?;
+
+                let mut d = if file_type.is_file() {
+                    DirEntry::new(acc.clone(), ObjectMode::FILE, &path)
+                } else if file_type.is_dir() {
+                    // Make sure we are returning the correct path.
+                    DirEntry::new(acc.clone(), ObjectMode::DIR, &format!("{}/", &path))
+                } else {
+                    DirEntry::new(acc.clone(), ObjectMode::Unknown, &path)
+                };
+
+                // metadata may not available on all platforms, it's ok not setting it here
+                if let Ok(metadata) = de.metadata() {
+                    d.set_content_length(metadata.len());
+                    // last_modified is not available in all platforms.
+                    // it's ok not setting it here.
+                    if let Ok(last_modified) = metadata.modified().map(OffsetDateTime::from) {
+                        d.set_last_modified(last_modified);
+                    }
+                }
+
+                Ok(d)
+            }
+
+            Err(err) => Err(parse_io_error(err, Operation::List, &path)),
+        });
+
+        Ok(Box::new(f))
     }
 }

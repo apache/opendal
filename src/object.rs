@@ -50,6 +50,8 @@ use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::Accessor;
+use crate::BlockingBytesRead;
+use crate::DirIterator;
 use crate::DirStreamer;
 
 /// Handler for all object related operations.
@@ -216,6 +218,59 @@ impl Object {
         }
     }
 
+    /// Create an empty object, like using the following linux commands:
+    ///
+    /// - `touch path/to/file`
+    /// - `mkdir path/to/dir/`
+    ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create on existing file will overwrite and truncate it.
+    ///
+    /// # Examples
+    ///
+    /// ## Create an empty file
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// let _ = o.blocking_create()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Create a dir
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/dir/");
+    /// let _ = o.blocking_create()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_create(&self) -> Result<()> {
+        if self.path.ends_with('/') {
+            let op = OpCreate::new(self.path(), ObjectMode::DIR)?;
+            self.acc.blocking_create(&op)
+        } else {
+            let op = OpCreate::new(self.path(), ObjectMode::FILE)?;
+            self.acc.blocking_create(&op)
+        }
+    }
+
     /// Read the whole object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
@@ -232,7 +287,7 @@ impl Object {
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
-    /// # let o = op.object("path/to/file");
+    /// let o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.read().await?;
     /// # Ok(())
@@ -240,6 +295,31 @@ impl Object {
     /// ```
     pub async fn read(&self) -> Result<Vec<u8>> {
         self.range_read(..).await
+    }
+
+    /// Read the whole object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::blocking_reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// #
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// # o.blocking_write(vec![0; 4096])?;
+    /// let bs = o.blocking_read()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_read(&self) -> Result<Vec<u8>> {
+        self.blocking_range_read(..)
     }
 
     /// Read the specified range of object into a bytes.
@@ -258,7 +338,7 @@ impl Object {
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
-    /// # let o = op.object("path/to/file");
+    /// let o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.range_read(1024..2048).await?;
     /// # Ok(())
@@ -281,6 +361,44 @@ impl Object {
         Ok(bs.into_inner())
     }
 
+    /// Read the specified range of object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::blocking_range_reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// # o.blocking_write(vec![0; 4096])?;
+    /// let bs = o.blocking_range_read(1024..2048)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
+        let op = OpRead::new(self.path(), (range.start_bound(), range.end_bound()))?;
+        let mut s = self.acc.blocking_read(&op)?;
+
+        let br = BytesRange::from(range);
+        let buffer = if let Some(range_size) = br.size() {
+            Vec::with_capacity(range_size as usize)
+        } else {
+            Vec::with_capacity(4 * 1024 * 1024)
+        };
+        let mut bs = std::io::Cursor::new(buffer);
+
+        std::io::copy(&mut s, &mut bs)?;
+
+        Ok(bs.into_inner())
+    }
+
     /// Create a new reader which can read the whole object.
     ///
     /// # Examples
@@ -294,7 +412,7 @@ impl Object {
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
-    /// # let o = op.object("path/to/file");
+    /// let o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let r = o.reader().await?;
     /// # Ok(())
@@ -302,6 +420,28 @@ impl Object {
     /// ```
     pub async fn reader(&self) -> Result<impl BytesRead> {
         self.range_reader(..).await
+    }
+
+    /// Create a new reader which can read the whole object.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// # o.blocking_write(vec![0; 4096])?;
+    /// let r = o.blocking_reader()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_reader(&self) -> Result<impl BlockingBytesRead> {
+        self.blocking_range_reader(..)
     }
 
     /// Create a new reader which can read the specified range.
@@ -317,7 +457,7 @@ impl Object {
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
-    /// # let o = op.object("path/to/file");
+    /// let o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let r = o.range_reader(1024..2048).await?;
     /// # Ok(())
@@ -326,6 +466,32 @@ impl Object {
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
         let op = OpRead::new(self.path(), range)?;
         self.acc.read(&op).await
+    }
+
+    /// Create a new reader which can read the specified range.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// # o.blocking_write(vec![0; 4096])?;
+    /// let r = o.blocking_range_reader(1024..2048)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_range_reader(
+        &self,
+        range: impl RangeBounds<u64>,
+    ) -> Result<impl BlockingBytesRead> {
+        let op = OpRead::new(self.path(), range)?;
+        self.acc.blocking_read(&op)
     }
 
     /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.
@@ -396,7 +562,7 @@ impl Object {
         self.decompress_read_with(algo).await.map(Some)
     }
 
-    /// Create a reader with auto detected compress algorithm.
+    /// Create a reader with auto-detected compress algorithm.
     ///
     /// If we can't find the correct algorithm, we will return `Ok(None)`.
     ///
@@ -532,6 +698,39 @@ impl Object {
         Ok(())
     }
 
+    /// Write bytes into object.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// # use opendal::Scheme;
+    /// use bytes::Bytes;
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// let _ = o.blocking_write(vec![0; 4096])?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+        let bs = bs.into();
+
+        let op = OpWrite::new(self.path(), bs.len() as u64)?;
+        let r = std::io::Cursor::new(bs);
+        let _ = self.acc.blocking_write(&op, Box::new(r))?;
+        Ok(())
+    }
+
     /// Write data into object from a [`BytesRead`].
     ///
     /// # Notes
@@ -565,6 +764,43 @@ impl Object {
         Ok(())
     }
 
+    /// Write data into object from a [`BlockingBytesRead`].
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// # use opendal::Scheme;
+    /// use std::io::Cursor;
+    ///
+    /// use bytes::Bytes;
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/file");
+    /// let r = Cursor::new(vec![0; 4096]);
+    /// let _ = o.blocking_write_from(4096, r)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_write_from(
+        &self,
+        size: u64,
+        br: impl BlockingBytesRead + 'static,
+    ) -> Result<()> {
+        let op = OpWrite::new(self.path(), size)?;
+        let _ = self.acc.blocking_write(&op, Box::new(br))?;
+        Ok(())
+    }
+
     /// Delete object.
     ///
     /// # Notes
@@ -590,6 +826,32 @@ impl Object {
         let op = &OpDelete::new(self.path())?;
 
         self.acc.delete(op).await
+    }
+
+    /// Delete object.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// op.object("test").blocking_delete()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_delete(&self) -> Result<()> {
+        let op = &OpDelete::new(self.path())?;
+
+        self.acc.blocking_delete(op)
     }
 
     /// List current dir object.
@@ -634,6 +896,47 @@ impl Object {
         self.acc.list(&op).await
     }
 
+    /// List current dir object.
+    ///
+    /// This function will create a new [`DirIterator`] handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # use opendal::Scheme;
+    /// # fn main() -> Result<()> {
+    /// use anyhow::anyhow;
+    /// let op = Operator::from_env(Scheme::Memory)?;
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.blocking_list()?;
+    /// while let Some(de) = ds.next() {
+    ///     let de = de?;
+    ///     match de.mode() {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_list(&self) -> Result<DirIterator> {
+        let op = OpList::new(self.path())?;
+
+        self.acc.blocking_list(&op)
+    }
+
     /// Get current object's metadata.
     ///
     /// # Examples
@@ -661,6 +964,34 @@ impl Object {
         let op = OpStat::new(self.path())?;
 
         self.acc.stat(&op).await
+    }
+
+    /// Get current object's metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::memory;
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::Scheme;
+    /// use std::io::ErrorKind;
+    /// #
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// if let Err(e) = op.object("test").blocking_metadata() {
+    ///     if e.kind() == ErrorKind::NotFound {
+    ///         println!("object not exist")
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+        let op = OpStat::new(self.path())?;
+
+        self.acc.blocking_stat(&op)
     }
 
     /// Check if this object exists or not.

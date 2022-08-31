@@ -130,7 +130,7 @@ impl AsyncRead for LoggingReader {
                 }
                 Err(e) => {
                     if e.kind() == ErrorKind::Other {
-                        error!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
+                        error!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path, self.has_read, e);
                     } else {
                         warn!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
                     }

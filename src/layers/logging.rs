@@ -105,7 +105,6 @@ struct LoggingReader {
 
 impl LoggingReader {
     fn new(scheme: Scheme, op: Operation, path: &str, reader: BytesReader) -> Self {
-        // return Self to make cargo-clippy happy
         Self {
             scheme,
             op,
@@ -126,20 +125,20 @@ impl AsyncRead for LoggingReader {
             Poll::Ready(res) => match res {
                 Ok(n) => {
                     self.has_read += n as u64;
-                    trace!(target: "opendal::services", "service={} operation={} path={} have_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.has_read, n);
+                    trace!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.has_read, n);
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => {
                     if e.kind() == ErrorKind::Other {
-                        error!(target: "opendal::services", "service={} operation={} path={} have_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
+                        error!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
                     } else {
-                        warn!(target: "opendal::services", "service={} operation={} path={} have_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
+                        warn!(target: "opendal::services", "service={} operation={} path={} has_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
                     }
                     Poll::Ready(Err(e))
                 }
             },
             Poll::Pending => {
-                trace!(target: "opendal::services", "service={} operation={} path={} have_read={} poll -> Pending", self.scheme, self.op, self.path, self.has_read);
+                trace!(target: "opendal::services", "service={} operation={} path={} has_read={} poll -> Pending", self.scheme, self.op, self.path, self.has_read);
                 Poll::Pending
             }
         }

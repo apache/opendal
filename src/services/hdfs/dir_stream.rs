@@ -24,17 +24,12 @@ use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,
-    path: String,
     rd: hdrs::Readdir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, path: &str, rd: hdrs::Readdir) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-            rd,
-        }
+    pub fn new(backend: Arc<Backend>, rd: hdrs::Readdir) -> Self {
+        Self { backend, rd }
     }
 }
 

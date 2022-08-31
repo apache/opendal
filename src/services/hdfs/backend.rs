@@ -359,7 +359,7 @@ impl Accessor for Backend {
             .read_dir(&path)
             .map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
-        let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
+        let rd = DirStream::new(Arc::new(self.clone()), f);
 
         Ok(Box::new(rd))
     }

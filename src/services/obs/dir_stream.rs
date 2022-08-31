@@ -23,7 +23,6 @@ use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
 use isahc::AsyncReadResponseExt;
-use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
 
@@ -120,12 +119,6 @@ impl futures::Stream for DirStream {
                             &backend.get_rel_path(prefix),
                         );
 
-                        debug!(
-                            "dir object {} got entry, mode: {}, path: {}",
-                            &self.path,
-                            de.mode(),
-                            de.path()
-                        );
                         return Poll::Ready(Some(Ok(de)));
                     }
                 };
@@ -145,17 +138,10 @@ impl futures::Stream for DirStream {
                         &backend.get_rel_path(&object.key),
                     );
 
-                    debug!(
-                        "dir object {} got entry, mode: {}, path: {}",
-                        &self.path,
-                        de.mode(),
-                        de.path(),
-                    );
                     return Poll::Ready(Some(Ok(de)));
                 }
 
                 if self.done {
-                    debug!("dir object {} list done", &self.path);
                     return Poll::Ready(None);
                 }
 

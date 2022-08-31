@@ -14,7 +14,6 @@
 
 use std::fmt::Debug;
 use std::io::ErrorKind;
-use std::io::IoSliceMut;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -26,6 +25,7 @@ use futures::AsyncRead;
 use futures::Stream;
 use log::debug;
 use log::error;
+use log::trace;
 use log::warn;
 
 use crate::multipart::ObjectPart;
@@ -95,32 +95,32 @@ impl Layer for LoggingLayer {
 }
 
 /// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
-pub struct LoggingReader {
+struct LoggingReader {
     scheme: Scheme,
     path: String,
     op: Operation,
-    have_read: usize,
-    to_read: Option<u64>,
+    has_read: u64,
+    size: Option<u64>,
     inner: BytesReader,
 }
 
 impl LoggingReader {
-    pub(crate) fn make_reader(
+    fn new(
         scheme: Scheme,
         op: Operation,
         path: &str,
         size: Option<u64>,
         reader: BytesReader,
-    ) -> BytesReader {
-        let r = Self {
+    ) -> Self {
+        // return Self to make Clippy happy
+        Self {
             scheme,
             op,
             path: path.to_string(),
-            have_read: 0,
-            to_read: size,
+            has_read: 0,
+            size,
             inner: reader,
-        };
-        Box::new(r)
+        }
     }
 }
 
@@ -130,56 +130,38 @@ impl AsyncRead for LoggingReader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        Pin::new(&mut (*self.inner)).poll_read(cx, buf).map(|r|{
-           match r {
-           Ok(r) => {
-               self.have_read += r;
-               debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.to_read, self.have_read, r);
-               Ok(r)
-           },
-               Err(e) => {
-                debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.to_read, self.have_read, e);
-                   Err(e)
+        match Pin::new(&mut (*self.inner)).poll_read(cx, buf) {
+            Poll::Ready(res) => match res {
+                Ok(n) => {
+                    self.has_read += n as u64;
+                    trace!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.size, self.has_read, n);
+                    Poll::Ready(Ok(n))
+                }
+                Err(e) => {
+                    if e.kind() == ErrorKind::Other {
+                        error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.size, self.has_read, e);
+                    } else {
+                        warn!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path,  self.size, self.has_read, e);
+                    }
+                    Poll::Ready(Err(e))
+                }
+            },
+            Poll::Pending => {
+                trace!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll -> Pending", self.scheme, self.op, self.path, self.size, self.has_read);
+                Poll::Pending
             }
         }
-        }).map_err(|e| {
-            error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path, self.to_read, self.have_read, e);
-            e
-        })
-    }
-
-    fn poll_read_vectored(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &mut [IoSliceMut<'_>],
-    ) -> Poll<Result<usize>> {
-        Pin::new(&mut (*self.inner)).poll_read_vectored(cx, bufs).map(|r|{
-            match r {
-                Ok(r) => {
-                    self.have_read += r;
-                    debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> got: {:?}", self.scheme, self.op, self.path,  self.to_read, self.have_read, r);
-                    Ok(r)
-                },
-                Err(e) => {
-                    debug!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> failed: {:?}", self.scheme, self.op, self.path,  self.to_read, self.have_read, e);
-                    Err(e)
-                }
-            }
-        }).map_err(|e| {
-            error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll vectored -> errored: {:?}", self.scheme, Operation::Read, self.path, self.to_read, self.have_read, e);
-            e
-        })
     }
 }
 
-pub struct LoggingStreamer {
+struct LoggingStreamer {
     scheme: Scheme,
     path: String,
     inner: DirStreamer,
 }
 
 impl LoggingStreamer {
-    pub(crate) fn new(scheme: Scheme, args: &OpList, streamer: Box<dyn DirStream>) -> Self {
+    fn new(scheme: Scheme, args: &OpList, streamer: Box<dyn DirStream>) -> Self {
         Self {
             scheme,
             path: args.path().to_string(),
@@ -191,40 +173,64 @@ impl LoggingStreamer {
 impl Stream for LoggingStreamer {
     type Item = Result<DirEntry>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut (*self.inner)).poll_next(cx).map(|o| {
-            if let Some(o) = o {
-                match o {
-                    Ok(dir) => {
-                        debug!(target: "opendal::service",
-                            "service={} operation={} path={} -> got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content md5: {:?}, etag: {:?}",
+        match Pin::new(&mut (*self.inner)).poll_next(cx) {
+            Poll::Ready(opt) => match opt {
+                Some(res) => match res {
+                    Ok(de) => {
+                        trace!(
+                            target: "opendal::service",
+                            "service={} operation={} path={} -> got entry, mode: {}, path: {}",
                             self.scheme,
                             Operation::List,
                             self.path,
-                            dir.mode(),
-                            dir.path(),
-                            dir.content_length(),
-                            dir.last_modified(),
-                            dir.content_md5(),
-                            dir.etag()
+                            de.mode(),
+                            de.path(),
                         );
-                        Some(Ok(dir))
-                    },
+                        Poll::Ready(Some(Ok(de)))
+                    }
                     Err(e) => {
-                        error!(
-                            target: "opendal::services",
-                            "service={} operation={} path={} -> failed: {:?}",
-                            self.scheme,
-                            Operation::List,
-                            self.path,
-                            e
-                        );
-                        Some(Err(e))
-                    },
+                        if e.kind() == ErrorKind::Other {
+                            error!(
+                                target: "opendal::service",
+                                "service={} operation={} path={} -> failed: {:?}",
+                                self.scheme,
+                                Operation::List,
+                                self.path,
+                                e
+                            );
+                        } else {
+                            warn!(
+                                target: "opendal::service",
+                                "service={} operation={} path={} -> errored: {:?}",
+                                self.scheme,
+                                Operation::List,
+                                self.path,
+                                e
+                            );
+                        }
+                        Poll::Ready(Some(Err(e)))
+                    }
+                },
+                None => {
+                    debug!(target: "opendal::service",
+                    "service={} operation={} path={} -> Finished",
+                    self.scheme,
+                    Operation::List,
+                    self.path
+                    );
+                    Poll::Ready(None)
                 }
-            } else {
-                None
+            },
+            Poll::Pending => {
+                trace!(target: "opendal::service",
+                    "service={} operation={} path={} -> Pending",
+                    self.scheme,
+                    Operation::List,
+                    self.path
+                );
+                Poll::Pending
             }
-        })
+        }
     }
 }
 
@@ -323,7 +329,8 @@ impl Accessor for LoggingAccessor {
                     args.offset(),
                     args.size()
                 );
-                LoggingReader::make_reader(self.scheme, Operation::Read, args.path(), args.size(), v)
+                let r = LoggingReader::new(self.scheme, Operation::Read, args.path(), args.size(), v);
+                Box::new(r) as BytesReader
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
@@ -349,7 +356,8 @@ impl Accessor for LoggingAccessor {
             args.size()
         );
 
-        let r = LoggingReader::make_reader(self.scheme, Operation::Write, args.path(), None, r);
+        let reader = LoggingReader::new(self.scheme, Operation::Write, args.path(), None, r);
+        let r = Box::new(reader) as BytesReader;
 
         self.inner
             .write(args, r)
@@ -597,7 +605,8 @@ impl Accessor for LoggingAccessor {
             args.size()
         );
 
-        let r = LoggingReader::make_reader(self.scheme, Operation::Write, args.path(), None, r);
+        let r = LoggingReader::new(self.scheme, Operation::Write, args.path(), None, r);
+        let r = Box::new(r);
 
         self.inner
             .write_multipart(args, r)

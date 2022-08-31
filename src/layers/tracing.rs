@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::IoSliceMut;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -67,18 +66,17 @@ impl Layer for TracingLayer {
     }
 }
 
-pub struct TracingReader {
+struct TracingReader {
     span: Span,
     inner: BytesReader,
 }
 
 impl TracingReader {
-    pub(crate) fn make_reader(span: Span, reader: BytesReader) -> BytesReader {
-        let r = Self {
+    fn new(span: Span, reader: BytesReader) -> Self {
+        Self {
             span,
             inner: reader,
-        };
-        Box::new(r)
+        }
     }
 }
 
@@ -91,29 +89,19 @@ impl AsyncRead for TracingReader {
     ) -> Poll<Result<usize>> {
         Pin::new(&mut (*self.inner)).poll_read(cx, buf)
     }
-
-    #[tracing::instrument(parent=&self.span, skip(self))]
-    fn poll_read_vectored(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &mut [IoSliceMut<'_>],
-    ) -> Poll<Result<usize>> {
-        Pin::new(&mut (*self.inner)).poll_read_vectored(cx, bufs)
-    }
 }
 
-pub struct TracingStreamer {
+struct TracingStreamer {
     span: Span,
     inner: DirStreamer,
 }
 
 impl TracingStreamer {
-    pub(crate) fn make_streamer(span: Span, streamer: DirStreamer) -> DirStreamer {
-        let s = Self {
+    fn new(span: Span, streamer: DirStreamer) -> Self {
+        Self {
             span,
             inner: streamer,
-        };
-        Box::new(s)
+        }
     }
 }
 
@@ -148,12 +136,12 @@ impl Accessor for TracingAccessor {
         self.inner
             .read(args)
             .await
-            .map(|r| TracingReader::make_reader(Span::current(), r))
+            .map(|r| Box::new(TracingReader::new(Span::current(), r)) as BytesReader)
     }
 
     #[tracing::instrument(skip(r))]
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let r = TracingReader::make_reader(Span::current(), r);
+        let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write(args, r).await
     }
 
@@ -172,7 +160,7 @@ impl Accessor for TracingAccessor {
         self.inner
             .list(args)
             .await
-            .map(|s| TracingStreamer::make_streamer(Span::current(), s))
+            .map(|s| Box::new(TracingStreamer::new(Span::current(), s)) as DirStreamer)
     }
 
     #[tracing::instrument]
@@ -187,7 +175,7 @@ impl Accessor for TracingAccessor {
 
     #[tracing::instrument(skip(r))]
     async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
-        let r = TracingReader::make_reader(Span::current(), r);
+        let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write_multipart(args, r).await
     }
 

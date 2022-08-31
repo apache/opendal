@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::IoSliceMut;
+use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -52,11 +52,11 @@ use crate::Scheme;
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
 static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_seconds";
 /// Metrics of Failed requests, poll ok but outcome is error
-static METRIC_REQUESTS_FAIL: &str = "opendal_requests_fail";
+static METRIC_FAILURES_TOTAL: &str = "opendal_failures_total";
 /// Metrics of Errored requests, poll error
-static METRIC_REQUESTS_ERROR: &str = "opendal_requests_error";
-static METRIC_BYTES_READ: &str = "opendal_bytes_read";
-static METRIC_BYTES_WRITTEN: &str = "opendal_bytes_written";
+static METRIC_ERRORS_TOTAL: &str = "opendal_errors_total";
+static METRIC_BYTES_READ_TOTAL: &str = "opendal_bytes_read_total";
+static METRIC_BYTES_WRITTEN_TOTAL: &str = "opendal_bytes_written_total";
 
 static LABEL_SERVICE: &str = "service";
 static LABEL_OPERATION: &str = "operation";
@@ -99,20 +99,19 @@ impl Layer for MetricsLayer {
     }
 }
 
-pub struct MetricReader {
+struct MetricReader {
     scheme: Scheme,
     op: Operation,
     inner: BytesReader,
 }
 
 impl MetricReader {
-    pub(crate) fn make_reader(scheme: Scheme, op: Operation, reader: BytesReader) -> BytesReader {
-        let r = Self {
+    fn new(scheme: Scheme, op: Operation, reader: BytesReader) -> Self {
+        Self {
             scheme,
             op,
             inner: reader,
-        };
-        Box::new(r)
+        }
     }
 }
 
@@ -124,88 +123,45 @@ impl AsyncRead for MetricReader {
     ) -> Poll<Result<usize>> {
         Pin::new(&mut (*self.inner))
             .poll_read(cx, buf)
-            .map(|res| {
-                if let Ok(bytes) = res {
-                    let bytes = bytes as u64;
+            .map(|res| match res {
+                Ok(bytes) => {
                     match self.op {
                         Operation::Read => {
                             counter!(
-                                METRIC_BYTES_READ, bytes,
+                                METRIC_BYTES_READ_TOTAL, bytes as u64,
                                 LABEL_SERVICE => self.scheme.into_static(),
                                 LABEL_OPERATION => self.op.into_static(),
                             );
                         }
                         Operation::Write => {
                             counter!(
-                                METRIC_BYTES_WRITTEN, bytes,
+                                METRIC_BYTES_WRITTEN_TOTAL, bytes as u64,
                                 LABEL_SERVICE => self.scheme.into_static(),
                                 LABEL_OPERATION => self.op.into_static(),
                             );
                         }
-                        _ => {}
+                        _ => {
+                            unreachable!();
+                        }
+                    };
+                    Ok(bytes)
+                }
+                Err(e) => {
+                    if e.kind() == ErrorKind::Other {
+                        increment_counter!(
+                            METRIC_FAILURES_TOTAL,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
+                    } else {
+                        increment_counter!(
+                            METRIC_ERRORS_TOTAL,
+                            LABEL_SERVICE => self.scheme.into_static(),
+                            LABEL_OPERATION => self.op.into_static(),
+                        );
                     }
-                } else {
-                    increment_counter!(
-                        METRIC_REQUESTS_FAIL,
-                        LABEL_SERVICE => self.scheme.into_static(),
-                        LABEL_OPERATION => self.op.into_static(),
-                    );
-                };
-                res
-            })
-            .map_err(|e| {
-                increment_counter!(
-                    METRIC_REQUESTS_ERROR,
-                    LABEL_SERVICE => self.scheme.into_static(),
-                    LABEL_OPERATION => self.op.into_static(),
-                );
-                e
-            })
-    }
-
-    fn poll_read_vectored(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        bufs: &mut [IoSliceMut<'_>],
-    ) -> Poll<Result<usize>> {
-        Pin::new(&mut (*self.inner))
-            .poll_read_vectored(cx, bufs)
-            .map(|res| {
-                if let Ok(bytes) = res {
-                    let bytes = bytes as u64;
-                    match self.op {
-                        Operation::Read => {
-                            counter!(
-                                METRIC_BYTES_READ, bytes,
-                                LABEL_SERVICE => self.scheme.into_static(),
-                                LABEL_OPERATION => self.op.into_static(),
-                            );
-                        }
-                        Operation::Write => {
-                            counter!(
-                                METRIC_BYTES_WRITTEN, bytes,
-                                LABEL_SERVICE => self.scheme.into_static(),
-                                LABEL_OPERATION => self.op.into_static(),
-                            );
-                        }
-                        _ => {}
-                    }
-                } else {
-                    increment_counter!(
-                        METRIC_REQUESTS_FAIL,
-                        LABEL_SERVICE => self.scheme.into_static(),
-                        LABEL_OPERATION => self.op.into_static(),
-                    );
-                };
-                res
-            })
-            .map_err(|e| {
-                increment_counter!(
-                    METRIC_REQUESTS_ERROR,
-                    LABEL_SERVICE => self.scheme.into_static(),
-                    LABEL_OPERATION => self.op.into_static(),
-                );
-                e
+                    Err(e)
+                }
             })
     }
 }
@@ -266,10 +222,13 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result =
-            self.inner.read(args).await.map(|reader| {
-                MetricReader::make_reader(self.meta.scheme(), Operation::Read, reader)
-            });
+        let result = self.inner.read(args).await.map(|reader| {
+            Box::new(MetricReader::new(
+                self.meta.scheme(),
+                Operation::Read,
+                reader,
+            )) as BytesReader
+        });
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -288,7 +247,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::Write.into_static(),
         );
 
-        let r = MetricReader::make_reader(self.meta.scheme(), Operation::Write, r);
+        let r = Box::new(MetricReader::new(self.meta.scheme(), Operation::Write, r));
 
         let start = Instant::now();
         let result = self.inner.write(args, r).await;
@@ -410,7 +369,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::WriteMultipart.into_static(),
         );
 
-        let r = MetricReader::make_reader(self.meta.scheme(), Operation::Write, r);
+        let r = Box::new(MetricReader::new(self.meta.scheme(), Operation::Write, r));
 
         let start = Instant::now();
         let result = self.inner.write_multipart(args, r).await;

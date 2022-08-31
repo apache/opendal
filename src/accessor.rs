@@ -39,28 +39,42 @@ use crate::BytesReader;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::Scheme;
+use crate::{BlockingBytesReader, DirIterator};
 
 /// Underlying trait of all backends for implementors.
 ///
-/// # Note to users
+/// # Note
 ///
 /// Only service implementor should care about this trait, users need to
 /// use [`Operator`][crate::Operator] instead.
 ///
-/// # Note to services
+/// # Operations
+///
+/// | Name | Capability |
+/// | ---- | ---------- |
+/// | [`metadata`][crate::Accessor::metadata] | - |
+/// | [`create`][crate::Accessor::create] | - |
+/// | [`read`][crate::Accessor::read] | - |
+/// | [`write`][crate::Accessor::write] | - |
+/// | [`delete`][crate::Accessor::delete] | - |
+/// | [`list`][crate::Accessor::list] | - |
+/// | [`presign`][crate::Accessor::presign] | [`Presign`][AccessorCapability::Presign] |
+/// | [`create_multipart`][crate::Accessor::create_multipart] | [`Multipart`][AccessorCapability::Multipart] |
+/// | [`write_multipart`][crate::Accessor::write_multipart] | [`Multipart`][AccessorCapability::Multipart] |
+/// | [`complete_multipart`][crate::Accessor::complete_multipart] | [`Multipart`][AccessorCapability::Multipart] |
+/// | [`abort_multipart`][crate::Accessor::abort_multipart] | [`Multipart`][AccessorCapability::Multipart] |
 ///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.
-/// - `metadata`, `create`, `read`, `write`, `stat`, `delete` and `list`
-///   are basic functions while required to be implemented, use `unimplemented!()`
-///   if not implemented or can't implement.
-/// - Other APIs are optional and should be recorded in `AccessorCapability`.
-///   Return [`std::io::ErrorKind::Unsupported`] if not supported.
+/// - Operations without capability requirement like `metadata`, `create` are
+///   basic operations.
+///   - All services must implement them.
+///   - Use `unimplemented!()` if not implemented or can't implement.
+/// - Operations with capability requirement like `presign` are optional operations.
+///   - Services can implement them based on services capabilities.
+///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug {
-    /// Required APIs.
-    /// -------------
-
     /// Invoke the `metadata` operation to get metadata of accessor.
     fn metadata(&self) -> AccessorMetadata {
         unimplemented!()
@@ -132,13 +146,11 @@ pub trait Accessor: Send + Sync + Debug {
         unimplemented!()
     }
 
-    /// Optional APIs (Capabilities)
-    /// ---------------------------
-
     /// Invoke the `presign` operation on the specified path.
     ///
     /// # Behavior
     ///
+    /// - Require capability: [`Presign`][AccessorCapability::Presign]
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         return Err(new_unsupported_object_error(
@@ -151,6 +163,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// # Behavior
     ///
+    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
     /// - This op returns a `upload_id` which is required to for following APIs.
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
         let _ = args;
@@ -162,6 +175,10 @@ pub trait Accessor: Send + Sync + Debug {
     }
 
     /// Invoke the `write_multipart` operation on the specified path.
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
     async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
         let (_, _) = (args, r);
 
@@ -172,6 +189,10 @@ pub trait Accessor: Send + Sync + Debug {
     }
 
     /// Invoke the `complete_multipart` operation on the specified path.
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
     async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
         let _ = args;
 
@@ -182,11 +203,111 @@ pub trait Accessor: Send + Sync + Debug {
     }
 
     /// Invoke the `abort_multipart` operation on the specified path.
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Multipart`][AccessorCapability::Multipart]
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
         let _ = args;
 
         return Err(new_unsupported_object_error(
             Operation::AbortMultipart,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `blocking_create` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::create`]
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::BlockingCreate,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `blocking_read` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::read`]
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::BlockingRead,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `blocking_write` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::write`]
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        let (_, _) = (args, r);
+
+        return Err(new_unsupported_object_error(
+            Operation::BlockingWrite,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `blocking_stat` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::stat`]
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::BlockingStat,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `blocking_delete` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::delete`]
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::BlockingDelete,
+            args.path(),
+        ));
+    }
+
+    /// Invoke the `blocking_list` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::list`]
+    ///
+    /// # Behavior
+    ///
+    /// - Require capability: [`Blocking`][AccessorCapability::Blocking]
+    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+        let _ = args;
+
+        return Err(new_unsupported_object_error(
+            Operation::BlockingList,
             args.path(),
         ));
     }
@@ -199,6 +320,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn metadata(&self) -> AccessorMetadata {
         self.as_ref().metadata()
     }
+
     async fn create(&self, args: &OpCreate) -> Result<()> {
         self.as_ref().create(args).await
     }
@@ -217,9 +339,11 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         self.as_ref().list(args).await
     }
+
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
         self.as_ref().presign(args)
     }
+
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
         self.as_ref().create_multipart(args).await
     }
@@ -231,6 +355,25 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
         self.as_ref().abort_multipart(args).await
+    }
+
+    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+        self.as_ref().blocking_create(args)
+    }
+    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+        self.as_ref().blocking_read(args)
+    }
+    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.as_ref().blocking_write(args, r)
+    }
+    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        self.as_ref().blocking_stat(args)
+    }
+    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+        self.as_ref().blocking_delete(args)
+    }
+    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+        self.as_ref().blocking_list(args)
     }
 }
 
@@ -289,6 +432,11 @@ impl AccessorMetadata {
         self.capabilities.contains(AccessorCapability::Multipart)
     }
 
+    /// Check if current backend supports blocking operations or not.
+    pub fn can_blocking(&self) -> bool {
+        self.capabilities.contains(AccessorCapability::Blocking)
+    }
+
     pub(crate) fn set_capabilities(
         &mut self,
         capabilities: impl Into<FlagSet<AccessorCapability>>,
@@ -305,5 +453,7 @@ flags! {
         Presign,
         /// Add this capability if service supports `multipart`
         Multipart,
+        /// Add this capability if service supports `blocking`
+        Blocking,
     }
 }

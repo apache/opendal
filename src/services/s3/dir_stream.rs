@@ -24,7 +24,6 @@ use bytes::Buf;
 use futures::future::BoxFuture;
 use futures::ready;
 use isahc::AsyncReadResponseExt;
-use log::debug;
 use quick_xml::de;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
@@ -139,16 +138,6 @@ impl futures::Stream for DirStream {
                         &backend.get_rel_path(prefix),
                     );
 
-                    debug!(
-                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
-                        &self.path,
-                        de.mode(),
-                        de.path(),
-                        de.content_length(),
-                        de.last_modified(),
-                        de.content_md5(),
-                        de.etag()
-                    );
                     return Poll::Ready(Some(Ok(de)));
                 }
 
@@ -184,21 +173,10 @@ impl futures::Stream for DirStream {
                         })?;
                     de.set_last_modified(dt);
 
-                    debug!(
-                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
-                        &self.path,
-                        de.mode(),
-                        de.path(),
-                        de.content_length(),
-                        de.last_modified(),
-                        de.content_md5(),
-                        de.etag()
-                    );
                     return Poll::Ready(Some(Ok(de)));
                 }
 
                 if self.done {
-                    debug!("object {} list done", &self.path);
                     return Poll::Ready(None);
                 }
 

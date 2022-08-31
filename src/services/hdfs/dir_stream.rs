@@ -18,25 +18,18 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use log::debug;
-
 use super::Backend;
 use crate::DirEntry;
 use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,
-    path: String,
     rd: hdrs::Readdir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, path: &str, rd: hdrs::Readdir) -> Self {
-        Self {
-            backend,
-            path: path.to_string(),
-            rd,
-        }
+    pub fn new(backend: Arc<Backend>, rd: hdrs::Readdir) -> Self {
+        Self { backend, rd }
     }
 }
 
@@ -45,10 +38,7 @@ impl futures::Stream for DirStream {
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.rd.next() {
-            None => {
-                debug!("dir object {} list done", &self.path);
-                Poll::Ready(None)
-            }
+            None => Poll::Ready(None),
             Some(de) => {
                 let path = self.backend.get_rel_path(de.path());
 
@@ -65,16 +55,6 @@ impl futures::Stream for DirStream {
                 d.set_content_length(de.len());
                 d.set_last_modified(time::OffsetDateTime::from(de.modified()));
 
-                debug!(
-                    "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
-                    &self.path,
-                    d.mode(),
-                    d.path(),
-                    d.content_length(),
-                    d.last_modified(),
-                    d.content_md5(),
-                    d.etag()
-                );
                 Poll::Ready(Some(Ok(d)))
             }
         }

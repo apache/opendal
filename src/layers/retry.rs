@@ -196,7 +196,7 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, args: &OpRead) -> std::io::Result<BytesReader> {
+        async fn read(&self, args: &OpRead) -> io::Result<BytesReader> {
             let mut attempt = self.attempt.lock().await;
             *attempt += 1;
 

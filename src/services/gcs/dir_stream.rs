@@ -24,8 +24,7 @@ use futures::ready;
 use futures::Future;
 use futures::Stream;
 use isahc::AsyncReadResponseExt;
-use log::debug;
-use log::error;
+
 use serde::Deserialize;
 use serde_json;
 use time::format_description::well_known::Rfc3339;
@@ -87,7 +86,6 @@ impl Stream for DirStream {
                     let mut resp = backend.list_objects(&path, token.as_str()).await?;
 
                     if !resp.status().is_success() {
-                        error!("GCS failed to list objects, status code: {}", resp.status());
                         let er = parse_error_response(resp).await?;
                         let err = parse_error(Operation::List, &path, er);
                         return Err(err);
@@ -136,16 +134,6 @@ impl Stream for DirStream {
                         &backend.get_rel_path(prefix),
                     );
 
-                    debug!(
-                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
-                        &self.path,
-                        de.mode(),
-                        de.path(),
-                        de.content_length(),
-                        de.last_modified(),
-                        de.content_md5(),
-                        de.etag()
-                    );
                     return Poll::Ready(Some(Ok(de)));
                 }
                 let objects = &output.items;
@@ -186,22 +174,11 @@ impl Stream for DirStream {
                         })?;
                     de.set_last_modified(dt);
 
-                    debug!(
-                        "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
-                        &self.path,
-                        de.mode(),
-                        de.path(),
-                        de.content_length(),
-                        de.last_modified(),
-                        de.content_md5(),
-                        de.etag()
-                    );
                     return Poll::Ready(Some(Ok(de)));
                 }
 
                 // end of asynchronous iteration
                 if self.done {
-                    debug!("object {} list done", &self.path);
                     return Poll::Ready(None);
                 }
 

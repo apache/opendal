@@ -43,6 +43,18 @@ pub enum Operation {
     CompleteMultipart,
     /// Operation for [`crate::Accessor::abort_multipart`]
     AbortMultipart,
+    /// Operation for [`crate::Accessor::blocking_create`]
+    BlockingCreate,
+    /// Operation for [`crate::Accessor::blocking_read`]
+    BlockingRead,
+    /// Operation for [`crate::Accessor::blocking_write`]
+    BlockingWrite,
+    /// Operation for [`crate::Accessor::blocking_stat`]
+    BlockingStat,
+    /// Operation for [`crate::Accessor::blocking_delete`]
+    BlockingDelete,
+    /// Operation for [`crate::Accessor::blocking_list`]
+    BlockingList,
 }
 
 impl Operation {
@@ -62,17 +74,27 @@ impl Display for Operation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Operation::Metadata => write!(f, "metadata"),
+
             Operation::Create => write!(f, "create"),
             Operation::Read => write!(f, "read"),
             Operation::Write => write!(f, "write"),
             Operation::Stat => write!(f, "stat"),
             Operation::Delete => write!(f, "delete"),
             Operation::List => write!(f, "list"),
+
             Operation::Presign => write!(f, "presign"),
+
             Operation::CreateMultipart => write!(f, "create_multipart"),
             Operation::WriteMultipart => write!(f, "write_multipart"),
             Operation::CompleteMultipart => write!(f, "complete_multipart"),
             Operation::AbortMultipart => write!(f, "abort_multipart"),
+
+            Operation::BlockingCreate => write!(f, "blocking_create"),
+            Operation::BlockingRead => write!(f, "blocking_read"),
+            Operation::BlockingWrite => write!(f, "blocking_write"),
+            Operation::BlockingStat => write!(f, "blocking_stat"),
+            Operation::BlockingDelete => write!(f, "blocking_delete"),
+            Operation::BlockingList => write!(f, "blocking_list"),
         }
     }
 }
@@ -92,6 +114,12 @@ impl From<Operation> for &'static str {
             Operation::WriteMultipart => "write_multipart",
             Operation::CompleteMultipart => "complete_multipart",
             Operation::AbortMultipart => "abort_multipart",
+            Operation::BlockingCreate => "blocking_create",
+            Operation::BlockingRead => "blocking_read",
+            Operation::BlockingWrite => "blocking_write",
+            Operation::BlockingStat => "blocking_stat",
+            Operation::BlockingDelete => "blocking_delete",
+            Operation::BlockingList => "blocking_list",
         }
     }
 }

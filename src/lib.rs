@@ -115,6 +115,8 @@ pub use accessor::Accessor;
 pub use accessor::AccessorMetadata;
 
 mod io;
+pub use io::BlockingBytesRead;
+pub use io::BlockingBytesReader;
 pub use io::BytesRead;
 pub use io::BytesReader;
 pub use io::BytesSink;
@@ -127,12 +129,16 @@ pub use operator::BatchOperator;
 pub use operator::Operator;
 
 mod object;
-pub use object::DirEntry;
-pub use object::DirStream;
-pub use object::DirStreamer;
 pub use object::Object;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
+
+mod dir;
+pub use dir::DirEntry;
+pub use dir::DirIterate;
+pub use dir::DirIterator;
+pub use dir::DirStream;
+pub use dir::DirStreamer;
 
 mod multipart;
 pub use multipart::ObjectMultipart;

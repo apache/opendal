@@ -12,12 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::ops::OpStat;
-use crate::path::get_basename;
-use crate::{Accessor, Object, ObjectMetadata, ObjectMode};
 use std::io::Result;
 use std::sync::Arc;
+
 use time::OffsetDateTime;
+
+use crate::ops::OpStat;
+use crate::path::get_basename;
+use crate::Accessor;
+use crate::Object;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 
 /// DirStream represents a stream of Dir.
 pub trait DirStream: futures::Stream<Item = Result<DirEntry>> + Unpin + Send {}
@@ -28,6 +33,7 @@ pub type DirStreamer = Box<dyn DirStream>;
 
 /// DirIterate represents an iterator of Dir.
 pub trait DirIterate: Iterator<Item = Result<DirEntry>> {}
+impl<T> DirIterate for T where T: Iterator<Item = Result<DirEntry>> {}
 
 /// DirIterator is a boxed dyn [`DirIterate`]
 pub type DirIterator = Box<dyn DirIterate>;

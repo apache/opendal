@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::Result;
+use std::io::{Read, Result};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -36,13 +36,13 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
-use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::DirEntry;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
+use crate::{Accessor, BlockingBytesReader, DirIterator};
 
 /// TracingLayer will add tracing for OpenDAL.
 ///
@@ -63,54 +63,6 @@ pub struct TracingLayer;
 impl Layer for TracingLayer {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
         Arc::new(TracingAccessor { inner })
-    }
-}
-
-struct TracingReader {
-    span: Span,
-    inner: BytesReader,
-}
-
-impl TracingReader {
-    fn new(span: Span, reader: BytesReader) -> Self {
-        Self {
-            span,
-            inner: reader,
-        }
-    }
-}
-
-impl AsyncRead for TracingReader {
-    #[tracing::instrument(parent=&self.span, skip(self))]
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        Pin::new(&mut (*self.inner)).poll_read(cx, buf)
-    }
-}
-
-struct TracingStreamer {
-    span: Span,
-    inner: DirStreamer,
-}
-
-impl TracingStreamer {
-    fn new(span: Span, streamer: DirStreamer) -> Self {
-        Self {
-            span,
-            inner: streamer,
-        }
-    }
-}
-
-impl futures::Stream for TracingStreamer {
-    type Item = Result<DirEntry>;
-
-    #[tracing::instrument(parent=&self.span, skip(self))]
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut (*self.inner)).poll_next(cx)
     }
 }
 
@@ -187,5 +139,122 @@ impl Accessor for TracingAccessor {
     #[tracing::instrument]
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
         self.inner.abort_multipart(args).await
+    }
+
+    #[tracing::instrument]
+    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+        self.inner.blocking_create(args)
+    }
+
+    #[tracing::instrument]
+    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+        self.inner.blocking_read(args).map(|r| {
+            Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader
+        })
+    }
+
+    #[tracing::instrument(skip(r))]
+    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.inner.blocking_write(args, r)
+    }
+
+    #[tracing::instrument]
+    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        self.inner.blocking_stat(args)
+    }
+
+    #[tracing::instrument]
+    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+        self.inner.blocking_delete(args)
+    }
+
+    #[tracing::instrument]
+    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+        self.inner
+            .blocking_list(args)
+            .map(|it| Box::new(TracingInterator::new(Span::current(), it)) as DirIterator)
+    }
+}
+
+struct TracingReader {
+    span: Span,
+    inner: BytesReader,
+}
+
+impl TracingReader {
+    fn new(span: Span, inner: BytesReader) -> Self {
+        Self { span, inner }
+    }
+}
+
+impl AsyncRead for TracingReader {
+    #[tracing::instrument(parent=&self.span, skip(self))]
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        Pin::new(&mut (*self.inner)).poll_read(cx, buf)
+    }
+}
+
+struct BlockingTracingReader {
+    span: Span,
+    inner: BlockingBytesReader,
+}
+
+impl BlockingTracingReader {
+    fn new(span: Span, inner: BlockingBytesReader) -> Self {
+        Self { span, inner }
+    }
+}
+
+impl Read for BlockingTracingReader {
+    #[tracing::instrument(parent = & self.span, skip(self))]
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+struct TracingStreamer {
+    span: Span,
+    inner: DirStreamer,
+}
+
+impl TracingStreamer {
+    fn new(span: Span, streamer: DirStreamer) -> Self {
+        Self {
+            span,
+            inner: streamer,
+        }
+    }
+}
+
+impl futures::Stream for TracingStreamer {
+    type Item = Result<DirEntry>;
+
+    #[tracing::instrument(parent=&self.span, skip(self))]
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut (*self.inner)).poll_next(cx)
+    }
+}
+
+struct TracingInterator {
+    span: Span,
+    inner: DirIterator,
+}
+
+impl TracingInterator {
+    fn new(span: Span, inner: DirIterator) -> Self {
+        Self { span, inner }
+    }
+}
+
+impl Iterator for TracingInterator {
+    type Item = Result<DirEntry>;
+
+    #[tracing::instrument(parent =&self.span, skip(self))]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
     }
 }

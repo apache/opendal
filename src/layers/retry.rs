@@ -16,6 +16,7 @@ use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::sync::Arc;
+use std::thread::sleep;
 
 use async_trait::async_trait;
 use backon::Backoff;
@@ -34,12 +35,12 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
-use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
+use crate::{Accessor, BlockingBytesReader, DirIterator};
 
 /// RetryLayer will add retry for OpenDAL.
 ///
@@ -168,6 +169,145 @@ where
             .retry(self.backoff.clone())
             .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
             .await
+    }
+
+    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.blocking_create(args);
+
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let kind = err.kind();
+                    e = Some(err);
+
+                    if kind == ErrorKind::Interrupted {
+                        sleep(dur);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
+    }
+
+    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.blocking_read(args);
+
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let kind = err.kind();
+                    e = Some(err);
+
+                    if kind == ErrorKind::Interrupted {
+                        sleep(dur);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
+    }
+
+    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.inner.blocking_write(args, r)
+    }
+
+    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.blocking_stat(args);
+
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let kind = err.kind();
+                    e = Some(err);
+
+                    if kind == ErrorKind::Interrupted {
+                        sleep(dur);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
+    }
+
+    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.blocking_delete(args);
+
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let kind = err.kind();
+                    e = Some(err);
+
+                    if kind == ErrorKind::Interrupted {
+                        sleep(dur);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
+    }
+
+    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.blocking_list(args);
+
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let kind = err.kind();
+                    e = Some(err);
+
+                    if kind == ErrorKind::Interrupted {
+                        sleep(dur);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
     }
 }
 

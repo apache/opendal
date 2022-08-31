@@ -100,25 +100,17 @@ struct LoggingReader {
     path: String,
     op: Operation,
     has_read: u64,
-    size: Option<u64>,
     inner: BytesReader,
 }
 
 impl LoggingReader {
-    fn new(
-        scheme: Scheme,
-        op: Operation,
-        path: &str,
-        size: Option<u64>,
-        reader: BytesReader,
-    ) -> Self {
-        // return Self to make Clippy happy
+    fn new(scheme: Scheme, op: Operation, path: &str, reader: BytesReader) -> Self {
+        // return Self to make cargo-clippy happy
         Self {
             scheme,
             op,
             path: path.to_string(),
             has_read: 0,
-            size,
             inner: reader,
         }
     }
@@ -134,20 +126,20 @@ impl AsyncRead for LoggingReader {
             Poll::Ready(res) => match res {
                 Ok(n) => {
                     self.has_read += n as u64;
-                    trace!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.size, self.has_read, n);
+                    trace!(target: "opendal::services", "service={} operation={} path={} have_read={} poll read -> got: {}B", self.scheme, self.op, self.path, self.has_read, n);
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => {
                     if e.kind() == ErrorKind::Other {
-                        error!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.size, self.has_read, e);
+                        error!(target: "opendal::services", "service={} operation={} path={} have_read={} poll read -> failed: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
                     } else {
-                        warn!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path,  self.size, self.has_read, e);
+                        warn!(target: "opendal::services", "service={} operation={} path={} have_read={} poll read -> errored: {:?}", self.scheme, self.op, self.path,  self.has_read, e);
                     }
                     Poll::Ready(Err(e))
                 }
             },
             Poll::Pending => {
-                trace!(target: "opendal::services", "service={} operation={} path={} size={:?} have_read={} poll -> Pending", self.scheme, self.op, self.path, self.size, self.has_read);
+                trace!(target: "opendal::services", "service={} operation={} path={} have_read={} poll -> Pending", self.scheme, self.op, self.path, self.has_read);
                 Poll::Pending
             }
         }
@@ -329,7 +321,7 @@ impl Accessor for LoggingAccessor {
                     args.offset(),
                     args.size()
                 );
-                let r = LoggingReader::new(self.scheme, Operation::Read, args.path(), args.size(), v);
+                let r = LoggingReader::new(self.scheme, Operation::Read, args.path(),v);
                 Box::new(r) as BytesReader
             })
             .map_err(|err| {
@@ -356,7 +348,7 @@ impl Accessor for LoggingAccessor {
             args.size()
         );
 
-        let reader = LoggingReader::new(self.scheme, Operation::Write, args.path(), None, r);
+        let reader = LoggingReader::new(self.scheme, Operation::Write, args.path(), r);
         let r = Box::new(reader) as BytesReader;
 
         self.inner
@@ -605,7 +597,7 @@ impl Accessor for LoggingAccessor {
             args.size()
         );
 
-        let r = LoggingReader::new(self.scheme, Operation::Write, args.path(), None, r);
+        let r = LoggingReader::new(self.scheme, Operation::Write, args.path(), r);
         let r = Box::new(r);
 
         self.inner

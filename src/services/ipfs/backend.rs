@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::AsyncReadExt;
+use futures::{io, AsyncReadExt};
 use http::Response;
 use http::StatusCode;
 use isahc;
@@ -61,14 +61,6 @@ pub struct Backend {
     root: String,
     endpoint: String,
     client: HttpClient,
-}
-
-#[derive(Deserialize, Debug)]
-struct StatBody {
-    #[serde(rename(deserialize = "Size"))]
-    size: u64,
-    #[serde(rename(deserialize = "Type"))]
-    file_type: String,
 }
 
 impl fmt::Debug for Backend {
@@ -122,17 +114,20 @@ impl Accessor for Backend {
         am
     }
 
-    /// TODO: support creating dir.
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = self.get_abs_path(args.path());
 
-        let mut resp = self.ipfs_write(&path, "").await?;
+        let mut resp = match args.mode() {
+            ObjectMode::DIR => self.ipfs_mkdir(&path).await?,
+            ObjectMode::FILE => self.ipfs_write(&path, &[]).await?,
+            _ => unreachable!(),
+        };
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, &path, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Create, &path, err))?;
                 Ok(())
             }
             _ => {
@@ -148,17 +143,26 @@ impl Accessor for Backend {
 
         let offset = args.offset().and_then(|val| i64::try_from(val).ok());
         let size = args.size().and_then(|val| i64::try_from(val).ok());
-        let reader = self.ipfs_read(&path, offset, size).await?;
-        Ok(Box::new(reader.into_body()))
+        let resp = self.ipfs_read(&path, offset, size).await?;
+
+        match resp.status() {
+            StatusCode::OK => Ok(Box::new(resp.into_body())),
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Stat, args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = self.get_abs_path(args.path());
 
-        let mut string_buff: String = "".to_string();
-        unshared_reader(r).read_to_string(&mut string_buff).await?;
+        // TODO: Accept a reader directly.
+        let mut buf = Vec::with_capacity(args.size() as usize);
+        io::copy(r, &mut buf).await?;
 
-        let mut resp = self.ipfs_write(&path, &string_buff).await?;
+        let mut resp = self.ipfs_write(&path, &buf).await?;
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
@@ -178,30 +182,47 @@ impl Accessor for Backend {
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = self.get_abs_path(args.path());
 
+        // Stat root always returns a DIR.
+        if self.get_abs_path("/") == path {
+            let mut m = ObjectMetadata::default();
+            m.set_mode(ObjectMode::DIR);
+
+            return Ok(m);
+        }
+
         let mut resp = self.ipfs_stat(&path).await?;
 
-        let bs = resp
-            .bytes()
-            .await
-            .map_err(|err| new_response_consume_error(Operation::Stat, &path, err))?;
+        match resp.status() {
+            StatusCode::OK => {
+                let bs = resp
+                    .bytes()
+                    .await
+                    .map_err(|err| new_response_consume_error(Operation::Stat, &path, err))?;
 
-        let res: StatBody = serde_json::from_slice(&bs).map_err(|err| {
-            other(ObjectError::new(
-                Operation::Stat,
-                &path,
-                anyhow!("deserialize json: {err:?}"),
-            ))
-        })?;
+                let res: IpfsStatResponse = serde_json::from_slice(&bs).map_err(|err| {
+                    other(ObjectError::new(
+                        Operation::Stat,
+                        &path,
+                        anyhow!("deserialize json: {err:?}"),
+                    ))
+                })?;
 
-        let mut meta = ObjectMetadata::default();
-        meta.set_mode(match res.file_type.as_str() {
-            "file" => ObjectMode::FILE,
-            "directory" => ObjectMode::DIR,
-            _ => ObjectMode::Unknown,
-        });
-        meta.set_content_length(res.size);
+                let mut meta = ObjectMetadata::default();
+                meta.set_mode(match res.file_type.as_str() {
+                    "file" => ObjectMode::FILE,
+                    "directory" => ObjectMode::DIR,
+                    _ => ObjectMode::Unknown,
+                });
+                meta.set_content_length(res.size);
 
-        Ok(meta)
+                Ok(meta)
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Stat, args.path(), er);
+                Err(err)
+            }
+        }
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
@@ -314,10 +335,28 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 
-    /// Support write from reader.
-    async fn ipfs_write(&self, path: &str, data: &str) -> Result<Response<AsyncBody>> {
+    async fn ipfs_mkdir(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
-            "{}/api/v0/files/write?arg={}&create=true&truncate=false",
+            "{}/api/v0/files/mkdir?arg={}&parents=true",
+            self.endpoint,
+            percent_encode_path(path)
+        );
+
+        let req = isahc::Request::post(url);
+        let req = req
+            .body(AsyncBody::empty())
+            .map_err(|err| new_request_build_error(Operation::Create, path, err))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::Create, path, e))
+    }
+
+    /// Support write from reader.
+    async fn ipfs_write(&self, path: &str, data: &[u8]) -> Result<Response<AsyncBody>> {
+        let url = format!(
+            "{}/api/v0/files/write?arg={}&parents=true&create=true&truncate=false",
             self.endpoint,
             percent_encode_path(path)
         );
@@ -328,12 +367,16 @@ impl Backend {
             http::header::CONTENT_TYPE,
             "multipart/form-data; boundary=custom-boundary",
         );
-        let left = "--custom-boundary\nContent-Disposition: form-data; name=data;\n\n";
-        let right = "\n--custom-boundary";
+        let left = "--custom-boundary\nContent-Disposition: form-data; name=data;\n\n".as_bytes();
+        let right = "\n--custom-boundary".as_bytes();
 
-        let buff = format!("{}{}{}", left, data, right);
+        // TODO: we need to accept a reader.
+        let mut buf = Vec::with_capacity(left.len() + data.len() + right.len());
+        buf.extend_from_slice(left);
+        buf.extend_from_slice(data);
+        buf.extend_from_slice(right);
 
-        let body = AsyncBody::from_bytes_static(buff);
+        let body = AsyncBody::from_bytes_static(buf);
         let req = req
             .body(body)
             .map_err(|err| new_request_build_error(Operation::Write, path, err))?;
@@ -346,4 +389,13 @@ impl Backend {
 
         Ok(resp)
     }
+}
+
+#[derive(Deserialize, Default, Debug)]
+#[serde(default)]
+struct IpfsStatResponse {
+    #[serde(rename = "Size")]
+    size: u64,
+    #[serde(rename = "Type")]
+    file_type: String,
 }

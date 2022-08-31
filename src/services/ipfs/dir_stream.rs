@@ -41,32 +41,7 @@ pub struct DirStream {
 enum State {
     Idle,
     Sending(BoxFuture<'static, io::Result<Vec<u8>>>),
-    Listing((ListEntriesBody, usize)),
-}
-
-#[derive(Deserialize, Debug)]
-struct ListEntry {
-    #[serde(rename(deserialize = "Name"))]
-    name: String,
-    #[serde(rename(deserialize = "Type"))]
-    file_type: i64,
-}
-
-impl ListEntry {
-    pub fn file_type(&self) -> ObjectMode {
-        // https://github.com/ipfs/specs/blob/main/UNIXFS.md#data-format
-        match &self.file_type {
-            1 => ObjectMode::DIR,
-            2 => ObjectMode::FILE,
-            _ => ObjectMode::Unknown,
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-struct ListEntriesBody {
-    #[serde(rename(deserialize = "Entries"))]
-    entries: Vec<ListEntry>,
+    Listing((IpfsLsResponse, usize)),
 }
 
 impl DirStream {
@@ -108,7 +83,7 @@ impl futures::Stream for DirStream {
             State::Sending(fut) => {
                 let contents = ready!(Pin::new(fut).poll(cx))?;
 
-                let entries_body: ListEntriesBody = serde_json::from_slice(&contents)?;
+                let entries_body: IpfsLsResponse = serde_json::from_slice(&contents)?;
 
                 self.state = State::Listing((entries_body, 0));
                 self.poll_next(cx)
@@ -126,4 +101,31 @@ impl futures::Stream for DirStream {
             }
         }
     }
+}
+
+#[derive(Deserialize, Default, Debug)]
+#[serde(default)]
+struct IpfsLsResponseEntry {
+    #[serde(rename = "Name")]
+    name: String,
+    #[serde(rename = "Type")]
+    file_type: i64,
+}
+
+impl IpfsLsResponseEntry {
+    pub fn file_type(&self) -> ObjectMode {
+        // https://github.com/ipfs/specs/blob/main/UNIXFS.md#data-format
+        match &self.file_type {
+            1 => ObjectMode::DIR,
+            2 => ObjectMode::FILE,
+            _ => ObjectMode::Unknown,
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Debug)]
+#[serde(default)]
+struct IpfsLsResponse {
+    #[serde(rename = "Entries")]
+    entries: Vec<IpfsLsResponseEntry>,
 }

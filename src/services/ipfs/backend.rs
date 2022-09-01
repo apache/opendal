@@ -46,7 +46,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
-use crate::path::build_abs_path;
+use crate::path::build_rooted_abs_path;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -117,7 +117,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_abs_path(&self.root, args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let mut resp = match args.mode() {
             ObjectMode::DIR => self.ipfs_mkdir(&path).await?,
@@ -141,7 +141,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = build_abs_path(&self.root, args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let offset = args.offset().and_then(|val| i64::try_from(val).ok());
         let size = args.size().and_then(|val| i64::try_from(val).ok());
@@ -158,7 +158,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = build_abs_path(&self.root, args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         // TODO: Accept a reader directly.
         let mut buf = Vec::with_capacity(args.size() as usize);
@@ -182,7 +182,7 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_abs_path(&self.root, args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
         if path == "/" {
@@ -228,7 +228,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_abs_path(&self.root, args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let mut resp = self.ipfs_rm(&path).await?;
 
@@ -248,7 +248,7 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_abs_path(&self.root, args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }

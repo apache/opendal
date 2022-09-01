@@ -33,6 +33,7 @@ use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
+use crate::path::build_rel_path;
 use crate::services::gcs::backend::Backend;
 use crate::services::gcs::error::parse_error;
 use crate::DirEntry;
@@ -42,6 +43,7 @@ use crate::ObjectMode;
 /// helps walking directory
 pub struct DirStream {
     backend: Arc<Backend>,
+    root: String,
     path: String,
     page_token: String,
 
@@ -57,9 +59,10 @@ enum State {
 
 impl DirStream {
     /// Generate a new directory walker
-    pub fn new(backend: Arc<Backend>, path: &str) -> Self {
+    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
         Self {
             backend,
+            root: root.to_string(),
             path: path.to_string(),
             page_token: "".to_string(),
 
@@ -74,6 +77,7 @@ impl Stream for DirStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
+        let root = self.root.clone();
         let path = self.path.clone();
 
         match &mut self.state {
@@ -127,11 +131,8 @@ impl Stream for DirStream {
                     let prefix = &prefixes[*common_prefixes_idx];
                     *common_prefixes_idx += 1;
 
-                    let de = DirEntry::new(
-                        backend.clone(),
-                        ObjectMode::DIR,
-                        &backend.get_rel_path(prefix),
-                    );
+                    let de =
+                        DirEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
 
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -145,9 +146,9 @@ impl Stream for DirStream {
                     }
 
                     let mut de = DirEntry::new(
-                        backend.clone(),
+                        backend,
                         ObjectMode::FILE,
-                        &backend.get_rel_path(&object.name),
+                        &build_rel_path(&root, &object.name),
                     );
 
                     // set metadata fields

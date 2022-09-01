@@ -31,6 +31,7 @@ use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
+use crate::path::build_rel_path;
 use crate::services::ipfs::error::parse_error;
 use crate::DirEntry;
 use crate::ObjectMode;
@@ -38,6 +39,7 @@ use crate::ObjectMode;
 pub struct DirStream {
     backend: Arc<Backend>,
     state: State,
+    root: String,
     path: String,
 }
 
@@ -48,10 +50,11 @@ enum State {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, path: &str) -> Self {
+    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
         Self {
             backend,
             state: State::Idle,
+            root: root.to_string(),
             path: path.to_string(),
         }
     }
@@ -62,6 +65,7 @@ impl futures::Stream for DirStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
+        let root = self.root.clone();
         let path = self.path.clone();
 
         match &mut self.state {
@@ -120,7 +124,7 @@ impl futures::Stream for DirStream {
                         }
                         ObjectMode::Unknown => unreachable!(),
                     };
-                    let path = backend.get_rel_path(&path);
+                    let path = build_rel_path(&root, &path);
                     let de = DirEntry::new(backend, object.mode(), &path);
                     return Poll::Ready(Some(Ok(de)));
                 }

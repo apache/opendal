@@ -19,17 +19,23 @@ use std::task::Context;
 use std::task::Poll;
 
 use super::Backend;
+use crate::path::build_rel_path;
 use crate::DirEntry;
 use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,
+    root: String,
     rd: hdrs::Readdir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, rd: hdrs::Readdir) -> Self {
-        Self { backend, rd }
+    pub fn new(backend: Arc<Backend>, root: &str, rd: hdrs::Readdir) -> Self {
+        Self {
+            backend,
+            root: root.to_string(),
+            rd,
+        }
     }
 }
 
@@ -40,7 +46,7 @@ impl futures::Stream for DirStream {
         match self.rd.next() {
             None => Poll::Ready(None),
             Some(de) => {
-                let path = self.backend.get_rel_path(de.path());
+                let path = build_rel_path(&self.root, de.path());
 
                 let mut d = if de.is_file() {
                     DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)

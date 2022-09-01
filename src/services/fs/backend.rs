@@ -41,8 +41,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
-use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
+use crate::path::{build_rel_path, build_rooted_abs_path};
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
@@ -110,16 +110,6 @@ impl Backend {
         }
 
         builder.build()
-    }
-
-    pub(crate) fn get_rel_path(&self, path: &str) -> String {
-        match path.strip_prefix(&self.root) {
-            Some(p) => p.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &path, &self.root
-            ),
-        }
     }
 }
 
@@ -295,7 +285,7 @@ impl Accessor for Backend {
 
         let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
-        let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
+        let rd = DirStream::new(Arc::new(self.clone()), &self.root, args.path(), f);
 
         Ok(Box::new(rd))
     }
@@ -456,18 +446,10 @@ impl Accessor for Backend {
         let acc = Arc::new(self.clone());
 
         let root = self.root.clone();
-        // TODO: maybe we should extract this function.
-        let get_rel_path = move |v: &str| match v.strip_prefix(&root) {
-            Some(p) => p.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &v, &root
-            ),
-        };
 
         let f = f.map(move |v| match v {
             Ok(de) => {
-                let path = get_rel_path(&de.path().to_string_lossy());
+                let path = build_rel_path(&root, &de.path().to_string_lossy());
 
                 // On Windows and most Unix platforms this function is free
                 // (no extra system calls needed), but some Unix platforms may

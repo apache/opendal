@@ -211,19 +211,6 @@ impl Debug for Backend {
 }
 
 impl Backend {
-    /// convert paths, absolute path -> relative path
-    pub fn get_rel_path(&self, path: &str) -> String {
-        let path = format!("/{}", path);
-
-        match path.strip_prefix(&self.root) {
-            Some(p) => p.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &path, &self.root
-            ),
-        }
-    }
-
     pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
         let mut builder = Builder::default();
         for (k, v) in it {
@@ -325,7 +312,7 @@ impl Accessor for Backend {
         let p = build_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
-        if self.get_rel_path(&p).is_empty() {
+        if args.path() == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
@@ -410,7 +397,11 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = build_abs_path(&self.root, args.path());
 
-        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
+        Ok(Box::new(DirStream::new(
+            Arc::new(self.clone()),
+            &self.root,
+            &path,
+        )))
     }
 
     // inherits the default implementation of Accessor.

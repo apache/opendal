@@ -96,8 +96,14 @@ impl futures::Stream for DirStream {
             }
             State::Sending(fut) => {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
-                let output: Output = de::from_reader(bs.reader())
-                    .map_err(|e| other(ObjectError::new(Operation::List, &self.path, e)))?;
+
+                let output: Output = de::from_reader(bs.reader()).map_err(|e| {
+                    other(ObjectError::new(
+                        Operation::List,
+                        &self.path,
+                        anyhow!("deserialize xml: {e:?}"),
+                    ))
+                })?;
 
                 // Try our best to check whether this list is done.
                 //
@@ -215,6 +221,7 @@ struct Properties {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
 
     #[test]
     fn test_parse_xml() {
@@ -372,5 +379,27 @@ mod tests {
                 .collect::<Vec<String>>(),
             ["dir1/dir2/", "dir1/dir21/"]
         );
+    }
+
+    /// This case is copied from real environment for testing
+    /// quick-xml overlapped-lists features. By default, quick-xml
+    /// can't deserialize content with overlapped-lists.
+    ///
+    /// For example, this case list blobs in this way:
+    ///
+    /// ```xml
+    /// <Blobs>
+    ///     <Blob>xxx</Blob>
+    ///     <BlobPrefix>yyy</BlobPrefix>
+    ///     <Blob>zzz</Blob>
+    /// </Blobs>
+    /// ```
+    ///
+    /// If `overlapped-lists` feature not enabled, we will get error `duplicate field Blob`.
+    #[test]
+    fn test_parse_overlapped_lists() {
+        let bs = "<?xml version=\"1.0\" encoding=\"utf-8\"?><EnumerationResults ServiceEndpoint=\"https://test.blob.core.windows.net/\" ContainerName=\"test\"><Prefix>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Prefix><Delimiter>/</Delimiter><Blobs><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:49 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:49 GMT</Last-Modified><Etag>0x8DA8BEB55D0EA35</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob><BlobPrefix><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/x/</Name></BlobPrefix><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/y</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:50 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:50 GMT</Last-Modified><Etag>0x8DA8BEB55D99C08</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob></Blobs><NextMarker /></EnumerationResults>";
+
+        de::from_reader(Bytes::from(bs).reader()).expect("must success")
     }
 }

@@ -47,6 +47,10 @@ name = "ops"
 harness = false
 name = "io"
 
+[[bench]]
+harness = false
+name = "path"
+
 [[example]]
 name = "hdfs"
 required-features = ["services-hdfs"]
@@ -56,8 +60,8 @@ anyhow = { version = "1.0", features = ["std"] }
 async-compat = "0.2"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
 async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
-  "futures-io",
-  "all-algorithms",
+    "futures-io",
+    "all-algorithms",
 ], optional = true }
 async-trait = "0.1"
 backon = { version = "0.0.2", optional = true }
@@ -76,7 +80,7 @@ once_cell = "1.10"
 parking_lot = "0.12"
 percent-encoding = "2.1"
 pin-project = "1.0"
-quick-xml = { version = "0.24", features = ["serialize"] }
+quick-xml = { version = "0.24", features = ["serialize", "overlapped-lists"] }
 radix_trie = { version = "0.2", optional = true }
 reqsign = "0.4.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -89,9 +93,9 @@ tracing = { version = "0.1", optional = true }
 [dev-dependencies]
 cfg-if = "1.0"
 criterion = { version = "0.3", features = [
-  "async",
-  "async_tokio",
-  "html_reports",
+    "async",
+    "async_tokio",
+    "html_reports",
 ] }
 dotenv = "0.15"
 env_logger = "0.9"

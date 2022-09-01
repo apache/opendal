@@ -104,7 +104,6 @@ impl futures::Stream for DirStream {
                         ))
                     })?;
 
-                debug!("current body: {}", String::from_utf8_lossy(&contents));
                 self.state = State::Listing((entries_body.entries.unwrap_or_default(), 0));
                 self.poll_next(cx)
             }

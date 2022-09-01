@@ -30,6 +30,7 @@ use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
+use crate::path::build_rel_path;
 use crate::services::obs::error::parse_error;
 use crate::services::obs::Backend;
 use crate::DirEntry;
@@ -37,6 +38,7 @@ use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,
+    root: String,
     path: String,
 
     next_marker: String,
@@ -51,9 +53,10 @@ enum State {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, path: &str) -> Self {
+    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
         Self {
             backend,
+            root: root.to_string(),
             path: path.to_string(),
             next_marker: "".to_string(),
             done: false,
@@ -67,6 +70,7 @@ impl futures::Stream for DirStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
+        let root = self.root.clone();
 
         match &mut self.state {
             State::Idle => {
@@ -113,11 +117,8 @@ impl futures::Stream for DirStream {
                         *common_prefixes_idx += 1;
                         let prefix = &prefixes[*common_prefixes_idx - 1].prefix;
 
-                        let de = DirEntry::new(
-                            backend.clone(),
-                            ObjectMode::DIR,
-                            &backend.get_rel_path(prefix),
-                        );
+                        let de =
+                            DirEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
 
                         return Poll::Ready(Some(Ok(de)));
                     }
@@ -133,9 +134,9 @@ impl futures::Stream for DirStream {
                     }
 
                     let de = DirEntry::new(
-                        backend.clone(),
+                        backend,
                         ObjectMode::FILE,
-                        &backend.get_rel_path(&object.key),
+                        &build_rel_path(&root, &object.key),
                     );
 
                     return Poll::Ready(Some(Ok(de)));

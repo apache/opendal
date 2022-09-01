@@ -477,7 +477,7 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::get(&url);
 
@@ -499,7 +499,7 @@ impl Backend {
     }
 
     pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let req = isahc::Request::head(&url);
 

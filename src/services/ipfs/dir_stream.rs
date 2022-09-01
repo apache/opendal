@@ -24,7 +24,6 @@ use futures::ready;
 use futures::Future;
 use http::StatusCode;
 use isahc::AsyncReadResponseExt;
-use log::debug;
 use serde::Deserialize;
 
 use super::Backend;
@@ -104,7 +103,6 @@ impl futures::Stream for DirStream {
                         ))
                     })?;
 
-                debug!("current body: {}", String::from_utf8_lossy(&contents));
                 self.state = State::Listing((entries_body.entries.unwrap_or_default(), 0));
                 self.poll_next(cx)
             }

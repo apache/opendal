@@ -58,6 +58,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BytesReader;
@@ -238,16 +239,6 @@ impl Backend {
         builder.build()
     }
 
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == "/" {
-            return self.root.trim_start_matches('/').to_string();
-        }
-        // root must be normalized like `/abc/`
-        format!("{}{}", self.root, path)
-            .trim_start_matches('/')
-            .to_string()
-    }
-
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
         let path = format!("/{}", path);
 
@@ -274,7 +265,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let mut req = self.put_blob_request(&p, AsyncBody::from_bytes_static(""))?;
 
@@ -304,7 +295,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.get_blob(&p, args.offset(), args.size()).await?;
         match resp.status() {
@@ -318,7 +309,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let mut req = self.put_blob_request(
             &p,
@@ -351,7 +342,7 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
@@ -407,7 +398,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.delete_blob(&p).await?;
         match resp.status() {
@@ -421,7 +412,7 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = self.get_abs_path(args.path());
+        let path = build_abs_path(&self.root, args.path());
 
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }

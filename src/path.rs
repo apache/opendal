@@ -12,6 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// build_abs_path will build an absolute path with root.
+///
+/// # Rules
+///
+/// - Input root MUST be the format like `/abc/def/`
+/// - Output will be the format like `path/to/root/path`.
+pub fn build_abs_path(root: &str, path: &str) -> String {
+    debug_assert!(root.starts_with('/'), "root must start with /");
+    debug_assert!(root.ends_with('/'), "root must end with /");
+
+    let p = root[1..].to_string();
+
+    if path == "/" {
+        p
+    } else {
+        debug_assert!(!path.starts_with('/'), "path must not start with /");
+        p + path
+    }
+}
+
+/// build_rooted_abs_path will build an absolute path with root.
+///
+/// # Rules
+///
+/// - Input root MUST be the format like `/abc/def/`
+/// - Output will be the format like `/path/to/root/path`.
+pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
+    debug_assert!(root.starts_with('/'), "root must start with /");
+    debug_assert!(root.ends_with('/'), "root must end with /");
+
+    let p = root.to_string();
+
+    if path == "/" {
+        p
+    } else {
+        debug_assert!(!path.starts_with('/'), "path must not start with /");
+        p + path
+    }
+}
+
 /// Make sure all operation are constructed by normalized path:
 ///
 /// - Path endswith `/` means it's a dir path.
@@ -162,6 +202,40 @@ mod tests {
 
         for (name, input, expect) in cases {
             let actual = get_basename(input);
+            assert_eq!(actual, expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_build_abs_path() {
+        let cases = vec![
+            ("input abs file", "/abc/", "/", "abc/"),
+            ("input dir", "/abc/", "def/", "abc/def/"),
+            ("input file", "/abc/", "def", "abc/def"),
+            ("input abs file with root /", "/", "/", ""),
+            ("input dir with root /", "/", "def/", "def/"),
+            ("input file with root /", "/", "def", "def"),
+        ];
+
+        for (name, root, input, expect) in cases {
+            let actual = build_abs_path(root, input);
+            assert_eq!(actual, expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_build_rooted_abs_path() {
+        let cases = vec![
+            ("input abs file", "/abc/", "/", "/abc/"),
+            ("input dir", "/abc/", "def/", "/abc/def/"),
+            ("input file", "/abc/", "def", "/abc/def"),
+            ("input abs file with root /", "/", "/", "/"),
+            ("input dir with root /", "/", "def/", "/def/"),
+            ("input file with root /", "/", "def", "/def"),
+        ];
+
+        for (name, root, input, expect) in cases {
+            let actual = build_rooted_abs_path(root, input);
             assert_eq!(actual, expect, "{}", name)
         }
     }

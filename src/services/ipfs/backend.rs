@@ -185,7 +185,7 @@ impl Accessor for Backend {
         let path = build_rooted_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
-        if path == "/" {
+        if path == self.root {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 

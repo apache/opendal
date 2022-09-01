@@ -33,4 +33,4 @@ jobs:
           RUST_LOG: debug
           OPENDAL_IPFS_TEST: on
           OPENDAL_IPFS_ROOT: /opendal/
-          OPENDAL_IPFS_ENDPOINT: "http:127.0.0.1:5001"
+          OPENDAL_IPFS_ENDPOINT: "http://127.0.0.1:5001"

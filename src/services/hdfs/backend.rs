@@ -164,16 +164,6 @@ impl Backend {
 
         builder.build()
     }
-
-    pub(crate) fn get_rel_path(&self, path: &str) -> String {
-        match path.strip_prefix(&self.root) {
-            Some(p) => p.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &path, &self.root
-            ),
-        }
-    }
 }
 
 #[async_trait]
@@ -331,7 +321,7 @@ impl Accessor for Backend {
             .read_dir(&path)
             .map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
-        let rd = DirStream::new(Arc::new(self.clone()), f);
+        let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
 
         Ok(Box::new(rd))
     }

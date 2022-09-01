@@ -16,8 +16,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Result;
 use std::mem;
 use std::pin::Pin;
@@ -60,7 +58,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
-use crate::path::build_abs_path;
+use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -231,13 +229,6 @@ impl Backend {
         builder.build()
     }
 
-    pub(crate) fn get_index_path(&self, path: &str) -> String {
-        match path.strip_prefix('/') {
-            Some(strip) => strip.to_string(),
-            None => path.to_string(),
-        }
-    }
-
     pub(crate) fn insert_path(&self, path: &str) {
         let mut index = self.index.lock().expect("lock must succeed");
 
@@ -268,7 +259,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = build_abs_path(&self.root, args.path());
+        let p = build_rooted_abs_path(&self.root, args.path());
 
         let req = self.http_put(&p, AsyncBody::from_bytes_static("")).await?;
         let resp = self
@@ -279,7 +270,7 @@ impl Accessor for Backend {
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
-                self.insert_path(&self.get_index_path(args.path()));
+                self.insert_path(args.path());
                 Ok(())
             }
             _ => {
@@ -291,7 +282,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = build_abs_path(&self.root, args.path());
+        let p = build_rooted_abs_path(&self.root, args.path());
 
         let resp = self.http_get(&p, args.offset(), args.size()).await?;
 
@@ -306,7 +297,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = build_abs_path(&self.root, args.path());
+        let p = build_rooted_abs_path(&self.root, args.path());
 
         let req = self
             .http_put(
@@ -323,7 +314,7 @@ impl Accessor for Backend {
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => {
-                self.insert_path(&self.get_index_path(args.path()));
+                self.insert_path(args.path());
                 resp.consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
@@ -338,7 +329,7 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = build_abs_path(&self.root, args.path());
+        let p = build_rooted_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
         if p == self.root {
@@ -401,7 +392,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, args.path());
+        let p = build_rooted_abs_path(&self.root, args.path());
 
         let resp = self.http_delete(&p).await?;
 
@@ -419,15 +410,13 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_abs_path(&self.root, args.path());
+        let mut path = args.path();
+        if path == "/" {
+            path = ""
+        }
 
-        let paths = match self.index.lock().expect("lock succeed").subtrie(&path) {
-            None => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    ObjectError::new(Operation::List, &path, anyhow!("no such dir")),
-                ))
-            }
+        let paths = match self.index.lock().expect("lock succeed").subtrie(path) {
+            None => HashSet::new(),
             Some(trie) => trie
                 .keys()
                 .filter_map(|k| {
@@ -477,7 +466,7 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::get(&url);
 
@@ -499,7 +488,7 @@ impl Backend {
     }
 
     pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let req = isahc::Request::head(&url);
 
@@ -518,7 +507,7 @@ impl Backend {
         path: &str,
         body: AsyncBody,
     ) -> Result<isahc::Request<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let mut req = isahc::Request::put(&url);
 
@@ -535,7 +524,7 @@ impl Backend {
     }
 
     pub(crate) async fn http_delete(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let req = isahc::Request::delete(&url);
 

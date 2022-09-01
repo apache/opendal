@@ -72,6 +72,7 @@ use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignOperation;
 use crate::ops::PresignedRequest;
+use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -529,24 +530,7 @@ impl Builder {
     pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
 
-        let root = match &self.root {
-            // Use "/" as root if user not specified.
-            None => "/".to_string(),
-            Some(v) => {
-                let mut v = v
-                    .split('/')
-                    .filter(|v| !v.is_empty())
-                    .collect::<Vec<&str>>()
-                    .join("/");
-                if !v.starts_with('/') {
-                    v.insert(0, '/');
-                }
-                if !v.ends_with('/') {
-                    v.push('/')
-                }
-                v
-            }
-        };
+        let root = normalize_root(&self.root.take().unwrap_or_default());
         info!("backend use root {}", &root);
 
         // Handle endpoint, region and bucket name.

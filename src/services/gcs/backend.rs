@@ -55,6 +55,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -119,27 +120,8 @@ impl Builder {
     pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", self);
 
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                // remove successive '/'s
-                let mut v = v
-                    .split('/')
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<&str>>()
-                    .join("/");
-                // path should start with '/'
-                v.insert(0, '/');
-
-                // path should end with '/'
-                if !v.ends_with('/') {
-                    v.push('/');
-                }
-                v
-            }
-        };
-
-        info!("backend use root: {}", &root);
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", root);
 
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {

@@ -15,7 +15,6 @@
 use std::env;
 
 use anyhow::Result;
-use futures::StreamExt;
 use log::info;
 use opendal::services::ipfs;
 use opendal::Operator;
@@ -44,23 +43,34 @@ Available Environment Values:
         &env::var("OPENDAL_IPFS_ENDPOINT").unwrap_or_else(|_| "http://localhost:5001".to_string()),
     );
 
+    // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder.build()?);
+    info!("operator: {:?}", op);
 
-    let path = "/file.txt";
+    let path = uuid::Uuid::new_v4().to_string();
+
+    // Create an object handle to start operation on object.
     info!("try to write file: {}", &path);
-    op.object(path).write("Hello, world!").await?;
+    op.object(&path).write("Hello, world!").await?;
     info!("write file successful!");
 
-    let content = op.object(path).read().await?;
-    info!("File content: {}", String::from_utf8_lossy(&content));
+    info!("try to read file: {}", &path);
+    let content = op.object(&path).read().await?;
+    info!(
+        "read file successful, content: {}",
+        String::from_utf8_lossy(&content)
+    );
 
-    let root = "/";
-    let mut list = op.object(root).list().await?;
-    info!("Listing entries in {}", &root);
-    while let Some(res) = list.next().await {
-        let item = res?;
-        info!("Found entry: {}", item.path())
-    }
+    info!("try to get file metadata: {}", &path);
+    let meta = op.object(&path).metadata().await?;
+    info!(
+        "get file metadata successful, size: {}B",
+        meta.content_length()
+    );
+
+    info!("try to delete file: {}", &path);
+    op.object(&path).delete().await?;
+    info!("delete file successful");
 
     Ok(())
 }

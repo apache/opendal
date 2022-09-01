@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result;
@@ -34,7 +33,6 @@ use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
-use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -43,6 +41,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
@@ -75,27 +74,8 @@ impl Builder {
     pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
 
-        // Make `/` as the default of root.
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                debug_assert!(!v.is_empty());
-
-                let mut v = v.clone();
-
-                if !v.starts_with('/') {
-                    return Err(other(BackendError::new(
-                        HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("Root must start with /"),
-                    )));
-                }
-                if !v.ends_with('/') {
-                    v.push('/');
-                }
-
-                v
-            }
-        };
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", root);
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {

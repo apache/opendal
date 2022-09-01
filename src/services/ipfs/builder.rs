@@ -17,6 +17,7 @@ use std::io::Result;
 use log::info;
 
 use crate::http_util::HttpClient;
+use crate::path::normalize_root;
 use crate::services::ipfs::Backend;
 
 /// Builder for service ipfs.
@@ -52,23 +53,8 @@ impl Builder {
 
     /// Consume builder to build an ipfs::Backend.
     pub fn build(&mut self) -> Result<Backend> {
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                let mut v = v
-                    .split('/')
-                    .filter(|v| !v.is_empty())
-                    .collect::<Vec<&str>>()
-                    .join("/");
-                if !v.starts_with('/') {
-                    v.insert(0, '/');
-                }
-                if !v.ends_with('/') {
-                    v.push('/')
-                }
-                v
-            }
-        };
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", root);
 
         let endpoint = self
             .endpoint

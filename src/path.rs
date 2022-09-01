@@ -49,6 +49,33 @@ pub fn normalize_path(path: &str) -> String {
     p
 }
 
+/// Make sure root is normalized to style like `/abc/def/`.
+///
+/// # Normalize Rules
+///
+/// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
+/// - All leading / will be trimmed: `///abc` => `abc`
+/// - Internal // will be replaced by /: `abc///def` => `abc/def`
+/// - Empty path will be `/`: `` => `/`
+/// - Add leading `/` if not starts with: `abc/` => `/abc/`
+/// - Add trailing `/` if not ends with: `/abc` => `/abc/`
+///
+/// Finally, we will got path like `/path/to/root/`.
+pub fn normalize_root(v: &str) -> String {
+    let mut v = v
+        .split('/')
+        .filter(|v| !v.is_empty())
+        .collect::<Vec<&str>>()
+        .join("/");
+    if !v.starts_with('/') {
+        v.insert(0, '/');
+    }
+    if !v.ends_with('/') {
+        v.push('/')
+    }
+    v
+}
+
 /// Get basename from path.
 pub fn get_basename(path: &str) -> &str {
     // Handle root case
@@ -101,6 +128,24 @@ mod tests {
 
         for (name, input, expect) in cases {
             assert_eq!(normalize_path(input), expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_normalize_root() {
+        let cases = vec![
+            ("dir path", "abc/", "/abc/"),
+            ("empty path", "", "/"),
+            ("root path", "/", "/"),
+            ("root path with extra /", "///", "/"),
+            ("abs dir path", "/abc/def/", "/abc/def/"),
+            ("abs file path with extra /", "///abc/def", "/abc/def/"),
+            ("abs dir path with extra /", "///abc/def/", "/abc/def/"),
+            ("dir path contains ///", "abc///def///", "/abc/def/"),
+        ];
+
+        for (name, input, expect) in cases {
+            assert_eq!(normalize_root(input), expect, "{}", name)
         }
     }
 

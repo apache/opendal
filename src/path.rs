@@ -52,6 +52,35 @@ pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
     }
 }
 
+/// build_rel_path will build a relative path towards root.
+///
+/// # Rules
+///
+/// - Input root MUST be the format like `/abc/def/`
+/// - Input path MUST start with root like `/abc/def/path/to/file`
+/// - Output will be the format like `path/to/file`.
+pub fn build_rel_path(root: &str, path: &str) -> String {
+    debug_assert!(root != path, "get rel path with root is invalid");
+
+    if path.starts_with('/') {
+        debug_assert!(
+            path.starts_with(root),
+            "path {} doesn't start with root {}",
+            path,
+            root
+        );
+        path[root.len()..].to_string()
+    } else {
+        debug_assert!(
+            path.starts_with(&root[1..]),
+            "path {} doesn't start with root {}",
+            path,
+            root
+        );
+        path[root.len() - 1..].to_string()
+    }
+}
+
 /// Make sure all operation are constructed by normalized path:
 ///
 /// - Path endswith `/` means it's a dir path.
@@ -236,6 +265,22 @@ mod tests {
 
         for (name, root, input, expect) in cases {
             let actual = build_rooted_abs_path(root, input);
+            assert_eq!(actual, expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_build_rel_path() {
+        let cases = vec![
+            ("input abs file", "/abc/", "/abc/def", "def"),
+            ("input dir", "/abc/", "/abc/def/", "def/"),
+            ("input file", "/abc/", "abc/def", "def"),
+            ("input dir with root /", "/", "def/", "def/"),
+            ("input file with root /", "/", "def", "def"),
+        ];
+
+        for (name, root, input, expect) in cases {
+            let actual = build_rel_path(root, input);
             assert_eq!(actual, expect, "{}", name)
         }
     }

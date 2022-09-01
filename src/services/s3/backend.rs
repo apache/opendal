@@ -72,7 +72,7 @@ use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::ops::PresignOperation;
 use crate::ops::PresignedRequest;
-use crate::path::normalize_root;
+use crate::path::{build_abs_path, normalize_root};
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -719,19 +719,6 @@ impl Backend {
         builder.build()
     }
 
-    /// get_abs_path will return the absolute path of the given path in the s3 format.
-    ///
-    /// Read [RFC-112](https://github.com/datafuselabs/opendal/pull/112) for more details.
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == "/" {
-            return self.root.trim_start_matches('/').to_string();
-        }
-        // root must be normalized like `/abc/`
-        format!("{}{}", self.root, path)
-            .trim_start_matches('/')
-            .to_string()
-    }
-
     /// get_rel_path will return the relative path of the given path in the s3 format.
     pub(crate) fn get_rel_path(&self, path: &str) -> String {
         let path = format!("/{}", path);
@@ -820,7 +807,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let mut req = self.put_object_request(&p, AsyncBody::from_bytes_static(""))?;
 
@@ -850,7 +837,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.get_object(&p, args.offset(), args.size()).await?;
 
@@ -865,7 +852,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let mut req = self.put_object_request(
             &p,
@@ -898,7 +885,7 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
         if self.get_rel_path(&p).is_empty() {
@@ -956,7 +943,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.delete_object(&p).await?;
 
@@ -971,7 +958,7 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = self.get_abs_path(args.path());
+        let mut path = build_abs_path(&self.root, args.path());
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {
             path.push('/')
@@ -981,7 +968,7 @@ impl Accessor for Backend {
     }
 
     fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        let path = self.get_abs_path(args.path());
+        let path = build_abs_path(&self.root, args.path());
 
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
@@ -1010,7 +997,7 @@ impl Accessor for Backend {
     }
 
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
-        let path = self.get_abs_path(args.path());
+        let path = build_abs_path(&self.root, args.path());
 
         let mut resp = self.s3_initiate_multipart_upload(&path).await?;
 
@@ -1040,7 +1027,7 @@ impl Accessor for Backend {
     }
 
     async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let mut req = self.s3_upload_part_request(
             &p,
@@ -1087,7 +1074,7 @@ impl Accessor for Backend {
     }
 
     async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_abs_path(&self.root, args.path());
 
         let mut resp = self
             .s3_complete_multipart_upload(&path, args.upload_id(), args.parts())
@@ -1110,7 +1097,7 @@ impl Accessor for Backend {
     }
 
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_abs_path(&self.root, args.path());
 
         let mut resp = self
             .s3_abort_multipart_upload(&path, args.upload_id())

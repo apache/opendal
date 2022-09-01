@@ -22,13 +22,17 @@ use anyhow::anyhow;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
+use http::StatusCode;
 use isahc::AsyncReadResponseExt;
+use log::debug;
 use serde::Deserialize;
 
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::http_util::parse_error_response;
 use crate::ops::Operation;
+use crate::services::ipfs::error::parse_error;
 use crate::DirEntry;
 use crate::ObjectMode;
 
@@ -41,7 +45,7 @@ pub struct DirStream {
 enum State {
     Idle,
     Sending(BoxFuture<'static, io::Result<Vec<u8>>>),
-    Listing((IpfsLsResponse, usize)),
+    Listing((Vec<IpfsLsResponseEntry>, usize)),
 }
 
 impl DirStream {
@@ -59,13 +63,18 @@ impl futures::Stream for DirStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
+        let path = self.path.clone();
 
         match &mut self.state {
             State::Idle => {
-                let path = self.path.clone();
-
                 let fut = async move {
                     let mut resp = backend.ipfs_ls(&path).await?;
+
+                    if resp.status() != StatusCode::OK {
+                        let er = parse_error_response(resp).await?;
+                        let err = parse_error(Operation::List, &path, er);
+                        return Err(err);
+                    }
 
                     let bs = resp.bytes().await.map_err(|e| {
                         other(ObjectError::new(
@@ -83,17 +92,38 @@ impl futures::Stream for DirStream {
             State::Sending(fut) => {
                 let contents = ready!(Pin::new(fut).poll(cx))?;
 
-                let entries_body: IpfsLsResponse = serde_json::from_slice(&contents)?;
+                let entries_body: IpfsLsResponse =
+                    serde_json::from_slice(&contents).map_err(|err| {
+                        other(ObjectError::new(
+                            Operation::List,
+                            &path,
+                            anyhow!(
+                                "deserialize {} list response: {err:?}",
+                                String::from_utf8_lossy(&contents)
+                            ),
+                        ))
+                    })?;
 
-                self.state = State::Listing((entries_body, 0));
+                debug!("current body: {}", String::from_utf8_lossy(&contents));
+                self.state = State::Listing((entries_body.entries.unwrap_or_default(), 0));
                 self.poll_next(cx)
             }
-            State::Listing((contents, idx)) => {
-                if *idx < contents.entries.len() {
-                    let object = &contents.entries[*idx];
+            State::Listing((entries, idx)) => {
+                if *idx < entries.len() {
+                    let object = &entries[*idx];
                     *idx += 1;
 
-                    let de = DirEntry::new(backend, object.file_type(), &object.name);
+                    let path = match object.mode() {
+                        ObjectMode::FILE => {
+                            format!("{}{}", &path, object.name)
+                        }
+                        ObjectMode::DIR => {
+                            format!("{}{}/", &path, object.name)
+                        }
+                        ObjectMode::Unknown => unreachable!(),
+                    };
+                    let path = backend.get_rel_path(&path);
+                    let de = DirEntry::new(backend, object.mode(), &path);
                     return Poll::Ready(Some(Ok(de)));
                 }
 
@@ -110,14 +140,27 @@ struct IpfsLsResponseEntry {
     name: String,
     #[serde(rename = "Type")]
     file_type: i64,
+    #[serde(rename = "Size")]
+    size: u64,
 }
 
 impl IpfsLsResponseEntry {
-    pub fn file_type(&self) -> ObjectMode {
-        // https://github.com/ipfs/specs/blob/main/UNIXFS.md#data-format
+    /// ref: <https://github.com/ipfs/specs/blob/main/UNIXFS.md#data-format>
+    ///
+    /// ```protobuf
+    /// enum DataType {
+    ///     Raw = 0;
+    ///     Directory = 1;
+    ///     File = 2;
+    ///     Metadata = 3;
+    ///     Symlink = 4;
+    ///     HAMTShard = 5;
+    /// }
+    /// ```
+    fn mode(&self) -> ObjectMode {
         match &self.file_type {
             1 => ObjectMode::DIR,
-            2 => ObjectMode::FILE,
+            0 | 2 => ObjectMode::FILE,
             _ => ObjectMode::Unknown,
         }
     }
@@ -127,5 +170,5 @@ impl IpfsLsResponseEntry {
 #[serde(default)]
 struct IpfsLsResponse {
     #[serde(rename = "Entries")]
-    entries: Vec<IpfsLsResponseEntry>,
+    entries: Option<Vec<IpfsLsResponseEntry>>,
 }

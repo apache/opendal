@@ -927,7 +927,7 @@ impl Stream for LoggingStreamer {
             Poll::Ready(opt) => match opt {
                 Some(res) => match res {
                     Ok(de) => {
-                        trace!(
+                        debug!(
                             target: "opendal::service",
                             "service={} operation={} path={} -> got entry: mode={} path={}",
                             self.scheme,
@@ -1009,7 +1009,7 @@ impl Iterator for LoggingIterator {
         match self.inner.next() {
             Some(res) => match res {
                 Ok(de) => {
-                    trace!(
+                    debug!(
                         target: "opendal::service",
                         "service={} operation={} path={} -> got entry: mode={} path={}",
                         self.scheme,

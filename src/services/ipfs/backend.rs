@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::{io, AsyncReadExt};
+use futures::io;
 use http::Response;
 use http::StatusCode;
 use isahc;
@@ -39,7 +39,6 @@ use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpClient;
-use crate::io_util::unshared_reader;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -97,11 +96,22 @@ impl Backend {
     }
 
     pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == self.root {
-            return path.to_string();
+        if path == "/" {
+            return self.root.to_string();
         }
 
-        format!("{}{}", self.root, path.trim_start_matches(&self.root))
+        // root must be normalized like `/abc/`
+        format!("{}{}", self.root, path)
+    }
+
+    pub(crate) fn get_rel_path(&self, path: &str) -> String {
+        match path.strip_prefix(&self.root) {
+            Some(v) => v.to_string(),
+            None => unreachable!(
+                "invalid path {} that not start with backend root {}",
+                &path, &self.root
+            ),
+        }
     }
 }
 
@@ -132,7 +142,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, args.path(), er);
+                let err = parse_error(Operation::Create, args.path(), er);
                 Err(err)
             }
         }
@@ -247,6 +257,7 @@ impl Accessor for Backend {
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = self.get_abs_path(args.path());
+
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
     }
 }
@@ -319,7 +330,7 @@ impl Backend {
 
     pub(crate) async fn ipfs_ls(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
-            "{}/api/v0/files/ls?arg={}",
+            "{}/api/v0/files/ls?arg={}&long=true",
             self.endpoint,
             percent_encode_path(path)
         );
@@ -356,7 +367,7 @@ impl Backend {
     /// Support write from reader.
     async fn ipfs_write(&self, path: &str, data: &[u8]) -> Result<Response<AsyncBody>> {
         let url = format!(
-            "{}/api/v0/files/write?arg={}&parents=true&create=true&truncate=false",
+            "{}/api/v0/files/write?arg={}&parents=true&create=true&truncate=true",
             self.endpoint,
             percent_encode_path(path)
         );
@@ -367,7 +378,8 @@ impl Backend {
             http::header::CONTENT_TYPE,
             "multipart/form-data; boundary=custom-boundary",
         );
-        let left = "--custom-boundary\nContent-Disposition: form-data; name=data;\n\n".as_bytes();
+        let left =
+            "--custom-boundary\nContent-Disposition: form-data; name=\"data\";\n\n".as_bytes();
         let right = "\n--custom-boundary".as_bytes();
 
         // TODO: we need to accept a reader.

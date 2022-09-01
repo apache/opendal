@@ -220,8 +220,9 @@ struct Properties {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
+
+    use super::*;
 
     #[test]
     fn test_parse_xml() {

@@ -60,6 +60,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -230,15 +231,6 @@ impl Backend {
         builder.build()
     }
 
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == "/" {
-            return self.root.to_string();
-        }
-
-        // root must be normalized like `/abc/`
-        format!("{}{}", self.root, path)
-    }
-
     pub(crate) fn get_index_path(&self, path: &str) -> String {
         match path.strip_prefix('/') {
             Some(strip) => strip.to_string(),
@@ -276,7 +268,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let req = self.http_put(&p, AsyncBody::from_bytes_static("")).await?;
         let resp = self
@@ -299,7 +291,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.http_get(&p, args.offset(), args.size()).await?;
 
@@ -314,7 +306,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let req = self
             .http_put(
@@ -346,7 +338,7 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
         if p == self.root {
@@ -409,7 +401,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.http_delete(&p).await?;
 
@@ -427,16 +419,13 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = args.path();
-        if path == "/" {
-            path = ""
-        }
+        let path = build_abs_path(&self.root, args.path());
 
-        let paths = match self.index.lock().expect("lock succeed").subtrie(path) {
+        let paths = match self.index.lock().expect("lock succeed").subtrie(&path) {
             None => {
                 return Err(Error::new(
                     ErrorKind::NotFound,
-                    ObjectError::new(Operation::List, path, anyhow!("no such dir")),
+                    ObjectError::new(Operation::List, &path, anyhow!("no such dir")),
                 ))
             }
             Some(trie) => trie

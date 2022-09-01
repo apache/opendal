@@ -24,7 +24,6 @@ use futures::ready;
 use futures::Future;
 use http::StatusCode;
 use isahc::AsyncReadResponseExt;
-use log::debug;
 use serde::Deserialize;
 
 use super::Backend;

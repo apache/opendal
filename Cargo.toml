@@ -56,6 +56,8 @@ name = "path"
 [[example]]
 name = "hdfs"
 required-features = ["services-hdfs"]
+
+[[example]]
 name = "ftp"
 required-features = ["services-ftp"]
 

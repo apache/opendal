@@ -56,6 +56,8 @@ name = "path"
 [[example]]
 name = "hdfs"
 required-features = ["services-hdfs"]
+name = "ftp"
+required-features = ["services-ftp"]
 
 [dependencies]
 anyhow = { version = "1.0", features = ["std"] }

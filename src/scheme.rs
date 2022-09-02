@@ -109,7 +109,6 @@ impl FromStr for Scheme {
             #[cfg(feature = "services-ftp")]
             "ftp" => Ok(Scheme::Ftp),
             "ipfs" => Ok(Scheme::Ipfs),
-            "gcs" => Ok(Scheme::Gcs),
             "memory" => Ok(Scheme::Memory),
             "obs" => Ok(Scheme::Obs),
             "s3" => Ok(Scheme::S3),
@@ -131,7 +130,6 @@ impl From<Scheme> for &'static str {
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
-            Scheme::Gcs => "gcs",
             Scheme::Memory => "memory",
             Scheme::Obs => "obs",
             Scheme::S3 => "s3",

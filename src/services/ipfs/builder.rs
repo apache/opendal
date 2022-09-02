@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::io::Result;
 
-use anyhow::anyhow;
 use log::info;
 
-use crate::error::other;
-use crate::error::BackendError;
 use crate::http_util::HttpClient;
+use crate::path::normalize_root;
 use crate::services::ipfs::Backend;
 
 /// Builder for service ipfs.
@@ -56,26 +53,8 @@ impl Builder {
 
     /// Consume builder to build an ipfs::Backend.
     pub fn build(&mut self) -> Result<Backend> {
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                debug_assert!(!v.is_empty());
-
-                let mut v = v.clone();
-
-                if !v.starts_with('/') {
-                    return Err(other(BackendError::new(
-                        HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("Root must start with /"),
-                    )));
-                }
-                if !v.ends_with('/') {
-                    v.push('/');
-                }
-
-                v
-            }
-        };
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", root);
 
         let endpoint = self
             .endpoint

@@ -23,20 +23,23 @@ use time::OffsetDateTime;
 use super::error::parse_io_error;
 use super::Backend;
 use crate::ops::Operation;
+use crate::path::build_rel_path;
 use crate::DirEntry;
 use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,
+    root: String,
     path: String,
 
     rd: std::fs::ReadDir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, path: &str, rd: std::fs::ReadDir) -> Self {
+    pub fn new(backend: Arc<Backend>, root: &str, path: &str, rd: std::fs::ReadDir) -> Self {
         Self {
             backend,
+            root: root.to_string(),
             path: path.to_string(),
             rd,
         }
@@ -51,7 +54,7 @@ impl futures::Stream for DirStream {
             None => Poll::Ready(None),
             Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path)))),
             Some(Ok(de)) => {
-                let path = self.backend.get_rel_path(&de.path().to_string_lossy());
+                let path = build_rel_path(&self.root, &de.path().to_string_lossy());
 
                 // On Windows and most Unix platforms this function is free
                 // (no extra system calls needed), but some Unix platforms may

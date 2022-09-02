@@ -58,6 +58,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::build_abs_path;
+use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::DirStreamer;
@@ -157,25 +159,7 @@ impl Builder {
     pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
 
-        let root = match &self.root {
-            // Use "/" as root if user not specified.
-            None => "/".to_string(),
-            Some(v) => {
-                let mut v = v
-                    .split('/')
-                    .filter(|v| !v.is_empty())
-                    .collect::<Vec<&str>>()
-                    .join("/");
-                if !v.starts_with('/') {
-                    v.insert(0, '/');
-                }
-                if !v.ends_with('/') {
-                    v.push('/')
-                }
-                v
-            }
-        };
-
+        let root = normalize_root(&self.root.take().unwrap_or_default());
         info!("backend use root {}", root);
 
         // Handle endpoint, region and container name.
@@ -254,28 +238,6 @@ impl Backend {
 
         builder.build()
     }
-
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == "/" {
-            return self.root.trim_start_matches('/').to_string();
-        }
-        // root must be normalized like `/abc/`
-        format!("{}{}", self.root, path)
-            .trim_start_matches('/')
-            .to_string()
-    }
-
-    pub(crate) fn get_rel_path(&self, path: &str) -> String {
-        let path = format!("/{}", path);
-
-        match path.strip_prefix(&self.root) {
-            Some(v) => v.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &path, &self.root
-            ),
-        }
-    }
 }
 
 #[async_trait]
@@ -291,7 +253,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let mut req = self.put_blob_request(&p, AsyncBody::from_bytes_static(""))?;
 
@@ -321,7 +283,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.get_blob(&p, args.offset(), args.size()).await?;
         match resp.status() {
@@ -335,7 +297,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let mut req = self.put_blob_request(
             &p,
@@ -368,10 +330,10 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         // Stat root always returns a DIR.
-        if self.get_rel_path(&p).is_empty() {
+        if args.path() == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
             return Ok(m);
@@ -424,7 +386,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = self.get_abs_path(args.path());
+        let p = build_abs_path(&self.root, args.path());
 
         let resp = self.delete_blob(&p).await?;
         match resp.status() {
@@ -438,9 +400,13 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = self.get_abs_path(args.path());
+        let path = build_abs_path(&self.root, args.path());
 
-        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &path)))
+        Ok(Box::new(DirStream::new(
+            Arc::new(self.clone()),
+            &self.root,
+            &path,
+        )))
     }
 }
 

@@ -14,27 +14,56 @@
 
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 
 use anyhow::anyhow;
 use http::StatusCode;
+use serde::Deserialize;
 
 use crate::error::ObjectError;
 use crate::http_util::ErrorResponse;
 use crate::ops::Operation;
 
+#[derive(Deserialize, Default, Debug)]
+#[serde(default)]
+struct IpfsError {
+    #[serde(rename = "Message")]
+    message: String,
+    #[serde(rename = "Code")]
+    code: usize,
+    #[serde(rename = "Type")]
+    ty: String,
+}
+
 /// Parse error response into io::Error.
 ///
-/// # TODO
+/// > Status code 500 means that the function does exist, but IPFS was not
+/// > able to fulfil the request because of an error.
+/// > To know that reason, you have to look at the error message that is
+/// > usually returned with the body of the response
+/// > (if no error, check the daemon logs).
 ///
-/// In the future, we may have our own error struct.
+/// ref: https://docs.ipfs.tech/reference/kubo/rpc/#http-status-codes
 pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
     let kind = match er.status_code() {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
-        StatusCode::INTERNAL_SERVER_ERROR
-        | StatusCode::BAD_GATEWAY
-        | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
+        StatusCode::INTERNAL_SERVER_ERROR => {
+            let ie: Result<IpfsError> = serde_json::from_slice(er.body()).map_err(|err| {
+                Error::new(
+                    ErrorKind::Other,
+                    ObjectError::new(op, path, anyhow!("deserialize error content: {err:?}")),
+                )
+            });
+            match ie {
+                Ok(ie) => match ie.message.as_str() {
+                    "file does not exist" => ErrorKind::NotFound,
+                    _ => ErrorKind::Other,
+                },
+                Err(e) => return e,
+            }
+        }
+        StatusCode::BAD_GATEWAY | StatusCode::SERVICE_UNAVAILABLE | StatusCode::GATEWAY_TIMEOUT => {
+            ErrorKind::Interrupted
+        }
         _ => ErrorKind::Other,
     };
 

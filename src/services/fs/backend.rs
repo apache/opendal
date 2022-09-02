@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result;
@@ -34,7 +33,6 @@ use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
-use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -43,6 +41,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::normalize_root;
+use crate::path::{build_rel_path, build_rooted_abs_path};
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
@@ -75,27 +75,8 @@ impl Builder {
     pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
 
-        // Make `/` as the default of root.
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                debug_assert!(!v.is_empty());
-
-                let mut v = v.clone();
-
-                if !v.starts_with('/') {
-                    return Err(other(BackendError::new(
-                        HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("Root must start with /"),
-                    )));
-                }
-                if !v.ends_with('/') {
-                    v.push('/');
-                }
-
-                v
-            }
-        };
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", root);
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
@@ -130,27 +111,6 @@ impl Backend {
 
         builder.build()
     }
-
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == "/" {
-            return self.root.clone();
-        }
-
-        PathBuf::from(&self.root)
-            .join(path)
-            .to_string_lossy()
-            .to_string()
-    }
-
-    pub(crate) fn get_rel_path(&self, path: &str) -> String {
-        match path.strip_prefix(&self.root) {
-            Some(p) => p.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &path, &self.root
-            ),
-        }
-    }
 }
 
 #[async_trait]
@@ -165,7 +125,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         if args.mode() == ObjectMode::FILE {
             let parent = PathBuf::from(&path)
@@ -205,7 +165,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let f = fs::OpenOptions::new()
             .read(true)
@@ -230,7 +190,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         // Create dir before write path.
         //
@@ -268,7 +228,7 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let meta = fs::metadata(&path)
             .await
@@ -293,7 +253,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
         let meta = fs::metadata(&path).await;
@@ -321,17 +281,17 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
-        let rd = DirStream::new(Arc::new(self.clone()), args.path(), f);
+        let rd = DirStream::new(Arc::new(self.clone()), &self.root, args.path(), f);
 
         Ok(Box::new(rd))
     }
 
     fn blocking_create(&self, args: &OpCreate) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         if args.mode() == ObjectMode::FILE {
             let parent = PathBuf::from(&path)
@@ -371,7 +331,7 @@ impl Accessor for Backend {
     fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
         use std::io::Seek;
 
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
@@ -392,7 +352,7 @@ impl Accessor for Backend {
     }
 
     fn blocking_write(&self, args: &OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         // Create dir before write path.
         //
@@ -426,7 +386,7 @@ impl Accessor for Backend {
     }
 
     fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let meta = std::fs::metadata(&path)
             .map_err(|e| parse_io_error(e, Operation::BlockingStat, &path))?;
@@ -450,7 +410,7 @@ impl Accessor for Backend {
     }
 
     fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
         let meta = std::fs::metadata(&path);
@@ -478,7 +438,7 @@ impl Accessor for Backend {
     }
 
     fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let f = std::fs::read_dir(&path)
             .map_err(|e| parse_io_error(e, Operation::BlockingList, &path))?;
@@ -486,18 +446,10 @@ impl Accessor for Backend {
         let acc = Arc::new(self.clone());
 
         let root = self.root.clone();
-        // TODO: maybe we should extract this function.
-        let get_rel_path = move |v: &str| match v.strip_prefix(&root) {
-            Some(p) => p.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &v, &root
-            ),
-        };
 
         let f = f.map(move |v| match v {
             Ok(de) => {
-                let path = get_rel_path(&de.path().to_string_lossy());
+                let path = build_rel_path(&root, &de.path().to_string_lossy());
 
                 // On Windows and most Unix platforms this function is free
                 // (no extra system calls needed), but some Unix platforms may

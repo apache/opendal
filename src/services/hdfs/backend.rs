@@ -40,6 +40,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::build_rooted_abs_path;
+use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -98,26 +100,8 @@ impl Builder {
             Some(v) => v,
         };
 
-        // Make `/` as the default of root.
-        let root = match &self.root {
-            None => "/".to_string(),
-            Some(v) => {
-                debug_assert!(!v.is_empty());
-
-                let mut v = v.clone();
-                if !v.starts_with('/') {
-                    return Err(other(BackendError::new(
-                        HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("root must start with /"),
-                    )));
-                }
-                if !v.ends_with('/') {
-                    v.push('/');
-                }
-
-                v
-            }
-        };
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", root);
 
         let client = hdrs::Client::connect(name_node).map_err(|e| {
             other(BackendError::new(
@@ -180,27 +164,6 @@ impl Backend {
 
         builder.build()
     }
-
-    pub(crate) fn get_abs_path(&self, path: &str) -> String {
-        if path == "/" {
-            return self.root.clone();
-        }
-
-        PathBuf::from(&self.root)
-            .join(path)
-            .to_string_lossy()
-            .to_string()
-    }
-
-    pub(crate) fn get_rel_path(&self, path: &str) -> String {
-        match path.strip_prefix(&self.root) {
-            Some(p) => p.to_string(),
-            None => unreachable!(
-                "invalid path {} that not start with backend root {}",
-                &path, &self.root
-            ),
-        }
-    }
 }
 
 #[async_trait]
@@ -215,7 +178,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         match args.mode() {
             ObjectMode::FILE => {
@@ -256,7 +219,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let mut f = self.client.open_file().read(true).open(&path)?;
 
@@ -274,8 +237,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = self.get_abs_path(args.path());
-        debug!("object {} write start: size {}", &path, args.size());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let parent = PathBuf::from(&path)
             .parent()
@@ -305,7 +267,7 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let meta = self
             .client
@@ -325,7 +287,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let meta = self.client.metadata(&path);
 
@@ -352,14 +314,14 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = self.get_abs_path(args.path());
+        let path = build_rooted_abs_path(&self.root, args.path());
 
         let f = self
             .client
             .read_dir(&path)
             .map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
-        let rd = DirStream::new(Arc::new(self.clone()), f);
+        let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
 
         Ok(Box::new(rd))
     }

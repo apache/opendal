@@ -34,11 +34,13 @@ use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
+use crate::path::build_rel_path;
 use crate::DirEntry;
 use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,
+    root: String,
     path: String,
 
     next_marker: String,
@@ -53,9 +55,10 @@ enum State {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, path: &str) -> Self {
+    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
         Self {
             backend,
+            root: root.to_string(),
             path: path.to_string(),
 
             next_marker: "".to_string(),
@@ -70,6 +73,7 @@ impl futures::Stream for DirStream {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
+        let root = self.root.clone();
 
         match &mut self.state {
             State::Idle => {
@@ -96,8 +100,14 @@ impl futures::Stream for DirStream {
             }
             State::Sending(fut) => {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
-                let output: Output = de::from_reader(bs.reader())
-                    .map_err(|e| other(ObjectError::new(Operation::List, &self.path, e)))?;
+
+                let output: Output = de::from_reader(bs.reader()).map_err(|e| {
+                    other(ObjectError::new(
+                        Operation::List,
+                        &self.path,
+                        anyhow!("deserialize xml: {e:?}"),
+                    ))
+                })?;
 
                 // Try our best to check whether this list is done.
                 //
@@ -115,11 +125,8 @@ impl futures::Stream for DirStream {
                         *common_prefixes_idx += 1;
                         let prefix = &prefixes[*common_prefixes_idx - 1].name;
 
-                        let de = DirEntry::new(
-                            backend.clone(),
-                            ObjectMode::DIR,
-                            &backend.get_rel_path(prefix),
-                        );
+                        let de =
+                            DirEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
 
                         return Poll::Ready(Some(Ok(de)));
                     }
@@ -138,9 +145,9 @@ impl futures::Stream for DirStream {
                     }
 
                     let mut de = DirEntry::new(
-                        backend.clone(),
+                        backend,
                         ObjectMode::FILE,
-                        &backend.get_rel_path(&object.name),
+                        &build_rel_path(&root, &object.name),
                     );
 
                     de.set_etag(object.properties.etag.as_str());
@@ -214,6 +221,8 @@ struct Properties {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::*;
 
     #[test]
@@ -372,5 +381,27 @@ mod tests {
                 .collect::<Vec<String>>(),
             ["dir1/dir2/", "dir1/dir21/"]
         );
+    }
+
+    /// This case is copied from real environment for testing
+    /// quick-xml overlapped-lists features. By default, quick-xml
+    /// can't deserialize content with overlapped-lists.
+    ///
+    /// For example, this case list blobs in this way:
+    ///
+    /// ```xml
+    /// <Blobs>
+    ///     <Blob>xxx</Blob>
+    ///     <BlobPrefix>yyy</BlobPrefix>
+    ///     <Blob>zzz</Blob>
+    /// </Blobs>
+    /// ```
+    ///
+    /// If `overlapped-lists` feature not enabled, we will get error `duplicate field Blob`.
+    #[test]
+    fn test_parse_overlapped_lists() {
+        let bs = "<?xml version=\"1.0\" encoding=\"utf-8\"?><EnumerationResults ServiceEndpoint=\"https://test.blob.core.windows.net/\" ContainerName=\"test\"><Prefix>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Prefix><Delimiter>/</Delimiter><Blobs><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:49 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:49 GMT</Last-Modified><Etag>0x8DA8BEB55D0EA35</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob><BlobPrefix><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/x/</Name></BlobPrefix><Blob><Name>9f7075e1-84d0-45ca-8196-ab9b71a8ef97/x/y</Name><Properties><Creation-Time>Thu, 01 Sep 2022 07:26:50 GMT</Creation-Time><Last-Modified>Thu, 01 Sep 2022 07:26:50 GMT</Last-Modified><Etag>0x8DA8BEB55D99C08</Etag><Content-Length>0</Content-Length><Content-Type>application/octet-stream</Content-Type><Content-Encoding /><Content-Language /><Content-CRC64 /><Content-MD5>1B2M2Y8AsgTpgAmY7PhCfg==</Content-MD5><Cache-Control /><Content-Disposition /><BlobType>BlockBlob</BlobType><AccessTier>Hot</AccessTier><AccessTierInferred>true</AccessTierInferred><LeaseStatus>unlocked</LeaseStatus><LeaseState>available</LeaseState><ServerEncrypted>true</ServerEncrypted></Properties><OrMetadata /></Blob></Blobs><NextMarker /></EnumerationResults>";
+
+        de::from_reader(Bytes::from(bs).reader()).expect("must success")
     }
 }

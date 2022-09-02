@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
-use std::io::Error;
-use suppaftp::FtpError;
-
-use crate::error::other;
 use crate::error::ObjectError;
+use crate::ops::Operation;
+use std::io::Error;
 
 /// Parse error response into io::Error.
 ///
@@ -26,6 +23,6 @@ use crate::error::ObjectError;
 /// In the future, we may have our own error struct.
 ///
 
-pub fn parse_io_error(err: Error, op: &'static str, path: &str) -> Error {
+pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {
     Error::new(err.kind(), ObjectError::new(op, path, err))
 }

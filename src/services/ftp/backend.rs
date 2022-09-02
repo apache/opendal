@@ -47,6 +47,7 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::DirStreamer;
@@ -171,10 +172,9 @@ impl Builder {
         let enable_secure = self.enable_secure;
 
         let mut ftp_stream = FtpStream::connect(&endpoint).map_err(|e| {
-            other(ObjectError::new(
-                "connection",
-                &endpoint,
-                anyhow!("connection request: {e:?}"),
+            other(BackendError::new(
+                HashMap::from([("connection".to_string(), endpoint.clone())]),
+                anyhow!(e),
             ))
         })?;
 
@@ -182,34 +182,21 @@ impl Builder {
         if self.enable_secure {
             ftp_stream = ftp_stream
                 .into_secure(TlsConnector::new().unwrap(), &endpoint)
-                .map_err(|e| {
-                    other(ObjectError::new(
-                        "connection",
-                        &endpoint,
-                        anyhow!("switching to secure mode request: {e:?}"),
-                    ))
-                })?;
+                .map_err(|e| other(BackendError::new(HashMap::new(), anyhow!(e))))?;
         }
 
         // login if needed
         if !credential.0.is_empty() {
             ftp_stream
                 .login(&credential.0, &credential.1)
-                .map_err(|e| {
-                    other(ObjectError::new(
-                        "connection",
-                        &endpoint,
-                        anyhow!("signing request: {e:?}"),
-                    ))
-                })?;
+                .map_err(|e| other(BackendError::new(HashMap::new(), anyhow!(e))))?;
         }
 
         // change to the root path
         ftp_stream.cwd(&root).map_err(|e| {
-            other(ObjectError::new(
-                "connection",
-                &endpoint,
-                anyhow!("change root request: {e:?}"),
+            other(BackendError::new(
+                HashMap::from([("root".to_string(), root.clone())]),
+                anyhow!(e),
             ))
         })?;
 
@@ -271,7 +258,7 @@ impl Accessor for Backend {
                 .put_file(&path, &mut "".as_bytes())
                 .map_err(|e| {
                     other(ObjectError::new(
-                        "create",
+                        Operation::Create,
                         path,
                         anyhow!("put request: {e:?}"),
                     ))
@@ -282,7 +269,7 @@ impl Accessor for Backend {
         if args.mode() == ObjectMode::DIR {
             self.client.try_lock().unwrap().mkdir(&path).map_err(|e| {
                 other(ObjectError::new(
-                    "create",
+                    Operation::Create,
                     path,
                     anyhow!("mkdir request: {e:?}"),
                 ))
@@ -300,7 +287,7 @@ impl Accessor for Backend {
 
         let mut stream = guard.retr_as_stream(path).map_err(|e| {
             other(ObjectError::new(
-                "read",
+                Operation::Read,
                 path,
                 anyhow!("retrieve request: {e:?}"),
             ))
@@ -324,7 +311,7 @@ impl Accessor for Backend {
 
         guard.finalize_retr_stream(stream).map_err(|e| {
             other(ObjectError::new(
-                "read",
+                Operation::Read,
                 path,
                 anyhow!("finalizing stream request: {e:?}"),
             ))
@@ -348,7 +335,7 @@ impl Accessor for Backend {
 
         let n = guard.append_file(path, &mut buf.as_slice()).map_err(|e| {
             other(ObjectError::new(
-                "write",
+                Operation::Write,
                 path,
                 anyhow!("append request: {e:?}"),
             ))
@@ -372,7 +359,7 @@ impl Accessor for Backend {
 
         let mut resp = guard.list(Some(path)).map_err(|e| {
             other(ObjectError::new(
-                "stat",
+                Operation::Stat,
                 path,
                 anyhow!("list request: {e:?}"),
             ))
@@ -411,7 +398,7 @@ impl Accessor for Backend {
         if args.path().ends_with('/') {
             guard.rmdir(&path).map_err(|e| {
                 other(ObjectError::new(
-                    "delete",
+                    Operation::Delete,
                     path,
                     anyhow!("remove directory request: {e:?}"),
                 ))
@@ -419,7 +406,7 @@ impl Accessor for Backend {
         } else {
             guard.rm(&path).map_err(|e| {
                 other(ObjectError::new(
-                    "delete",
+                    Operation::Delete,
                     path,
                     anyhow!("remove file request: {e:?}"),
                 ))
@@ -438,7 +425,7 @@ impl Accessor for Backend {
 
         let files = guard.list(Some(path)).map_err(|e| {
             other(ObjectError::new(
-                "list",
+                Operation::List,
                 path,
                 anyhow!("list request: {e:?}"),
             ))

@@ -29,6 +29,7 @@ use suppaftp::list::File;
 
 use super::err::parse_io_error;
 use super::Backend;
+use crate::ops::Operation;
 use crate::DirEntry;
 use crate::ObjectMode;
 
@@ -86,7 +87,7 @@ impl futures::Stream for DirStream {
             }
             Some(Err(e)) => {
                 error!("dir object {} list: {:?}", &self.path, e);
-                Poll::Ready(Some(Err(parse_io_error(e, "list", &self.path))))
+                Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path))))
             }
             Some(Ok(de)) => {
                 let d = if de.is_file() {

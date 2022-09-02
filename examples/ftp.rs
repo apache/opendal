@@ -33,11 +33,9 @@ async fn main() -> Result<()> {
 
 Available Environment Values:
     - OPENDAL_FTP_ENDPOINT=endpoint     # required  
-    - OPENDAL_FTP_Port=port      # default with 21
-    - OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/ftp"
+    - OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/"
     - OPENDAL_FTP_USER=user    # default with empty string ""
-    - OPENDAL_FTP_PWD=password    # default with empty string ""
-    - OPENDAL_FTP_TLS=bool    # default with false
+    - OPENDAL_FTP_PASSWORD=password    # default with empty string ""
     "#
     );
 
@@ -47,11 +45,10 @@ Available Environment Values:
     // Set the root for ftp, all operations will happen under this root.
 
     // NOTE: the root must be absolute path.
-    builder.endpoint(&env::var("OPENDAL_FTP_ENDPOINT").unwrap_or_else(|_| "127.0.0.1".to_string()));
+    builder
+        .endpoint(&env::var("OPENDAL_FTP_ENDPOINT").unwrap_or_else(|_| "127.0.0.1:21".to_string()));
     builder.user(&env::var("OPENDAL_FTP_USER").unwrap_or_else(|_| "".to_string()));
-    builder.password(&env::var("OPENDAL_FTP_PWD").unwrap_or_else(|_| "".to_string()));
-    builder.port(&env::var("OPENDAL_FTP_PORT").unwrap_or_else(|_| "21".to_string()));
-    builder.tls(&env::var("OPENDAL_FTP_TLS").unwrap_or_else(|_| "false".to_string()));
+    builder.password(&env::var("OPENDAL_FTP_PASSWORD").unwrap_or_else(|_| "".to_string()));
 
     // Use `Operator` normally.
     let op: Operator = Operator::new(builder.build()?);
@@ -78,8 +75,8 @@ Available Environment Values:
     op.object(&path).write("write test").await?;
     info!("write to file successful!",);
 
-    info!("try to read file: {}", &path);
-    let content = op.object(&path).read().await?;
+    info!("try to read file content between 5-10: {}", &path);
+    let content = op.object(&path).range_read(5..10).await?;
     info!(
         "read file successful, content: {}",
         String::from_utf8_lossy(&content)

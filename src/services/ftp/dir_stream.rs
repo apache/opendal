@@ -98,10 +98,14 @@ impl futures::Stream for DirStream {
                 };
 
                 debug!(
-                    "dir object {} got entry, mode: {}, path: {}",
+                    "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
                     &self.path,
                     d.mode(),
-                    d.path()
+                    d.path(),
+                    d.content_length(),
+                    d.last_modified(),
+                    d.content_md5(),
+                    d.etag(),
                 );
                 Poll::Ready(Some(Ok(d)))
             }

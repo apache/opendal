@@ -35,6 +35,8 @@ layers-tracing = ["tracing"]
 services-hdfs = ["hdrs"]
 # Enable services http support
 services-http = ["radix_trie"]
+# Enable services ftp support
+services-ftp = ["suppaftp"]
 
 [lib]
 bench = false
@@ -89,7 +91,7 @@ thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
-suppaftp = {version = "^4.4.0", features = ["secure"]}
+suppaftp = {version = "4.4", features = ["secure"], optional = true}
 
 [dev-dependencies]
 cfg-if = "1.0"

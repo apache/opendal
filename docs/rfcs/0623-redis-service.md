@@ -187,6 +187,7 @@ This could be done similarly to `List`, iterating on the pattern with `SCAN` and
 1. A new dependency is introduced;
 2. Some calculations have to be done in client side, this will affect the performance;
 3. Grouping atomic operations together doesn't promise transactional access, this may lead to data racing issues.
+4. Writing large binary strings requiring copying all data from pipe(or `BytesReader` in opendal) to RAM, and then send to redis.
 
 # Rationale and alternatives
 
@@ -214,4 +215,3 @@ The implementation proposed here is far from perfect.
 - The data organization could be optimized to make it acts more like a filesystem
 - Switching to RedisJSON API
 - Making a customized redis module to calculate metadata on redis side
-- Add UNIX domain socket support

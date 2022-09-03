@@ -99,7 +99,7 @@ Available Environment Values:
     info!("create folder successful!",);
 
     info!("try to delete directory: {}", &dir);
-    op.object(&dir).delete().await?;
+    op.object(dir).delete().await?;
     info!("delete directory successful");
 
     Ok(())

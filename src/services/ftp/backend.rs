@@ -17,8 +17,6 @@ use futures::lock::Mutex;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::copy;
-use std::io::sink;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read;
@@ -181,7 +179,7 @@ impl Builder {
         // switch to secure mode if ssl/tls is on.
         if self.enable_secure {
             ftp_stream = ftp_stream
-                .into_secure(TlsConnector::new().unwrap(), &endpoint)
+                .into_secure(TlsConnector::new().unwrap(), endpoint)
                 .map_err(|e| other(BackendError::new(HashMap::new(), anyhow!(e))))?;
         }
 
@@ -239,6 +237,9 @@ impl Backend {
             let v = v.as_str();
             match k.as_ref() {
                 "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                "user" => builder.user(v),
+                "password" => builder.password(v),
                 _ => continue,
             };
         }
@@ -250,30 +251,33 @@ impl Backend {
 impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = args.path();
+
+        let mut guard = self.client.lock().await;
+
         if args.mode() == ObjectMode::FILE {
-            //let mut ftp_stream = self.ftp_connect()?;
-            self.client
-                .try_lock()
-                .unwrap()
-                .put_file(&path, &mut "".as_bytes())
-                .map_err(|e| {
-                    other(ObjectError::new(
-                        Operation::Create,
-                        path,
-                        anyhow!("put request: {e:?}"),
-                    ))
-                })?;
+            guard.put_file(&path, &mut "".as_bytes()).map_err(|e| {
+                other(ObjectError::new(
+                    Operation::Create,
+                    path,
+                    anyhow!("put request: {e:?}"),
+                ))
+            })?;
+
+            drop(guard);
+
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
-            self.client.try_lock().unwrap().mkdir(&path).map_err(|e| {
+            guard.mkdir(&path).map_err(|e| {
                 other(ObjectError::new(
                     Operation::Create,
                     path,
                     anyhow!("mkdir request: {e:?}"),
                 ))
             })?;
+
+            drop(guard);
 
             return Ok(());
         }
@@ -285,6 +289,16 @@ impl Accessor for Backend {
         let path = args.path();
         let mut guard = self.client.lock().await;
 
+        if let Some(offset) = args.offset() {
+            guard.resume_transfer(offset as usize).map_err(|e| {
+                other(ObjectError::new(
+                    Operation::Read,
+                    path,
+                    anyhow!("resume transfer request: {e:?}"),
+                ))
+            })?;
+        }
+
         let mut stream = guard.retr_as_stream(path).map_err(|e| {
             other(ObjectError::new(
                 Operation::Read,
@@ -292,10 +306,6 @@ impl Accessor for Backend {
                 anyhow!("retrieve request: {e:?}"),
             ))
         })?;
-
-        if let Some(offset) = args.offset() {
-            copy(&mut stream.by_ref().take(offset), &mut sink())?;
-        }
 
         let mut buf = Vec::new();
         let r = match args.size() {

@@ -226,7 +226,6 @@ macro_rules! blocking_behavior_test {
 }
 
 behavior_tests!(Azblob, Fs, Memory, S3, Gcs, Obs, Ipfs);
-
 cfg_if::cfg_if! {
     if #[cfg(feature = "services-hdfs")] {
         behavior_tests!(Hdfs);
@@ -238,7 +237,11 @@ cfg_if::cfg_if! {
         behavior_tests!(Http);
     }
 }
-
+cfg_if::cfg_if! {
+    if #[cfg(feature = "services-ftp")] {
+        behavior_tests!(Ftp);
+    }
+}
 /// Check should be OK.
 async fn test_check(op: Operator) -> Result<()> {
     op.check().await.expect("operator check is ok");

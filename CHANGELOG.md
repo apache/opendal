@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - feat: improve observability of `BytesReader` and `DirStreamer` (#603)
 - feat: Add behavior tests for blocking operations (#607)
 - feat: Add integration tests for ipfs (#610)
+- feat: implemented ftp backend (#581)
 - RFC-0627: Split Capabilities (#627)
 
 ### Changed

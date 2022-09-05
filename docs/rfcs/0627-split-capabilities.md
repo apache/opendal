@@ -1,7 +1,7 @@
 - Proposal Name: `split-capabilities`
 - Start Date: 2022-09-04
 - RFC PR: [datafuselabs/opendal#627](https://github.com/datafuselabs/opendal/pull/627)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- Tracking Issue: [datafuselabs/opendal#628](https://github.com/datafuselabs/opendal/issues/628)
 
 # Summary
 

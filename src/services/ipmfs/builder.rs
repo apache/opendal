@@ -16,9 +16,9 @@ use std::io::Result;
 
 use log::info;
 
+use super::Backend;
 use crate::http_util::HttpClient;
 use crate::path::normalize_root;
-use crate::services::ipfs::Backend;
 
 /// Builder for service ipfs.
 #[derive(Default, Debug)]

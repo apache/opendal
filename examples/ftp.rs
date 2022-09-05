@@ -14,12 +14,13 @@
 
 //! Example for initiating a ftp backend.
 
+use std::env;
+
 use anyhow::Result;
 use log::info;
 use opendal::services::ftp;
 use opendal::services::ftp::Builder;
 use opendal::Operator;
-use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {

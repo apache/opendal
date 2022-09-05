@@ -45,7 +45,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Ipfs)?;
+//!     let op: Operator = Operator::from_env(Scheme::Ipmfs)?;
 //!
 //!     // create an object handler to start operation on it.
 //!     let _op: Object = op.object("test_file");

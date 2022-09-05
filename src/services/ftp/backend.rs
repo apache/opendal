@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::io::Cursor;
-use futures::lock::Mutex;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -27,6 +25,8 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use futures::io::Cursor;
+use futures::lock::Mutex;
 use futures::AsyncReadExt;
 use log::info;
 use suppaftp::list::File;

@@ -177,7 +177,10 @@ impl Service {
     }
 
     async fn delete(&self, req: HttpRequest) -> Result<HttpResponse> {
-        self.op.object(req.path()).delete().await?;
+        self.op
+            .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy())
+            .delete()
+            .await?;
         Ok(HttpResponse::new(StatusCode::NO_CONTENT))
     }
 }

@@ -101,7 +101,7 @@ impl Backend {
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::Ipfs).set_root(&self.root);
+        am.set_scheme(Scheme::Ipmfs).set_root(&self.root);
 
         am
     }

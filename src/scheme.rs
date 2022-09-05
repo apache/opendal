@@ -42,8 +42,8 @@ pub enum Scheme {
     /// [ftp][crate::services::ftp]: FTP backend.
     #[cfg(feature = "services-ftp")]
     Ftp,
-    /// [ipfs][crate::services::ipfs]: IPFS mutable file system
-    Ipfs,
+    /// [ipmfs][crate::services::ipmfs]: IPFS mutable file system
+    Ipmfs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [obs][crate::services::obs]: Huawei Cloud OBS services.
@@ -84,7 +84,7 @@ impl Display for Scheme {
             Scheme::Http => write!(f, "http"),
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => write!(f, "ftp"),
-            Scheme::Ipfs => write!(f, "ipfs"),
+            Scheme::Ipmfs => write!(f, "ipmfs"),
             Scheme::Memory => write!(f, "memory"),
             Scheme::Obs => write!(f, "obs"),
             Scheme::S3 => write!(f, "s3"),
@@ -108,7 +108,7 @@ impl FromStr for Scheme {
             "http" | "https" => Ok(Scheme::Http),
             #[cfg(feature = "services-ftp")]
             "ftp" => Ok(Scheme::Ftp),
-            "ipfs" => Ok(Scheme::Ipfs),
+            "ipmfs" => Ok(Scheme::Ipmfs),
             "memory" => Ok(Scheme::Memory),
             "obs" => Ok(Scheme::Obs),
             "s3" => Ok(Scheme::S3),
@@ -129,7 +129,7 @@ impl From<Scheme> for &'static str {
             Scheme::Http => "http",
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => "ftp",
-            Scheme::Ipfs => "ipfs",
+            Scheme::Ipmfs => "ipmfs",
             Scheme::Memory => "memory",
             Scheme::Obs => "obs",
             Scheme::S3 => "s3",

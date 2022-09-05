@@ -45,7 +45,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Ipfs)?;
+//!     let op: Operator = Operator::from_env(Scheme::Ipmfs)?;
 //!
 //!     // create an object handler to start operation on it.
 //!     let _op: Object = op.object("test_file");
@@ -58,14 +58,14 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::ipfs;
+//! use opendal::services::ipmfs;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = ipfs::Builder::default();
+//!     let mut builder = ipmfs::Builder::default();
 //!
 //!     // set the storage bucket for OpenDAL
 //!     builder.endpoint("http://127.0.0.1:5001");

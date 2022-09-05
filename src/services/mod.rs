@@ -28,7 +28,7 @@ pub mod gcs;
 pub mod hdfs;
 #[cfg(feature = "services-http")]
 pub mod http;
-pub mod ipfs;
+pub mod ipmfs;
 pub mod memory;
 pub mod obs;
 pub mod s3;

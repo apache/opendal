@@ -12,16 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Error;
+
 use crate::error::ObjectError;
 use crate::ops::Operation;
-use std::io::Error;
 
 /// Parse error response into io::Error.
 ///
 /// # TODO
 ///
 /// In the future, we may have our own error struct.
-///
 
 pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {
     Error::new(err.kind(), ObjectError::new(op, path, err))

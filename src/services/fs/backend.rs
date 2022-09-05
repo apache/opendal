@@ -120,7 +120,12 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Blocking);
+            .set_capabilities(
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::List
+                    | AccessorCapability::Blocking,
+            );
 
         am
     }

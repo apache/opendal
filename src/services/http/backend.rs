@@ -36,6 +36,7 @@ use radix_trie::Trie;
 use radix_trie::TrieCommon;
 
 use super::error::parse_error;
+use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -253,7 +254,9 @@ impl Accessor for Backend {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
-            .set_capabilities(None);
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
 
         ma
     }

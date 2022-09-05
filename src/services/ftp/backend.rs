@@ -36,6 +36,7 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
+use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -46,11 +47,11 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
-use crate::Accessor;
-use crate::BytesReader;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::{Accessor, AccessorMetadata};
+use crate::{BytesReader, Scheme};
 
 /// Builder for ftp backend.
 #[derive(Default)]
@@ -249,6 +250,17 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::Ftp)
+            .set_root(&self.root)
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
+
+        am
+    }
+
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = args.path();
 

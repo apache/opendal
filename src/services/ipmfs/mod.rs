@@ -58,7 +58,7 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::ipfs;
+//! use opendal::services::ipmfs;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!

@@ -254,9 +254,7 @@ impl Accessor for Backend {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            .set_capabilities(AccessorCapability::Read | AccessorCapability::List);
 
         ma
     }

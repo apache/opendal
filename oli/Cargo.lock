@@ -745,7 +745,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.14.1"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -762,7 +762,7 @@ checksum = "074864da206b4973b84eb91683020dbefd6a8c3f0f38e054d93954e891935e4e"
 
 [[package]]
 name = "opendal"
-version = "0.14.1"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "async-compat",

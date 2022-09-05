@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.15.0] - 2022-09-05
+
+### Added
+
+- RFC-0599: Blocking API (#599)
+- feat: Add blocking API in Accessor (#604)
+- feat: Implement blocking API for fs (#606)
+- feat: improve observability of `BytesReader` and `DirStreamer` (#603)
+- feat: Add behavior tests for blocking operations (#607)
+- feat: Add integration tests for ipfs (#610)
+- RFC-0627: Split Capabilities (#627)
+
+### Changed
+
+- refactor: Extrace normalize_root functions (#619)
+- refactor: Extrace build_abs_path and build_rooted_abs_path  (#620)
+- refactor: Extract build_rel_path (#621)
+- feat: Rename ipfs to ipmfs to better reflect its naming (#629)
+
 ## [v0.14.1] - 2022-08-30
 
 ### Added
@@ -629,6 +648,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.15.0]: https://github.com/datafuselabs/opendal/compare/v0.14.1...v0.15.0
 [v0.14.1]: https://github.com/datafuselabs/opendal/compare/v0.14.0...v0.14.1
 [v0.14.0]: https://github.com/datafuselabs/opendal/compare/v0.13.1...v0.14.0
 [v0.13.1]: https://github.com/datafuselabs/opendal/compare/v0.13.0...v0.13.1

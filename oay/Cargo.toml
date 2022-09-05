@@ -18,6 +18,7 @@ env_logger = "0.9"
 futures = "0.3"
 log = "0.4"
 opendal = "0.15.0"
+percent-encoding = "2.1"
 sluice = "0.5.5"
 tokio = { version = "1.20", features = ["rt-multi-thread", "macros"] }
 

@@ -40,6 +40,7 @@ use opendal::io_util::into_stream;
 use opendal::ops::BytesRange;
 use opendal::BytesReader;
 use opendal::Operator;
+use percent_encoding::percent_decode;
 
 use crate::env;
 
@@ -72,7 +73,9 @@ impl Service {
     }
 
     async fn get(&self, req: HttpRequest) -> Result<HttpResponse> {
-        let o = self.op.object(req.path());
+        let o = self
+            .op
+            .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
         let meta = o.metadata().await?;
 

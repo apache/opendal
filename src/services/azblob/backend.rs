@@ -34,7 +34,8 @@ use reqsign::services::azure::storage::Signer;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use crate::accessor::{AccessorCapability, AccessorMetadata};
+use crate::accessor::AccessorCapability;
+use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;

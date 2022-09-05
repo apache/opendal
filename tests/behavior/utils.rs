@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use opendal::layers::LoggingLayer;
-use opendal::{Operator, Scheme};
-use rand::prelude::*;
 use std::collections::HashMap;
 use std::env;
+
+use opendal::layers::LoggingLayer;
+use opendal::Operator;
+use opendal::Scheme;
+use rand::prelude::*;
 
 /// Init a service with given scheme.
 ///

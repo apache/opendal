@@ -29,7 +29,9 @@ pub fn init_logger() {
 macro_rules! behavior_tests {
     ($($service:ident),*) => {
         $(
+            // can_read && !can_write
             behavior_read_tests!($service);
+            // can_read && !can_write && can_blocking
             behavior_blocking_read_tests!($service);
         )*
     };

@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use opendal::{ObjectMode, Operator};
-use sha2::Digest;
-use sha2::Sha256;
 use std::io;
 use std::io::Result;
+
+use opendal::ObjectMode;
+use opendal::Operator;
+use sha2::Digest;
+use sha2::Sha256;
 
 /// Test services that meet the following capability:
 ///

@@ -47,11 +47,13 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BytesReader;
 use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::{Accessor, AccessorMetadata};
-use crate::{BytesReader, Scheme};
+use crate::Scheme;
 
 /// Builder for ftp backend.
 #[derive(Default)]

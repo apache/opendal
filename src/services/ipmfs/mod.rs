@@ -65,7 +65,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = ipfs::Builder::default();
+//!     let mut builder = ipmfs::Builder::default();
 //!
 //!     // set the storage bucket for OpenDAL
 //!     builder.endpoint("http://127.0.0.1:5001");

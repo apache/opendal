@@ -31,6 +31,7 @@ use futures::io::Cursor;
 use futures::AsyncWrite;
 use parking_lot::Mutex;
 
+use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::ops::OpCreate;
@@ -75,7 +76,9 @@ impl Accessor for Backend {
         am.set_scheme(Scheme::Memory)
             .set_root("/")
             .set_name("memory")
-            .set_capabilities(None);
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
 
         am
     }

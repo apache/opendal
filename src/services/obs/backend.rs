@@ -31,6 +31,7 @@ use log::info;
 use reqsign::services::huaweicloud::obs::Signer;
 
 use super::error::parse_error;
+use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -271,7 +272,10 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Obs)
             .set_root(&self.root)
-            .set_name(&self.bucket);
+            .set_name(&self.bucket)
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
 
         am
     }

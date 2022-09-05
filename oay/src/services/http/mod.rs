@@ -40,6 +40,7 @@ use opendal::io_util::into_stream;
 use opendal::ops::BytesRange;
 use opendal::BytesReader;
 use opendal::Operator;
+use percent_encoding::percent_decode;
 
 use crate::env;
 
@@ -72,7 +73,9 @@ impl Service {
     }
 
     async fn get(&self, req: HttpRequest) -> Result<HttpResponse> {
-        let o = self.op.object(req.path());
+        let o = self
+            .op
+            .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
         let meta = o.metadata().await?;
 
@@ -101,7 +104,9 @@ impl Service {
     }
 
     async fn put(&self, req: HttpRequest, mut body: web::Payload) -> Result<HttpResponse> {
-        let o = self.op.object(req.path());
+        let o = self
+            .op
+            .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
         let content_length: u64 = req
             .headers()
@@ -160,7 +165,10 @@ impl Service {
     /// - The body's size.
     /// - The body returned by HEAD should not be read.
     async fn head(&self, req: HttpRequest) -> Result<HttpResponse> {
-        let meta = self.op.object(req.path()).metadata().await?;
+        let o = self
+            .op
+            .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
+        let meta = o.metadata().await?;
 
         Ok(HttpResponse::Ok().body(SizedStream::new(
             meta.content_length(),
@@ -169,7 +177,10 @@ impl Service {
     }
 
     async fn delete(&self, req: HttpRequest) -> Result<HttpResponse> {
-        self.op.object(req.path()).delete().await?;
+        self.op
+            .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy())
+            .delete()
+            .await?;
         Ok(HttpResponse::new(StatusCode::NO_CONTENT))
     }
 }

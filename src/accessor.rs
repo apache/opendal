@@ -428,6 +428,21 @@ impl AccessorMetadata {
         self
     }
 
+    /// Check if current backend supports [`Accessor::read`] or not.
+    pub fn can_read(&self) -> bool {
+        self.capabilities.contains(AccessorCapability::Read)
+    }
+
+    /// Check if current backend supports [`Accessor::write`] or not.
+    pub fn can_write(&self) -> bool {
+        self.capabilities.contains(AccessorCapability::Write)
+    }
+
+    /// Check if current backend supports [`Accessor::list`] or not.
+    pub fn can_list(&self) -> bool {
+        self.capabilities.contains(AccessorCapability::List)
+    }
+
     /// Check if current backend supports [`Accessor::presign`] or not.
     pub fn can_presign(&self) -> bool {
         self.capabilities.contains(AccessorCapability::Presign)
@@ -455,6 +470,12 @@ impl AccessorMetadata {
 flags! {
     /// AccessorCapability describes accessor's advanced capability.
     pub(crate) enum AccessorCapability: u32 {
+        /// Add this capability if service supports `read` and `stat`
+        Read,
+        /// Add this capability if service supports `write` and `delete`
+        Write,
+        /// Add this capability if service supports `list`
+        List,
         /// Add this capability if service supports `presign`
         Presign,
         /// Add this capability if service supports `multipart`

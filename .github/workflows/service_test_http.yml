@@ -35,6 +35,9 @@ jobs:
           RUST_LOG: debug
           OAY_BACKEND_FS_ROOT: /tmp/oay/
 
+      - name: Setup
+        run: cp -r  testdata/* /tmp/oay/
+
       - name: Test
         shell: bash
         run: cargo test http --features compress,layers-retry,services-http -- --nocapture

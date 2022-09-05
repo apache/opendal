@@ -789,7 +789,13 @@ impl Accessor for Backend {
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(AccessorCapability::Presign | AccessorCapability::Multipart);
+            .set_capabilities(
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::List
+                    | AccessorCapability::Presign
+                    | AccessorCapability::Multipart,
+            );
 
         am
     }

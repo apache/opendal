@@ -50,10 +50,6 @@ macro_rules! behavior_tests {
                 $service,
 
                 test_check,
-                test_metadata,
-                test_object_path,
-                test_object_id,
-                test_object_name,
 
                 test_list_dir,
                 test_list_sub_dir,
@@ -193,60 +189,6 @@ cfg_if::cfg_if! {
 /// Check should be OK.
 async fn test_check(op: Operator) -> Result<()> {
     op.check().await.expect("operator check is ok");
-
-    Ok(())
-}
-
-/// Create file with file path should succeed.
-async fn test_metadata(op: Operator) -> Result<()> {
-    let _ = op.metadata();
-
-    Ok(())
-}
-
-/// Test object id.
-async fn test_object_id(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    let o = op.object(&path);
-
-    assert_eq!(o.id(), format!("{}{}", op.metadata().root(), path));
-
-    Ok(())
-}
-
-/// Test object path.
-async fn test_object_path(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-
-    let o = op.object(&path);
-
-    assert_eq!(o.path(), path);
-
-    Ok(())
-}
-
-/// Test object name.
-async fn test_object_name(op: Operator) -> Result<()> {
-    // Normal
-    let path = uuid::Uuid::new_v4().to_string();
-
-    let o = op.object(&path);
-    assert_eq!(o.name(), path);
-
-    // File in subdir
-    let name = uuid::Uuid::new_v4().to_string();
-    let path = format!("{}/{}", uuid::Uuid::new_v4(), name);
-
-    let o = op.object(&path);
-    assert_eq!(o.name(), name);
-
-    // Dir in subdir
-    let name = uuid::Uuid::new_v4().to_string();
-    let path = format!("{}/{}/", uuid::Uuid::new_v4(), name);
-
-    let o = op.object(&path);
-    assert_eq!(o.name(), format!("{name}/"));
 
     Ok(())
 }

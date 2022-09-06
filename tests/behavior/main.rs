@@ -23,6 +23,8 @@ mod utils;
 mod write;
 #[macro_use]
 mod blocking_write;
+#[macro_use]
+mod base;
 
 pub fn init_logger() {
     let _ = env_logger::builder().is_test(true).try_init();
@@ -33,6 +35,7 @@ pub fn init_logger() {
 macro_rules! behavior_tests {
     ($($service:ident),*) => {
         $(
+            behavior_base_tests!($service);
             // can_read && !can_write
             behavior_read_tests!($service);
             // can_read && !can_write && can_blocking

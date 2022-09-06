@@ -15,7 +15,6 @@
 use std::io::Result;
 use std::str::FromStr;
 
-use super::utils::*;
 use http::header;
 use log::debug;
 use opendal::Operator;
@@ -23,6 +22,8 @@ use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
 use time::Duration;
+
+use super::utils::*;
 
 /// Test services that meet the following capability:
 ///

@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::AsyncBody;
-use super::Body;
-use crate::io_util::into_reader;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
+use std::str::FromStr;
+
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
 use reqwest::Url;
-use std::io::{Error, ErrorKind, Result};
-use std::str::FromStr;
+
+use super::AsyncBody;
+use super::Body;
+use crate::io_util::into_reader;
 
 /// HttpClient that used across opendal.
 #[derive(Debug, Clone)]

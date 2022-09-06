@@ -19,7 +19,8 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
 use quick_xml::de;

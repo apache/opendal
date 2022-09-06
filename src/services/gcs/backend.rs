@@ -19,12 +19,12 @@ use std::fmt::Write;
 use std::io::Result;
 use std::sync::Arc;
 
-use crate::http_util::AsyncBody;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
+use http::Request;
+use http::Response;
 use http::StatusCode;
-use http::{Request, Response};
 use log::debug;
 use log::info;
 use reqsign::services::google::Signer;
@@ -45,8 +45,8 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
+use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
-
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;

@@ -18,7 +18,8 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use bytes::{Buf, Bytes};
+use bytes::Buf;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;

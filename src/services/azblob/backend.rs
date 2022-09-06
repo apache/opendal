@@ -24,8 +24,9 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
+use http::Request;
+use http::Response;
 use http::StatusCode;
-use http::{Request, Response};
 use log::debug;
 use log::info;
 use reqsign::services::azure::storage::Signer;
@@ -48,7 +49,6 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
-
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;

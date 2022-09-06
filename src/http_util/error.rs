@@ -14,17 +14,10 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-
 use std::io;
 use std::io::Error;
 
-
-
-
-
-use crate::http_util::AsyncBody;
 use anyhow::anyhow;
-
 use http::response::Parts;
 use http::HeaderMap;
 use http::HeaderValue;
@@ -33,6 +26,7 @@ use http::StatusCode;
 
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::http_util::AsyncBody;
 use crate::ops::Operation;
 
 /// Create error happened during building http request.

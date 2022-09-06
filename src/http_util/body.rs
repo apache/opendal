@@ -12,15 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::io_util::into_stream;
-use crate::{BlockingBytesReader, BytesReader};
-use bytes::{Buf, Bytes};
-use futures::AsyncRead;
 use std::cmp::min;
+use std::io::Read;
 use std::io::Result;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
+
+use bytes::Buf;
+use bytes::Bytes;
+use futures::AsyncRead;
+
+use crate::io_util::into_stream;
+use crate::BlockingBytesReader;
+use crate::BytesReader;
 
 /// Body used in blocking HTTP requests.
 pub enum Body {

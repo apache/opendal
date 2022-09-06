@@ -19,7 +19,9 @@ use std::io::Result;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::{Request, Response, StatusCode};
+use http::Request;
+use http::Response;
+use http::StatusCode;
 use log::info;
 
 use super::error::parse_error;

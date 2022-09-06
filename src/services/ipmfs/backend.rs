@@ -22,8 +22,9 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::io;
+use http::Request;
+use http::Response;
 use http::StatusCode;
-use http::{Request, Response};
 use serde::Deserialize;
 
 use super::builder::Builder;

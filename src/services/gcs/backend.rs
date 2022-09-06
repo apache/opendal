@@ -25,7 +25,6 @@ use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::Request;
 use http::StatusCode;
-use isahc::AsyncReadResponseExt;
 use log::debug;
 use log::info;
 use reqsign::services::google::Signer;
@@ -47,7 +46,7 @@ use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::HttpClient;
-use crate::io_util::unshared_reader;
+
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -250,7 +249,7 @@ impl Accessor for Backend {
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
@@ -292,7 +291,7 @@ impl Accessor for Backend {
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
@@ -322,7 +321,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let mut resp = self.get_object_metadata(&p).await?;
+        let resp = self.get_object_metadata(&p).await?;
 
         if resp.status().is_success() {
             let mut m = ObjectMetadata::default();

@@ -56,7 +56,7 @@ use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::Body;
 use crate::http_util::HttpClient;
-use crate::io_util::unshared_reader;
+
 use crate::multipart::ObjectPart;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
@@ -808,7 +808,7 @@ impl Accessor for Backend {
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
@@ -858,7 +858,7 @@ impl Accessor for Backend {
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
@@ -1006,7 +1006,7 @@ impl Accessor for Backend {
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
         let path = build_abs_path(&self.root, args.path());
 
-        let mut resp = self.s3_initiate_multipart_upload(&path).await?;
+        let resp = self.s3_initiate_multipart_upload(&path).await?;
 
         let status = resp.status();
 
@@ -1050,7 +1050,7 @@ impl Accessor for Backend {
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::WriteMultipart, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
@@ -1088,7 +1088,7 @@ impl Accessor for Backend {
     async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
         let path = build_abs_path(&self.root, args.path());
 
-        let mut resp = self
+        let resp = self
             .s3_complete_multipart_upload(&path, args.upload_id(), args.parts())
             .await?;
 
@@ -1113,7 +1113,7 @@ impl Accessor for Backend {
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
         let path = build_abs_path(&self.root, args.path());
 
-        let mut resp = self
+        let resp = self
             .s3_abort_multipart_upload(&path, args.upload_id())
             .await?;
 

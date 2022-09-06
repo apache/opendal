@@ -113,7 +113,7 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, args.path());
 
-        let mut resp = match args.mode() {
+        let resp = match args.mode() {
             ObjectMode::DIR => self.ipfs_mkdir(&path).await?,
             ObjectMode::FILE => self.ipfs_write(&path, &[]).await?,
             _ => unreachable!(),
@@ -163,7 +163,7 @@ impl Accessor for Backend {
         let mut buf = Vec::with_capacity(args.size() as usize);
         io::copy(r, &mut buf).await?;
 
-        let mut resp = self.ipfs_write(&path, &buf).await?;
+        let resp = self.ipfs_write(&path, &buf).await?;
 
         let status = resp.status();
 
@@ -194,7 +194,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let mut resp = self.ipfs_stat(&path).await?;
+        let resp = self.ipfs_stat(&path).await?;
 
         let status = resp.status();
 
@@ -235,7 +235,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, args.path());
 
-        let mut resp = self.ipfs_rm(&path).await?;
+        let resp = self.ipfs_rm(&path).await?;
 
         let status = resp.status();
 

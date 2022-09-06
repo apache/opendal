@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::time::Duration;
+
 
 use super::AsyncBody;
 use super::Body;
 use crate::io_util::into_reader;
 use futures::TryStreamExt;
-use http::{HeaderMap, Response};
-use http::{Request, Version};
-use reqwest::{ResponseBuilderExt, Url};
+use http::{Response};
+use http::{Request};
+use reqwest::{Url};
 use std::io::{Error, ErrorKind, Result};
 use std::mem;
 use std::str::FromStr;
@@ -58,7 +58,7 @@ impl HttpClient {
         let resp = match ur.send(body) {
             Ok(resp) => resp,
             Err(err_resp) => match err_resp {
-                ureq::Error::Status(code, resp) => resp,
+                ureq::Error::Status(_code, resp) => resp,
                 ureq::Error::Transport(transport) => {
                     let kind = match transport.kind() {
                         ureq::ErrorKind::Dns

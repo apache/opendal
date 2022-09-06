@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{BlockingBytesRead, BlockingBytesReader, BytesReader};
+use crate::{BlockingBytesReader, BytesReader};
 use bytes::Bytes;
 use futures::AsyncRead;
 use std::io::Read;
@@ -22,11 +22,13 @@ use std::task::{Context, Poll};
 
 pub enum Body {
     Empty,
+    #[allow(unused)]
     Bytes(Bytes),
     Reader(BlockingBytesReader),
 }
 
 impl Body {
+    #[allow(unused)]
     pub fn consume(self) -> Result<()> {
         if let Body::Reader(mut r) = self {
             std::io::copy(&mut r, &mut std::io::sink())?;
@@ -37,7 +39,7 @@ impl Body {
 }
 
 impl Read for Body {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
         todo!()
     }
 }
@@ -93,8 +95,8 @@ impl Into<reqwest::Body> for AsyncBody {
 impl AsyncRead for AsyncBody {
     fn poll_read(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
+        _cx: &mut Context<'_>,
+        _buf: &mut [u8],
     ) -> Poll<Result<usize>> {
         todo!()
     }

@@ -37,7 +37,7 @@ macro_rules! behavior_blocking_write_test {
                         #[$meta]
                     )*
                     fn [< $test >]() -> std::io::Result<()> {
-                        let op = $crate::utils::init_service(opendal::Scheme::$service);
+                        let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
                             Some(op) if op.metadata().can_read()
                                 && op.metadata().can_write()

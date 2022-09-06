@@ -51,3 +51,4 @@
   - [0561-list-metadata-reused](rfcs/0561-list-metadata-reuse.md)
   - [0599-blocking-api](rfcs/0599-blocking-api.md)
   - [0623-redis-service](rfcs/0623-redis-service.md)
+  - [0627-split-capabilities](rfcs/0627-split-capabilities.md)

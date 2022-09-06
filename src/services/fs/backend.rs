@@ -41,8 +41,9 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::build_rel_path;
+use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
-use crate::path::{build_rel_path, build_rooted_abs_path};
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
@@ -119,7 +120,12 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Fs)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Blocking);
+            .set_capabilities(
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::List
+                    | AccessorCapability::Blocking,
+            );
 
         am
     }

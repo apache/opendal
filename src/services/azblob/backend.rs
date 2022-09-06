@@ -34,6 +34,7 @@ use reqsign::services::azure::storage::Signer;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::error::other;
 use crate::error::BackendError;
@@ -247,7 +248,9 @@ impl Accessor for Backend {
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
             .set_name(&self.container)
-            .set_capabilities(None);
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
 
         am
     }

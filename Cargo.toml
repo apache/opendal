@@ -3,13 +3,13 @@ authors = ["Databend Authors <opensource@datafuselabs.com>"]
 categories = ["filesystem"]
 description = "OpenDAL: Access data freely, painless, and efficiently."
 edition = "2021"
-exclude = ["docs/"]
+exclude = ["docs/", "testdata/"]
 homepage = "https://opendal.databend.rs/"
 keywords = ["storage", "data", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.14.1"
+version = "0.15.0"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -34,7 +34,10 @@ layers-tracing = ["tracing"]
 # Enable services hdfs support
 services-hdfs = ["hdrs"]
 # Enable services http support
-services-http = ["radix_trie"]
+# deprecated: We don't need services-http feature any more.
+services-http = []
+# Enable services ftp support
+services-ftp = ["suppaftp"]
 
 [lib]
 bench = false
@@ -54,6 +57,10 @@ name = "path"
 [[example]]
 name = "hdfs"
 required-features = ["services-hdfs"]
+
+[[example]]
+name = "ftp"
+required-features = ["services-ftp"]
 
 [dependencies]
 anyhow = { version = "1.0", features = ["std"] }
@@ -81,10 +88,10 @@ parking_lot = "0.12"
 percent-encoding = "2.1"
 pin-project = "1.0"
 quick-xml = { version = "0.24", features = ["serialize", "overlapped-lists"] }
-radix_trie = { version = "0.2", optional = true }
 reqsign = "0.4.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+suppaftp = { version = "4.4", features = ["async-secure"], optional = true }
 thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }

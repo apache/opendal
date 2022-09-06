@@ -16,7 +16,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::ipfs;
+use opendal::services::ipmfs;
 use opendal::Operator;
 
 #[tokio::main]
@@ -36,7 +36,7 @@ Available Environment Values:
 "#
     );
 
-    let mut builder = ipfs::Builder::default();
+    let mut builder = ipmfs::Builder::default();
     // root must be absolute path in MFS.
     builder.root(&env::var("OPENDAL_IPFS_ROOT").unwrap_or_else(|_| "/".to_string()));
     builder.endpoint(

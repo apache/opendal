@@ -13,35 +13,23 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Result;
-use std::mem;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::task::Context;
-use std::task::Poll;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::header::CONTENT_LENGTH;
 use http::StatusCode;
 use isahc::AsyncBody;
-use isahc::AsyncReadResponseExt;
-use log::debug;
 use log::info;
-use radix_trie::Trie;
-use radix_trie::TrieCommon;
 
 use super::error::parse_error;
+use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_md5;
 use crate::http_util::parse_error_response;
@@ -49,22 +37,15 @@ use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::HttpClient;
-use crate::io_util::unshared_reader;
 use crate::ops::BytesRange;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
-use crate::ops::OpWrite;
 use crate::ops::Operation;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
@@ -74,7 +55,6 @@ use crate::Scheme;
 pub struct Builder {
     endpoint: Option<String>,
     root: Option<String>,
-    index: Trie<String, ()>,
 }
 
 impl Debug for Builder {
@@ -82,7 +62,6 @@ impl Debug for Builder {
         let mut de = f.debug_struct("Builder");
         de.field("endpoint", &self.endpoint);
         de.field("root", &self.root);
-        de.field("index", &format!("length: {}", self.index.len()));
 
         de.finish()
     }
@@ -113,51 +92,6 @@ impl Builder {
         self
     }
 
-    pub(crate) fn insert_path(&mut self, path: &str) {
-        for (idx, _) in path.match_indices('/') {
-            let p = path[..=idx].to_string();
-            if self.index.get(&p).is_none() {
-                debug!("insert path {} into index", p);
-                self.index.insert(p, ());
-            }
-        }
-        if self.index.get(path).is_none() {
-            debug!("insert path {} into index", path);
-            self.index.insert(path.to_string(), ());
-        }
-    }
-
-    /// Insert index into backend.
-    pub fn insert_index(&mut self, key: &str) -> &mut Self {
-        if key.is_empty() {
-            return self;
-        }
-
-        let key = if let Some(stripped) = key.strip_prefix('/') {
-            stripped.to_string()
-        } else {
-            key.to_string()
-        };
-
-        self.insert_path(&key);
-
-        self
-    }
-
-    /// Extend index from an iterator.
-    pub fn extend_index<'a>(&mut self, it: impl Iterator<Item = &'a str>) -> &mut Self {
-        for k in it.filter(|v| !v.is_empty()) {
-            let k = if let Some(stripped) = k.strip_prefix('/') {
-                stripped.to_string()
-            } else {
-                k.to_string()
-            };
-
-            self.insert_path(&k);
-        }
-        self
-    }
-
     /// Build a HTTP backend.
     pub fn build(&mut self) -> Result<Backend> {
         info!("backend build started: {:?}", &self);
@@ -182,7 +116,6 @@ impl Builder {
             endpoint: endpoint.to_string(),
             root,
             client,
-            index: Arc::new(Mutex::new(mem::take(&mut self.index))),
         })
     }
 }
@@ -193,7 +126,6 @@ pub struct Backend {
     endpoint: String,
     root: String,
     client: HttpClient,
-    index: Arc<Mutex<Trie<String, ()>>>,
 }
 
 impl Debug for Backend {
@@ -202,13 +134,6 @@ impl Debug for Backend {
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
             .field("client", &self.client)
-            .field(
-                "index",
-                &format!(
-                    "length = {}",
-                    self.index.lock().expect("lock must succeed").len()
-                ),
-            )
             .finish()
     }
 }
@@ -228,23 +153,6 @@ impl Backend {
 
         builder.build()
     }
-
-    pub(crate) fn insert_path(&self, path: &str) {
-        let mut index = self.index.lock().expect("lock must succeed");
-
-        for (idx, _) in path.match_indices('/') {
-            let p = path[..=idx].to_string();
-
-            if index.get(&p).is_none() {
-                debug!("insert path {} into index", p);
-                index.insert(p, ());
-            }
-        }
-        if index.get(path).is_none() {
-            debug!("insert path {} into index", path);
-            index.insert(path.to_string(), ());
-        }
-    }
 }
 
 #[async_trait]
@@ -253,32 +161,9 @@ impl Accessor for Backend {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
-            .set_capabilities(None);
+            .set_capabilities(AccessorCapability::Read);
 
         ma
-    }
-
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, args.path());
-
-        let req = self.http_put(&p, AsyncBody::from_bytes_static("")).await?;
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Create, args.path(), e))?;
-
-        match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => {
-                self.insert_path(args.path());
-                Ok(())
-            }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, args.path(), er);
-                Err(err)
-            }
-        }
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
@@ -291,38 +176,6 @@ impl Accessor for Backend {
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Read, args.path(), er);
-                Err(err)
-            }
-        }
-    }
-
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = build_rooted_abs_path(&self.root, args.path());
-
-        let req = self
-            .http_put(
-                &p,
-                AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
-            )
-            .await?;
-
-        let mut resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Write, args.path(), e))?;
-
-        match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => {
-                self.insert_path(args.path());
-                resp.consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
-                Ok(args.size())
-            }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, args.path(), er);
                 Err(err)
             }
         }
@@ -390,73 +243,6 @@ impl Accessor for Backend {
             }
         }
     }
-
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, args.path());
-
-        let resp = self.http_delete(&p).await?;
-
-        match resp.status() {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                self.index.lock().expect("lock succeed").remove(args.path());
-                Ok(())
-            }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, args.path(), er);
-                Err(err)
-            }
-        }
-    }
-
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = args.path();
-        if path == "/" {
-            path = ""
-        }
-
-        let paths = match self.index.lock().expect("lock succeed").subtrie(path) {
-            None => HashSet::new(),
-            Some(trie) => trie
-                .keys()
-                .filter_map(|k| {
-                    let k = k.as_str();
-
-                    // `/xyz` should not belong to `/abc`
-                    if !k.starts_with(&path) {
-                        return None;
-                    }
-
-                    // We should remove `/abc` if self
-                    if k == path {
-                        return None;
-                    }
-
-                    match k[path.len()..].find('/') {
-                        // File `/abc/def.csv` must belong to `/abc`
-                        None => Some(k.to_string()),
-                        Some(idx) => {
-                            // The index of first `/` after `/abc`.
-                            let dir_idx = idx + 1 + path.len();
-
-                            if dir_idx == k.len() {
-                                // Dir `/abc/def/` belongs to `/abc/`
-                                Some(k.to_string())
-                            } else {
-                                None
-                            }
-                        }
-                    }
-                })
-                .collect::<HashSet<_>>(),
-        };
-
-        Ok(Box::new(DirStream {
-            backend: Arc::new(self.clone()),
-            paths: paths.into_iter().collect(),
-            idx: 0,
-        }))
-    }
 }
 
 impl Backend {
@@ -501,78 +287,11 @@ impl Backend {
             .await
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
-
-    pub(crate) async fn http_put(
-        &self,
-        path: &str,
-        body: AsyncBody,
-    ) -> Result<isahc::Request<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
-
-        let mut req = isahc::Request::put(&url);
-
-        if let Some(content_length) = body.len() {
-            req = req.header(CONTENT_LENGTH, content_length)
-        }
-
-        // Set body
-        let req = req
-            .body(body)
-            .map_err(|e| new_request_build_error(Operation::Write, path, e))?;
-
-        Ok(req)
-    }
-
-    pub(crate) async fn http_delete(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
-
-        let req = isahc::Request::delete(&url);
-
-        // Set body
-        let req = req
-            .body(AsyncBody::empty())
-            .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
-
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
-    }
-}
-
-struct DirStream {
-    backend: Arc<Backend>,
-    paths: Vec<String>,
-    idx: usize,
-}
-
-impl futures::Stream for DirStream {
-    type Item = Result<DirEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.idx >= self.paths.len() {
-            return Poll::Ready(None);
-        }
-
-        let idx = self.idx;
-        self.idx += 1;
-
-        let path = self.paths.get(idx).expect("path must valid");
-
-        let de = if path.ends_with('/') {
-            DirEntry::new(self.backend.clone(), ObjectMode::DIR, path)
-        } else {
-            DirEntry::new(self.backend.clone(), ObjectMode::FILE, path)
-        };
-
-        Poll::Ready(Some(Ok(de)))
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use futures::TryStreamExt;
     use wiremock::matchers::method;
     use wiremock::matchers::path;
     use wiremock::Mock;
@@ -596,7 +315,6 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        builder.insert_index("/hello");
         let op = Operator::new(builder.build()?);
 
         let bs = op.object("hello").read().await?;
@@ -619,43 +337,12 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        builder.insert_index("/hello");
         let op = Operator::new(builder.build()?);
 
         let bs = op.object("hello").metadata().await?;
 
         assert_eq!(bs.mode(), ObjectMode::FILE);
         assert_eq!(bs.content_length(), 128);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_list() -> Result<()> {
-        let _ = env_logger::builder().is_test(true).try_init();
-
-        let mock_server = MockServer::start().await;
-
-        let mut expected = vec!["another/", "hello", "world"];
-
-        let mut builder = Builder::default();
-        builder.endpoint(&mock_server.uri());
-        builder.root("/");
-        for s in expected.iter() {
-            builder.insert_index(s);
-        }
-
-        let op = Operator::new(builder.build()?);
-
-        let bs = op.object("/").list().await?;
-        let paths = bs.try_collect::<Vec<_>>().await?;
-        let mut paths = paths
-            .into_iter()
-            .map(|v| v.path().to_string())
-            .collect::<Vec<_>>();
-
-        paths.sort_unstable();
-        expected.sort_unstable();
-        assert_eq!(paths, expected);
         Ok(())
     }
 }

@@ -26,13 +26,13 @@ use http::StatusCode;
 use isahc::AsyncReadResponseExt;
 use serde::Deserialize;
 
+use super::error::parse_error;
 use super::Backend;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
-use crate::services::ipfs::error::parse_error;
 use crate::DirEntry;
 use crate::ObjectMode;
 

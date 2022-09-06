@@ -37,17 +37,19 @@ pub enum Scheme {
     #[cfg(feature = "services-hdfs")]
     Hdfs,
     /// [http][crate::services::http]: HTTP backend.
-    #[cfg(feature = "services-http")]
     Http,
-    /// [ipfs][crate::services::ipfs]: IPFS mutable file system
-    Ipfs,
+    /// [ftp][crate::services::ftp]: FTP backend.
+    #[cfg(feature = "services-ftp")]
+    Ftp,
+    /// [ipmfs][crate::services::ipmfs]: IPFS mutable file system
+    Ipmfs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [obs][crate::services::obs]: Huawei Cloud OBS services.
     Obs,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
-    /// Custom that allow users to implement services outside OpenDAL.
+    /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
     ///
@@ -77,9 +79,10 @@ impl Display for Scheme {
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => write!(f, "hdfs"),
             Scheme::Gcs => write!(f, "gcs"),
-            #[cfg(feature = "services-http")]
             Scheme::Http => write!(f, "http"),
-            Scheme::Ipfs => write!(f, "ipfs"),
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => write!(f, "ftp"),
+            Scheme::Ipmfs => write!(f, "ipmfs"),
             Scheme::Memory => write!(f, "memory"),
             Scheme::Obs => write!(f, "obs"),
             Scheme::S3 => write!(f, "s3"),
@@ -99,9 +102,10 @@ impl FromStr for Scheme {
             "gcs" => Ok(Scheme::Gcs),
             #[cfg(feature = "services-hdfs")]
             "hdfs" => Ok(Scheme::Hdfs),
-            #[cfg(feature = "services-http")]
             "http" | "https" => Ok(Scheme::Http),
-            "ipfs" => Ok(Scheme::Ipfs),
+            #[cfg(feature = "services-ftp")]
+            "ftp" => Ok(Scheme::Ftp),
+            "ipmfs" => Ok(Scheme::Ipmfs),
             "memory" => Ok(Scheme::Memory),
             "obs" => Ok(Scheme::Obs),
             "s3" => Ok(Scheme::S3),
@@ -118,9 +122,10 @@ impl From<Scheme> for &'static str {
             Scheme::Gcs => "gcs",
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => "hdfs",
-            #[cfg(feature = "services-http")]
             Scheme::Http => "http",
-            Scheme::Ipfs => "ipfs",
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp => "ftp",
+            Scheme::Ipmfs => "ipmfs",
             Scheme::Memory => "memory",
             Scheme::Obs => "obs",
             Scheme::S3 => "s3",

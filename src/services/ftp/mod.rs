@@ -12,19 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! IPFS file system support.
+//! FTP support for OpenDAL.
 //!
 //! # Configuration
 //!
+//! - `endpoint`: set the endpoint for connection
+//! - `port` : set the port for connection
 //! - `root`: Set the work directory for backend
-//! - `endpoint`: Customizable endpoint setting
+//! - `credential`:  login credentials
+//! - `tls`: tls mode
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
 //! # Environment
-//!
-//! - `OPENDAL_IPFS_ROOT`    optional
-//! - `OPENDAL_IPFS_ENDPOINT`  optional
+//!   
+//! - `OPENDAL_FTP_ENDPOINT`    optional
+//! - `OPENDAL_FTP_ROOT`    required
+//! - `OPENDAL_FTP_PORT`    optional
+//! - `OPENDAL_FTP_NAME`  optional
+//! - `OPENDAL_FTP_PWD`    optional
 //!
 //! # Example
 //!
@@ -33,10 +39,12 @@
 //! Set environment correctly:
 //!
 //! ```shell
-//! export OPENDAL_IPFS_ROOT=/path/to/root
-//! export OPENDAL_IPFS_ENDPOINT=http://127.0.0.1:5001
+//! export OPENDAL_FTP_ENDPOINT=endpoint    # required  
+//! export OPENDAL_FTP_Port=port      # default with 21
+//! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/ftp"
+//! export OPENDAL_FTP_NAME=name    # default with empty string ""
+//! export OPENDAL_FTP_PWD=password    # default with  empty string ""
 //! ```
-//!
 //! ```no_run
 //! use anyhow::Result;
 //! use opendal::Object;
@@ -45,7 +53,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Ipfs)?;
+//!     let op: Operator = Operator::from_env(Scheme::Ftp)?;
 //!
 //!     // create an object handler to start operation on it.
 //!     let _op: Object = op.object("test_file");
@@ -58,32 +66,25 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::ipfs;
+//! use opendal::services::ftp;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = ipfs::Builder::default();
+//!     let mut builder = ftp::Builder::default();
 //!
-//!     // set the storage bucket for OpenDAL
-//!     builder.endpoint("http://127.0.0.1:5001");
+//!     builder.endpoint("127.0.0.1");
 //!
 //!     let op: Operator = Operator::new(builder.build()?);
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
+//!     let _obj: Object = op.object("test_file");
 //!     Ok(())
 //! }
 //! ```
 
 mod backend;
 pub use backend::Backend;
-
-mod builder;
-pub use builder::Builder;
-
+pub use backend::Builder;
 mod dir_stream;
-mod error;
+mod err;

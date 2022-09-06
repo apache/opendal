@@ -31,6 +31,7 @@ use serde::Deserialize;
 use super::builder::Builder;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::http_util::new_request_build_error;
@@ -101,7 +102,11 @@ impl Backend {
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::Ipfs).set_root(&self.root);
+        am.set_scheme(Scheme::Ipmfs)
+            .set_root(&self.root)
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
 
         am
     }

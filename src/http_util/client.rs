@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
-
 use super::AsyncBody;
 use super::Body;
 use crate::io_util::into_reader;
 use futures::TryStreamExt;
-use http::{Response};
-use http::{Request};
-use reqwest::{Url};
+use http::Request;
+use http::Response;
+use reqwest::Url;
 use std::io::{Error, ErrorKind, Result};
-use std::mem;
 use std::str::FromStr;
 
 /// HttpClient that used across opendal.
@@ -90,7 +87,7 @@ impl HttpClient {
     pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<AsyncBody>> {
         let (parts, body) = req.into_parts();
 
-        let mut resp = self
+        let resp = self
             .async_client
             .request(
                 parts.method,
@@ -102,9 +99,7 @@ impl HttpClient {
             .send()
             .await
             .map_err(|err| {
-                let kind = if err.is_timeout() {
-                    ErrorKind::Interrupted
-                } else if err.is_connect() {
+                let kind = if err.is_timeout() || err.is_connect() {
                     ErrorKind::Interrupted
                 } else {
                     ErrorKind::Other
@@ -116,14 +111,14 @@ impl HttpClient {
         let mut hr = Response::builder()
             .version(resp.version())
             .status(resp.status());
-        mem::swap(&mut resp.headers_mut(), &mut hr.headers_mut().unwrap());
+        for (k, v) in resp.headers().iter() {
+            hr = hr.header(k, v);
+        }
 
         let resp = hr
             .body(AsyncBody::Reader(Box::new(into_reader(
                 resp.bytes_stream().map_err(|err| {
-                    let kind = if err.is_timeout() {
-                        ErrorKind::Interrupted
-                    } else if err.is_connect() {
+                    let kind = if err.is_timeout() || err.is_connect() {
                         ErrorKind::Interrupted
                     } else {
                         ErrorKind::Other

@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::io_util::into_stream;
 use crate::{BlockingBytesReader, BytesReader};
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use futures::AsyncRead;
-use std::io::Read;
+use std::cmp::min;
 use std::io::Result;
+use std::io::{Read, Write};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+/// Body used in blocking HTTP requests.
 pub enum Body {
     Empty,
     #[allow(unused)]
@@ -28,6 +31,7 @@ pub enum Body {
 }
 
 impl Body {
+    /// Consume the entire body.
     #[allow(unused)]
     pub fn consume(self) -> Result<()> {
         if let Body::Reader(mut r) = self {
@@ -39,18 +43,34 @@ impl Body {
 }
 
 impl Read for Body {
-    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
-        todo!()
+    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
+        match self {
+            Body::Empty => Ok(0),
+            Body::Bytes(bs) => {
+                let size = min(bs.len(), buf.len());
+                let rbs = bs.split_to(size);
+                bs.advance(size);
+
+                buf.write_all(&rbs).expect("write all must succeed");
+                Ok(size)
+            }
+            Body::Reader(r) => r.read(buf),
+        }
     }
 }
 
+/// Body used in async HTTP requests.
 pub enum AsyncBody {
+    /// An empty body.
     Empty,
+    /// Body with bytes.
     Bytes(Bytes),
+    /// Body with a Reader.
     Reader(BytesReader),
 }
 
 impl AsyncBody {
+    /// Consume the entire body.
     pub async fn consume(self) -> Result<()> {
         use futures::io;
 
@@ -61,6 +81,7 @@ impl AsyncBody {
         Ok(())
     }
 
+    /// Consume the response to bytes.
     pub async fn bytes(self) -> Result<Bytes> {
         use futures::io;
 
@@ -75,6 +96,7 @@ impl AsyncBody {
         }
     }
 
+    /// Consume the response to build a reader.
     pub fn reader(self) -> BytesReader {
         use futures::io::Cursor;
 
@@ -86,18 +108,33 @@ impl AsyncBody {
     }
 }
 
-impl Into<reqwest::Body> for AsyncBody {
-    fn into(self) -> reqwest::Body {
-        todo!()
+impl From<AsyncBody> for reqwest::Body {
+    fn from(v: AsyncBody) -> Self {
+        match v {
+            AsyncBody::Empty => reqwest::Body::from(""),
+            AsyncBody::Bytes(bs) => reqwest::Body::from(bs),
+            AsyncBody::Reader(r) => reqwest::Body::wrap_stream(into_stream(r, 8 * 1024)),
+        }
     }
 }
 
 impl AsyncRead for AsyncBody {
     fn poll_read(
         self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        _buf: &mut [u8],
+        cx: &mut Context<'_>,
+        mut buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        todo!()
+        match self.get_mut() {
+            AsyncBody::Empty => Poll::Ready(Ok(0)),
+            AsyncBody::Bytes(bs) => {
+                let size = min(bs.len(), buf.len());
+                let rbs = bs.split_to(size);
+                bs.advance(size);
+
+                buf.write_all(&rbs).expect("write all must succeed");
+                Poll::Ready(Ok(size))
+            }
+            AsyncBody::Reader(r) => Pin::new(r).poll_read(cx, buf),
+        }
     }
 }

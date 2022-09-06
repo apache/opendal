@@ -59,7 +59,7 @@ jobs:
 
           mkdir /tmp/static
           cp -r testdata/* /tmp/static
-          ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080
+          ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 &
 
       - name: Test
         shell: bash

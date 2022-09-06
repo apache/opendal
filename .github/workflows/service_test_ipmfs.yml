@@ -27,7 +27,7 @@ jobs:
           run_daemon: true
       - name: Test
         shell: bash
-        run: cargo test ipfs --features compress,layers-retry -- --nocapture
+        run: cargo test ipmfs --features compress,layers-retry -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

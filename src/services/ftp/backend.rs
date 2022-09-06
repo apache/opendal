@@ -249,6 +249,11 @@ impl Accessor for Backend {
                     ))
                 })?;
 
+            ftp_stream
+                .quit()
+                .await
+                .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
+
             return Ok(());
         }
 
@@ -261,6 +266,10 @@ impl Accessor for Backend {
                 ))
             })?;
 
+            ftp_stream
+                .quit()
+                .await
+                .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
             return Ok(());
         }
 
@@ -358,7 +367,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Write, path))?;
+            .map_err(|e| new_request_quit_err(e, Operation::Stat, path))?;
 
         // As result is not empty, we can safely use swap_remove without panic
         if !resp.is_empty() {
@@ -406,7 +415,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Write, path))?;
+            .map_err(|e| new_request_quit_err(e, Operation::Delete, path))?;
 
         Ok(())
     }
@@ -427,7 +436,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Write, path))?;
+            .map_err(|e| new_request_quit_err(e, Operation::List, path))?;
 
         let rd = ReadDir::new(files);
 
@@ -479,11 +488,6 @@ impl Backend {
                 anyhow!("change root request: {e:?}"),
             ))
         })?;
-
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_request_quit_err(e, op, &self.endpoint))?;
 
         Ok(ftp_stream)
     }

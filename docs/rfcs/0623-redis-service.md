@@ -152,12 +152,12 @@ use redis::AsyncCommands;
 // r: BytesReader
 let mut buf = vec![];
 let content_length: u64 = futures::io::copy(r, &mut buf).await?;
-let content_md5: String = self.md5(buf);
 let last_modified: String = OffsetDateTime::now().to_string();
+
+// content md5 will not be offered
 
 let mut meta = ObjectMetadata::default();
 meta.set_content_length(content_length);
-meta.set_content_md5(content_md5);
 meta.set_last_modified(last_modified);
 
 // `ObjectMetadata` has implemented the `Serialize` and `Deserialize` trait of `Serde`

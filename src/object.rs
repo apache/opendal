@@ -1066,10 +1066,10 @@ impl Object {
     /// async fn main() -> Result<()> {
     /// #    let op = Operator::from_env(Scheme::Memory)?;
     ///     let signed_req = op.object("test").presign_read(Duration::hours(1))?;
-    ///     let req = Request::builder()
+    ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
-    ///         .body(AsyncBody::Empty)?;
+    ///         .body(())?;
     ///
     /// #    Ok(())
     /// # }
@@ -1096,10 +1096,10 @@ impl Object {
     /// async fn main() -> Result<()> {
     /// #    let op = Operator::from_env(Scheme::Memory)?;
     ///     let signed_req = op.object("test").presign_write(Duration::hours(1))?;
-    ///     let req = Request::builder()
+    ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
-    ///         .body(AsyncBody::from("Hello, World!"))?;
+    ///         .body(())?;
     ///
     /// #    Ok(())
     /// # }

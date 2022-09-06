@@ -168,15 +168,14 @@ impl Builder {
             Some(v) => v.clone(),
         };
 
-        let credential = (user, password);
-
         let enable_secure = self.enable_secure;
 
         info!("ftp backend finished: {:?}", &self);
         Ok(Backend {
             endpoint: endpoint.to_string(),
             root,
-            credential,
+            user,
+            password,
             enable_secure,
         })
     }
@@ -187,7 +186,8 @@ impl Builder {
 pub struct Backend {
     endpoint: String,
     root: String,
-    credential: (String, String),
+    user: String,
+    password: String,
     enable_secure: bool,
 }
 
@@ -340,8 +340,9 @@ impl Accessor for Backend {
 
         let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
 
+        let mut meta: ObjectMetadata = ObjectMetadata::default();
+
         if path.is_empty() {
-            let mut meta = ObjectMetadata::default();
             meta.set_mode(ObjectMode::DIR);
             return Ok(meta);
         }
@@ -361,8 +362,6 @@ impl Accessor for Backend {
 
         // As result is not empty, we can safely use swap_remove without panic
         if !resp.is_empty() {
-            let mut meta = ObjectMetadata::default();
-
             let f = File::from_str(&resp.swap_remove(0))
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
             if f.is_file() {
@@ -376,11 +375,9 @@ impl Accessor for Backend {
             meta.set_content_length(f.size() as u64);
 
             meta.set_last_modified(OffsetDateTime::from(f.modified()));
-
-            Ok(meta)
-        } else {
-            Err(Error::new(ErrorKind::NotFound, "file not found"))
         }
+
+        Ok(meta)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
@@ -461,9 +458,9 @@ impl Backend {
         };
 
         // login if needed
-        if !self.credential.0.is_empty() {
+        if !self.user.is_empty() {
             ftp_stream
-                .login(&self.credential.0, &self.credential.1)
+                .login(&self.user, &self.password)
                 .await
                 .map_err(|e| {
                     other(ObjectError::new(

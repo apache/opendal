@@ -54,7 +54,7 @@ jobs:
         run: |
           VERSION="2.5.2"
 
-          curl https://github.com/caddyserver/caddy/releases/download/v${VERSION}/caddy_${VERSION}_linux_amd64.tar.gz -o caddy_linux_amd64.tar.gz
+          curl -sSL https://github.com/caddyserver/caddy/releases/download/v${VERSION}/caddy_${VERSION}_linux_amd64.tar.gz -o caddy_linux_amd64.tar.gz
           tar -xvf caddy_linux_amd64.tar.gz
 
           mkdir /tmp/static

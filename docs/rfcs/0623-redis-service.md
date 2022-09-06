@@ -50,10 +50,10 @@ The content of file will be represented directly as `String`, and metadata will 
 ```
 Object: /home/monika/poem0.txt
 
-content:  Key: c:/home/monika/poem0.txt────┐
-                                           │
-metadata: Key: m:/home/monika/poem0.txt    │
-│                                          ▼
+content:  Key: v0:c:/home/monika/poem0.txt ─┐
+                                            │
+metadata: Key: v0:m:/home/monika/poem0.txt  │
+│                                           ▼
 │   STRING                                STRING
 └► ┌──────────────────────┐              ┌────────────────────┐
    │\x00\x00\x00\x00\xe6\a│              │1JU5T3MON1K413097321│
@@ -67,12 +67,29 @@ metadata: Key: m:/home/monika/poem0.txt    │
 The [redis-rs](https://crates.io/crates/redis)'s high level APIs is preferred.
 
 ```rust
-const META_PREFIX: &str = "m:";
-const CONTENT_PREFIX: &str = "c:";
+const VERSION: usize = 0;
+
+/// meta_key will produce the key to object's metadata
+/// "/path/to/object/" -> "v{VERSION}:m:/path/to/object"
+fn meta_key(path: &str) -> String {
+    format!("v{}:m:{}", VERSION, path);
+}
+
+/// content_key will produce the key to object's content
+/// "/path/to/object/" -> "v{VERSION}:c:/path/to/object"
+fn content_key(path: &str) -> String {
+    format!("v{}:c:{}", VERSION, path);
+}
 
 let client = redis::Client::open("redis://localhost:6379")?;
 let con = client.get_async_connection()?;
 ```
+
+## Forward Compatibility
+
+All keys used will have a `v0` prefix, indicating it's using the very first version of `OpenDAL` `Redis` API.
+
+When there are changes to the layout, like refactoring the layout of storage, the version number should be updated, too. Further versions should take the compatibility with former implementations into consideration.
 
 ## Create File
 
@@ -82,8 +99,8 @@ If user is creating a file with root `/home/monika/`, and relative path `poem0.t
 // mode: ObjectMode
 // path: relative path string
 let path = get_abs_path(path);  // /home/monika/ <> /poem.txt -> /home/monika/poem.txt
-let m_path = META_PREFIX.to_string() + &path;  // path of metadata
-let c_path = CONTENT_PREFIX.to_string() + &path;  // path of content
+let m_path = meta_key(path);  // path of metadata
+let c_path = content_key(path);  // path of content
 let last_modified = OffsetDatetime::now_utc().to_string();
 
 let mut meta = ObjectMeta::default();
@@ -96,7 +113,7 @@ con.set(c_path, "".to_string())?;
 con.set(m_path, encoded.as_slice())?;
 ```
 
-This will create two key-value pair. For object content, its key is `/c/home/monika/poem0.txt`, the value is an empty `String`; For metadata, the key is `/home/monika/poem0.txt`, the value is a string to string hashmap containing tuples like `("mode", "file")`, `("last_modified", <rfc3339 timestamp string>)`.
+This will create two key-value pair. For object content, its key is `v0:c:/home/monika/poem0.txt`, the value is an empty `String`; For metadata, the key is `v0:m:/home/monika/poem0.txt`, the value is a `bincode` encoded `ObjectMetadata` structure binary string.
 
 ## Read File
 
@@ -107,7 +124,7 @@ Opendal empowers users to read with the `path` object, `offset` of the cursor an
 // offset: Option<u64>, the offset of reading
 // size: Option<u64>, the size of reading
 let path = get_abs_path(path);
-let c_path = CONTENT_PREFIX.to_string() + &path;
+let c_path = content_key(path); 
 let (mut start, mut end) = (0, -1);
 if let Some(offset) = offset {
     start = offset;
@@ -120,7 +137,7 @@ Box::new(buf)
 ```
 
 ```redis
-GET c:/home/monika/poem0.txt
+GET v0:c:/home/monika/poem0.txt
 ```
 
 ## Write File
@@ -148,16 +165,16 @@ meta.set_last_modified(last_modified);
 let bytes = bincode::encode_to_vec(&meta)?;
 
 let path = get_abs_path(args.path());
-let m_path = META_PREFIX.to_string() + &path;
-let c_path = CONTENT_PREFIX.to_string() + &path;
+let m_path = meta_key(path);
+let c_path = content_key(path);
 
 con.set(c_path, content).await?;
 con.set(m_path, bytes).await?;
 ```
 
 ```redis
-SET c:/home/monika/poem.txt content_string
-SET m:/home/monika/poem.txt <bincode encoded metadata>
+SET v0:c:/home/monika/poem.txt content_string
+SET v0:m:/home/monika/poem.txt <bincode encoded metadata>
 ```
 
 ## Stat
@@ -166,12 +183,13 @@ To get the metadata of an object, using the `GET` command and deserialize from b
 
 ```rust
 let path = get_abs_path(args.path());
-let bin: Vec<u8> = con.get(path).await?;
+let meta = meta_key(path);
+let bin: Vec<u8> = con.get(meta).await?;
 let meta: ObjectMeta = bincode::deserialize(bin.as_slice())?;
 ```
 
 ```redis
-GET m:/home/monika/poem.txt
+GET v0:m:/home/monika/poem.txt
 ```
 
 ## List
@@ -203,6 +221,8 @@ This could be done similarly to `List`, iterating on the pattern with `SCAN` and
 
 The [`RedisJSON`](https://redis.io/docs/stack/json/) module provides JSON support for Redis, and supports depth up to 128. Working on a JSON api could be easier than manually parsing or deserializing from `HASH`.
 
+Since `bincode` also offers the ability of deserializing and serializing, `RedisJSON` won't be used.
+
 # Prior art
 
 None
@@ -215,7 +235,6 @@ None
 
 The implementation proposed here is far from perfect. 
 
-- versioning
 - The data organization could be optimized to make it acts more like a filesystem
 - Making a customized redis module to calculate metadata on redis side
 - Wait for stable and bump to `bincode` 2.0.

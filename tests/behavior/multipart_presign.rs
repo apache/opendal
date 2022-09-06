@@ -99,6 +99,7 @@ pub async fn test_presign_write_multipart(op: Operator) -> Result<()> {
         req = req.header(k, v);
     }
     req = req.header(header::CONTENT_LENGTH, content.len());
+    req = req.body(reqwest::Body::from(content));
 
     let resp = req.send().await.expect("send request must succeed");
     let etag = resp

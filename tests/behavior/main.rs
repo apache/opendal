@@ -13,26 +13,27 @@
 // limitations under the License.
 
 #[macro_use]
-mod read;
+mod base;
+#[macro_use]
+mod blocking_list;
 #[macro_use]
 mod blocking_read;
-mod utils;
-#[macro_use]
-mod write;
 #[macro_use]
 mod blocking_write;
 #[macro_use]
-mod base;
-#[macro_use]
 mod list;
-#[macro_use]
-mod presign;
-#[macro_use]
-mod blocking_list;
 #[macro_use]
 mod multipart;
 #[macro_use]
 mod multipart_presign;
+#[macro_use]
+mod presign;
+#[macro_use]
+mod read;
+#[macro_use]
+mod write;
+
+mod utils;
 
 /// Generate real test cases.
 /// Update function list while changed.

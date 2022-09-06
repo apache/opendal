@@ -49,10 +49,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # caddy 2.5.2 can't pass our test cases for https://github.com/caddyserver/caddy/issues/4923
+      # Use the latest beta version instead
       - name: Start caddy
         shell: bash
         run: |
-          VERSION="2.5.2"
+          VERSION="2.6.0-beta.3"
 
           curl -sSL https://github.com/caddyserver/caddy/releases/download/v${VERSION}/caddy_${VERSION}_linux_amd64.tar.gz -o caddy_linux_amd64.tar.gz
           tar -xvf caddy_linux_amd64.tar.gz

@@ -38,4 +38,4 @@ jobs:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_HTTP_TEST: on
-          OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:80
+          OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080

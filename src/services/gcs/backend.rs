@@ -23,8 +23,8 @@ use crate::http_util::AsyncBody;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
-use http::Request;
 use http::StatusCode;
+use http::{Request, Response};
 use log::debug;
 use log::info;
 use reqsign::services::google::Signer;
@@ -423,7 +423,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::get(&url);
+        let mut req = Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -444,7 +444,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
 
         self.signer
@@ -484,10 +484,7 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn get_object_metadata(
-        &self,
-        path: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    pub(crate) async fn get_object_metadata(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
@@ -495,7 +492,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::get(&url);
+        let req = Request::get(&url);
 
         let mut req = req
             .body(AsyncBody::Empty)
@@ -511,7 +508,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    pub(crate) async fn delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
@@ -519,7 +516,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::delete(&url)
+        let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
 
@@ -537,7 +534,7 @@ impl Backend {
         &self,
         path: &str,
         page_token: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut url = format!(
             "{}/storage/v1/b/{}/o?delimiter=/&prefix={}",
             self.endpoint,
@@ -555,7 +552,7 @@ impl Backend {
                 .expect("write into string must succeed");
         }
 
-        let mut req = isahc::Request::get(&url)
+        let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::List, path, e))?;
 

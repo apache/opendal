@@ -88,10 +88,10 @@ pub async fn test_presign_write_multipart(op: Operator) -> Result<()> {
     let signed_req = mp.presign_write(1, Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = isahc::Request::builder()
+    let mut req = Request::builder()
         .method(signed_req.method())
         .uri(signed_req.uri())
-        .body(isahc::AsyncBody::from_bytes_static(content.clone()))
+        .body(AsyncBody::from_bytes_static(content.clone()))
         .expect("build request must succeed");
     *req.headers_mut() = signed_req.header().clone();
     req.headers_mut().insert(
@@ -103,7 +103,7 @@ pub async fn test_presign_write_multipart(op: Operator) -> Result<()> {
             .expect("parse header must succeed"),
     );
 
-    let client = isahc::HttpClient::new().expect("must init succeed");
+    let client = HttpClient::new().expect("must init succeed");
     let resp = client
         .send_async(req)
         .await

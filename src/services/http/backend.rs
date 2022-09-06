@@ -19,7 +19,7 @@ use std::io::Result;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use http::StatusCode;
+use http::{Request, Response, StatusCode};
 use log::info;
 
 use super::error::parse_error;
@@ -255,10 +255,10 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::get(&url);
+        let mut req = Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -277,10 +277,10 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    pub(crate) async fn http_head(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
-        let req = isahc::Request::head(&url);
+        let req = Request::head(&url);
 
         let req = req
             .body(AsyncBody::Empty)

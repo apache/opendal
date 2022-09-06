@@ -26,8 +26,8 @@ use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::StatusCode;
 use http::{HeaderValue, Request};
+use http::{Response, StatusCode};
 use log::debug;
 use log::error;
 use log::info;
@@ -1146,7 +1146,7 @@ impl Backend {
     ) -> Result<Request<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::get(&url);
+        let mut req = Request::get(&url);
 
         if offset.unwrap_or_default() != 0 || size.is_some() {
             req = req.header(
@@ -1171,7 +1171,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
 
         self.signer
@@ -1192,7 +1192,7 @@ impl Backend {
     ) -> Result<Request<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::put(&url);
+        let mut req = Request::put(&url);
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -1209,10 +1209,10 @@ impl Backend {
         Ok(req)
     }
 
-    async fn head_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::head(&url);
+        let mut req = Request::head(&url);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
@@ -1231,10 +1231,10 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::delete(&url)
+        let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
 
@@ -1254,7 +1254,7 @@ impl Backend {
         &self,
         path: &str,
         continuation_token: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut url = format!(
             "{}?list-type=2&delimiter=/&prefix={}",
             self.endpoint,
@@ -1273,7 +1273,7 @@ impl Backend {
             .expect("write into string must succeed");
         }
 
-        let mut req = isahc::Request::get(&url)
+        let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::List, path, e))?;
 
@@ -1287,10 +1287,10 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::List, path, e))
     }
 
-    async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(path));
 
-        let req = isahc::Request::post(&url);
+        let req = Request::post(&url);
 
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
@@ -1347,7 +1347,7 @@ impl Backend {
         path: &str,
         upload_id: &str,
         parts: &[ObjectPart],
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/{}?uploadId={}",
             self.endpoint,
@@ -1355,7 +1355,7 @@ impl Backend {
             upload_id
         );
 
-        let req = isahc::Request::post(&url);
+        let req = Request::post(&url);
 
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
@@ -1399,7 +1399,7 @@ impl Backend {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/{}?uploadId={}",
             self.endpoint,
@@ -1407,7 +1407,7 @@ impl Backend {
             upload_id,
         );
 
-        let mut req = isahc::Request::delete(&url)
+        let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::AbortMultipart, path, e))?;
 

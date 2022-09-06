@@ -22,8 +22,8 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::io;
-use http::Response;
 use http::StatusCode;
+use http::{Request, Response};
 use serde::Deserialize;
 
 use super::builder::Builder;
@@ -274,7 +274,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Stat, path, err))?;
@@ -303,7 +303,7 @@ impl Backend {
             write!(url, "&count={count}").expect("write into string must succeed")
         }
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Read, path, err))?;
@@ -321,7 +321,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
@@ -339,7 +339,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
@@ -357,7 +357,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Create, path, err))?;
@@ -376,7 +376,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::post(url);
+        let mut req = Request::post(url);
 
         req = req.header(
             http::header::CONTENT_TYPE,

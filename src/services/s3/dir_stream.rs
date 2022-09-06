@@ -20,10 +20,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
-use bytes::Buf;
+use bytes::{Buf, Bytes};
 use futures::future::BoxFuture;
 use futures::ready;
-use isahc::AsyncReadResponseExt;
 use quick_xml::de;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
@@ -51,7 +50,7 @@ pub struct DirStream {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<Vec<u8>>>),
+    Sending(BoxFuture<'static, Result<Bytes>>),
     Listing((Output, usize, usize)),
 }
 
@@ -89,7 +88,7 @@ impl futures::Stream for DirStream {
                         return Err(err);
                     }
 
-                    let bs = resp.bytes().await.map_err(|e| {
+                    let bs = resp.into_body().bytes().await.map_err(|e| {
                         other(ObjectError::new(
                             Operation::List,
                             &path,

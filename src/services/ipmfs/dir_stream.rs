@@ -19,11 +19,11 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
 use http::StatusCode;
-use isahc::AsyncReadResponseExt;
 use serde::Deserialize;
 
 use super::error::parse_error;
@@ -45,7 +45,7 @@ pub struct DirStream {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, io::Result<Vec<u8>>>),
+    Sending(BoxFuture<'static, io::Result<Bytes>>),
     Listing((Vec<IpfsLsResponseEntry>, usize)),
 }
 
@@ -79,7 +79,7 @@ impl futures::Stream for DirStream {
                         return Err(err);
                     }
 
-                    let bs = resp.bytes().await.map_err(|e| {
+                    let bs = resp.into_body().bytes().await.map_err(|e| {
                         other(ObjectError::new(
                             Operation::List,
                             &path,

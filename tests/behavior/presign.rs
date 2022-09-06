@@ -15,12 +15,12 @@
 use std::io::Result;
 
 use http::header;
-use isahc::AsyncReadResponseExt;
 use log::debug;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
 use time::Duration;
+use AsyncReadResponseExt;
 
 use super::utils::*;
 
@@ -81,10 +81,10 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     let signed_req = op.object(&path).presign_write(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = isahc::Request::builder()
+    let mut req = Request::builder()
         .method(signed_req.method())
         .uri(signed_req.uri())
-        .body(isahc::AsyncBody::from_bytes_static(content.clone()))
+        .body(AsyncBody::from_bytes_static(content.clone()))
         .expect("build request must succeed");
     *req.headers_mut() = signed_req.header().clone();
     req.headers_mut().insert(
@@ -96,7 +96,7 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
             .expect("parse header must succeed"),
     );
 
-    let client = isahc::HttpClient::new().expect("must init succeed");
+    let client = HttpClient::new().expect("must init succeed");
     let _ = client
         .send_async(req)
         .await
@@ -130,14 +130,14 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     let signed_req = op.object(&path).presign_read(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = isahc::Request::builder()
+    let mut req = Request::builder()
         .method(signed_req.method())
         .uri(signed_req.uri())
-        .body(isahc::AsyncBody::empty())
+        .body(AsyncBody::empty())
         .expect("build request must succeed");
     *req.headers_mut() = signed_req.header().clone();
 
-    let client = isahc::HttpClient::new().expect("must init succeed");
+    let client = HttpClient::new().expect("must init succeed");
     let mut resp = client
         .send_async(req)
         .await

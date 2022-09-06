@@ -18,7 +18,7 @@ all-features = true
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable rustls support.
-rustls = ["isahc/rustls-tls", "isahc/rustls-tls-native-certs"]
+rustls = ["reqwest/rustls-tls", "reqwest/rustls-tls-native-roots"]
 # Enable serde support.
 serde = ["time/serde"]
 
@@ -67,8 +67,8 @@ anyhow = { version = "1.0", features = ["std"] }
 async-compat = "0.2"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
 async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
-  "futures-io",
-  "all-algorithms",
+    "futures-io",
+    "all-algorithms",
 ], optional = true }
 async-trait = "0.1"
 backon = { version = "0.0.2", optional = true }
@@ -79,7 +79,6 @@ flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.1", optional = true, features = ["futures-io"] }
 http = "0.2"
-isahc = { package = "isahc-opendal-workaround", version = "2.0.0-opendal.1" }
 log = "0.4"
 md5 = "0.7"
 metrics = { version = "0.20", optional = true }
@@ -96,15 +95,15 @@ thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
-reqwest = { version = "0.11", features = ["stream"]}
+reqwest = { version = "0.11", features = ["stream"] }
 ureq = "2.5"
 
 [dev-dependencies]
 cfg-if = "1.0"
 criterion = { version = "0.3", features = [
-  "async",
-  "async_tokio",
-  "html_reports",
+    "async",
+    "async_tokio",
+    "html_reports",
 ] }
 dotenv = "0.15"
 env_logger = "0.9"

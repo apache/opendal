@@ -129,7 +129,6 @@ impl Operator {
             Scheme::Fs => services::fs::Backend::from_iter(it)?.into(),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => services::hdfs::Backend::from_iter(it)?.into(),
-            #[cfg(feature = "services-http")]
             Scheme::Http => services::http::Backend::from_iter(it)?.into(),
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => services::ftp::Backend::from_iter(it)?.into(),

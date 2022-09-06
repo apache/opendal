@@ -37,7 +37,6 @@ pub enum Scheme {
     #[cfg(feature = "services-hdfs")]
     Hdfs,
     /// [http][crate::services::http]: HTTP backend.
-    #[cfg(feature = "services-http")]
     Http,
     /// [ftp][crate::services::ftp]: FTP backend.
     #[cfg(feature = "services-ftp")]
@@ -80,7 +79,6 @@ impl Display for Scheme {
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => write!(f, "hdfs"),
             Scheme::Gcs => write!(f, "gcs"),
-            #[cfg(feature = "services-http")]
             Scheme::Http => write!(f, "http"),
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => write!(f, "ftp"),
@@ -104,7 +102,6 @@ impl FromStr for Scheme {
             "gcs" => Ok(Scheme::Gcs),
             #[cfg(feature = "services-hdfs")]
             "hdfs" => Ok(Scheme::Hdfs),
-            #[cfg(feature = "services-http")]
             "http" | "https" => Ok(Scheme::Http),
             #[cfg(feature = "services-ftp")]
             "ftp" => Ok(Scheme::Ftp),
@@ -125,7 +122,6 @@ impl From<Scheme> for &'static str {
             Scheme::Gcs => "gcs",
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => "hdfs",
-            #[cfg(feature = "services-http")]
             Scheme::Http => "http",
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => "ftp",

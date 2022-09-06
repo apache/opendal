@@ -26,7 +26,6 @@ pub mod ftp;
 pub mod gcs;
 #[cfg(feature = "services-hdfs")]
 pub mod hdfs;
-#[cfg(feature = "services-http")]
 pub mod http;
 pub mod ipmfs;
 pub mod memory;

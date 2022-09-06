@@ -17,7 +17,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Read;
 use std::io::Result;
 use std::str;
 use std::str::FromStr;
@@ -25,17 +24,18 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::io::Cursor;
-use futures::lock::Mutex;
+use futures::io::copy;
 use futures::AsyncReadExt;
 use log::info;
+use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
-use suppaftp::native_tls::TlsConnector;
 use suppaftp::FtpStream;
 use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
+use super::err::new_request_connection_err;
+use super::err::new_request_quit_err;
 use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
@@ -168,46 +168,14 @@ impl Builder {
             Some(v) => v.clone(),
         };
 
-        let credential = (user, password);
-
         let enable_secure = self.enable_secure;
-
-        let mut ftp_stream = FtpStream::connect(&endpoint).map_err(|e| {
-            other(BackendError::new(
-                HashMap::from([("connection".to_string(), endpoint.clone())]),
-                anyhow!(e),
-            ))
-        })?;
-
-        // switch to secure mode if ssl/tls is on.
-        if self.enable_secure {
-            ftp_stream = ftp_stream
-                .into_secure(TlsConnector::new().unwrap(), endpoint)
-                .map_err(|e| other(BackendError::new(HashMap::new(), anyhow!(e))))?;
-        }
-
-        // login if needed
-        if !credential.0.is_empty() {
-            ftp_stream
-                .login(&credential.0, &credential.1)
-                .map_err(|e| other(BackendError::new(HashMap::new(), anyhow!(e))))?;
-        }
-
-        // change to the root path
-        ftp_stream.cwd(&root).map_err(|e| {
-            other(BackendError::new(
-                HashMap::from([("root".to_string(), root.clone())]),
-                anyhow!(e),
-            ))
-        })?;
-
-        let client = ftp_stream;
 
         info!("ftp backend finished: {:?}", &self);
         Ok(Backend {
             endpoint: endpoint.to_string(),
             root,
-            client: Arc::new(Mutex::new(client)),
+            user,
+            password,
             enable_secure,
         })
     }
@@ -218,7 +186,8 @@ impl Builder {
 pub struct Backend {
     endpoint: String,
     root: String,
-    client: Arc<Mutex<FtpStream>>,
+    user: String,
+    password: String,
     enable_secure: bool,
 }
 
@@ -266,24 +235,30 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = args.path();
 
-        let mut guard = self.client.lock().await;
+        let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
 
         if args.mode() == ObjectMode::FILE {
-            guard.put_file(&path, &mut "".as_bytes()).map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Create,
-                    path,
-                    anyhow!("put request: {e:?}"),
-                ))
-            })?;
+            ftp_stream
+                .put_file(&path, &mut "".as_bytes())
+                .await
+                .map_err(|e| {
+                    other(ObjectError::new(
+                        Operation::Create,
+                        path,
+                        anyhow!("put request: {e:?}"),
+                    ))
+                })?;
 
-            drop(guard);
+            ftp_stream
+                .quit()
+                .await
+                .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
 
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
-            guard.mkdir(&path).map_err(|e| {
+            ftp_stream.mkdir(&path).await.map_err(|e| {
                 other(ObjectError::new(
                     Operation::Create,
                     path,
@@ -291,8 +266,10 @@ impl Accessor for Backend {
                 ))
             })?;
 
-            drop(guard);
-
+            ftp_stream
+                .quit()
+                .await
+                .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
             return Ok(());
         }
 
@@ -301,19 +278,23 @@ impl Accessor for Backend {
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let path = args.path();
-        let mut guard = self.client.lock().await;
+
+        let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         if let Some(offset) = args.offset() {
-            guard.resume_transfer(offset as usize).map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Read,
-                    path,
-                    anyhow!("resume transfer request: {e:?}"),
-                ))
-            })?;
+            ftp_stream
+                .resume_transfer(offset as usize)
+                .await
+                .map_err(|e| {
+                    other(ObjectError::new(
+                        Operation::Read,
+                        path,
+                        anyhow!("resume transfer request: {e:?}"),
+                    ))
+                })?;
         }
 
-        let mut stream = guard.retr_as_stream(path).map_err(|e| {
+        let data_stream = ftp_stream.retr_as_stream(path).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::Read,
                 path,
@@ -321,27 +302,10 @@ impl Accessor for Backend {
             ))
         })?;
 
-        let mut buf = Vec::new();
-        let r = match args.size() {
-            None => {
-                stream.by_ref().read_to_end(&mut buf)?;
-                Box::new(Cursor::new(buf))
-            }
-            Some(size) => {
-                stream.by_ref().take(size).read_to_end(&mut buf)?;
-                Box::new(Cursor::new(buf))
-            }
+        let r: BytesReader = match args.size() {
+            None => Box::new(data_stream),
+            Some(size) => Box::new(data_stream.take(size)),
         };
-
-        guard.finalize_retr_stream(stream).map_err(|e| {
-            other(ObjectError::new(
-                Operation::Read,
-                path,
-                anyhow!("finalizing stream request: {e:?}"),
-            ))
-        })?;
-
-        drop(guard);
 
         Ok(r)
     }
@@ -349,15 +313,9 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let path = args.path();
 
-        let mut guard = self.client.lock().await;
+        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
 
-        let mut reader = Box::pin(r);
-
-        let mut buf = Vec::new();
-
-        let _byte = reader.read_to_end(&mut buf).await?;
-
-        let n = guard.append_file(path, &mut buf.as_slice()).map_err(|e| {
+        let mut data_stream = ftp_stream.append_with_stream(path).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::Write,
                 path,
@@ -365,23 +323,40 @@ impl Accessor for Backend {
             ))
         })?;
 
-        drop(guard);
+        let bytes = copy(r, &mut data_stream).await?;
 
-        Ok(n)
+        ftp_stream
+            .finalize_put_stream(data_stream)
+            .await
+            .map_err(|e| {
+                other(ObjectError::new(
+                    Operation::Write,
+                    path,
+                    anyhow!("finalize put request: {e:?}"),
+                ))
+            })?;
+
+        ftp_stream
+            .quit()
+            .await
+            .map_err(|e| new_request_quit_err(e, Operation::Write, path))?;
+
+        Ok(bytes)
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         let path = args.path();
 
+        let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
+
+        let mut meta: ObjectMetadata = ObjectMetadata::default();
+
         if path.is_empty() {
-            let mut meta = ObjectMetadata::default();
             meta.set_mode(ObjectMode::DIR);
             return Ok(meta);
         }
 
-        let mut guard = self.client.lock().await;
-
-        let mut resp = guard.list(Some(path)).map_err(|e| {
+        let mut resp = ftp_stream.list(Some(path)).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::Stat,
                 path,
@@ -389,11 +364,13 @@ impl Accessor for Backend {
             ))
         })?;
 
-        drop(guard);
+        ftp_stream
+            .quit()
+            .await
+            .map_err(|e| new_request_quit_err(e, Operation::Stat, path))?;
+
         // As result is not empty, we can safely use swap_remove without panic
         if !resp.is_empty() {
-            let mut meta = ObjectMetadata::default();
-
             let f = File::from_str(&resp.swap_remove(0))
                 .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
             if f.is_file() {
@@ -407,20 +384,18 @@ impl Accessor for Backend {
             meta.set_content_length(f.size() as u64);
 
             meta.set_last_modified(OffsetDateTime::from(f.modified()));
-
-            Ok(meta)
-        } else {
-            Err(Error::new(ErrorKind::NotFound, "file not found"))
         }
+
+        Ok(meta)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = args.path();
 
-        let mut guard = self.client.lock().await;
+        let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
 
         if args.path().ends_with('/') {
-            guard.rmdir(&path).map_err(|e| {
+            ftp_stream.rmdir(&path).await.map_err(|e| {
                 other(ObjectError::new(
                     Operation::Delete,
                     path,
@@ -428,7 +403,7 @@ impl Accessor for Backend {
                 ))
             })?;
         } else {
-            guard.rm(&path).map_err(|e| {
+            ftp_stream.rm(&path).await.map_err(|e| {
                 other(ObjectError::new(
                     Operation::Delete,
                     path,
@@ -437,7 +412,10 @@ impl Accessor for Backend {
             })?;
         }
 
-        drop(guard);
+        ftp_stream
+            .quit()
+            .await
+            .map_err(|e| new_request_quit_err(e, Operation::Delete, path))?;
 
         Ok(())
     }
@@ -445,9 +423,9 @@ impl Accessor for Backend {
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let path = args.path();
 
-        let mut guard = self.client.lock().await;
+        let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
-        let files = guard.list(Some(path)).map_err(|e| {
+        let files = ftp_stream.list(Some(path)).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::List,
                 path,
@@ -455,10 +433,62 @@ impl Accessor for Backend {
             ))
         })?;
 
-        drop(guard);
+        ftp_stream
+            .quit()
+            .await
+            .map_err(|e| new_request_quit_err(e, Operation::List, path))?;
 
         let rd = ReadDir::new(files);
 
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), path, rd)))
+    }
+}
+
+impl Backend {
+    pub(crate) async fn ftp_connect(&self, op: Operation) -> Result<FtpStream> {
+        let stream = FtpStream::connect(&self.endpoint)
+            .await
+            .map_err(|e| new_request_connection_err(e, Operation::Delete, &self.endpoint))?;
+
+        // switch to secure mode if ssl/tls is on.
+        let mut ftp_stream = if self.enable_secure {
+            stream
+                .into_secure(TlsConnector::new(), &self.endpoint)
+                .await
+                .map_err(|e| {
+                    other(ObjectError::new(
+                        op,
+                        &self.endpoint,
+                        anyhow!("enable secure request: {e:?}"),
+                    ))
+                })?
+        } else {
+            stream
+        };
+
+        // login if needed
+        if !self.user.is_empty() {
+            ftp_stream
+                .login(&self.user, &self.password)
+                .await
+                .map_err(|e| {
+                    other(ObjectError::new(
+                        op,
+                        &self.endpoint,
+                        anyhow!("login request: {e:?}"),
+                    ))
+                })?;
+        }
+
+        // change to the root path
+        ftp_stream.cwd(&self.root).await.map_err(|e| {
+            other(ObjectError::new(
+                op,
+                &self.endpoint,
+                anyhow!("change root request: {e:?}"),
+            ))
+        })?;
+
+        Ok(ftp_stream)
     }
 }

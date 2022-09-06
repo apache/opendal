@@ -42,7 +42,7 @@ Available Environment Values:
 
     // Create fs backend builder.
     let mut builder: Builder = ftp::Builder::default();
-    builder.root(&env::var("OPENDAL_FTP_ROOT").unwrap_or_else(|_| "/ftp".to_string()));
+    builder.root(&env::var("OPENDAL_FTP_ROOT").unwrap_or_else(|_| "/".to_string()));
     // Set the root for ftp, all operations will happen under this root.
 
     // NOTE: the root must be absolute path.
@@ -62,7 +62,7 @@ Available Environment Values:
 
     // Create an object handle to start operation on object.
     info!("try to write file: {}", &path);
-    op.object(&path).write("Hello, world!").await?;
+    op.object(&path).write("Hello, world!".as_bytes()).await?;
     info!("write file successful!");
 
     info!("try to read file: {}", &path);
@@ -73,11 +73,11 @@ Available Environment Values:
     );
 
     info!("try to write to file: {}", &path);
-    op.object(&path).write("write test").await?;
+    op.object(&path).write("write test".as_bytes()).await?;
     info!("write to file successful!",);
 
     info!("try to read file content between 5-10: {}", &path);
-    let content = op.object(&path).range_read(5..10).await?;
+    let content = op.object(&path).range_read(..5).await?;
     info!(
         "read file successful, content: {}",
         String::from_utf8_lossy(&content)

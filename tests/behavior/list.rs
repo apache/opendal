@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::io::Result;
 
-use super::utils::*;
 use futures::TryStreamExt;
 use log::debug;
 use opendal::ObjectMode;
 use opendal::Operator;
-use std::collections::HashMap;
+
+use super::utils::*;
 
 /// Test services that meet the following capability:
 ///

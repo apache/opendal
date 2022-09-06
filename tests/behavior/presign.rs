@@ -14,7 +14,6 @@
 
 use std::io::Result;
 
-use super::utils::*;
 use http::header;
 use isahc::AsyncReadResponseExt;
 use log::debug;
@@ -22,6 +21,8 @@ use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
 use time::Duration;
+
+use super::utils::*;
 
 /// Test services that meet the following capability:
 ///

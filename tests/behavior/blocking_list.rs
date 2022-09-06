@@ -14,10 +14,11 @@
 
 use std::io::Result;
 
-use super::utils::*;
 use log::debug;
 use opendal::ObjectMode;
 use opendal::Operator;
+
+use super::utils::*;
 
 /// Test services that meet the following capability:
 ///

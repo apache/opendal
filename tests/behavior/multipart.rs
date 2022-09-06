@@ -14,10 +14,11 @@
 
 use std::io::Result;
 
-use super::utils::*;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
+
+use super::utils::*;
 
 /// Test services that meet the following capability:
 ///

@@ -14,13 +14,14 @@
 
 use std::io::Result;
 
-use super::utils::*;
 use http::header;
 use http::header::ETAG;
 use log::debug;
 use opendal::ObjectPart;
 use opendal::Operator;
 use time::Duration;
+
+use super::utils::*;
 
 /// Test services that meet the following capability:
 ///

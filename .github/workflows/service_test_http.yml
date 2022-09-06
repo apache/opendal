@@ -39,3 +39,33 @@ jobs:
           RUST_LOG: debug
           OPENDAL_HTTP_TEST: on
           OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080
+
+  caddy:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start caddy
+        shell: bash
+        run: |
+          VERSION="2.5.2"
+
+          curl https://github.com/caddyserver/caddy/releases/download/v${VERSION}/caddy_${VERSION}_linux_amd64.tar.gz -o caddy_linux_amd64.tar.gz
+          tar -xvf caddy_linux_amd64.tar.gz
+
+          mkdir /tmp/static
+          cp -r testdata/* /tmp/static
+          ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080
+
+      - name: Test
+        shell: bash
+        run: cargo test http --features compress,layers-retry,services-http -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_HTTP_TEST: on
+          OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080

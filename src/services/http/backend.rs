@@ -20,7 +20,6 @@ use std::io::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::StatusCode;
-use isahc::AsyncBody;
 use log::info;
 
 use super::error::parse_error;
@@ -36,6 +35,7 @@ use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
+use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpRead;
@@ -171,8 +171,10 @@ impl Accessor for Backend {
 
         let resp = self.http_get(&p, args.offset(), args.size()).await?;
 
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(Box::new(resp.into_body())),
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Read, args.path(), er);
@@ -194,7 +196,9 @@ impl Accessor for Backend {
 
         let resp = self.http_head(&p).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
 
@@ -264,7 +268,7 @@ impl Backend {
         }
 
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
 
         self.client
@@ -279,7 +283,7 @@ impl Backend {
         let req = isahc::Request::head(&url);
 
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
 
         self.client

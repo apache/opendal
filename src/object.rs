@@ -1069,7 +1069,7 @@ impl Object {
     ///     let req = isahc::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
-    ///         .body(isahc::AsyncBody::empty())?;
+    ///         .body(isahc::AsyncBody::Empty)?;
     ///
     /// #    Ok(())
     /// # }

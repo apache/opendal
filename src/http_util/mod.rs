@@ -13,7 +13,10 @@
 // limitations under the License.
 mod client;
 pub use client::HttpClient;
-pub use client::HttpResponseFuture;
+
+mod body;
+pub use body::AsyncBody;
+pub use body::Body;
 
 mod header;
 pub use header::parse_content_length;
@@ -31,4 +34,3 @@ pub use error::new_request_sign_error;
 pub use error::new_response_consume_error;
 pub use error::parse_error_response;
 pub use error::ErrorResponse;
-pub use error::ErrorResponseFuture;

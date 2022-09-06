@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Behavior test suites.
-mod behavior;
 #[macro_use]
 mod read;
 #[macro_use]
@@ -27,10 +25,14 @@ mod blocking_write;
 mod base;
 #[macro_use]
 mod list;
-
-pub fn init_logger() {
-    let _ = env_logger::builder().is_test(true).try_init();
-}
+#[macro_use]
+mod presign;
+#[macro_use]
+mod blocking_list;
+#[macro_use]
+mod multipart;
+#[macro_use]
+mod multipart_presign;
 
 /// Generate real test cases.
 /// Update function list while changed.
@@ -48,6 +50,14 @@ macro_rules! behavior_tests {
             behavior_blocking_write_tests!($service);
             // can_read && can_write && can_list
             behavior_list_tests!($service);
+            // can_read && can_write && can_presign
+            behavior_presign_tests!($service);
+            // can_read && can_write && can_blocking && can_list
+            behavior_blocking_list_tests!($service);
+            // can_read && can_write && can_multipart
+            behavior_multipart_tests!($service);
+            // can_read && can_write && can_multipart && can_presign
+            behavior_multipart_presign_tests!($service);
         )*
     };
 }

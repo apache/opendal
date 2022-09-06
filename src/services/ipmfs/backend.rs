@@ -20,12 +20,11 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::io;
+use http::Request;
 use http::Response;
 use http::StatusCode;
-use isahc;
-use isahc::AsyncBody;
-use isahc::AsyncReadResponseExt;
 use serde::Deserialize;
 
 use super::builder::Builder;
@@ -39,6 +38,7 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::percent_encode_path;
+use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -114,15 +114,18 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, args.path());
 
-        let mut resp = match args.mode() {
+        let resp = match args.mode() {
             ObjectMode::DIR => self.ipfs_mkdir(&path).await?,
             ObjectMode::FILE => self.ipfs_write(&path, &[]).await?,
             _ => unreachable!(),
         };
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Create, &path, err))?;
                 Ok(())
@@ -142,8 +145,10 @@ impl Accessor for Backend {
         let size = args.size().and_then(|val| i64::try_from(val).ok());
         let resp = self.ipfs_read(&path, offset, size).await?;
 
-        match resp.status() {
-            StatusCode::OK => Ok(Box::new(resp.into_body())),
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Stat, args.path(), er);
@@ -159,11 +164,14 @@ impl Accessor for Backend {
         let mut buf = Vec::with_capacity(args.size() as usize);
         io::copy(r, &mut buf).await?;
 
-        let mut resp = self.ipfs_write(&path, &buf).await?;
+        let resp = self.ipfs_write(&path, &buf).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Write, &path, err))?;
                 Ok(args.size())
@@ -187,11 +195,14 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let mut resp = self.ipfs_stat(&path).await?;
+        let resp = self.ipfs_stat(&path).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
                 let bs = resp
+                    .into_body()
                     .bytes()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Stat, &path, err))?;
@@ -225,11 +236,14 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, args.path());
 
-        let mut resp = self.ipfs_rm(&path).await?;
+        let resp = self.ipfs_rm(&path).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Delete, &path, err))?;
                 Ok(())
@@ -261,9 +275,9 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Stat, path, err))?;
 
         self.client
@@ -290,9 +304,9 @@ impl Backend {
             write!(url, "&count={count}").expect("write into string must succeed")
         }
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Read, path, err))?;
 
         self.client
@@ -308,9 +322,9 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
 
         self.client
@@ -326,9 +340,9 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
 
         self.client
@@ -344,9 +358,9 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Create, path, err))?;
 
         self.client
@@ -363,7 +377,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::post(url);
+        let mut req = Request::post(url);
 
         req = req.header(
             http::header::CONTENT_TYPE,
@@ -379,7 +393,7 @@ impl Backend {
         buf.extend_from_slice(data);
         buf.extend_from_slice(right);
 
-        let body = AsyncBody::from_bytes_static(buf);
+        let body = AsyncBody::Bytes(Bytes::from(buf));
         let req = req
             .body(body)
             .map_err(|err| new_request_build_error(Operation::Write, path, err))?;

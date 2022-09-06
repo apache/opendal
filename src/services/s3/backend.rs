@@ -22,13 +22,14 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Buf;
+use bytes::Bytes;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
+use http::Request;
+use http::Response;
 use http::StatusCode;
-use isahc::AsyncBody;
-use isahc::AsyncReadResponseExt;
 use log::debug;
 use log::error;
 use log::info;
@@ -54,8 +55,9 @@ use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
+use crate::http_util::AsyncBody;
+use crate::http_util::Body;
 use crate::http_util::HttpClient;
-use crate::io_util::unshared_reader;
 use crate::multipart::ObjectPart;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
@@ -454,15 +456,13 @@ impl Builder {
         let url = format!("{endpoint}/{bucket}");
         debug!("backend detect region with url: {url}");
 
-        let req = http::Request::head(&url)
-            .body(isahc::Body::empty())
-            .map_err(|e| {
-                error!("backend detect_region {}: {:?}", url, e);
-                other(BackendError::new(
-                    context.clone(),
-                    anyhow!("build request {}: {:?}", url, e),
-                ))
-            })?;
+        let req = http::Request::head(&url).body(Body::Empty).map_err(|e| {
+            error!("backend detect_region {}: {:?}", url, e);
+            other(BackendError::new(
+                context.clone(),
+                anyhow!("build request {}: {:?}", url, e),
+            ))
+        })?;
 
         let res = client.send(req).map_err(|e| {
             error!("backend detect_region: {}: {:?}", url, e);
@@ -803,21 +803,24 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.put_object_request(&p, AsyncBody::from_bytes_static(""))?;
+        let mut req = self.put_object_request(&p, Some(0), AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Create, &p, e))?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Create, &p, err))?;
                 Ok(())
@@ -835,8 +838,10 @@ impl Accessor for Backend {
 
         let resp = self.get_object(&p, args.offset(), args.size()).await?;
 
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(Box::new(resp.into_body())),
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Read, args.path(), er);
@@ -848,24 +853,24 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.put_object_request(
-            &p,
-            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
-        )?;
+        let mut req = self.put_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
                 Ok(args.size())
@@ -891,7 +896,9 @@ impl Accessor for Backend {
 
         let resp = self.head_object(&p).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
 
@@ -941,7 +948,9 @@ impl Accessor for Backend {
 
         let resp = self.delete_object(&p).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::NO_CONTENT => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -971,12 +980,13 @@ impl Accessor for Backend {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Read(v) => self.get_object_request(&path, v.offset(), v.size())?,
-            PresignOperation::Write(_) => self.put_object_request(&path, AsyncBody::empty())?,
+            PresignOperation::Write(_) => self.put_object_request(&path, None, AsyncBody::Empty)?,
             PresignOperation::WriteMultipart(v) => self.s3_upload_part_request(
                 &path,
                 v.upload_id(),
                 v.part_number(),
-                AsyncBody::empty(),
+                None,
+                AsyncBody::Empty,
             )?,
         };
 
@@ -997,11 +1007,13 @@ impl Accessor for Backend {
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
         let path = build_abs_path(&self.root, args.path());
 
-        let mut resp = self.s3_initiate_multipart_upload(&path).await?;
+        let resp = self.s3_initiate_multipart_upload(&path).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
-                let bs = resp.bytes().await.map_err(|e| {
+                let bs = resp.into_body().bytes().await.map_err(|e| {
                     new_response_consume_error(Operation::CreateMultipart, &path, e)
                 })?;
 
@@ -1031,20 +1043,23 @@ impl Accessor for Backend {
             &p,
             args.upload_id(),
             args.part_number(),
-            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
+            Some(args.size()),
+            AsyncBody::Reader(r),
         )?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::WriteMultipart, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::WriteMultipart, &p, e))?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())
                     .map_err(|e| other(ObjectError::new(Operation::WriteMultipart, &p, e)))?
@@ -1057,7 +1072,7 @@ impl Accessor for Backend {
                     })?
                     .to_string();
 
-                resp.consume().await.map_err(|err| {
+                resp.into_body().consume().await.map_err(|err| {
                     new_response_consume_error(Operation::WriteMultipart, &p, err)
                 })?;
 
@@ -1074,13 +1089,15 @@ impl Accessor for Backend {
     async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
         let path = build_abs_path(&self.root, args.path());
 
-        let mut resp = self
+        let resp = self
             .s3_complete_multipart_upload(&path, args.upload_id(), args.parts())
             .await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
-                resp.consume().await.map_err(|e| {
+                resp.into_body().consume().await.map_err(|e| {
                     new_response_consume_error(Operation::CompleteMultipart, &path, e)
                 })?;
 
@@ -1097,13 +1114,16 @@ impl Accessor for Backend {
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
         let path = build_abs_path(&self.root, args.path());
 
-        let mut resp = self
+        let resp = self
             .s3_abort_multipart_upload(&path, args.upload_id())
             .await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::NO_CONTENT => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|e| new_response_consume_error(Operation::AbortMultipart, &path, e))?;
 
@@ -1124,10 +1144,10 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Request<AsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::get(&url);
+        let mut req = Request::get(&url);
 
         if offset.unwrap_or_default() != 0 || size.is_some() {
             req = req.header(
@@ -1141,7 +1161,7 @@ impl Backend {
         req = self.insert_sse_headers(req, false);
 
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
 
         Ok(req)
@@ -1152,7 +1172,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
 
         self.signer
@@ -1165,24 +1185,18 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    fn put_object_request(&self, path: &str, body: AsyncBody) -> Result<isahc::Request<AsyncBody>> {
+    fn put_object_request(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Request<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::put(&url);
+        let mut req = Request::put(&url);
 
-        // TODO: we can use if-let in the future.
-        //
-        // error[E0658]: `let` expressions in this position are unstable
-        //     --> src/services/s3/backend.rs:1361:12
-        //      |
-        // 1361 |         if let Some(content_length) = body.len() && !body.is_empty() {
-        //      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        //      |
-        //      = note: see issue #53667 <https://github.com/rust-lang/rust/issues/53667> for more information
-        if !body.is_empty() {
-            if let Some(content_length) = body.len() {
-                req = req.header(CONTENT_LENGTH, content_length)
-            }
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
         }
 
         // Set SSE headers.
@@ -1196,16 +1210,16 @@ impl Backend {
         Ok(req)
     }
 
-    async fn head_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::head(&url);
+        let mut req = Request::head(&url);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
 
         let mut req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
 
         self.signer
@@ -1218,11 +1232,11 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
-        let mut req = isahc::Request::delete(&url)
-            .body(AsyncBody::empty())
+        let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
 
         self.signer
@@ -1241,7 +1255,7 @@ impl Backend {
         &self,
         path: &str,
         continuation_token: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut url = format!(
             "{}?list-type=2&delimiter=/&prefix={}",
             self.endpoint,
@@ -1260,8 +1274,8 @@ impl Backend {
             .expect("write into string must succeed");
         }
 
-        let mut req = isahc::Request::get(&url)
-            .body(AsyncBody::empty())
+        let mut req = Request::get(&url)
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::List, path, e))?;
 
         self.signer
@@ -1274,16 +1288,16 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::List, path, e))
     }
 
-    async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(path));
 
-        let req = isahc::Request::post(&url);
+        let req = Request::post(&url);
 
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
         let mut req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::CreateMultipart, path, e))?;
 
         self.signer
@@ -1301,8 +1315,9 @@ impl Backend {
         path: &str,
         upload_id: &str,
         part_number: usize,
+        size: Option<u64>,
         body: AsyncBody,
-    ) -> Result<isahc::Request<AsyncBody>> {
+    ) -> Result<Request<AsyncBody>> {
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
             self.endpoint,
@@ -1311,12 +1326,10 @@ impl Backend {
             upload_id
         );
 
-        let mut req = isahc::Request::put(&url);
+        let mut req = Request::put(&url);
 
-        if !body.is_empty() {
-            if let Some(content_length) = body.len() {
-                req = req.header(CONTENT_LENGTH, content_length)
-            }
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size);
         }
 
         // Set SSE headers.
@@ -1335,7 +1348,7 @@ impl Backend {
         path: &str,
         upload_id: &str,
         parts: &[ObjectPart],
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/{}?uploadId={}",
             self.endpoint,
@@ -1343,7 +1356,7 @@ impl Backend {
             upload_id
         );
 
-        let req = isahc::Request::post(&url);
+        let req = Request::post(&url);
 
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
@@ -1370,7 +1383,7 @@ impl Backend {
         let req = req.header(CONTENT_TYPE, "application/xml");
 
         let mut req = req
-            .body(AsyncBody::from(content))
+            .body(AsyncBody::Bytes(Bytes::from(content)))
             .map_err(|e| new_request_build_error(Operation::CompleteMultipart, path, e))?;
 
         self.signer
@@ -1387,7 +1400,7 @@ impl Backend {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/{}?uploadId={}",
             self.endpoint,
@@ -1395,8 +1408,8 @@ impl Backend {
             upload_id,
         );
 
-        let mut req = isahc::Request::delete(&url)
-            .body(AsyncBody::empty())
+        let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::AbortMultipart, path, e))?;
 
         self.signer

@@ -25,9 +25,8 @@ use async_trait::async_trait;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::Request;
+use http::Response;
 use http::StatusCode;
-use isahc::AsyncBody;
-use isahc::AsyncReadResponseExt;
 use log::debug;
 use log::info;
 use reqsign::services::azure::storage::Signer;
@@ -48,8 +47,8 @@ use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
+use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
-use crate::io_util::unshared_reader;
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -258,21 +257,24 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.put_blob_request(&p, AsyncBody::from_bytes_static(""))?;
+        let mut req = self.put_blob_request(&p, Some(0), AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Create, &p, e))?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Create, &p, err))?;
                 Ok(())
@@ -289,8 +291,11 @@ impl Accessor for Backend {
         let p = build_abs_path(&self.root, args.path());
 
         let resp = self.get_blob(&p, args.offset(), args.size()).await?;
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(Box::new(resp.into_body())),
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Read, args.path(), er);
@@ -302,24 +307,24 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.put_blob_request(
-            &p,
-            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
-        )?;
+        let mut req = self.put_blob_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
                     .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
                 Ok(args.size())
@@ -343,7 +348,10 @@ impl Accessor for Backend {
         }
 
         let resp = self.get_blob_properties(&p).await?;
-        match resp.status() {
+
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
 
@@ -392,7 +400,10 @@ impl Accessor for Backend {
         let p = build_abs_path(&self.root, args.path());
 
         let resp = self.delete_blob(&p).await?;
-        match resp.status() {
+
+        let status = resp.status();
+
+        match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -419,7 +430,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -427,7 +438,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::get(&url);
+        let mut req = Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -437,7 +448,7 @@ impl Backend {
         }
 
         let mut req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
 
         self.signer
@@ -453,6 +464,7 @@ impl Backend {
     pub(crate) fn put_blob_request(
         &self,
         path: &str,
+        size: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let url = format!(
@@ -462,10 +474,10 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::put(&url);
+        let mut req = Request::put(&url);
 
-        if let Some(content_length) = body.len() {
-            req = req.header(CONTENT_LENGTH, content_length)
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
         }
 
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");
@@ -478,10 +490,7 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn get_blob_properties(
-        &self,
-        path: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    pub(crate) async fn get_blob_properties(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -489,10 +498,10 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::head(&url);
+        let req = Request::head(&url);
 
         let mut req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
 
         self.signer
@@ -505,7 +514,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    pub(crate) async fn delete_blob(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    pub(crate) async fn delete_blob(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -513,10 +522,10 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::delete(&url);
+        let req = Request::delete(&url);
 
         let mut req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
 
         self.signer
@@ -533,7 +542,7 @@ impl Backend {
         &self,
         path: &str,
         next_marker: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut url = format!(
             "{}/{}?restype=container&comp=list&delimiter=/",
             self.endpoint, self.container
@@ -546,8 +555,8 @@ impl Backend {
             write!(url, "&marker={next_marker}").expect("write into string must succeed");
         }
 
-        let mut req = isahc::Request::get(&url)
-            .body(AsyncBody::empty())
+        let mut req = Request::get(&url)
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::List, path, e))?;
 
         self.signer

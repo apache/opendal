@@ -23,9 +23,8 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::Request;
+use http::Response;
 use http::StatusCode;
-use isahc::AsyncBody;
-use isahc::AsyncReadResponseExt;
 use log::debug;
 use log::info;
 use reqsign::services::google::Signer;
@@ -46,8 +45,8 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
+use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
-use crate::io_util::unshared_reader;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -244,20 +243,21 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.insert_object_request(&p, AsyncBody::from_bytes_static(b""))?;
+        let mut req = self.insert_object_request(&p, Some(0), AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Create, &p, e))?;
 
         if resp.status().is_success() {
-            resp.consume()
+            resp.into_body()
+                .consume()
                 .await
                 .map_err(|err| new_response_consume_error(Operation::Create, &p, err))?;
             Ok(())
@@ -274,7 +274,7 @@ impl Accessor for Backend {
         let resp = self.get_object(&p, args.offset(), args.size()).await?;
 
         if resp.status().is_success() {
-            Ok(Box::new(resp.into_body()))
+            Ok(resp.into_body().reader())
         } else {
             let er = parse_error_response(resp).await?;
             let e = parse_error(Operation::Read, args.path(), er);
@@ -285,23 +285,21 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.insert_object_request(
-            &p,
-            AsyncBody::from_reader_sized(unshared_reader(r), args.size()),
-        )?;
+        let mut req = self.insert_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
 
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
 
-        let mut resp = self
+        let resp = self
             .client
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
 
         if (200..300).contains(&resp.status().as_u16()) {
-            resp.consume()
+            resp.into_body()
+                .consume()
                 .await
                 .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
             Ok(args.size())
@@ -323,12 +321,12 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let mut resp = self.get_object_metadata(&p).await?;
+        let resp = self.get_object_metadata(&p).await?;
 
         if resp.status().is_success() {
             let mut m = ObjectMetadata::default();
             // read http response body
-            let slc = resp.bytes().await.map_err(|e| {
+            let slc = resp.into_body().bytes().await.map_err(|e| {
                 other(ObjectError::new(
                     Operation::Stat,
                     &p,
@@ -425,7 +423,7 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::get(&url);
+        let mut req = Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -435,7 +433,7 @@ impl Backend {
         }
 
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
 
         Ok(req)
@@ -446,7 +444,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
 
         self.signer
@@ -462,6 +460,7 @@ impl Backend {
     pub(crate) fn insert_object_request(
         &self,
         path: &str,
+        size: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let url = format!(
@@ -471,10 +470,10 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::post(&url);
+        let mut req = Request::post(&url);
 
-        if let Some(content_length) = body.len() {
-            req = req.header(CONTENT_LENGTH, content_length)
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
         }
 
         // Set body
@@ -485,10 +484,7 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn get_object_metadata(
-        &self,
-        path: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    pub(crate) async fn get_object_metadata(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
@@ -496,10 +492,10 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let req = isahc::Request::get(&url);
+        let req = Request::get(&url);
 
         let mut req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
 
         self.signer
@@ -512,7 +508,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
+    pub(crate) async fn delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
@@ -520,8 +516,8 @@ impl Backend {
             percent_encode_path(path)
         );
 
-        let mut req = isahc::Request::delete(&url)
-            .body(AsyncBody::empty())
+        let mut req = Request::delete(&url)
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
 
         self.signer
@@ -538,7 +534,7 @@ impl Backend {
         &self,
         path: &str,
         page_token: &str,
-    ) -> Result<isahc::Response<AsyncBody>> {
+    ) -> Result<Response<AsyncBody>> {
         let mut url = format!(
             "{}/storage/v1/b/{}/o?delimiter=/&prefix={}",
             self.endpoint,
@@ -556,8 +552,8 @@ impl Backend {
                 .expect("write into string must succeed");
         }
 
-        let mut req = isahc::Request::get(&url)
-            .body(AsyncBody::empty())
+        let mut req = Request::get(&url)
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::List, path, e))?;
 
         self.signer

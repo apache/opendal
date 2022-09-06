@@ -18,7 +18,7 @@ all-features = true
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable rustls support.
-rustls = ["isahc/rustls-tls", "isahc/rustls-tls-native-certs"]
+rustls = ["reqwest/rustls-tls", "reqwest/rustls-tls-native-roots"]
 # Enable serde support.
 serde = ["time/serde"]
 
@@ -79,7 +79,6 @@ flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.1", optional = true, features = ["futures-io"] }
 http = "0.2"
-isahc = { package = "isahc-opendal-workaround", version = "2.0.0-opendal.1" }
 log = "0.4"
 md5 = "0.7"
 metrics = { version = "0.20", optional = true }
@@ -89,6 +88,7 @@ percent-encoding = "2.1"
 pin-project = "1.0"
 quick-xml = { version = "0.24", features = ["serialize", "overlapped-lists"] }
 reqsign = "0.4.1"
+reqwest = { version = "0.11", features = ["stream"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 suppaftp = { version = "4.4", features = ["async-secure"], optional = true }
@@ -96,6 +96,7 @@ thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
+ureq = "2.5"
 
 [dev-dependencies]
 cfg-if = "1.0"

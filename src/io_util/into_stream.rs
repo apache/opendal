@@ -65,6 +65,11 @@ pub struct IntoStream<R: BytesRead> {
     buf: BytesMut,
 }
 
+/// IntoStream will be accessed uniquely, not concurrent read will happen.
+///
+/// No `get_inner`, no `Clone`, no other ways to access internally fields.
+unsafe impl<R: BytesRead> Sync for IntoStream<R> {}
+
 impl<R> Stream for IntoStream<R>
 where
     R: BytesRead,

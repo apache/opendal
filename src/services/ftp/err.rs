@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Error;
+
+use anyhow::anyhow;
+use suppaftp::FtpError;
+
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::ops::Operation;
-use anyhow::anyhow;
-use std::io::Error;
-use suppaftp::FtpError;
 
 /// Parse error response into io::Error.
 ///

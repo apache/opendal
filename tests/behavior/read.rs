@@ -34,7 +34,7 @@ macro_rules! behavior_read_test {
                         #[$meta]
                     )*
                     async fn [< $test >]() -> std::io::Result<()> {
-                        let op = $crate::utils::init_service(opendal::Scheme::$service);
+                        let op = $crate::utils::init_service(opendal::Scheme::$service, false);
                         match op {
                             Some(op) if op.metadata().can_read() && !op.metadata().can_write() => $crate::read::$test(op).await,
                             Some(_) => {

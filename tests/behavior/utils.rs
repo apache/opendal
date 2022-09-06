@@ -24,13 +24,13 @@ use rand::prelude::*;
 ///
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
-pub fn init_service(scheme: Scheme) -> Option<Operator> {
+pub fn init_service(scheme: Scheme, random_root: bool) -> Option<Operator> {
     let _ = env_logger::builder().is_test(true).try_init();
     let _ = dotenv::dotenv();
 
     let prefix = format!("opendal_{}_", scheme);
 
-    let cfg = env::vars()
+    let mut cfg = env::vars()
         .filter_map(|(k, v)| {
             k.to_lowercase()
                 .strip_prefix(&prefix)
@@ -40,6 +40,15 @@ pub fn init_service(scheme: Scheme) -> Option<Operator> {
 
     if cfg.get("test").cloned().unwrap_or_default() != "on" {
         return None;
+    }
+
+    if random_root {
+        let root = format!(
+            "{}{}/",
+            cfg.get("root").cloned().unwrap_or_else(|| "/".to_string()),
+            uuid::Uuid::new_v4()
+        );
+        cfg.insert("root".to_string(), root);
     }
 
     let op = Operator::from_iter(scheme, cfg.into_iter())

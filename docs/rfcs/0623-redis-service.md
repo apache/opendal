@@ -210,7 +210,7 @@ This could be done similarly to `List`, iterating on the pattern with `SCAN` and
 
 # Drawbacks
 
-1. A new dependency is introduced;
+1. New dependencies is introduced: `redis-rs` and `bincode`;
 2. Some calculations have to be done in client side, this will affect the performance;
 3. Grouping atomic operations together doesn't promise transactional access, this may lead to data racing issues.
 4. Writing large binary strings requiring copying all data from pipe(or `BytesReader` in opendal) to RAM, and then send to redis.
@@ -237,4 +237,4 @@ The implementation proposed here is far from perfect.
 
 - The data organization could be optimized to make it acts more like a filesystem
 - Making a customized redis module to calculate metadata on redis side
-- Wait for stable and bump to `bincode` 2.0.
+- Wait for stable of `bincode` 2.0, and bump to it.

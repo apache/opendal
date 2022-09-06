@@ -86,7 +86,7 @@ impl Stream for DirStream {
                 let token = self.page_token.clone();
 
                 let fut = async move {
-                    let mut resp = backend.list_objects(&path, token.as_str()).await?;
+                    let resp = backend.list_objects(&path, token.as_str()).await?;
 
                     if !resp.status().is_success() {
                         let er = parse_error_response(resp).await?;

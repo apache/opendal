@@ -13,12 +13,14 @@
 // limitations under the License.
 
 use std::io::Result;
+use std::str::FromStr;
 
 use http::header;
 use http::header::ETAG;
 use log::debug;
 use opendal::ObjectPart;
 use opendal::Operator;
+use reqwest::Url;
 use time::Duration;
 
 use super::utils::*;
@@ -88,26 +90,17 @@ pub async fn test_presign_write_multipart(op: Operator) -> Result<()> {
     let signed_req = mp.presign_write(1, Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = Request::builder()
-        .method(signed_req.method())
-        .uri(signed_req.uri())
-        .body(AsyncBody::from_bytes_static(content.clone()))
-        .expect("build request must succeed");
-    *req.headers_mut() = signed_req.header().clone();
-    req.headers_mut().insert(
-        header::CONTENT_LENGTH,
-        content
-            .len()
-            .to_string()
-            .parse()
-            .expect("parse header must succeed"),
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
     );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+    req = req.header(header::CONTENT_LENGTH, content.len());
 
-    let client = HttpClient::new().expect("must init succeed");
-    let resp = client
-        .send_async(req)
-        .await
-        .expect("send request must succeed");
+    let resp = req.send().await.expect("send request must succeed");
     let etag = resp
         .headers()
         .get(ETAG)

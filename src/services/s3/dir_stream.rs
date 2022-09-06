@@ -80,7 +80,7 @@ impl futures::Stream for DirStream {
                 let path = self.path.clone();
                 let token = self.token.clone();
                 let fut = async move {
-                    let mut resp = backend.list_objects(&path, &token).await?;
+                    let resp = backend.list_objects(&path, &token).await?;
 
                     if resp.status() != http::StatusCode::OK {
                         let er = parse_error_response(resp).await?;

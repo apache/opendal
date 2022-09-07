@@ -114,13 +114,13 @@ where
     async fn create(&self, args: &OpCreate) -> Result<()> {
         { || self.inner.create(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         { || self.inner.read(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
@@ -130,19 +130,19 @@ where
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
         { || self.inner.stat(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         { || self.inner.delete(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         { || self.inner.list(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
 
@@ -153,7 +153,7 @@ where
     async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
         { || self.inner.create_multipart(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
     async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
@@ -163,13 +163,13 @@ where
     async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
         { || self.inner.complete_multipart(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
     async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
         { || self.inner.abort_multipart(args) }
             .retry(self.backoff.clone())
-            .with_error_fn(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
 

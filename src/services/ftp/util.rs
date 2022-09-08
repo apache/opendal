@@ -28,21 +28,18 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use suppaftp::FtpStream;
 use suppaftp::Status;
-use tokio::sync::Mutex;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {
     reader: BytesReader,
     path: String,
     state: State,
-    client: Arc<Mutex<FtpStream>>,
+    client: Arc<FtpStream>,
 }
 
 pub enum State {
-    Active,
+    Reading,
     Finalize(BoxFuture<'static, Result<()>>),
-    Eof,
-    Error(Error),
 }
 
 impl FtpReader {
@@ -51,8 +48,8 @@ impl FtpReader {
         Self {
             reader: r,
             path: path.to_string(),
-            state: State::Active,
-            client: Arc::new(Mutex::new(c)),
+            state: State::Reading,
+            client: Arc::new(c),
         }
     }
 }
@@ -65,16 +62,16 @@ impl AsyncRead for FtpReader {
     ) -> Poll<Result<usize>> {
         match &mut self.state {
             // Active state, try to poll some data.
-            State::Active => {
+            State::Reading => {
                 let data = Pin::new(&mut self.reader).poll_read(cx, buf);
 
                 // when hit Err or EOF, change state to Finalize and send fut.
                 if let Poll::Ready(Err(_)) | Poll::Ready(Ok(0)) = data {
-                    let c = self.client.clone();
+                    let mut c = self.client.clone();
                     let path = self.path.clone();
 
                     let fut = async move {
-                        let mut backend = c.lock().await;
+                        let backend = Arc::get_mut(&mut c).unwrap();
 
                         backend
                             .read_response_in(&[
@@ -102,32 +99,22 @@ impl AsyncRead for FtpReader {
                     };
 
                     self.state = State::Finalize(Box::pin(fut));
-
-                // Otherwise, exit and return data.
                 } else {
+                    // Otherwise, exit and return data.
                     return data;
                 }
 
                 self.poll_read(cx, buf)
             }
             // Finalize state, wait for finalization of stream. Change state to Eof or Error according to the result of fut.
-            State::Finalize(fut) => {
-                match ready!(Pin::new(fut).poll_unpin(cx)) {
-                    Ok(_) => {
-                        self.state = State::Eof;
-                    }
-                    Err(e) => {
-                        self.state = State::Error(e);
-                    }
+            State::Finalize(fut) => match ready!(Pin::new(fut).poll_unpin(cx)) {
+                Ok(_) => {
+                    return Poll::Ready(Ok(0));
                 }
-
-                self.poll_read(cx, buf)
-            }
-            // Eof state, return 0 byte.
-            State::Eof => Poll::Ready(Ok(0)),
-
-            // Error state, return error.
-            State::Error(e) => Poll::Ready(Err(Error::new(e.kind(), e.to_string()))),
+                Err(e) => {
+                    return Poll::Ready(Err(Error::new(e.kind(), e.to_string())));
+                }
+            },
         }
     }
 }

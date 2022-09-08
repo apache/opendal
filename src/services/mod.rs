@@ -30,4 +30,6 @@ pub mod http;
 pub mod ipmfs;
 pub mod memory;
 pub mod obs;
+#[cfg(feature = "services-redis")]
+pub mod redis;
 pub mod s3;

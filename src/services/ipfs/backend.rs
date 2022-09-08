@@ -508,7 +508,11 @@ impl Stream for DirStream {
                 if let Some(fut) = fut {
                     let meta = ready!(Pin::new(fut).poll(cx))?;
 
-                    let name = names.next().expect("iterator must have next");
+                    let mut name = names.next().expect("iterator must have next");
+
+                    if meta.mode().is_dir() {
+                        name += "/";
+                    }
 
                     let mut de = DirEntry::new(backend, meta.mode(), &name);
                     de.set_content_length(meta.content_length());
@@ -516,6 +520,8 @@ impl Stream for DirStream {
                         de.set_etag(etag);
                     }
 
+                    let names = mem::replace(names, vec![].into_iter().peekable());
+                    self.state = State::Walking((names, None));
                     return Poll::Ready(Some(Ok(de)));
                 }
 

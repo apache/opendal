@@ -1,0 +1,50 @@
+name: Service Test IPFS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  ipfs-io:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test
+        shell: bash
+        run: cargo test ipfs --features compress,layers-retry,services-ipfs -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_IPFS_TEST: on
+          OPENDAL_IPFS_ROOT: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/
+          OPENDAL_IPFS_ENDPOINT: "https://ipfs.io"
+
+  ipfs-daemon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up IPFS ${{ matrix.ipfs }}
+        uses: ibnesayeed/setup-ipfs@cacf727ab8eae418dc4a2534c2c2c19343021c7c
+        id: ipfs_setup
+        with:
+          ipfs_version: "v0.14.0"
+          run_daemon: true
+      - name: Test
+        shell: bash
+        run: cargo test ipfs --features compress,layers-retry,services-ipfs -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_IPFS_TEST: on
+          OPENDAL_IPFS_ROOT: /ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/
+          OPENDAL_IPFS_ENDPOINT: "http://127.0.0.1:8080"

@@ -88,3 +88,5 @@ pub use backend::Backend;
 pub use backend::Builder;
 mod dir_stream;
 mod err;
+mod util;
+pub use util::FtpReader;

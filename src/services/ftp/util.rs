@@ -12,22 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::error::other;
-use crate::error::ObjectError;
-use crate::ops::Operation;
-use crate::BytesReader;
+use std::io::Error;
+use std::io::Result;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
+
 use anyhow::anyhow;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
-use std::io::Error;
-use std::io::Result;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
 use suppaftp::FtpStream;
 use suppaftp::Status;
+
+use crate::error::other;
+use crate::error::ObjectError;
+use crate::ops::Operation;
+use crate::BytesReader;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {

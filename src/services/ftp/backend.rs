@@ -37,7 +37,7 @@ use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::err::new_request_connection_err;
 use super::err::new_request_quit_err;
-use super::FtpReader;
+use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;

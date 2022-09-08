@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::Future;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -21,14 +20,17 @@ use std::iter::Peekable;
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::future::BoxFuture;
-use futures::{ready, Stream};
+use futures::ready;
+use futures::Future;
+use futures::Stream;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -38,8 +40,9 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::accessor::AccessorCapability;
+use crate::error::other;
+use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::error::{other, BackendError};
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
@@ -48,18 +51,21 @@ use crate::http_util::parse_etag;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
+use crate::ops::BytesRange;
+use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::Operation;
-use crate::ops::{BytesRange, OpList};
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
+use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BytesReader;
+use crate::DirEntry;
+use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Scheme;
-use crate::{Accessor, DirEntry};
-use crate::{AccessorMetadata, DirStreamer};
 
 /// Builder for ipfs backend.
 #[derive(Default, Clone, Debug)]

@@ -30,7 +30,9 @@ use log::info;
 use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
+use suppaftp::FtpError;
 use suppaftp::FtpStream;
+use suppaftp::Status;
 use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
@@ -487,13 +489,39 @@ impl Backend {
         }
 
         // change to the root path
-        ftp_stream.cwd(&self.root).await.map_err(|e| {
-            other(ObjectError::new(
-                op,
-                &self.endpoint,
-                anyhow!("change root request: {e:?}"),
-            ))
-        })?;
+        match ftp_stream.cwd(&self.root).await {
+            Err(FtpError::UnexpectedResponse(e)) => {
+                // Dir does not exist.
+                if e.status == Status::FileUnavailable {
+                    // Make new dir first.
+                    ftp_stream.mkdir(&self.root).await.map_err(|e| {
+                        other(ObjectError::new(
+                            op,
+                            &self.endpoint,
+                            anyhow!("mkdir request: {e:?}"),
+                        ))
+                    })?;
+                    // Then change to root path
+                    ftp_stream.cwd(&self.root).await.map_err(|e| {
+                        other(ObjectError::new(
+                            op,
+                            &self.endpoint,
+                            anyhow!("cwd request: {e:?}"),
+                        ))
+                    })?;
+                }
+            }
+            // Other errors, return.
+            Err(e) => {
+                return Err(other(ObjectError::new(
+                    op,
+                    &self.endpoint,
+                    anyhow!("cwd request: {e:?}"),
+                )))
+            }
+            // Do nothing if success.
+            Ok(_) => (),
+        }
 
         ftp_stream
             .transfer_type(FileType::Binary)

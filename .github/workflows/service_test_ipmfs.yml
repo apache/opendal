@@ -1,4 +1,4 @@
-name: Service Test IPFS
+name: Service Test IPMFS
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ipfs:
+  ipmfs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

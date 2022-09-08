@@ -109,10 +109,10 @@ impl AsyncRead for FtpReader {
             // Finalize state, wait for finalization of stream. Change state to Eof or Error according to the result of fut.
             State::Finalize(fut) => match ready!(Pin::new(fut).poll_unpin(cx)) {
                 Ok(_) => {
-                    return Poll::Ready(Ok(0));
+                    Poll::Ready(Ok(0))
                 }
                 Err(e) => {
-                    return Poll::Ready(Err(Error::new(e.kind(), e.to_string())));
+                    Poll::Ready(Err(Error::new(e.kind(), e.to_string())))
                 }
             },
         }

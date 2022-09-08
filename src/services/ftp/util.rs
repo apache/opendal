@@ -70,7 +70,6 @@ impl AsyncRead for FtpReader {
 
                 // when hit Err or EOF, change state to Finalize and send fut.
                 if let Poll::Ready(Err(_)) | Poll::Ready(Ok(0)) = data {
-                    drop(self.reader.as_mut());
                     let c = self.client.clone();
                     let path = self.path.clone();
 
@@ -83,7 +82,14 @@ impl AsyncRead for FtpReader {
                                 Status::RequestedFileActionOk,
                             ])
                             .await
-                            .unwrap();
+                            .map_err(|e| {
+                                other(ObjectError::new(
+                                    Operation::Read,
+                                    path.as_str(),
+                                    anyhow!("unexpected response: {e:?}"),
+                                ))
+                            })?;
+
                         backend.quit().await.map_err(|e| {
                             other(ObjectError::new(
                                 Operation::Read,

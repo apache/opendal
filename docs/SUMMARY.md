@@ -11,6 +11,7 @@
   - [gcs](services/gcs.md)
   - [hdfs](services/hdfs.md)
   - [ipfs](services/ipfs.md)
+  - [ipmfs](services/ipmfs.md)
   - [obs](services/obs.md)
   - [s3](services/s3.md)
 - [Examples](examples/README.md)

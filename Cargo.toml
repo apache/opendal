@@ -61,6 +61,10 @@ name = "hdfs"
 required-features = ["services-hdfs"]
 
 [[example]]
+name = "ipfs"
+required-features = ["services-ipfs"]
+
+[[example]]
 name = "ftp"
 required-features = ["services-ftp"]
 

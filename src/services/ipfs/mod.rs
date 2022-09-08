@@ -12,7 +12,75 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! IPFS Service that based of IPFS HTTP Gateway
+//! IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
+//!
+//! # Configuration
+//!
+//! - `root`: Set the work directory for backend
+//! - `endpoint`: Customizable endpoint setting
+//!
+//! You can refer to [`Builder`]'s docs for more information
+//!
+//! # Environment
+//!
+//! - `OPENDAL_IPFS_ROOT`    optional
+//! - `OPENDAL_IPFS_ENDPOINT`  optional
+//!
+//! # Example
+//!
+//! ## Initiate via environment variables
+//!
+//! Set environment correctly:
+//!
+//! ```shell
+//! export OPENDAL_IPFS_ROOT=/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ
+//! export OPENDAL_IPFS_ENDPOINT=https://ipfs.io
+//! ```
+//!
+//! ```no_run
+//! use anyhow::Result;
+//! use opendal::Object;
+//! use opendal::Operator;
+//! use opendal::Scheme;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let op: Operator = Operator::from_env(Scheme::Ipfs)?;
+//!
+//!     // create an object handler to start operation on it.
+//!     let _op: Object = op.object("test_file");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Via Builder
+//!
+//! ```no_run
+//! use anyhow::Result;
+//! use opendal::services::ipfs;
+//! use opendal::Object;
+//! use opendal::Operator;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     // create backend builder
+//!     let mut builder = ipfs::Builder::default();
+//!
+//!     // set the endpoint for OpenDAL
+//!     builder.endpoint("https://ipfs.io");
+//!     // set the root for OpenDAL
+//!     builder.root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ");
+//!
+//!
+//!     let op: Operator = Operator::new(builder.build()?);
+//!
+//!     // Create an object handle to start operation on object.
+//!     let _: Object = op.object("test_file");
+//!
+//!     Ok(())
+//! }
+//! ```
 
 mod backend;
 pub use backend::Backend;

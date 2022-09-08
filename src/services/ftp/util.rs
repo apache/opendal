@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::error::other;
+use crate::error::ObjectError;
+use crate::ops::Operation;
 use crate::BytesReader;
+use anyhow::anyhow;
+use futures::future::BoxFuture;
+use futures::ready;
 use futures::AsyncRead;
+use futures::FutureExt;
+use std::io::Error;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -21,19 +29,29 @@ use std::task::{Context, Poll};
 use suppaftp::FtpStream;
 use suppaftp::Status;
 use tokio::sync::Mutex;
-use tokio::task;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {
     reader: BytesReader,
+    path: String,
+    state: State,
     client: Arc<Mutex<FtpStream>>,
+}
+
+pub enum State {
+    Active,
+    Finalize(BoxFuture<'static, Result<()>>),
+    Eof,
+    Error(Error),
 }
 
 impl FtpReader {
     /// Create an instance of FtpReader.
-    pub fn new(r: BytesReader, c: FtpStream) -> Self {
+    pub fn new(r: BytesReader, c: FtpStream, path: &str) -> Self {
         Self {
             reader: r,
+            path: path.to_string(),
+            state: State::Active,
             client: Arc::new(Mutex::new(c)),
         }
     }
@@ -45,33 +63,65 @@ impl AsyncRead for FtpReader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        let result = Pin::new(&mut self.reader).poll_read(cx, buf);
+        match &mut self.state {
+            // Active state, try to poll some data.
+            State::Active => {
+                let data = Pin::new(&mut self.reader).poll_read(cx, buf);
 
-        // Drop data stream and close command stream when hit Error or EOF.
-        match result {
-            Poll::Ready(Err(_)) | Poll::Ready(Ok(0)) => {
-                let c = self.client.clone();
+                // when hit Err or EOF, change state to Finalize and send fut.
+                if let Poll::Ready(Err(_)) | Poll::Ready(Ok(0)) = data {
+                    drop(self.reader.as_mut());
+                    let c = self.client.clone();
+                    let path = self.path.clone();
 
-                drop(self.reader.as_mut());
+                    let fut = async move {
+                        let mut backend = c.lock().await;
 
-                task::spawn(async move {
-                    let mut guard = c.lock().await;
+                        backend
+                            .read_response_in(&[
+                                Status::ClosingDataConnection,
+                                Status::RequestedFileActionOk,
+                            ])
+                            .await
+                            .unwrap();
+                        backend.quit().await.map_err(|e| {
+                            other(ObjectError::new(
+                                Operation::Read,
+                                path.as_str(),
+                                anyhow!("quit request: {e:?}"),
+                            ))
+                        })?;
 
-                    guard
-                        .read_response_in(&[
-                            Status::ClosingDataConnection,
-                            Status::RequestedFileActionOk,
-                        ])
-                        .await
-                        .unwrap();
+                        Ok(())
+                    };
 
-                    guard.quit().await.unwrap();
-                    drop(guard);
-                });
+                    self.state = State::Finalize(Box::pin(fut));
+
+                // Otherwise, exit and return data.
+                } else {
+                    return data;
+                }
+
+                self.poll_read(cx, buf)
             }
-            _ => (),
-        };
+            // Finalize state, wait for finalization of stream. Change state to Eof or Error according to the result of fut.
+            State::Finalize(fut) => {
+                match ready!(Pin::new(fut).poll_unpin(cx)) {
+                    Ok(_) => {
+                        self.state = State::Eof;
+                    }
+                    Err(e) => {
+                        self.state = State::Error(e);
+                    }
+                }
 
-        result
+                self.poll_read(cx, buf)
+            }
+            // Eof state, return 0 byte.
+            State::Eof => Poll::Ready(Ok(0)),
+
+            // Error state, return error.
+            State::Error(e) => Poll::Ready(Err(Error::new(e.kind(), e.to_string()))),
+        }
     }
 }

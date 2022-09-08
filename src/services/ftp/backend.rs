@@ -305,9 +305,13 @@ impl Accessor for Backend {
         })?;
 
         let r: BytesReader = match args.size() {
-            None => Box::new(FtpReader::new(Box::new(data_stream), ftp_stream)),
+            None => Box::new(FtpReader::new(Box::new(data_stream), ftp_stream, path)),
 
-            Some(size) => Box::new(FtpReader::new(Box::new(data_stream.take(size)), ftp_stream)),
+            Some(size) => Box::new(FtpReader::new(
+                Box::new(data_stream.take(size)),
+                ftp_stream,
+                path,
+            )),
         };
         Ok(r)
     }

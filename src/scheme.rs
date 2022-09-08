@@ -132,6 +132,7 @@ impl From<Scheme> for &'static str {
             Scheme::Http => "http",
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => "ftp",
+            #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
             Scheme::Memory => "memory",

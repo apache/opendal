@@ -132,6 +132,8 @@ impl Operator {
             Scheme::Http => services::http::Backend::from_iter(it)?.into(),
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => services::ftp::Backend::from_iter(it)?.into(),
+            #[cfg(feature = "services-ipfs")]
+            Scheme::Ipfs => services::ipfs::Backend::from_iter(it)?.into(),
             Scheme::Ipmfs => services::ipmfs::Backend::from_iter(it)?.into(),
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
             Scheme::Gcs => services::gcs::Backend::from_iter(it)?.into(),

@@ -29,6 +29,7 @@ use futures::AsyncReadExt;
 use log::info;
 use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
+use suppaftp::types::FileType;
 use suppaftp::FtpStream;
 use time::OffsetDateTime;
 
@@ -36,6 +37,7 @@ use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::err::new_request_connection_err;
 use super::err::new_request_quit_err;
+use super::FtpReader;
 use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
@@ -303,10 +305,14 @@ impl Accessor for Backend {
         })?;
 
         let r: BytesReader = match args.size() {
-            None => Box::new(data_stream),
-            Some(size) => Box::new(data_stream.take(size)),
-        };
+            None => Box::new(FtpReader::new(Box::new(data_stream), ftp_stream, path)),
 
+            Some(size) => Box::new(FtpReader::new(
+                Box::new(data_stream.take(size)),
+                ftp_stream,
+                path,
+            )),
+        };
         Ok(r)
     }
 
@@ -488,6 +494,17 @@ impl Backend {
                 anyhow!("change root request: {e:?}"),
             ))
         })?;
+
+        ftp_stream
+            .transfer_type(FileType::Binary)
+            .await
+            .map_err(|e| {
+                other(ObjectError::new(
+                    op,
+                    &self.endpoint,
+                    anyhow!("transfer type request: {e:?}"),
+                ))
+            })?;
 
         Ok(ftp_stream)
     }

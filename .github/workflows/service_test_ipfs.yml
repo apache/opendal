@@ -25,6 +25,9 @@ jobs:
         with:
           ipfs_version: "v0.14.0"
           run_daemon: true
+      - name: IPFS add speed up tests
+        run: ipfs add -r ./testdata
+
       - name: Test
         shell: bash
         run: cargo test ipfs --features compress,layers-retry,services-ipfs -- --nocapture

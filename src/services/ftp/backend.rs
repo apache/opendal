@@ -22,6 +22,7 @@ use std::io::Result;
 use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
+use suppaftp::FtpResult;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -303,13 +304,26 @@ impl Accessor for Backend {
                 })?;
         }
 
-        let data_stream = ftp_stream.retr_as_stream(path).await.map_err(|e| {
-            other(ObjectError::new(
-                Operation::Read,
-                path,
-                anyhow!("retrieve request: {e:?}"),
-            ))
-        })?;
+        let result = ftp_stream.retr_as_stream(path).await;
+        match result {
+            Err(FtpError::UnexpectedResponse(Response {
+                status: Status::FileUnavailable,
+                body: e,
+            })) => {
+                return Err(Error::new(ErrorKind::NotFound, e));
+            }
+            Err(e) => {
+                return Err(other(ObjectError::new(
+                    Operation::Read,
+                    path,
+                    anyhow!("retr  request: {e:?}"),
+                )));
+            }
+            Ok(_) => (),
+        }
+
+        // As we handle all error above, it is save to unwrap without panic.
+        let data_stream = result.unwrap();
 
         let r: BytesReader = match args.size() {
             None => Box::new(FtpReader::new(Box::new(data_stream), ftp_stream, path)),
@@ -324,8 +338,6 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        // TODO: create before write
-
         let path = args.path();
 
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
@@ -409,23 +421,26 @@ impl Accessor for Backend {
         let path = args.path();
 
         let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
-
+        let result: FtpResult<()>;
         if args.path().ends_with('/') {
-            ftp_stream.rmdir(&path).await.map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Delete,
-                    path,
-                    anyhow!("remove directory request: {e:?}"),
-                ))
-            })?;
+            result = ftp_stream.rmdir(&path).await;
         } else {
-            ftp_stream.rm(&path).await.map_err(|e| {
-                other(ObjectError::new(
+            result = ftp_stream.rm(&path).await;
+        }
+
+        match result {
+            Err(FtpError::UnexpectedResponse(Response {
+                status: Status::FileUnavailable,
+                ..
+            }))
+            | Ok(_) => (),
+            Err(e) => {
+                return Err(other(ObjectError::new(
                     Operation::Delete,
                     path,
-                    anyhow!("remove file request: {e:?}"),
-                ))
-            })?;
+                    anyhow!("remove request: {e:?}"),
+                )));
+            }
         }
 
         ftp_stream
@@ -438,12 +453,12 @@ impl Accessor for Backend {
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
         let p = args.path();
-        let path: Option<&str>;
-        if p == "/" || p.is_empty() {
-            path = None;
+
+        let path = if p == "/" || p.is_empty() {
+            None
         } else {
-            path = Some(p);
-        }
+            Some(p)
+        };
 
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 

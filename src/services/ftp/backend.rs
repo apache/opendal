@@ -22,7 +22,6 @@ use std::io::Result;
 use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
-use suppaftp::FtpResult;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -372,20 +371,21 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = args.path();
+        let p = args.path();
+        let path = if p == "/" || p.is_empty() {
+            None
+        } else {
+            Some(p)
+        };
 
         let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
 
         let mut meta: ObjectMetadata = ObjectMetadata::default();
 
-        if path.is_empty() {
-            meta.set_mode(ObjectMode::DIR);
-        }
-
-        let mut resp = ftp_stream.list(Some(path)).await.map_err(|e| {
+        let mut resp = ftp_stream.list(path).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::Stat,
-                path,
+                path.unwrap_or("/"),
                 anyhow!("list request: {e:?}"),
             ))
         })?;
@@ -393,7 +393,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Stat, path))?;
+            .map_err(|e| new_request_quit_err(e, Operation::Stat, path.unwrap_or("/")))?;
 
         // As result is not empty, we can safely use swap_remove without panic
         if !resp.is_empty() {
@@ -421,12 +421,12 @@ impl Accessor for Backend {
         let path = args.path();
 
         let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
-        let result: FtpResult<()>;
-        if args.path().ends_with('/') {
-            result = ftp_stream.rmdir(&path).await;
+
+        let result = if args.path().ends_with('/') {
+            ftp_stream.rmdir(&path).await
         } else {
-            result = ftp_stream.rm(&path).await;
-        }
+            ftp_stream.rm(&path).await
+        };
 
         match result {
             Err(FtpError::UnexpectedResponse(Response {

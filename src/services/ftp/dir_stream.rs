@@ -90,16 +90,18 @@ impl futures::Stream for DirStream {
                 Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path))))
             }
             Some(Ok(de)) => {
+                let path = self.path.to_string() + de.name();
+
                 let d = if de.is_file() {
-                    DirEntry::new(self.backend.clone(), ObjectMode::FILE, de.name())
+                    DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
                 } else if de.is_directory() {
-                    let mut dir_path = de.name().to_string();
-                    if !dir_path.ends_with('/') {
-                        dir_path.push('/');
-                    }
-                    DirEntry::new(self.backend.clone(), ObjectMode::DIR, dir_path.as_str())
+                    DirEntry::new(
+                        self.backend.clone(),
+                        ObjectMode::DIR,
+                        &format!("{}/", &path),
+                    )
                 } else {
-                    DirEntry::new(self.backend.clone(), ObjectMode::Unknown, de.name())
+                    DirEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
                 };
 
                 debug!(

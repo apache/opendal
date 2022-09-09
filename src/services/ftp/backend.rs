@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use log::info;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -26,10 +27,9 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::io::copy;
 use futures::AsyncReadExt;
-use log::info;
 use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
-use suppaftp::types::FileType;
+use suppaftp::types::{FileType, Response};
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
@@ -237,47 +237,52 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = args.path();
-
         let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
 
-        if args.mode() == ObjectMode::FILE {
-            ftp_stream
-                .put_file(&path, &mut "".as_bytes())
-                .await
-                .map_err(|e| {
-                    other(ObjectError::new(
-                        Operation::Create,
-                        path,
-                        anyhow!("put request: {e:?}"),
-                    ))
-                })?;
+        let paths: Vec<&str> = args.path().split_inclusive('/').collect();
 
-            ftp_stream
-                .quit()
-                .await
-                .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
+        let mut curr_path = String::new();
 
-            return Ok(());
+        for path in paths {
+            curr_path.push_str(path);
+            // try to create directory
+            if curr_path.ends_with('/') {
+                match ftp_stream.mkdir(&curr_path).await {
+                    // Do nothing if status is FileUnavailable or OK(()) is return.
+                    Err(FtpError::UnexpectedResponse(Response {
+                        status: Status::FileUnavailable,
+                        ..
+                    }))
+                    | Ok(()) => (),
+                    Err(e) => {
+                        return Err(other(ObjectError::new(
+                            Operation::Create,
+                            args.path(),
+                            anyhow!("mkdir request: {e:?}"),
+                        )));
+                    }
+                }
+            } else {
+                // else, create file
+                ftp_stream
+                    .put_file(&curr_path, &mut "".as_bytes())
+                    .await
+                    .map_err(|e| {
+                        other(ObjectError::new(
+                            Operation::Create,
+                            path,
+                            anyhow!("put request: {e:?}"),
+                        ))
+                    })?;
+            }
         }
 
-        if args.mode() == ObjectMode::DIR {
-            ftp_stream.mkdir(&path).await.map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Create,
-                    path,
-                    anyhow!("mkdir request: {e:?}"),
-                ))
-            })?;
+        ftp_stream
+            .quit()
+            .await
+            .map_err(|e| new_request_quit_err(e, Operation::Create, args.path()))?;
 
-            ftp_stream
-                .quit()
-                .await
-                .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
-            return Ok(());
-        }
-
-        unreachable!()
+        return Ok(());
     }
 
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
@@ -319,6 +324,8 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+        // TODO: create before write
+
         let path = args.path();
 
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;

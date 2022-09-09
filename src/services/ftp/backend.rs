@@ -368,7 +368,6 @@ impl Accessor for Backend {
 
         if path.is_empty() {
             meta.set_mode(ObjectMode::DIR);
-            return Ok(meta);
         }
 
         let mut resp = ftp_stream.list(Some(path)).await.map_err(|e| {
@@ -399,6 +398,8 @@ impl Accessor for Backend {
             meta.set_content_length(f.size() as u64);
 
             meta.set_last_modified(OffsetDateTime::from(f.modified()));
+        } else {
+            return Err(Error::new(ErrorKind::NotFound, "Not Found"));
         }
 
         Ok(meta)
@@ -436,14 +437,20 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = args.path();
+        let p = args.path();
+        let path: Option<&str>;
+        if p == "/" || p.is_empty() {
+            path = None;
+        } else {
+            path = Some(p);
+        }
 
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
-        let files = ftp_stream.list(Some(path)).await.map_err(|e| {
+        let files = ftp_stream.list(path).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::List,
-                path,
+                path.unwrap_or(""),
                 anyhow!("list request: {e:?}"),
             ))
         })?;
@@ -451,11 +458,15 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::List, path))?;
+            .map_err(|e| new_request_quit_err(e, Operation::List, path.unwrap_or("")))?;
 
         let rd = ReadDir::new(files);
 
-        Ok(Box::new(DirStream::new(Arc::new(self.clone()), path, rd)))
+        Ok(Box::new(DirStream::new(
+            Arc::new(self.clone()),
+            path.unwrap_or(""),
+            rd,
+        )))
     }
 }
 

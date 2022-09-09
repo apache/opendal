@@ -509,6 +509,13 @@ impl Backend {
                             anyhow!("cwd request: {e:?}"),
                         ))
                     })?;
+                } else {
+                    // Other errors, return
+                    return Err(other(ObjectError::new(
+                        op,
+                        &self.endpoint,
+                        anyhow!("cwd request: {e:?}"),
+                    )));
                 }
             }
             // Other errors, return.

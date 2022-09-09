@@ -93,7 +93,11 @@ impl futures::Stream for DirStream {
                 let d = if de.is_file() {
                     DirEntry::new(self.backend.clone(), ObjectMode::FILE, de.name())
                 } else if de.is_directory() {
-                    DirEntry::new(self.backend.clone(), ObjectMode::DIR, de.name())
+                    let mut dir_path = de.name().to_string();
+                    if !dir_path.ends_with("/") {
+                        dir_path.push('/');
+                    }
+                    DirEntry::new(self.backend.clone(), ObjectMode::DIR, dir_path.as_str())
                 } else {
                     DirEntry::new(self.backend.clone(), ObjectMode::Unknown, de.name())
                 };

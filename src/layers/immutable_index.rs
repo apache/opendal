@@ -58,7 +58,7 @@ use crate::{BlockingBytesReader, ObjectMode};
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_env(Scheme::Http)?.layer(iil);
+/// let op = Operator::from_env(Scheme::Http).unwrap().layer(iil);
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct ImmutableIndexLayer {

@@ -23,7 +23,6 @@ use futures::AsyncRead;
 use futures::FutureExt;
 use std::io::Error;
 use std::io::Result;
-use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use suppaftp::FtpStream;
@@ -68,7 +67,7 @@ impl AsyncRead for FtpReader {
                     Some(_) => {
                         // when hit Err or EOF, consume ftpstream, change state to Finalize and send fut.
                         if let Poll::Ready(Err(_)) | Poll::Ready(Ok(0)) = data {
-                            let mut ft = mem::replace(stream, None).unwrap();
+                            let mut ft = stream.take().unwrap();
 
                             let fut = async move {
                                 ft.read_response_in(&[

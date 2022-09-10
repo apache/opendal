@@ -89,10 +89,11 @@ pub struct Metadata {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
     use data::DataType;
     use prost::Message;
+
+    use super::*;
 
     /// Content is generated from `https://ipfs.io/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ`
     /// with `accept: application/vnd.ipld.raw`

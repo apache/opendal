@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::TryStreamExt;
 use std::collections::HashMap;
 use std::io::Result;
 
+use futures::TryStreamExt;
 use opendal::ObjectMode;
 use opendal::Operator;
 

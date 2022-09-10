@@ -25,7 +25,7 @@
 //! You can refer to [`Builder`]'s docs for more information
 //!
 //! # Environment
-//!   
+//!
 //! - `OPENDAL_FTP_ENDPOINT`    optional
 //! - `OPENDAL_FTP_ROOT`    required
 //! - `OPENDAL_FTP_PORT`    optional
@@ -39,7 +39,7 @@
 //! Set environment correctly:
 //!
 //! ```shell
-//! export OPENDAL_FTP_ENDPOINT=endpoint    # required  
+//! export OPENDAL_FTP_ENDPOINT=endpoint    # required
 //! export OPENDAL_FTP_Port=port      # default with 21
 //! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/ftp"
 //! export OPENDAL_FTP_NAME=name    # default with empty string ""
@@ -86,7 +86,7 @@
 mod backend;
 pub use backend::Backend;
 pub use backend::Builder;
+
 mod dir_stream;
 mod err;
 mod util;
-pub use util::FtpReader;

@@ -377,7 +377,11 @@ impl Accessor for Backend {
 
         let mut meta: ObjectMetadata = ObjectMetadata::default();
 
-        let files: Vec<File>;
+        // root dir, return default ObjectMetadata with Dir ObjectMode.
+        if p.is_empty() || p == "/" {
+            meta.set_mode(ObjectMode::DIR);
+            return Ok(meta);
+        }
 
         // If given path points to a directory, split it into parent path and basename.
         if p.ends_with('/') {
@@ -403,19 +407,17 @@ impl Accessor for Backend {
         })?;
 
         // Get stat of file.
-        if p == args.path() {
-            files = resp
-                .into_iter()
+        let files = if p == args.path() {
+            resp.into_iter()
                 .filter_map(|file| File::from_str(file.as_str()).ok())
-                .collect::<Vec<File>>();
+                .collect::<Vec<File>>()
         // Get stat of directory.
         } else {
-            files = resp
-                .into_iter()
+            resp.into_iter()
                 .filter_map(|file| File::from_str(file.as_str()).ok())
                 .filter(|f| f.name() == p)
-                .collect::<Vec<File>>();
-        }
+                .collect::<Vec<File>>()
+        };
 
         ftp_stream
             .quit()

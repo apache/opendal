@@ -371,50 +371,74 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = args.path();
-        let path = if p == "/" || p.is_empty() {
-            None
-        } else {
-            Some(p)
-        };
-
+        let mut p = args.path();
+        let path: String;
         let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
 
         let mut meta: ObjectMetadata = ObjectMetadata::default();
 
-        let mut resp = ftp_stream.list(path).await.map_err(|e| {
+        let files: Vec<File>;
+
+        // If given path points to a directory, split it into parent path and basename.
+        if p.ends_with('/') {
+            if let Some((basename, parent_path)) =
+                p.split_inclusive('/').collect::<Vec<&str>>().split_last()
+            {
+                path = parent_path.join("");
+                p = &basename[..basename.len() - 1];
+            } else {
+                path = "".to_string();
+            }
+        } else {
+            // otherwise, directly use the path provided by arg.
+            path = p.to_string();
+        }
+
+        let resp = ftp_stream.list(Some(&path)).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::Stat,
-                path.unwrap_or("/"),
+                &path,
                 anyhow!("list request: {e:?}"),
             ))
         })?;
 
+        // Get stat of file.
+        if p == args.path() {
+            files = resp
+                .into_iter()
+                .filter_map(|file| File::from_str(file.as_str()).ok())
+                .collect::<Vec<File>>();
+        // Get stat of directory.
+        } else {
+            files = resp
+                .into_iter()
+                .filter_map(|file| File::from_str(file.as_str()).ok())
+                .filter(|f| f.name() == p)
+                .collect::<Vec<File>>();
+        }
+
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Stat, path.unwrap_or("/")))?;
+            .map_err(|e| new_request_quit_err(e, Operation::Stat, &path))?;
 
-        // As result is not empty, we can safely use swap_remove without panic
-        if !resp.is_empty() {
-            let f = File::from_str(&resp.swap_remove(0))
-                .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-            if f.is_file() {
+        if files.is_empty() {
+            Err(Error::new(ErrorKind::NotFound, "Not Found"))
+        } else {
+            let file = files.get(0).unwrap();
+            if file.is_file() {
                 meta.set_mode(ObjectMode::FILE);
-            } else if f.is_directory() {
+            } else if file.is_directory() {
                 meta.set_mode(ObjectMode::DIR);
             } else {
                 meta.set_mode(ObjectMode::Unknown);
             }
+            meta.set_content_length(file.size() as u64);
 
-            meta.set_content_length(f.size() as u64);
+            meta.set_last_modified(OffsetDateTime::from(file.modified()));
 
-            meta.set_last_modified(OffsetDateTime::from(f.modified()));
-        } else {
-            return Err(Error::new(ErrorKind::NotFound, "Not Found"));
+            Ok(meta)
         }
-
-        Ok(meta)
     }
 
     async fn delete(&self, args: &OpDelete) -> Result<()> {

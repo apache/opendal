@@ -24,7 +24,7 @@ use std::str::FromStr;
 /// - Scheme is `non_exhaustive`, new variant COULD be added at any time.
 /// - New variant SHOULD be added in alphabet orders,
 /// - Users MUST NOT relay on its order.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Scheme {
     /// [azblob][crate::services::azblob]: Azure Storage Blob services.

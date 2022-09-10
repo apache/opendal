@@ -458,6 +458,12 @@ impl AccessorMetadata {
         self.capabilities.contains(AccessorCapability::Blocking)
     }
 
+    /// Set this function to private so that users can't access capabilities
+    /// directly.
+    pub(crate) fn capabilities(&self) -> FlagSet<AccessorCapability> {
+        self.capabilities
+    }
+
     pub(crate) fn set_capabilities(
         &mut self,
         capabilities: impl Into<FlagSet<AccessorCapability>>,

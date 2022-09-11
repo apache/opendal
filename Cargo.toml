@@ -18,7 +18,7 @@ all-features = true
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable rustls support.
-rustls = ["reqwest/rustls-tls", "reqwest/rustls-tls-native-roots"]
+rustls = ["reqwest/rustls-tls", "reqwest/rustls-tls-native-roots", "ureq/rustls", "ureq/rustls-native-certs"]
 # Enable serde support.
 serde = ["time/serde"]
 

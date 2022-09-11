@@ -77,7 +77,7 @@ impl futures::Stream for DirStream {
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
                 let fut = async move {
-                    let resp = backend.list_objects(&path, &next_marker).await?;
+                    let resp = backend.obs_list_objects(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
                         let er = parse_error_response(resp).await?;

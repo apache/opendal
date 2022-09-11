@@ -201,7 +201,7 @@ impl Debug for Backend {
         f.debug_struct("Backend")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
-            .field("tls", &self.enable_secure)
+            .field("enable_secure", &self.enable_secure)
             .finish()
     }
 }
@@ -513,7 +513,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    pub(crate) async fn ftp_connect(&self, op: Operation) -> Result<FtpStream> {
+    async fn ftp_connect(&self, op: Operation) -> Result<FtpStream> {
         let stream = FtpStream::connect(&self.endpoint)
             .await
             .map_err(|e| new_request_connection_err(e, Operation::Delete, &self.endpoint))?;

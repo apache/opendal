@@ -71,7 +71,7 @@ impl futures::Stream for DirStream {
         match &mut self.state {
             State::Idle => {
                 let fut = async move {
-                    let resp = backend.ipfs_ls(&path).await?;
+                    let resp = backend.ipmfs_ls(&path).await?;
 
                     if resp.status() != StatusCode::OK {
                         let er = parse_error_response(resp).await?;

@@ -367,7 +367,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    pub(crate) async fn ipfs_get(
+    async fn ipfs_get(
         &self,
         path: &str,
         offset: Option<u64>,
@@ -394,7 +394,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    pub(crate) async fn ipfs_head(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipfs_head(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let req = Request::head(&url);
@@ -409,7 +409,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    pub(crate) async fn ipfs_list(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipfs_list(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}{}", self.endpoint, percent_encode_path(path));
 
         let mut req = Request::get(&url);

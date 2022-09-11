@@ -28,9 +28,8 @@
 //!
 //! - `OPENDAL_FTP_ENDPOINT`    optional
 //! - `OPENDAL_FTP_ROOT`    required
-//! - `OPENDAL_FTP_PORT`    optional
-//! - `OPENDAL_FTP_NAME`  optional
-//! - `OPENDAL_FTP_PWD`    optional
+//! - `OPENDAL_FTP_USER`  optional
+//! - `OPENDAL_FTP_PASSWORD`    optional
 //!
 //! # Example
 //!
@@ -40,10 +39,9 @@
 //!
 //! ```shell
 //! export OPENDAL_FTP_ENDPOINT=endpoint    # required
-//! export OPENDAL_FTP_Port=port      # default with 21
-//! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/ftp"
-//! export OPENDAL_FTP_NAME=name    # default with empty string ""
-//! export OPENDAL_FTP_PWD=password    # default with  empty string ""
+//! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/"
+//! export OPENDAL_FTP_USER=name            # default with empty string ""
+//! export OPENDAL_FTP_PASSWORD=password    # default with empty string ""
 //! ```
 //! ```no_run
 //! use anyhow::Result;

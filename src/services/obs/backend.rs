@@ -282,7 +282,7 @@ impl Accessor for Backend {
     async fn create(&self, args: &OpCreate) -> Result<()> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.put_object_request(&p, Some(0), AsyncBody::Empty)?;
+        let mut req = self.obs_put_object_request(&p, Some(0), AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
@@ -315,7 +315,7 @@ impl Accessor for Backend {
     async fn read(&self, args: &OpRead) -> Result<BytesReader> {
         let p = build_abs_path(&self.root, args.path());
 
-        let resp = self.get_object(&p, args.offset(), args.size()).await?;
+        let resp = self.obs_get_object(&p, args.offset(), args.size()).await?;
 
         let status = resp.status();
 
@@ -332,7 +332,7 @@ impl Accessor for Backend {
     async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
         let p = build_abs_path(&self.root, args.path());
 
-        let mut req = self.put_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
+        let mut req = self.obs_put_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
 
         self.signer
             .sign(&mut req)
@@ -372,7 +372,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.get_head_object(&p).await?;
+        let resp = self.obs_get_head_object(&p).await?;
 
         let status = resp.status();
 
@@ -425,7 +425,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let p = build_abs_path(&self.root, args.path());
 
-        let resp = self.delete_object(&p).await?;
+        let resp = self.obs_delete_object(&p).await?;
 
         let status = resp.status();
 
@@ -451,7 +451,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    pub(crate) async fn get_object(
+    async fn obs_get_object(
         &self,
         path: &str,
         offset: Option<u64>,
@@ -482,7 +482,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    pub(crate) fn put_object_request(
+    fn obs_put_object_request(
         &self,
         path: &str,
         size: Option<u64>,
@@ -503,7 +503,7 @@ impl Backend {
         Ok(req)
     }
 
-    pub(crate) async fn get_head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn obs_get_head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
@@ -525,7 +525,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    pub(crate) async fn delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn obs_delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
 
         let req = Request::delete(&url);
@@ -544,7 +544,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 
-    pub(crate) async fn list_objects(
+    pub(crate) async fn obs_list_objects(
         &self,
         path: &str,
         next_marker: &str,

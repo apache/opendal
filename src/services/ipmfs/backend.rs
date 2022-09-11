@@ -115,8 +115,8 @@ impl Accessor for Backend {
         let path = build_rooted_abs_path(&self.root, args.path());
 
         let resp = match args.mode() {
-            ObjectMode::DIR => self.ipfs_mkdir(&path).await?,
-            ObjectMode::FILE => self.ipfs_write(&path, &[]).await?,
+            ObjectMode::DIR => self.ipmfs_mkdir(&path).await?,
+            ObjectMode::FILE => self.ipmfs_write(&path, &[]).await?,
             _ => unreachable!(),
         };
 
@@ -143,7 +143,7 @@ impl Accessor for Backend {
 
         let offset = args.offset().and_then(|val| i64::try_from(val).ok());
         let size = args.size().and_then(|val| i64::try_from(val).ok());
-        let resp = self.ipfs_read(&path, offset, size).await?;
+        let resp = self.ipmfs_read(&path, offset, size).await?;
 
         let status = resp.status();
 
@@ -164,7 +164,7 @@ impl Accessor for Backend {
         let mut buf = Vec::with_capacity(args.size() as usize);
         io::copy(r, &mut buf).await?;
 
-        let resp = self.ipfs_write(&path, &buf).await?;
+        let resp = self.ipmfs_write(&path, &buf).await?;
 
         let status = resp.status();
 
@@ -195,7 +195,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.ipfs_stat(&path).await?;
+        let resp = self.ipmfs_stat(&path).await?;
 
         let status = resp.status();
 
@@ -236,7 +236,7 @@ impl Accessor for Backend {
     async fn delete(&self, args: &OpDelete) -> Result<()> {
         let path = build_rooted_abs_path(&self.root, args.path());
 
-        let resp = self.ipfs_rm(&path).await?;
+        let resp = self.ipmfs_rm(&path).await?;
 
         let status = resp.status();
 
@@ -268,7 +268,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    async fn ipfs_stat(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_stat(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/api/v0/files/stat?arg={}",
             self.endpoint,
@@ -286,7 +286,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn ipfs_read(
+    async fn ipmfs_read(
         &self,
         path: &str,
         offset: Option<i64>,
@@ -315,7 +315,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    async fn ipfs_rm(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_rm(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/api/v0/files/rm?arg={}",
             self.endpoint,
@@ -333,7 +333,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 
-    pub(crate) async fn ipfs_ls(&self, path: &str) -> Result<Response<AsyncBody>> {
+    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/api/v0/files/ls?arg={}&long=true",
             self.endpoint,
@@ -351,7 +351,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 
-    async fn ipfs_mkdir(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/api/v0/files/mkdir?arg={}&parents=true",
             self.endpoint,
@@ -370,7 +370,7 @@ impl Backend {
     }
 
     /// Support write from reader.
-    async fn ipfs_write(&self, path: &str, data: &[u8]) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_write(&self, path: &str, data: &[u8]) -> Result<Response<AsyncBody>> {
         let url = format!(
             "{}/api/v0/files/write?arg={}&parents=true&create=true&truncate=true",
             self.endpoint,

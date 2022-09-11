@@ -26,7 +26,6 @@ use crate::ops::Operation;
 /// # TODO
 ///
 /// In the future, we may have our own error struct.
-
 pub fn new_request_connection_err(e: FtpError, op: Operation, path: &str) -> Error {
     other(ObjectError::new(
         op,

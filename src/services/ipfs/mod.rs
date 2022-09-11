@@ -72,7 +72,6 @@
 //!     // set the root for OpenDAL
 //!     builder.root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ");
 //!
-//!
 //!     let op: Operator = Operator::new(builder.build()?);
 //!
 //!     // Create an object handle to start operation on object.

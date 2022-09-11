@@ -8,6 +8,7 @@
 - [Services](services/README.md)
   - [azblob](services/azblob.md)
   - [fs](services/fs.md)
+  - [ftp](services/ftp.md)
   - [gcs](services/gcs.md)
   - [hdfs](services/hdfs.md)
   - [ipfs](services/ipfs.md)

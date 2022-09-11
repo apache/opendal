@@ -24,21 +24,29 @@ use std::vec::IntoIter;
 use async_trait::async_trait;
 
 use crate::accessor::AccessorCapability;
+use crate::ops::OpAbortMultipart;
+use crate::ops::OpCompleteMultipart;
+use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpPresign;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{
-    OpAbortMultipart, OpCompleteMultipart, OpCreate, OpCreateMultipart, OpList, OpPresign,
-    OpWriteMultipart,
-};
-use crate::ops::{OpDelete, PresignedRequest};
-use crate::ops::{OpRead, OpStat};
+use crate::ops::OpWriteMultipart;
+use crate::ops::PresignedRequest;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::DirEntry;
 use crate::DirIterator;
 use crate::DirStreamer;
 use crate::Layer;
 use crate::ObjectMetadata;
-use crate::{Accessor, ObjectPart};
-use crate::{AccessorMetadata, DirEntry};
-use crate::{BlockingBytesReader, ObjectMode};
+use crate::ObjectMode;
+use crate::ObjectPart;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for
 /// underlying storage services.
@@ -48,9 +56,9 @@ use crate::{BlockingBytesReader, ObjectMode};
 /// # Examples
 ///
 /// ```rust, no_run
+/// use opendal::layers::ImmutableIndexLayer;
 /// use opendal::Operator;
 /// use opendal::Scheme;
-/// use opendal::layers::ImmutableIndexLayer;
 ///
 /// let mut iil = ImmutableIndexLayer::default();
 ///
@@ -283,12 +291,16 @@ impl futures::Stream for ImmutableDir {
 
 #[cfg(test)]
 mod tests {
-    use crate::layers::immutable_index::ImmutableIndexLayer;
-    use crate::layers::LoggingLayer;
-    use crate::{ObjectMode, Operator, Scheme};
+    use std::collections::HashMap;
+
     use anyhow::Result;
     use futures::TryStreamExt;
-    use std::collections::HashMap;
+
+    use crate::layers::immutable_index::ImmutableIndexLayer;
+    use crate::layers::LoggingLayer;
+    use crate::ObjectMode;
+    use crate::Operator;
+    use crate::Scheme;
 
     #[test]
     fn test_blocking_list() -> Result<()> {

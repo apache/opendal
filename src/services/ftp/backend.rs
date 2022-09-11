@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use log::info;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -27,9 +26,11 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::io::copy;
 use futures::AsyncReadExt;
+use log::info;
 use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
-use suppaftp::types::{FileType, Response};
+use suppaftp::types::FileType;
+use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;

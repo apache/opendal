@@ -35,7 +35,7 @@ pub struct ReadDir {
     files: Vec<String>,
     index: usize,
 }
-/*  */
+
 impl Iterator for ReadDir {
     type Item = Result<File>;
 

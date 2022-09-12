@@ -168,10 +168,8 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = build_rooted_abs_path(&self.root, args.path());
-
-        let resp = self.http_get(&p, args.offset(), args.size()).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let resp = self.http_get(path, args.offset(), args.size()).await?;
 
         let status = resp.status();
 
@@ -179,24 +177,22 @@ impl Accessor for Backend {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, args.path(), er);
+                let err = parse_error(Operation::Read, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = build_rooted_abs_path(&self.root, args.path());
-
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
-        if p == self.root {
+        if path == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
             return Ok(m);
         }
 
-        let resp = self.http_head(&p).await?;
+        let resp = self.http_head(path).await?;
 
         let status = resp.status();
 
@@ -205,30 +201,30 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_content_md5(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_content_md5(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_etag(v);
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_last_modified(v);
                 }
 
-                if p.ends_with('/') {
+                if path.ends_with('/') {
                     m.set_mode(ObjectMode::DIR);
                 } else {
                     m.set_mode(ObjectMode::FILE);
@@ -238,7 +234,7 @@ impl Accessor for Backend {
             }
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
-            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if p.ends_with('/') => {
+            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
                 m.set_mode(ObjectMode::DIR);
 
@@ -246,7 +242,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, path, er);
                 Err(err)
             }
         }
@@ -260,7 +256,9 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
@@ -282,7 +280,9 @@ impl Backend {
     }
 
     async fn http_head(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let req = Request::head(&url);
 

@@ -82,99 +82,104 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument]
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        self.inner.create(args).await
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        self.inner.create(path, args).await
     }
 
     #[tracing::instrument]
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         self.inner
-            .read(args)
+            .read(path, args)
             .await
             .map(|r| Box::new(TracingReader::new(Span::current(), r)) as BytesReader)
     }
 
     #[tracing::instrument(skip(r))]
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let r = Box::new(TracingReader::new(Span::current(), r));
-        self.inner.write(args, r).await
+        self.inner.write(path, args, r).await
     }
 
     #[tracing::instrument]
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        self.inner.stat(args).await
+    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        self.inner.stat(path, args).await
     }
 
     #[tracing::instrument]
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        self.inner.delete(args).await
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
     }
 
     #[tracing::instrument]
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
         self.inner
-            .list(args)
+            .list(path, args)
             .await
             .map(|s| Box::new(TracingStreamer::new(Span::current(), s)) as DirStreamer)
     }
 
     #[tracing::instrument]
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        self.inner.presign(args)
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+        self.inner.presign(path, args)
     }
 
     #[tracing::instrument]
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
-        self.inner.create_multipart(args).await
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+        self.inner.create_multipart(path, args).await
     }
 
     #[tracing::instrument(skip(r))]
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
         let r = Box::new(TracingReader::new(Span::current(), r));
-        self.inner.write_multipart(args, r).await
+        self.inner.write_multipart(path, args, r).await
     }
 
     #[tracing::instrument]
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
-        self.inner.complete_multipart(args).await
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+        self.inner.complete_multipart(path, args).await
     }
 
     #[tracing::instrument]
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
-        self.inner.abort_multipart(args).await
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+        self.inner.abort_multipart(path, args).await
     }
 
     #[tracing::instrument]
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
-        self.inner.blocking_create(args)
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+        self.inner.blocking_create(path, args)
     }
 
     #[tracing::instrument]
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
-        self.inner.blocking_read(args).map(|r| {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+        self.inner.blocking_read(path, args).map(|r| {
             Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader
         })
     }
 
     #[tracing::instrument(skip(r))]
-    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        self.inner.blocking_write(args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.inner.blocking_write(path, args, r)
     }
 
     #[tracing::instrument]
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        self.inner.blocking_stat(args)
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        self.inner.blocking_stat(path, args)
     }
 
     #[tracing::instrument]
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
-        self.inner.blocking_delete(args)
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.blocking_delete(path, args)
     }
 
     #[tracing::instrument]
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
         self.inner
-            .blocking_list(args)
+            .blocking_list(path, args)
             .map(|it| Box::new(TracingInterator::new(Span::current(), it)) as DirIterator)
     }
 }

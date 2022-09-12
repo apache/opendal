@@ -93,8 +93,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// - Input path MUST match with ObjectMode, DON'T NEED to check object mode.
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let _ = args;
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let (_, _) = (path, args);
         unimplemented!()
     }
 
@@ -104,8 +104,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let _ = args;
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let (_, _) = (path, args);
         unimplemented!()
     }
 
@@ -115,8 +115,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let (_, _) = (args, r);
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        let (_, _, _) = (path, args, r);
         unimplemented!()
     }
 
@@ -126,8 +126,8 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let _ = args;
+    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        let (_, _) = (path, args);
         unimplemented!()
     }
 
@@ -137,8 +137,8 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
     /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let _ = args;
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        let (_, _) = (path, args);
         unimplemented!()
     }
 
@@ -147,8 +147,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let _ = args;
+    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+        let (_, _) = (path, args);
         unimplemented!()
     }
 
@@ -158,11 +158,9 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        return Err(new_unsupported_object_error(
-            Operation::Presign,
-            args.path(),
-        ));
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+        let _ = args;
+        Err(new_unsupported_object_error(Operation::Presign, path))
     }
 
     /// Invoke the `create_multipart` operation on the specified path.
@@ -171,13 +169,13 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
+        Err(new_unsupported_object_error(
             Operation::CreateMultipart,
-            args.path(),
-        ));
+            path,
+        ))
     }
 
     /// Invoke the `write_multipart` operation on the specified path.
@@ -185,13 +183,18 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
         let (_, _) = (args, r);
 
-        return Err(new_unsupported_object_error(
+        Err(new_unsupported_object_error(
             Operation::WriteMultipart,
-            args.path(),
-        ));
+            path,
+        ))
     }
 
     /// Invoke the `complete_multipart` operation on the specified path.
@@ -199,13 +202,13 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
+        Err(new_unsupported_object_error(
             Operation::CompleteMultipart,
-            args.path(),
-        ));
+            path,
+        ))
     }
 
     /// Invoke the `abort_multipart` operation on the specified path.
@@ -213,13 +216,13 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
+        Err(new_unsupported_object_error(
             Operation::AbortMultipart,
-            args.path(),
-        ));
+            path,
+        ))
     }
 
     /// Invoke the `blocking_create` operation on the specified path.
@@ -229,13 +232,13 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
+        Err(new_unsupported_object_error(
             Operation::BlockingCreate,
-            args.path(),
-        ));
+            path,
+        ))
     }
 
     /// Invoke the `blocking_read` operation on the specified path.
@@ -245,13 +248,10 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
-            Operation::BlockingRead,
-            args.path(),
-        ));
+        Err(new_unsupported_object_error(Operation::BlockingRead, path))
     }
 
     /// Invoke the `blocking_write` operation on the specified path.
@@ -261,13 +261,10 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
         let (_, _) = (args, r);
 
-        return Err(new_unsupported_object_error(
-            Operation::BlockingWrite,
-            args.path(),
-        ));
+        Err(new_unsupported_object_error(Operation::BlockingWrite, path))
     }
 
     /// Invoke the `blocking_stat` operation on the specified path.
@@ -277,13 +274,10 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
-            Operation::BlockingStat,
-            args.path(),
-        ));
+        Err(new_unsupported_object_error(Operation::BlockingStat, path))
     }
 
     /// Invoke the `blocking_delete` operation on the specified path.
@@ -293,13 +287,13 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
+        Err(new_unsupported_object_error(
             Operation::BlockingDelete,
-            args.path(),
-        ));
+            path,
+        ))
     }
 
     /// Invoke the `blocking_list` operation on the specified path.
@@ -309,13 +303,10 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
         let _ = args;
 
-        return Err(new_unsupported_object_error(
-            Operation::BlockingList,
-            args.path(),
-        ));
+        Err(new_unsupported_object_error(Operation::BlockingList, path))
     }
 }
 
@@ -327,59 +318,64 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().metadata()
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        self.as_ref().create(args).await
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        self.as_ref().create(path, args).await
     }
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        self.as_ref().read(args).await
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        self.as_ref().read(path, args).await
     }
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        self.as_ref().write(args, r).await
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        self.as_ref().write(path, args, r).await
     }
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        self.as_ref().stat(args).await
+    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        self.as_ref().stat(path, args).await
     }
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        self.as_ref().delete(args).await
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        self.as_ref().delete(path, args).await
     }
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        self.as_ref().list(args).await
-    }
-
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        self.as_ref().presign(args)
+    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+        self.as_ref().list(path, args).await
     }
 
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
-        self.as_ref().create_multipart(args).await
-    }
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
-        self.as_ref().write_multipart(args, r).await
-    }
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
-        self.as_ref().complete_multipart(args).await
-    }
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
-        self.as_ref().abort_multipart(args).await
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+        self.as_ref().presign(path, args)
     }
 
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
-        self.as_ref().blocking_create(args)
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+        self.as_ref().create_multipart(path, args).await
     }
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
-        self.as_ref().blocking_read(args)
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
+        self.as_ref().write_multipart(path, args, r).await
     }
-    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        self.as_ref().blocking_write(args, r)
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+        self.as_ref().complete_multipart(path, args).await
     }
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        self.as_ref().blocking_stat(args)
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+        self.as_ref().abort_multipart(path, args).await
     }
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
-        self.as_ref().blocking_delete(args)
+
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+        self.as_ref().blocking_create(path, args)
     }
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
-        self.as_ref().blocking_list(args)
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+        self.as_ref().blocking_read(path, args)
+    }
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.as_ref().blocking_write(path, args, r)
+    }
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        self.as_ref().blocking_stat(path, args)
+    }
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        self.as_ref().blocking_delete(path, args)
+    }
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+        self.as_ref().blocking_list(path, args)
     }
 }
 

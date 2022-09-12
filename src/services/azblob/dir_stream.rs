@@ -55,11 +55,11 @@ enum State {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<Backend>, root: String, path: String) -> Self {
         Self {
             backend,
-            root: root.to_string(),
-            path: path.to_string(),
+            root,
+            path,
 
             next_marker: "".to_string(),
             done: false,
@@ -79,6 +79,7 @@ impl futures::Stream for DirStream {
             State::Idle => {
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
+
                 let fut = async move {
                     let resp = backend.azblob_list_blobs(&path, &next_marker).await?;
 

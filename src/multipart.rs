@@ -61,9 +61,12 @@ impl ObjectMultipart {
     pub async fn write(&self, part_number: usize, bs: impl Into<Vec<u8>>) -> Result<ObjectPart> {
         let bs = bs.into();
 
-        let op = OpWriteMultipart::new(&self.path, &self.upload_id, part_number, bs.len() as u64)?;
+        let op = OpWriteMultipart::new(self.upload_id.clone(), part_number, bs.len() as u64);
         let r = Cursor::new(bs);
-        let part = self.acc.write_multipart(&op, Box::new(r)).await?;
+        let part = self
+            .acc
+            .write_multipart(&self.path, op, Box::new(r))
+            .await?;
         Ok(part)
     }
 
@@ -75,8 +78,8 @@ impl ObjectMultipart {
     /// - This operation will concat input parts to build a new object.
     /// - Input parts order is **SENSITIVE**, please make sure the order is correct.
     pub async fn complete(&self, parts: Vec<ObjectPart>) -> Result<Object> {
-        let op = OpCompleteMultipart::new(&self.path, &self.upload_id, parts)?;
-        self.acc.complete_multipart(&op).await?;
+        let op = OpCompleteMultipart::new(self.upload_id.clone(), parts);
+        self.acc.complete_multipart(&self.path, op).await?;
 
         Ok(Object::new(self.acc.clone(), &self.path))
     }
@@ -89,8 +92,8 @@ impl ObjectMultipart {
     /// - This operation will remove all parts that already uploaded.
     /// - This operation will return `succeeded` even when object or upload_id not exist.
     pub async fn abort(&self) -> Result<()> {
-        let op = OpAbortMultipart::new(&self.path, &self.upload_id)?;
-        self.acc.abort_multipart(&op).await
+        let op = OpAbortMultipart::new(self.upload_id.clone());
+        self.acc.abort_multipart(&self.path, op).await
     }
 
     /// Presign an operation for write multipart.
@@ -100,11 +103,11 @@ impl ObjectMultipart {
     /// User need to handle the response by self which may differ for different platforms.
     pub fn presign_write(&self, part_number: usize, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(
-            OpWriteMultipart::new(&self.path, &self.upload_id, part_number, 0)?.into(),
+            OpWriteMultipart::new(self.upload_id.clone(), part_number, 0).into(),
             expire,
-        )?;
+        );
 
-        self.acc.presign(&op)
+        self.acc.presign(&self.path, op)
     }
 }
 

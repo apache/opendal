@@ -237,10 +237,10 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
         let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
 
-        let paths: Vec<&str> = args.path().split_inclusive('/').collect();
+        let paths: Vec<&str> = path.split_inclusive('/').collect();
 
         let mut curr_path = String::new();
 
@@ -258,7 +258,7 @@ impl Accessor for Backend {
                     Err(e) => {
                         return Err(other(ObjectError::new(
                             Operation::Create,
-                            args.path(),
+                            path,
                             anyhow!("mkdir request: {e:?}"),
                         )));
                     }
@@ -281,14 +281,12 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Create, args.path()))?;
+            .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
 
         return Ok(());
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = args.path();
-
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         if let Some(offset) = args.offset() {
@@ -316,7 +314,7 @@ impl Accessor for Backend {
                 return Err(other(ObjectError::new(
                     Operation::Read,
                     path,
-                    anyhow!("retr  request: {e:?}"),
+                    anyhow!("retr request: {e:?}"),
                 )));
             }
             Ok(_) => (),
@@ -337,9 +335,7 @@ impl Accessor for Backend {
         Ok(r)
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = args.path();
-
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
 
         let mut data_stream = ftp_stream.append_with_stream(path).await.map_err(|e| {
@@ -371,18 +367,19 @@ impl Accessor for Backend {
         Ok(bytes)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let mut p = args.path();
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let mut p = path;
         let path: String;
-        let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
 
         let mut meta: ObjectMetadata = ObjectMetadata::default();
 
         // root dir, return default ObjectMetadata with Dir ObjectMode.
-        if p.is_empty() || p == "/" {
+        if p == "/" {
             meta.set_mode(ObjectMode::DIR);
             return Ok(meta);
         }
+
+        let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
 
         // If given path points to a directory, split it into parent path and basename.
         if p.ends_with('/') {
@@ -408,7 +405,7 @@ impl Accessor for Backend {
         })?;
 
         // Get stat of file.
-        let files = if p == args.path() {
+        let files = if p == path {
             resp.into_iter()
                 .filter_map(|file| File::from_str(file.as_str()).ok())
                 .collect::<Vec<File>>()
@@ -444,12 +441,10 @@ impl Accessor for Backend {
         }
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = args.path();
-
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
         let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
 
-        let result = if args.path().ends_with('/') {
+        let result = if path.ends_with('/') {
             ftp_stream.rmdir(&path).await
         } else {
             ftp_stream.rm(&path).await
@@ -478,21 +473,14 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let p = args.path();
-
-        let path = if p == "/" || p.is_empty() {
-            None
-        } else {
-            Some(p)
-        };
-
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
-        let files = ftp_stream.list(path).await.map_err(|e| {
+        let pathname = if path == "/" { None } else { Some(path) };
+        let files = ftp_stream.list(pathname).await.map_err(|e| {
             other(ObjectError::new(
                 Operation::List,
-                path.unwrap_or(""),
+                path,
                 anyhow!("list request: {e:?}"),
             ))
         })?;
@@ -500,13 +488,13 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::List, path.unwrap_or("")))?;
+            .map_err(|e| new_request_quit_err(e, Operation::List, path))?;
 
         let rd = ReadDir::new(files);
 
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
-            path.unwrap_or(""),
+            if path == "/" { "" } else { path },
             rd,
         )))
     }

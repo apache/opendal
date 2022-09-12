@@ -12,53 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
-
-use anyhow::anyhow;
-
-use crate::error::other;
-use crate::error::ObjectError;
 use crate::multipart::ObjectPart;
-use crate::ops::Operation;
 
 /// Args for `create_multipart` operation.
-///
-/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct OpCreateMultipart {
-    path: String,
-}
+pub struct OpCreateMultipart {}
 
 impl OpCreateMultipart {
     /// Create a new `OpCreateMultipart`.
-    ///
-    /// If input path is not a file path, an error will be returned.
-    pub fn new(path: &str) -> Result<Self> {
-        if path.ends_with('/') {
-            return Err(other(ObjectError::new(
-                Operation::CreateMultipart,
-                path,
-                anyhow!("Is a directory"),
-            )));
-        }
-
-        Ok(Self {
-            path: path.to_string(),
-        })
-    }
-
-    /// Get path from option.
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
 /// Args for `write_multipart` operation.
-///
-/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpWriteMultipart {
-    path: String,
     upload_id: String,
     part_number: usize,
     size: u64,
@@ -66,28 +35,12 @@ pub struct OpWriteMultipart {
 
 impl OpWriteMultipart {
     /// Create a new `OpWriteMultipart`.
-    ///
-    /// If input path is not a file path, an error will be returned.
-    pub fn new(path: &str, upload_id: &str, part_number: usize, size: u64) -> Result<Self> {
-        if path.ends_with('/') {
-            return Err(other(ObjectError::new(
-                Operation::WriteMultipart,
-                path,
-                anyhow!("Is a directory"),
-            )));
-        }
-
-        Ok(Self {
-            path: path.to_string(),
-            upload_id: upload_id.to_string(),
+    pub fn new(upload_id: String, part_number: usize, size: u64) -> Self {
+        Self {
+            upload_id,
             part_number,
             size,
-        })
-    }
-
-    /// Get path from option.
-    pub fn path(&self) -> &str {
-        &self.path
+        }
     }
 
     /// Get upload_id from option.
@@ -107,38 +60,16 @@ impl OpWriteMultipart {
 }
 
 /// Args for `complete_multipart` operation.
-///
-/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpCompleteMultipart {
-    path: String,
     upload_id: String,
     parts: Vec<ObjectPart>,
 }
 
 impl OpCompleteMultipart {
     /// Create a new `OpCompleteMultipart`.
-    ///
-    /// If input path is not a file path, an error will be returned.
-    pub fn new(path: &str, upload_id: &str, parts: Vec<ObjectPart>) -> Result<Self> {
-        if path.ends_with('/') {
-            return Err(other(ObjectError::new(
-                Operation::CompleteMultipart,
-                path,
-                anyhow!("Is a directory"),
-            )));
-        }
-
-        Ok(Self {
-            path: path.to_string(),
-            upload_id: upload_id.to_string(),
-            parts,
-        })
-    }
-
-    /// Get path from option.
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn new(upload_id: String, parts: Vec<ObjectPart>) -> Self {
+        Self { upload_id, parts }
     }
 
     /// Get upload_id from option.
@@ -157,7 +88,6 @@ impl OpCompleteMultipart {
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpAbortMultipart {
-    path: String,
     upload_id: String,
 }
 
@@ -165,24 +95,8 @@ impl OpAbortMultipart {
     /// Create a new `OpAbortMultipart`.
     ///
     /// If input path is not a file path, an error will be returned.
-    pub fn new(path: &str, upload_id: &str) -> Result<Self> {
-        if path.ends_with('/') {
-            return Err(other(ObjectError::new(
-                Operation::AbortMultipart,
-                path,
-                anyhow!("Is a directory"),
-            )));
-        }
-
-        Ok(Self {
-            path: path.to_string(),
-            upload_id: upload_id.to_string(),
-        })
-    }
-
-    /// Get path from option.
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn new(upload_id: String) -> Self {
+        Self { upload_id }
     }
 
     /// Get upload_id from option.

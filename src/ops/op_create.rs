@@ -12,13 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
-
-use anyhow::anyhow;
-
-use crate::error::other;
-use crate::error::ObjectError;
-use crate::ops::Operation;
 use crate::ObjectMode;
 
 /// Args for `create` operation.
@@ -26,54 +19,13 @@ use crate::ObjectMode;
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpCreate {
-    path: String,
     mode: ObjectMode,
 }
 
 impl OpCreate {
     /// Create a new `OpCreate`.
-    ///
-    /// If input path is not match with object mode, an error will be returned.
-    pub fn new(path: &str, mode: ObjectMode) -> Result<Self> {
-        match mode {
-            ObjectMode::FILE => {
-                if path.ends_with('/') {
-                    return Err(other(ObjectError::new(
-                        Operation::Create,
-                        path,
-                        anyhow!("Is a directory"),
-                    )));
-                }
-                Ok(Self {
-                    path: path.to_string(),
-                    mode,
-                })
-            }
-            ObjectMode::DIR => {
-                if !path.ends_with('/') {
-                    return Err(other(ObjectError::new(
-                        Operation::Create,
-                        path,
-                        anyhow!("Not a directory"),
-                    )));
-                }
-
-                Ok(Self {
-                    path: path.to_string(),
-                    mode,
-                })
-            }
-            ObjectMode::Unknown => Err(other(ObjectError::new(
-                Operation::Create,
-                path,
-                anyhow!("create unknown object mode is not supported"),
-            ))),
-        }
-    }
-
-    /// Get path from option.
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn new(mode: ObjectMode) -> Self {
+        Self { mode }
     }
 
     /// Get object mode from option.

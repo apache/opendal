@@ -1,11 +1,11 @@
 - Proposal Name: `path_in_accessor`
 - Start Date: 2022-09-12
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
+- RFC PR: [datafuselabs/opendal#661](https://github.com/datafuselabs/opendal/pull/661)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary
 
-Move path from `OpXxx` to `Accessor` directly.
+Move the path from `OpXxx` to `Accessor` directly.
 
 # Motivation
 
@@ -27,7 +27,7 @@ pub struct OpRead {
 }
 ```
 
-However, nearly all operation requires `path`. And path is represented in `String` which means we have to clone it:
+However, nearly all operation requires a `path`. And the path is represented in `String`, which means we have to clone it:
 
 ```rust
 impl OpRead {
@@ -92,7 +92,7 @@ pub trait Accessor: Send + Sync + Debug {
 ```
 
 - All functions that accept `OpXxx` requires ownership instead of reference.
-- ALl `OpXxx::new()` will introduce breaking changes:
+- All `OpXxx::new()` will introduce breaking changes:
   ```diff
   - pub fn new(path: &str, range: impl RangeBounds<u64>) -> Result<Self>
   + pub fn new(range: impl RangeBounds<u64>) -> Self
@@ -102,7 +102,7 @@ pub trait Accessor: Send + Sync + Debug {
 
 ## Breaking Changes
 
-This RFC may break users code in the following ways:
+This RFC may break users' code in the following ways:
 
 - Code that depends on `Accessor`:
   - Self-implemented Services

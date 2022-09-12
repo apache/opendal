@@ -188,9 +188,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let resp = self.ipfs_get(&p, args.offset(), args.size()).await?;
+        let resp = self.ipfs_get(path, args.offset(), args.size()).await?;
 
         let status = resp.status();
 
@@ -307,17 +305,15 @@ impl Accessor for Backend {
     /// - HTTP Status Code == 200 && ETag starts with `"DirIndex` => directory
     /// - HTTP Status Code == 200 && ETag not starts with `"DirIndex` => file
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
-        let p = build_rooted_abs_path(&self.root, path);
-
         // Stat root always returns a DIR.
-        if p == self.root {
+        if path == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
             return Ok(m);
         }
 
-        let resp = self.ipfs_head(&p).await?;
+        let resp = self.ipfs_head(path).await?;
 
         let status = resp.status();
 
@@ -326,13 +322,13 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_etag(v);
 
@@ -360,9 +356,7 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        Ok(Box::new(DirStream::new(Arc::new(self.clone()), &p)))
+        Ok(Box::new(DirStream::new(Arc::new(self.clone()), path)))
     }
 }
 
@@ -373,7 +367,9 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
@@ -395,7 +391,9 @@ impl Backend {
     }
 
     async fn ipfs_head(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let req = Request::head(&url);
 
@@ -410,7 +408,9 @@ impl Backend {
     }
 
     async fn ipfs_list(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 

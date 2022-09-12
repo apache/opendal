@@ -180,8 +180,8 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         match args.mode() {
             ObjectMode::FILE => {
@@ -221,8 +221,8 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let mut f = self.client.open_file().read(true).open(&path)?;
 
@@ -239,8 +239,8 @@ impl Accessor for Backend {
         Ok(f)
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let parent = PathBuf::from(&path)
             .parent()
@@ -269,8 +269,8 @@ impl Accessor for Backend {
         Ok(n)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let meta = self
             .client
@@ -289,8 +289,8 @@ impl Accessor for Backend {
         Ok(m)
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let meta = self.client.metadata(&path);
 
@@ -316,8 +316,8 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let f = self
             .client

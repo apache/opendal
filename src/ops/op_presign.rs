@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
-
 use time::Duration;
 
 use crate::ops::OpRead;
@@ -32,17 +30,8 @@ pub struct OpPresign {
 
 impl OpPresign {
     /// Create a new `OpPresign`.
-    pub fn new(op: PresignOperation, expire: Duration) -> Result<Self> {
-        Ok(Self { op, expire })
-    }
-
-    /// Get path from op.
-    pub fn path(&self) -> &str {
-        match &self.op {
-            PresignOperation::Read(v) => v.path(),
-            PresignOperation::Write(v) => v.path(),
-            PresignOperation::WriteMultipart(v) => v.path(),
-        }
+    pub fn new(op: PresignOperation, expire: Duration) -> Self {
+        Self { op, expire }
     }
 
     /// Get operation from op.

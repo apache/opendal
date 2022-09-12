@@ -240,8 +240,8 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
 
         let mut req = self.gcs_insert_object_request(&p, Some(0), AsyncBody::Empty)?;
 
@@ -268,8 +268,8 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let p = build_abs_path(&self.root, path);
 
         let resp = self.gcs_get_object(&p, args.offset(), args.size()).await?;
 
@@ -277,13 +277,13 @@ impl Accessor for Backend {
             Ok(resp.into_body().reader())
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error(Operation::Read, args.path(), er);
+            let e = parse_error(Operation::Read, path, er);
             Err(e)
         }
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        let p = build_abs_path(&self.root, path);
 
         let mut req =
             self.gcs_insert_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
@@ -311,11 +311,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let p = build_abs_path(&self.root, path);
 
         // Stat root always returns a DIR.
-        if args.path() == "/" {
+        if path == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
@@ -377,13 +377,13 @@ impl Accessor for Backend {
             Ok(m)
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error(Operation::Stat, args.path(), er);
+            let e = parse_error(Operation::Stat, path, er);
             Err(e)
         }
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
 
         let resp = self.gcs_delete_object(&p).await?;
 
@@ -392,13 +392,13 @@ impl Accessor for Backend {
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::Delete, args.path(), er);
+            let err = parse_error(Operation::Delete, path, er);
             Err(err)
         }
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let path = build_abs_path(&self.root, path);
 
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),

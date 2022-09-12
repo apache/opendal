@@ -120,21 +120,21 @@ impl Accessor for LoggingAccessor {
         result
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Create, args.path()
+            self.scheme, Operation::Create, path
         );
 
         self.inner
-            .create(args)
+            .create(path, args.clone())
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::Create, args.path()
+                    self.scheme, Operation::Create, path
                 );
                 v
             })
@@ -143,37 +143,37 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Create, args.path()
+                        self.scheme, Operation::Create, path
                     );
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Create, args.path()
+                        self.scheme, Operation::Create, path
                     );
                 };
                 err
             })
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} offset={:?} size={:?} -> started",
-            self.scheme, Operation::Read, args.path(), args.offset(), args.size()
+            self.scheme, Operation::Read, path, args.offset(), args.size()
         );
 
         self.inner
-            .read(args)
+            .read(path, args.clone())
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} offset={:?} size={:?} -> got reader",
-                    self.scheme, Operation::Read, args.path(),
+                    self.scheme, Operation::Read, path,
                     args.offset(), args.size()
                 );
-                let r = LoggingReader::new(self.scheme, Operation::Read, args.path(), v);
+                let r = LoggingReader::new(self.scheme, Operation::Read, path, v);
                 Box::new(r) as BytesReader
             })
             .map_err(|err| {
@@ -181,35 +181,35 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} offset={:?} size={:?} -> failed: {err:?}",
-                        self.scheme, Operation::Read, args.path(),args.offset(),  args.size());
+                        self.scheme, Operation::Read, path,args.offset(),  args.size());
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} offset={:?} size={:?} -> errored: {err:?}",
-                        self.scheme, Operation::Read, args.path(), args.offset(),  args.size());
+                        self.scheme, Operation::Read, path, args.offset(),  args.size());
                 };
                 err
             })
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} size={:?} -> started",
-            self.scheme, Operation::Write, args.path(), args.size()
+            self.scheme, Operation::Write, path, args.size()
         );
 
-        let reader = LoggingReader::new(self.scheme, Operation::Write, args.path(), r);
+        let reader = LoggingReader::new(self.scheme, Operation::Write, path, r);
         let r = Box::new(reader) as BytesReader;
 
         self.inner
-            .write(args, r)
+            .write(path, args.clone(), r)
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} size={:?} -> written",
-                    self.scheme, Operation::Write, args.path(), args.size()
+                    self.scheme, Operation::Write, path, args.size()
                 );
                 v
             })
@@ -218,34 +218,34 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} size={:?} -> failed: {err:?}",
-                        self.scheme, Operation::Write, args.path(), args.size()
+                        self.scheme, Operation::Write, path, args.size()
                     );
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} size={:?} -> errored: {err:?}",
-                        self.scheme, Operation::Write, args.path(), args.size()
+                        self.scheme, Operation::Write, path, args.size()
                     );
                 };
                 err
             })
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Stat, args.path()
+            self.scheme, Operation::Stat, path
         );
 
         self.inner
-            .stat(args)
+            .stat(path, args.clone())
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished: {v:?}",
-                    self.scheme, Operation::Stat, args.path()
+                    self.scheme, Operation::Stat, path
                 );
                 v
             })
@@ -254,34 +254,34 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Stat, args.path()
+                        self.scheme, Operation::Stat, path
                     );
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Stat, args.path()
+                        self.scheme, Operation::Stat, path
                     );
                 };
                 err
             })
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Delete, args.path()
+            self.scheme, Operation::Delete, path
         );
 
         self.inner
-            .delete(args)
+            .delete(path, args.clone())
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::Delete, args.path());
+                    self.scheme, Operation::Delete, path);
                 v
             })
             .map_err(|err| {
@@ -289,34 +289,34 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Delete, args.path());
+                        self.scheme, Operation::Delete, path);
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Delete, args.path());
+                        self.scheme, Operation::Delete, path);
                 };
                 err
             })
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::List, args.path()
+            self.scheme, Operation::List, path
         );
 
         self.inner
-            .list(args)
+            .list(path, args)
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> got dir streamer",
-                    self.scheme, Operation::List, args.path()
+                    self.scheme, Operation::List, path
                 );
-                let streamer = LoggingStreamer::new(self.scheme, args.path(), v);
+                let streamer = LoggingStreamer::new(self.scheme, path, v);
                 Box::new(streamer) as DirStreamer
             })
             .map_err(|err| {
@@ -324,33 +324,33 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::List, args.path()
+                        self.scheme, Operation::List, path
                     );
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::List, args.path()
+                        self.scheme, Operation::List, path
                     );
                 };
                 err
             })
     }
 
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Presign, args.path()
+            self.scheme, Operation::Presign, path
         );
 
         self.inner
-            .presign(args)
+            .presign(path, args)
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished: {v:?}",
-                    self.scheme, Operation::Presign, args.path()
+                    self.scheme, Operation::Presign, path
                 );
                 v
             })
@@ -359,34 +359,34 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Presign, args.path()
+                        self.scheme, Operation::Presign, path
                     );
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Presign, args.path()
+                        self.scheme, Operation::Presign, path
                     );
                 };
                 err
             })
     }
 
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::CreateMultipart, args.path()
+            self.scheme, Operation::CreateMultipart, path
         );
 
         self.inner
-            .create_multipart(args)
+            .create_multipart(path, args.clone())
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::CreateMultipart, args.path());
+                    self.scheme, Operation::CreateMultipart, path);
                 v
             })
             .map_err(|err| {
@@ -394,34 +394,39 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::CreateMultipart, args.path());
+                        self.scheme, Operation::CreateMultipart, path);
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::CreateMultipart, args.path());
+                        self.scheme, Operation::CreateMultipart, path);
                 };
                 err
             })
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",
             self.scheme,
             Operation::WriteMultipart,
-            args.path(),
+            path,
             args.upload_id(),
             args.part_number(),
             args.size()
         );
 
-        let r = LoggingReader::new(self.scheme, Operation::Write, args.path(), r);
+        let r = LoggingReader::new(self.scheme, Operation::Write, path, r);
         let r = Box::new(r);
 
         self.inner
-            .write_multipart(args, r)
+            .write_multipart(path, args.clone(), r)
             .await
             .map(|v| {
                 debug!(
@@ -429,7 +434,7 @@ impl Accessor for LoggingAccessor {
                     "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> written",
                     self.scheme,
                     Operation::WriteMultipart,
-                    args.path(),
+                    path,
                     args.upload_id(),
                     args.part_number(),
                     args.size()
@@ -443,7 +448,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> failed: {err:?}",
                         self.scheme,
                         Operation::WriteMultipart,
-                        args.path(),
+                        path,
                         args.upload_id(),
                         args.part_number(),
                         args.size()
@@ -454,7 +459,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> errored: {err:?}",
                         self.scheme,
                         Operation::WriteMultipart,
-                        args.path(),
+                        path,
                         args.upload_id(),
                         args.part_number(),
                         args.size()
@@ -464,24 +469,24 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} -> started",
             self.scheme,
             Operation::CompleteMultipart,
-            args.path(),
+            path,
             args.upload_id(),
         );
 
         self.inner
-            .complete_multipart(args)
+            .complete_multipart(path, args.clone())
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} upload_id={} -> finished",
-                    self.scheme, Operation::CompleteMultipart, args.path(), args.upload_id());
+                    self.scheme, Operation::CompleteMultipart, path, args.upload_id());
                 v
             })
             .map_err(|err| {
@@ -489,68 +494,68 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} upload_id={} -> failed: {err:?}",
-                        self.scheme, Operation::CompleteMultipart, args.path(), args.upload_id());
+                        self.scheme, Operation::CompleteMultipart, path, args.upload_id());
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} upload_id={} -> errored: {err:?}",
-                        self.scheme, Operation::CompleteMultipart, args.path(), args.upload_id());
+                        self.scheme, Operation::CompleteMultipart, path, args.upload_id());
                 };
                 err
             })
     }
 
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} -> started",
             self.scheme,
             Operation::AbortMultipart,
-            args.path(),
+            path,
             args.upload_id()
         );
 
         self.inner
-            .abort_multipart(args)
+            .abort_multipart(path, args.clone())
             .await
             .map(|v| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} upload_id={} -> finished",self.scheme, Operation::AbortMultipart, args.path(), args.upload_id());
+                    "service={} operation={} path={} upload_id={} -> finished",self.scheme, Operation::AbortMultipart, path, args.upload_id());
                 v
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
                     error!(
                         target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} -> failed: {err:?}",self.scheme, Operation::AbortMultipart, args.path(), args.upload_id());
+                        "service={} operation={} path={} upload_id={} -> failed: {err:?}",self.scheme, Operation::AbortMultipart, path, args.upload_id());
                 } else {
                     warn!(
                         target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} -> errored: {err:?}",self.scheme, Operation::AbortMultipart, args.path(), args.upload_id());
+                        "service={} operation={} path={} upload_id={} -> errored: {err:?}",self.scheme, Operation::AbortMultipart, path, args.upload_id());
                 };
                 err
             })
     }
 
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingCreate,
-            args.path()
+            path
         );
 
         self.inner
-            .blocking_create(args)
+            .blocking_create(path, args)
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::BlockingCreate,
-                    args.path()
+                    path
                 );
                 v
             })
@@ -561,7 +566,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} -> failed: {err:?}",
                         self.scheme,
                         Operation::BlockingCreate,
-                        args.path()
+                        path
                     );
                 } else {
                     warn!(
@@ -569,37 +574,37 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} -> errored: {err:?}",
                         self.scheme,
                         Operation::BlockingCreate,
-                        args.path()
+                        path
                     );
                 };
                 err
             })
     }
 
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} offset={:?} size={:?} -> started",
             self.scheme,
             Operation::BlockingRead,
-            args.path(),
+            path,
             args.offset(),
             args.size()
         );
 
         self.inner
-            .blocking_read(args)
+            .blocking_read(path, args.clone())
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} offset={:?} size={:?} -> got reader",
                     self.scheme,
                     Operation::BlockingRead,
-                    args.path(),
+                    path,
                     args.offset(),
                     args.size()
                 );
-                let r = BlockingLoggingReader::new(self.scheme, Operation::BlockingRead, args.path(),v);
+                let r = BlockingLoggingReader::new(self.scheme, Operation::BlockingRead, path, v);
                 Box::new(r) as BlockingBytesReader
             })
             .map_err(|err| {
@@ -607,40 +612,39 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} offset={:?} size={:?} -> failed: {err:?}",
-                        self.scheme, Operation::BlockingRead, args.path(), args.offset(), args.size());
+                        self.scheme, Operation::BlockingRead, path, args.offset(), args.size());
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} offset={:?} size={:?} -> errored: {err:?}",
-                        self.scheme, Operation::BlockingRead, args.path(), args.offset(), args.size());
+                        self.scheme, Operation::BlockingRead, path, args.offset(), args.size());
                 };
                 err
             })
     }
 
-    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} size={:?} -> started",
             self.scheme,
             Operation::BlockingWrite,
-            args.path(),
+            path,
             args.size()
         );
 
-        let reader =
-            BlockingLoggingReader::new(self.scheme, Operation::BlockingWrite, args.path(), r);
+        let reader = BlockingLoggingReader::new(self.scheme, Operation::BlockingWrite, path, r);
         let r = Box::new(reader) as BlockingBytesReader;
 
         self.inner
-            .blocking_write(args, r)
+            .blocking_write(path, args.clone(), r)
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} size={:?} -> written",
                     self.scheme,
                     Operation::BlockingWrite,
-                    args.path(),
+                    path,
                     args.size()
                 );
                 v
@@ -652,7 +656,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} size={:?} -> failed: {err:?}",
                         self.scheme,
                         Operation::BlockingWrite,
-                        args.path(),
+                        path,
                         args.size()
                     );
                 } else {
@@ -661,7 +665,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} size={:?} -> errored: {err:?}",
                         self.scheme,
                         Operation::BlockingWrite,
-                        args.path(),
+                        path,
                         args.size()
                     );
                 };
@@ -669,24 +673,24 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingStat,
-            args.path()
+            path
         );
 
         self.inner
-            .blocking_stat(args)
+            .blocking_stat(path, args)
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished: {v:?}",
                     self.scheme,
                     Operation::BlockingStat,
-                    args.path()
+                    path
                 );
                 v
             })
@@ -697,7 +701,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} -> failed: {err:?}",
                         self.scheme,
                         Operation::BlockingStat,
-                        args.path()
+                        path
                     );
                 } else {
                     warn!(
@@ -705,29 +709,29 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} -> errored: {err:?}",
                         self.scheme,
                         Operation::BlockingStat,
-                        args.path()
+                        path
                     );
                 };
                 err
             })
     }
 
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingDelete,
-            args.path()
+            path
         );
 
         self.inner
-            .blocking_delete(args)
+            .blocking_delete(path, args)
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::BlockingDelete, args.path());
+                    self.scheme, Operation::BlockingDelete, path);
                 v
             })
             .map_err(|err| {
@@ -735,37 +739,37 @@ impl Accessor for LoggingAccessor {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::BlockingDelete, args.path());
+                        self.scheme, Operation::BlockingDelete, path);
                 } else {
                     warn!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::BlockingDelete, args.path());
+                        self.scheme, Operation::BlockingDelete, path);
                 };
                 err
             })
     }
 
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingList,
-            args.path()
+            path
         );
 
         self.inner
-            .blocking_list(args)
+            .blocking_list(path, args)
             .map(|v| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> got dir streamer",
                     self.scheme,
                     Operation::BlockingList,
-                    args.path()
+                    path
                 );
-                let li = LoggingIterator::new(self.scheme, args.path(), v);
+                let li = LoggingIterator::new(self.scheme, path, v);
                 Box::new(li) as DirIterator
             })
             .map_err(|err| {
@@ -775,7 +779,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} -> failed: {err:?}",
                         self.scheme,
                         Operation::BlockingList,
-                        args.path()
+                        path
                     );
                 } else {
                     warn!(
@@ -783,7 +787,7 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} -> errored: {err:?}",
                         self.scheme,
                         Operation::BlockingList,
-                        args.path()
+                        path
                     );
                 };
                 err

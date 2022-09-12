@@ -130,8 +130,8 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
             let parent = PathBuf::from(&path)
@@ -170,8 +170,8 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let f = fs::OpenOptions::new()
             .read(true)
@@ -195,8 +195,8 @@ impl Accessor for Backend {
         Ok(Box::new(r))
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         // Create dir before write path.
         //
@@ -233,8 +233,8 @@ impl Accessor for Backend {
         Ok(size)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let meta = fs::metadata(&path)
             .await
@@ -258,8 +258,8 @@ impl Accessor for Backend {
         Ok(m)
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
         let meta = fs::metadata(&path).await;
@@ -286,18 +286,18 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, Operation::List, &path))?;
 
-        let rd = DirStream::new(Arc::new(self.clone()), &self.root, args.path(), f);
+        let rd = DirStream::new(Arc::new(self.clone()), &self.root, &path, f);
 
         Ok(Box::new(rd))
     }
 
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
             let parent = PathBuf::from(&path)
@@ -334,10 +334,10 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         use std::io::Seek;
 
-        let path = build_rooted_abs_path(&self.root, args.path());
+        let path = build_rooted_abs_path(&self.root, path);
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
@@ -357,8 +357,8 @@ impl Accessor for Backend {
         Ok(f)
     }
 
-    fn blocking_write(&self, args: &OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_write(&self, path: &str, _: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         // Create dir before write path.
         //
@@ -391,8 +391,8 @@ impl Accessor for Backend {
         Ok(size)
     }
 
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let meta = std::fs::metadata(&path)
             .map_err(|e| parse_io_error(e, Operation::BlockingStat, &path))?;
@@ -415,8 +415,8 @@ impl Accessor for Backend {
         Ok(m)
     }
 
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
         let meta = std::fs::metadata(&path);
@@ -443,8 +443,8 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let f = std::fs::read_dir(&path)
             .map_err(|e| parse_io_error(e, Operation::BlockingList, &path))?;

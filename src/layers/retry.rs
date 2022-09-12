@@ -111,75 +111,80 @@ where
         self.inner.metadata()
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        { || self.inner.create(args) }
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        { || self.inner.create(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        { || self.inner.read(args) }
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         // Write can't retry, until can reset this reader.
-        self.inner.write(args, r).await
+        self.inner.write(path, args.clone(), r).await
     }
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        { || self.inner.stat(args) }
+    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        { || self.inner.stat(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        { || self.inner.delete(args) }
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        { || self.inner.delete(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        { || self.inner.list(args) }
+    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+        { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
 
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        self.inner.presign(args)
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+        self.inner.presign(path, args)
     }
 
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
-        { || self.inner.create_multipart(args) }
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+        { || self.inner.create_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
         // Write can't retry, until can reset this reader.
-        self.inner.write_multipart(args, r).await
+        self.inner.write_multipart(path, args.clone(), r).await
     }
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
-        { || self.inner.complete_multipart(args) }
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+        { || self.inner.complete_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
-        { || self.inner.abort_multipart(args) }
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+        { || self.inner.abort_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
             .await
     }
 
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
         let retry = self.backoff.clone();
 
         let mut e = None;
 
         for dur in retry {
-            let res = self.inner.blocking_create(args);
+            let res = self.inner.blocking_create(path, args.clone());
 
             match res {
                 Ok(v) => return Ok(v),
@@ -200,13 +205,13 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         let retry = self.backoff.clone();
 
         let mut e = None;
 
         for dur in retry {
-            let res = self.inner.blocking_read(args);
+            let res = self.inner.blocking_read(path, args.clone());
 
             match res {
                 Ok(v) => return Ok(v),
@@ -227,17 +232,17 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        self.inner.blocking_write(args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.inner.blocking_write(path, args, r)
     }
 
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         let retry = self.backoff.clone();
 
         let mut e = None;
 
         for dur in retry {
-            let res = self.inner.blocking_stat(args);
+            let res = self.inner.blocking_stat(path, args.clone());
 
             match res {
                 Ok(v) => return Ok(v),
@@ -258,13 +263,13 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         let retry = self.backoff.clone();
 
         let mut e = None;
 
         for dur in retry {
-            let res = self.inner.blocking_delete(args);
+            let res = self.inner.blocking_delete(path, args.clone());
 
             match res {
                 Ok(v) => return Ok(v),
@@ -285,13 +290,13 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
         let retry = self.backoff.clone();
 
         let mut e = None;
 
         for dur in retry {
-            let res = self.inner.blocking_list(args);
+            let res = self.inner.blocking_list(path, args.clone());
 
             match res {
                 Ok(v) => return Ok(v),
@@ -338,11 +343,11 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, args: &OpRead) -> io::Result<BytesReader> {
+        async fn read(&self, path: &str, _: OpRead) -> io::Result<BytesReader> {
             let mut attempt = self.attempt.lock().await;
             *attempt += 1;
 
-            match args.path() {
+            match path {
                 "retryable_error" => Err(io::Error::new(
                     io::ErrorKind::Interrupted,
                     anyhow!("retryable_error"),

@@ -111,8 +111,8 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let resp = match args.mode() {
             ObjectMode::DIR => self.ipmfs_mkdir(&path).await?,
@@ -132,14 +132,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, args.path(), er);
+                let err = parse_error(Operation::Create, &path, er);
                 Err(err)
             }
         }
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let offset = args.offset().and_then(|val| i64::try_from(val).ok());
         let size = args.size().and_then(|val| i64::try_from(val).ok());
@@ -151,14 +151,14 @@ impl Accessor for Backend {
             StatusCode::OK => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, &path, er);
                 Err(err)
             }
         }
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         // TODO: Accept a reader directly.
         let mut buf = Vec::with_capacity(args.size() as usize);
@@ -178,14 +178,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, args.path(), er);
+                let err = parse_error(Operation::Write, &path, er);
                 Err(err)
             }
         }
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         // Stat root always returns a DIR.
         if path == self.root {
@@ -227,14 +227,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, &path, er);
                 Err(err)
             }
         }
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         let resp = self.ipmfs_rm(&path).await?;
 
@@ -250,14 +250,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, args.path(), er);
+                let err = parse_error(Operation::Delete, &path, er);
                 Err(err)
             }
         }
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let path = build_rooted_abs_path(&self.root, path);
 
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),

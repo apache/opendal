@@ -152,28 +152,28 @@ impl Accessor for ImmutableIndexAccessor {
         meta
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        self.inner.create(args).await
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        self.inner.create(path, args).await
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        self.inner.read(args).await
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        self.inner.read(path, args).await
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        self.inner.write(args, r).await
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        self.inner.write(path, args, r).await
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        self.inner.stat(args).await
+    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        self.inner.stat(path, args).await
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        self.inner.delete(args).await
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = args.path();
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let mut path = path;
         if path == "/" {
             path = ""
         }
@@ -184,48 +184,53 @@ impl Accessor for ImmutableIndexAccessor {
         )))
     }
 
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        self.inner.presign(args)
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+        self.inner.presign(path, args)
     }
 
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
-        self.inner.create_multipart(args).await
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+        self.inner.create_multipart(path, args).await
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
-        self.inner.write_multipart(args, r).await
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
+        self.inner.write_multipart(path, args, r).await
     }
 
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
-        self.inner.complete_multipart(args).await
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+        self.inner.complete_multipart(path, args).await
     }
 
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
-        self.inner.abort_multipart(args).await
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+        self.inner.abort_multipart(path, args).await
     }
 
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
-        self.inner.blocking_create(args)
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+        self.inner.blocking_create(path, args)
     }
 
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
-        self.inner.blocking_read(args)
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+        self.inner.blocking_read(path, args)
     }
 
-    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        self.inner.blocking_write(args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.inner.blocking_write(path, args, r)
     }
 
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        self.inner.blocking_stat(args)
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        self.inner.blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
-        self.inner.blocking_delete(args)
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
-        let mut path = args.path();
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
+        let mut path = path;
         if path == "/" {
             path = ""
         }

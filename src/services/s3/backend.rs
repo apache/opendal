@@ -800,8 +800,8 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
 
         let mut req = self.put_object_request(&p, Some(0), AsyncBody::Empty)?;
 
@@ -827,14 +827,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, args.path(), er);
+                let err = parse_error(Operation::Create, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let p = build_abs_path(&self.root, path);
 
         let resp = self.get_object(&p, args.offset(), args.size()).await?;
 
@@ -844,14 +844,14 @@ impl Accessor for Backend {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, args.path(), er);
+                let err = parse_error(Operation::Read, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        let p = build_abs_path(&self.root, path);
 
         let mut req = self.put_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
 
@@ -877,17 +877,17 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, args.path(), er);
+                let err = parse_error(Operation::Write, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let p = build_abs_path(&self.root, path);
 
         // Stat root always returns a DIR.
-        if args.path() == "/" {
+        if path == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
@@ -937,14 +937,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
 
         let resp = self.delete_object(&p).await?;
 
@@ -954,14 +954,14 @@ impl Accessor for Backend {
             StatusCode::NO_CONTENT => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, args.path(), er);
+                let err = parse_error(Operation::Delete, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = build_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let mut path = build_abs_path(&self.root, path);
         // Make sure list path is endswith '/'
         if !path.ends_with('/') && !path.is_empty() {
             path.push('/')
@@ -974,8 +974,8 @@ impl Accessor for Backend {
         )))
     }
 
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
-        let path = build_abs_path(&self.root, args.path());
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+        let path = build_abs_path(&self.root, path);
 
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
@@ -992,7 +992,7 @@ impl Accessor for Backend {
 
         self.signer
             .sign_query(&mut req, args.expire())
-            .map_err(|e| new_request_sign_error(Operation::Presign, args.path(), e))?;
+            .map_err(|e| new_request_sign_error(Operation::Presign, &path, e))?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -1004,8 +1004,8 @@ impl Accessor for Backend {
         ))
     }
 
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
-        let path = build_abs_path(&self.root, args.path());
+    async fn create_multipart(&self, path: &str, _: OpCreateMultipart) -> Result<String> {
+        let path = build_abs_path(&self.root, path);
 
         let resp = self.s3_initiate_multipart_upload(&path).await?;
 
@@ -1030,14 +1030,19 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::CreateMultipart, args.path(), er);
+                let err = parse_error(Operation::CreateMultipart, &path, er);
                 Err(err)
             }
         }
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
-        let p = build_abs_path(&self.root, args.path());
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
+        let p = build_abs_path(&self.root, path);
 
         let mut req = self.s3_upload_part_request(
             &p,
@@ -1080,14 +1085,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::WriteMultipart, args.path(), er);
+                let err = parse_error(Operation::WriteMultipart, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
-        let path = build_abs_path(&self.root, args.path());
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+        let path = build_abs_path(&self.root, path);
 
         let resp = self
             .s3_complete_multipart_upload(&path, args.upload_id(), args.parts())
@@ -1105,14 +1110,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::CompleteMultipart, args.path(), er);
+                let err = parse_error(Operation::CompleteMultipart, &path, er);
                 Err(err)
             }
         }
     }
 
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
-        let path = build_abs_path(&self.root, args.path());
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+        let path = build_abs_path(&self.root, path);
 
         let resp = self
             .s3_abort_multipart_upload(&path, args.upload_id())
@@ -1131,7 +1136,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::AbortMultipart, args.path(), er);
+                let err = parse_error(Operation::AbortMultipart, &path, er);
                 Err(err)
             }
         }

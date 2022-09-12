@@ -187,8 +187,8 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         let resp = self.ipfs_get(&p, args.offset(), args.size()).await?;
 
@@ -198,7 +198,7 @@ impl Accessor for Backend {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, args.path(), er);
+                let err = parse_error(Operation::Read, path, er);
                 Err(err)
             }
         }
@@ -306,8 +306,8 @@ impl Accessor for Backend {
     /// - HTTP Status Code == 302 => directory
     /// - HTTP Status Code == 200 && ETag starts with `"DirIndex` => directory
     /// - HTTP Status Code == 200 && ETag not starts with `"DirIndex` => file
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = build_rooted_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         // Stat root always returns a DIR.
         if p == self.root {
@@ -353,14 +353,14 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let p = build_rooted_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), &p)))
     }
@@ -537,10 +537,7 @@ impl Stream for DirStream {
                     return Poll::Ready(None);
                 };
 
-                let fut = async move {
-                    let op = OpStat::new(&name)?;
-                    backend.stat(&op).await
-                };
+                let fut = async move { backend.stat(&name, OpStat::new()).await };
                 let names = mem::replace(names, vec![].into_iter().peekable());
 
                 self.state = State::Walking((names, Some(Box::pin(fut))));

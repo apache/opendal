@@ -241,9 +241,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut req = self.gcs_insert_object_request(&p, Some(0), AsyncBody::Empty)?;
+        let mut req = self.gcs_insert_object_request(path, Some(0), AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)

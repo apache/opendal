@@ -492,7 +492,11 @@ impl Accessor for Backend {
 
         let rd = ReadDir::new(files);
 
-        Ok(Box::new(DirStream::new(Arc::new(self.clone()), path, rd)))
+        Ok(Box::new(DirStream::new(
+            Arc::new(self.clone()),
+            if path == "/" { "" } else { path },
+            rd,
+        )))
     }
 }
 

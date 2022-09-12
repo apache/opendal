@@ -98,7 +98,7 @@ parking_lot = "0.12"
 percent-encoding = "2.1"
 pin-project = "1.0"
 prost = { version = "0.11", optional = true }
-quick-xml = { version = "0.24", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
 reqsign = "0.4"
 reqwest = { version = "0.11", features = ["stream"] }
 serde = { version = "1.0", features = ["derive"] }

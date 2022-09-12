@@ -534,11 +534,13 @@ impl Backend {
         path: &str,
         page_token: &str,
     ) -> Result<Response<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let mut url = format!(
             "{}/storage/v1/b/{}/o?delimiter=/&prefix={}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
         if !page_token.is_empty() {
             // NOTE:

@@ -247,31 +247,31 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Create, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Create, &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Create, path, e))?;
 
         if resp.status().is_success() {
             resp.into_body()
                 .consume()
                 .await
-                .map_err(|err| new_response_consume_error(Operation::Create, &p, err))?;
+                .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error(Operation::Create, &p, er);
+            let e = parse_error(Operation::Create, path, er);
             Err(e)
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.gcs_get_object(&p, args.offset(), args.size()).await?;
+        let resp = self
+            .gcs_get_object(path, args.offset(), args.size())
+            .await?;
 
         if resp.status().is_success() {
             Ok(resp.into_body().reader())
@@ -283,37 +283,33 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let p = build_abs_path(&self.root, path);
-
         let mut req =
-            self.gcs_insert_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
+            self.gcs_insert_object_request(path, Some(args.size()), AsyncBody::Reader(r))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
 
         if (200..300).contains(&resp.status().as_u16()) {
             resp.into_body()
                 .consume()
                 .await
-                .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
+                .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
             Ok(args.size())
         } else {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::Write, &p, er);
+            let err = parse_error(Operation::Write, path, er);
             Err(err)
         }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
-        let p = build_abs_path(&self.root, path);
-
         // Stat root always returns a DIR.
         if path == "/" {
             let mut m = ObjectMetadata::default();
@@ -322,7 +318,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.gcs_get_object_metadata(&p).await?;
+        let resp = self.gcs_get_object_metadata(path).await?;
 
         if resp.status().is_success() {
             let mut m = ObjectMetadata::default();
@@ -330,14 +326,14 @@ impl Accessor for Backend {
             let slc = resp.into_body().bytes().await.map_err(|e| {
                 other(ObjectError::new(
                     Operation::Stat,
-                    &p,
+                    path,
                     anyhow!("read response body: {e:?}"),
                 ))
             })?;
             let meta: GetObjectJsonResponse = serde_json::from_slice(&slc).map_err(|e| {
                 other(ObjectError::new(
                     Operation::Stat,
-                    &p,
+                    path,
                     anyhow!("parse response body into JSON: {e:?}"),
                 ))
             })?;
@@ -348,7 +344,7 @@ impl Accessor for Backend {
             let size = meta.size.parse::<u64>().map_err(|e| {
                 other(ObjectError::new(
                     Operation::Stat,
-                    &p,
+                    path,
                     anyhow!("parse object size: {e:?}"),
                 ))
             })?;
@@ -357,20 +353,20 @@ impl Accessor for Backend {
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
                 other(ObjectError::new(
                     Operation::Stat,
-                    &p,
+                    path,
                     anyhow!("parse object updated: {e:?}"),
                 ))
             })?;
             m.set_last_modified(datetime);
 
-            if p.ends_with('/') {
+            if path.ends_with('/') {
                 m.set_mode(ObjectMode::DIR);
             } else {
                 m.set_mode(ObjectMode::FILE);
             };
 
             Ok(m)
-        } else if resp.status() == StatusCode::NOT_FOUND && p.ends_with('/') {
+        } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
@@ -383,9 +379,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.gcs_delete_object(&p).await?;
+        let resp = self.gcs_delete_object(path).await?;
 
         // deleting not existing objects is ok
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
@@ -398,12 +392,10 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
-        let path = build_abs_path(&self.root, path);
-
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
-            &path,
+            path,
         )))
     }
 
@@ -417,11 +409,13 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let url = format!(
             "{}/storage/v1/b/{}/o/{}?alt=media",
             self.endpoint,
             self.bucket,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
         let mut req = Request::get(&url);
@@ -464,11 +458,13 @@ impl Backend {
         size: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let url = format!(
             "{}/upload/storage/v1/b/{}/o?uploadType=media&name={}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
         let mut req = Request::post(&url);
@@ -486,11 +482,13 @@ impl Backend {
     }
 
     async fn gcs_get_object_metadata(&self, path: &str) -> Result<Response<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
         let req = Request::get(&url);
@@ -510,11 +508,13 @@ impl Backend {
     }
 
     async fn gcs_delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
             self.endpoint,
             self.bucket,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
         let mut req = Request::delete(&url)

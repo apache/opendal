@@ -112,11 +112,7 @@ ureq = "2.5"
 
 [dev-dependencies]
 cfg-if = "1.0"
-criterion = { version = "0.4", features = [
-  "async",
-  "async_tokio",
-  "html_reports",
-] }
+criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenv = "0.15"
 env_logger = "0.9"
 itertools = "0.10"

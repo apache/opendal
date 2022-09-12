@@ -964,7 +964,7 @@ impl Object {
             return Err(other(ObjectError::new(
                 Operation::List,
                 self.path(),
-                anyhow!("Is not a directory"),
+                anyhow!("Not a directory"),
             )));
         }
 
@@ -1011,7 +1011,7 @@ impl Object {
             return Err(other(ObjectError::new(
                 Operation::List,
                 self.path(),
-                anyhow!("Is not a directory"),
+                anyhow!("Not a directory"),
             )));
         }
 

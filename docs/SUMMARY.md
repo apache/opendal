@@ -29,6 +29,8 @@
 
 # Reference Guide
 
+- [Internal](internal/README.md)
+  - [Implement Service](internal/implement-service.md)
 - [RFCs](rfcs/README.md)
   - [0041-object-native-api](rfcs/0041-object-native-api.md)
   - [0044-error-handle](rfcs/0044-error-handle.md)

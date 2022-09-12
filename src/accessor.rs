@@ -72,6 +72,9 @@ use crate::Scheme;
 ///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.
+///   - Path that ends with `/` means it's Dir, otherwise, it's File.
+///   - Root dir is `/`
+///   - Path will never be empty.
 /// - Operations without capability requirement like `metadata`, `create` are
 ///   basic operations.
 ///   - All services must implement them.

@@ -801,19 +801,17 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut req = self.put_object_request(&p, Some(0), AsyncBody::Empty)?;
+        let mut req = self.put_object_request(path, Some(0), AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Create, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Create, &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Create, path, e))?;
 
         let status = resp.status();
 
@@ -822,7 +820,7 @@ impl Accessor for Backend {
                 resp.into_body()
                     .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, &p, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
                 Ok(())
             }
             _ => {
@@ -834,9 +832,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.get_object(&p, args.offset(), args.size()).await?;
+        let resp = self.get_object(path, args.offset(), args.size()).await?;
 
         let status = resp.status();
 
@@ -851,19 +847,17 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut req = self.put_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
+        let mut req = self.put_object_request(path, Some(args.size()), AsyncBody::Reader(r))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
 
         let status = resp.status();
 
@@ -872,7 +866,7 @@ impl Accessor for Backend {
                 resp.into_body()
                     .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
                 Ok(args.size())
             }
             _ => {
@@ -884,8 +878,6 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
-        let p = build_abs_path(&self.root, path);
-
         // Stat root always returns a DIR.
         if path == "/" {
             let mut m = ObjectMetadata::default();
@@ -894,7 +886,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.head_object(&p).await?;
+        let resp = self.head_object(path).await?;
 
         let status = resp.status();
 
@@ -903,25 +895,25 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_etag(v);
                     m.set_content_md5(v.trim_matches('"'));
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_last_modified(v);
                 }
 
-                if p.ends_with('/') {
+                if path.ends_with('/') {
                     m.set_mode(ObjectMode::DIR);
                 } else {
                     m.set_mode(ObjectMode::FILE);
@@ -929,7 +921,7 @@ impl Accessor for Backend {
 
                 Ok(m)
             }
-            StatusCode::NOT_FOUND if p.ends_with('/') => {
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
                 m.set_mode(ObjectMode::DIR);
 
@@ -944,9 +936,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.delete_object(&p).await?;
+        let resp = self.delete_object(path).await?;
 
         let status = resp.status();
 
@@ -961,28 +951,20 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
-        let mut path = build_abs_path(&self.root, path);
-        // Make sure list path is endswith '/'
-        if !path.ends_with('/') && !path.is_empty() {
-            path.push('/')
-        }
-
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
-            &path,
+            path,
         )))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
-        let path = build_abs_path(&self.root, path);
-
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Read(v) => self.get_object_request(&path, v.offset(), v.size())?,
-            PresignOperation::Write(_) => self.put_object_request(&path, None, AsyncBody::Empty)?,
+            PresignOperation::Read(v) => self.get_object_request(path, v.offset(), v.size())?,
+            PresignOperation::Write(_) => self.put_object_request(path, None, AsyncBody::Empty)?,
             PresignOperation::WriteMultipart(v) => self.s3_upload_part_request(
-                &path,
+                path,
                 v.upload_id(),
                 v.part_number(),
                 None,
@@ -992,7 +974,7 @@ impl Accessor for Backend {
 
         self.signer
             .sign_query(&mut req, args.expire())
-            .map_err(|e| new_request_sign_error(Operation::Presign, &path, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Presign, path, e))?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -1005,23 +987,22 @@ impl Accessor for Backend {
     }
 
     async fn create_multipart(&self, path: &str, _: OpCreateMultipart) -> Result<String> {
-        let path = build_abs_path(&self.root, path);
-
-        let resp = self.s3_initiate_multipart_upload(&path).await?;
+        let resp = self.s3_initiate_multipart_upload(path).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await.map_err(|e| {
-                    new_response_consume_error(Operation::CreateMultipart, &path, e)
-                })?;
+                let bs =
+                    resp.into_body().bytes().await.map_err(|e| {
+                        new_response_consume_error(Operation::CreateMultipart, path, e)
+                    })?;
 
                 let result: InitiateMultipartUploadResult = quick_xml::de::from_reader(bs.reader())
                     .map_err(|err| {
                         other(ObjectError::new(
                             Operation::CreateMultipart,
-                            &path,
+                            path,
                             anyhow!("parse xml: {err:?}"),
                         ))
                     })?;
@@ -1030,7 +1011,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::CreateMultipart, &path, er);
+                let err = parse_error(Operation::CreateMultipart, path, er);
                 Err(err)
             }
         }
@@ -1042,10 +1023,8 @@ impl Accessor for Backend {
         args: OpWriteMultipart,
         r: BytesReader,
     ) -> Result<ObjectPart> {
-        let p = build_abs_path(&self.root, path);
-
         let mut req = self.s3_upload_part_request(
-            &p,
+            path,
             args.upload_id(),
             args.part_number(),
             Some(args.size()),
@@ -1054,31 +1033,31 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::WriteMultipart, &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::WriteMultipart, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::WriteMultipart, &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::WriteMultipart, path, e))?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::WriteMultipart, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::WriteMultipart, path, e)))?
                     .ok_or_else(|| {
                         other(ObjectError::new(
                             Operation::WriteMultipart,
-                            &p,
+                            path,
                             anyhow!("ETag not present in returning response"),
                         ))
                     })?
                     .to_string();
 
                 resp.into_body().consume().await.map_err(|err| {
-                    new_response_consume_error(Operation::WriteMultipart, &p, err)
+                    new_response_consume_error(Operation::WriteMultipart, path, err)
                 })?;
 
                 Ok(ObjectPart::new(args.part_number(), &etag))
@@ -1092,10 +1071,8 @@ impl Accessor for Backend {
     }
 
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
-
         let resp = self
-            .s3_complete_multipart_upload(&path, args.upload_id(), args.parts())
+            .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
             .await?;
 
         let status = resp.status();
@@ -1103,24 +1080,22 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await.map_err(|e| {
-                    new_response_consume_error(Operation::CompleteMultipart, &path, e)
+                    new_response_consume_error(Operation::CompleteMultipart, path, e)
                 })?;
 
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::CompleteMultipart, &path, er);
+                let err = parse_error(Operation::CompleteMultipart, path, er);
                 Err(err)
             }
         }
     }
 
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
-
         let resp = self
-            .s3_abort_multipart_upload(&path, args.upload_id())
+            .s3_abort_multipart_upload(path, args.upload_id())
             .await?;
 
         let status = resp.status();
@@ -1130,13 +1105,13 @@ impl Accessor for Backend {
                 resp.into_body()
                     .consume()
                     .await
-                    .map_err(|e| new_response_consume_error(Operation::AbortMultipart, &path, e))?;
+                    .map_err(|e| new_response_consume_error(Operation::AbortMultipart, path, e))?;
 
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::AbortMultipart, &path, er);
+                let err = parse_error(Operation::AbortMultipart, path, er);
                 Err(err)
             }
         }
@@ -1150,7 +1125,9 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<Request<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
@@ -1196,7 +1173,9 @@ impl Backend {
         size: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
@@ -1216,7 +1195,9 @@ impl Backend {
     }
 
     async fn head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
 
@@ -1238,7 +1219,9 @@ impl Backend {
     }
 
     async fn delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
@@ -1261,10 +1244,12 @@ impl Backend {
         path: &str,
         continuation_token: &str,
     ) -> Result<Response<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let mut url = format!(
             "{}?list-type=2&delimiter=/&prefix={}",
             self.endpoint,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
         if !continuation_token.is_empty() {
             // AWS S3 could return continuation-token that contains `=`
@@ -1294,7 +1279,9 @@ impl Backend {
     }
 
     async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
         let req = Request::post(&url);
 
@@ -1323,10 +1310,12 @@ impl Backend {
         size: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
             self.endpoint,
-            percent_encode_path(path),
+            percent_encode_path(&p),
             part_number,
             upload_id
         );
@@ -1354,10 +1343,12 @@ impl Backend {
         upload_id: &str,
         parts: &[ObjectPart],
     ) -> Result<Response<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let url = format!(
             "{}/{}?uploadId={}",
             self.endpoint,
-            percent_encode_path(path),
+            percent_encode_path(&p),
             upload_id
         );
 
@@ -1406,10 +1397,12 @@ impl Backend {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let url = format!(
             "{}/{}?uploadId={}",
             self.endpoint,
-            percent_encode_path(path),
+            percent_encode_path(&p),
             upload_id,
         );
 

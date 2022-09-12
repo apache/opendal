@@ -280,19 +280,17 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut req = self.obs_put_object_request(&p, Some(0), AsyncBody::Empty)?;
+        let mut req = self.obs_put_object_request(path, Some(0), AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Create, &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Create, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
 
         let status = resp.status();
 
@@ -301,21 +299,21 @@ impl Accessor for Backend {
                 resp.into_body()
                     .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, &p, er);
+                let err = parse_error(Operation::Create, path, er);
                 Err(err)
             }
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.obs_get_object(&p, args.offset(), args.size()).await?;
+        let resp = self
+            .obs_get_object(path, args.offset(), args.size())
+            .await?;
 
         let status = resp.status();
 
@@ -330,19 +328,17 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let p = build_abs_path(&self.root, path);
-
-        let mut req = self.obs_put_object_request(&p, Some(args.size()), AsyncBody::Reader(r))?;
+        let mut req = self.obs_put_object_request(path, Some(args.size()), AsyncBody::Reader(r))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, &p, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Write, &p, e))?;
+            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
 
         let status = resp.status();
 
@@ -351,7 +347,7 @@ impl Accessor for Backend {
                 resp.into_body()
                     .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, &p, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
                 Ok(args.size())
             }
             _ => {
@@ -363,8 +359,6 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
-        let p = build_abs_path(&self.root, path);
-
         // Stat root always returns a DIR.
         if path == "/" {
             let mut m = ObjectMetadata::default();
@@ -372,7 +366,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.obs_get_head_object(&p).await?;
+        let resp = self.obs_get_head_object(path).await?;
 
         let status = resp.status();
 
@@ -382,25 +376,25 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_etag(v);
                     m.set_content_md5(v.trim_matches('"'));
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_last_modified(v);
                 }
 
-                if p.ends_with('/') {
+                if path.ends_with('/') {
                     m.set_mode(ObjectMode::DIR);
                 } else {
                     m.set_mode(ObjectMode::FILE);
@@ -408,7 +402,7 @@ impl Accessor for Backend {
 
                 Ok(m)
             }
-            StatusCode::NOT_FOUND if p.ends_with('/') => {
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
                 m.set_mode(ObjectMode::DIR);
 
@@ -423,9 +417,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-
-        let resp = self.obs_delete_object(&p).await?;
+        let resp = self.obs_delete_object(path).await?;
 
         let status = resp.status();
 
@@ -440,12 +432,10 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
-        let path = build_abs_path(&self.root, path);
-
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
-            &path,
+            path,
         )))
     }
 }
@@ -457,7 +447,9 @@ impl Backend {
         offset: Option<u64>,
         size: Option<u64>,
     ) -> Result<Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
@@ -488,7 +480,9 @@ impl Backend {
         size: Option<u64>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
@@ -504,7 +498,9 @@ impl Backend {
     }
 
     async fn obs_get_head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         // The header 'Origin' is optional for API calling, the doc has mistake, confirmed with customer service of huaweicloud.
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0084.html
@@ -526,7 +522,9 @@ impl Backend {
     }
 
     async fn obs_delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(path));
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let req = Request::delete(&url);
 
@@ -549,9 +547,11 @@ impl Backend {
         path: &str,
         next_marker: &str,
     ) -> Result<Response<AsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
         let mut url = format!("{}?delimiter=/", self.endpoint);
         if !path.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(path))
+            write!(url, "&prefix={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
         }
         if !next_marker.is_empty() {

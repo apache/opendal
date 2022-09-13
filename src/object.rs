@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -21,6 +20,7 @@ use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use futures::io;
 use futures::io::Cursor;
 #[cfg(feature = "serde")]
@@ -30,7 +30,8 @@ use serde::Serialize;
 use time::Duration;
 use time::OffsetDateTime;
 
-use crate::error::{other, ObjectError};
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
@@ -39,6 +40,7 @@ use crate::io_util::CompressAlgorithm;
 use crate::io_util::DecompressReader;
 use crate::io_util::SeekableReader;
 use crate::multipart::ObjectMultipart;
+use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
@@ -47,10 +49,11 @@ use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
 use crate::ops::PresignedRequest;
-use crate::ops::{BytesRange, Operation};
+use crate::path::get_basename;
 use crate::path::normalize_path;
-use crate::path::{get_basename, validate_path};
+use crate::path::validate_path;
 use crate::Accessor;
 use crate::BlockingBytesRead;
 use crate::DirIterator;

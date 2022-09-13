@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::io::Result;
 use std::pin::Pin;
@@ -106,7 +107,7 @@ struct ImmutableIndexAccessor {
 
 impl ImmutableIndexAccessor {
     fn children(&self, path: &str) -> Vec<String> {
-        let mut res = Vec::new();
+        let mut res = HashSet::new();
 
         for i in self.set.iter() {
             // `/xyz` should not belong to `/abc`
@@ -121,24 +122,26 @@ impl ImmutableIndexAccessor {
 
             match i[path.len()..].find('/') {
                 // File `/abc/def.csv` must belong to `/abc`
-                None => res.push(i.to_string()),
+                None => {
+                    res.insert(i.to_string());
+                }
                 Some(idx) => {
                     // The index of first `/` after `/abc`.
                     let dir_idx = idx + 1 + path.len();
 
                     if dir_idx == i.len() {
                         // Dir `/abc/def/` belongs to `/abc/`
-                        res.push(i.to_string())
+                        res.insert(i.to_string());
                     } else {
-                        // File/Dir `/abc/def/xyz` deoesn't belongs to `/abc`.
+                        // File/Dir `/abc/def/xyz` doesn't belong to `/abc`.
                         // But we need to list `/abc/def` out so that we can walk down.
-                        res.push(i[..dir_idx].to_string())
+                        res.insert(i[..dir_idx].to_string());
                     }
                 }
             }
         }
 
-        res
+        res.into_iter().collect()
     }
 }
 
@@ -297,11 +300,13 @@ impl futures::Stream for ImmutableDir {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::collections::HashSet;
 
     use anyhow::Result;
     use futures::TryStreamExt;
+    use log::debug;
 
-    use crate::layers::immutable_index::ImmutableIndexLayer;
+    use super::*;
     use crate::layers::LoggingLayer;
     use crate::ObjectMode;
     use crate::Operator;
@@ -324,8 +329,15 @@ mod tests {
         .layer(iil);
 
         let mut map = HashMap::new();
+        let mut set = HashSet::new();
         for entry in op.object("").blocking_list()? {
             let entry = entry?;
+            debug!("current path: {}", entry.path());
+            assert!(
+                set.insert(entry.path().to_string()),
+                "duplicated value: {}",
+                entry.path()
+            );
             map.insert(entry.path().to_string(), entry.mode());
         }
 
@@ -352,14 +364,173 @@ mod tests {
         .layer(iil);
 
         let mut map = HashMap::new();
+        let mut set = HashSet::new();
         let mut ds = op.object("").list().await?;
         while let Some(entry) = ds.try_next().await? {
+            assert!(
+                set.insert(entry.path().to_string()),
+                "duplicated value: {}",
+                entry.path()
+            );
             map.insert(entry.path().to_string(), entry.mode());
         }
 
         assert_eq!(map["file"], ObjectMode::FILE);
         assert_eq!(map["dir/"], ObjectMode::DIR);
         assert_eq!(map["dir_without_prefix/"], ObjectMode::DIR);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_walk_top_down() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = Operator::from_iter(
+            Scheme::Http,
+            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+        )?
+        .layer(LoggingLayer)
+        .layer(iil);
+
+        let mut ds = op.batch().walk_top_down("/")?;
+        let mut set = HashSet::new();
+        let mut map = HashMap::new();
+        while let Some(entry) = ds.try_next().await? {
+            assert!(
+                set.insert(entry.path().to_string()),
+                "duplicated value: {}",
+                entry.path()
+            );
+            map.insert(entry.path().to_string(), entry.mode());
+        }
+
+        debug!("current files: {:?}", map);
+
+        assert_eq!(map.len(), 6);
+        assert_eq!(map["file"], ObjectMode::FILE);
+        assert_eq!(map["dir/"], ObjectMode::DIR);
+        assert_eq!(map["dir_without_prefix/"], ObjectMode::DIR);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_dir() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in [
+            "dataset/stateful/ontime_2007_200.csv",
+            "dataset/stateful/ontime_2008_200.csv",
+            "dataset/stateful/ontime_2009_200.csv",
+        ] {
+            iil.insert(i.to_string())
+        }
+
+        let op = Operator::from_iter(
+            Scheme::Http,
+            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+        )?
+        .layer(LoggingLayer)
+        .layer(iil);
+
+        //  List /
+        let mut map = HashMap::new();
+        let mut set = HashSet::new();
+        let mut ds = op.object("/").list().await?;
+        while let Some(entry) = ds.try_next().await? {
+            assert!(
+                set.insert(entry.path().to_string()),
+                "duplicated value: {}",
+                entry.path()
+            );
+            map.insert(entry.path().to_string(), entry.mode());
+        }
+
+        assert_eq!(map.len(), 1);
+        assert_eq!(map["dataset/"], ObjectMode::DIR);
+
+        //  List dataset/stateful/
+        let mut map = HashMap::new();
+        let mut set = HashSet::new();
+        let mut ds = op.object("dataset/stateful/").list().await?;
+        while let Some(entry) = ds.try_next().await? {
+            assert!(
+                set.insert(entry.path().to_string()),
+                "duplicated value: {}",
+                entry.path()
+            );
+            map.insert(entry.path().to_string(), entry.mode());
+        }
+
+        assert_eq!(map.len(), 3);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            ObjectMode::FILE
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            ObjectMode::FILE
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            ObjectMode::FILE
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_walk_top_down_dir() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in [
+            "dataset/stateful/ontime_2007_200.csv",
+            "dataset/stateful/ontime_2008_200.csv",
+            "dataset/stateful/ontime_2009_200.csv",
+        ] {
+            iil.insert(i.to_string())
+        }
+
+        let op = Operator::from_iter(
+            Scheme::Http,
+            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+        )?
+        .layer(LoggingLayer)
+        .layer(iil);
+
+        let mut ds = op.batch().walk_top_down("/")?;
+
+        let mut map = HashMap::new();
+        let mut set = HashSet::new();
+        while let Some(entry) = ds.try_next().await? {
+            assert!(
+                set.insert(entry.path().to_string()),
+                "duplicated value: {}",
+                entry.path()
+            );
+            map.insert(entry.path().to_string(), entry.mode());
+        }
+
+        debug!("current files: {:?}", map);
+
+        assert_eq!(map.len(), 6);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            ObjectMode::FILE
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            ObjectMode::FILE
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            ObjectMode::FILE
+        );
         Ok(())
     }
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::{Debug, Formatter};
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -27,10 +28,17 @@ use super::Body;
 use crate::io_util::into_reader;
 
 /// HttpClient that used across opendal.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HttpClient {
     async_client: reqwest::Client,
     sync_client: ureq::Agent,
+}
+
+/// We don't want users to know details about our clients.
+impl Debug for HttpClient {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpClient").finish()
+    }
 }
 
 impl HttpClient {

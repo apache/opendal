@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::io::Result;
 use std::pin::Pin;
@@ -298,7 +299,8 @@ impl futures::Stream for ImmutableDir {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
+    use std::collections::HashSet;
 
     use anyhow::Result;
     use futures::TryStreamExt;

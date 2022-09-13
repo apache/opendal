@@ -233,9 +233,10 @@ impl futures::Stream for BottomUpWalker {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use futures::TryStreamExt;
     use log::debug;
-    use std::collections::HashSet;
 
     use super::*;
     use crate::services::memory::Builder;

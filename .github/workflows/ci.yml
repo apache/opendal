@@ -59,7 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Build
-        run: cargo build --features rustls
+        run: cargo build --no-default-features --features rustls
 
   build_all_features:
     runs-on: ${{ matrix.os }}

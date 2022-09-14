@@ -25,6 +25,7 @@ use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
 use futures::io::AsyncReadExt;
+use http::Uri;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use redis::Client;
@@ -32,7 +33,6 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use time::OffsetDateTime;
-use url::Url;
 
 use super::dir_stream::DirStream;
 use super::error::new_deserialize_metadata_error;
@@ -129,44 +129,39 @@ impl Builder {
             .clone()
             .unwrap_or_else(|| DEFAULT_REDIS_ENDPOINT.to_string());
 
-        let ep_url = Url::parse(&endpoint).map_err(|e| {
+        let ep_url = endpoint.parse::<Uri>().map_err(|e| {
             other(BackendError::new(
                 HashMap::from([("endpoint".to_string(), endpoint.clone())]),
                 anyhow!("endpoint is invalid: {:?}", e),
             ))
         })?;
 
-        let con_addr = match ep_url.scheme() {
-            "tcp" | "redis" => {
+        let con_addr = match ep_url.scheme_str() {
+            Some("tcp") | Some("redis") | None => {
                 let host = ep_url
                     .host()
                     .map(|h| h.to_string())
                     .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port().unwrap_or(6379);
+                let port = ep_url.port_u16().unwrap_or(6379);
                 ConnectionAddr::Tcp(host, port)
             }
-            "tcps" | "rediss" => {
+            Some("tcps") | Some("rediss") => {
                 let host = ep_url
                     .host()
                     .map(|h| h.to_string())
                     .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port().unwrap_or(6379);
+                let port = ep_url.port_u16().unwrap_or(6379);
                 ConnectionAddr::TcpTls {
                     host,
                     port,
                     insecure: false,
                 }
             }
-            "unix" | "redis+unix" => {
-                let path = ep_url.to_file_path().map_err(|e| {
-                    other(BackendError::new(
-                        HashMap::from([("endpoint".to_string(), endpoint.to_string())]),
-                        anyhow!("invalid path to unix socket: {:?}", e),
-                    ))
-                })?;
+            Some("unix") | Some("redis+unix") => {
+                let path = PathBuf::from(ep_url.path());
                 ConnectionAddr::Unix(path)
             }
-            s => {
+            Some(s) => {
                 return Err(other(BackendError::new(
                     HashMap::from([("endpoint".to_string(), endpoint)]),
                     anyhow!("invalid or unsupported URL scheme: {}", s),
@@ -360,13 +355,14 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, path: &str, _args: OpDelete) -> Result<()> {
-        let abs_path = build_abs_path(self.root.as_str(), path);
+        let path = path.to_string();
+        let abs_path = build_abs_path(self.root.as_str(), path.as_str());
 
         let mut con = self
             .client
             .get_tokio_connection_manager()
             .await
-            .map_err(|err| new_get_async_con_error(err, Operation::Delete, path.clone()))?;
+            .map_err(|err| new_get_async_con_error(err, Operation::Delete, path.as_str()))?;
 
         // a reversed-level-order traversal delete
         // recursion is not friendly for rust, and on-heap stack is preferred.
@@ -378,7 +374,7 @@ impl Accessor for Backend {
             let mut it = con
                 .sscan(skey)
                 .await
-                .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path.clone()))?;
+                .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path.as_str()))?;
             while let Some(child) = it.next_item().await {
                 let _ = queue.push_back(child);
             }

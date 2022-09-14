@@ -30,7 +30,7 @@ use crate::{DirEntry, ObjectMode};
 enum State {
     Idle,
     Awaiting(BoxFuture<'static, Result<(u64, Vec<String>)>>),
-    Listing(Vec<String>),
+    Listing(&'static [String]),
 }
 
 pub struct DirStream {
@@ -90,13 +90,12 @@ impl Stream for DirStream {
                 if cursor == 0 {
                     self.done = true;
                 }
-                self.state = State::Listing(children);
+                self.state = State::Listing(children.leak());
                 self.poll_next(cx)
             }
             State::Listing(children) => {
-                let mut children = children.clone();
-                if let Some(child) = children.pop() {
-                    self.state = State::Listing(children);
+                if let Some(child) = children.last() {
+                    self.state = State::Listing(&children[..children.len() - 1]);
 
                     // only mode will be shown in listing
                     let mode = if child.ends_with('/') {
@@ -105,7 +104,7 @@ impl Stream for DirStream {
                         ObjectMode::FILE
                     };
 
-                    let entry = DirEntry::new(backend.clone(), mode, path.as_str());
+                    let entry = DirEntry::new(backend, mode, path.as_str());
                     Poll::Ready(Some(Ok(entry)))
                 } else {
                     self.state = State::Idle;

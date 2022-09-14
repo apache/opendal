@@ -60,8 +60,8 @@ The content of file will be represented directly as `String`, and metadata will 
 
 +------------------------------------------+
 |Object: /home/monika/poem0.txt            |
-|                                          |           SET
-|child: Key: v0:k:/home/monika/poem0.txt  -+---------> <empty>
+|                                          |
+| /*      file has no children        */   |
 |                                          |
 |content: Key: v0:c:/home/monika/poem0.txt-+--+
 |                                          |  |

@@ -48,20 +48,35 @@ Redis offers a key-value view, so the path of files could be represented as the 
 The content of file will be represented directly as `String`, and metadata will be encoded as [`bincode`](https://github.com/bincode-org/bincode.git) before storing as `String`.
 
 ```
-Object: /home/monika/poem0.txt
++------------------------------------------+
+|Object: /home/monika/                     |
+|                                          |           SET
+|child: Key: v0:k:/home/monika/           -+---------> 1) /home/monika/poem0.txt
+|                                          |
+|/* directory has no content  */           |
+|                                          |
+|metadata: Key: v0:m:/home/monika/         |
++------------------------------------------+
 
-content:  Key: v0:c:/home/monika/poem0.txt ─┐
-                                            │
-metadata: Key: v0:m:/home/monika/poem0.txt  │
-│                                           ▼
-│   STRING                                STRING
-└► ┌──────────────────────┐              ┌────────────────────┐
-   │\x00\x00\x00\x00\xe6\a│              │1JU5T3MON1K413097321│
-   │\x00\x00\xf8\x00\a4)!V│              │&JU5$T!M0N1K4$%#@#$%│
-   │\x81&\x00\x00\x00Q\x00│              │3231J)U_ST#MONIKA@#$│
-   │         ...          │              │1557(m0N1ka3just4M  │
-   └──────────────────────┘              │      ...           │
-                                         └────────────────────┘```
++------------------------------------------+
+|Object: /home/monika/poem0.txt            |
+|                                          |
+| /*      file has no children        */   |
+|                                          |
+|content: Key: v0:c:/home/monika/poem0.txt-+--+
+|                                          |  |
+|metadata: Key: v0:m:/home/monika/poem0.txt|  |
+|  |                                       |  |
++--+---------------------------------------+  |
+   |                                          v
+   +> STRING                                STRING
+     +----------------------+              +--------------------+
+     |\x00\x00\x00\x00\xe6\a|              |1JU5T3MON1K413097321|
+     |\x00\x00\xf8\x00\a4)!V|              |&JU5$T!M0N1K4$%#@#$%|
+     |\x81&\x00\x00\x00Q\x00|              |3231J)U_ST#MONIKA@#$|
+     |         ...          |              |1557(m0N1ka3just4M  |
+     +----------------------+              |      ...           |
+                                           +--------------------+
 ```
 
 The [redis-rs](https://crates.io/crates/redis)'s high level APIs is preferred.
@@ -114,6 +129,21 @@ con.set(m_path, encoded.as_slice())?;
 ```
 
 This will create two key-value pair. For object content, its key is `v0:c:/home/monika/poem0.txt`, the value is an empty `String`; For metadata, the key is `v0:m:/home/monika/poem0.txt`, the value is a `bincode` encoded `ObjectMetadata` structure binary string.
+
+On creating a file or directory, the backend should also create its all parent directories if not present.
+
+```rust
+// create a file under `PATH`
+let mut path = std::path::PathBuf::new(PATH);
+let mut con = client.new_async_connection().await?;
+
+while let Some(parent) = path.parent() {
+    let (p, c): (String, String) = (parent.display(), path.display());
+    let to_children = format!("v0:ch:{}", p);
+    con.sadd(to_children, c).await?;
+    path = parent;
+}
+```
 
 ## Read File
 
@@ -194,15 +224,43 @@ GET v0:m:/home/monika/poem.txt
 
 ## List
 
-Redis only supports glob patterns, some filtering have to be done on the opendal side.
+For listing directories, just `SSCAN` through the child list of the directory, nice and correct.
 
-This could be done by listing keys matching glob patterns first, with `SCAN` and `MATCH`, then filter out keys not in current level of directory, wrap their metadata into `DirEntry`s and return them to upper callers.
+```rust
+// print all sub-directories of `PATH`
+
+let s_key = format!("v0:k:{}", PATH);
+let mut con = client.new_async_connection().await?;
+let mut it = con.sscan::<&str, String>(s_key).await?;
+
+while let Some(child) = it.next_item().await {
+    println!("get sub-dir: {}", child);
+}
+```
 
 ## Delete
 
-All subdirectories of path will be listed and removed. To list all subdirectories and the file or directory itself.
+All subdirectories of path will be listed and removed.
 
-This could be done similarly to `List`, iterating on the pattern with `SCAN` and `MATCH`, and then remove all files and directories matched.
+On deleting a file or directory, the backend should remove the entry from its parent's `SET`, and remove all children of entry.
+
+This could be done by postorder deleting.
+
+```rust
+async fn remove_entry(con: &mut redis::aio::AsyncConnection, entry: String) {
+    let skey = format!("v0:ch:{}", entry);
+    let it = con.sscan::<&str, String>(skey).await?;
+    while let Some(child) = it.next_item().await {
+        remove_entry(&mut con, child).await;
+    }
+    if let Some(parent) = std::PathBuf::new(entry).parent() {
+        let p: String = parent.display();
+        let parent_skey = format!("v0:ch:{}", p);
+        let _ = con.srem(parent_skey, entry).await;
+    }
+    // remove metadata and content
+}
+```
 
 ## Blocking APIs
 

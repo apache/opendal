@@ -39,7 +39,7 @@ services-ftp = ["suppaftp"]
 # Enable services ipfs support
 services-ipfs = ["prost"]
 # Enable services redis support
-services-redis = ["redis", "bincode", "url"]
+services-redis = ["redis", "bincode", "url", "serde"]
 
 [lib]
 bench = false

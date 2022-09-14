@@ -19,93 +19,99 @@ use std::task::{Context, Poll};
 
 use futures::future::{BoxFuture, Future};
 use futures::ready;
-use futures::Stream;
-use redis::aio::Connection;
-use redis::AsyncCommands;
-use redis::AsyncIter;
+use futures::stream::Stream;
+use redis::aio::ConnectionManager;
 
 use crate::ops::Operation;
 use crate::services::redis::backend::Backend;
-use crate::services::redis::error::new_deserialize_metadata_error;
 use crate::services::redis::error::new_exec_async_cmd_error;
-use crate::services::redis::REDIS_API_VERSION;
-use crate::DirEntry;
-use crate::ObjectMetadata;
+use crate::{DirEntry, ObjectMode};
 
-enum State<'a> {
+enum State {
     Idle,
-    Awaiting(BoxFuture<'a, Option<String>>),
-    Listing(Option<String>),
+    Awaiting(BoxFuture<'static, Result<(u64, Vec<String>)>>),
+    Listing(Vec<String>),
 }
 
-pub struct DirStream<'a: 'b, 'b> {
+pub struct DirStream {
     backend: Arc<Backend>,
-    connection: Arc<Connection>,
-    iter: Arc<AsyncIter<'a, String>>,
-    state: State<'b>,
+    cm: ConnectionManager,
     path: String,
+
+    done: bool,
+    cursor: u64,
+    state: State,
 }
 
-impl<'a, 'b> DirStream<'a, 'b> {
-    pub fn new(
-        backend: Arc<Backend>,
-        connection: Connection,
-        path: &str,
-        iter: AsyncIter<'a, String>,
-    ) -> Self {
+impl DirStream {
+    pub fn new(backend: Arc<Backend>, cm: ConnectionManager, path: &str) -> Self {
         Self {
             backend,
-            connection: Arc::new(connection),
+            cm,
             path: path.to_string(),
+
+            done: false,
+            cursor: 0,
             state: State::Idle,
-            iter: Arc::new(iter),
         }
     }
 }
 
-impl<'a, 'b> Stream for DirStream<'a, 'b> {
+impl Stream for DirStream {
     type Item = Result<DirEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let path = self.path.clone();
-        let mut con = self.connection.clone();
+        let mut con = self.cm.clone();
         let backend = self.backend.clone();
         match &mut self.state {
             State::Idle => {
-                let fut = self.iter.next_item();
+                if self.done {
+                    return Poll::Ready(None);
+                }
+                let cursor = self.cursor;
+                let fut = async move {
+                    let (cursor, children): (u64, Vec<String>) = redis::cmd("sscan")
+                        .cursor_arg(cursor)
+                        .arg(path.clone())
+                        .query_async(&mut con)
+                        .await
+                        .map_err(|err| {
+                            new_exec_async_cmd_error(err, Operation::List, path.as_str())
+                        })?;
+                    Ok((cursor, children))
+                };
                 self.state = State::Awaiting(Box::pin(fut));
                 self.poll_next(cx)
             }
             State::Awaiting(fut) => {
-                let item = ready!(Pin::new(fut).poll(cx));
-                self.state = State::Listing(item);
+                let (cursor, children) = ready!(Pin::new(fut).poll(cx))?;
+                self.cursor = cursor;
+                if cursor == 0 {
+                    self.done = true;
+                }
+                self.state = State::Listing(children);
                 self.poll_next(cx)
             }
-            State::Listing(item) => match item {
-                Some(entry) => {
-                    // get metadata of current entry
-                    let m_path = format!("v{}:m:{}", REDIS_API_VERSION, entry);
-                    let mut get_bin = con.get(m_path);
-                    let bin: Vec<u8> = ready!(get_bin.as_mut().poll(cx)).map_err(|err| {
-                        new_exec_async_cmd_error(err, Operation::List, path.as_str())
-                    })?;
-                    let metadata: ObjectMetadata =
-                        bincode::deserialize(&bin[..]).map_err(|err| {
-                            new_deserialize_metadata_error(err, Operation::List, path.as_str())
-                        })?;
-                    // record metadata to DirEntry
-                    let mut entry = DirEntry::new(backend, metadata.mode(), entry.as_str());
-                    let content_length = metadata.content_length();
-                    // folders have no last_modified field
-                    if let Some(last_modified) = metadata.last_modified() {
-                        entry.set_last_modified(last_modified);
-                    }
-                    entry.set_content_length(content_length);
-                    self.state = State::Idle;
+            State::Listing(children) => {
+                let mut children = children.clone();
+                if let Some(child) = children.pop() {
+                    self.state = State::Listing(children);
+
+                    // only mode will be shown in listing
+                    let mode = if child.ends_with('/') {
+                        ObjectMode::DIR
+                    } else {
+                        ObjectMode::FILE
+                    };
+
+                    let entry = DirEntry::new(backend.clone(), mode, path.as_str());
                     Poll::Ready(Some(Ok(entry)))
+                } else {
+                    self.state = State::Idle;
+                    self.poll_next(cx)
                 }
-                None => Poll::Ready(None),
-            },
+            }
         }
     }
 }

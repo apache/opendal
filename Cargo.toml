@@ -17,13 +17,6 @@ all-features = true
 [features]
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
-# Enable rustls support.
-rustls = [
-  "reqwest/rustls-tls",
-  "reqwest/rustls-tls-native-roots",
-  "ureq/rustls",
-  "ureq/rustls-native-certs",
-]
 # Enable serde support.
 serde = ["time/serde"]
 
@@ -100,7 +93,7 @@ pin-project = "1.0"
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
 reqsign = "0.4"
-reqwest = { version = "0.11", features = ["stream"] }
+reqwest = { version = "0.11", features = ["stream", "rustls-tls-native-roots"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 suppaftp = { version = "4.4", features = ["async-secure"], optional = true }
@@ -108,7 +101,7 @@ thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
-ureq = "2.5"
+ureq = { version = "2.5", features = ["rustls-native-certs"] }
 
 [dev-dependencies]
 cfg-if = "1.0"

@@ -55,7 +55,7 @@ The content of file will be represented directly as `String`, and metadata will 
 |                                          |
 |/* directory has no content  */           |
 |                                          |
-|/* directory has no metadata */           |
+|metadata: Key: v0:m:/home/monika/         |
 +------------------------------------------+
 
 +------------------------------------------+
@@ -130,7 +130,7 @@ con.set(m_path, encoded.as_slice())?;
 
 This will create two key-value pair. For object content, its key is `v0:c:/home/monika/poem0.txt`, the value is an empty `String`; For metadata, the key is `v0:m:/home/monika/poem0.txt`, the value is a `bincode` encoded `ObjectMetadata` structure binary string.
 
-On creating a file or directory, the backend should create its all parent directories if not present.
+On creating a file or directory, the backend should also create its all parent directories if not present.
 
 ```rust
 // create a file under `PATH`

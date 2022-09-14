@@ -1,13 +1,27 @@
-use crate::error::{other, BackendError};
-use crate::ops::{OpCreate, OpDelete, OpList, OpRead, OpStat, OpWrite, Operation};
-use crate::path::build_abs_path;
-use crate::services::redis::dir_stream::DirStream;
-use crate::services::redis::error::{
-    new_deserialize_metadata_error, new_exec_async_cmd_error, new_get_async_con_error,
-    new_serialize_metadata_error,
-};
-use crate::services::redis::REDIS_API_VERSION;
-use crate::{Accessor, BytesReader, DirStreamer, ObjectMetadata, ObjectMode};
+// Copyright 2022 Datafuse Labs.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::borrow::Borrow;
+use std::collections::HashMap;
+use std::collections::VecDeque;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::io::Cursor;
+use std::io::Result;
+use std::path::PathBuf;
+use std::sync::Arc;
+
 use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
@@ -16,17 +30,36 @@ use futures::io::AsyncReadExt;
 use futures::io::BufReader;
 use num_traits::abs;
 use redis::aio::Connection;
-use redis::{AsyncCommands, Client, ConnectionAddr, ConnectionInfo, RedisConnectionInfo};
+use redis::AsyncCommands;
+use redis::Client;
+use redis::ConnectionAddr;
+use redis::ConnectionInfo;
+use redis::RedisConnectionInfo;
 use serde::Serialize;
-use std::borrow::Borrow;
-use std::collections::{HashMap, VecDeque};
-use std::fmt::{Debug, Formatter};
-use std::intrinsics::unreachable;
-use std::io::{Cursor, Result};
-use std::path::PathBuf;
-use std::sync::Arc;
 use time::OffsetDateTime;
 use url::Url;
+
+use crate::error::other;
+use crate::error::BackendError;
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::ops::Operation;
+use crate::path::build_abs_path;
+use crate::services::redis::dir_stream::DirStream;
+use crate::services::redis::error::new_deserialize_metadata_error;
+use crate::services::redis::error::new_exec_async_cmd_error;
+use crate::services::redis::error::new_get_async_con_error;
+use crate::services::redis::error::new_serialize_metadata_error;
+use crate::services::redis::REDIS_API_VERSION;
+use crate::Accessor;
+use crate::BytesReader;
+use crate::DirStreamer;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6543";
 
@@ -266,15 +299,12 @@ impl Accessor for Backend {
             .await
             .map_err(|e| new_exec_async_cmd_error(e, Operation::Stat, path.as_str()))?;
 
-        bincode::deserialize(&bin[..]).map_err(new_deserialize_metadata_error(
-            e,
-            Operation::Stat,
-            path.as_str(),
-        ))
+        bincode::deserialize(&bin[..])
+            .map_err(|e| new_deserialize_metadata_error(e, Operation::Stat, path.as_str()))
     }
 
     async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = args.path().to_string();
+        let mut path = args.path().to_string();
         let mut con = self
             .client
             .get_async_connection()
@@ -288,6 +318,9 @@ impl Accessor for Backend {
             // only set last_modified for files
             let last_modified = OffsetDateTime::now_utc();
             meta.set_last_modified(last_modified);
+        } else if args.mode() == ObjectMode::DIR && !path.ends_with('/') {
+            // folder's name must be ends with '/'!
+            path += "/";
         }
 
         let m_path = build_abs_meta_path(self.root.as_str(), path.as_str());
@@ -297,8 +330,11 @@ impl Accessor for Backend {
         // update parent folders
         let mut entry = PathBuf::from(build_abs_path(self.root.as_str(), path.as_str()));
         while let Some(parent) = entry.parent() {
-            let (p, c): (String, String) =
-                (parent.display().to_string(), entry.display().to_string());
+            let (p, c): (String, String) = (
+                // directory's name must be end with '/'!
+                parent.display().to_string() + "/",
+                entry.display().to_string(),
+            );
 
             // update parent folders' children
             let to_children = format!("v{}:ch:{}", REDIS_API_VERSION, p);
@@ -418,4 +454,15 @@ fn build_abs_to_child_path(root: &str, rel_path: &str) -> String {
         REDIS_API_VERSION,
         build_abs_path(root, rel_path)
     )
+}
+
+#[cfg(test)]
+mod bin_test {
+    use crate::ObjectMetadata;
+
+    #[test]
+    fn test_generate_bincode() {
+        let meta = ObjectMetadata::default();
+        println!("{:?}", bincode::serialize(&meta).unwrap());
+    }
 }

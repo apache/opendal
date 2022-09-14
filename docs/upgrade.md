@@ -2,6 +2,33 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.16
+
+OpenDAL v0.16 refactor the internal implementation of `http` service. Since v0.16, http service can be used directly without enabling `services-http` feature. Accompany by these changes, http service has the following breaking changes:
+
+- `services-http` feature has been deprecated. Enabling `services-http` is a no-op now.
+- http service is read only services and can't be used to `list` or `write`.
+
+OpenDAL introduces a new layer `ImmutableIndexLayer` that can add `list` capability for services:
+
+```rust
+use opendal::layers::ImmutableIndexLayer;
+use opendal::Operator;
+use opendal::Scheme;
+
+async fn main() {
+    let mut iil = ImmutableIndexLayer::default();
+
+    for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
+        iil.insert(i.to_string())
+    }
+
+    let op = Operator::from_env(Scheme::Http)?.layer(iil);
+}
+```
+
+For more information about this change, please refer to [RFC-0627: Split Capabilities](https://opendal.databend.rs/rfcs/0627-split-capabilities.html).
+
 ## Upgrade to v0.14
 
 OpenDAL v0.14 removed all deprecated APIs in previous versions, including:

@@ -130,17 +130,17 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
-            let parent = PathBuf::from(&path)
+            let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
                     other(ObjectError::new(
                         Operation::Create,
-                        &path,
-                        anyhow!("malformed path: {:?}", &path),
+                        path,
+                        anyhow!("malformed path: {:?}", path),
                     ))
                 })?
                 .to_path_buf();
@@ -152,17 +152,17 @@ impl Accessor for Backend {
             fs::OpenOptions::new()
                 .create(true)
                 .write(true)
-                .open(&path)
+                .open(&p)
                 .await
-                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Create, path))?;
 
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
-            fs::create_dir_all(&path)
+            fs::create_dir_all(&p)
                 .await
-                .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Create, path))?;
 
             return Ok(());
         }
@@ -170,21 +170,21 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         let f = fs::OpenOptions::new()
             .read(true)
-            .open(&path)
+            .open(&p)
             .await
-            .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
+            .map_err(|e| parse_io_error(e, Operation::Read, path))?;
 
         let mut f = Compat::new(f);
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset))
                 .await
-                .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Read, path))?;
         };
 
         let r: BytesReader = match args.size() {
@@ -195,8 +195,8 @@ impl Accessor for Backend {
         Ok(Box::new(r))
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         // Create dir before write path.
         //
@@ -204,13 +204,13 @@ impl Accessor for Backend {
         //   - Is it safe to create dir concurrently?
         //   - Do we need to extract this logic as new util functions?
         //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&path)
+        let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
                 other(ObjectError::new(
                     Operation::Write,
-                    &path,
-                    anyhow!("malformed path: {:?}", &path),
+                    path,
+                    anyhow!("malformed path: {:?}", path),
                 ))
             })?
             .to_path_buf();
@@ -222,9 +222,9 @@ impl Accessor for Backend {
         let f = fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&path)
+            .open(&p)
             .await
-            .map_err(|e| parse_io_error(e, Operation::Write, &path))?;
+            .map_err(|e| parse_io_error(e, Operation::Write, path))?;
 
         let mut f = Compat::new(f);
 
@@ -233,12 +233,12 @@ impl Accessor for Backend {
         Ok(size)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = fs::metadata(&path)
+        let meta = fs::metadata(&p)
             .await
-            .map_err(|e| parse_io_error(e, Operation::Stat, &path))?;
+            .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -252,23 +252,23 @@ impl Accessor for Backend {
         m.set_last_modified(
             meta.modified()
                 .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, Operation::Stat, &path))?,
+                .map_err(|e| parse_io_error(e, Operation::Stat, path))?,
         );
 
         Ok(m)
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
-        let meta = fs::metadata(&path).await;
+        let meta = fs::metadata(&p).await;
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, Operation::Delete, &path))
+                Err(parse_io_error(err, Operation::Delete, path))
             };
         }
 
@@ -276,37 +276,37 @@ impl Accessor for Backend {
         let meta = meta.ok().unwrap();
 
         let f = if meta.is_dir() {
-            fs::remove_dir(&path).await
+            fs::remove_dir(&p).await
         } else {
-            fs::remove_file(&path).await
+            fs::remove_file(&p).await
         };
 
-        f.map_err(|e| parse_io_error(e, Operation::Delete, &path))?;
+        f.map_err(|e| parse_io_error(e, Operation::Delete, path))?;
 
         Ok(())
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let f = std::fs::read_dir(&path).map_err(|e| parse_io_error(e, Operation::List, &path))?;
+        let f = std::fs::read_dir(&p).map_err(|e| parse_io_error(e, Operation::List, path))?;
 
-        let rd = DirStream::new(Arc::new(self.clone()), &self.root, args.path(), f);
+        let rd = DirStream::new(Arc::new(self.clone()), &self.root, path, f);
 
         Ok(Box::new(rd))
     }
 
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
-            let parent = PathBuf::from(&path)
+            let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
                     other(ObjectError::new(
                         Operation::BlockingCreate,
-                        &path,
-                        anyhow!("malformed path: {:?}", &path),
+                        path,
+                        anyhow!("malformed path: {:?}", path),
                     ))
                 })?
                 .to_path_buf();
@@ -318,15 +318,15 @@ impl Accessor for Backend {
             std::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
-                .open(&path)
-                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, &path))?;
+                .open(&p)
+                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, path))?;
 
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
-            std::fs::create_dir_all(&path)
-                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, &path))?;
+            std::fs::create_dir_all(&p)
+                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, path))?;
 
             return Ok(());
         }
@@ -334,19 +334,19 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         use std::io::Seek;
 
-        let path = build_rooted_abs_path(&self.root, args.path());
+        let p = build_rooted_abs_path(&self.root, path);
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
-            .open(&path)
-            .map_err(|e| parse_io_error(e, Operation::BlockingRead, &path))?;
+            .open(&p)
+            .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset))
-                .map_err(|e| parse_io_error(e, Operation::BlockingRead, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
         };
 
         let f: BlockingBytesReader = match args.size() {
@@ -357,8 +357,8 @@ impl Accessor for Backend {
         Ok(f)
     }
 
-    fn blocking_write(&self, args: &OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_write(&self, path: &str, _: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         // Create dir before write path.
         //
@@ -366,13 +366,13 @@ impl Accessor for Backend {
         //   - Is it safe to create dir concurrently?
         //   - Do we need to extract this logic as new util functions?
         //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&path)
+        let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
                 other(ObjectError::new(
                     Operation::BlockingWrite,
-                    &path,
-                    anyhow!("malformed path: {:?}", &path),
+                    path,
+                    anyhow!("malformed path: {:?}", path),
                 ))
             })?
             .to_path_buf();
@@ -383,19 +383,19 @@ impl Accessor for Backend {
         let mut f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
-            .open(&path)
-            .map_err(|e| parse_io_error(e, Operation::BlockingWrite, &path))?;
+            .open(&p)
+            .map_err(|e| parse_io_error(e, Operation::BlockingWrite, path))?;
 
         let size = std::io::copy(&mut r, &mut f)?;
 
         Ok(size)
     }
 
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = std::fs::metadata(&path)
-            .map_err(|e| parse_io_error(e, Operation::BlockingStat, &path))?;
+        let meta =
+            std::fs::metadata(&p).map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -409,23 +409,23 @@ impl Accessor for Backend {
         m.set_last_modified(
             meta.modified()
                 .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, Operation::BlockingStat, &path))?,
+                .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?,
         );
 
         Ok(m)
     }
 
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
-        let meta = std::fs::metadata(&path);
+        let meta = std::fs::metadata(&p);
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, Operation::BlockingDelete, &path))
+                Err(parse_io_error(err, Operation::BlockingDelete, path))
             };
         }
 
@@ -433,25 +433,26 @@ impl Accessor for Backend {
         let meta = meta.ok().unwrap();
 
         let f = if meta.is_dir() {
-            std::fs::remove_dir(&path)
+            std::fs::remove_dir(&p)
         } else {
-            std::fs::remove_file(&path)
+            std::fs::remove_file(&p)
         };
 
-        f.map_err(|e| parse_io_error(e, Operation::BlockingDelete, &path))?;
+        f.map_err(|e| parse_io_error(e, Operation::BlockingDelete, path))?;
 
         Ok(())
     }
 
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let f = std::fs::read_dir(&path)
-            .map_err(|e| parse_io_error(e, Operation::BlockingList, &path))?;
+        let f =
+            std::fs::read_dir(&p).map_err(|e| parse_io_error(e, Operation::BlockingList, path))?;
 
         let acc = Arc::new(self.clone());
 
         let root = self.root.clone();
+        let path = path.to_string();
 
         let f = f.map(move |v| match v {
             Ok(de) => {

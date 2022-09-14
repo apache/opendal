@@ -5,7 +5,7 @@ This page provides some examples for using IPFS as backend.
 We can run this example via:
 
 ```shell
-cargo run --example ipfs
+cargo run --example ipfs --features services-ipfs
 ```
 
 ## Example
@@ -14,8 +14,8 @@ cargo run --example ipfs
 
 Available environment variables:
 
-- `OPENDAL_IPFS_ROOT`: root path, default: /
-- `OPENDAL_IPFS_ENDPOINT`: endpoint of ipfs.
+- `OPENDAL_IPFS_ROOT`: root path, like `/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ`
+- `OPENDAL_IPFS_ENDPOINT`: endpoint of ipfs, like `https://ipfs.io`
 
 ```rust
 use anyhow::Result;

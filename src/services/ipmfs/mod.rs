@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! IPFS file system support.
+//! IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 //!
 //! # Configuration
 //!
@@ -23,8 +23,8 @@
 //!
 //! # Environment
 //!
-//! - `OPENDAL_IPFS_ROOT`    optional
-//! - `OPENDAL_IPFS_ENDPOINT`  optional
+//! - `OPENDAL_IPMFS_ROOT`    optional
+//! - `OPENDAL_IPMFS_ENDPOINT`  optional
 //!
 //! # Example
 //!
@@ -33,8 +33,8 @@
 //! Set environment correctly:
 //!
 //! ```shell
-//! export OPENDAL_IPFS_ROOT=/path/to/root
-//! export OPENDAL_IPFS_ENDPOINT=http://127.0.0.1:5001
+//! export OPENDAL_IPMFS_ROOT=/path/to/root
+//! export OPENDAL_IPMFS_ENDPOINT=http://127.0.0.1:5001
 //! ```
 //!
 //! ```no_run

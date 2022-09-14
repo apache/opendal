@@ -20,12 +20,11 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::io;
+use http::Request;
 use http::Response;
 use http::StatusCode;
-use isahc;
-use isahc::AsyncBody;
-use isahc::AsyncReadResponseExt;
 use serde::Deserialize;
 
 use super::builder::Builder;
@@ -39,6 +38,7 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::percent_encode_path;
+use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -111,95 +111,96 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
-
-        let mut resp = match args.mode() {
-            ObjectMode::DIR => self.ipfs_mkdir(&path).await?,
-            ObjectMode::FILE => self.ipfs_write(&path, &[]).await?,
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let resp = match args.mode() {
+            ObjectMode::DIR => self.ipmfs_mkdir(path).await?,
+            ObjectMode::FILE => self.ipmfs_write(path, &[]).await?,
             _ => unreachable!(),
         };
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, &path, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, args.path(), er);
+                let err = parse_error(Operation::Create, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let resp = self.ipmfs_read(path, args.offset(), args.size()).await?;
 
-        let offset = args.offset().and_then(|val| i64::try_from(val).ok());
-        let size = args.size().and_then(|val| i64::try_from(val).ok());
-        let resp = self.ipfs_read(&path, offset, size).await?;
+        let status = resp.status();
 
-        match resp.status() {
-            StatusCode::OK => Ok(Box::new(resp.into_body())),
+        match status {
+            StatusCode::OK => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
-
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         // TODO: Accept a reader directly.
         let mut buf = Vec::with_capacity(args.size() as usize);
         io::copy(r, &mut buf).await?;
 
-        let mut resp = self.ipfs_write(&path, &buf).await?;
+        let resp = self.ipmfs_write(path, &buf).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, &path, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
                 Ok(args.size())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, args.path(), er);
+                let err = parse_error(Operation::Write, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
-
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
-        if path == self.root {
+        if path == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
             return Ok(m);
         }
 
-        let mut resp = self.ipfs_stat(&path).await?;
+        let resp = self.ipmfs_stat(path).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
                 let bs = resp
+                    .into_body()
                     .bytes()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Stat, &path, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Stat, path, err))?;
 
                 let res: IpfsStatResponse = serde_json::from_slice(&bs).map_err(|err| {
                     other(ObjectError::new(
                         Operation::Stat,
-                        &path,
+                        path,
                         anyhow!("deserialize json: {err:?}"),
                     ))
                 })?;
@@ -216,54 +217,55 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let resp = self.ipmfs_rm(path).await?;
 
-        let mut resp = self.ipfs_rm(&path).await?;
+        let status = resp.status();
 
-        match resp.status() {
+        match status {
             StatusCode::OK => {
-                resp.consume()
+                resp.into_body()
+                    .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Delete, &path, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Delete, path, err))?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, args.path(), er);
+                let err = parse_error(Operation::Delete, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_rooted_abs_path(&self.root, args.path());
-
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
-            &path,
+            path,
         )))
     }
 }
 
 impl Backend {
-    async fn ipfs_stat(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_stat(&self, path: &str) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
+
         let url = format!(
             "{}/api/v0/files/stat?arg={}",
             self.endpoint,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Stat, path, err))?;
 
         self.client
@@ -272,16 +274,18 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn ipfs_read(
+    async fn ipmfs_read(
         &self,
         path: &str,
-        offset: Option<i64>,
-        size: Option<i64>,
+        offset: Option<u64>,
+        size: Option<u64>,
     ) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
+
         let mut url = format!(
             "{}/api/v0/files/read?arg={}",
             self.endpoint,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
         if let Some(offset) = offset {
             write!(url, "&offset={offset}").expect("write into string must succeed")
@@ -290,9 +294,9 @@ impl Backend {
             write!(url, "&count={count}").expect("write into string must succeed")
         }
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Read, path, err))?;
 
         self.client
@@ -301,16 +305,18 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    async fn ipfs_rm(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_rm(&self, path: &str) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
+
         let url = format!(
             "{}/api/v0/files/rm?arg={}",
             self.endpoint,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
 
         self.client
@@ -319,34 +325,38 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 
-    pub(crate) async fn ipfs_ls(&self, path: &str) -> Result<Response<AsyncBody>> {
+    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
+
         let url = format!(
             "{}/api/v0/files/ls?arg={}&long=true",
             self.endpoint,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
-            .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
+            .body(AsyncBody::Empty)
+            .map_err(|err| new_request_build_error(Operation::List, path, err))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+            .map_err(|e| new_request_send_error(Operation::List, path, e))
     }
 
-    async fn ipfs_mkdir(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
+
         let url = format!(
             "{}/api/v0/files/mkdir?arg={}&parents=true",
             self.endpoint,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
-        let req = isahc::Request::post(url);
+        let req = Request::post(url);
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|err| new_request_build_error(Operation::Create, path, err))?;
 
         self.client
@@ -356,14 +366,16 @@ impl Backend {
     }
 
     /// Support write from reader.
-    async fn ipfs_write(&self, path: &str, data: &[u8]) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_write(&self, path: &str, data: &[u8]) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
+
         let url = format!(
             "{}/api/v0/files/write?arg={}&parents=true&create=true&truncate=true",
             self.endpoint,
-            percent_encode_path(path)
+            percent_encode_path(&p)
         );
 
-        let mut req = isahc::Request::post(url);
+        let mut req = Request::post(url);
 
         req = req.header(
             http::header::CONTENT_TYPE,
@@ -379,7 +391,7 @@ impl Backend {
         buf.extend_from_slice(data);
         buf.extend_from_slice(right);
 
-        let body = AsyncBody::from_bytes_static(buf);
+        let body = AsyncBody::Bytes(Bytes::from(buf));
         let req = req
             .body(body)
             .map_err(|err| new_request_build_error(Operation::Write, path, err))?;

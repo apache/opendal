@@ -20,9 +20,9 @@ use std::task::Poll;
 
 use anyhow::anyhow;
 use bytes::Buf;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
-use isahc::AsyncReadResponseExt;
 use quick_xml::de;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc2822;
@@ -50,16 +50,16 @@ pub struct DirStream {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<Vec<u8>>>),
+    Sending(BoxFuture<'static, Result<Bytes>>),
     Listing((Output, usize, usize)),
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<Backend>, root: String, path: String) -> Self {
         Self {
             backend,
-            root: root.to_string(),
-            path: path.to_string(),
+            root,
+            path,
 
             next_marker: "".to_string(),
             done: false,
@@ -79,8 +79,9 @@ impl futures::Stream for DirStream {
             State::Idle => {
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
+
                 let fut = async move {
-                    let mut resp = backend.list_blobs(&path, &next_marker).await?;
+                    let resp = backend.azblob_list_blobs(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
                         let er = parse_error_response(resp).await?;
@@ -89,6 +90,7 @@ impl futures::Stream for DirStream {
                     }
 
                     let bs = resp
+                        .into_body()
                         .bytes()
                         .await
                         .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;

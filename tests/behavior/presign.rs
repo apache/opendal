@@ -13,11 +13,12 @@
 // limitations under the License.
 
 use std::io::Result;
+use std::str::FromStr;
 
 use http::header;
-use isahc::AsyncReadResponseExt;
 use log::debug;
 use opendal::Operator;
+use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
 use time::Duration;
@@ -81,26 +82,22 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     let signed_req = op.object(&path).presign_write(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = isahc::Request::builder()
-        .method(signed_req.method())
-        .uri(signed_req.uri())
-        .body(isahc::AsyncBody::from_bytes_static(content.clone()))
-        .expect("build request must succeed");
-    *req.headers_mut() = signed_req.header().clone();
-    req.headers_mut().insert(
-        header::CONTENT_LENGTH,
-        content
-            .len()
-            .to_string()
-            .parse()
-            .expect("parse header must succeed"),
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
     );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+    req = req.header(header::CONTENT_LENGTH, content.len());
+    req = req.body(reqwest::Body::from(content));
 
-    let client = isahc::HttpClient::new().expect("must init succeed");
-    let _ = client
-        .send_async(req)
-        .await
-        .expect("send request must succeed");
+    let resp = req.send().await.expect("send request must succeed");
+    debug!(
+        "write response: {:?}",
+        resp.text().await.expect("read response must succeed")
+    );
 
     let meta = op
         .object(&path)
@@ -130,20 +127,18 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     let signed_req = op.object(&path).presign_read(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
 
-    let mut req = isahc::Request::builder()
-        .method(signed_req.method())
-        .uri(signed_req.uri())
-        .body(isahc::AsyncBody::empty())
-        .expect("build request must succeed");
-    *req.headers_mut() = signed_req.header().clone();
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
 
-    let client = isahc::HttpClient::new().expect("must init succeed");
-    let mut resp = client
-        .send_async(req)
-        .await
-        .expect("send request must succeed");
+    let resp = req.send().await.expect("send request must succeed");
 
-    let bs: Vec<u8> = resp.bytes().await?;
+    let bs = resp.bytes().await.expect("read response must succeed");
     assert_eq!(size, bs.len(), "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

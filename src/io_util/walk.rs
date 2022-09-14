@@ -233,6 +233,8 @@ impl futures::Stream for BottomUpWalker {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use futures::TryStreamExt;
     use log::debug;
 
@@ -258,12 +260,20 @@ mod tests {
             op.object(path).create().await?;
         }
 
+        let mut set = HashSet::new();
         let w = TopDownWalker::new(op.object("x/"));
         let mut actual = w
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
-            .map(|v| v.path().to_string())
+            .map(|v| {
+                assert!(
+                    set.insert(v.path().to_string()),
+                    "duplicated value: {}",
+                    v.path()
+                );
+                v.path().to_string()
+            })
             .collect::<Vec<_>>();
 
         debug!("walk top down: {:?}", actual);
@@ -279,6 +289,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_walk_top_down_same_level() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let op = Operator::new(Builder::default().build()?);
+        for path in ["x/x/a", "x/x/b", "x/x/c"] {
+            op.object(path).create().await?;
+        }
+
+        let mut set = HashSet::new();
+        let w = TopDownWalker::new(op.object(""));
+        let mut actual = w
+            .try_collect::<Vec<_>>()
+            .await?
+            .into_iter()
+            .map(|v| {
+                assert!(
+                    set.insert(v.path().to_string()),
+                    "duplicated value: {}",
+                    v.path()
+                );
+                v.path().to_string()
+            })
+            .collect::<Vec<_>>();
+
+        debug!("walk top down: {:?}", actual);
+
+        actual.sort_unstable();
+        assert_eq!(actual, {
+            let mut x = vec!["/", "x/", "x/x/", "x/x/a", "x/x/b", "x/x/c"];
+            x.sort_unstable();
+            x
+        });
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_walk_bottom_up() -> Result<()> {
         let _ = env_logger::try_init();
 
@@ -290,12 +336,20 @@ mod tests {
             op.object(path).create().await?;
         }
 
+        let mut set = HashSet::new();
         let w = BottomUpWalker::new(op.object("x/"));
         let mut actual = w
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
-            .map(|v| v.path().to_string())
+            .map(|v| {
+                assert!(
+                    set.insert(v.path().to_string()),
+                    "duplicated value: {}",
+                    v.path()
+                );
+                v.path().to_string()
+            })
             .collect::<Vec<_>>();
 
         debug!("walk bottom up: {:?}", actual);

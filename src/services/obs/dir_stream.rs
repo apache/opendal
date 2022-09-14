@@ -19,10 +19,10 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Buf;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
-use isahc::AsyncReadResponseExt;
 use quick_xml::de;
 use serde::Deserialize;
 
@@ -48,7 +48,7 @@ pub struct DirStream {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<Vec<u8>>>),
+    Sending(BoxFuture<'static, Result<Bytes>>),
     Listing((Output, usize, usize)),
 }
 
@@ -77,7 +77,7 @@ impl futures::Stream for DirStream {
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
                 let fut = async move {
-                    let mut resp = backend.list_objects(&path, &next_marker).await?;
+                    let resp = backend.obs_list_objects(&path, &next_marker).await?;
 
                     if resp.status() != http::StatusCode::OK {
                         let er = parse_error_response(resp).await?;
@@ -86,6 +86,7 @@ impl futures::Stream for DirStream {
                     }
 
                     let bs = resp
+                        .into_body()
                         .bytes()
                         .await
                         .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;

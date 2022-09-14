@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::ObjectMode;
+
 /// build_abs_path will build an absolute path with root.
 ///
 /// # Rules
@@ -174,6 +176,17 @@ pub fn get_basename(path: &str) -> &str {
     }
 }
 
+/// Validate given path is match with given ObjectMode.
+pub fn validate_path(path: &str, mode: ObjectMode) -> bool {
+    debug_assert!(!path.is_empty(), "input path should not be empty");
+
+    match mode {
+        ObjectMode::FILE => !path.ends_with('/'),
+        ObjectMode::DIR => path.ends_with('/'),
+        ObjectMode::Unknown => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -281,6 +294,34 @@ mod tests {
 
         for (name, root, input, expect) in cases {
             let actual = build_rel_path(root, input);
+            assert_eq!(actual, expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_validate_path() {
+        let cases = vec![
+            ("input file with mode file", "abc", ObjectMode::FILE, true),
+            ("input file with mode dir", "abc", ObjectMode::DIR, false),
+            ("input dir with mode file", "abc/", ObjectMode::FILE, false),
+            ("input dir with mode dir", "abc/", ObjectMode::DIR, true),
+            ("root with mode dir", "/", ObjectMode::DIR, true),
+            (
+                "input file with mode unknown",
+                "abc",
+                ObjectMode::Unknown,
+                false,
+            ),
+            (
+                "input dir with mode unknown",
+                "abc/",
+                ObjectMode::Unknown,
+                false,
+            ),
+        ];
+
+        for (name, path, mode, expect) in cases {
+            let actual = validate_path(path, mode);
             assert_eq!(actual, expect, "{}", name)
         }
     }

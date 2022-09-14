@@ -20,9 +20,12 @@
 //! | -------- | ----------- |
 //! | [azblob][crate::services::azblob] | Azure Storage Blob services. |
 //! | [fs][crate::services::fs] | POSIX alike file system. |
+//! | [ftp][crate::services::ftp] | FTP and FTPS support. |
 //! | [gcs][crate::services::gcs] | Google Cloud Storage service. |
 //! | [hdfs][crate::services::hdfs] | Hadoop Distributed File System(HDFS). |
 //! | [http][crate::services::http] | HTTP read-only backend. |
+//! | [ipfs][crate::services::ipfs] | IPFS HTTP Gateway support. |
+//! | [ipmfs][crate::services::ipmfs] | IPFS Mutable File System support. |
 //! | [memory][crate::services::memory] | In memory backend support. |
 //! | [obs][crate::services::obs] | Huawei Cloud OBS service. |
 //! | [s3][crate::services::s3] | AWS S3 alike services. |
@@ -31,14 +34,16 @@
 //!
 //! ## Layers
 //!
+//! - `layers-all`: Enable all layers support.
 //! - `layers-retry`: Enable operator retry support.
 //! - `layers-metrics`: Enable operator metrics support.
 //! - `layers-tracing`: Enable operator tracing support.
 //!
 //! ## Services
 //!
+//! - `services-ftp`: Enable ftp service support.
 //! - `services-hdfs`: Enable hdfs service support.
-//! - `services-http`: Enable http service support.
+//! - `services-ipfs`: Enable ipfs service support.
 //!
 //! ## Dependencies features
 //!

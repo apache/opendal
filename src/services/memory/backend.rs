@@ -83,9 +83,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = args.path();
-
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         match args.mode() {
             ObjectMode::FILE => {
                 let mut map = self.inner.lock();
@@ -103,9 +101,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = args.path();
-
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         let map = self.inner.lock();
 
         let data = map.get(path).ok_or_else(|| {
@@ -141,9 +137,7 @@ impl Accessor for Backend {
         Ok(Box::new(Cursor::new(data)))
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = args.path();
-
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let mut buf = Vec::with_capacity(args.size() as usize);
         let n = futures::io::copy(r, &mut buf).await?;
         if n != args.size() {
@@ -159,9 +153,7 @@ impl Accessor for Backend {
         Ok(n)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = args.path();
-
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         if path.ends_with('/') {
             let mut meta = ObjectMetadata::default();
             meta.set_mode(ObjectMode::DIR);
@@ -185,17 +177,15 @@ impl Accessor for Backend {
         Ok(meta)
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = args.path();
-
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
         let mut map = self.inner.lock();
         map.remove(path);
 
         Ok(())
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let mut path = args.path().to_string();
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let mut path = path.to_string();
         if path == "/" {
             path.clear();
         }

@@ -20,6 +20,7 @@ use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+use anyhow::anyhow;
 use futures::io;
 use futures::io::Cursor;
 #[cfg(feature = "serde")]
@@ -29,6 +30,8 @@ use serde::Serialize;
 use time::Duration;
 use time::OffsetDateTime;
 
+use crate::error::other;
+use crate::error::ObjectError;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
@@ -46,9 +49,11 @@ use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
+use crate::path::validate_path;
 use crate::Accessor;
 use crate::BlockingBytesRead;
 use crate::DirIterator;
@@ -210,11 +215,13 @@ impl Object {
     /// ```
     pub async fn create(&self) -> Result<()> {
         if self.path.ends_with('/') {
-            let op = OpCreate::new(self.path(), ObjectMode::DIR)?;
-            self.acc.create(&op).await
+            self.acc
+                .create(self.path(), OpCreate::new(ObjectMode::DIR))
+                .await
         } else {
-            let op = OpCreate::new(self.path(), ObjectMode::FILE)?;
-            self.acc.create(&op).await
+            self.acc
+                .create(self.path(), OpCreate::new(ObjectMode::FILE))
+                .await
         }
     }
 
@@ -263,11 +270,11 @@ impl Object {
     /// ```
     pub fn blocking_create(&self) -> Result<()> {
         if self.path.ends_with('/') {
-            let op = OpCreate::new(self.path(), ObjectMode::DIR)?;
-            self.acc.blocking_create(&op)
+            self.acc
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))
         } else {
-            let op = OpCreate::new(self.path(), ObjectMode::FILE)?;
-            self.acc.blocking_create(&op)
+            self.acc
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))
         }
     }
 
@@ -345,8 +352,21 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        let op = OpRead::new(self.path(), (range.start_bound(), range.end_bound()))?;
-        let s = self.acc.read(&op).await?;
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Read,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
+
+        let s = self
+            .acc
+            .read(
+                self.path(),
+                OpRead::new((range.start_bound(), range.end_bound())),
+            )
+            .await?;
 
         let br = BytesRange::from(range);
         let buffer = if let Some(range_size) = br.size() {
@@ -383,8 +403,18 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        let op = OpRead::new(self.path(), (range.start_bound(), range.end_bound()))?;
-        let mut s = self.acc.blocking_read(&op)?;
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Read,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
+
+        let mut s = self.acc.blocking_read(
+            self.path(),
+            OpRead::new((range.start_bound(), range.end_bound())),
+        )?;
 
         let br = BytesRange::from(range);
         let mut buffer = if let Some(range_size) = br.size() {
@@ -463,8 +493,15 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
-        let op = OpRead::new(self.path(), range)?;
-        self.acc.read(&op).await
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Read,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
+
+        self.acc.read(self.path(), OpRead::new(range)).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -489,8 +526,15 @@ impl Object {
         &self,
         range: impl RangeBounds<u64>,
     ) -> Result<impl BlockingBytesRead> {
-        let op = OpRead::new(self.path(), range)?;
-        self.acc.blocking_read(&op)
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Read,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
+
+        self.acc.blocking_read(self.path(), OpRead::new(range))
     }
 
     /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.
@@ -689,11 +733,18 @@ impl Object {
     /// # }
     /// ```
     pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
-        let bs = bs.into();
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Write,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
 
-        let op = OpWrite::new(self.path(), bs.len() as u64)?;
+        let bs = bs.into();
+        let op = OpWrite::new(bs.len() as u64);
         let r = Cursor::new(bs);
-        let _ = self.acc.write(&op, Box::new(r)).await?;
+        let _ = self.acc.write(self.path(), op, Box::new(r)).await?;
         Ok(())
     }
 
@@ -722,11 +773,18 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
-        let bs = bs.into();
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Write,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
 
-        let op = OpWrite::new(self.path(), bs.len() as u64)?;
+        let bs = bs.into();
+        let op = OpWrite::new(bs.len() as u64);
         let r = std::io::Cursor::new(bs);
-        let _ = self.acc.blocking_write(&op, Box::new(r))?;
+        let _ = self.acc.blocking_write(self.path(), op, Box::new(r))?;
         Ok(())
     }
 
@@ -758,8 +816,18 @@ impl Object {
     /// # }
     /// ```
     pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
-        let op = OpWrite::new(self.path(), size)?;
-        let _ = self.acc.write(&op, Box::new(br)).await?;
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Write,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
+
+        let _ = self
+            .acc
+            .write(self.path(), OpWrite::new(size), Box::new(br))
+            .await?;
         Ok(())
     }
 
@@ -795,8 +863,17 @@ impl Object {
         size: u64,
         br: impl BlockingBytesRead + 'static,
     ) -> Result<()> {
-        let op = OpWrite::new(self.path(), size)?;
-        let _ = self.acc.blocking_write(&op, Box::new(br))?;
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(other(ObjectError::new(
+                Operation::Write,
+                self.path(),
+                anyhow!("Is a directory"),
+            )));
+        }
+
+        let _ = self
+            .acc
+            .blocking_write(self.path(), OpWrite::new(size), Box::new(br))?;
         Ok(())
     }
 
@@ -822,9 +899,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn delete(&self) -> Result<()> {
-        let op = &OpDelete::new(self.path())?;
-
-        self.acc.delete(op).await
+        self.acc.delete(self.path(), OpDelete::new()).await
     }
 
     /// Delete object.
@@ -848,9 +923,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_delete(&self) -> Result<()> {
-        let op = &OpDelete::new(self.path())?;
-
-        self.acc.blocking_delete(op)
+        self.acc.blocking_delete(self.path(), OpDelete::new())
     }
 
     /// List current dir object.
@@ -890,9 +963,15 @@ impl Object {
     /// # }
     /// ```
     pub async fn list(&self) -> Result<DirStreamer> {
-        let op = OpList::new(self.path())?;
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(other(ObjectError::new(
+                Operation::List,
+                self.path(),
+                anyhow!("Not a directory"),
+            )));
+        }
 
-        self.acc.list(&op).await
+        self.acc.list(self.path(), OpList::new()).await
     }
 
     /// List current dir object.
@@ -931,9 +1010,15 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_list(&self) -> Result<DirIterator> {
-        let op = OpList::new(self.path())?;
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(other(ObjectError::new(
+                Operation::List,
+                self.path(),
+                anyhow!("Not a directory"),
+            )));
+        }
 
-        self.acc.blocking_list(&op)
+        self.acc.blocking_list(self.path(), OpList::new())
     }
 
     /// Get current object's metadata.
@@ -960,9 +1045,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn metadata(&self) -> Result<ObjectMetadata> {
-        let op = OpStat::new(self.path())?;
-
-        self.acc.stat(&op).await
+        self.acc.stat(self.path(), OpStat::new()).await
     }
 
     /// Get current object's metadata.
@@ -988,9 +1071,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
-        let op = OpStat::new(self.path())?;
-
-        self.acc.blocking_stat(&op)
+        self.acc.blocking_stat(self.path(), OpStat::new())
     }
 
     /// Check if this object exists or not.
@@ -1066,18 +1147,18 @@ impl Object {
     /// async fn main() -> Result<()> {
     /// #    let op = Operator::from_env(Scheme::Memory)?;
     ///     let signed_req = op.object("test").presign_read(Duration::hours(1))?;
-    ///     let req = isahc::Request::builder()
+    ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
-    ///         .body(isahc::AsyncBody::empty())?;
+    ///         .body(())?;
     ///
     /// #    Ok(())
     /// # }
     /// ```
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpRead::new(self.path(), ..)?.into(), expire)?;
+        let op = OpPresign::new(OpRead::new(..).into(), expire);
 
-        self.acc.presign(&op)
+        self.acc.presign(self.path(), op)
     }
 
     /// Presign an operation for write.
@@ -1096,18 +1177,18 @@ impl Object {
     /// async fn main() -> Result<()> {
     /// #    let op = Operator::from_env(Scheme::Memory)?;
     ///     let signed_req = op.object("test").presign_write(Duration::hours(1))?;
-    ///     let req = isahc::Request::builder()
+    ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
-    ///         .body(isahc::AsyncBody::from("Hello, World!"))?;
+    ///         .body(())?;
     ///
     /// #    Ok(())
     /// # }
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpWrite::new(self.path(), 0)?.into(), expire)?;
+        let op = OpPresign::new(OpWrite::new(0).into(), expire);
 
-        self.acc.presign(&op)
+        self.acc.presign(self.path(), op)
     }
 
     /// Construct a multipart with existing upload id.
@@ -1117,8 +1198,10 @@ impl Object {
 
     /// Create a new multipart for current path.
     pub async fn create_multipart(&self) -> Result<ObjectMultipart> {
-        let op = OpCreateMultipart::new(self.path())?;
-        let upload_id = self.acc.create_multipart(&op).await?;
+        let upload_id = self
+            .acc
+            .create_multipart(self.path(), OpCreateMultipart::new())
+            .await?;
         Ok(self.to_multipart(&upload_id))
     }
 }

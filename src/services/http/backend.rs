@@ -19,8 +19,9 @@ use std::io::Result;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use http::Request;
+use http::Response;
 use http::StatusCode;
-use isahc::AsyncBody;
 use log::info;
 
 use super::error::parse_error;
@@ -36,6 +37,7 @@ use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
+use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::ops::BytesRange;
 use crate::ops::OpRead;
@@ -166,63 +168,63 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let p = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let resp = self.http_get(path, args.offset(), args.size()).await?;
 
-        let resp = self.http_get(&p, args.offset(), args.size()).await?;
+        let status = resp.status();
 
-        match resp.status() {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(Box::new(resp.into_body())),
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, args.path(), er);
+                let err = parse_error(Operation::Read, path, er);
                 Err(err)
             }
         }
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let p = build_rooted_abs_path(&self.root, args.path());
-
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
-        if p == self.root {
+        if path == "/" {
             let mut m = ObjectMetadata::default();
             m.set_mode(ObjectMode::DIR);
 
             return Ok(m);
         }
 
-        let resp = self.http_head(&p).await?;
+        let resp = self.http_head(path).await?;
 
-        match resp.status() {
+        let status = resp.status();
+
+        match status {
             StatusCode::OK => {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_content_md5(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_content_md5(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_etag(v);
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, &p, e)))?
+                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
                 {
                     m.set_last_modified(v);
                 }
 
-                if p.ends_with('/') {
+                if path.ends_with('/') {
                     m.set_mode(ObjectMode::DIR);
                 } else {
                     m.set_mode(ObjectMode::FILE);
@@ -230,7 +232,9 @@ impl Accessor for Backend {
 
                 Ok(m)
             }
-            StatusCode::NOT_FOUND if p.ends_with('/') => {
+            // HTTP Server like nginx could return FORBIDDEN if auto-index
+            // is not enabled, we should ignore them.
+            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
                 let mut m = ObjectMetadata::default();
                 m.set_mode(ObjectMode::DIR);
 
@@ -238,7 +242,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, args.path(), er);
+                let err = parse_error(Operation::Stat, path, er);
                 Err(err)
             }
         }
@@ -246,15 +250,17 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    pub(crate) async fn http_get(
+    async fn http_get(
         &self,
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+    ) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let mut req = isahc::Request::get(&url);
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
+
+        let mut req = Request::get(&url);
 
         if offset.is_some() || size.is_some() {
             req = req.header(
@@ -264,7 +270,7 @@ impl Backend {
         }
 
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
 
         self.client
@@ -273,13 +279,15 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    pub(crate) async fn http_head(&self, path: &str) -> Result<isahc::Response<AsyncBody>> {
-        let url = format!("{}{}", self.endpoint, percent_encode_path(path));
+    async fn http_head(&self, path: &str) -> Result<Response<AsyncBody>> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let req = isahc::Request::head(&url);
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
+
+        let req = Request::head(&url);
 
         let req = req
-            .body(AsyncBody::empty())
+            .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
 
         self.client

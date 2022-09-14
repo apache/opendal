@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.16.0] - 2022-09-12
+
+### Added
+
+- feat: Implement tests for read-only services (#634)
+- feat(services/ftp): Implemented multi connection (#637)
+- feat: Finalize FTP read operation  (#644)
+- feat: Implement service for IPFS HTTP Gateway (#645)
+- feat: Add ImmutableIndexLayer (#651)
+- feat: derive Hash for Scheme (#653)
+- feat(services/ftp): Setup integration tests (#648)
+
+### Changed
+
+- refactor: Migrate all behavior tests to capability based (#635)
+- refactor: Remove list support from http service  (#639)
+- refactor: Replace isahc with reqwest and ureq (#642)
+
+## Deps
+
+- deps: Bump reqsign to v0.4 (#643)
+- deps: Remove not used features (#658)
+- chore(deps): Update criterion requirement from 0.3 to 0.4 (#656)
+- chore(deps): Update quick-xml requirement from 0.24 to 0.25 (#657)
+
+### Docs
+
+- docs: Add docs for ipfs (#649)
+- docs: Fix typo (#650)
+- docs: Add docs for ftp services (#655)
+
+## RFCs
+
+- RFC-0623: Redis Service (#623)
+
 ## [v0.15.0] - 2022-09-05
 
 ### Added
@@ -649,6 +684,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.16.0]: https://github.com/datafuselabs/opendal/compare/v0.15.0...v0.16.0
 [v0.15.0]: https://github.com/datafuselabs/opendal/compare/v0.14.1...v0.15.0
 [v0.14.1]: https://github.com/datafuselabs/opendal/compare/v0.14.0...v0.14.1
 [v0.14.0]: https://github.com/datafuselabs/opendal/compare/v0.13.1...v0.14.0

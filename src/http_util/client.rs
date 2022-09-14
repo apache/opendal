@@ -12,62 +12,136 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::time::Duration;
+use std::fmt::{Debug, Formatter};
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
+use std::str::FromStr;
 
-use futures::future::BoxFuture;
+use futures::TryStreamExt;
 use http::Request;
-use isahc::config::Configurable;
+use http::Response;
+use reqwest::Url;
 
-pub type HttpResponseFuture =
-    BoxFuture<'static, Result<isahc::Response<isahc::AsyncBody>, isahc::Error>>;
+use super::AsyncBody;
+use super::Body;
+use crate::io_util::into_reader;
 
 /// HttpClient that used across opendal.
-///
-/// NOTE: we could change or support more underlying http backend.
-#[derive(Debug, Clone)]
-pub struct HttpClient(isahc::HttpClient);
+#[derive(Clone)]
+pub struct HttpClient {
+    async_client: reqwest::Client,
+    sync_client: ureq::Agent,
+}
+
+/// We don't want users to know details about our clients.
+impl Debug for HttpClient {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpClient").finish()
+    }
+}
 
 impl HttpClient {
     /// Create a new http client.
-    ///
-    /// # TODO
-    ///
-    /// We will allow users to config the max connections and timeout.
-    ///
-    /// But we don't know the correct API that exposed to end users.
-    /// Let's pick up reasonable settings here until we have a great solutions.
     pub fn new() -> Self {
-        let client = isahc::HttpClient::builder()
-            // As discussed in aws docs: too large connections is helpless for the total throughout.
-            //
-            // The most high-end of AWS EC2's network performance is 100 Gbps. 128 connections is able
-            // to full use the entire bandwidth at nearly 100 MB/s per-conn.
-            //
-            // ref: https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance-design-patterns.html#optimizing-performance-parallelization
-            .max_connections(128)
-            // The default connect timeout is 300 seconds that is too long for our cases.
-            // We expect OpenDAL is running on a more stable networking.
-            // Thus, we decrease the value to 10s.
-            .connect_timeout(Duration::from_secs(10))
-            .build()
-            .expect("client init must succeed");
+        let async_client = reqwest::Client::new();
+        let sync_client = ureq::Agent::new();
 
-        HttpClient(client)
+        HttpClient {
+            async_client,
+            sync_client,
+        }
     }
 
     /// Send a request in blocking way.
-    pub fn send(
-        &self,
-        req: Request<isahc::Body>,
-    ) -> Result<isahc::Response<isahc::Body>, isahc::Error> {
-        self.0.send(req)
+    pub fn send(&self, req: Request<Body>) -> Result<Response<Body>> {
+        let (parts, body) = req.into_parts();
+
+        let mut ur = self
+            .sync_client
+            .request(parts.method.as_str(), &parts.uri.to_string());
+        for (k, v) in parts.headers.iter() {
+            ur = ur.set(k.as_str(), v.to_str().expect("must be valid header"));
+        }
+
+        let resp = match ur.send(body) {
+            Ok(resp) => resp,
+            Err(err_resp) => match err_resp {
+                ureq::Error::Status(_code, resp) => resp,
+                ureq::Error::Transport(transport) => {
+                    let kind = match transport.kind() {
+                        ureq::ErrorKind::Dns
+                        | ureq::ErrorKind::ConnectionFailed
+                        | ureq::ErrorKind::Io => ErrorKind::Interrupted,
+                        _ => ErrorKind::Other,
+                    };
+
+                    return Err(Error::new(kind, transport));
+                }
+            },
+        };
+
+        let mut hr = Response::builder().status(resp.status());
+        for name in resp.headers_names() {
+            if let Some(value) = resp.header(&name) {
+                hr = hr.header(name, value);
+            }
+        }
+
+        let resp = hr
+            .body(Body::Reader(Box::new(resp.into_reader())))
+            .expect("response must build succeed");
+
+        Ok(resp)
     }
 
     /// Send a request in async way.
-    pub fn send_async(&self, req: Request<isahc::AsyncBody>) -> HttpResponseFuture {
-        let client = self.0.clone();
+    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<AsyncBody>> {
+        let (parts, body) = req.into_parts();
 
-        Box::pin(async move { client.send_async(req).await })
+        let resp = self
+            .async_client
+            .request(
+                parts.method,
+                Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
+            )
+            .version(parts.version)
+            .headers(parts.headers)
+            .body(body)
+            .send()
+            .await
+            .map_err(|err| {
+                let kind = if err.is_timeout() || err.is_connect() {
+                    ErrorKind::Interrupted
+                } else {
+                    ErrorKind::Other
+                };
+
+                Error::new(kind, err)
+            })?;
+
+        let mut hr = Response::builder()
+            .version(resp.version())
+            .status(resp.status());
+        for (k, v) in resp.headers().iter() {
+            hr = hr.header(k, v);
+        }
+
+        let resp = hr
+            .body(AsyncBody::Reader(Box::new(into_reader(
+                resp.bytes_stream().map_err(|err| {
+                    let kind = if err.is_timeout() || err.is_connect() {
+                        ErrorKind::Interrupted
+                    } else {
+                        ErrorKind::Other
+                    };
+
+                    Error::new(kind, err)
+                }),
+            ))))
+            .expect("response must build succeed");
+
+        Ok(resp)
     }
 }
 

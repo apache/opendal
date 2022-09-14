@@ -23,13 +23,15 @@ mod blocking_write;
 #[macro_use]
 mod list;
 #[macro_use]
+mod list_only;
+#[macro_use]
 mod multipart;
 #[macro_use]
 mod multipart_presign;
 #[macro_use]
 mod presign;
 #[macro_use]
-mod read;
+mod read_only;
 #[macro_use]
 mod write;
 
@@ -59,6 +61,8 @@ macro_rules! behavior_tests {
             behavior_multipart_tests!($service);
             // can_read && can_write && can_multipart && can_presign
             behavior_multipart_presign_tests!($service);
+            // can_list && !can_write
+            behavior_list_only_tests!($service);
         )*
     };
 }
@@ -68,8 +72,9 @@ behavior_tests!(Fs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-ftp")] { behavior_tests!(Ftp); }}
 behavior_tests!(Memory);
 behavior_tests!(Gcs);
+cfg_if::cfg_if! { if #[cfg(feature = "services-ipfs")] { behavior_tests!(Ipfs); }}
 behavior_tests!(Ipmfs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-hdfs")] { behavior_tests!(Hdfs); }}
-cfg_if::cfg_if! { if #[cfg(feature = "services-http")] {behavior_tests!(Http); }}
+cfg_if::cfg_if! { if #[cfg(feature = "services-http")] { behavior_tests!(Http); }}
 behavior_tests!(Obs);
 behavior_tests!(S3);

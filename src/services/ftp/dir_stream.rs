@@ -23,8 +23,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use log::debug;
-use log::error;
 use suppaftp::list::File;
 
 use super::err::parse_io_error;
@@ -37,7 +35,7 @@ pub struct ReadDir {
     files: Vec<String>,
     index: usize,
 }
-/*  */
+
 impl Iterator for ReadDir {
     type Item = Result<File>;
 
@@ -81,33 +79,23 @@ impl futures::Stream for DirStream {
     type Item = Result<DirEntry>;
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.rd.by_ref().next() {
-            None => {
-                debug!("dir object {} list done", &self.path);
-                Poll::Ready(None)
-            }
-            Some(Err(e)) => {
-                error!("dir object {} list: {:?}", &self.path, e);
-                Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path))))
-            }
+            None => Poll::Ready(None),
+            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path)))),
             Some(Ok(de)) => {
+                let path = self.path.to_string() + de.name();
+
                 let d = if de.is_file() {
-                    DirEntry::new(self.backend.clone(), ObjectMode::FILE, de.name())
+                    DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
                 } else if de.is_directory() {
-                    DirEntry::new(self.backend.clone(), ObjectMode::DIR, de.name())
+                    DirEntry::new(
+                        self.backend.clone(),
+                        ObjectMode::DIR,
+                        &format!("{}/", &path),
+                    )
                 } else {
-                    DirEntry::new(self.backend.clone(), ObjectMode::Unknown, de.name())
+                    DirEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
                 };
 
-                debug!(
-                    "dir object {} got entry, mode: {}, path: {}, content length: {:?}, last modified: {:?}, content_md5: {:?}, etag: {:?}",
-                    &self.path,
-                    d.mode(),
-                    d.path(),
-                    d.content_length(),
-                    d.last_modified(),
-                    d.content_md5(),
-                    d.etag(),
-                );
                 Poll::Ready(Some(Ok(d)))
             }
         }

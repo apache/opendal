@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
@@ -25,17 +24,13 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::io::AsyncReadExt;
-use futures::io::BufReader;
-use num_traits::abs;
 use redis::aio::Connection;
 use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
-use serde::Serialize;
 use time::OffsetDateTime;
 use url::Url;
 
@@ -356,7 +351,7 @@ impl Accessor for Backend {
 
         con.set(m_path, ser)
             .await
-            .map_err(|err| new_exec_async_cmd_error(err, Operation::Write, entry.as_str()))
+            .map_err(|err| new_exec_async_cmd_error(err, Operation::Write, path.as_str()))
     }
 
     async fn list(&self, args: &OpList) -> Result<DirStreamer> {
@@ -372,7 +367,7 @@ impl Accessor for Backend {
             .map_err(|err| new_exec_async_cmd_error(err, Operation::List, path.as_str()))?;
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
-            Arc::new(con),
+            con,
             path.as_str(),
             it,
         )))
@@ -413,7 +408,7 @@ impl Accessor for Backend {
         if let Some(parent) = PathBuf::from(abs_path.clone()).parent() {
             let p = parent.display().to_string();
             let skey = format!("v{}:k:{}", REDIS_API_VERSION, p);
-            con.srem(skey, abs_path).await.map_err(|err| {
+            con.srem(skey, abs_path.clone()).await.map_err(|err| {
                 new_exec_async_cmd_error(err, Operation::Delete, abs_path.as_str())
             })?;
         }

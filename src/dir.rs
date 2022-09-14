@@ -156,18 +156,14 @@ impl DirEntry {
     ///
     /// The same with [`Object::metadata()`]
     pub async fn metadata(&self) -> Result<ObjectMetadata> {
-        let op = OpStat::new(self.path())?;
-
-        self.acc.stat(&op).await
+        self.acc.stat(self.path(), OpStat::new()).await
     }
 
     /// Fetch metadata about this dir entry.
     ///
     /// The same with [`Object::blocking_metadata()`]
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
-        let op = OpStat::new(self.path())?;
-
-        self.acc.blocking_stat(&op)
+        self.acc.blocking_stat(self.path(), OpStat::new())
     }
 }
 

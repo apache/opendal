@@ -87,7 +87,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Accessor for Test {
-        async fn delete(&self, _args: &OpDelete) -> Result<()> {
+        async fn delete(&self, _: &str, _: OpDelete) -> Result<()> {
             let mut x = self.deleted.lock().await;
             *x = true;
 

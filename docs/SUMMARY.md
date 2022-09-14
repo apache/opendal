@@ -8,9 +8,11 @@
 - [Services](services/README.md)
   - [azblob](services/azblob.md)
   - [fs](services/fs.md)
+  - [ftp](services/ftp.md)
   - [gcs](services/gcs.md)
   - [hdfs](services/hdfs.md)
   - [ipfs](services/ipfs.md)
+  - [ipmfs](services/ipmfs.md)
   - [obs](services/obs.md)
   - [s3](services/s3.md)
 - [Examples](examples/README.md)
@@ -27,6 +29,8 @@
 
 # Reference Guide
 
+- [Internal](internal/README.md)
+  - [Implement Service](internal/implement-service.md)
 - [RFCs](rfcs/README.md)
   - [0041-object-native-api](rfcs/0041-object-native-api.md)
   - [0044-error-handle](rfcs/0044-error-handle.md)
@@ -52,3 +56,4 @@
   - [0599-blocking-api](rfcs/0599-blocking-api.md)
   - [0623-redis-service](rfcs/0623-redis-service.md)
   - [0627-split-capabilities](rfcs/0627-split-capabilities.md)
+  - [0661-path-in-accessor](rfcs/0661-path-in-accessor.md)

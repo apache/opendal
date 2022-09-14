@@ -25,12 +25,11 @@
 //! You can refer to [`Builder`]'s docs for more information
 //!
 //! # Environment
-//!   
+//!
 //! - `OPENDAL_FTP_ENDPOINT`    optional
 //! - `OPENDAL_FTP_ROOT`    required
-//! - `OPENDAL_FTP_PORT`    optional
-//! - `OPENDAL_FTP_NAME`  optional
-//! - `OPENDAL_FTP_PWD`    optional
+//! - `OPENDAL_FTP_USER`  optional
+//! - `OPENDAL_FTP_PASSWORD`    optional
 //!
 //! # Example
 //!
@@ -39,11 +38,10 @@
 //! Set environment correctly:
 //!
 //! ```shell
-//! export OPENDAL_FTP_ENDPOINT=endpoint    # required  
-//! export OPENDAL_FTP_Port=port      # default with 21
-//! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/ftp"
-//! export OPENDAL_FTP_NAME=name    # default with empty string ""
-//! export OPENDAL_FTP_PWD=password    # default with  empty string ""
+//! export OPENDAL_FTP_ENDPOINT=endpoint    # required
+//! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/"
+//! export OPENDAL_FTP_USER=name            # default with empty string ""
+//! export OPENDAL_FTP_PASSWORD=password    # default with empty string ""
 //! ```
 //! ```no_run
 //! use anyhow::Result;
@@ -86,5 +84,7 @@
 mod backend;
 pub use backend::Backend;
 pub use backend::Builder;
+
 mod dir_stream;
 mod err;
+mod util;

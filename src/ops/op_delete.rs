@@ -12,26 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
-
 /// Args for `delete` operation.
 ///
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct OpDelete {
-    path: String,
-}
+pub struct OpDelete {}
 
 impl OpDelete {
     /// Create a new `OpDelete`.
-    pub fn new(path: &str) -> Result<Self> {
-        Ok(Self {
-            path: path.to_string(),
-        })
-    }
-
-    /// Get path from option.
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn new() -> Self {
+        Self {}
     }
 }

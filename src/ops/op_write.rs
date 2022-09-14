@@ -12,20 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
-
-use anyhow::anyhow;
-
-use crate::error::other;
-use crate::error::ObjectError;
-use crate::ops::Operation;
-
 /// Args for `write` operation.
-///
-/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
-    path: String,
     size: u64,
 }
 
@@ -33,24 +22,8 @@ impl OpWrite {
     /// Create a new `OpWrite`.
     ///
     /// If input path is not a file path, an error will be returned.
-    pub fn new(path: &str, size: u64) -> Result<Self> {
-        if path.ends_with('/') {
-            return Err(other(ObjectError::new(
-                Operation::Write,
-                path,
-                anyhow!("Is a directory"),
-            )));
-        }
-
-        Ok(Self {
-            path: path.to_string(),
-            size,
-        })
-    }
-
-    /// Get path from option.
-    pub fn path(&self) -> &str {
-        &self.path
+    pub fn new(size: u64) -> Self {
+        Self { size }
     }
 
     /// Get size from option.

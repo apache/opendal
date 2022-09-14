@@ -130,7 +130,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -138,7 +138,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.create(args).await;
+        let result = self.inner.create(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -150,7 +150,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -158,7 +158,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.read(args).await.map(|reader| {
+        let result = self.inner.read(path, args).await.map(|reader| {
             Box::new(MetricReader::new(
                 self.meta.scheme(),
                 Operation::Read,
@@ -176,7 +176,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -186,7 +186,7 @@ impl Accessor for MetricsAccessor {
         let r = Box::new(MetricReader::new(self.meta.scheme(), Operation::Write, r));
 
         let start = Instant::now();
-        let result = self.inner.write(args, r).await;
+        let result = self.inner.write(path, args, r).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -198,7 +198,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -206,7 +206,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.stat(args).await;
+        let result = self.inner.stat(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -218,7 +218,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -226,7 +226,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.delete(args).await;
+        let result = self.inner.delete(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -238,7 +238,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -246,7 +246,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.list(args).await;
+        let result = self.inner.list(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -258,7 +258,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    fn presign(&self, args: &OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -266,7 +266,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.presign(args);
+        let result = self.inner.presign(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -278,7 +278,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn create_multipart(&self, args: &OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -286,7 +286,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.create_multipart(args).await;
+        let result = self.inner.create_multipart(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -298,7 +298,12 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn write_multipart(&self, args: &OpWriteMultipart, r: BytesReader) -> Result<ObjectPart> {
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -308,7 +313,7 @@ impl Accessor for MetricsAccessor {
         let r = Box::new(MetricReader::new(self.meta.scheme(), Operation::Write, r));
 
         let start = Instant::now();
-        let result = self.inner.write_multipart(args, r).await;
+        let result = self.inner.write_multipart(path, args, r).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -320,7 +325,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn complete_multipart(&self, args: &OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -328,7 +333,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.complete_multipart(args).await;
+        let result = self.inner.complete_multipart(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -340,7 +345,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn abort_multipart(&self, args: &OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -348,7 +353,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.abort_multipart(args).await;
+        let result = self.inner.abort_multipart(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -360,7 +365,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    fn blocking_create(&self, args: &OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -368,7 +373,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.blocking_create(args);
+        let result = self.inner.blocking_create(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -380,7 +385,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    fn blocking_read(&self, args: &OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -388,7 +393,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.blocking_read(args).map(|reader| {
+        let result = self.inner.blocking_read(path, args).map(|reader| {
             Box::new(BlockingMetricReader::new(
                 self.meta.scheme(),
                 Operation::BlockingRead,
@@ -406,7 +411,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    fn blocking_write(&self, args: &OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -420,7 +425,7 @@ impl Accessor for MetricsAccessor {
         ));
 
         let start = Instant::now();
-        let result = self.inner.blocking_write(args, r);
+        let result = self.inner.blocking_write(path, args, r);
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -432,7 +437,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    fn blocking_stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -440,7 +445,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.blocking_stat(args);
+        let result = self.inner.blocking_stat(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -452,7 +457,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    fn blocking_delete(&self, args: &OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -460,7 +465,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.blocking_delete(args);
+        let result = self.inner.blocking_delete(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(
@@ -472,7 +477,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    fn blocking_list(&self, args: &OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -480,7 +485,7 @@ impl Accessor for MetricsAccessor {
         );
 
         let start = Instant::now();
-        let result = self.inner.blocking_list(args);
+        let result = self.inner.blocking_list(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         histogram!(

@@ -20,6 +20,7 @@
 //! - [`MetricsLayer`]: Add metrics for OpenDAL, requires feature `layers-metrics`
 //! - [`RetryLayer`]: Add retry for OpenDAL, requires feature `layers-retry`
 //! - [`TracingLayer`]: Add tracing for OpenDAL, requires feature `layers-tracing`
+//! - [`ImmutableIndexLayer`]: Add an immutable in-memory index for OpenDAL.
 
 mod layer;
 pub use layer::Layer;
@@ -41,3 +42,6 @@ pub use self::retry::RetryLayer;
 mod tracing;
 #[cfg(feature = "layers-tracing")]
 pub use self::tracing::TracingLayer;
+
+mod immutable_index;
+pub use immutable_index::ImmutableIndexLayer;

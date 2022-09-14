@@ -180,18 +180,18 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, args: &OpCreate) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         match args.mode() {
             ObjectMode::FILE => {
-                let parent = PathBuf::from(&path)
+                let parent = PathBuf::from(&p)
                     .parent()
                     .ok_or_else(|| {
                         other(ObjectError::new(
                             Operation::Create,
-                            &path,
-                            anyhow!("malformed path: {:?}", &path),
+                            path,
+                            anyhow!("malformed path: {:?}", path),
                         ))
                     })?
                     .to_path_buf();
@@ -205,15 +205,15 @@ impl Accessor for Backend {
                     .create(true)
                     .write(true)
                     .truncate(true)
-                    .open(&path)
-                    .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+                    .open(&p)
+                    .map_err(|e| parse_io_error(e, Operation::Create, path))?;
 
                 Ok(())
             }
             ObjectMode::DIR => {
                 self.client
-                    .create_dir(&path)
-                    .map_err(|e| parse_io_error(e, Operation::Create, &path))?;
+                    .create_dir(&p)
+                    .map_err(|e| parse_io_error(e, Operation::Create, path))?;
 
                 Ok(())
             }
@@ -221,14 +221,14 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, args: &OpRead) -> Result<BytesReader> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let mut f = self.client.open_file().read(true).open(&path)?;
+        let mut f = self.client.open_file().read(true).open(&p)?;
 
         if let Some(offset) = args.offset() {
             f.seek(SeekFrom::Start(offset))
-                .map_err(|e| parse_io_error(e, Operation::Read, &path))?;
+                .map_err(|e| parse_io_error(e, Operation::Read, path))?;
         };
 
         let f: BytesReader = match args.size() {
@@ -239,16 +239,16 @@ impl Accessor for Backend {
         Ok(f)
     }
 
-    async fn write(&self, args: &OpWrite, r: BytesReader) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let parent = PathBuf::from(&path)
+        let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
                 other(ObjectError::new(
                     Operation::Write,
-                    &path,
-                    anyhow!("malformed path: {:?}", &path),
+                    path,
+                    anyhow!("malformed path: {:?}", path),
                 ))
             })?
             .to_path_buf();
@@ -257,25 +257,20 @@ impl Accessor for Backend {
             .create_dir(&parent.to_string_lossy())
             .map_err(|e| parse_io_error(e, Operation::Write, &parent.to_string_lossy()))?;
 
-        let mut f = self
-            .client
-            .open_file()
-            .create(true)
-            .write(true)
-            .open(&path)?;
+        let mut f = self.client.open_file().create(true).write(true).open(&p)?;
 
         let n = futures::io::copy(r, &mut f).await?;
 
         Ok(n)
     }
 
-    async fn stat(&self, args: &OpStat) -> Result<ObjectMetadata> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         let meta = self
             .client
-            .metadata(&path)
-            .map_err(|e| parse_io_error(e, Operation::Stat, &path))?;
+            .metadata(&p)
+            .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
@@ -289,16 +284,16 @@ impl Accessor for Backend {
         Ok(m)
     }
 
-    async fn delete(&self, args: &OpDelete) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = self.client.metadata(&path);
+        let meta = self.client.metadata(&p);
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::NotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, Operation::Delete, &path))
+                Err(parse_io_error(err, Operation::Delete, path))
             };
         }
 
@@ -306,23 +301,23 @@ impl Accessor for Backend {
         let meta = meta.ok().unwrap();
 
         let result = if meta.is_dir() {
-            self.client.remove_dir(&path)
+            self.client.remove_dir(&p)
         } else {
-            self.client.remove_file(&path)
+            self.client.remove_file(&p)
         };
 
-        result.map_err(|e| parse_io_error(e, Operation::Delete, &path))?;
+        result.map_err(|e| parse_io_error(e, Operation::Delete, path))?;
 
         Ok(())
     }
 
-    async fn list(&self, args: &OpList) -> Result<DirStreamer> {
-        let path = build_rooted_abs_path(&self.root, args.path());
+    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+        let p = build_rooted_abs_path(&self.root, path);
 
         let f = self
             .client
-            .read_dir(&path)
-            .map_err(|e| parse_io_error(e, Operation::List, &path))?;
+            .read_dir(&p)
+            .map_err(|e| parse_io_error(e, Operation::List, path))?;
 
         let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
 

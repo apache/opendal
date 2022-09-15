@@ -21,7 +21,7 @@ use crate::error::other;
 use crate::error::ObjectError;
 use crate::ops::Operation;
 
-pub(crate) fn new_get_async_con_error(err: RedisError, op: Operation, path: &str) -> Error {
+pub(crate) fn new_async_connection_error(err: RedisError, op: Operation, path: &str) -> Error {
     other(ObjectError::new(
         op,
         path,

@@ -35,9 +35,9 @@ use redis::RedisConnectionInfo;
 use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
+use super::error::new_async_connection_error;
 use super::error::new_deserialize_metadata_error;
 use super::error::new_exec_async_cmd_error;
-use super::error::new_get_async_con_error;
 use super::error::new_serialize_metadata_error;
 use super::REDIS_API_VERSION;
 use crate::error::other;
@@ -57,6 +57,9 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6543";
+const DEFAULT_REDIS_PORT: u16 = 6379;
+
+static META_PREFIX: &'static str = "";
 
 #[derive(Clone, Default)]
 pub struct Builder {
@@ -100,29 +103,7 @@ impl Builder {
         }
         self
     }
-}
 
-impl Debug for Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-        ds.field("db", &self.db.to_string());
-        if let Some(root) = self.root.clone() {
-            ds.field("root", &root);
-        }
-        if let Some(endpoint) = self.endpoint.clone() {
-            ds.field("endpoint", &endpoint);
-        }
-        if let Some(username) = self.username.clone() {
-            ds.field("username", &username);
-        }
-        if self.password.is_some() {
-            ds.field("password", &"<redacted>");
-        }
-        ds.finish()
-    }
-}
-
-impl Builder {
     pub fn build(&mut self) -> Result<Backend> {
         let endpoint = self
             .endpoint
@@ -142,21 +123,10 @@ impl Builder {
                     .host()
                     .map(|h| h.to_string())
                     .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port_u16().unwrap_or(6379);
+                let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
                 ConnectionAddr::Tcp(host, port)
             }
-            Some("tcps") | Some("rediss") => {
-                let host = ep_url
-                    .host()
-                    .map(|h| h.to_string())
-                    .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port_u16().unwrap_or(6379);
-                ConnectionAddr::TcpTls {
-                    host,
-                    port,
-                    insecure: false,
-                }
-            }
+            // TODO: wait for upstream to support `rustls` based TLS connection.
             Some("unix") | Some("redis+unix") => {
                 let path = PathBuf::from(ep_url.path());
                 ConnectionAddr::Unix(path)
@@ -180,11 +150,42 @@ impl Builder {
             redis: redis_info,
         };
 
-        let client = Client::open(con_info)
-            .map_err(|e| other(anyhow!("establish redis client error: {:?}", e)))?;
+        let client = Client::open(con_info).map_err(|e| {
+            other(BackendError::new(
+                HashMap::from([
+                    ("endpoint".to_string(), endpoint),
+                    ("db".to_string(), self.db.to_string()),
+                    (
+                        "username".to_string(),
+                        self.username
+                            .clone()
+                            .unwrap_or_else(|| "<None>".to_string()),
+                    ),
+                ]),
+                anyhow!("establish redis client error: {:?}", e),
+            ))
+        })?;
 
         let root = self.root.clone().unwrap_or_else(|| "/".to_string());
         Ok(Backend { client, root })
+    }
+}
+
+impl Debug for Builder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+        ds.field("db", &self.db.to_string());
+        ds.field("root", &self.root);
+        if let Some(endpoint) = self.endpoint.clone() {
+            ds.field("endpoint", &endpoint);
+        }
+        if let Some(username) = self.username.clone() {
+            ds.field("username", &username);
+        }
+        if self.password.is_some() {
+            ds.field("password", &"<redacted>");
+        }
+        ds.finish()
     }
 }
 
@@ -192,12 +193,6 @@ impl Builder {
 pub struct Backend {
     client: Client,
     root: String,
-}
-
-impl Backend {
-    pub fn root(&self) -> String {
-        self.root.clone()
-    }
 }
 
 // implement `Debug` manually, or password may be leaked.
@@ -230,7 +225,7 @@ impl Accessor for Backend {
             .client
             .get_tokio_connection_manager()
             .await
-            .map_err(|e| new_get_async_con_error(e, Operation::Create, path.as_str()))?;
+            .map_err(|e| new_async_connection_error(e, Operation::Create, path.as_str()))?;
 
         let mut meta = ObjectMetadata::default();
         meta.set_mode(args.mode());
@@ -287,7 +282,7 @@ impl Accessor for Backend {
             .client
             .get_tokio_connection_manager()
             .await
-            .map_err(|e| new_get_async_con_error(e, Operation::Read, path.as_str()))?;
+            .map_err(|e| new_async_connection_error(e, Operation::Read, path.as_str()))?;
         let gr = con
             .getrange::<&str, Vec<u8>>(path.as_str(), from, to)
             .await
@@ -304,7 +299,7 @@ impl Accessor for Backend {
             .client
             .get_tokio_connection_manager()
             .await
-            .map_err(|e| new_get_async_con_error(e, Operation::Write, path.as_str()))?;
+            .map_err(|e| new_async_connection_error(e, Operation::Write, path.as_str()))?;
 
         let c_path = build_abs_content_path(self.root.as_str(), path.as_str());
         let size = args.size();
@@ -342,7 +337,7 @@ impl Accessor for Backend {
             .client
             .get_tokio_connection_manager()
             .await
-            .map_err(|e| new_get_async_con_error(e, Operation::Stat, path.as_str()))?;
+            .map_err(|e| new_async_connection_error(e, Operation::Stat, path.as_str()))?;
 
         let m_path = build_abs_meta_path(self.root.as_str(), path.as_str());
         let bin: Vec<u8> = con
@@ -362,7 +357,7 @@ impl Accessor for Backend {
             .client
             .get_tokio_connection_manager()
             .await
-            .map_err(|err| new_get_async_con_error(err, Operation::Delete, path.as_str()))?;
+            .map_err(|err| new_async_connection_error(err, Operation::Delete, path.as_str()))?;
 
         // a reversed-level-order traversal delete
         // recursion is not friendly for rust, and on-heap stack is preferred.

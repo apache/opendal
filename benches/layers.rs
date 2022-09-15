@@ -48,21 +48,46 @@ fn bench_tracing_layer(c: &mut Criterion) {
 
     let _ = dotenv::dotenv();
     let op = Operator::from_env(Scheme::S3).expect("init operator must succeed");
-    let layered_op = op
-        .clone()
+    let layered_op = Operator::from_env(Scheme::S3)
+        .expect("init operator must succeed")
         .layer(RetryLayer::new(ExponentialBackoff::default()))
         .layer(LoggingLayer)
         .layer(TracingLayer)
         .layer(MetricsLayer);
+    TOKIO.block_on(async {
+        op.object("test")
+            .write("0".repeat(16 * 1024 * 1024).into_bytes())
+            .await
+            .expect("write must succeed")
+    });
 
-    group.bench_function("with_layer", |b| {
+    group.bench_function("metadata", |b| {
+        b.iter(|| {
+            let _ = op.metadata();
+        })
+    });
+    group.bench_function("metadata_with_layer", |b| {
         b.iter(|| {
             let _ = layered_op.metadata();
         })
     });
-    group.bench_function("without_layer", |b| {
+
+    group.bench_function("read", |b| {
         b.iter(|| {
-            let _ = op.metadata();
+            TOKIO.block_on(async {
+                let _ = op.object("test").read().await.expect("read must succeed");
+            })
+        })
+    });
+    group.bench_function("read_with_layer", |b| {
+        b.iter(|| {
+            TOKIO.block_on(async {
+                let _ = layered_op
+                    .object("test")
+                    .read()
+                    .await
+                    .expect("read must succeed");
+            })
         })
     });
 

@@ -43,6 +43,10 @@ criterion_main!(benches);
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
+/// TODO: This bench's result is weired.
+///
+/// read_with_layer is much faster than read. That's impossible.
+/// Something must be wrong.
 fn bench_tracing_layer(c: &mut Criterion) {
     let mut group = c.benchmark_group("tracing_layers");
 
@@ -73,21 +77,17 @@ fn bench_tracing_layer(c: &mut Criterion) {
     });
 
     group.bench_function("read", |b| {
-        b.iter(|| {
-            TOKIO.block_on(async {
-                let _ = op.object("test").read().await.expect("read must succeed");
-            })
+        b.to_async(&*TOKIO).iter(|| async {
+            let _ = op.object("test").read().await.expect("read must succeed");
         })
     });
     group.bench_function("read_with_layer", |b| {
-        b.iter(|| {
-            TOKIO.block_on(async {
-                let _ = layered_op
-                    .object("test")
-                    .read()
-                    .await
-                    .expect("read must succeed");
-            })
+        b.to_async(&*TOKIO).iter(|| async {
+            let _ = layered_op
+                .object("test")
+                .read()
+                .await
+                .expect("read must succeed");
         })
     });
 

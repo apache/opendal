@@ -71,6 +71,10 @@ required-features = ["services-ipfs"]
 name = "ftp"
 required-features = ["services-ftp"]
 
+[[example]]
+name = "tracing_layer"
+required-features = ["layers-all"]
+
 [dependencies]
 anyhow = { version = "1.0", features = ["std"] }
 async-compat = "0.2"
@@ -118,6 +122,10 @@ dotenv = "0.15"
 env_logger = "0.9"
 itertools = "0.10"
 num-traits = "0.2"
+opentelemetry = { version = "0.17", default-features = false, features = [
+  "trace",
+] }
+opentelemetry-jaeger = "0.16"
 paste = "1.0"
 pretty_assertions = "1"
 rand = "0.8"
@@ -125,5 +133,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
+tracing-opentelemetry = "0.17"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 wiremock = "0.5"

@@ -50,6 +50,9 @@ pub enum Scheme {
     Memory,
     /// [obs][crate::services::obs]: Huawei Cloud OBS services.
     Obs,
+    /// [redis][crate::services::redis]: Redis services
+    #[cfg(feature = "services-redis")]
+    Redis,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
     /// Custom that allow users to implement services outside of OpenDAL.
@@ -90,6 +93,8 @@ impl Display for Scheme {
             Scheme::Ipmfs => write!(f, "ipmfs"),
             Scheme::Memory => write!(f, "memory"),
             Scheme::Obs => write!(f, "obs"),
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis => write!(f, "redis"),
             Scheme::S3 => write!(f, "s3"),
             Scheme::Custom(v) => write!(f, "{v}"),
         }
@@ -115,6 +120,8 @@ impl FromStr for Scheme {
             "ipmfs" => Ok(Scheme::Ipmfs),
             "memory" => Ok(Scheme::Memory),
             "obs" => Ok(Scheme::Obs),
+            #[cfg(feature = "services-redis")]
+            "redis" => Ok(Scheme::Redis),
             "s3" => Ok(Scheme::S3),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
@@ -137,6 +144,8 @@ impl From<Scheme> for &'static str {
             Scheme::Ipmfs => "ipmfs",
             Scheme::Memory => "memory",
             Scheme::Obs => "obs",
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis => "redis",
             Scheme::S3 => "s3",
             Scheme::Custom(v) => v,
         }

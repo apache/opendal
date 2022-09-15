@@ -74,6 +74,10 @@ name = "ftp"
 required-features = ["services-ftp"]
 
 [[example]]
+name = "redis"
+required-features = ["services-redis"]
+
+[[example]]
 name = "tracing_layer"
 required-features = ["layers-all"]
 

@@ -58,7 +58,7 @@ use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 
-const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6543";
+const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
 /// Redis backend builder
@@ -540,6 +540,7 @@ mod redis_test {
     const CONTENT_LENGTH: u64 = 123456;
 
     // this function is used for generating testing binary data
+    #[test]
     fn test_generate_bincode() {
         let mut meta = ObjectMetadata::default();
         meta.set_mode(ObjectMode::DIR);

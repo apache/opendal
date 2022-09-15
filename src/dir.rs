@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use std::io::Result;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use time::OffsetDateTime;
 
@@ -191,5 +193,27 @@ impl DirEntry {
 impl From<DirEntry> for Object {
     fn from(d: DirEntry) -> Self {
         Object::new(d.acc, &d.path)
+    }
+}
+
+/// EmptyDirStreamer that always return None.
+pub(crate) struct EmptyDirStreamer;
+
+impl futures::Stream for EmptyDirStreamer {
+    type Item = Result<DirEntry>;
+
+    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(None)
+    }
+}
+
+/// EmptyDirIterator that always return None.
+pub(crate) struct EmptyDirIterator;
+
+impl Iterator for EmptyDirIterator {
+    type Item = Result<DirEntry>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
     }
 }

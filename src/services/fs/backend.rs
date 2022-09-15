@@ -32,6 +32,7 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
+use crate::dir::{EmptyDirIterator, EmptyDirStreamer};
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::ops::OpCreate;
@@ -289,7 +290,16 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = std::fs::read_dir(&p).map_err(|e| parse_io_error(e, Operation::List, path))?;
+        let f = match std::fs::read_dir(&p) {
+            Ok(rd) => rd,
+            Err(e) => {
+                return if e.kind() == ErrorKind::NotFound {
+                    Ok(Box::new(EmptyDirStreamer))
+                } else {
+                    Err(parse_io_error(e, Operation::List, path))
+                }
+            }
+        };
 
         let rd = DirStream::new(Arc::new(self.clone()), &self.root, path, f);
 
@@ -446,8 +456,16 @@ impl Accessor for Backend {
     fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f =
-            std::fs::read_dir(&p).map_err(|e| parse_io_error(e, Operation::BlockingList, path))?;
+        let f = match std::fs::read_dir(&p) {
+            Ok(rd) => rd,
+            Err(e) => {
+                return if e.kind() == ErrorKind::NotFound {
+                    Ok(Box::new(EmptyDirIterator))
+                } else {
+                    Err(parse_io_error(e, Operation::BlockingList, path))
+                }
+            }
+        };
 
         let acc = Arc::new(self.clone());
 

@@ -43,26 +43,51 @@ criterion_main!(benches);
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
+/// TODO: This bench's result is weired.
+///
+/// read_with_layer is much faster than read. That's impossible.
+/// Something must be wrong.
 fn bench_tracing_layer(c: &mut Criterion) {
     let mut group = c.benchmark_group("tracing_layers");
 
     let _ = dotenv::dotenv();
     let op = Operator::from_env(Scheme::S3).expect("init operator must succeed");
-    let layered_op = op
-        .clone()
+    let layered_op = Operator::from_env(Scheme::S3)
+        .expect("init operator must succeed")
         .layer(RetryLayer::new(ExponentialBackoff::default()))
         .layer(LoggingLayer)
         .layer(TracingLayer)
         .layer(MetricsLayer);
+    TOKIO.block_on(async {
+        op.object("test")
+            .write("0".repeat(16 * 1024 * 1024).into_bytes())
+            .await
+            .expect("write must succeed")
+    });
 
-    group.bench_function("with_layer", |b| {
+    group.bench_function("metadata", |b| {
+        b.iter(|| {
+            let _ = op.metadata();
+        })
+    });
+    group.bench_function("metadata_with_layer", |b| {
         b.iter(|| {
             let _ = layered_op.metadata();
         })
     });
-    group.bench_function("without_layer", |b| {
-        b.iter(|| {
-            let _ = op.metadata();
+
+    group.bench_function("read", |b| {
+        b.to_async(&*TOKIO).iter(|| async {
+            let _ = op.object("test").read().await.expect("read must succeed");
+        })
+    });
+    group.bench_function("read_with_layer", |b| {
+        b.to_async(&*TOKIO).iter(|| async {
+            let _ = layered_op
+                .object("test")
+                .read()
+                .await
+                .expect("read must succeed");
         })
     });
 

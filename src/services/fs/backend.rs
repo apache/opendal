@@ -375,6 +375,17 @@ impl Accessor for Backend {
 
         let p = build_rooted_abs_path(&self.root, path);
 
+        // Validate if input path is a valid file.
+        let meta =
+            std::fs::metadata(&p).map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
+        if meta.is_dir() {
+            return Err(other(ObjectError::new(
+                Operation::BlockingRead,
+                path,
+                anyhow!("Is a directory"),
+            )));
+        }
+
         let mut f = std::fs::OpenOptions::new()
             .read(true)
             .open(&p)
@@ -435,8 +446,22 @@ impl Accessor for Backend {
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
+            if !path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::BlockingStat,
+                    path,
+                    anyhow!("Not a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
+            if path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::BlockingStat,
+                    path,
+                    anyhow!("Is a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::FILE);
         } else {
             m.set_mode(ObjectMode::Unknown);

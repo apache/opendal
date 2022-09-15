@@ -12,7 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const REDIS_API_VERSION: usize = 0;
+const REDIS_CONTENT_KEY_PREFIX_V0: &str = "v0:c:";
+const REDIS_META_KEY_PREFIX_V0: &str = "v0:m:";
+const REDIS_CHILDREN_KEY_PREFIX_V0: &str = "v0:k:";
+
+fn v0_content_prefix(abs_path: &str) -> String {
+    format!("{}{}", REDIS_CONTENT_KEY_PREFIX_V0, abs_path)
+}
+
+fn v0_meta_prefix(abs_path: &str) -> String {
+    format!("{}{}", REDIS_META_KEY_PREFIX_V0, abs_path)
+}
+
+fn v0_children_prefix(abs_path: &str) -> String {
+    format!("{}{}", REDIS_CHILDREN_KEY_PREFIX_V0, abs_path)
+}
 
 mod backend;
 mod dir_stream;

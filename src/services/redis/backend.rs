@@ -13,18 +13,16 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Cursor;
 use std::io::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use async_compat::Compat;
 use async_trait::async_trait;
 use futures::io::AsyncReadExt;
+use futures::io::Cursor;
 use http::Uri;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
@@ -39,9 +37,12 @@ use super::error::new_async_connection_error;
 use super::error::new_deserialize_metadata_error;
 use super::error::new_exec_async_cmd_error;
 use super::error::new_serialize_metadata_error;
-use super::REDIS_API_VERSION;
+use super::v0_children_prefix;
+use super::v0_content_prefix;
+use super::v0_meta_prefix;
 use crate::error::other;
 use crate::error::BackendError;
+use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -58,8 +59,6 @@ use crate::ObjectMode;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6543";
 const DEFAULT_REDIS_PORT: u16 = 6379;
-
-static META_PREFIX: &'static str = "";
 
 #[derive(Clone, Default)]
 pub struct Builder {
@@ -195,6 +194,67 @@ pub struct Backend {
     root: String,
 }
 
+impl Backend {
+    /// `remove` takes only absolute paths, and brutely delete all data held in `abs_path`. Its parent folders will not be affected
+    ///
+    /// if the directory to remove is not empty, an `other` error will be emitted.
+    async fn remove(con: &mut ConnectionManager, abs_path: &str) -> Result<()> {
+        let m_path = v0_meta_prefix(abs_path);
+        let c_path = v0_content_prefix(abs_path);
+        let s_path = v0_children_prefix(abs_path);
+
+        // it is ok to remove not existing keys.
+        con.del(&[m_path, c_path, s_path])
+            .await
+            .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, abs_path))
+    }
+
+    /// `mkdir_current` will record the metadata of `to_create`
+    ///
+    /// Note: `to_create` have to be an absolute path.
+    async fn mkdir_current(con: &mut ConnectionManager, to_create: &str, path: &str) -> Result<()> {
+        let mut metadata = ObjectMetadata::default();
+        metadata.set_mode(ObjectMode::DIR);
+
+        let to_create = if !to_create.ends_with('/') {
+            to_create.to_string() + "/"
+        } else {
+            to_create.to_string()
+        };
+
+        let path = path.to_string();
+        let bin = bincode::serialize(&metadata)
+            .map_err(|err| new_serialize_metadata_error(err, Operation::Create, path.as_str()))?;
+
+        let m_path = v0_meta_prefix(to_create.as_str());
+        con.set(m_path, bin)
+            .await
+            .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?;
+
+        Ok(())
+    }
+
+    /// `mkdir` works like `mkdir -p` in *NIX systems, this will create `to_create` and all of its missing parent directories
+    async fn mkdir(con: &mut ConnectionManager, to_create: &str, path: &str) -> Result<()> {
+        let path = path.to_string();
+        Backend::mkdir_current(con, to_create, path.as_str()).await?;
+
+        let mut current = to_create.to_string();
+        while let Some(parent) = PathBuf::from(current).parent() {
+            let p = parent.display().to_string() + "/";
+            let this_generation = v0_children_prefix(p.as_str());
+            con.sadd(this_generation, to_create)
+                .await
+                .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?;
+
+            Backend::mkdir_current(con, p.as_str(), path.as_str()).await?;
+            current = p;
+        }
+
+        Ok(())
+    }
+}
+
 // implement `Debug` manually, or password may be leaked.
 impl Debug for Backend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -238,62 +298,59 @@ impl Accessor for Backend {
             path += "/";
         }
 
-        let m_path = build_abs_meta_path(self.root.as_str(), path.as_str());
-        let ser = bincode::serialize(&meta)
+        let abs_path = build_abs_path(self.root.as_str(), path.as_str());
+
+        let m_path = v0_meta_prefix(abs_path.as_str());
+        let bin = bincode::serialize(&meta)
             .map_err(|err| new_serialize_metadata_error(err, Operation::Create, path.as_str()))?;
 
         // update parent folders
-        let entry = PathBuf::from(build_abs_path(self.root.as_str(), path.as_str()));
-        while let Some(parent) = entry.parent() {
-            let (p, c): (String, String) = (
-                // directory's name must be end with '/'!
-                parent.display().to_string() + "/",
-                entry.display().to_string(),
-            );
-
-            // update parent folders' children
-            let to_children = format!("v{}:ch:{}", REDIS_API_VERSION, p);
-            con.sadd(to_children, c)
-                .await
-                .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?;
-
-            // update parent folders' metadata
-            let mut metadata = ObjectMetadata::default();
-            metadata.set_mode(ObjectMode::DIR);
-            let parent_meta = format!("v{}:m:{}", REDIS_API_VERSION, p);
-            let bin = bincode::serialize(&metadata).map_err(|err| {
-                new_serialize_metadata_error(err, Operation::Create, path.as_str())
-            })?;
-            con.set(parent_meta, bin)
-                .await
-                .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?;
+        if let Some(parent) = PathBuf::from(abs_path).parent() {
+            let p = parent.display().to_string();
+            Backend::mkdir(&mut con, p.as_str(), path.as_str()).await?;
         }
 
-        con.set(m_path, ser)
+        con.set(m_path, bin)
             .await
             .map_err(|err| new_exec_async_cmd_error(err, Operation::Write, path.as_str()))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let path = build_abs_content_path(self.root.as_str(), path);
+        let c_path = v0_content_prefix(build_abs_path(self.root.as_str(), path).as_str());
+
+        // &str.clone() is unrecommended by clippy
+        let path = path.to_string();
+
+        // get range parameters
         let from = args.offset().map_or_else(|| 0, |offset| offset as isize);
         let to = args.size().map_or_else(|| -1, |size| size as isize + from);
+
         let mut con = self
             .client
             .get_tokio_connection_manager()
             .await
             .map_err(|e| new_async_connection_error(e, Operation::Read, path.as_str()))?;
+
         let gr = con
-            .getrange::<&str, Vec<u8>>(path.as_str(), from, to)
+            .getrange::<&str, Vec<u8>>(c_path.as_str(), from, to)
             .await
             .map_err(|e| new_exec_async_cmd_error(e, Operation::Read, path.as_str()))?;
+
         let cur = Cursor::new(gr);
-        let compat = Compat::new(cur);
-        Ok(Box::new(compat) as BytesReader)
+        Ok(Box::new(cur) as BytesReader)
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        let abs_path = build_abs_path(self.root.as_str(), path);
         let path = path.to_string();
+
+        if path.ends_with('/') {
+            return Err(other(ObjectError::new(
+                Operation::Write,
+                path.as_str(),
+                anyhow!("cannot write to directory"),
+            )));
+        }
 
         let mut con = self
             .client
@@ -301,30 +358,31 @@ impl Accessor for Backend {
             .await
             .map_err(|e| new_async_connection_error(e, Operation::Write, path.as_str()))?;
 
-        let c_path = build_abs_content_path(self.root.as_str(), path.as_str());
+        let c_path = v0_content_prefix(abs_path.as_str());
         let size = args.size();
         let mut reader = r;
-        // TODO: asynchronous writing
+
+        // TODO: asynchronous writing with `SETRANGE`
+
         let mut buf = vec![];
         let content_length = reader.read_to_end(&mut buf).await?;
         con.set(c_path, buf)
             .await
             .map_err(|e| new_exec_async_cmd_error(e, Operation::Write, &path))?;
 
-        let m_path = build_abs_meta_path(self.root.as_str(), path.as_str());
+        let m_path = v0_meta_prefix(abs_path.as_str());
+
         let mut meta = ObjectMetadata::default();
-        let mode = if path.ends_with('/') {
-            ObjectMode::DIR
-        } else {
-            ObjectMode::FILE
-        };
+        let mode = ObjectMode::FILE;
         let last_modified = OffsetDateTime::now_utc();
         meta.set_content_length(content_length as u64);
         meta.set_mode(mode);
         meta.set_last_modified(last_modified);
-        let ser = bincode::serialize(&meta)
+
+        // serialize and write to redis backend
+        let bin = bincode::serialize(&meta)
             .map_err(|e| new_serialize_metadata_error(e, Operation::Write, path.as_str()))?;
-        con.set(m_path, ser)
+        con.set(m_path, bin)
             .await
             .map_err(|e| new_exec_async_cmd_error(e, Operation::Write, path.as_str()))?;
 
@@ -332,14 +390,16 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<ObjectMetadata> {
+        let abs_path = build_abs_path(self.root.as_str(), path);
         let path = path.to_string();
+
         let mut con = self
             .client
             .get_tokio_connection_manager()
             .await
             .map_err(|e| new_async_connection_error(e, Operation::Stat, path.as_str()))?;
 
-        let m_path = build_abs_meta_path(self.root.as_str(), path.as_str());
+        let m_path = v0_meta_prefix(abs_path.as_str());
         let bin: Vec<u8> = con
             .get(m_path)
             .await
@@ -359,33 +419,29 @@ impl Accessor for Backend {
             .await
             .map_err(|err| new_async_connection_error(err, Operation::Delete, path.as_str()))?;
 
-        // a reversed-level-order traversal delete
-        // recursion is not friendly for rust, and on-heap stack is preferred.
-        let (mut queue, mut rev_stack) = (VecDeque::new(), VecDeque::new());
+        let children = v0_children_prefix(abs_path.as_str());
+        let mut child_iter = con
+            .sscan::<String, String>(children)
+            .await
+            .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path.as_str()))?;
 
-        queue.push_back(path.to_string());
-        while let Some(pop) = queue.pop_front() {
-            let skey = format!("v{}:k:{}", REDIS_API_VERSION, pop);
-            let mut it = con
-                .sscan(skey)
-                .await
-                .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path.as_str()))?;
-            while let Some(child) = it.next_item().await {
-                let _ = queue.push_back(child);
-            }
-            let _ = rev_stack.push_back(pop);
+        // directory is not empty
+        if child_iter.next_item().await.is_some() {
+            return Err(other(ObjectError::new(
+                Operation::Delete,
+                path.as_str(),
+                anyhow!("Directory not empty!"),
+            )));
         }
 
-        while let Some(pop) = rev_stack.pop_back() {
-            remove(&mut con, abs_path.as_str(), pop.as_str()).await?;
-        }
+        Backend::remove(&mut con, abs_path.as_str()).await?;
 
         if let Some(parent) = PathBuf::from(abs_path.clone()).parent() {
-            let p = parent.display().to_string();
-            let skey = format!("v{}:k:{}", REDIS_API_VERSION, p);
-            con.srem(skey, abs_path.clone()).await.map_err(|err| {
-                new_exec_async_cmd_error(err, Operation::Delete, abs_path.as_str())
-            })?;
+            let this_generation = v0_children_prefix(parent.display().to_string().as_str()) + "/";
+
+            con.srem(this_generation, &abs_path)
+                .await
+                .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path.as_str()))?;
         }
 
         Ok(())
@@ -406,47 +462,112 @@ impl Accessor for Backend {
     }
 }
 
-fn build_abs_content_path<'a>(root: &'a str, rel_path: &'a str) -> String {
-    format!(
-        "v{}:c:{}",
-        REDIS_API_VERSION,
-        build_abs_path(root, rel_path)
-    )
-}
-
-/// remove all data of the `to_remove` entry
-async fn remove(con: &mut ConnectionManager, path: &str, to_remove: &str) -> Result<()> {
-    let m_path = format!("v{}:m:{}", REDIS_API_VERSION, to_remove);
-    let c_path = format!("v{}:c:{}", REDIS_API_VERSION, to_remove);
-    let s_path = format!("v{}:k:{}", REDIS_API_VERSION, to_remove);
-    con.del(&[m_path, c_path, s_path])
-        .await
-        .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path))
-}
-
-fn build_abs_meta_path<'a>(root: &'a str, rel_path: &'a str) -> String {
-    format!(
-        "v{}:m:{}",
-        REDIS_API_VERSION,
-        build_abs_path(root, rel_path)
-    )
-}
-
-fn build_abs_to_child_path(root: &str, rel_path: &str) -> String {
-    format!(
-        "v{}:ch:{}",
-        REDIS_API_VERSION,
-        build_abs_path(root, rel_path)
-    )
-}
-
 #[cfg(test)]
-mod bin_test {
-    use crate::ObjectMetadata;
+mod redis_test {
+    use time::OffsetDateTime;
+
+    use super::Builder;
+    use crate::{ObjectMetadata, ObjectMode};
+
+    const TIMESTAMP: i64 = 7355608;
+    const CONTENT_LENGTH: u64 = 123456;
+
+    // this function is used to generate testing binary data
+    fn test_generate_bincode() {
+        let mut meta = ObjectMetadata::default();
+        meta.set_mode(ObjectMode::DIR);
+        println!(
+            "serialized directory metadata: {:?}",
+            bincode::serialize(&meta).unwrap()
+        );
+
+        meta.set_mode(ObjectMode::FILE);
+        let datetime = OffsetDateTime::from_unix_timestamp(TIMESTAMP).unwrap();
+        meta.set_last_modified(datetime);
+        meta.set_content_length(CONTENT_LENGTH);
+
+        println!(
+            "serialized file metadata: {:?}",
+            bincode::serialize(&meta).unwrap()
+        );
+    }
 
     #[test]
-    fn test_generate_bincode() {
-        let meta = ObjectMetadata::default();
-        println!("{:?}", bincode::serialize(&meta).unwrap());
+    fn test_deserialize() {
+        // test data generated from `test_generate_bincode`
+        let bin = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let res = bincode::deserialize(&bin);
+        assert!(res.is_ok());
+        let meta: ObjectMetadata = res.unwrap();
+        assert_eq!(
+            meta.mode(),
+            ObjectMode::DIR,
+            "Got unexpected mode: {:?}",
+            meta.mode()
+        );
+        assert_eq!(
+            meta.last_modified(),
+            None,
+            "Got unexpected timestamp: {:?}",
+            meta.last_modified()
+        );
+        assert_eq!(
+            meta.content_length(),
+            0,
+            "Got unexpected content_length: {}",
+            meta.content_length()
+        );
+        assert_eq!(
+            meta.content_md5(),
+            None,
+            "Got unexpected content_md5: {:?}",
+            meta.content_md5()
+        );
+        assert_eq!(meta.etag(), None, "Got unexpected etag: {:?}", meta.etag());
+
+        let last_modified = OffsetDateTime::from_unix_timestamp(TIMESTAMP).unwrap();
+
+        // test data generated from `test_generate_bincode`
+        let bin = [
+            0, 0, 0, 0, 64, 226, 1, 0, 0, 0, 0, 0, 0, 1, 178, 7, 0, 0, 86, 0, 3, 13, 28, 0, 0, 0,
+            0, 0, 0, 0, 0,
+        ];
+        let res = bincode::deserialize(&bin);
+        assert!(res.is_ok());
+        let meta: ObjectMetadata = res.unwrap();
+        assert_eq!(
+            meta.mode(),
+            ObjectMode::FILE,
+            "Got unexpected mode: {:?}",
+            meta.mode()
+        );
+        assert_eq!(
+            meta.last_modified(),
+            Some(last_modified),
+            "Got unexpected timestamp: {:?}",
+            meta.last_modified()
+        );
+        assert_eq!(
+            meta.content_length(),
+            CONTENT_LENGTH,
+            "Got unexpected content_length: {}",
+            meta.content_length()
+        );
+        assert_eq!(
+            meta.content_md5(),
+            None,
+            "Got unexpected content_md5: {:?}",
+            meta.content_md5()
+        );
+        assert_eq!(meta.etag(), None, "Got unexpected etag: {:?}", meta.etag());
+    }
+
+    #[test]
+    fn test_parse_url() {
+        let invalid_scheme = "http://example.com";
+        let mut builder = Builder::default();
+        builder.endpoint(invalid_scheme);
+        let res = builder.build();
+        assert!(res.is_err());
     }
 }

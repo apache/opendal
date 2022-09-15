@@ -31,6 +31,7 @@ use time::OffsetDateTime;
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
+use crate::dir::EmptyDirStreamer;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
@@ -314,10 +315,16 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self
-            .client
-            .read_dir(&p)
-            .map_err(|e| parse_io_error(e, Operation::List, path))?;
+        let f = match self.client.read_dir(&p) {
+            Ok(f) => f,
+            Err(e) => {
+                return if e.kind() == ErrorKind::NotFound {
+                    Ok(Box::new(EmptyDirStreamer))
+                } else {
+                    Err(parse_io_error(e, Operation::List, path))
+                }
+            }
+        };
 
         let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
 

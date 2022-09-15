@@ -15,14 +15,11 @@
 use std::error::Error;
 
 use anyhow::Result;
-use opendal::layers::LoggingLayer;
 use opendal::layers::TracingLayer;
 use opendal::Operator;
 use opendal::Scheme;
 use opentelemetry::global;
 use tracing::span;
-use tracing::Instrument;
-use tracing::Level;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::io::Result;
 
 use log::debug;
@@ -65,6 +66,7 @@ macro_rules! behavior_blocking_list_tests {
                 $service,
 
                 test_list_dir,
+                test_list_non_exist_dir,
             );
         )*
     };
@@ -97,5 +99,21 @@ pub fn test_list_dir(op: Operator) -> Result<()> {
     op.object(&path)
         .blocking_delete()
         .expect("delete must succeed");
+    Ok(())
+}
+
+/// List non exist dir should return nothing.
+pub fn test_list_non_exist_dir(op: Operator) -> Result<()> {
+    let dir = format!("{}/", uuid::Uuid::new_v4());
+
+    let obs = op.object(&dir).blocking_list()?;
+    let mut objects = HashMap::new();
+    for de in obs {
+        let de = de?;
+        objects.insert(de.path().to_string(), de);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
 }

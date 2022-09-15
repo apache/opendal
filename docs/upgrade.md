@@ -2,6 +2,21 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.17
+
+OpenDAL v0.17 refactor the `Accessor` to make space for future features.
+
+We move `path String` out of the `OpXxx` to function args so that we don't need to clone twice.
+
+```diff
+- async fn read(&self, args: OpRead) -> Result<BytesReader>
++ async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader>
+```
+
+For more information about this change, please refer to [RFC-0661: Path In Accessor](https://opendal.databend.rs/rfcs/0661-path-in-accessor.html).
+
+And since OpenDAL v0.17, we will use `rustls` as default tls engine for our underlying http client. Since this release, we will not depend on `openssl` anymore.
+
 ## Upgrade to v0.16
 
 OpenDAL v0.16 refactor the internal implementation of `http` service. Since v0.16, http service can be used directly without enabling `services-http` feature. Accompany by these changes, http service has the following breaking changes:

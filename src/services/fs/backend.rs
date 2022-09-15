@@ -32,6 +32,7 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
+use crate::dir::{EmptyDirIterator, EmptyDirStreamer};
 use crate::error::other;
 use crate::error::ObjectError;
 use crate::ops::OpCreate;
@@ -173,6 +174,18 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
+        // Validate if input path is a valid file.
+        let meta = fs::metadata(&p)
+            .await
+            .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+        if meta.is_dir() {
+            return Err(other(ObjectError::new(
+                Operation::Read,
+                path,
+                anyhow!("Is a directory"),
+            )));
+        }
+
         let f = fs::OpenOptions::new()
             .read(true)
             .open(&p)
@@ -242,8 +255,22 @@ impl Accessor for Backend {
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
+            if !path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::Stat,
+                    path,
+                    anyhow!("Not a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
+            if path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::Stat,
+                    path,
+                    anyhow!("Is a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::FILE);
         } else {
             m.set_mode(ObjectMode::Unknown);
@@ -289,7 +316,16 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = std::fs::read_dir(&p).map_err(|e| parse_io_error(e, Operation::List, path))?;
+        let f = match std::fs::read_dir(&p) {
+            Ok(rd) => rd,
+            Err(e) => {
+                return if e.kind() == ErrorKind::NotFound {
+                    Ok(Box::new(EmptyDirStreamer))
+                } else {
+                    Err(parse_io_error(e, Operation::List, path))
+                }
+            }
+        };
 
         let rd = DirStream::new(Arc::new(self.clone()), &self.root, path, f);
 
@@ -338,6 +374,17 @@ impl Accessor for Backend {
         use std::io::Seek;
 
         let p = build_rooted_abs_path(&self.root, path);
+
+        // Validate if input path is a valid file.
+        let meta =
+            std::fs::metadata(&p).map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
+        if meta.is_dir() {
+            return Err(other(ObjectError::new(
+                Operation::BlockingRead,
+                path,
+                anyhow!("Is a directory"),
+            )));
+        }
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
@@ -399,8 +446,22 @@ impl Accessor for Backend {
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
+            if !path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::BlockingStat,
+                    path,
+                    anyhow!("Not a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
+            if path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::BlockingStat,
+                    path,
+                    anyhow!("Is a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::FILE);
         } else {
             m.set_mode(ObjectMode::Unknown);
@@ -446,8 +507,16 @@ impl Accessor for Backend {
     fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f =
-            std::fs::read_dir(&p).map_err(|e| parse_io_error(e, Operation::BlockingList, path))?;
+        let f = match std::fs::read_dir(&p) {
+            Ok(rd) => rd,
+            Err(e) => {
+                return if e.kind() == ErrorKind::NotFound {
+                    Ok(Box::new(EmptyDirIterator))
+                } else {
+                    Err(parse_io_error(e, Operation::BlockingList, path))
+                }
+            }
+        };
 
         let acc = Arc::new(self.clone());
 

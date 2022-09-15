@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.17.0] - 2022-09-15
+
+### Added
+
+- RFC: Path In Accessor (#661)
+- feat: Implement RFC-0661: Path In Accessor  (#664)
+- feat: Hide http client internal details from users (#672)
+- feat: make rustls the default tls implementation (#674)
+- feat: Implement benches for layers (#681)
+
+### Docs
+
+- docs: Add how to implement service docs (#665)
+- refactor: update redis support rfc (#676)
+- docs: update metrics documentation (#684)
+
+### Fixed
+
+- fix: Immutable Index Layer could return duplicated pathes (#671)
+- fix: Remove not needed type parameter for immutable_layer (#677)
+- fix: Don't trace buf field in poll_read (#682)
+- fix: List non-exist dir should return empty (#683)
+- fix: Add path validation for fs backend (#685)
+
 ## [v0.16.0] - 2022-09-12
 
 ### Added
@@ -684,6 +708,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.17.0]: https://github.com/datafuselabs/opendal/compare/v0.16.0...v0.17.0
 [v0.16.0]: https://github.com/datafuselabs/opendal/compare/v0.15.0...v0.16.0
 [v0.15.0]: https://github.com/datafuselabs/opendal/compare/v0.14.1...v0.15.0
 [v0.14.1]: https://github.com/datafuselabs/opendal/compare/v0.14.0...v0.14.1

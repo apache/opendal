@@ -81,7 +81,7 @@ impl ImmutableIndexLayer {
     }
 
     /// Insert keys from iter.
-    pub fn extend_iter<T, I>(&mut self, iter: I)
+    pub fn extend_iter<I>(&mut self, iter: I)
     where
         I: IntoIterator<Item = String>,
     {

@@ -9,7 +9,7 @@ keywords = ["storage", "data", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.16.0"
+version = "0.17.0"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -17,13 +17,6 @@ all-features = true
 [features]
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
-# Enable rustls support.
-rustls = [
-  "reqwest/rustls-tls",
-  "reqwest/rustls-tls-native-roots",
-  "ureq/rustls",
-  "ureq/rustls-native-certs",
-]
 # Enable serde support.
 serde = ["time/serde"]
 
@@ -61,6 +54,11 @@ name = "io"
 harness = false
 name = "path"
 
+[[bench]]
+harness = false
+name = "layers"
+required-features = ["layers-all"]
+
 [[example]]
 name = "hdfs"
 required-features = ["services-hdfs"]
@@ -72,6 +70,10 @@ required-features = ["services-ipfs"]
 [[example]]
 name = "ftp"
 required-features = ["services-ftp"]
+
+[[example]]
+name = "tracing_layer"
+required-features = ["layers-all"]
 
 [dependencies]
 anyhow = { version = "1.0", features = ["std"] }
@@ -100,7 +102,10 @@ pin-project = "1.0"
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
 reqsign = "0.4"
-reqwest = { version = "0.11", features = ["stream"] }
+reqwest = { version = "0.11", features = [
+  "stream",
+  "rustls-tls-native-roots",
+], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 suppaftp = { version = "4.4", features = ["async-secure"], optional = true }
@@ -108,7 +113,7 @@ thiserror = "1.0"
 time = "0.3"
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
-ureq = "2.5"
+ureq = { version = "2.5", features = ["rustls-native-certs"] }
 
 [dev-dependencies]
 cfg-if = "1.0"
@@ -117,6 +122,10 @@ dotenv = "0.15"
 env_logger = "0.9"
 itertools = "0.10"
 num-traits = "0.2"
+opentelemetry = { version = "0.17", default-features = false, features = [
+  "trace",
+] }
+opentelemetry-jaeger = "0.16"
 paste = "1.0"
 pretty_assertions = "1"
 rand = "0.8"
@@ -124,5 +133,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
+tracing-opentelemetry = "0.17"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 wiremock = "0.5"

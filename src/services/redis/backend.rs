@@ -51,6 +51,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
 use crate::path::build_abs_path;
+use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::DirStreamer;
@@ -60,18 +61,38 @@ use crate::ObjectMode;
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6543";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
+/// Redis backend builder
 #[derive(Clone, Default)]
 pub struct Builder {
+    /// network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.
+    ///
+    /// default is "tcp://127.0.0.1:6379"
     endpoint: Option<String>,
+    /// the username to connect redis service.
+    ///
+    /// default is None
     username: Option<String>,
+    /// the password for authentication
+    ///
+    /// default is None
     password: Option<String>,
+    /// the working directory of the Redis service. Can be "/path/to/dir"
+    ///
+    /// default is "/"
     root: Option<String>,
-    // the number of DBs redis can take is unlimited
-    // DB 0 will be used by default
+    /// the number of DBs redis can take is unlimited
+    ///
+    /// default is db 0
     db: i64,
 }
 
 impl Builder {
+    /// set the network address of redis service.
+    ///
+    /// currently supported schemes:
+    /// - no scheme: will be seen as "tcp"
+    /// - "tcp" or "redis": unsecured redis connections
+    /// - "unix" or "redis+unix": unix socket connection
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             self.endpoint = Some(endpoint.to_owned());
@@ -79,6 +100,9 @@ impl Builder {
         self
     }
 
+    /// set the username for redis
+    ///
+    /// default: no username
     pub fn username(&mut self, username: &str) -> &mut Self {
         if !username.is_empty() {
             self.username = Some(username.to_owned());
@@ -86,16 +110,27 @@ impl Builder {
         self
     }
 
+    /// set the password for redis
+    ///
+    /// default: no password
     pub fn password(&mut self, password: &str) -> &mut Self {
         if !password.is_empty() {
             self.password = Some(password.to_owned());
         }
         self
     }
+
+    /// set the db used in redis
+    ///
+    /// default: 0
     pub fn db(&mut self, db: i64) -> &mut Self {
         self.db = db;
         self
     }
+
+    /// set the working directory, all operations will be performed under it.
+    ///
+    /// default: "/"
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
             self.root = Some(root.to_owned());
@@ -103,6 +138,7 @@ impl Builder {
         self
     }
 
+    /// Establish connection to Redis and finish making Redis endpoint
     pub fn build(&mut self) -> Result<Backend> {
         let endpoint = self
             .endpoint
@@ -165,7 +201,12 @@ impl Builder {
             ))
         })?;
 
-        let root = self.root.clone().unwrap_or_else(|| "/".to_string());
+        let root = normalize_root(
+            self.root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
         Ok(Backend { client, root })
     }
 }
@@ -188,6 +229,7 @@ impl Debug for Builder {
     }
 }
 
+/// Redis Backend of opendal
 #[derive(Clone)]
 pub struct Backend {
     client: Client,
@@ -255,6 +297,28 @@ impl Backend {
     }
 }
 
+impl Backend {
+    /// build from iterator
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
+        let mut builder = Builder::default();
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                "username" => builder.username(v),
+                "password" => builder.password(v),
+                "db" => match v.parse::<i64>() {
+                    Ok(num) => builder.db(num),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+        }
+        builder.build()
+    }
+}
+
 // implement `Debug` manually, or password may be leaked.
 impl Debug for Backend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -281,12 +345,15 @@ impl Debug for Backend {
 impl Accessor for Backend {
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         let mut path = path.to_string();
+
+        // establish connection to redis
         let mut con = self
             .client
             .get_tokio_connection_manager()
             .await
             .map_err(|e| new_async_connection_error(e, Operation::Create, path.as_str()))?;
 
+        // create current dir
         let mut meta = ObjectMetadata::default();
         meta.set_mode(args.mode());
         if args.mode() == ObjectMode::FILE {
@@ -472,7 +539,7 @@ mod redis_test {
     const TIMESTAMP: i64 = 7355608;
     const CONTENT_LENGTH: u64 = 123456;
 
-    // this function is used to generate testing binary data
+    // this function is used for generating testing binary data
     fn test_generate_bincode() {
         let mut meta = ObjectMetadata::default();
         meta.set_mode(ObjectMode::DIR);

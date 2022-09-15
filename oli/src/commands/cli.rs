@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+use std::path::PathBuf;
+
 use anyhow::anyhow;
 use anyhow::Result;
 use clap::App;
@@ -18,7 +20,18 @@ use clap::AppSettings;
 
 pub fn main() -> Result<()> {
     match cli().get_matches().subcommand() {
-        Some(("cp", _)) => println!("got oli cp"),
+        Some(("cp", args)) => {
+            // 1. Parse profiles from env and build accessors
+            let _ = super::profile::build_accessors()?;
+            // 2. parse src and dst file path, and then choose the
+            // right accessor to read and write.
+            // TODO
+            println!(
+                "got oli cp, src: {:?}, target: {:?}",
+                args.get_one::<PathBuf>("source_file"),
+                args.get_one::<PathBuf>("target_file")
+            )
+        }
         _ => return Err(anyhow!("not handled")),
     }
 

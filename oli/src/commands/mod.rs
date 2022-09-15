@@ -13,3 +13,4 @@
 // limitations under the License.
 pub mod cli;
 pub mod cp;
+pub(crate) mod profile;

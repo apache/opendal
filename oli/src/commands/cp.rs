@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use anyhow::Result;
+use clap::builder::PathBufValueParser;
 use clap::App;
 use clap::AppSettings;
+use clap::Arg;
 
 pub fn main() -> Result<()> {
     let _ = cli("ocp").get_matches();
@@ -26,7 +28,16 @@ pub(crate) fn cli(name: &str) -> App<'static> {
         .version("0.10.0")
         .about("copy")
         .setting(AppSettings::DeriveDisplayOrder)
-        .setting(AppSettings::SubcommandRequiredElseHelp);
+        .arg(
+            Arg::new("source_file")
+                .required(true)
+                .value_parser(PathBufValueParser::new()),
+        )
+        .arg(
+            Arg::new("target_file")
+                .required(true)
+                .value_parser(PathBufValueParser::new()),
+        );
 
     app
 }

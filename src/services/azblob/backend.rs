@@ -30,6 +30,7 @@ use http::StatusCode;
 use log::debug;
 use log::info;
 use reqsign::services::azure::storage::Signer;
+use serde::Deserialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
@@ -69,7 +70,7 @@ use crate::Scheme;
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
 /// Builder for azblob services
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Deserialize)]
 pub struct Builder {
     root: Option<String>,
     container: String,

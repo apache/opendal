@@ -16,6 +16,8 @@ clap = { version = "3.2", features = ["cargo"] }
 env_logger = "0.9"
 log = "0.4"
 opendal = "0.16.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 # Please comment the following patch while releasing.
 [patch.crates-io]

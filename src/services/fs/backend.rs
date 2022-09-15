@@ -174,6 +174,18 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
+        // Validate if input path is a valid file.
+        let meta = fs::metadata(&p)
+            .await
+            .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+        if meta.is_dir() {
+            return Err(other(ObjectError::new(
+                Operation::Read,
+                path,
+                anyhow!("Is a directory"),
+            )));
+        }
+
         let f = fs::OpenOptions::new()
             .read(true)
             .open(&p)
@@ -243,8 +255,22 @@ impl Accessor for Backend {
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
+            if !path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::Stat,
+                    path,
+                    anyhow!("Not a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
+            if path.ends_with('/') {
+                return Err(other(ObjectError::new(
+                    Operation::Stat,
+                    path,
+                    anyhow!("Is a directory"),
+                )));
+            }
             m.set_mode(ObjectMode::FILE);
         } else {
             m.set_mode(ObjectMode::Unknown);

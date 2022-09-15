@@ -68,9 +68,13 @@ static LABEL_OPERATION: &str = "operation";
 ///
 /// # Metrics
 ///
-/// - `opendal_requests_total`: Total requests numbers
-/// - `opendal_requests_duration_seconds`: Request duration seconds.
-///   - NOTE: this metric tracks the duration of the OpenDAL's function call, not the underlying http request duration
+/// - `opendal_requests_total`: Total requests numbers;
+/// - `opendal_requests_duration_seconds`: Request duration seconds;
+///   - NOTE: this metric tracks the duration of the OpenDAL's function call, not the underlying http request duration.
+/// - `opendal_failures_total`: number of unrecoverable failures encountered;
+/// - `opendal_errors_total`: number of recoverable failures encountered;
+/// - `opendal_bytes_read_total`: bytes read from underlying storage;
+/// - `opendal_bytes_write_total`: bytes write to underlying storage.
 ///
 /// # Labels
 ///

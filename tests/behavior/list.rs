@@ -66,6 +66,7 @@ macro_rules! behavior_list_tests {
                 test_check,
                 test_list_dir,
                 test_list_empty_dir,
+                test_list_non_exist_dir,
                 test_list_sub_dir,
                 test_list_nested_dir,
                 test_list_dir_with_file_path,
@@ -132,6 +133,21 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     assert_eq!(objects.len(), 0, "dir should only return empty");
 
     op.object(&dir).delete().await.expect("delete must succeed");
+    Ok(())
+}
+
+/// List non exist dir should return nothing.
+pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
+    let dir = format!("{}/", uuid::Uuid::new_v4());
+
+    let mut obs = op.object(&dir).list().await?;
+    let mut objects = HashMap::new();
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
+    }
+    debug!("got objects: {:?}", objects);
+
+    assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
 }
 

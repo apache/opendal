@@ -150,6 +150,7 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
+    /// - List non-exist dir should return Empty.
     async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
         let (_, _) = (path, args);
         unimplemented!()
@@ -306,6 +307,7 @@ pub trait Accessor: Send + Sync + Debug {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
+    /// - List non-exist dir should return Empty.
     fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
         let _ = args;
 

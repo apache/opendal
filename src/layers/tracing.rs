@@ -196,7 +196,11 @@ impl TracingReader {
 }
 
 impl AsyncRead for TracingReader {
-    #[tracing::instrument(parent = &self.span, level = "trace", skip_all)]
+    #[tracing::instrument(
+        parent = &self.span,
+        level = "trace",
+        fields(size = buf.len())
+        skip_all)]
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -218,7 +222,11 @@ impl BlockingTracingReader {
 }
 
 impl Read for BlockingTracingReader {
-    #[tracing::instrument(parent = &self.span, level = "trace", skip_all)]
+    #[tracing::instrument(
+        parent = &self.span,
+        level = "trace",
+        fields(size = buf.len())
+        skip_all)]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf)
     }

@@ -53,11 +53,11 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     let op = Operator::from_env(Scheme::Redis);
-//!     
+//!
 //!     // create an object handler to start operation on redis!
-//!     
+//!
 //!     let _op: Object = op.object("hello_redis!");
-//!     
+//!
 //!     Ok(())
 //! }
 //! ```
@@ -66,21 +66,20 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
+//! use opendal::services::redis;
 //! use opendal::Object;
 //! use opendal::Operator;
-//! use opendal::services::redis;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     let builder = redis::Builder::default();
-//!     
+//!
 //!     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
 //!     let op: Operator = Operator::new(builder.build());
 //!     let _: Object = op.object("test_file");
 //!     Ok(())
 //! }
 //! ```
-//!
 
 const REDIS_CONTENT_KEY_PREFIX_V0: &str = "v0:c:";
 const REDIS_META_KEY_PREFIX_V0: &str = "v0:m:";

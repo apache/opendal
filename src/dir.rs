@@ -15,7 +15,8 @@
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use time::OffsetDateTime;
 

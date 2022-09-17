@@ -285,9 +285,20 @@ impl Backend {
         while let Some(parent) = PathBuf::from(current).parent() {
             let p = parent.display().to_string() + "/";
             let this_generation = v0_children_prefix(p.as_str());
+
             con.sadd(this_generation, to_create)
                 .await
                 .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?;
+
+            // break if parent directory exists
+            let parent_metadata_path = v0_meta_prefix(p.as_str());
+            if con
+                .exists(parent_metadata_path)
+                .await
+                .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?
+            {
+                break;
+            }
 
             Backend::mkdir_current(con, p.as_str(), path.as_str()).await?;
             current = p;

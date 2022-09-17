@@ -300,7 +300,6 @@ impl Backend {
                 break;
             }
 
-
             Backend::mkdir_current(con, p.as_str(), path.as_str()).await?;
             current = p;
         }

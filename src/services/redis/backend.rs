@@ -546,7 +546,8 @@ mod redis_test {
     use time::OffsetDateTime;
 
     use super::Builder;
-    use crate::{ObjectMetadata, ObjectMode};
+    use crate::ObjectMetadata;
+    use crate::ObjectMode;
 
     const TIMESTAMP: i64 = 7355608;
     const CONTENT_LENGTH: u64 = 123456;

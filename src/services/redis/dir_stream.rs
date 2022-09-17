@@ -15,9 +15,11 @@
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
-use futures::future::{BoxFuture, Future};
+use futures::future::BoxFuture;
+use futures::future::Future;
 use futures::ready;
 use futures::stream::Stream;
 use redis::aio::ConnectionManager;
@@ -25,7 +27,8 @@ use redis::aio::ConnectionManager;
 use crate::ops::Operation;
 use crate::services::redis::backend::Backend;
 use crate::services::redis::error::new_exec_async_cmd_error;
-use crate::{DirEntry, ObjectMode};
+use crate::DirEntry;
+use crate::ObjectMode;
 
 enum State {
     Idle,

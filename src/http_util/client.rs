@@ -96,7 +96,11 @@ impl HttpClient {
         Ok(resp)
     }
 
-    pub async fn send_async_multipart(&self, req: Request<AsyncBody>, field_name: String) -> Result<Response<AsyncBody>> {
+    pub async fn send_async_multipart(
+        &self,
+        req: Request<AsyncBody>,
+        field_name: String,
+    ) -> Result<Response<AsyncBody>> {
         let (parts, body) = req.into_parts();
 
         let mut form = reqwest::multipart::Form::new();
@@ -133,18 +137,19 @@ impl HttpClient {
         self.send_async_req(req_builder).await
     }
 
-    async fn send_async_req(&self, req_builder: reqwest::RequestBuilder) -> Result<Response<AsyncBody>> {
-        let resp = req_builder.send()
-            .await
-            .map_err(|err| {
-                let kind = if err.is_timeout() || err.is_connect() {
-                    ErrorKind::Interrupted
-                } else {
-                    ErrorKind::Other
-                };
+    async fn send_async_req(
+        &self,
+        req_builder: reqwest::RequestBuilder,
+    ) -> Result<Response<AsyncBody>> {
+        let resp = req_builder.send().await.map_err(|err| {
+            let kind = if err.is_timeout() || err.is_connect() {
+                ErrorKind::Interrupted
+            } else {
+                ErrorKind::Other
+            };
 
-                Error::new(kind, err)
-            })?;
+            Error::new(kind, err)
+        })?;
 
         let mut hr = Response::builder()
             .version(resp.version())

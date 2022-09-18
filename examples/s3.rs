@@ -39,6 +39,7 @@ Available Environment Values:
 - OPENDAL_S3_REGION: region of s3 service, could be auto detected.
 - OPENDAL_S3_ACCESS_KEY_ID: access key id of s3 service, could be auto detected.
 - OPENDAL_S3_SECRET_ACCESS_KEY: secret access key of s3 service, could be auto detected.
+- OPENDAL_S3_SECURITY_TOKEN: temporary credentials of s3 service, optional.
     "#
     );
 
@@ -78,6 +79,14 @@ Available Environment Values:
         &env::var("OPENDAL_S3_SECRET_ACCESS_KEY")
             .expect("env OPENDAL_S3_SECRET_ACCESS_KEY not set"),
     );
+
+    // Set the temporary credentials for s3 backend.
+    //
+    // Temporary credentials expires in a short period of time and OpenDAL will *not* take care of it.
+    // Please make sure that the credential is valid.
+    if let Ok(token) = &env::var("OPENDAL_S3_SECURITY_TOKEN") {
+        builder.security_token(token);
+    }
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder.build()?);

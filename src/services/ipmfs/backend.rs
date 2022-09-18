@@ -20,8 +20,6 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::Bytes;
-use futures::io;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -114,7 +112,7 @@ impl Accessor for Backend {
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         let resp = match args.mode() {
             ObjectMode::DIR => self.ipmfs_mkdir(path).await?,
-            ObjectMode::FILE => self.ipmfs_write(path, &[]).await?,
+            ObjectMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
             _ => unreachable!(),
         };
 
@@ -152,11 +150,8 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        // TODO: Accept a reader directly.
-        let mut buf = Vec::with_capacity(args.size() as usize);
-        io::copy(r, &mut buf).await?;
-
-        let resp = self.ipmfs_write(path, &buf).await?;
+        let body = AsyncBody::Reader(r);
+        let resp = self.ipmfs_write(path, body).await?;
 
         let status = resp.status();
 
@@ -366,7 +361,7 @@ impl Backend {
     }
 
     /// Support write from reader.
-    async fn ipmfs_write(&self, path: &str, data: &[u8]) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_write(&self, path: &str, body: AsyncBody) -> Result<Response<AsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -375,30 +370,15 @@ impl Backend {
             percent_encode_path(&p)
         );
 
-        let mut req = Request::post(url);
+        let req = Request::post(url);
 
-        req = req.header(
-            http::header::CONTENT_TYPE,
-            "multipart/form-data; boundary=custom-boundary",
-        );
-        let left =
-            "--custom-boundary\nContent-Disposition: form-data; name=\"data\";\n\n".as_bytes();
-        let right = "\n--custom-boundary".as_bytes();
-
-        // TODO: we need to accept a reader.
-        let mut buf = Vec::with_capacity(left.len() + data.len() + right.len());
-        buf.extend_from_slice(left);
-        buf.extend_from_slice(data);
-        buf.extend_from_slice(right);
-
-        let body = AsyncBody::Bytes(Bytes::from(buf));
         let req = req
             .body(body)
             .map_err(|err| new_request_build_error(Operation::Write, path, err))?;
 
         let resp = self
             .client
-            .send_async(req)
+            .send_async_multipart(req, "data".to_string())
             .await
             .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
 

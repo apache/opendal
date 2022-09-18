@@ -84,8 +84,9 @@ Available Environment Values:
     //
     // Temporary credentials expires in a short period of time and OpenDAL will *not* take care of it.
     // Please make sure that the credential is valid.
-    builder
-        .security_token(&env::var("OPENDAL_S3_SECURITY_TOKEN").unwrap_or_else(|_| "".to_string()));
+    if let Ok(token) = &env::var("OPENDAL_S3_SECURITY_TOKEN") {
+        builder.security_token(token);
+    }
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder.build()?);

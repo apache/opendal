@@ -22,6 +22,7 @@
 //! - `region`: Set the region for backend.
 //! - `access_key_id`: Set the access_key_id for backend.
 //! - `secret_access_key`: Set the secret_access_key for backend.
+//! - `security_token`: Set the security_token for backend.
 //! - `server_side_encryption`: Set the server_side_encryption for backend.
 //! - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
 //! - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
@@ -40,12 +41,21 @@
 //! - `OPENDAL_S3_REGION`
 //! - `OPENDAL_S3_ACCESS_KEY_ID`
 //! - `OPENDAL_S3_SECRET_ACCESS_KEY`
+//! - `OPENDAL_S3_SECURITY_TOKEN`
 //! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION`
 //! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM`
 //! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY`
 //! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5`
 //! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID`
 //! - `OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE`
+//!
+//! # Temporary security credentials
+//!
+//! OpenDAL now provides support for S3 temporary security credentials in IAM.
+//!
+//! The way to take advantage of this feature is to build your S3 backend with `Builder::security_token`.
+//!
+//! But OpenDAL will not refresh the temporary security credentials, please keep in mind to refresh those credentials in time.
 //!
 //! # Server Side Encryption
 //!

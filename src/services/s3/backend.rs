@@ -123,6 +123,9 @@ pub struct Builder {
     server_side_encryption_customer_key: Option<String>,
     server_side_encryption_customer_key_md5: Option<String>,
 
+    /// temporary credentials, check the official [doc](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html) for detail
+    security_token: Option<String>,
+
     disable_credential_loader: bool,
     enable_virtual_host_style: bool,
 }
@@ -158,6 +161,10 @@ impl Debug for Builder {
         }
         if self.server_side_encryption_customer_key_md5.is_some() {
             d.field("server_side_encryption_customer_key_md5", &"<redacted>");
+        }
+
+        if self.security_token.is_some() {
+            d.field("security_token", &"<redacted>");
         }
 
         d.finish()
@@ -393,6 +400,18 @@ impl Builder {
         self.server_side_encryption_customer_key = Some(base64::encode(key));
         self.server_side_encryption_customer_key_md5 =
             Some(base64::encode(md5::compute(key).as_slice()));
+        self
+    }
+
+    /// Set temporary credential used in AWS S3 connections
+    ///
+    /// # Warning
+    ///
+    /// security token's lifetime is short and requires users to refresh in time.
+    pub fn security_token(&mut self, token: &str) -> &mut Self {
+        if !token.is_empty() {
+            self.security_token = Some(token.to_string());
+        }
         self
     }
 
@@ -633,6 +652,9 @@ impl Builder {
         signer_builder.service("s3");
         signer_builder.region(&region);
         signer_builder.allow_anonymous();
+        if let Some(token) = self.security_token.clone() {
+            signer_builder.security_token(&token);
+        }
         if self.disable_credential_loader {
             signer_builder.credential_loader({
                 let mut chain = CredentialLoadChain::default();
@@ -698,6 +720,7 @@ impl Backend {
                 "region" => builder.region(v),
                 "access_key_id" => builder.access_key_id(v),
                 "secret_access_key" => builder.secret_access_key(v),
+                "security_token" => builder.security_token(v),
                 "server_side_encryption" => builder.server_side_encryption(v),
                 "server_side_encryption_aws_kms_key_id" => {
                     builder.server_side_encryption_aws_kms_key_id(v)

@@ -19,7 +19,6 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::str::FromStr;
 
-use crate::http_util::body::IncomingAsyncBody;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
@@ -27,6 +26,7 @@ use reqwest::Url;
 
 use super::AsyncBody;
 use super::Body;
+use crate::http_util::body::IncomingAsyncBody;
 use crate::io_util::into_reader;
 
 /// HttpClient that used across opendal.
@@ -34,6 +34,12 @@ use crate::io_util::into_reader;
 pub struct HttpClient {
     async_client: reqwest::Client,
     sync_client: ureq::Agent,
+}
+
+impl Default for HttpClient {
+    fn default() -> Self {
+        HttpClient::new()
+    }
 }
 
 /// We don't want users to know details about our clients.
@@ -97,51 +103,29 @@ impl HttpClient {
         Ok(resp)
     }
 
-    pub async fn send_async_multipart(
-        &self,
-        req: Request<AsyncBody>,
-        field_name: String,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let (parts, body) = req.into_parts();
-
-        let mut form = reqwest::multipart::Form::new();
-        let part = reqwest::multipart::Part::stream(body);
-        form = form.part(field_name, part);
-
-        let req_builder = self
-            .async_client
-            .request(
-                parts.method,
-                Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
-            )
-            .version(parts.version)
-            .headers(parts.headers)
-            .multipart(form);
-
-        self.send_async_req(req_builder).await
-    }
-
     /// Send a request in async way.
     pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         let (parts, body) = req.into_parts();
 
-        let req_builder = self
+        let mut req_builder = self
             .async_client
             .request(
                 parts.method,
                 Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
             )
             .version(parts.version)
-            .headers(parts.headers)
-            .body(body);
+            .headers(parts.headers);
 
-        self.send_async_req(req_builder).await
-    }
+        req_builder = if let AsyncBody::Multipart(field, r) = body {
+            let mut form = reqwest::multipart::Form::new();
+            let part = reqwest::multipart::Part::stream(AsyncBody::Reader(r));
+            form = form.part(field, part);
 
-    async fn send_async_req(
-        &self,
-        req_builder: reqwest::RequestBuilder,
-    ) -> Result<Response<IncomingAsyncBody>> {
+            req_builder.multipart(form)
+        } else {
+            req_builder.body(body)
+        };
+
         let resp = req_builder.send().await.map_err(|err| {
             let kind = if err.is_timeout() || err.is_connect() {
                 ErrorKind::Interrupted
@@ -173,11 +157,5 @@ impl HttpClient {
         let resp = hr.body(body).expect("response must build succeed");
 
         Ok(resp)
-    }
-}
-
-impl Default for HttpClient {
-    fn default() -> Self {
-        HttpClient::new()
     }
 }

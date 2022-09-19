@@ -31,13 +31,14 @@ use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::ObjectError;
+use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
-use crate::http_util::{new_request_build_error, IncomingAsyncBody};
+use crate::http_util::IncomingAsyncBody;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -150,8 +151,9 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let body = AsyncBody::Reader(r);
-        let resp = self.ipmfs_write(path, body).await?;
+        let resp = self
+            .ipmfs_write(path, AsyncBody::Multipart("data".to_string(), r))
+            .await?;
 
         let status = resp.status();
 
@@ -382,7 +384,7 @@ impl Backend {
 
         let resp = self
             .client
-            .send_async_multipart(req, "data".to_string())
+            .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
 

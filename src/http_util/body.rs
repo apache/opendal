@@ -69,45 +69,11 @@ pub enum AsyncBody {
     Bytes(Bytes),
     /// Body with a Reader.
     Reader(BytesReader),
-}
-
-impl AsyncBody {
-    /// Consume the entire body.
-    pub async fn consume(self) -> Result<()> {
-        use futures::io;
-
-        if let AsyncBody::Reader(r) = self {
-            io::copy(r, &mut io::sink()).await?;
-        }
-
-        Ok(())
-    }
-
-    /// Consume the response to bytes.
-    pub async fn bytes(self) -> Result<Bytes> {
-        use futures::io;
-
-        match self {
-            AsyncBody::Empty => Ok(Bytes::new()),
-            AsyncBody::Bytes(bs) => Ok(bs),
-            AsyncBody::Reader(r) => {
-                let mut w = io::Cursor::new(Vec::with_capacity(1024));
-                io::copy(r, &mut w).await?;
-                Ok(Bytes::from(w.into_inner()))
-            }
-        }
-    }
-
-    /// Consume the response to build a reader.
-    pub fn reader(self) -> BytesReader {
-        use futures::io::Cursor;
-
-        match self {
-            AsyncBody::Empty => Box::new(Cursor::new(vec![])),
-            AsyncBody::Bytes(bs) => Box::new(Cursor::new(bs.to_vec())),
-            AsyncBody::Reader(r) => r,
-        }
-    }
+    /// Body with a multipart field.
+    ///
+    /// If input with this field, we will goto the internal multipart
+    /// handle logic.
+    Multipart(String, BytesReader),
 }
 
 impl From<AsyncBody> for reqwest::Body {
@@ -116,6 +82,9 @@ impl From<AsyncBody> for reqwest::Body {
             AsyncBody::Empty => reqwest::Body::from(""),
             AsyncBody::Bytes(bs) => reqwest::Body::from(bs),
             AsyncBody::Reader(r) => reqwest::Body::wrap_stream(into_stream(r, 16 * 1024)),
+            AsyncBody::Multipart(_, _) => {
+                unreachable!("reqwest multipart should not be constructed by body")
+            }
         }
     }
 }

@@ -16,13 +16,9 @@ use std::cmp::min;
 use std::io::Read;
 use std::io::Result;
 use std::io::Write;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
 
 use bytes::Buf;
 use bytes::Bytes;
-use futures::AsyncRead;
 
 use crate::io_util::into_stream;
 use crate::BlockingBytesReader;
@@ -124,23 +120,39 @@ impl From<AsyncBody> for reqwest::Body {
     }
 }
 
-impl AsyncRead for AsyncBody {
-    fn poll_read(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        mut buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        match self.get_mut() {
-            AsyncBody::Empty => Poll::Ready(Ok(0)),
-            AsyncBody::Bytes(bs) => {
-                let size = min(bs.len(), buf.len());
-                let rbs = bs.split_to(size);
-                bs.advance(size);
+/// IncomingAsyncBody carries the content returned by remote servers.
+///
+/// # Notes
+///
+/// Client SHOULD NEVER construct this body.
+pub struct IncomingAsyncBody(BytesReader);
 
-                buf.write_all(&rbs).expect("write all must succeed");
-                Poll::Ready(Ok(size))
-            }
-            AsyncBody::Reader(r) => Pin::new(r).poll_read(cx, buf),
-        }
+impl IncomingAsyncBody {
+    /// Construct a new incoming async body
+    pub fn new(r: BytesReader) -> Self {
+        Self(r)
+    }
+
+    /// Consume the entire body.
+    pub async fn consume(self) -> Result<()> {
+        use futures::io;
+
+        io::copy(self.0, &mut io::sink()).await?;
+
+        Ok(())
+    }
+
+    /// Consume the response to bytes.
+    pub async fn bytes(self) -> Result<Bytes> {
+        use futures::io;
+
+        let mut w = io::Cursor::new(Vec::with_capacity(1024));
+        io::copy(self.0, &mut w).await?;
+        Ok(Bytes::from(w.into_inner()))
+    }
+
+    /// Consume the response to build a reader.
+    pub fn reader(self) -> BytesReader {
+        self.0
     }
 }

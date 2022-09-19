@@ -46,7 +46,6 @@ use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
@@ -58,6 +57,7 @@ use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::Body;
 use crate::http_util::HttpClient;
+use crate::http_util::{new_request_build_error, IncomingAsyncBody};
 use crate::multipart::ObjectPart;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
@@ -1177,7 +1177,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.get_object_request(path, offset, size)?;
 
         self.signer
@@ -1217,7 +1217,7 @@ impl Backend {
         Ok(req)
     }
 
-    async fn head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1241,7 +1241,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1266,7 +1266,7 @@ impl Backend {
         &self,
         path: &str,
         continuation_token: &str,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -1301,7 +1301,10 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::List, path, e))
     }
 
-    async fn s3_initiate_multipart_upload(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn s3_initiate_multipart_upload(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -1365,7 +1368,7 @@ impl Backend {
         path: &str,
         upload_id: &str,
         parts: &[ObjectPart],
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -1419,7 +1422,7 @@ impl Backend {
         &self,
         path: &str,
         upload_id: &str,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(

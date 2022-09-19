@@ -34,7 +34,6 @@ use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
@@ -45,6 +44,7 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
+use crate::http_util::{new_request_build_error, IncomingAsyncBody};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -446,7 +446,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -497,7 +497,7 @@ impl Backend {
         Ok(req)
     }
 
-    async fn obs_get_head_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn obs_get_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -521,7 +521,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn obs_delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -546,7 +546,7 @@ impl Backend {
         &self,
         path: &str,
         next_marker: &str,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}?delimiter=/", self.endpoint);

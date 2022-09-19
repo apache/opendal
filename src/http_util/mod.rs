@@ -17,6 +17,7 @@ pub use client::HttpClient;
 mod body;
 pub use body::AsyncBody;
 pub use body::Body;
+pub use body::IncomingAsyncBody;
 
 mod header;
 pub use header::parse_content_length;

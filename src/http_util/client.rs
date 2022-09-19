@@ -19,6 +19,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::str::FromStr;
 
+use crate::http_util::body::IncomingAsyncBody;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
@@ -100,7 +101,7 @@ impl HttpClient {
         &self,
         req: Request<AsyncBody>,
         field_name: String,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let (parts, body) = req.into_parts();
 
         let mut form = reqwest::multipart::Form::new();
@@ -121,7 +122,7 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<AsyncBody>> {
+    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         let (parts, body) = req.into_parts();
 
         let req_builder = self
@@ -140,7 +141,7 @@ impl HttpClient {
     async fn send_async_req(
         &self,
         req_builder: reqwest::RequestBuilder,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let resp = req_builder.send().await.map_err(|err| {
             let kind = if err.is_timeout() || err.is_connect() {
                 ErrorKind::Interrupted
@@ -158,19 +159,18 @@ impl HttpClient {
             hr = hr.header(k, v);
         }
 
-        let resp = hr
-            .body(AsyncBody::Reader(Box::new(into_reader(
-                resp.bytes_stream().map_err(|err| {
-                    let kind = if err.is_timeout() || err.is_connect() {
-                        ErrorKind::Interrupted
-                    } else {
-                        ErrorKind::Other
-                    };
+        let stream = resp.bytes_stream().map_err(|err| {
+            let kind = if err.is_timeout() || err.is_connect() {
+                ErrorKind::Interrupted
+            } else {
+                ErrorKind::Other
+            };
 
-                    Error::new(kind, err)
-                }),
-            ))))
-            .expect("response must build succeed");
+            Error::new(kind, err)
+        });
+        let body = IncomingAsyncBody::new(Box::new(into_reader(stream)));
+
+        let resp = hr.body(body).expect("response must build succeed");
 
         Ok(resp)
     }

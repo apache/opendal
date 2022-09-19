@@ -40,13 +40,13 @@ use crate::accessor::AccessorCapability;
 use crate::error::other;
 use crate::error::BackendError;
 use crate::error::ObjectError;
-use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
+use crate::http_util::{new_request_build_error, IncomingAsyncBody};
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -437,7 +437,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.gcs_get_object_request(path, offset, size)?;
 
         self.signer
@@ -479,7 +479,7 @@ impl Backend {
         Ok(req)
     }
 
-    async fn gcs_get_object_metadata(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn gcs_get_object_metadata(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -505,7 +505,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn gcs_delete_object(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -533,7 +533,7 @@ impl Backend {
         &self,
         path: &str,
         page_token: &str,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(

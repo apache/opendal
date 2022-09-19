@@ -135,7 +135,7 @@ dotenv = "0.15"
 env_logger = "0.9"
 itertools = "0.10"
 num-traits = "0.2"
-opentelemetry = { version = "0.17", default-features = false, features = [
+opentelemetry = { version = "0.18", default-features = false, features = [
   "trace",
 ] }
 opentelemetry-jaeger = "0.16"

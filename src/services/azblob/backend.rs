@@ -49,6 +49,7 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
+use crate::http_util::IncomingAsyncBody;
 use crate::object::ObjectMetadata;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -421,7 +422,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -485,7 +486,7 @@ impl Backend {
         Ok(req)
     }
 
-    async fn azblob_get_blob_properties(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn azblob_get_blob_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -511,7 +512,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Stat, path, e))
     }
 
-    async fn azblob_delete_blob(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn azblob_delete_blob(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -541,7 +542,7 @@ impl Backend {
         &self,
         path: &str,
         next_marker: &str,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(

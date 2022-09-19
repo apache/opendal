@@ -38,6 +38,7 @@ use crate::http_util::parse_error_response;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
+use crate::http_util::IncomingAsyncBody;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -150,8 +151,9 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let body = AsyncBody::Reader(r);
-        let resp = self.ipmfs_write(path, body).await?;
+        let resp = self
+            .ipmfs_write(path, AsyncBody::Multipart("data".to_string(), r))
+            .await?;
 
         let status = resp.status();
 
@@ -249,7 +251,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    async fn ipmfs_stat(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -274,7 +276,7 @@ impl Backend {
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<Response<AsyncBody>> {
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut url = format!(
@@ -300,7 +302,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Read, path, e))
     }
 
-    async fn ipmfs_rm(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_rm(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -320,7 +322,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 
-    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<AsyncBody>> {
+    pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -340,7 +342,7 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::List, path, e))
     }
 
-    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -361,7 +363,11 @@ impl Backend {
     }
 
     /// Support write from reader.
-    async fn ipmfs_write(&self, path: &str, body: AsyncBody) -> Result<Response<AsyncBody>> {
+    async fn ipmfs_write(
+        &self,
+        path: &str,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!(
@@ -378,7 +384,7 @@ impl Backend {
 
         let resp = self
             .client
-            .send_async_multipart(req, "data".to_string())
+            .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
 

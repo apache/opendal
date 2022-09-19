@@ -96,11 +96,18 @@ impl HttpClient {
         Ok(resp)
     }
 
-    /// Send a request in async way.
-    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<AsyncBody>> {
+    pub async fn send_async_multipart(
+        &self,
+        req: Request<AsyncBody>,
+        field_name: String,
+    ) -> Result<Response<AsyncBody>> {
         let (parts, body) = req.into_parts();
 
-        let resp = self
+        let mut form = reqwest::multipart::Form::new();
+        let part = reqwest::multipart::Part::stream(body);
+        form = form.part(field_name, part);
+
+        let req_builder = self
             .async_client
             .request(
                 parts.method,
@@ -108,18 +115,41 @@ impl HttpClient {
             )
             .version(parts.version)
             .headers(parts.headers)
-            .body(body)
-            .send()
-            .await
-            .map_err(|err| {
-                let kind = if err.is_timeout() || err.is_connect() {
-                    ErrorKind::Interrupted
-                } else {
-                    ErrorKind::Other
-                };
+            .multipart(form);
 
-                Error::new(kind, err)
-            })?;
+        self.send_async_req(req_builder).await
+    }
+
+    /// Send a request in async way.
+    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<AsyncBody>> {
+        let (parts, body) = req.into_parts();
+
+        let req_builder = self
+            .async_client
+            .request(
+                parts.method,
+                Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
+            )
+            .version(parts.version)
+            .headers(parts.headers)
+            .body(body);
+
+        self.send_async_req(req_builder).await
+    }
+
+    async fn send_async_req(
+        &self,
+        req_builder: reqwest::RequestBuilder,
+    ) -> Result<Response<AsyncBody>> {
+        let resp = req_builder.send().await.map_err(|err| {
+            let kind = if err.is_timeout() || err.is_connect() {
+                ErrorKind::Interrupted
+            } else {
+                ErrorKind::Other
+            };
+
+            Error::new(kind, err)
+        })?;
 
         let mut hr = Response::builder()
             .version(resp.version())

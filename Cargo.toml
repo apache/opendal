@@ -138,7 +138,7 @@ num-traits = "0.2"
 opentelemetry = { version = "0.17", default-features = false, features = [
   "trace",
 ] }
-opentelemetry-jaeger = "0.16"
+opentelemetry-jaeger = "0.17"
 paste = "1.0"
 pretty_assertions = "1"
 rand = "0.8"

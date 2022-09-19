@@ -118,30 +118,33 @@ impl Backend {
     // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
     #[inline]
     async fn fs_metadata(path: &str) -> Result<std::fs::Metadata> {
-        fs::metadata(&p)
-            .await
-            .map(|meta| {
+        match fs::metadata(&path).await {
+            Ok(meta) => {
                 if meta.is_dir() != path.ends_with('/') {
                     Err(ErrorKind::NotFound.into())
                 } else {
                     Ok(meta)
                 }
-            })
-            .flatten()
+            }
+
+            Err(e) => Err(e),
+        }
     }
 
     // Synchronously get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
     #[inline]
     fn blocking_fs_metadata(path: &str) -> Result<std::fs::Metadata> {
-        std::fs::metadata(&p)
-            .map(|meta| {
+        match std::fs::metadata(&path) {
+            Ok(meta) => {
                 if meta.is_dir() != path.ends_with('/') {
                     Err(ErrorKind::NotFound.into())
                 } else {
                     Ok(meta)
                 }
-            })
-            .flatten()
+            }
+
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -392,8 +395,8 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
-        let meta =
-            Self::blocking_fs_metadata(&p).map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
+        let meta = Self::blocking_fs_metadata(&p)
+            .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
         if meta.is_dir() {
             return Err(other(ObjectError::new(
                 Operation::BlockingRead,

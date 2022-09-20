@@ -114,6 +114,38 @@ impl Backend {
 
         builder.build()
     }
+
+    // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
+    #[inline]
+    async fn fs_metadata(path: &str) -> Result<std::fs::Metadata> {
+        match fs::metadata(&path).await {
+            Ok(meta) => {
+                if meta.is_dir() != path.ends_with('/') {
+                    Err(ErrorKind::NotFound.into())
+                } else {
+                    Ok(meta)
+                }
+            }
+
+            Err(e) => Err(e),
+        }
+    }
+
+    // Synchronously get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
+    #[inline]
+    fn blocking_fs_metadata(path: &str) -> Result<std::fs::Metadata> {
+        match std::fs::metadata(&path) {
+            Ok(meta) => {
+                if meta.is_dir() != path.ends_with('/') {
+                    Err(ErrorKind::NotFound.into())
+                } else {
+                    Ok(meta)
+                }
+            }
+
+            Err(e) => Err(e),
+        }
+    }
 }
 
 #[async_trait]
@@ -176,7 +208,7 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
-        let meta = fs::metadata(&p)
+        let meta = Self::fs_metadata(&p)
             .await
             .map_err(|e| parse_io_error(e, Operation::Read, path))?;
         if meta.is_dir() {
@@ -250,28 +282,14 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = fs::metadata(&p)
+        let meta = Self::fs_metadata(&p)
             .await
             .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
-            if !path.ends_with('/') {
-                return Err(other(ObjectError::new(
-                    Operation::Stat,
-                    path,
-                    anyhow!("Not a directory"),
-                )));
-            }
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
-            if path.ends_with('/') {
-                return Err(other(ObjectError::new(
-                    Operation::Stat,
-                    path,
-                    anyhow!("Is a directory"),
-                )));
-            }
             m.set_mode(ObjectMode::FILE);
         } else {
             m.set_mode(ObjectMode::Unknown);
@@ -290,7 +308,7 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
-        let meta = fs::metadata(&p).await;
+        let meta = Self::fs_metadata(&p).await;
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::NotFound {
@@ -377,8 +395,8 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
-        let meta =
-            std::fs::metadata(&p).map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
+        let meta = Self::blocking_fs_metadata(&p)
+            .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
         if meta.is_dir() {
             return Err(other(ObjectError::new(
                 Operation::BlockingRead,
@@ -442,27 +460,13 @@ impl Accessor for Backend {
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta =
-            std::fs::metadata(&p).map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?;
+        let meta = Self::blocking_fs_metadata(&p)
+            .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?;
 
         let mut m = ObjectMetadata::default();
         if meta.is_dir() {
-            if !path.ends_with('/') {
-                return Err(other(ObjectError::new(
-                    Operation::BlockingStat,
-                    path,
-                    anyhow!("Not a directory"),
-                )));
-            }
             m.set_mode(ObjectMode::DIR);
         } else if meta.is_file() {
-            if path.ends_with('/') {
-                return Err(other(ObjectError::new(
-                    Operation::BlockingStat,
-                    path,
-                    anyhow!("Is a directory"),
-                )));
-            }
             m.set_mode(ObjectMode::FILE);
         } else {
             m.set_mode(ObjectMode::Unknown);
@@ -481,7 +485,7 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
-        let meta = std::fs::metadata(&p);
+        let meta = Self::blocking_fs_metadata(&p);
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::NotFound {

@@ -18,8 +18,8 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use opendal::Accessor;
-use opendal::services::azblob;
+
+use opendal::Operator;
 
 const OLI_PROFILE_PREFIX: &str = "OLI_PROFILE_";
 
@@ -27,20 +27,6 @@ pub struct OliProfileGroup {
     pub name: String,
     pub typ: String,
     pub values: HashMap<String, String>,
-}
-
-pub struct OliAccessor {
-    pub name: String,
-    pub accessor: Box<dyn Accessor>,
-}
-
-impl OliAccessor {
-    pub fn new(name: String, accessor: Box<dyn Accessor>) -> Self {
-        Self {
-            name,
-            accessor,
-        }
-    }
 }
 
 impl OliProfileGroup {
@@ -57,15 +43,14 @@ impl OliProfileGroup {
     }
 }
 
-pub(crate) fn build_accessors() -> Result<Vec<OliAccessor>> {
+pub(crate) fn build_operators() -> Result<HashMap<String, Operator>> {
     let profiles = get_oli_profiles_from_env();
     let groups = parse_oli_profile_groups(profiles)?;
 
-    let mut ret = Vec::new();
+    let mut ret = HashMap::new();
     for group in groups {
-        let accessor = build_accessor(&group)?;
-        let oli_accessor = OliAccessor::new(group.name.clone(), accessor);
-        ret.push(oli_accessor);
+        let operator = build_operator(&group)?;
+        ret.insert(group.name, operator);
     }
     Ok(ret)
 }
@@ -110,16 +95,10 @@ fn parse_oli_profile(key: String) -> Result<(String, String)> {
     }
 }
 
-fn build_accessor(group: &OliProfileGroup) -> Result<Box<dyn Accessor>> {
-    let json_str = serde_json::to_string(&group.values)?;
+fn build_operator(group: &OliProfileGroup) -> Result<Operator> {
     let scheme = opendal::Scheme::from_str(&group.typ)?;
-    match scheme {
-        opendal::Scheme::Azblob => {
-            let builder = serde_json::from_str::<azblob::Builder>(&json_str)?.build()?;
-            Ok(Box::new(builder))
-        }
-        _ => Err(anyhow!("invalid scheme"))
-    }
+    let iter = group.values.iter().map(|(k, v)| (k.clone(), v.clone()));
+    Ok(Operator::from_iter(scheme, iter)?)
 }
 
 #[cfg(test)]
@@ -127,7 +106,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_build_accessors() -> Result<()> {
+    fn test_build_operators() -> Result<()> {
         assert_eq!("azblob", opendal::Scheme::Azblob.to_string());
         env::set_var("OLI_PROFILE_SRC_TYPE", "azblob");
         env::set_var("OLI_PROFILE_SRC_ENDPOINT", "endpoint_value");
@@ -137,8 +116,23 @@ mod tests {
         env::set_var("OLI_PROFILE_DST_ENDPOINT", "endpoint_value");
         env::set_var("OLI_PROFILE_DST_CONTAINER", "container_value");
         env::set_var("OLI_PROFILE_DST_ROOT", "/");
-        let accessors = build_accessors()?;
-        assert_eq!(2, accessors.len());
+        let operators = build_operators()?;
+        assert_eq!(2, operators.len());
+        assert!(operators.contains_key("SRC"));
+        assert!(operators.contains_key("DST"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_build_operator() -> Result<()> {
+        assert_eq!("azblob", opendal::Scheme::Azblob.to_string());
+        env::set_var("OLI_PROFILE_SRC_TYPE", "azblob");
+        env::set_var("OLI_PROFILE_SRC_ENDPOINT", "endpoint_value");
+        env::set_var("OLI_PROFILE_SRC_CONTAINER", "container_value");
+        env::set_var("OLI_PROFILE_SRC_ROOT", "/");
+        let envs = get_oli_profiles_from_env();
+        let groups = parse_oli_profile_groups(envs)?;
+        let _operator = build_operator(groups.get(0).unwrap())?;
         Ok(())
     }
 

@@ -22,7 +22,7 @@ pub fn main() -> Result<()> {
     match cli().get_matches().subcommand() {
         Some(("cp", args)) => {
             // 1. Parse profiles from env and build accessors
-            let _ = super::profile::build_accessors()?;
+            let _ = super::profile::build_operators()?;
             // 2. parse src and dst file path, and then choose the
             // right accessor to read and write.
             // TODO

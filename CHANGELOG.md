@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.17.1] - 2022-09-19
+
+### Added
+
+- feat: redis service implement (#679)
+- feat: Implement AsyncBufRead for IntoReader (#690)
+- feat: expose security token of s3 (#693)
+
+### Changed
+
+- refactor: avoid unnecessary parent creating in Redis service (#692)
+- refactor: Refactor HTTP Client to split sending and incoming logic (#695)
+
+### Fixed
+
+- fix: Handle write data in async way for IPMFS (#694)
+
 ## [v0.17.0] - 2022-09-15
 
 ### Added
@@ -708,6 +725,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.17.1]: https://github.com/datafuselabs/opendal/compare/v0.17.0...v0.17.1
 [v0.17.0]: https://github.com/datafuselabs/opendal/compare/v0.16.0...v0.17.0
 [v0.16.0]: https://github.com/datafuselabs/opendal/compare/v0.15.0...v0.16.0
 [v0.15.0]: https://github.com/datafuselabs/opendal/compare/v0.14.1...v0.15.0

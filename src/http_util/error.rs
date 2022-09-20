@@ -26,7 +26,7 @@ use http::StatusCode;
 
 use crate::error::other;
 use crate::error::ObjectError;
-use crate::http_util::AsyncBody;
+use crate::http_util::IncomingAsyncBody;
 use crate::ops::Operation;
 
 /// Create error happened during building http request.
@@ -106,7 +106,7 @@ impl Display for ErrorResponse {
 ///
 /// Please only use this for parsing error response hence it will read the
 /// entire body into memory.
-pub async fn parse_error_response(resp: Response<AsyncBody>) -> io::Result<ErrorResponse> {
+pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> io::Result<ErrorResponse> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
 

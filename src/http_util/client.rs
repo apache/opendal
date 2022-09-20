@@ -26,6 +26,7 @@ use reqwest::Url;
 
 use super::AsyncBody;
 use super::Body;
+use crate::http_util::body::IncomingAsyncBody;
 use crate::io_util::into_reader;
 
 /// HttpClient that used across opendal.
@@ -33,6 +34,12 @@ use crate::io_util::into_reader;
 pub struct HttpClient {
     async_client: reqwest::Client,
     sync_client: ureq::Agent,
+}
+
+impl Default for HttpClient {
+    fn default() -> Self {
+        HttpClient::new()
+    }
 }
 
 /// We don't want users to know details about our clients.
@@ -97,29 +104,37 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<AsyncBody>> {
+    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         let (parts, body) = req.into_parts();
 
-        let resp = self
+        let mut req_builder = self
             .async_client
             .request(
                 parts.method,
                 Url::from_str(&parts.uri.to_string()).expect("input request url must be valid"),
             )
             .version(parts.version)
-            .headers(parts.headers)
-            .body(body)
-            .send()
-            .await
-            .map_err(|err| {
-                let kind = if err.is_timeout() || err.is_connect() {
-                    ErrorKind::Interrupted
-                } else {
-                    ErrorKind::Other
-                };
+            .headers(parts.headers);
 
-                Error::new(kind, err)
-            })?;
+        req_builder = if let AsyncBody::Multipart(field, r) = body {
+            let mut form = reqwest::multipart::Form::new();
+            let part = reqwest::multipart::Part::stream(AsyncBody::Reader(r));
+            form = form.part(field, part);
+
+            req_builder.multipart(form)
+        } else {
+            req_builder.body(body)
+        };
+
+        let resp = req_builder.send().await.map_err(|err| {
+            let kind = if err.is_timeout() || err.is_connect() {
+                ErrorKind::Interrupted
+            } else {
+                ErrorKind::Other
+            };
+
+            Error::new(kind, err)
+        })?;
 
         let mut hr = Response::builder()
             .version(resp.version())
@@ -128,26 +143,19 @@ impl HttpClient {
             hr = hr.header(k, v);
         }
 
-        let resp = hr
-            .body(AsyncBody::Reader(Box::new(into_reader(
-                resp.bytes_stream().map_err(|err| {
-                    let kind = if err.is_timeout() || err.is_connect() {
-                        ErrorKind::Interrupted
-                    } else {
-                        ErrorKind::Other
-                    };
+        let stream = resp.bytes_stream().map_err(|err| {
+            let kind = if err.is_timeout() || err.is_connect() {
+                ErrorKind::Interrupted
+            } else {
+                ErrorKind::Other
+            };
 
-                    Error::new(kind, err)
-                }),
-            ))))
-            .expect("response must build succeed");
+            Error::new(kind, err)
+        });
+        let body = IncomingAsyncBody::new(Box::new(into_reader(stream)));
+
+        let resp = hr.body(body).expect("response must build succeed");
 
         Ok(resp)
-    }
-}
-
-impl Default for HttpClient {
-    fn default() -> Self {
-        HttpClient::new()
     }
 }

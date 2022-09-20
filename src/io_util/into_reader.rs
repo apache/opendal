@@ -18,10 +18,11 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Buf;
+use bytes::BufMut;
 use bytes::Bytes;
-use futures::ready;
+use futures::AsyncBufRead;
 use futures::AsyncRead;
-use futures::TryStreamExt;
+use pin_project::pin_project;
 
 use crate::BytesStream;
 
@@ -57,19 +58,29 @@ use crate::BytesStream;
 pub fn into_reader<S: BytesStream>(stream: S) -> IntoReader<S> {
     IntoReader {
         stream,
-        state: State::PendingChunk,
+        chunk: None,
     }
 }
 
+#[pin_project]
 pub struct IntoReader<S: BytesStream> {
+    #[pin]
     stream: S,
-    state: State,
+    chunk: Option<Bytes>,
 }
 
-enum State {
-    Ready(Bytes),
-    PendingChunk,
-    Eof,
+impl<S> IntoReader<S>
+where
+    S: BytesStream,
+{
+    /// Do we have a chunk and is it non-empty?
+    fn has_chunk(&self) -> bool {
+        if let Some(ref chunk) = self.chunk {
+            chunk.remaining() > 0
+        } else {
+            false
+        }
+    }
 }
 
 impl<S> AsyncRead for IntoReader<S>
@@ -79,42 +90,59 @@ where
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut [u8],
+        mut buf: &mut [u8],
     ) -> Poll<std::io::Result<usize>> {
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+
+        let inner_buf = match self.as_mut().poll_fill_buf(cx) {
+            Poll::Ready(Ok(buf)) => buf,
+            Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+            Poll::Pending => return Poll::Pending,
+        };
+        let len = cmp::min(inner_buf.len(), buf.len());
+        buf.put_slice(&inner_buf[..len]);
+        self.consume(len);
+        Poll::Ready(Ok(len))
+    }
+}
+
+impl<S> AsyncBufRead for IntoReader<S>
+where
+    S: BytesStream,
+{
+    fn poll_fill_buf(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::io::Result<&[u8]>> {
         loop {
-            match &mut self.state {
-                State::Ready(chunk) => {
-                    let len = cmp::min(buf.len(), chunk.len());
-
-                    buf[..len].copy_from_slice(&chunk[..len]);
-                    chunk.advance(len);
-
-                    if chunk.is_empty() {
-                        self.state = State::PendingChunk;
+            if self.as_mut().has_chunk() {
+                let buf = self.project().chunk.as_ref().unwrap().chunk();
+                return Poll::Ready(Ok(buf));
+            } else {
+                match self.as_mut().project().stream.poll_next(cx) {
+                    Poll::Ready(Some(Ok(chunk))) => {
+                        *self.as_mut().project().chunk = Some(chunk);
                     }
-
-                    return Poll::Ready(Ok(len));
-                }
-                State::PendingChunk => match ready!(self.stream.try_poll_next_unpin(cx)) {
-                    Some(Ok(chunk)) => {
-                        if !chunk.is_empty() {
-                            self.state = State::Ready(chunk);
-                        }
-                    }
-                    Some(Err(err)) => {
-                        self.state = State::Eof;
-                        return Poll::Ready(Err(err));
-                    }
-                    None => {
-                        self.state = State::Eof;
-                        return Poll::Ready(Ok(0));
-                    }
-                },
-                State::Eof => {
-                    return Poll::Ready(Ok(0));
+                    Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err)),
+                    Poll::Ready(None) => return Poll::Ready(Ok(&[])),
+                    Poll::Pending => return Poll::Pending,
                 }
             }
         }
+    }
+
+    fn consume(self: Pin<&mut Self>, amt: usize) {
+        if amt == 0 {
+            return;
+        }
+
+        self.project()
+            .chunk
+            .as_mut()
+            .expect("No chunk present")
+            .advance(amt);
     }
 }
 

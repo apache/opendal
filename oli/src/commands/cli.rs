@@ -43,8 +43,14 @@ pub fn main() -> Result<()> {
 
             let target_object = build_object(target_path, &operators, &fs_operator)?;
 
-            let source_bytes = source_object.blocking_read()?;
-            target_object.blocking_write(source_bytes)?
+            tokio::runtime::Builder::new_multi_thread()
+                .build()?
+                .block_on(async move {
+                    // TODO: remove unwrap()
+                    let size = source_object.metadata().await.unwrap().content_length();
+                    let reader = source_object.reader().await.unwrap();
+                    target_object.write_from(size, reader).await.unwrap();
+                });
         }
         _ => return Err(anyhow!("not handled")),
     }

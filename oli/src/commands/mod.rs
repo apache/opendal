@@ -15,11 +15,3 @@
 pub mod cli;
 pub mod cp;
 pub(crate) mod profile;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_oli_cp() {}
-}

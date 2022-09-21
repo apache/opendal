@@ -33,13 +33,13 @@ pub fn main() -> Result<()> {
             // right operator to read and write.
             let source_path = args
                 .get_one::<String>("source_file")
-                .ok_or(anyhow!("missing source_file"))?;
+                .ok_or_else(|| anyhow!("missing source_file"))?;
 
             let source_object = build_object(source_path, &operators, &fs_operator)?;
 
             let target_path = args
                 .get_one::<String>("target_file")
-                .ok_or(anyhow!("missing target_file"))?;
+                .ok_or_else(|| anyhow!("missing target_file"))?;
 
             let target_object = build_object(target_path, &operators, &fs_operator)?;
 
@@ -84,7 +84,7 @@ fn build_object(
         CopyPath::Profile((name, path)) => {
             let operator = operators
                 .get(&name)
-                .ok_or(anyhow!("profile group not found"))?;
+                .ok_or_else(|| anyhow!("profile group not found"))?;
             Ok(operator.object(&path))
         }
     }

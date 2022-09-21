@@ -11,26 +11,40 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::path::PathBuf;
+
+use std::collections::HashMap;
 
 use anyhow::anyhow;
 use anyhow::Result;
 use clap::App;
 use clap::AppSettings;
+use opendal::Object;
+use opendal::Operator;
 
 pub fn main() -> Result<()> {
     match cli().get_matches().subcommand() {
         Some(("cp", args)) => {
-            // 1. Parse profiles from env and build accessors
-            let _ = super::profile::build_operators()?;
+            // 1. Parse profiles from env and build operators
+            let operators = super::profile::build_operators()?;
+            let fs_backend = opendal::services::fs::Builder::default().build()?;
+            let fs_operator = opendal::Operator::new(fs_backend);
+
             // 2. parse src and dst file path, and then choose the
-            // right accessor to read and write.
-            // TODO
-            println!(
-                "got oli cp, src: {:?}, target: {:?}",
-                args.get_one::<PathBuf>("source_file"),
-                args.get_one::<PathBuf>("target_file")
-            )
+            // right operator to read and write.
+            let source_path = args
+                .get_one::<String>("source_file")
+                .ok_or(anyhow!("missing source_file"))?;
+
+            let source_object = build_object(source_path, &operators, &fs_operator)?;
+
+            let target_path = args
+                .get_one::<String>("target_file")
+                .ok_or(anyhow!("missing target_file"))?;
+
+            let target_object = build_object(target_path, &operators, &fs_operator)?;
+
+            let source_bytes = source_object.blocking_read()?;
+            target_object.blocking_write(source_bytes)?
         }
         _ => return Err(anyhow!("not handled")),
     }
@@ -47,4 +61,34 @@ fn cli() -> App<'static> {
         .subcommand(super::cp::cli("cp"));
 
     app
+}
+
+enum CopyPath {
+    File(String),
+    Profile((String, String)),
+}
+
+fn build_object(
+    cp_path: &str,
+    operators: &HashMap<String, Operator>,
+    fs_operator: &Operator,
+) -> Result<Object> {
+    match parse_copy_path(cp_path) {
+        CopyPath::File(path) => Ok(fs_operator.object(&path)),
+        CopyPath::Profile((name, path)) => {
+            let operator = operators
+                .get(&name)
+                .ok_or(anyhow!("profile group not found"))?;
+            Ok(operator.object(&path))
+        }
+    }
+}
+
+fn parse_copy_path(cp_path: &str) -> CopyPath {
+    if cp_path.contains("://") {
+        let (name, path) = cp_path.split_once("://").unwrap();
+        CopyPath::Profile((name.to_string(), path.to_string()))
+    } else {
+        CopyPath::File(cp_path.to_string())
+    }
 }

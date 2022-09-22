@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -21,7 +20,7 @@ use clap::App;
 use clap::AppSettings;
 use opendal::Object;
 
-pub fn main() -> Result<()> {
+pub async fn main() -> Result<()> {
     match cli().get_matches().subcommand() {
         Some(("cp", args)) => {
             let source_path = args
@@ -36,14 +35,9 @@ pub fn main() -> Result<()> {
 
             let target_object = build_object(target_path)?;
 
-            tokio::runtime::Builder::new_multi_thread()
-                .build()?
-                .block_on(async move {
-                    // TODO: remove unwrap()
-                    let size = source_object.metadata().await.unwrap().content_length();
-                    let reader = source_object.reader().await.unwrap();
-                    target_object.write_from(size, reader).await.unwrap();
-                });
+            let size = source_object.metadata().await?.content_length();
+            let reader = source_object.reader().await?;
+            target_object.write_from(size, reader).await?;
         }
         _ => return Err(anyhow!("not handled")),
     }

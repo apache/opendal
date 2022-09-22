@@ -729,8 +729,6 @@ dependencies = [
  "env_logger",
  "log",
  "opendal",
- "serde",
- "serde_json",
  "tokio",
 ]
 

@@ -16,8 +16,6 @@ clap = { version = "3.2", features = ["cargo"] }
 env_logger = "0.9"
 log = "0.4"
 opendal = "0.17"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 
 # Please comment the following patch while releasing.

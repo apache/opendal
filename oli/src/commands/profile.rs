@@ -23,105 +23,82 @@ use opendal::Operator;
 
 const OLI_PROFILE_PREFIX: &str = "OLI_PROFILE_";
 
-pub struct OliProfileGroup {
-    pub name: String,
+pub(crate) struct OliProfileGroup {
+    pub _name: String,
     pub typ: String,
     pub values: HashMap<String, String>,
 }
 
 impl OliProfileGroup {
-    pub fn parse(name: &str, kvs: HashMap<String, String>) -> Result<Self> {
-        if let Some(typ) = kvs.get("type") {
-            Ok(OliProfileGroup {
-                name: name.to_string(),
+    pub(crate) fn parse_from_env(group: &str) -> Result<Self> {
+        let prefix = group_prefix(group);
+        let profiles = env::vars()
+            .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|k| (k.to_lowercase(), v)))
+            // .filter_map(|(k, v)| match k.strip_prefix(&prefix) {
+            //     Some(k) => Some((k.to_lowercase(), v)),
+            //     None => None,
+            // })
+            .collect::<HashMap<String, String>>();
+
+        match profiles.get("type") {
+            Some(typ) => Ok(OliProfileGroup {
+                _name: group.to_string(),
                 typ: typ.to_string(),
-                values: kvs,
-            })
-        } else {
-            Err(anyhow!("oli profile must contains type"))
+                values: profiles,
+            }),
+            None => Err(anyhow!("oli profile must contains type")),
+        }
+    }
+
+    pub(crate) fn build_operator(&self) -> Result<Operator> {
+        let scheme = opendal::Scheme::from_str(&self.typ)?;
+        let iter = self.values.iter().map(|(k, v)| (k.clone(), v.clone()));
+        Ok(Operator::from_iter(scheme, iter)?)
+    }
+}
+
+fn group_prefix(group: &str) -> String {
+    format!("{}{}_", OLI_PROFILE_PREFIX, group.to_uppercase())
+}
+
+pub(crate) enum CopyPath {
+    File(String),
+    Profile((String, String)),
+}
+
+impl CopyPath {
+    pub(crate) fn path(&self) -> String {
+        match &self {
+            CopyPath::File(path) => path.to_string(),
+            CopyPath::Profile((_, path)) => path.to_string(),
         }
     }
 }
 
-pub(crate) fn build_operators() -> Result<HashMap<String, Operator>> {
-    let profiles = get_oli_profiles_from_env();
-    let groups = parse_oli_profile_groups(profiles)?;
+impl FromStr for CopyPath {
+    type Err = anyhow::Error;
 
-    let mut ret = HashMap::new();
-    for group in groups {
-        let operator = build_operator(&group)?;
-        ret.insert(group.name, operator);
-    }
-    Ok(ret)
-}
-
-fn get_oli_profiles_from_env() -> Vec<(String, String)> {
-    env::vars()
-        .filter(|(k, _)| k.starts_with(OLI_PROFILE_PREFIX))
-        .collect::<Vec<(String, String)>>()
-}
-
-fn parse_oli_profile_groups(profiles: Vec<(String, String)>) -> Result<Vec<OliProfileGroup>> {
-    let mut groups: HashMap<String, HashMap<String, String>> = HashMap::new();
-    for (key, value) in profiles {
-        let (group, trimmed_key) = parse_oli_profile(key)?;
-        if !groups.contains_key(&group) {
-            groups.insert(group.clone(), HashMap::new());
+    fn from_str(cp_path: &str) -> Result<Self, Self::Err> {
+        match cp_path.split_once("://") {
+            Some((name, path)) => Ok(Self::Profile((name.to_string(), path.to_string()))),
+            _ => Ok(Self::File(cp_path.to_string())),
         }
-        groups
-            .get_mut(&group)
-            .unwrap()
-            .insert(trimmed_key.to_lowercase(), value);
-    }
-
-    let mut rets = Vec::new();
-    for (name, kvs) in groups {
-        let group = OliProfileGroup::parse(&name, kvs)?;
-        rets.push(group);
-    }
-
-    Ok(rets)
-}
-
-fn parse_oli_profile(key: String) -> Result<(String, String)> {
-    let name_value = key
-        .strip_prefix(OLI_PROFILE_PREFIX)
-        .ok_or_else(|| anyhow!("invalid oli profile prefix"))?
-        .split_once('_');
-
-    match name_value {
-        Some((name, value)) => Ok((name.to_string(), value.to_string())),
-        None => Err(anyhow!("split name and value error")),
     }
 }
 
-fn build_operator(group: &OliProfileGroup) -> Result<Operator> {
-    let scheme = opendal::Scheme::from_str(&group.typ)?;
-    let iter = group.values.iter().map(|(k, v)| (k.clone(), v.clone()));
-    Ok(Operator::from_iter(scheme, iter)?)
+pub(crate) fn build_operator(path: &CopyPath) -> Result<Operator> {
+    match path {
+        CopyPath::File(..) => {
+            let fs_backend = opendal::services::fs::Builder::default().build()?;
+            Ok(opendal::Operator::new(fs_backend))
+        }
+        CopyPath::Profile((group, ..)) => OliProfileGroup::parse_from_env(group)?.build_operator(),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_build_operators() -> Result<()> {
-        assert_eq!("azblob", opendal::Scheme::Azblob.to_string());
-        env::set_var("OLI_PROFILE_SRC_TYPE", "azblob");
-        env::set_var("OLI_PROFILE_SRC_ENDPOINT", "endpoint_value");
-        env::set_var("OLI_PROFILE_SRC_CONTAINER", "container_value");
-        env::set_var("OLI_PROFILE_SRC_ROOT", "/");
-        env::set_var("OLI_PROFILE_DST_TYPE", "azblob");
-        env::set_var("OLI_PROFILE_DST_ENDPOINT", "endpoint_value");
-        env::set_var("OLI_PROFILE_DST_CONTAINER", "container_value");
-        env::set_var("OLI_PROFILE_DST_ROOT", "/");
-        let operators = build_operators()?;
-        assert_eq!(2, operators.len());
-        assert!(operators.contains_key("SRC"));
-        assert!(operators.contains_key("DST"));
-        Ok(())
-    }
 
     #[test]
     fn test_build_operator() -> Result<()> {
@@ -130,19 +107,10 @@ mod tests {
         env::set_var("OLI_PROFILE_SRC_ENDPOINT", "endpoint_value");
         env::set_var("OLI_PROFILE_SRC_CONTAINER", "container_value");
         env::set_var("OLI_PROFILE_SRC_ROOT", "/");
-        let envs = get_oli_profiles_from_env();
-        let groups = parse_oli_profile_groups(envs)?;
-        let _operator = build_operator(groups.get(0).unwrap())?;
-        Ok(())
-    }
-
-    #[test]
-    fn test_parse_oli_profile_groups() -> Result<()> {
-        env::set_var("OLI_PROFILE_SRC_TYPE", "S3");
-        env::set_var("OLI_PROFILE_SRC_ENDPOINT", "http://127.0.0.1");
-        let envs = get_oli_profiles_from_env();
-        let groups = parse_oli_profile_groups(envs)?;
-        assert_eq!(1, groups.len());
+        let group = OliProfileGroup::parse_from_env("src")?;
+        assert_eq!("src", group._name);
+        assert_eq!("azblob", group.typ);
+        let _ = group.build_operator()?;
         Ok(())
     }
 }

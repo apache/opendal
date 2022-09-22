@@ -12,36 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+
+use std::str::FromStr;
 
 use anyhow::anyhow;
 use anyhow::Result;
 use clap::App;
 use clap::AppSettings;
 use opendal::Object;
-use opendal::Operator;
 
 pub fn main() -> Result<()> {
     match cli().get_matches().subcommand() {
         Some(("cp", args)) => {
-            // 1. Parse profiles from env and build operators
-            let operators = super::profile::build_operators()?;
-            let fs_backend = opendal::services::fs::Builder::default().build()?;
-            let fs_operator = opendal::Operator::new(fs_backend);
-
-            // 2. parse src and dst file path, and then choose the
-            // right operator to read and write.
             let source_path = args
                 .get_one::<String>("source_file")
                 .ok_or_else(|| anyhow!("missing source_file"))?;
 
-            let source_object = build_object(source_path, &operators, &fs_operator)?;
+            let source_object = build_object(source_path)?;
 
             let target_path = args
                 .get_one::<String>("target_file")
                 .ok_or_else(|| anyhow!("missing target_file"))?;
 
-            let target_object = build_object(target_path, &operators, &fs_operator)?;
+            let target_object = build_object(target_path)?;
 
             tokio::runtime::Builder::new_multi_thread()
                 .build()?
@@ -69,32 +62,8 @@ fn cli() -> App<'static> {
     app
 }
 
-enum CopyPath {
-    File(String),
-    Profile((String, String)),
-}
-
-fn build_object(
-    cp_path: &str,
-    operators: &HashMap<String, Operator>,
-    fs_operator: &Operator,
-) -> Result<Object> {
-    match parse_copy_path(cp_path) {
-        CopyPath::File(path) => Ok(fs_operator.object(&path)),
-        CopyPath::Profile((name, path)) => {
-            let operator = operators
-                .get(&name)
-                .ok_or_else(|| anyhow!("profile group not found"))?;
-            Ok(operator.object(&path))
-        }
-    }
-}
-
-fn parse_copy_path(cp_path: &str) -> CopyPath {
-    if cp_path.contains("://") {
-        let (name, path) = cp_path.split_once("://").unwrap();
-        CopyPath::Profile((name.to_string(), path.to_string()))
-    } else {
-        CopyPath::File(cp_path.to_string())
-    }
+fn build_object(path: &str) -> Result<Object> {
+    let cp_path = super::profile::CopyPath::from_str(path)?;
+    let operator = super::profile::build_operator(&cp_path)?;
+    Ok(operator.object(&cp_path.path()))
 }

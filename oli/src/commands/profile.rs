@@ -34,10 +34,6 @@ impl OliProfileGroup {
         let prefix = group_prefix(group);
         let profiles = env::vars()
             .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|k| (k.to_lowercase(), v)))
-            // .filter_map(|(k, v)| match k.strip_prefix(&prefix) {
-            //     Some(k) => Some((k.to_lowercase(), v)),
-            //     None => None,
-            // })
             .collect::<HashMap<String, String>>();
 
         match profiles.get("type") {

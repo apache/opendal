@@ -504,7 +504,7 @@ impl Backend {
     async fn ftp_connect(&self, op: Operation) -> Result<FtpStream> {
         let stream = FtpStream::connect(&self.endpoint)
             .await
-            .map_err(|e| new_request_connection_err(e, Operation::Delete, &self.endpoint))?;
+            .map_err(|e| new_request_connection_err(e, op, &self.endpoint))?;
 
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {

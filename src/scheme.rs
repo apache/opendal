@@ -114,7 +114,7 @@ impl FromStr for Scheme {
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
             #[cfg(feature = "services-ftp")]
-            "ftp" => Ok(Scheme::Ftp),
+            "ftp" | "ftps" => Ok(Scheme::Ftp),
             #[cfg(feature = "services-ipfs")]
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),

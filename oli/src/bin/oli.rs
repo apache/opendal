@@ -26,7 +26,8 @@ use std::path::PathBuf;
 use anyhow::anyhow;
 use anyhow::Result;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Guard against infinite proxy recursion. This mostly happens due to
     // bugs in oli.
     do_recursion_guard()?;
@@ -39,7 +40,7 @@ fn main() -> Result<()> {
         .and_then(OsStr::to_str)
     {
         Some("oli") => {
-            oli::commands::cli::main()?;
+            oli::commands::cli::main().await?;
         }
         Some("ocp") => {
             oli::commands::cp::main()?;

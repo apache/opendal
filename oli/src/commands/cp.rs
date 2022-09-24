@@ -11,9 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use anyhow::Result;
+use clap::builder::NonEmptyStringValueParser;
 use clap::App;
 use clap::AppSettings;
+use clap::Arg;
 
 pub fn main() -> Result<()> {
     let _ = cli("ocp").get_matches();
@@ -26,7 +29,16 @@ pub(crate) fn cli(name: &str) -> App<'static> {
         .version("0.10.0")
         .about("copy")
         .setting(AppSettings::DeriveDisplayOrder)
-        .setting(AppSettings::SubcommandRequiredElseHelp);
+        .arg(
+            Arg::new("source_file")
+                .required(true)
+                .value_parser(NonEmptyStringValueParser::new()),
+        )
+        .arg(
+            Arg::new("target_file")
+                .required(true)
+                .value_parser(NonEmptyStringValueParser::new()),
+        );
 
     app
 }

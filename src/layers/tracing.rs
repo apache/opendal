@@ -81,12 +81,12 @@ impl Accessor for TracingAccessor {
         self.inner.metadata()
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         self.inner.create(path, args).await
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         self.inner
             .read(path, args)
@@ -94,23 +94,23 @@ impl Accessor for TracingAccessor {
             .map(|r| Box::new(TracingReader::new(Span::current(), r)) as BytesReader)
     }
 
-    #[tracing::instrument(level = "debug", skip(r))]
+    #[tracing::instrument(level = "debug", skip(self, r))]
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write(path, args, r).await
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         self.inner.stat(path, args).await
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         self.inner.delete(path, args).await
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
         self.inner
             .list(path, args)
@@ -118,17 +118,17 @@ impl Accessor for TracingAccessor {
             .map(|s| Box::new(TracingStreamer::new(Span::current(), s)) as DirStreamer)
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
         self.inner.presign(path, args)
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
         self.inner.create_multipart(path, args).await
     }
 
-    #[tracing::instrument(level = "debug", skip(r))]
+    #[tracing::instrument(level = "debug", skip(self, r))]
     async fn write_multipart(
         &self,
         path: &str,
@@ -139,44 +139,44 @@ impl Accessor for TracingAccessor {
         self.inner.write_multipart(path, args, r).await
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         self.inner.complete_multipart(path, args).await
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         self.inner.abort_multipart(path, args).await
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
         self.inner.blocking_create(path, args)
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         self.inner.blocking_read(path, args).map(|r| {
             Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader
         })
     }
 
-    #[tracing::instrument(level = "debug", skip(r))]
+    #[tracing::instrument(level = "debug", skip(self, r))]
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
         self.inner.blocking_write(path, args, r)
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         self.inner.blocking_stat(path, args)
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         self.inner.blocking_delete(path, args)
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
         self.inner
             .blocking_list(path, args)

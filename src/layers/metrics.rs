@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result;
@@ -106,10 +106,17 @@ impl Layer for MetricsLayer {
     }
 }
 
-#[derive(Debug)]
 struct MetricsAccessor {
     meta: AccessorMetadata,
     inner: Arc<dyn Accessor>,
+}
+
+impl Debug for MetricsAccessor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MetricsAccessor")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
 }
 
 #[async_trait]

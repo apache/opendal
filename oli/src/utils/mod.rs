@@ -13,5 +13,3 @@
 // limitations under the License.
 mod location;
 pub use location::parse_location;
-
-mod profile;

@@ -67,7 +67,6 @@ pub struct Builder {
     root: Option<String>,
     user: Option<String>,
     password: Option<String>,
-    enable_secure: bool,
 }
 
 impl Debug for Builder {
@@ -124,13 +123,6 @@ impl Builder {
         self
     }
 
-    /// set tls for ftp backend.
-    pub fn enable_secure(&mut self) -> &mut Self {
-        self.enable_secure = true;
-
-        self
-    }
-
     /// Build a ftp backend.
     pub fn build(&mut self) -> Result<Backend> {
         info!("ftp backend build started: {:?}", &self);
@@ -142,6 +134,22 @@ impl Builder {
                 )))
             }
             Some(v) => v,
+        };
+
+        let (ftp, ftps) = (
+            endpoint.starts_with("ftp://"),
+            endpoint.starts_with("ftps://"),
+        );
+
+        let endpoint = if !ftp && !ftps {
+            return Err(other(BackendError::new(
+                HashMap::new(),
+                anyhow!("endpoint must be prefixed with protocol: `ftp://` or `ftps://`"),
+            )));
+        } else if ftp {
+            endpoint.trim_start_matches("ftp://")
+        } else {
+            endpoint.trim_start_matches("ftps://")
         };
 
         let root = match &self.root {
@@ -173,7 +181,7 @@ impl Builder {
             Some(v) => v.clone(),
         };
 
-        let enable_secure = self.enable_secure;
+        let enable_secure = ftps;
 
         info!("ftp backend finished: {:?}", &self);
         Ok(Backend {
@@ -590,5 +598,20 @@ impl Backend {
             })?;
 
         Ok(ftp_stream)
+    }
+}
+
+#[cfg(test)]
+mod build_test {
+    use super::Builder;
+
+    #[test]
+    fn build_with_ftps() {
+        let mut builder = Builder::default();
+        builder.endpoint("ftps://ftp_server.local");
+        let b = builder.build();
+        assert!(b.is_ok());
+        let b = b.unwrap();
+        assert!(b.enable_secure);
     }
 }

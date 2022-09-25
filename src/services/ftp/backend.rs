@@ -147,7 +147,7 @@ impl Builder {
             Ok(uri) => uri,
         };
 
-        let host = endpoint_uri.host().unwrap_or_else(|| "127.0.0.1");
+        let host = endpoint_uri.host().unwrap_or("127.0.0.1");
         let port = endpoint_uri.port_u16().map(|p| p.to_string());
 
         let endpoint = if let Some(p) = port {
@@ -201,7 +201,7 @@ impl Builder {
 
         info!("ftp backend finished: {:?}", &self);
         Ok(Backend {
-            endpoint: endpoint.to_string(),
+            endpoint,
             root,
             user,
             password,

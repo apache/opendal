@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.17.2] - 2022-09-26
+
+### Add
+
+- feat: implement basic cp command (#688)
+- chore: also parse 'FTPS' to Scheme::Ftp (#704)
+
+### Changed
+
+- refactor: remove `enable_secure` in FTP service (#709)
+- oli: refactor copy implementation (#710)
+
+### Fixed
+
+- fix: Handle slash normalized false positives properly (#702)
+- fix: Tracing is too verbose (#707)
+- chore: fix error message in ftp service (#705)
+
 ## [v0.17.1] - 2022-09-19
 
 ### Added
@@ -27,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - RFC: Path In Accessor (#661)
-- feat: Implement RFC-0661: Path In Accessor  (#664)
+- feat: Implement RFC-0661: Path In Accessor (#664)
 - feat: Hide http client internal details from users (#672)
 - feat: make rustls the default tls implementation (#674)
 - feat: Implement benches for layers (#681)
@@ -52,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - feat: Implement tests for read-only services (#634)
 - feat(services/ftp): Implemented multi connection (#637)
-- feat: Finalize FTP read operation  (#644)
+- feat: Finalize FTP read operation (#644)
 - feat: Implement service for IPFS HTTP Gateway (#645)
 - feat: Add ImmutableIndexLayer (#651)
 - feat: derive Hash for Scheme (#653)
@@ -61,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - refactor: Migrate all behavior tests to capability based (#635)
-- refactor: Remove list support from http service  (#639)
+- refactor: Remove list support from http service (#639)
 - refactor: Replace isahc with reqwest and ureq (#642)
 
 ## Deps
@@ -97,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - refactor: Extrace normalize_root functions (#619)
-- refactor: Extrace build_abs_path and build_rooted_abs_path  (#620)
+- refactor: Extrace build_abs_path and build_rooted_abs_path (#620)
 - refactor: Extract build_rel_path (#621)
 - feat: Rename ipfs to ipmfs to better reflect its naming (#629)
 
@@ -154,12 +172,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - feat: Add walk for BatchOperator (#543)
 - feat: Mark Scheme non_exhaustive and extendable (#544)
-- feat: Try to limit the max_connections for http client  (#545)
+- feat: Try to limit the max_connections for http client (#545)
 - feat: Implement huaweicloud obs service read support (#540)
 
 ### Docs
 
--  docs: Fix gcs is missing from index (#546)
+- docs: Fix gcs is missing from index (#546)
 
 ## [v0.13.0] - 2022-08-17
 
@@ -314,7 +332,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- feat: Implement http service support  (#368)
+- feat: Implement http service support (#368)
 - feat: Add http_header to handle HTTP header parse (#369)
 - feat(services/s3): Add virtual host API style support (#374)
 
@@ -395,7 +413,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - chore(deps): Update quick-xml requirement from 0.22.0 to 0.23.0 (#286)
-- feat(io_util): Refactor decompress decoder  (#302)
+- feat(io_util): Refactor decompress decoder (#302)
 - ci: Adopt amondnet/vercel-action (#303)
 
 ### Fixed
@@ -429,7 +447,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - docs: Improve docs to 100% coverage (#246)
 - RFC-0247: Retryable Error (#247)
-- feat: Implement retry layers  (#249)
+- feat: Implement retry layers (#249)
 - feat: Implement retryable errors for azblob and s3 (#254)
 - feat: Implement hdfs service support (#255)
 - docs: Add docs for hdfs services (#262)
@@ -523,7 +541,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: New public API design (#201)
 - refactor: Adopt io::Result instead (#204)
 - refactor: Rollback changes around async streaming io (#205)
-- refactor: Refactor behavior tests with macro_rules  (#207)
+- refactor: Refactor behavior tests with macro_rules (#207)
 
 ### Fixed
 
@@ -590,7 +608,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- *: Implement logging support (#122)
+- \*: Implement logging support (#122)
 - feat(service): Add service memory read support (#121)
 - services: Add basic metrics (#127)
 - services: Add full memory support (#134)
@@ -674,7 +692,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - io: Rename BoxedAsyncRead to BoxedAsyncReader (#55)
-- *: Refactor tests (#60)
+- \*: Refactor tests (#60)
 
 ## [v0.0.5] - 2022-02-23
 
@@ -688,7 +706,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - readers: Allow config prefetch size (#31)
 - RFC-0041: Object Native API (#41)
-- *: Implement RFC-0041 Object Native API (#35)
+- \*: Implement RFC-0041 Object Native API (#35)
 - RFC-0044: Error Handle (#44)
 - error: Implement RFC-0044 Error Handle (#43)
 
@@ -714,7 +732,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - tests: Implement behavior tests (#13)
 - services/s3: Add support for endpoints without scheme (#15)
 - tests: Implement integration tests for s3 (#18)
-- 
+-
+
 ### Fixed
 
 - services/s3: Allow set endpoint and region while input value is valid (#17)
@@ -725,6 +744,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.17.2]: https://github.com/datafuselabs/opendal/compare/v0.17.1...v0.17.2
 [v0.17.1]: https://github.com/datafuselabs/opendal/compare/v0.17.0...v0.17.1
 [v0.17.0]: https://github.com/datafuselabs/opendal/compare/v0.16.0...v0.17.0
 [v0.16.0]: https://github.com/datafuselabs/opendal/compare/v0.15.0...v0.16.0

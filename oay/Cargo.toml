@@ -8,7 +8,7 @@ keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oay"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.17.2"
+version = "0.17.3"
 
 [dependencies]
 actix-web = "4.1"

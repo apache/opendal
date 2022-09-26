@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.17.3] - 2022-09-26
+
+### Added
+
+- feat: Add SubdirLayer to allowing switch directory (#718)
+- feat(layers/retry): Add warning log while retry happened (#721)
+
+### Fixed
+
+- fix: update metrics on result (#716)
+- fix: SubdirLayer should handle dir correctly (#720)
+
 ## [v0.17.2] - 2022-09-26
 
 ### Add
@@ -743,6 +755,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.17.3]: https://github.com/datafuselabs/opendal/compare/v0.17.2...v0.17.3
 [v0.17.2]: https://github.com/datafuselabs/opendal/compare/v0.17.1...v0.17.2
 [v0.17.1]: https://github.com/datafuselabs/opendal/compare/v0.17.0...v0.17.1
 [v0.17.0]: https://github.com/datafuselabs/opendal/compare/v0.16.0...v0.17.0

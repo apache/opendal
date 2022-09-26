@@ -172,6 +172,10 @@ impl DirEntry {
 
 // implement setters for DirEntry's metadata fields
 impl DirEntry {
+    /// Set accessor for this entry.
+    pub(crate) fn set_accessor(&mut self, acc: Arc<dyn Accessor>) {
+        self.acc = acc;
+    }
     /// Set path for this entry.
     pub(crate) fn set_path(&mut self, path: &str) {
         debug_assert!(

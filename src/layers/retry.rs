@@ -21,6 +21,7 @@ use std::thread::sleep;
 use async_trait::async_trait;
 use backon::Backoff;
 use backon::Retryable;
+use log::warn;
 
 use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
@@ -34,6 +35,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
+use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -115,12 +117,24 @@ where
         { || self.inner.create(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::Create, path, dur.as_secs_f64())
+            })
             .await
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::Read, path, dur.as_secs_f64())
+            })
             .await
     }
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
@@ -131,18 +145,36 @@ where
         { || self.inner.stat(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::Stat, path, dur.as_secs_f64())
+            })
             .await
     }
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         { || self.inner.delete(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::Delete, path, dur.as_secs_f64())
+            })
             .await
     }
     async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
         { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::List, path, dur.as_secs_f64())
+            })
             .await
     }
 
@@ -154,6 +186,12 @@ where
         { || self.inner.create_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::CreateMultipart, path, dur.as_secs_f64())
+            })
             .await
     }
     async fn write_multipart(
@@ -169,12 +207,24 @@ where
         { || self.inner.complete_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::CompleteMultipart, path, dur.as_secs_f64())
+            })
             .await
     }
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         { || self.inner.abort_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} path={} -> retry after {}s",
+                    Operation::AbortMultipart, path, dur.as_secs_f64())
+            })
             .await
     }
 
@@ -194,6 +244,10 @@ where
 
                     if kind == ErrorKind::Interrupted {
                         sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s",
+                            Operation::BlockingCreate, path, dur.as_secs_f64());
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -221,6 +275,10 @@ where
 
                     if kind == ErrorKind::Interrupted {
                         sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s",
+                            Operation::BlockingRead, path, dur.as_secs_f64());
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -252,6 +310,10 @@ where
 
                     if kind == ErrorKind::Interrupted {
                         sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s",
+                            Operation::BlockingStat, path, dur.as_secs_f64());
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -279,6 +341,10 @@ where
 
                     if kind == ErrorKind::Interrupted {
                         sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s",
+                            Operation::BlockingDelete, path, dur.as_secs_f64());
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -306,6 +372,10 @@ where
 
                     if kind == ErrorKind::Interrupted {
                         sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s",
+                            Operation::BlockingList, path, dur.as_secs_f64());
                         continue;
                     } else {
                         return Err(e.unwrap());

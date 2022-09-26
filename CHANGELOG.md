@@ -732,7 +732,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - tests: Implement behavior tests (#13)
 - services/s3: Add support for endpoints without scheme (#15)
 - tests: Implement integration tests for s3 (#18)
--
 
 ### Fixed
 

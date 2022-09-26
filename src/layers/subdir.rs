@@ -86,7 +86,7 @@ impl Layer for SubdirLayer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct SubdirAccessor {
     /// Subdir must be like `abc/`
     subdir: String,
@@ -95,7 +95,11 @@ struct SubdirAccessor {
 
 impl SubdirAccessor {
     fn prepend_subdir(&self, path: &str) -> String {
-        self.subdir.clone() + path
+        if path == "/" {
+            self.subdir.clone()
+        } else {
+            self.subdir.clone() + path
+        }
     }
 }
 
@@ -141,6 +145,7 @@ impl Accessor for SubdirAccessor {
         let path = self.prepend_subdir(path);
 
         Ok(Box::new(SubdirStreamer::new(
+            Arc::new(self.clone()),
             &self.subdir,
             self.inner.list(&path, args).await?,
         )))
@@ -215,6 +220,7 @@ impl Accessor for SubdirAccessor {
         let path = self.prepend_subdir(path);
 
         Ok(Box::new(SubdirIterator::new(
+            Arc::new(self.clone()),
             &self.subdir,
             self.inner.blocking_list(&path, args)?,
         )))
@@ -228,13 +234,15 @@ fn strip_subdir(subdir: &str, path: &str) -> String {
 }
 
 struct SubdirStreamer {
+    acc: Arc<dyn Accessor>,
     subdir: String,
     inner: DirStreamer,
 }
 
 impl SubdirStreamer {
-    fn new(subdir: &str, inner: DirStreamer) -> Self {
+    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: DirStreamer) -> Self {
         Self {
+            acc,
             subdir: subdir.to_string(),
             inner,
         }
@@ -247,6 +255,7 @@ impl Stream for SubdirStreamer {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match Pin::new(&mut (*self.inner)).poll_next(cx) {
             Poll::Ready(Some(Ok(mut de))) => {
+                de.set_accessor(self.acc.clone());
                 de.set_path(&strip_subdir(&self.subdir, de.path()));
                 Poll::Ready(Some(Ok(de)))
             }
@@ -256,13 +265,15 @@ impl Stream for SubdirStreamer {
 }
 
 struct SubdirIterator {
+    acc: Arc<dyn Accessor>,
     subdir: String,
     inner: DirIterator,
 }
 
 impl SubdirIterator {
-    fn new(subdir: &str, inner: DirIterator) -> Self {
+    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: DirIterator) -> Self {
         Self {
+            acc,
             subdir: subdir.to_string(),
             inner,
         }
@@ -275,6 +286,7 @@ impl Iterator for SubdirIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next() {
             Some(Ok(mut de)) => {
+                de.set_accessor(self.acc.clone());
                 de.set_path(&strip_subdir(&self.subdir, de.path()));
                 Some(Ok(de))
             }

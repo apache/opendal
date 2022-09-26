@@ -658,5 +658,8 @@ mod build_test {
         builder.endpoint("invalidscheme://ftp_server.local:8765");
         let b = builder.build();
         assert!(b.is_err());
+
+        let expected = "backend error: (context: {}, source: endpoint scheme unsupported or invalid: \"invalidscheme\")";
+        assert_eq!(b.unwrap_err().to_string(), expected);
     }
 }

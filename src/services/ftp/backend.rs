@@ -619,6 +619,8 @@ impl Backend {
 
 #[cfg(test)]
 mod build_test {
+    use std::io::ErrorKind;
+
     use super::Builder;
 
     #[test]
@@ -658,8 +660,7 @@ mod build_test {
         builder.endpoint("invalidscheme://ftp_server.local:8765");
         let b = builder.build();
         assert!(b.is_err());
-
-        let expected = "backend error: (context: {}, source: endpoint scheme unsupported or invalid: \"invalidscheme\")";
-        assert_eq!(b.unwrap_err().to_string(), expected);
+        let e = b.unwrap_err();
+        assert_eq!(e.kind(), ErrorKind::Other);
     }
 }

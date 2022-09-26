@@ -120,11 +120,12 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::Create, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Create, dur.as_secs_f64(), err)
             })
             .await
     }
+
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
@@ -132,15 +133,17 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::Read, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Read, dur.as_secs_f64(), err)
             })
             .await
     }
+
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         // Write can't retry, until can reset this reader.
         self.inner.write(path, args.clone(), r).await
     }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         { || self.inner.stat(path, args.clone()) }
             .retry(self.backoff.clone())
@@ -148,11 +151,12 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::Stat, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Stat, dur.as_secs_f64(), err)
             })
             .await
     }
+
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         { || self.inner.delete(path, args.clone()) }
             .retry(self.backoff.clone())
@@ -160,8 +164,8 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::Delete, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Delete, dur.as_secs_f64(), err)
             })
             .await
     }
@@ -172,8 +176,8 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::List, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::List, dur.as_secs_f64(), err)
             })
             .await
     }
@@ -189,11 +193,12 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::CreateMultipart, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::CreateMultipart, dur.as_secs_f64(), err)
             })
             .await
     }
+
     async fn write_multipart(
         &self,
         path: &str,
@@ -203,6 +208,7 @@ where
         // Write can't retry, until can reset this reader.
         self.inner.write_multipart(path, args.clone(), r).await
     }
+
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         { || self.inner.complete_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
@@ -210,11 +216,12 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::CompleteMultipart, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::CompleteMultipart, dur.as_secs_f64(), err)
             })
             .await
     }
+
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         { || self.inner.abort_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
@@ -222,8 +229,8 @@ where
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
-                    "operation={} path={} -> retry after {}s",
-                    Operation::AbortMultipart, path, dur.as_secs_f64())
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::AbortMultipart, dur.as_secs_f64(), err)
             })
             .await
     }
@@ -246,8 +253,8 @@ where
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
-                            "operation={} path={} -> retry after {}s",
-                            Operation::BlockingCreate, path, dur.as_secs_f64());
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingCreate, path, dur.as_secs_f64(), e);
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -277,8 +284,8 @@ where
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
-                            "operation={} path={} -> retry after {}s",
-                            Operation::BlockingRead, path, dur.as_secs_f64());
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingRead, path, dur.as_secs_f64(), e);
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -312,8 +319,8 @@ where
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
-                            "operation={} path={} -> retry after {}s",
-                            Operation::BlockingStat, path, dur.as_secs_f64());
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingStat, path, dur.as_secs_f64(), e);
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -343,8 +350,8 @@ where
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
-                            "operation={} path={} -> retry after {}s",
-                            Operation::BlockingDelete, path, dur.as_secs_f64());
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingDelete, path, dur.as_secs_f64(), e);
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -374,8 +381,8 @@ where
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
-                            "operation={} path={} -> retry after {}s",
-                            Operation::BlockingList, path, dur.as_secs_f64());
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingList, path, dur.as_secs_f64(), e);
                         continue;
                     } else {
                         return Err(e.unwrap());
@@ -429,6 +436,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_retryable_error() -> anyhow::Result<()> {
+        let _ = env_logger::try_init();
+
         let srv = Arc::new(MockService::default());
 
         let backoff = ConstantBackoff::default()

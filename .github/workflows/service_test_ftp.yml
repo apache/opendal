@@ -42,7 +42,7 @@ jobs:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_FTP_TEST: on
-          OPENDAL_FTP_ENDPOINT: 127.0.0.1:2121
+          OPENDAL_FTP_ENDPOINT: ftp://127.0.0.1:2121
           OPENDAL_FTP_ROOT: /
           OPENDAL_FTP_USER: admin
           OPENDAL_FTP_PASSWORD: admin

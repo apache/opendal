@@ -26,6 +26,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::io::copy;
 use futures::AsyncReadExt;
+use http::Uri;
 use log::info;
 use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
@@ -67,7 +68,6 @@ pub struct Builder {
     root: Option<String>,
     user: Option<String>,
     password: Option<String>,
-    enable_secure: bool,
 }
 
 impl Debug for Builder {
@@ -124,13 +124,6 @@ impl Builder {
         self
     }
 
-    /// set tls for ftp backend.
-    pub fn enable_secure(&mut self) -> &mut Self {
-        self.enable_secure = true;
-
-        self
-    }
-
     /// Build a ftp backend.
     pub fn build(&mut self) -> Result<Backend> {
         info!("ftp backend build started: {:?}", &self);
@@ -142,6 +135,39 @@ impl Builder {
                 )))
             }
             Some(v) => v,
+        };
+
+        let endpoint_uri = match endpoint.parse::<Uri>() {
+            Err(e) => {
+                return Err(other(BackendError::new(
+                    HashMap::new(),
+                    anyhow!("endpoint must be valid uri: {:?}", e),
+                )));
+            }
+            Ok(uri) => uri,
+        };
+
+        let host = endpoint_uri.host().unwrap_or("127.0.0.1");
+        let port = endpoint_uri.port_u16().map(|p| p.to_string());
+
+        let endpoint = if let Some(p) = port {
+            format!("{}:{}", host, p)
+        } else {
+            host.to_string()
+        };
+
+        let enable_secure = match endpoint_uri.scheme_str() {
+            Some("ftp") => false,
+            // if the user forgot to add a scheme prefix
+            // treat it as using secured scheme
+            Some("ftps") | None => true,
+
+            Some(s) => {
+                return Err(other(BackendError::new(
+                    HashMap::new(),
+                    anyhow!("endpoint scheme unsupported or invalid: {:?}", s),
+                )));
+            }
         };
 
         let root = match &self.root {
@@ -173,11 +199,9 @@ impl Builder {
             Some(v) => v.clone(),
         };
 
-        let enable_secure = self.enable_secure;
-
         info!("ftp backend finished: {:?}", &self);
         Ok(Backend {
-            endpoint: endpoint.to_string(),
+            endpoint,
             root,
             user,
             password,
@@ -590,5 +614,53 @@ impl Backend {
             })?;
 
         Ok(ftp_stream)
+    }
+}
+
+#[cfg(test)]
+mod build_test {
+    use std::io::ErrorKind;
+
+    use super::Builder;
+
+    #[test]
+    fn test_build() {
+        // ftps scheme
+        let mut builder = Builder::default();
+        builder.endpoint("ftps://ftp_server.local");
+        let b = builder.build();
+        assert!(b.is_ok());
+        let b = b.unwrap();
+
+        assert!(b.enable_secure);
+        assert_eq!(b.endpoint, "ftp_server.local");
+
+        // ftp scheme
+        let mut builder = Builder::default();
+        builder.endpoint("ftp://ftp_server.local:1234");
+        let b = builder.build();
+        assert!(b.is_ok());
+        let b = b.unwrap();
+
+        assert!(!b.enable_secure);
+        assert_eq!(b.endpoint, "ftp_server.local:1234");
+
+        // no scheme
+        let mut builder = Builder::default();
+        builder.endpoint("ftp_server.local:8765");
+        let b = builder.build();
+        assert!(b.is_ok());
+        let b = b.unwrap();
+
+        assert!(b.enable_secure);
+        assert_eq!(b.endpoint, "ftp_server.local:8765");
+
+        // invalid scheme
+        let mut builder = Builder::default();
+        builder.endpoint("invalidscheme://ftp_server.local:8765");
+        let b = builder.build();
+        assert!(b.is_err());
+        let e = b.unwrap_err();
+        assert_eq!(e.kind(), ErrorKind::Other);
     }
 }

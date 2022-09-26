@@ -652,5 +652,11 @@ mod build_test {
 
         assert!(b.enable_secure);
         assert_eq!(b.endpoint, "ftp_server.local:8765");
+
+        // invalid scheme
+        let mut builder = Builder::default();
+        builder.endpoint("invalidscheme://ftp_server.local:8765");
+        let b = builder.build();
+        assert!(b.is_err());
     }
 }

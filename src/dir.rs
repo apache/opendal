@@ -172,6 +172,17 @@ impl DirEntry {
 
 // implement setters for DirEntry's metadata fields
 impl DirEntry {
+    /// Set path for this entry.
+    pub(crate) fn set_path(&mut self, path: &str) {
+        debug_assert!(
+            self.mode.is_dir() == path.ends_with('/'),
+            "mode {:?} not match with path {}",
+            self.mode,
+            path
+        );
+
+        self.path = path.to_string();
+    }
     /// record the ETag of `DirEntry`'s corresponding object
     pub(crate) fn set_etag(&mut self, etag: &str) {
         self.etag = Some(etag.to_string())

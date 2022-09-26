@@ -64,6 +64,25 @@ static METRIC_BYTES_WRITTEN_TOTAL: &str = "opendal_bytes_written_total";
 static LABEL_SERVICE: &str = "service";
 static LABEL_OPERATION: &str = "operation";
 
+/// update metrics on error results
+#[inline]
+fn inc_err_counter(result: std::io::Error, scheme: Scheme, op: Operation) -> std::io::Error {
+    if result.kind() == ErrorKind::Other {
+        increment_counter!(
+        METRIC_FAILURES_TOTAL,
+        LABEL_SERVICE => scheme.into_static(),
+        LABEL_OPERATION => op.into_static(),
+        );
+    } else {
+        increment_counter!(
+        METRIC_ERRORS_TOTAL,
+        LABEL_SERVICE => scheme.into_static(),
+        LABEL_OPERATION => op.into_static(),
+        );
+    }
+    result
+}
+
 /// MetricsLayer will add metrics for OpenDAL.
 ///
 /// # Metrics
@@ -119,29 +138,6 @@ impl Debug for MetricsAccessor {
     }
 }
 
-impl MetricsAccessor {
-    // update metrics on result types
-    #[inline]
-    fn res_metric<T>(&self, result: Result<T>, op: Operation) -> Result<T> {
-        if let Err(e) = &result {
-            if e.kind() == ErrorKind::Other {
-                increment_counter!(
-                METRIC_FAILURES_TOTAL,
-                LABEL_SERVICE => self.meta.scheme().into_static(),
-                LABEL_OPERATION => op.into_static(),
-                )
-            } else {
-                increment_counter!(
-                METRIC_ERRORS_TOTAL,
-                LABEL_SERVICE => self.meta.scheme().into_static(),
-                LABEL_OPERATION => op.into_static(),
-                )
-            }
-        }
-        result
-    }
-}
-
 #[async_trait]
 impl Accessor for MetricsAccessor {
     fn metadata(&self) -> AccessorMetadata {
@@ -181,7 +177,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::Create.into_static(),
         );
 
-        self.res_metric(result, Operation::Create)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::Create))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
@@ -207,7 +203,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::Read.into_static(),
         );
 
-        self.res_metric(result, Operation::Read)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::Read))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
@@ -229,7 +225,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::Write.into_static(),
         );
 
-        self.res_metric(result, Operation::Write)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::Write))
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
@@ -249,7 +245,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::Stat.into_static(),
         );
 
-        self.res_metric(result, Operation::Stat)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::Stat))
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
@@ -269,7 +265,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::Delete.into_static(),
         );
 
-        self.res_metric(result, Operation::Delete)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::Delete))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
@@ -289,7 +285,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::List.into_static(),
         );
 
-        self.res_metric(result, Operation::List)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::List))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
@@ -309,7 +305,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::Presign.into_static(),
         );
 
-        self.res_metric(result, Operation::Presign)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::Presign))
     }
 
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
@@ -329,7 +325,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::CreateMultipart.into_static(),
         );
 
-        self.res_metric(result, Operation::CreateMultipart)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::CreateMultipart))
     }
 
     async fn write_multipart(
@@ -356,7 +352,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::WriteMultipart.into_static(),
         );
 
-        self.res_metric(result, Operation::WriteMultipart)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::WriteMultipart))
     }
 
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
@@ -376,7 +372,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
         );
 
-        self.res_metric(result, Operation::CompleteMultipart)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::CompleteMultipart))
     }
 
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
@@ -396,7 +392,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::AbortMultipart.into_static(),
         );
 
-        self.res_metric(result, Operation::AbortMultipart)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::AbortMultipart))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -416,7 +412,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::BlockingCreate.into_static(),
         );
 
-        self.res_metric(result, Operation::BlockingCreate)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::BlockingCreate))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
@@ -442,7 +438,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::BlockingRead.into_static(),
         );
 
-        self.res_metric(result, Operation::BlockingRead)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::BlockingRead))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
@@ -468,7 +464,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::BlockingWrite.into_static(),
         );
 
-        self.res_metric(result, Operation::BlockingWrite)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::BlockingWrite))
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
@@ -488,7 +484,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::BlockingStat.into_static(),
         );
 
-        self.res_metric(result, Operation::BlockingStat)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::BlockingStat))
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
@@ -508,7 +504,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::BlockingDelete.into_static(),
         );
 
-        self.res_metric(result, Operation::BlockingDelete)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::BlockingDelete))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
@@ -528,7 +524,7 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::BlockingList.into_static(),
         );
 
-        self.res_metric(result, Operation::BlockingList)
+        result.map_err(|e| inc_err_counter(e, self.meta.scheme(), Operation::BlockingList))
     }
 }
 

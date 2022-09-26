@@ -12,45 +12,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::Result;
-use opendal::Operator;
+use anyhow::{anyhow, Result};
+use opendal::services::fs;
+use opendal::{Operator, Scheme};
+use std::collections::HashMap;
+use std::env;
+use std::str::FromStr;
 
-/// Parse `s3://abc/def` into `name` and `location`.
-pub fn parse_location(s: &str) -> Result<(&str, &str)> {
+/// Parse `s3://abc/def` into `op` and `location`.
+pub fn parse_location(s: &str) -> Result<(Operator, &str)> {
     if !s.contains("://") {
-        return Ok(("fs", s));
+        return Ok((Operator::new(fs::Builder::default().build()?), s));
     }
 
     let s = s.splitn(2, "://").collect::<Vec<_>>();
     debug_assert!(s.len() == 2);
-    Ok((s[0], s[1]))
+    Ok((parse_profile(s[0])?, s[1]))
 }
 
 /// If name is a valid scheme, we will load from env directly.
 /// Or, we will try to get env from `OLI_PROFILE_{NAME}_XXX`.
 ///
 /// Especially, the type is specified by `OLI_PROFILE_{NAME}_TYPE`
-#[allow(dead_code)]
-pub fn parse_profile(_: &str) -> Result<Operator> {
-    todo!()
-}
+pub fn parse_profile(name: &str) -> Result<Operator> {
+    let prefix = format!("OLI_PROFILE_{name}_").to_lowercase();
+    let cfg = env::vars()
+        .filter_map(|(k, v)| {
+            k.to_lowercase()
+                .strip_prefix(&prefix)
+                .map(|k| (k.to_string(), v))
+        })
+        .collect::<HashMap<String, String>>();
 
-#[cfg(test)]
-mod tests {
-    use crate::utils::location::parse_location;
+    let typ = cfg
+        .get("type")
+        .ok_or_else(|| anyhow!("type for profile {} is not specified", name))?;
 
-    #[test]
-    fn test_parse_location() {
-        let cases = vec![
-            ("normal", "fs:///tmp", ("fs", "/tmp")),
-            ("s3", "s3://test/path/to/file", ("s3", "test/path/to/file")),
-            ("no scheme", "local", ("fs", "local")),
-        ];
+    let scheme = Scheme::from_str(typ)?;
+    let op = Operator::from_iter(scheme, cfg.into_iter())?;
 
-        for (name, input, expected) in cases {
-            let actual = parse_location(input).expect("must succeed");
-
-            assert_eq!(expected, actual, "{name}")
-        }
-    }
+    Ok(op)
 }

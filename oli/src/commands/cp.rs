@@ -12,15 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::Result;
-use clap::builder::NonEmptyStringValueParser;
-use clap::App;
+use crate::utils::parse_location;
+use anyhow::{anyhow, Result};
 use clap::AppSettings;
 use clap::Arg;
+use clap::{App, ArgMatches};
 
-pub fn main() -> Result<()> {
-    let _ = cli("ocp").get_matches();
-    println!("got ocp");
+pub async fn main(args: Option<ArgMatches>) -> Result<()> {
+    let args = args.unwrap_or_else(|| cli("ocp").get_matches());
+
+    let src = args
+        .get_one::<String>("source")
+        .ok_or_else(|| anyhow!("missing source"))?;
+    let (src_op, src_path) = parse_location(src)?;
+    let src_o = src_op.object(src_path);
+
+    let dst = args
+        .get_one::<String>("destination")
+        .ok_or_else(|| anyhow!("missing target"))?;
+    let (dst_op, dst_path) = parse_location(dst)?;
+    let dst_o = dst_op.object(dst_path);
+
+    let size = src_o.metadata().await?.content_length();
+    let reader = src_o.reader().await?;
+    dst_o.write_from(size, reader).await?;
     Ok(())
 }
 
@@ -29,16 +44,8 @@ pub(crate) fn cli(name: &str) -> App<'static> {
         .version("0.10.0")
         .about("copy")
         .setting(AppSettings::DeriveDisplayOrder)
-        .arg(
-            Arg::new("source_file")
-                .required(true)
-                .value_parser(NonEmptyStringValueParser::new()),
-        )
-        .arg(
-            Arg::new("target_file")
-                .required(true)
-                .value_parser(NonEmptyStringValueParser::new()),
-        );
+        .arg(Arg::new("source").required(true))
+        .arg(Arg::new("destination").required(true));
 
     app
 }

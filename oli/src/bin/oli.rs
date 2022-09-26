@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
             oli::commands::cli::main().await?;
         }
         Some("ocp") => {
-            oli::commands::cp::main()?;
+            oli::commands::cp::main(None).await?;
         }
         Some(v) => {
             println!("{v} is not supported")

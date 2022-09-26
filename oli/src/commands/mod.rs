@@ -14,4 +14,3 @@
 
 pub mod cli;
 pub mod cp;
-pub(crate) mod profile;

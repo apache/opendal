@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.17.4] - 2022-09-27
+
+### Fixed
+
+- fix(http_util): Allow retry more errors (#724)
+- fix(services/ftp): Suffix endpoints with default port (#726)
+
 ## [v0.17.3] - 2022-09-26
 
 ### Added
@@ -755,6 +762,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.17.4]: https://github.com/datafuselabs/opendal/compare/v0.17.3...v0.17.4
 [v0.17.3]: https://github.com/datafuselabs/opendal/compare/v0.17.2...v0.17.3
 [v0.17.2]: https://github.com/datafuselabs/opendal/compare/v0.17.1...v0.17.2
 [v0.17.1]: https://github.com/datafuselabs/opendal/compare/v0.17.0...v0.17.1

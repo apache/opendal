@@ -789,7 +789,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.17.3"
+version = "0.17.4"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -809,7 +809,7 @@ checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
 
 [[package]]
 name = "opendal"
-version = "0.17.3"
+version = "0.17.4"
 dependencies = [
  "anyhow",
  "async-compat",

@@ -127,11 +127,7 @@ impl HttpClient {
         };
 
         let resp = req_builder.send().await.map_err(|err| {
-            let kind = if err.is_timeout() || err.is_connect() {
-                ErrorKind::Interrupted
-            } else {
-                ErrorKind::Other
-            };
+            let kind = error_kind_from_reqwest_error(&err);
 
             Error::new(kind, err)
         })?;
@@ -144,11 +140,7 @@ impl HttpClient {
         }
 
         let stream = resp.bytes_stream().map_err(|err| {
-            let kind = if err.is_timeout() || err.is_connect() {
-                ErrorKind::Interrupted
-            } else {
-                ErrorKind::Other
-            };
+            let kind = error_kind_from_reqwest_error(&err);
 
             Error::new(kind, err)
         });
@@ -158,4 +150,24 @@ impl HttpClient {
 
         Ok(resp)
     }
+}
+
+fn error_kind_from_reqwest_error(err: &reqwest::Error) -> ErrorKind {
+    // Builder related error should not be retried.
+    if err.is_builder() {
+        return ErrorKind::Other;
+    }
+    // Error returned by RedirectPolicy.
+    //
+    // We don't set this by hand, just don't allow retry.
+    if err.is_redirect() {
+        return ErrorKind::Other;
+    }
+    // We never use `Response::error_for_status`, just don't allow retry.
+    //
+    // Status should be checked by our services.
+    if err.is_status() {
+        return ErrorKind::Other;
+    }
+    ErrorKind::Interrupted
 }

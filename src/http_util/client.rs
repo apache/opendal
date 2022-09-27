@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::env;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Error;
@@ -22,6 +23,7 @@ use std::str::FromStr;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use reqwest::ClientBuilder;
 use reqwest::Url;
 
 use super::AsyncBody;
@@ -52,8 +54,33 @@ impl Debug for HttpClient {
 impl HttpClient {
     /// Create a new http client.
     pub fn new() -> Self {
-        let async_client = reqwest::Client::new();
-        let sync_client = ureq::Agent::new();
+        let async_client = {
+            let mut builder = ClientBuilder::new();
+
+            // Make sure we don't enable auto gzip decompress.
+            builder = builder.no_gzip();
+            // Make sure we don't enable auto brotli decompress.
+            builder = builder.no_brotli();
+            // Make sure we don't enable auto deflate decompress.
+            builder = builder.no_deflate();
+
+            builder.build().expect("reqwest client must build succeed")
+        };
+
+        let sync_client = {
+            let mut builder = ureq::AgentBuilder::new();
+
+            for key in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"] {
+                if let Ok(proxy) = env::var(key) {
+                    // Ignore proxy setting if proxy is invalid.
+                    if let Ok(proxy) = ureq::Proxy::new(proxy) {
+                        builder = builder.proxy(proxy);
+                    }
+                }
+            }
+
+            builder.build()
+        };
 
         HttpClient {
             async_client,

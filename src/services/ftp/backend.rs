@@ -148,13 +148,9 @@ impl Builder {
         };
 
         let host = endpoint_uri.host().unwrap_or("127.0.0.1");
-        let port = endpoint_uri.port_u16().map(|p| p.to_string());
+        let port = endpoint_uri.port_u16().unwrap_or(21);
 
-        let endpoint = if let Some(p) = port {
-            format!("{}:{}", host, p)
-        } else {
-            host.to_string()
-        };
+        let endpoint = format!("{}:{}", host, port);
 
         let enable_secure = match endpoint_uri.scheme_str() {
             Some("ftp") => false,
@@ -625,7 +621,7 @@ mod build_test {
 
     #[test]
     fn test_build() {
-        // ftps scheme
+        // ftps scheme, should suffixed with default port 21
         let mut builder = Builder::default();
         builder.endpoint("ftps://ftp_server.local");
         let b = builder.build();
@@ -633,7 +629,7 @@ mod build_test {
         let b = b.unwrap();
 
         assert!(b.enable_secure);
-        assert_eq!(b.endpoint, "ftp_server.local");
+        assert_eq!(b.endpoint, "ftp_server.local:21");
 
         // ftp scheme
         let mut builder = Builder::default();

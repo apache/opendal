@@ -430,7 +430,10 @@ mod tests {
                     io::ErrorKind::Interrupted,
                     anyhow!("retryable_error"),
                 )),
-                _ => Err(new_other_backend_error(HashMap::new(), anyhow!("not_retryable_error"))),
+                _ => Err(new_other_backend_error(
+                    HashMap::new(),
+                    anyhow!("not_retryable_error"),
+                )),
             }
         }
     }

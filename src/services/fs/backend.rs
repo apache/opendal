@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result;
@@ -35,7 +35,7 @@ use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::dir::EmptyDirIterator;
 use crate::dir::EmptyDirStreamer;
-use crate::error::new_other_backend_error;
+
 use crate::error::new_other_object_error;
 
 use crate::ops::OpCreate;
@@ -87,8 +87,8 @@ impl Builder {
         if let Err(e) = std::fs::metadata(&root) {
             if e.kind() == ErrorKind::NotFound {
                 std::fs::create_dir_all(&root).map_err(|e| {
-                    new_other_backend_error(
-                        HashMap::new(),
+                    std::io::Error::new(
+                        std::io::ErrorKind::Other,
                         anyhow!("create dir in {} error {:?}", &root, e),
                     )
                 })?;

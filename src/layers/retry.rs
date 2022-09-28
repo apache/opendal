@@ -397,7 +397,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    
     use std::io;
     use std::sync::Arc;
     use std::time::Duration;
@@ -407,7 +407,7 @@ mod tests {
     use backon::ConstantBackoff;
     use tokio::sync::Mutex;
 
-    use crate::error::new_other_backend_error;
+    
     use crate::layers::RetryLayer;
     use crate::ops::OpRead;
     use crate::Accessor;
@@ -430,8 +430,8 @@ mod tests {
                     io::ErrorKind::Interrupted,
                     anyhow!("retryable_error"),
                 )),
-                _ => Err(new_other_backend_error(
-                    HashMap::new(),
+                _ => Err(io::Error::new(
+                    io::ErrorKind::Other,
                     anyhow!("not_retryable_error"),
                 )),
             }
@@ -467,7 +467,10 @@ mod tests {
 
         let result = op.object("not_retryable_error").read().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not_retryable_error"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not_retryable_error"));
         // The error is not retryable, we should only request it once.
         assert_eq!(*srv.attempt.lock().await, 1);
 

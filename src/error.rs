@@ -89,7 +89,7 @@ impl ObjectError {
 }
 
 /// Copied for [`io::Error::other`], should be removed after `io_error_other` stable.
-#[deprecated(since="0.18.0", note="please use `new_other_object_error` instead")]
+#[deprecated(since = "0.18.0", note = "please use `new_other_object_error` instead")]
 pub fn other<E>(error: E) -> io::Error
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -110,7 +110,11 @@ pub fn new_unsupported_object_error(op: Operation, path: &str) -> io::Error {
 }
 
 /// Creates an error as [`ObjectError`] and wrapped with [`io::Error::other`]
-pub fn new_other_object_error(op: Operation, path: &str, source: impl Into<anyhow::Error>) -> io::Error {
+pub fn new_other_object_error(
+    op: Operation,
+    path: &str,
+    source: impl Into<anyhow::Error>,
+) -> io::Error {
     io::Error::new(io::ErrorKind::Other, ObjectError::new(op, path, source))
 }
 

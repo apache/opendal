@@ -397,7 +397,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    
+
     use std::io;
     use std::sync::Arc;
     use std::time::Duration;
@@ -407,7 +407,6 @@ mod tests {
     use backon::ConstantBackoff;
     use tokio::sync::Mutex;
 
-    
     use crate::layers::RetryLayer;
     use crate::ops::OpRead;
     use crate::Accessor;

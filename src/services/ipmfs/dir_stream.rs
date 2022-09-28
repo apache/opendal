@@ -28,8 +28,8 @@ use serde::Deserialize;
 
 use super::error::parse_error;
 use super::Backend;
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
+
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
@@ -80,11 +80,11 @@ impl futures::Stream for DirStream {
                     }
 
                     let bs = resp.into_body().bytes().await.map_err(|e| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::List,
                             &path,
                             anyhow!("read body: {:?}", e),
-                        ))
+                        )
                     })?;
 
                     Ok(bs)
@@ -97,14 +97,14 @@ impl futures::Stream for DirStream {
 
                 let entries_body: IpfsLsResponse =
                     serde_json::from_slice(&contents).map_err(|err| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::List,
                             &path,
                             anyhow!(
                                 "deserialize {} list response: {err:?}",
                                 String::from_utf8_lossy(&contents)
                             ),
-                        ))
+                        )
                     })?;
 
                 self.state = State::Listing((entries_body.entries.unwrap_or_default(), 0));

@@ -29,8 +29,7 @@ use serde_json;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
@@ -94,11 +93,11 @@ impl Stream for DirStream {
                         return Err(err);
                     }
                     let bytes = resp.into_body().bytes().await.map_err(|e| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::List,
                             &path,
                             anyhow!("read body: {:?}", e),
-                        ))
+                        )
                     })?;
 
                     Ok(bytes)
@@ -110,11 +109,11 @@ impl Stream for DirStream {
             State::Pending(fut) => {
                 let bytes = ready!(Pin::new(fut).poll(cx))?;
                 let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::List,
                         &self.path,
                         anyhow!("deserialize list_bucket output: {:?}", e),
-                    ))
+                    )
                 })?;
 
                 if let Some(token) = &output.next_page_token {
@@ -156,21 +155,21 @@ impl Stream for DirStream {
                     de.set_etag(object.etag.as_str());
 
                     let size = object.size.parse().map_err(|e| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::List,
                             path.as_str(),
                             anyhow!("parse object size: {e:?}"),
-                        ))
+                        )
                     })?;
                     de.set_content_length(size);
 
                     let dt =
                         OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
-                            other(ObjectError::new(
+                            new_other_object_error(
                                 Operation::List,
                                 &self.path,
                                 anyhow!("parse last modified RFC3339 datetime: {e:?}"),
-                            ))
+                            )
                         })?;
                     de.set_last_modified(dt);
 

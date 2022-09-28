@@ -27,15 +27,11 @@ use crate::ops::Operation;
 ///
 /// In the future, we may have our own error struct.
 pub fn new_request_connection_err(e: FtpError, op: Operation, path: &str) -> Error {
-    other(ObjectError::new(
-        op,
-        path,
-        anyhow!("connection request: {e:?}"),
-    ))
+    new_other_object_error(op, path, anyhow!("connection request: {e:?}"))
 }
 
 pub fn new_request_quit_err(e: FtpError, op: Operation, path: &str) -> Error {
-    other(ObjectError::new(op, path, anyhow!("quit request: {e:?}")))
+    new_other_object_error(op, path, anyhow!("quit request: {e:?}"))
 }
 
 pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {

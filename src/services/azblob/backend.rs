@@ -35,9 +35,8 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -166,19 +165,19 @@ impl Builder {
         // Handle endpoint, region and container name.
         let container = match self.container.is_empty() {
             false => Ok(&self.container),
-            true => Err(other(BackendError::new(
+            true => Err(new_other_backend_error(
                 HashMap::from([("container".to_string(), "".to_string())]),
                 anyhow!("container is empty"),
-            ))),
+            )),
         }?;
         debug!("backend use container {}", &container);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(other(BackendError::new(
+            None => Err(new_other_backend_error(
                 HashMap::from([("endpoint".to_string(), "".to_string())]),
                 anyhow!("endpoint is empty"),
-            ))),
+            )),
         }?;
         debug!("backend use endpoint {}", &container);
 
@@ -196,7 +195,7 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .map_err(|e| other(BackendError::new(context, e)))?;
+            .map_err(|e| new_other_backend_error(context, e))?;
 
         info!("backend build finished: {:?}", &self);
         Ok(Backend {
@@ -352,20 +351,20 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
                     m.set_content_md5(v.trim_matches('"'));
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_last_modified(v);
                 }

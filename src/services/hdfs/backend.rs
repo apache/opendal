@@ -189,11 +189,11 @@ impl Accessor for Backend {
                 let parent = PathBuf::from(&p)
                     .parent()
                     .ok_or_else(|| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::Create,
                             path,
                             anyhow!("malformed path: {:?}", path),
-                        ))
+                        )
                     })?
                     .to_path_buf();
 
@@ -246,11 +246,11 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Write,
                     path,
                     anyhow!("malformed path: {:?}", path),
-                ))
+                )
             })?
             .to_path_buf();
 

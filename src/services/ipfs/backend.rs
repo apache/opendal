@@ -323,13 +323,13 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
 
@@ -481,7 +481,7 @@ impl Stream for DirStream {
                         .into_body()
                         .bytes()
                         .await
-                        .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;
+                        .map_err(|e| new_other_object_error(Operation::List, &path, e))?;
 
                     Ok(bs)
                 };
@@ -493,11 +493,11 @@ impl Stream for DirStream {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
 
                 let pb_node = PBNode::decode(bs).map_err(|e| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::List,
                         &self.path,
                         anyhow!("deserialize protobuf: {e:?}"),
-                    ))
+                    )
                 })?;
 
                 let names = pb_node

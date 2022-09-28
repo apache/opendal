@@ -289,11 +289,11 @@ impl Accessor for Backend {
                     .put_file(&curr_path, &mut "".as_bytes())
                     .await
                     .map_err(|e| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::Create,
                             path,
                             anyhow!("put request: {e:?}"),
-                        ))
+                        )
                     })?;
             }
         }
@@ -314,11 +314,11 @@ impl Accessor for Backend {
                 .resume_transfer(offset as usize)
                 .await
                 .map_err(|e| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::Read,
                         path,
                         anyhow!("resume transfer request: {e:?}"),
-                    ))
+                    )
                 })?;
         }
 
@@ -359,11 +359,7 @@ impl Accessor for Backend {
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
 
         let mut data_stream = ftp_stream.append_with_stream(path).await.map_err(|e| {
-            other(ObjectError::new(
-                Operation::Write,
-                path,
-                anyhow!("append request: {e:?}"),
-            ))
+            new_other_object_error(Operation::Write, path, anyhow!("append request: {e:?}"))
         })?;
 
         let bytes = copy(r, &mut data_stream).await?;
@@ -372,11 +368,11 @@ impl Accessor for Backend {
             .finalize_put_stream(data_stream)
             .await
             .map_err(|e| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Write,
                     path,
                     anyhow!("finalize put request: {e:?}"),
-                ))
+                )
             })?;
 
         ftp_stream
@@ -417,11 +413,7 @@ impl Accessor for Backend {
         }
 
         let resp = ftp_stream.list(Some(&path)).await.map_err(|e| {
-            other(ObjectError::new(
-                Operation::Stat,
-                &path,
-                anyhow!("list request: {e:?}"),
-            ))
+            new_other_object_error(Operation::Stat, &path, anyhow!("list request: {e:?}"))
         })?;
 
         // Get stat of file.
@@ -498,11 +490,7 @@ impl Accessor for Backend {
 
         let pathname = if path == "/" { None } else { Some(path) };
         let files = ftp_stream.list(pathname).await.map_err(|e| {
-            other(ObjectError::new(
-                Operation::List,
-                path,
-                anyhow!("list request: {e:?}"),
-            ))
+            new_other_object_error(Operation::List, path, anyhow!("list request: {e:?}"))
         })?;
 
         ftp_stream
@@ -532,11 +520,11 @@ impl Backend {
                 .into_secure(TlsConnector::new(), &self.endpoint)
                 .await
                 .map_err(|e| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         op,
                         &self.endpoint,
                         anyhow!("enable secure request: {e:?}"),
-                    ))
+                    )
                 })?
         } else {
             stream
@@ -548,11 +536,7 @@ impl Backend {
                 .login(&self.user, &self.password)
                 .await
                 .map_err(|e| {
-                    other(ObjectError::new(
-                        op,
-                        &self.endpoint,
-                        anyhow!("login request: {e:?}"),
-                    ))
+                    new_other_object_error(op, &self.endpoint, anyhow!("login request: {e:?}"))
                 })?;
         }
 
@@ -563,19 +547,11 @@ impl Backend {
                 if e.status == Status::FileUnavailable {
                     // Make new dir first.
                     ftp_stream.mkdir(&self.root).await.map_err(|e| {
-                        other(ObjectError::new(
-                            op,
-                            &self.endpoint,
-                            anyhow!("mkdir request: {e:?}"),
-                        ))
+                        new_other_object_error(op, &self.endpoint, anyhow!("mkdir request: {e:?}"))
                     })?;
                     // Then change to root path
                     ftp_stream.cwd(&self.root).await.map_err(|e| {
-                        other(ObjectError::new(
-                            op,
-                            &self.endpoint,
-                            anyhow!("cwd request: {e:?}"),
-                        ))
+                        new_other_object_error(op, &self.endpoint, anyhow!("cwd request: {e:?}"))
                     })?;
                 } else {
                     // Other errors, return
@@ -602,11 +578,7 @@ impl Backend {
             .transfer_type(FileType::Binary)
             .await
             .map_err(|e| {
-                other(ObjectError::new(
-                    op,
-                    &self.endpoint,
-                    anyhow!("transfer type request: {e:?}"),
-                ))
+                new_other_object_error(op, &self.endpoint, anyhow!("transfer type request: {e:?}"))
             })?;
 
         Ok(ftp_stream)

@@ -467,7 +467,7 @@ mod tests {
 
         let result = op.object("not_retryable_error").read().await;
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "not_retryable_error");
+        assert!(result.unwrap_err().to_string().contains("not_retryable_error"));
         // The error is not retryable, we should only request it once.
         assert_eq!(*srv.attempt.lock().await, 1);
 

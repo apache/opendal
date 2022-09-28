@@ -17,8 +17,7 @@ use std::io::Error;
 use anyhow::anyhow;
 use suppaftp::FtpError;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::{ObjectError, new_other_object_error};
 use crate::ops::Operation;
 
 /// Parse error response into io::Error.

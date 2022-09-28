@@ -43,9 +43,8 @@ use super::err::new_request_connection_err;
 use super::err::new_request_quit_err;
 use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -129,20 +128,20 @@ impl Builder {
         info!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
             None => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::new(),
                     anyhow!("endpoint must be specified"),
-                )))
+                ))
             }
             Some(v) => v,
         };
 
         let endpoint_uri = match endpoint.parse::<Uri>() {
             Err(e) => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::new(),
                     anyhow!("endpoint must be valid uri: {:?}", e),
-                )));
+                ));
             }
             Ok(uri) => uri,
         };
@@ -159,10 +158,10 @@ impl Builder {
             Some("ftps") | None => true,
 
             Some(s) => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::new(),
                     anyhow!("endpoint scheme unsupported or invalid: {:?}", s),
-                )));
+                ));
             }
         };
 
@@ -173,10 +172,10 @@ impl Builder {
                 debug_assert!(!v.is_empty());
                 let mut v = v.clone();
                 if !v.starts_with('/') {
-                    return Err(other(BackendError::new(
+                    return Err(new_other_backend_error(
                         HashMap::from([("root".to_string(), v.clone())]),
                         anyhow!("root must start with /"),
-                    )));
+                    ));
                 }
                 if !v.ends_with('/') {
                     v.push('/');
@@ -276,11 +275,11 @@ impl Accessor for Backend {
                     }))
                     | Ok(()) => (),
                     Err(e) => {
-                        return Err(other(ObjectError::new(
+                        return Err(new_other_object_error(
                             Operation::Create,
                             path,
                             anyhow!("mkdir request: {e:?}"),
-                        )));
+                        ));
                     }
                 }
             } else {
@@ -331,11 +330,11 @@ impl Accessor for Backend {
                 return Err(Error::new(ErrorKind::NotFound, e));
             }
             Err(e) => {
-                return Err(other(ObjectError::new(
+                return Err(new_other_object_error(
                     Operation::Read,
                     path,
                     anyhow!("retr request: {e:?}"),
-                )));
+                ));
             }
             Ok(_) => (),
         }
@@ -469,11 +468,11 @@ impl Accessor for Backend {
             }))
             | Ok(_) => (),
             Err(e) => {
-                return Err(other(ObjectError::new(
+                return Err(new_other_object_error(
                     Operation::Delete,
                     path,
                     anyhow!("remove request: {e:?}"),
-                )));
+                ));
             }
         }
 
@@ -555,20 +554,20 @@ impl Backend {
                     })?;
                 } else {
                     // Other errors, return
-                    return Err(other(ObjectError::new(
+                    return Err(new_other_object_error(
                         op,
                         &self.endpoint,
                         anyhow!("cwd request: {e:?}"),
-                    )));
+                    ));
                 }
             }
             // Other errors, return.
             Err(e) => {
-                return Err(other(ObjectError::new(
+                return Err(new_other_object_error(
                     op,
                     &self.endpoint,
                     anyhow!("cwd request: {e:?}"),
-                )))
+                ))
             }
             // Do nothing if success.
             Ok(_) => (),

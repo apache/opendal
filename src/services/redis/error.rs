@@ -17,8 +17,7 @@ use std::io::Error;
 use anyhow::anyhow;
 use redis::RedisError;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::ops::Operation;
 
 pub(crate) fn new_async_connection_error(err: RedisError, op: Operation, path: &str) -> Error {

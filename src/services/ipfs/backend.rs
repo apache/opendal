@@ -40,9 +40,8 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
@@ -117,19 +116,19 @@ impl Builder {
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
-            return Err(other(BackendError::new(
+            return Err(new_other_backend_error(
                 HashMap::from([("root".to_string(), root)]),
                 anyhow!("root must start with /ipfs/ or /ipns/"),
-            )));
+            ));
         }
         info!("backend use root {}", root);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(other(BackendError::new(
+            None => Err(new_other_backend_error(
                 HashMap::from([("endpoint".to_string(), "".to_string())]),
                 anyhow!("endpoint is empty"),
-            ))),
+            )),
         }?;
         info!("backend use endpoint {}", &endpoint);
 

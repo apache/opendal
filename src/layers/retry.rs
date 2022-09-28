@@ -397,6 +397,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::io;
     use std::sync::Arc;
     use std::time::Duration;
@@ -406,7 +407,7 @@ mod tests {
     use backon::ConstantBackoff;
     use tokio::sync::Mutex;
 
-    use crate::error::other;
+    use crate::error::new_other_backend_error;
     use crate::layers::RetryLayer;
     use crate::ops::OpRead;
     use crate::Accessor;
@@ -429,7 +430,7 @@ mod tests {
                     io::ErrorKind::Interrupted,
                     anyhow!("retryable_error"),
                 )),
-                _ => Err(other(anyhow!("not_retryable_error"))),
+                _ => Err(new_other_backend_error(HashMap::new(), anyhow!("not_retryable_error"))),
             }
         }
     }

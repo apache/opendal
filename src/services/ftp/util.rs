@@ -26,8 +26,7 @@ use futures::FutureExt;
 use suppaftp::FtpStream;
 use suppaftp::Status;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::ops::Operation;
 use crate::BytesReader;
 

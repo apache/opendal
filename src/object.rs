@@ -30,8 +30,8 @@ use serde::Serialize;
 use time::Duration;
 use time::OffsetDateTime;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
+
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
@@ -353,11 +353,11 @@ impl Object {
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let s = self
@@ -404,11 +404,11 @@ impl Object {
     /// ```
     pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let mut s = self.acc.blocking_read(
@@ -494,11 +494,11 @@ impl Object {
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         self.acc.read(self.path(), OpRead::new(range)).await
@@ -527,11 +527,11 @@ impl Object {
         range: impl RangeBounds<u64>,
     ) -> Result<impl BlockingBytesRead> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         self.acc.blocking_read(self.path(), OpRead::new(range))
@@ -734,11 +734,11 @@ impl Object {
     /// ```
     pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let bs = bs.into();
@@ -774,11 +774,11 @@ impl Object {
     /// ```
     pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let bs = bs.into();
@@ -817,11 +817,11 @@ impl Object {
     /// ```
     pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let _ = self
@@ -864,11 +864,11 @@ impl Object {
         br: impl BlockingBytesRead + 'static,
     ) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let _ = self
@@ -964,11 +964,11 @@ impl Object {
     /// ```
     pub async fn list(&self) -> Result<DirStreamer> {
         if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::List,
                 self.path(),
                 anyhow!("Not a directory"),
-            )));
+            ));
         }
 
         self.acc.list(self.path(), OpList::new()).await
@@ -1011,11 +1011,11 @@ impl Object {
     /// ```
     pub fn blocking_list(&self) -> Result<DirIterator> {
         if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::List,
                 self.path(),
                 anyhow!("Not a directory"),
-            )));
+            ));
         }
 
         self.acc.blocking_list(self.path(), OpList::new())

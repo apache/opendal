@@ -26,9 +26,9 @@ use log::info;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
+
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
@@ -101,10 +101,10 @@ impl Builder {
 
         let endpoint = match &self.endpoint {
             None => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::new(),
                     anyhow!("endpoint must be specified"),
-                )))
+                ))
             }
             Some(v) => v,
         };
@@ -202,25 +202,25 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_content_md5(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_md5(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_last_modified(v);
                 }

@@ -32,7 +32,8 @@ use futures::AsyncWrite;
 use parking_lot::Mutex;
 
 use crate::accessor::AccessorCapability;
-use crate::error::other;
+use crate::error::new_other_object_error;
+
 use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -114,22 +115,22 @@ impl Accessor for Backend {
         let mut data = data.clone();
         if let Some(offset) = args.offset() {
             if offset >= data.len() as u64 {
-                return Err(other(ObjectError::new(
+                return Err(new_other_object_error(
                     Operation::Read,
                     path,
                     anyhow!("offset out of bound {} >= {}", offset, data.len()),
-                )));
+                ));
             }
             data = data.slice(offset as usize..data.len());
         };
 
         if let Some(size) = args.size() {
             if size > data.len() as u64 {
-                return Err(other(ObjectError::new(
+                return Err(new_other_object_error(
                     Operation::Read,
                     path,
                     anyhow!("size out of bound {} > {}", size, data.len()),
-                )));
+                ));
             }
             data = data.slice(0..size as usize);
         };
@@ -141,11 +142,11 @@ impl Accessor for Backend {
         let mut buf = Vec::with_capacity(args.size() as usize);
         let n = futures::io::copy(r, &mut buf).await?;
         if n != args.size() {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 path,
                 anyhow!("write short, expect {} actual {}", args.size(), n),
-            )));
+            ));
         }
         let mut map = self.inner.lock();
         map.insert(path.to_string(), Bytes::from(buf));
@@ -260,7 +261,7 @@ impl AsyncWrite for MapWriter {
 
     fn poll_close(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         if self.buf.len() != self.size as usize {
-            return Poll::Ready(Err(other(ObjectError::new(
+            return Poll::Ready(Err(new_other_object_error(
                 Operation::Write,
                 &self.path,
                 anyhow!(
@@ -268,7 +269,7 @@ impl AsyncWrite for MapWriter {
                     self.size,
                     self.buf.len()
                 ),
-            ))));
+            )));
         }
 
         let buf = mem::take(&mut self.buf);

@@ -43,9 +43,9 @@ use serde::Serialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
+
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -478,18 +478,15 @@ impl Builder {
 
         let req = http::Request::head(&url).body(Body::Empty).map_err(|e| {
             error!("backend detect_region {}: {:?}", url, e);
-            other(BackendError::new(
-                context.clone(),
-                anyhow!("build request {}: {:?}", url, e),
-            ))
+            new_other_backend_error(context.clone(), anyhow!("build request {}: {:?}", url, e))
         })?;
 
         let res = client.send(req).map_err(|e| {
             error!("backend detect_region: {}: {:?}", url, e);
-            other(BackendError::new(
+            new_other_backend_error(
                 context.clone(),
                 anyhow!("sending request: {}: {:?}", url, e),
-            ))
+            )
         })?;
 
         debug!(
@@ -506,7 +503,7 @@ impl Builder {
                     .get("x-amz-bucket-region")
                     .unwrap_or(&HeaderValue::from_static("us-east-1"))
                     .to_str()
-                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
+                    .map_err(|e| new_other_backend_error(context.clone(), e))?
                     .to_string();
                 Ok((endpoint, region))
             }
@@ -516,21 +513,21 @@ impl Builder {
                     .headers()
                     .get("x-amz-bucket-region")
                     .ok_or_else(|| {
-                        other(BackendError::new(
+                        new_other_backend_error(
                             context.clone(),
                             anyhow!("can't detect region automatically, region is empty"),
-                        ))
+                        )
                     })?
                     .to_str()
-                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
+                    .map_err(|e| new_other_backend_error(context.clone(), e))?
                     .to_string();
                 let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "can't detect region automatically, no valid endpoint template for {endpoint}",
                         ),
-                    ))
+                    )
                 })?;
 
                 let endpoint = template.replace("{region}", &region);
@@ -538,12 +535,12 @@ impl Builder {
                 Ok((endpoint, region))
             }
             // Unexpected status code
-            code => Err(other(BackendError::new(
+            code => Err(new_other_backend_error(
                 context.clone(),
                 anyhow!(
                     "can't detect region automatically, unexpected response: status code {code}",
                 ),
-            ))),
+            )),
         }
     }
 
@@ -557,10 +554,10 @@ impl Builder {
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(other(BackendError::new(
+            true => Err(new_other_backend_error(
                 HashMap::from([("bucket".to_string(), "".to_string())]),
                 anyhow!("bucket is empty"),
-            ))),
+            )),
         }?;
         debug!("backend use bucket {}", &bucket);
 
@@ -571,10 +568,10 @@ impl Builder {
         let server_side_encryption = match &self.server_side_encryption {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
-                other(BackendError::new(
+                new_other_backend_error(
                     context.clone(),
                     anyhow!("server_side_encryption value {} invalid: {}", v, e),
-                ))
+                )
             })?),
         };
 
@@ -582,14 +579,14 @@ impl Builder {
             match &self.server_side_encryption_aws_kms_key_id {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "server_side_encryption_aws_kms_key_id value {} invalid: {}",
                             v,
                             e
                         ),
-                    ))
+                    )
                 })?),
             };
 
@@ -597,42 +594,42 @@ impl Builder {
             match &self.server_side_encryption_customer_algorithm {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "server_side_encryption_customer_algorithm value {} invalid: {}",
                             v,
                             e
                         ),
-                    ))
+                    )
                 })?),
             };
 
         let server_side_encryption_customer_key = match &self.server_side_encryption_customer_key {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
-                other(BackendError::new(
+                new_other_backend_error(
                     context.clone(),
                     anyhow!(
                         "server_side_encryption_customer_key value {} invalid: {}",
                         v,
                         e
                     ),
-                ))
+                )
             })?),
         };
         let server_side_encryption_customer_key_md5 =
             match &self.server_side_encryption_customer_key_md5 {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "server_side_encryption_customer_key_md5 value {} invalid: {}",
                             v,
                             e
                         ),
-                    ))
+                    )
                 })?),
             };
 
@@ -672,7 +669,7 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .map_err(|e| other(BackendError::new(context, e)))?;
+            .map_err(|e| new_other_backend_error(context, e))?;
 
         info!("backend build finished: {:?}", &self);
         Ok(Backend {
@@ -919,20 +916,20 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
                     m.set_content_md5(v.trim_matches('"'));
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_last_modified(v);
                 }
@@ -1024,11 +1021,11 @@ impl Accessor for Backend {
 
                 let result: InitiateMultipartUploadResult = quick_xml::de::from_reader(bs.reader())
                     .map_err(|err| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::CreateMultipart,
                             path,
                             anyhow!("parse xml: {err:?}"),
-                        ))
+                        )
                     })?;
 
                 Ok(result.upload_id)
@@ -1070,13 +1067,13 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::WriteMultipart, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::WriteMultipart, path, e))?
                     .ok_or_else(|| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::WriteMultipart,
                             path,
                             anyhow!("ETag not present in returning response"),
-                        ))
+                        )
                     })?
                     .to_string();
 
@@ -1394,11 +1391,11 @@ impl Backend {
                 .collect(),
         })
         .map_err(|err| {
-            other(ObjectError::new(
+            new_other_object_error(
                 Operation::CompleteMultipart,
                 path,
                 anyhow!("build xml: {err:?}"),
-            ))
+            )
         })?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());

@@ -30,8 +30,8 @@ use time::OffsetDateTime;
 
 use super::error::parse_error;
 use super::Backend;
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
+
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
@@ -93,7 +93,7 @@ impl futures::Stream for DirStream {
                         .into_body()
                         .bytes()
                         .await
-                        .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;
+                        .map_err(|e| new_other_object_error(Operation::List, &path, e))?;
 
                     Ok(bs)
                 };
@@ -104,11 +104,11 @@ impl futures::Stream for DirStream {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
 
                 let output: Output = de::from_reader(bs.reader()).map_err(|e| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::List,
                         &self.path,
                         anyhow!("deserialize xml: {e:?}"),
-                    ))
+                    )
                 })?;
 
                 // Try our best to check whether this list is done.
@@ -159,11 +159,11 @@ impl futures::Stream for DirStream {
                     let dt =
                         OffsetDateTime::parse(object.properties.last_modified.as_str(), &Rfc2822)
                             .map_err(|e| {
-                            other(ObjectError::new(
+                            new_other_object_error(
                                 Operation::List,
                                 &self.path,
                                 anyhow!("parse last modified RFC2822 datetime: {e:?}"),
-                            ))
+                            )
                         })?;
                     de.set_last_modified(dt);
 

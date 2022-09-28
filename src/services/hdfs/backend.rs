@@ -32,9 +32,8 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::dir::EmptyDirStreamer;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -94,10 +93,10 @@ impl Builder {
 
         let name_node = match &self.name_node {
             None => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::new(),
                     anyhow!("endpoint must be specified"),
-                )))
+                ))
             }
             Some(v) => v,
         };
@@ -106,13 +105,13 @@ impl Builder {
         info!("backend use root {}", root);
 
         let client = hdrs::Client::connect(name_node).map_err(|e| {
-            other(BackendError::new(
+            new_other_backend_error(
                 HashMap::from([
                     ("root".to_string(), root.clone()),
                     ("endpoint".to_string(), name_node.clone()),
                 ]),
                 anyhow!("connect hdfs name node: {}", e),
-            ))
+            )
         })?;
 
         // Create root dir if not exist.
@@ -121,13 +120,13 @@ impl Builder {
                 debug!("root {} is not exist, creating now", root);
 
                 client.create_dir(&root).map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         HashMap::from([
                             ("root".to_string(), root.clone()),
                             ("endpoint".to_string(), name_node.clone()),
                         ]),
                         anyhow!("create root dir: {}", e),
-                    ))
+                    )
                 })?
             }
         }
@@ -189,11 +188,11 @@ impl Accessor for Backend {
                 let parent = PathBuf::from(&p)
                     .parent()
                     .ok_or_else(|| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::Create,
                             path,
                             anyhow!("malformed path: {:?}", path),
-                        ))
+                        )
                     })?
                     .to_path_buf();
 
@@ -246,11 +245,11 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Write,
                     path,
                     anyhow!("malformed path: {:?}", path),
-                ))
+                )
             })?
             .to_path_buf();
 

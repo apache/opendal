@@ -23,8 +23,8 @@ use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
-use crate::error::other;
-use crate::error::BackendError;
+use crate::error::new_other_backend_error;
+
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::services;
@@ -142,10 +142,10 @@ impl Operator {
             Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
             Scheme::Obs => services::obs::Backend::from_iter(it)?.into(),
             Scheme::Custom(v) => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::default(),
                     anyhow!("custom service {v} is not supported"),
-                )))
+                ))
             }
         };
 

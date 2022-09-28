@@ -31,9 +31,9 @@ use reqsign::services::huaweicloud::obs::Signer;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
+
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -156,24 +156,24 @@ impl Builder {
 
         let bucket = match &self.bucket {
             Some(bucket) => Ok(bucket.to_string()),
-            None => Err(other(BackendError::new(
+            None => Err(new_other_backend_error(
                 HashMap::from([("bucket".to_string(), "".to_string())]),
                 anyhow!("bucket is empty"),
-            ))),
+            )),
         }?;
         debug!("backend use bucket {}", &bucket);
 
         let uri = match &self.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|_| {
-                other(BackendError::new(
+                new_other_backend_error(
                     HashMap::from([("endpoint".to_string(), "".to_string())]),
                     anyhow!("endpoint is invalid"),
-                ))
+                )
             }),
-            None => Err(other(BackendError::new(
+            None => Err(new_other_backend_error(
                 HashMap::from([("endpoint".to_string(), "".to_string())]),
                 anyhow!("endpoint is empty"),
-            ))),
+            )),
         }?;
 
         let scheme = match uri.scheme_str() {
@@ -223,7 +223,7 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .map_err(|e| other(BackendError::new(context, e)))?;
+            .map_err(|e| new_other_backend_error(context, e))?;
 
         info!("backend build finished: {:?}", &self);
         Ok(Backend {
@@ -377,20 +377,20 @@ impl Accessor for Backend {
                 let mut m = ObjectMetadata::default();
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
                     m.set_content_md5(v.trim_matches('"'));
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_last_modified(v);
                 }

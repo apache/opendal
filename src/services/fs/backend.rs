@@ -34,8 +34,9 @@ use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::dir::EmptyDirIterator;
 use crate::dir::EmptyDirStreamer;
-use crate::error::other;
-use crate::error::ObjectError;
+
+use crate::error::new_other_object_error;
+
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -84,8 +85,12 @@ impl Builder {
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
             if e.kind() == ErrorKind::NotFound {
-                std::fs::create_dir_all(&root)
-                    .map_err(|e| other(anyhow!("create dir in {} error {:?}", &root, e)))?;
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        anyhow!("create dir in {} error {:?}", &root, e),
+                    )
+                })?;
             }
         }
 
@@ -171,11 +176,11 @@ impl Accessor for Backend {
             let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::Create,
                         path,
                         anyhow!("malformed path: {:?}", path),
-                    ))
+                    )
                 })?
                 .to_path_buf();
 
@@ -212,11 +217,11 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_io_error(e, Operation::Read, path))?;
         if meta.is_dir() {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 path,
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let f = fs::OpenOptions::new()
@@ -253,11 +258,11 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Write,
                     path,
                     anyhow!("malformed path: {:?}", path),
-                ))
+                )
             })?
             .to_path_buf();
 
@@ -358,11 +363,11 @@ impl Accessor for Backend {
             let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::BlockingCreate,
                         path,
                         anyhow!("malformed path: {:?}", path),
-                    ))
+                    )
                 })?
                 .to_path_buf();
 
@@ -398,11 +403,11 @@ impl Accessor for Backend {
         let meta = Self::blocking_fs_metadata(&p)
             .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
         if meta.is_dir() {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::BlockingRead,
                 path,
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let mut f = std::fs::OpenOptions::new()
@@ -435,11 +440,11 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::BlockingWrite,
                     path,
                     anyhow!("malformed path: {:?}", path),
-                ))
+                )
             })?
             .to_path_buf();
 

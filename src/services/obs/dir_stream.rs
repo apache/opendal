@@ -26,8 +26,8 @@ use futures::Future;
 use quick_xml::de;
 use serde::Deserialize;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
+
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
@@ -89,7 +89,7 @@ impl futures::Stream for DirStream {
                         .into_body()
                         .bytes()
                         .await
-                        .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;
+                        .map_err(|e| new_other_object_error(Operation::List, &path, e))?;
 
                     Ok(bs)
                 };
@@ -99,7 +99,7 @@ impl futures::Stream for DirStream {
             State::Sending(fut) => {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
                 let output: Output = de::from_reader(bs.reader())
-                    .map_err(|e| other(ObjectError::new(Operation::List, &self.path, e)))?;
+                    .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
 
                 // Try our best to check whether this list is done.
                 //

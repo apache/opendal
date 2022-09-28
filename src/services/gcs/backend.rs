@@ -37,9 +37,8 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::uri::percent_encode_path;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -128,10 +127,10 @@ impl Builder {
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(other(BackendError::new(
+            true => Err(new_other_backend_error(
                 HashMap::from([("bucket".to_string(), "".to_string())]),
                 anyhow!("bucket name is empty"),
-            ))),
+            )),
         }?;
 
         // setup error context
@@ -158,7 +157,7 @@ impl Builder {
         }
         let signer = signer_builder
             .build()
-            .map_err(|e| other(BackendError::new(ctx, e)))?;
+            .map_err(|e| new_other_backend_error(ctx, e))?;
         let signer = Arc::new(signer);
 
         let backend = Backend {
@@ -323,38 +322,30 @@ impl Accessor for Backend {
             let mut m = ObjectMetadata::default();
             // read http response body
             let slc = resp.into_body().bytes().await.map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Stat,
-                    path,
-                    anyhow!("read response body: {e:?}"),
-                ))
+                new_other_object_error(Operation::Stat, path, anyhow!("read response body: {e:?}"))
             })?;
             let meta: GetObjectJsonResponse = serde_json::from_slice(&slc).map_err(|e| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Stat,
                     path,
                     anyhow!("parse response body into JSON: {e:?}"),
-                ))
+                )
             })?;
 
             m.set_etag(&meta.etag);
             m.set_content_md5(&meta.md5_hash);
 
             let size = meta.size.parse::<u64>().map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Stat,
-                    path,
-                    anyhow!("parse object size: {e:?}"),
-                ))
+                new_other_object_error(Operation::Stat, path, anyhow!("parse object size: {e:?}"))
             })?;
             m.set_content_length(size);
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Stat,
                     path,
                     anyhow!("parse object updated: {e:?}"),
-                ))
+                )
             })?;
             m.set_last_modified(datetime);
 

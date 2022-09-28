@@ -29,8 +29,8 @@ use super::builder::Builder;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
+
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_response_consume_error;
@@ -195,11 +195,11 @@ impl Accessor for Backend {
                     .map_err(|err| new_response_consume_error(Operation::Stat, path, err))?;
 
                 let res: IpfsStatResponse = serde_json::from_slice(&bs).map_err(|err| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::Stat,
                         path,
                         anyhow!("deserialize json: {err:?}"),
-                    ))
+                    )
                 })?;
 
                 let mut meta = ObjectMetadata::default();

@@ -57,6 +57,9 @@ use crate::ObjectMetadata;
 /// - Other nodes have operations on underlying storage directly.
 /// - Concurrent read/write/delete on the same path.
 ///
+/// To make sure metadata cache consistent across the cluster, please make sure
+/// all nodes in the cluster use the same cache services like redis or tikv.
+///
 /// # Examples
 ///
 /// ```

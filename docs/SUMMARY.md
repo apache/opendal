@@ -25,7 +25,7 @@
   - [Read compressed files](examples/decompress-read.md)
   - [Generate presigned URL](examples/presign.md)
   - [Enable Server Side Encrypt](examples/server-side-encryption.md)
-- [Compares](comparisons/README.md)
+- [Comparisons](comparisons/README.md)
   - [vs object_store](comparisons/object_store.md)
 - [Upgrade](upgrade.md)
 

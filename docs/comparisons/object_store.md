@@ -112,19 +112,20 @@ opendal supports:
 
 `opendal` and `object_store` have different visions, so they have other services support:
 
-| service | opendal         | object_store                                                                                                |
-|---------|-----------------|-------------------------------------------------------------------------------------------------------------|
-| azblob  | Y               | Y                                                                                                           |
-| fs      | Y               | Y                                                                                                           |
-| ftp     | Y               | N                                                                                                           |
-| gcs     | Y               | Y                                                                                                           |
-| hdfs    | Y               | Y *(via [datafusion-objectstore-hdfs](https://github.com/datafusion-contrib/datafusion-objectstore-hdfs/))* |
-| http    | Y *(read only)* | N                                                                                                           |
-| ipfs    | Y *(read only)* | N                                                                                                           |
-| ipmfs   | Y               | N                                                                                                           |
-| memory  | Y               | Y                                                                                                           |
-| obs     | Y               | N                                                                                                           |
-| s3      | Y               | Y                                                                                                           |
+| service | opendal         | object_store                            |
+|---------|-----------------|-----------------------------------------|
+| azblob  | Y               | Y                                       |
+| fs      | Y               | Y                                       |
+| ftp     | Y               | N                                       |
+| gcs     | Y               | Y                                       |
+| hdfs    | Y               | Y *(via [datafusion-objectstore-hdfs])* |
+| http    | Y *(read only)* | N                                       |
+| ipfs    | Y *(read only)* | N                                       |
+| ipmfs   | Y               | N                                       |
+| memory  | Y               | Y                                       |
+| obs     | Y               | N                                       |
+| s3      | Y               | Y                                       |
+
 opendal has an idea called [`AccessorCapability`](https://opendal.databend.rs/rfcs/0409-accessor-capabilities.html), so it's services may have different capability sets. For example, opendal's `http` and `ipfs` are read only.
 
 ### Features
@@ -179,3 +180,5 @@ let store = Arc::new(builder.build()?);
 let path: Path = "data.parquet".try_into().unwrap();
 let stream = store.get(&path).await()?.into_stream();
 ```
+
+[datafusion-objectstore-hdfs]: https://github.com/datafusion-contrib/datafusion-objectstore-hdfs/

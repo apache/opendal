@@ -29,7 +29,7 @@ layers-retry = ["backon"]
 # Enable layers tracing support.
 layers-tracing = ["tracing"]
 # Enable layers metadata cache.
-layers-metadata-cache = ["bincode"]
+layers-metadata-cache = ["bincode", "serde"]
 
 # Enable services hdfs support
 services-hdfs = ["hdrs"]

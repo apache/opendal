@@ -24,7 +24,6 @@ use futures::TryStreamExt;
 use log::debug;
 
 use crate::error::new_other_backend_error;
-
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::services;

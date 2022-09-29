@@ -65,13 +65,15 @@ use crate::ObjectMetadata;
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::MetadataCacheLayer;
+/// use opendal::services::memory;
 /// use opendal::Operator;
 /// use opendal::Scheme;
-/// use opendal::services::memory;
 ///
 /// let _ = Operator::from_env(Scheme::Fs)
 ///     .expect("must init")
-///     .layer(MetadataCacheLayer::new(memory::Builder::default().build().expect("must init")));
+///     .layer(MetadataCacheLayer::new(
+///         memory::Builder::default().build().expect("must init"),
+///     ));
 /// ```
 #[derive(Debug, Clone)]
 pub struct MetadataCacheLayer {

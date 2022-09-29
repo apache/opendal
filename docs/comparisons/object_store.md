@@ -142,7 +142,7 @@ opendal has an idea called [`AccessorCapability`](https://opendal.databend.rs/rf
 | write     | put                  | -                                            |
 | stat      | head                 | -                                            |
 | delete    | delete               | -                                            |
-| -         | -                    | -                                            |
+| -         | list                 | opendal doesn't support list with prefix     |
 | list      | list_with_delimiter  | -                                            |
 | -         | copy                 | -                                            |
 | -         | copy_if_not_exists   | -                                            |
@@ -150,7 +150,7 @@ opendal has an idea called [`AccessorCapability`](https://opendal.databend.rs/rf
 | -         | rename_if_not_exists | -                                            |
 | presign   | -                    | get a presign URL of object                  |
 | multipart | multipart            | both support, but API is different           |
-| blocking  | -                    | -                                            |
+| blocking  | -                    | opendal supports blocking API                |
 
 ## Demo show
 

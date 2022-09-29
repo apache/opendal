@@ -113,7 +113,7 @@ redis = { version = "0.21", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.4"
+reqsign = "0.5"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",

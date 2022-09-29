@@ -27,7 +27,6 @@ use quick_xml::de;
 use serde::Deserialize;
 
 use crate::error::new_other_object_error;
-
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;

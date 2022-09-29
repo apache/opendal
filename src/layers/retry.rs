@@ -397,7 +397,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use std::io;
     use std::sync::Arc;
     use std::time::Duration;

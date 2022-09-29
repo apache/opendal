@@ -21,13 +21,15 @@ compress = ["async-compression"]
 serde = ["time/serde"]
 
 # Enable all layers.
-layers-all = ["layers-metrics", "layers-retry", "layers-tracing"]
+layers-all = ["layers-metrics", "layers-retry", "layers-tracing", "layers-metadata-cache"]
 # Enable layers metrics support
 layers-metrics = ["metrics"]
 # Enable layers retry support.
 layers-retry = ["backon"]
 # Enable layers tracing support.
 layers-tracing = ["tracing"]
+# Enable layers metadata cache.
+layers-metadata-cache = ["bincode", "serde"]
 
 # Enable services hdfs support
 services-hdfs = ["hdrs"]

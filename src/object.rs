@@ -31,7 +31,6 @@ use time::Duration;
 use time::OffsetDateTime;
 
 use crate::error::new_other_object_error;
-
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]

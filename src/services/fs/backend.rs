@@ -34,9 +34,7 @@ use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::dir::EmptyDirIterator;
 use crate::dir::EmptyDirStreamer;
-
 use crate::error::new_other_object_error;
-
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;

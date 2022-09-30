@@ -131,7 +131,8 @@ impl futures::Stream for DirStream {
                             backend,
                             &build_rel_path(&root, prefix),
                             ObjectMetadata::new(ObjectMode::DIR),
-                        );
+                        )
+                        .with_complete();
 
                         return Poll::Ready(Some(Ok(de)));
                     }
@@ -167,7 +168,8 @@ impl futures::Stream for DirStream {
                             })?,
                         );
 
-                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.name), meta);
+                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.name), meta)
+                        .with_complete();
 
                     return Poll::Ready(Some(Ok(de)));
                 }

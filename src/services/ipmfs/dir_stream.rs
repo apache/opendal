@@ -130,7 +130,8 @@ impl futures::Stream for DirStream {
                         backend,
                         &path,
                         ObjectMetadata::new(object.mode()).with_content_length(object.size),
-                    );
+                    )
+                    .with_complete();
                     return Poll::Ready(Some(Ok(de)));
                 }
 

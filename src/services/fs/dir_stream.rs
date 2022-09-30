@@ -67,6 +67,7 @@ impl futures::Stream for DirStream {
                         &path,
                         ObjectMetadata::new(ObjectMode::FILE),
                     )
+                    .with_complete()
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
                     ObjectEntry::new(

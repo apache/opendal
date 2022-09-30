@@ -24,6 +24,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use suppaftp::list::File;
+use time::OffsetDateTime;
 
 use super::err::parse_io_error;
 use super::Backend;
@@ -89,7 +90,9 @@ impl futures::Stream for DirStream {
                     ObjectEntry::new(
                         self.backend.clone(),
                         &path,
-                        ObjectMetadata::new(ObjectMode::FILE),
+                        ObjectMetadata::new(ObjectMode::FILE)
+                            .with_content_length(de.size() as u64)
+                            .with_last_modified(OffsetDateTime::from(de.modified())),
                     )
                 } else if de.is_directory() {
                     ObjectEntry::new(
@@ -97,6 +100,7 @@ impl futures::Stream for DirStream {
                         &format!("{}/", &path),
                         ObjectMetadata::new(ObjectMode::DIR),
                     )
+                    .with_complete()
                 } else {
                     ObjectEntry::new(
                         self.backend.clone(),

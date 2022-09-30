@@ -299,6 +299,7 @@ impl futures::Stream for DirStream {
                 path,
                 ObjectMetadata::new(ObjectMode::DIR),
             )
+            .with_complete()
         } else {
             ObjectEntry::new(
                 self.backend.clone(),

@@ -174,7 +174,8 @@ impl futures::Stream for DirStream {
                         })?;
                     meta.set_last_modified(dt);
 
-                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.key), meta);
+                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.key), meta)
+                        .with_complete();
 
                     return Poll::Ready(Some(Ok(de)));
                 }

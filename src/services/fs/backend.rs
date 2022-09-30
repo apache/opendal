@@ -550,6 +550,7 @@ impl Accessor for Backend {
                         &format!("{}/", &path),
                         ObjectMetadata::new(ObjectMode::DIR),
                     )
+                    .with_complete()
                 } else {
                     ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::Unknown))
                 };

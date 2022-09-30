@@ -41,10 +41,10 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectStreamer;
 
 /// RetryLayer will add retry for OpenDAL.
 ///
@@ -169,7 +169,7 @@ where
             })
             .await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
@@ -363,7 +363,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         let retry = self.backoff.clone();
 
         let mut e = None;

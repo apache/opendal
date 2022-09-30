@@ -57,11 +57,11 @@
 //! use anyhow::Result;
 //! use futures::StreamExt;
 //! use futures::TryStreamExt;
-//! use opendal::DirEntry;
-//! use opendal::DirStreamer;
 //! use opendal::Object;
+//! use opendal::ObjectEntry;
 //! use opendal::ObjectMetadata;
 //! use opendal::ObjectMode;
+//! use opendal::ObjectStreamer;
 //! use opendal::Operator;
 //! use opendal::Scheme;
 //!
@@ -136,15 +136,23 @@ pub use operator::Operator;
 
 mod object;
 pub use object::Object;
+pub use object::ObjectEntry;
+#[deprecated(since = "0.18.0", note = "Please use ObjectEntry instead")]
+pub use object::ObjectEntry as DirEntry;
+pub use object::ObjectIterate;
+#[deprecated(since = "0.18.0", note = "Please use ObjectIterate instead")]
+pub use object::ObjectIterate as DirIterate;
+pub use object::ObjectIterator;
+#[deprecated(since = "0.18.0", note = "Please use ObjectIterator instead")]
+pub use object::ObjectIterator as DirIterator;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
-
-mod dir;
-pub use dir::DirEntry;
-pub use dir::DirIterate;
-pub use dir::DirIterator;
-pub use dir::DirStream;
-pub use dir::DirStreamer;
+pub use object::ObjectStream;
+#[deprecated(since = "0.18.0", note = "Please use ObjectStream instead")]
+pub use object::ObjectStream as DirStream;
+pub use object::ObjectStreamer;
+#[deprecated(since = "0.18.0", note = "Please use ObjectStreamer instead")]
+pub use object::ObjectStreamer as DirStreamer;
 
 mod multipart;
 pub use multipart::ObjectMultipart;
@@ -182,7 +190,7 @@ mod tests {
         assert_eq!(80, size_of::<AccessorMetadata>());
         assert_eq!(16, size_of::<Operator>());
         assert_eq!(16, size_of::<BatchOperator>());
-        assert_eq!(128, size_of::<DirEntry>());
+        assert_eq!(128, size_of::<ObjectEntry>());
         assert_eq!(40, size_of::<Object>());
         assert_eq!(80, size_of::<ObjectMetadata>());
         assert_eq!(1, size_of::<ObjectMode>());

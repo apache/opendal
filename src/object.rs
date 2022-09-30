@@ -18,7 +18,10 @@ use std::fmt::Formatter;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::RangeBounds;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
 
 use anyhow::anyhow;
 use futures::io;
@@ -55,8 +58,6 @@ use crate::path::normalize_path;
 use crate::path::validate_path;
 use crate::Accessor;
 use crate::BlockingBytesRead;
-use crate::DirIterator;
-use crate::DirStreamer;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -961,7 +962,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<DirStreamer> {
+    pub async fn list(&self) -> Result<ObjectStreamer> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(new_other_object_error(
                 Operation::List,
@@ -1008,7 +1009,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_list(&self) -> Result<DirIterator> {
+    pub fn blocking_list(&self) -> Result<ObjectIterator> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(new_other_object_error(
                 Operation::List,
@@ -1349,5 +1350,215 @@ impl Display for ObjectMode {
             ObjectMode::DIR => write!(f, "dir"),
             ObjectMode::Unknown => write!(f, "unknown"),
         }
+    }
+}
+
+/// DirStream represents a stream of Dir.
+pub trait ObjectStream: futures::Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
+impl<T> ObjectStream for T where T: futures::Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
+
+/// ObjectStreamer is a boxed dyn [`ObjectStream`]
+pub type ObjectStreamer = Box<dyn ObjectStream>;
+
+/// ObjectIterate represents an iterator of Dir.
+pub trait ObjectIterate: Iterator<Item = Result<ObjectEntry>> {}
+impl<T> ObjectIterate for T where T: Iterator<Item = Result<ObjectEntry>> {}
+
+/// ObjectIterator is a boxed dyn [`ObjectIterate`]
+pub type ObjectIterator = Box<dyn ObjectIterate>;
+
+/// DirEntry is returned by [`DirStream`] during object list.
+///
+/// DirEntry carries two information: path and mode. Users can check returning dir
+/// entry's mode or convert into an object without overhead.
+#[derive(Clone, Debug)]
+pub struct ObjectEntry {
+    acc: Arc<dyn Accessor>,
+
+    mode: ObjectMode,
+    path: String,
+
+    // metadata fields
+    etag: Option<String>,
+    content_length: Option<u64>,
+    content_md5: Option<String>,
+    last_modified: Option<OffsetDateTime>,
+}
+
+impl ObjectEntry {
+    /// Create a new dir entry by its corresponding underlying storage.
+    pub fn new(acc: Arc<dyn Accessor>, mode: ObjectMode, path: &str) -> ObjectEntry {
+        debug_assert!(
+            mode.is_dir() == path.ends_with('/'),
+            "mode {:?} not match with path {}",
+            mode,
+            path
+        );
+
+        ObjectEntry {
+            acc,
+            mode,
+            path: path.to_string(),
+            // all set to None
+            etag: None,
+            content_length: None,
+            content_md5: None,
+            last_modified: None,
+        }
+    }
+
+    /// Set accessor for this entry.
+    pub fn set_accessor(&mut self, acc: Arc<dyn Accessor>) {
+        self.acc = acc;
+    }
+
+    /// Convert [`DirEntry`] into [`Object`].
+    ///
+    /// This function is the same with already implemented `From` trait.
+    /// This function will make our users happier to avoid writing
+    /// generic type parameter
+    pub fn into_object(self) -> Object {
+        self.into()
+    }
+
+    /// Return this dir entry's object mode.
+    pub fn mode(&self) -> ObjectMode {
+        self.mode
+    }
+
+    /// Return this dir entry's id.
+    ///
+    /// The same with [`Object::id()`]
+    pub fn id(&self) -> String {
+        format!("{}{}", self.acc.metadata().root(), self.path)
+    }
+
+    /// Return this dir entry's path.
+    ///
+    /// The same with [`Object::path()`]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// Set path for this entry.
+    pub fn set_path(&mut self, path: &str) {
+        debug_assert!(
+            self.mode.is_dir() == path.ends_with('/'),
+            "mode {:?} not match with path {}",
+            self.mode,
+            path
+        );
+
+        self.path = path.to_string();
+    }
+
+    /// Return this dir entry's name.
+    ///
+    /// The same with [`Object::name()`]
+    pub fn name(&self) -> &str {
+        get_basename(&self.path)
+    }
+
+    /// The ETag string of `DirEntry`'s corresponding object
+    ///
+    /// `etag` is a prefetched metadata field in `DirEntry`.
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
+    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    pub fn etag(&self) -> Option<&str> {
+        self.etag.as_deref()
+    }
+
+    /// Set the ETag of `DirEntry`'s corresponding object
+    pub fn set_etag(&mut self, etag: &str) {
+        self.etag = Some(etag.to_string())
+    }
+
+    /// The size of `DirEntry`'s corresponding object
+    ///
+    /// `content_length` is a prefetched metadata field in `DirEntry`.
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `content_length` is `None`.
+    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    pub fn content_length(&self) -> Option<u64> {
+        self.content_length
+    }
+
+    /// Set the content length of `DirEntry`'s corresponding object
+    pub fn set_content_length(&mut self, content_length: u64) {
+        self.content_length = Some(content_length)
+    }
+
+    /// The MD5 message digest of `DirEntry`'s corresponding object
+    ///
+    /// `content_md5` is a prefetched metadata field in `DirEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
+    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    pub fn content_md5(&self) -> Option<&str> {
+        self.content_md5.as_deref()
+    }
+
+    /// Set the content's md5 of `DirEntry`'s corresponding object
+    pub fn set_content_md5(&mut self, content_md5: &str) {
+        self.content_md5 = Some(content_md5.to_string())
+    }
+
+    /// The last modified UTC datetime of `DirEntry`'s corresponding object
+    ///
+    /// `last_modified` is a prefetched metadata field in `DirEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
+    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    pub fn last_modified(&self) -> Option<OffsetDateTime> {
+        self.last_modified
+    }
+
+    /// Set the last modified time of `DirEntry`'s corresponding object
+    pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) {
+        self.last_modified = Some(last_modified)
+    }
+
+    /// Fetch metadata about this dir entry.
+    ///
+    /// The same with [`Object::metadata()`]
+    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+        self.acc.stat(self.path(), OpStat::new()).await
+    }
+
+    /// Fetch metadata about this dir entry.
+    ///
+    /// The same with [`Object::blocking_metadata()`]
+    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+        self.acc.blocking_stat(self.path(), OpStat::new())
+    }
+}
+
+/// ObjectEntry can convert into object without overhead.
+impl From<ObjectEntry> for Object {
+    fn from(d: ObjectEntry) -> Self {
+        Object::new(d.acc, &d.path)
+    }
+}
+
+/// EmptyObjectStreamer that always return None.
+pub(crate) struct EmptyObjectStreamer;
+
+impl futures::Stream for EmptyObjectStreamer {
+    type Item = Result<ObjectEntry>;
+
+    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Poll::Ready(None)
+    }
+}
+
+/// EmptyObjectIterator that always return None.
+pub(crate) struct EmptyObjectIterator;
+
+impl Iterator for EmptyObjectIterator {
+    type Item = Result<ObjectEntry>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
     }
 }

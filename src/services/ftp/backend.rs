@@ -55,9 +55,9 @@ use crate::ops::Operation;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for ftp backend.
@@ -484,7 +484,7 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };

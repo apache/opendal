@@ -35,7 +35,7 @@ use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::services::gcs::backend::Backend;
 use crate::services::gcs::error::parse_error;
-use crate::DirEntry;
+use crate::ObjectEntry;
 use crate::ObjectMode;
 
 /// DirStream takes over task of listing objects and
@@ -72,7 +72,7 @@ impl DirStream {
 }
 
 impl Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
@@ -131,7 +131,7 @@ impl Stream for DirStream {
                     *common_prefixes_idx += 1;
 
                     let de =
-                        DirEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
+                        ObjectEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
 
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -144,7 +144,7 @@ impl Stream for DirStream {
                         continue;
                     }
 
-                    let mut de = DirEntry::new(
+                    let mut de = ObjectEntry::new(
                         backend,
                         ObjectMode::FILE,
                         &build_rel_path(&root, &object.name),

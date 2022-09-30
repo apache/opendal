@@ -79,9 +79,9 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -970,7 +970,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,

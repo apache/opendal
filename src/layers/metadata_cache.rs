@@ -40,10 +40,10 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectStreamer;
 
 /// MetadataCacheLayer will add metadata cache support for OpenDAL.
 ///
@@ -157,7 +157,7 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         self.inner.list(path, args).await
     }
 
@@ -228,7 +228,7 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         self.inner.blocking_list(path, args)
     }
 }

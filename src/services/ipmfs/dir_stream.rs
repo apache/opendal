@@ -32,7 +32,7 @@ use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
-use crate::DirEntry;
+use crate::ObjectEntry;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -60,7 +60,7 @@ impl DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = io::Result<DirEntry>;
+    type Item = io::Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
@@ -124,7 +124,7 @@ impl futures::Stream for DirStream {
                         ObjectMode::Unknown => unreachable!(),
                     };
                     let path = build_rel_path(&root, &path);
-                    let de = DirEntry::new(backend, object.mode(), &path);
+                    let de = ObjectEntry::new(backend, object.mode(), &path);
                     return Poll::Ready(Some(Ok(de)));
                 }
 

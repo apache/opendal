@@ -44,10 +44,10 @@ use crate::ops::Operation;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirStreamer;
+use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -184,7 +184,7 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let mut path = path.to_string();
         if path == "/" {
             path.clear();
@@ -286,7 +286,7 @@ struct DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.idx >= self.paths.len() {
@@ -299,9 +299,9 @@ impl futures::Stream for DirStream {
         let path = self.paths.get(idx).expect("path must valid");
 
         let de = if path.ends_with('/') {
-            DirEntry::new(self.backend.clone(), ObjectMode::DIR, path)
+            ObjectEntry::new(self.backend.clone(), ObjectMode::DIR, path)
         } else {
-            DirEntry::new(self.backend.clone(), ObjectMode::FILE, path)
+            ObjectEntry::new(self.backend.clone(), ObjectMode::FILE, path)
         };
 
         Poll::Ready(Some(Ok(de)))

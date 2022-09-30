@@ -31,9 +31,9 @@ use time::OffsetDateTime;
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
-use crate::dir::EmptyDirStreamer;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
+use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -46,9 +46,9 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for hdfs services
@@ -311,14 +311,14 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == ErrorKind::NotFound {
-                    Ok(Box::new(EmptyDirStreamer))
+                    Ok(Box::new(EmptyObjectStreamer))
                 } else {
                     Err(parse_io_error(e, Operation::List, path))
                 }

@@ -26,15 +26,16 @@ use crate::BytesReader;
 
 /// Body used in blocking HTTP requests.
 pub enum Body {
+    /// An empty body.
     Empty,
-    #[allow(unused)]
+    /// Body with bytes.
     Bytes(Bytes),
+    /// Body with a Reader.
     Reader(BlockingBytesReader),
 }
 
 impl Body {
     /// Consume the entire body.
-    #[allow(unused)]
     pub fn consume(self) -> Result<()> {
         if let Body::Reader(mut r) = self {
             std::io::copy(&mut r, &mut std::io::sink())?;

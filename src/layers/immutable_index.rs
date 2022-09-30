@@ -272,7 +272,6 @@ impl Iterator for ImmutableDir {
                     ObjectMode::FILE
                 };
 
-                // BUG: the content length could be wrong.
                 Some(Ok(ObjectEntry::new(
                     self.backend.clone(),
                     &path,

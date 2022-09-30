@@ -1561,6 +1561,7 @@ impl ObjectEntry {
             // We will ignore all errors happened during inner metadata.
             if let Ok(meta) = self.acc.stat(self.path(), OpStat::new()).await {
                 self.set_metadata(meta);
+                self.complete.store(true, Ordering::Relaxed);
             }
         }
 
@@ -1575,6 +1576,7 @@ impl ObjectEntry {
             // We will ignore all errors happened during inner metadata.
             if let Ok(meta) = self.acc.blocking_stat(self.path(), OpStat::new()) {
                 self.set_metadata(meta);
+                self.complete.store(true, Ordering::Relaxed);
             }
         }
 

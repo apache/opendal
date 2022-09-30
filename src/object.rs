@@ -930,7 +930,7 @@ impl Object {
 
     /// List current dir object.
     ///
-    /// This function will create a new [`DirStreamer`] handle to list objects.
+    /// This function will create a new [`ObjectStreamer`] handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///
@@ -949,7 +949,7 @@ impl Object {
     /// let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.list().await?;
-    /// // DirStreamer implements `futures::Stream`
+    /// // ObjectStreamer implements `futures::Stream`
     /// while let Some(de) = ds.try_next().await? {
     ///     match de.mode() {
     ///         ObjectMode::FILE => {
@@ -978,7 +978,7 @@ impl Object {
 
     /// List current dir object.
     ///
-    /// This function will create a new [`DirIterator`] handle to list objects.
+    /// This function will create a new [`ObjectIterator`] handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///
@@ -1508,7 +1508,7 @@ impl ObjectEntry {
         self
     }
 
-    /// Convert [`DirEntry`] into [`Object`].
+    /// Convert [`ObjectEntry`] into [`Object`].
     ///
     /// This function is the same with already implemented `From` trait.
     /// This function will make our users happier to avoid writing
@@ -1603,7 +1603,7 @@ impl ObjectEntry {
 
     /// The MD5 message digest of `ObjectEntry`'s corresponding object
     ///
-    /// `content_md5` is a prefetched metadata field in `DirEntry`
+    /// `content_md5` is a prefetched metadata field in `ObjectEntry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
     /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
@@ -1621,12 +1621,12 @@ impl ObjectEntry {
         self.metadata().await.content_md5
     }
 
-    /// The last modified UTC datetime of `DirEntry`'s corresponding object
+    /// The last modified UTC datetime of `ObjectEntry`'s corresponding object
     ///
-    /// `last_modified` is a prefetched metadata field in `DirEntry`
+    /// `last_modified` is a prefetched metadata field in `ObjectEntry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub async fn last_modified(&self) -> Option<OffsetDateTime> {
         if let Some(v) = self.meta.lock().expect("lock must succeed").last_modified {
             return Some(v);

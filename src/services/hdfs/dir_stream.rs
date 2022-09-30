@@ -57,7 +57,7 @@ impl futures::Stream for DirStream {
                     ObjectEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
                 };
 
-                // set metadata fields of `DirEntry`
+                // set metadata fields of `ObjectEntry`
                 d.set_content_length(de.len());
                 d.set_last_modified(time::OffsetDateTime::from(de.modified()));
 

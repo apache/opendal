@@ -57,7 +57,7 @@ Access data **efficiently**
 use anyhow::Result;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use opendal::DirEntry;
+use opendal::ObjectEntry;
 use opendal::DirStreamer;
 use opendal::Object;
 use opendal::ObjectMetadata;

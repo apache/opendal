@@ -1367,9 +1367,9 @@ impl<T> ObjectIterate for T where T: Iterator<Item = Result<ObjectEntry>> {}
 /// ObjectIterator is a boxed dyn [`ObjectIterate`]
 pub type ObjectIterator = Box<dyn ObjectIterate>;
 
-/// DirEntry is returned by [`DirStream`] during object list.
+/// ObjectEntry is returned by [`DirStream`] during object list.
 ///
-/// DirEntry carries two information: path and mode. Users can check returning dir
+/// ObjectEntry carries two information: path and mode. Users can check returning dir
 /// entry's mode or convert into an object without overhead.
 #[derive(Clone, Debug)]
 pub struct ObjectEntry {
@@ -1386,7 +1386,7 @@ pub struct ObjectEntry {
 }
 
 impl ObjectEntry {
-    /// Create a new dir entry by its corresponding underlying storage.
+    /// Create a new object entry by its corresponding underlying storage.
     pub fn new(acc: Arc<dyn Accessor>, mode: ObjectMode, path: &str) -> ObjectEntry {
         debug_assert!(
             mode.is_dir() == path.ends_with('/'),
@@ -1412,7 +1412,7 @@ impl ObjectEntry {
         self.acc = acc;
     }
 
-    /// Convert [`DirEntry`] into [`Object`].
+    /// Convert [`ObjectEntry`] into [`Object`].
     ///
     /// This function is the same with already implemented `From` trait.
     /// This function will make our users happier to avoid writing
@@ -1421,19 +1421,19 @@ impl ObjectEntry {
         self.into()
     }
 
-    /// Return this dir entry's object mode.
+    /// Return this object entry's object mode.
     pub fn mode(&self) -> ObjectMode {
         self.mode
     }
 
-    /// Return this dir entry's id.
+    /// Return this object entry's id.
     ///
     /// The same with [`Object::id()`]
     pub fn id(&self) -> String {
         format!("{}{}", self.acc.metadata().root(), self.path)
     }
 
-    /// Return this dir entry's path.
+    /// Return this object entry's path.
     ///
     /// The same with [`Object::path()`]
     pub fn path(&self) -> &str {
@@ -1452,81 +1452,81 @@ impl ObjectEntry {
         self.path = path.to_string();
     }
 
-    /// Return this dir entry's name.
+    /// Return this object entry's name.
     ///
     /// The same with [`Object::name()`]
     pub fn name(&self) -> &str {
         get_basename(&self.path)
     }
 
-    /// The ETag string of `DirEntry`'s corresponding object
+    /// The ETag string of `ObjectEntry`'s corresponding object
     ///
-    /// `etag` is a prefetched metadata field in `DirEntry`.
+    /// `etag` is a prefetched metadata field in `ObjectEntry`.
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub fn etag(&self) -> Option<&str> {
         self.etag.as_deref()
     }
 
-    /// Set the ETag of `DirEntry`'s corresponding object
+    /// Set the ETag of `ObjectEntry`'s corresponding object
     pub fn set_etag(&mut self, etag: &str) {
         self.etag = Some(etag.to_string())
     }
 
-    /// The size of `DirEntry`'s corresponding object
+    /// The size of `ObjectEntry`'s corresponding object
     ///
-    /// `content_length` is a prefetched metadata field in `DirEntry`.
+    /// `content_length` is a prefetched metadata field in `ObjectEntry`.
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_length` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub fn content_length(&self) -> Option<u64> {
         self.content_length
     }
 
-    /// Set the content length of `DirEntry`'s corresponding object
+    /// Set the content length of `ObjectEntry`'s corresponding object
     pub fn set_content_length(&mut self, content_length: u64) {
         self.content_length = Some(content_length)
     }
 
-    /// The MD5 message digest of `DirEntry`'s corresponding object
+    /// The MD5 message digest of `ObjectEntry`'s corresponding object
     ///
-    /// `content_md5` is a prefetched metadata field in `DirEntry`
+    /// `content_md5` is a prefetched metadata field in `ObjectEntry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub fn content_md5(&self) -> Option<&str> {
         self.content_md5.as_deref()
     }
 
-    /// Set the content's md5 of `DirEntry`'s corresponding object
+    /// Set the content's md5 of `ObjectEntry`'s corresponding object
     pub fn set_content_md5(&mut self, content_md5: &str) {
         self.content_md5 = Some(content_md5.to_string())
     }
 
-    /// The last modified UTC datetime of `DirEntry`'s corresponding object
+    /// The last modified UTC datetime of `ObjectEntry`'s corresponding object
     ///
-    /// `last_modified` is a prefetched metadata field in `DirEntry`
+    /// `last_modified` is a prefetched metadata field in `ObjectEntry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub fn last_modified(&self) -> Option<OffsetDateTime> {
         self.last_modified
     }
 
-    /// Set the last modified time of `DirEntry`'s corresponding object
+    /// Set the last modified time of `ObjectEntry`'s corresponding object
     pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) {
         self.last_modified = Some(last_modified)
     }
 
-    /// Fetch metadata about this dir entry.
+    /// Fetch metadata about this object entry.
     ///
     /// The same with [`Object::metadata()`]
     pub async fn metadata(&self) -> Result<ObjectMetadata> {
         self.acc.stat(self.path(), OpStat::new()).await
     }
 
-    /// Fetch metadata about this dir entry.
+    /// Fetch metadata about this object entry.
     ///
     /// The same with [`Object::blocking_metadata()`]
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {

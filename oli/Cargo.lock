@@ -91,9 +91,9 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "backon"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a62fde477410f4e8a92e2fd4b8536b16ad98270478211d1516cded50bad7208e"
+checksum = "6cd1a59bc091e593ee9ed62df4e4a07115e00a0e0a52fd7e0e04540773939b80"
 dependencies = [
  "futures",
  "pin-project",
@@ -1067,9 +1067,9 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "reqsign"
-version = "0.4.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6e28b79573bf9e503b514799a5533935fa63bec22d582d4d11cab1eab7a040d"
+checksum = "c338306df4ba0010b78f1c4469bf034313ad46b2c43020ec448432e5e07fab26"
 dependencies = [
  "anyhow",
  "backon",

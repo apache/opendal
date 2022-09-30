@@ -24,11 +24,13 @@ use std::task::Context;
 use std::task::Poll;
 
 use suppaftp::list::File;
+use time::OffsetDateTime;
 
 use super::err::parse_io_error;
 use super::Backend;
 use crate::ops::Operation;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct ReadDir {
@@ -85,15 +87,26 @@ impl futures::Stream for DirStream {
                 let path = self.path.to_string() + de.name();
 
                 let d = if de.is_file() {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::FILE)
+                            .with_content_length(de.size() as u64)
+                            .with_last_modified(OffsetDateTime::from(de.modified())),
+                    )
                 } else if de.is_directory() {
                     ObjectEntry::new(
                         self.backend.clone(),
-                        ObjectMode::DIR,
                         &format!("{}/", &path),
+                        ObjectMetadata::new(ObjectMode::DIR),
                     )
+                    .with_complete()
                 } else {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::Unknown),
+                    )
                 };
 
                 Poll::Ready(Some(Ok(d)))

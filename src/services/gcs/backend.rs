@@ -310,16 +310,12 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            return Ok(m);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let resp = self.gcs_get_object_metadata(path).await?;
 
         if resp.status().is_success() {
-            let mut m = ObjectMetadata::default();
             // read http response body
             let slc = resp.into_body().bytes().await.map_err(|e| {
                 new_other_object_error(Operation::Stat, path, anyhow!("read response body: {e:?}"))
@@ -331,6 +327,13 @@ impl Accessor for Backend {
                     anyhow!("parse response body into JSON: {e:?}"),
                 )
             })?;
+
+            let mode = if path.ends_with('/') {
+                ObjectMode::DIR
+            } else {
+                ObjectMode::FILE
+            };
+            let mut m = ObjectMetadata::new(mode);
 
             m.set_etag(&meta.etag);
             m.set_content_md5(&meta.md5_hash);
@@ -349,18 +352,9 @@ impl Accessor for Backend {
             })?;
             m.set_last_modified(datetime);
 
-            if path.ends_with('/') {
-                m.set_mode(ObjectMode::DIR);
-            } else {
-                m.set_mode(ObjectMode::FILE);
-            };
-
             Ok(m)
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            Ok(m)
+            Ok(ObjectMetadata::new(ObjectMode::DIR))
         } else {
             let er = parse_error_response(resp).await?;
             let e = parse_error(Operation::Stat, path, er);

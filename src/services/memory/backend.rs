@@ -155,10 +155,7 @@ impl Accessor for Backend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         if path.ends_with('/') {
-            let mut meta = ObjectMetadata::default();
-            meta.set_mode(ObjectMode::DIR);
-
-            return Ok(meta);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let map = self.inner.lock();
@@ -170,9 +167,7 @@ impl Accessor for Backend {
             )
         })?;
 
-        let mut meta = ObjectMetadata::default();
-        meta.set_mode(ObjectMode::FILE)
-            .set_content_length(data.len() as u64);
+        let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(data.len() as u64);
 
         Ok(meta)
     }
@@ -299,9 +294,18 @@ impl futures::Stream for DirStream {
         let path = self.paths.get(idx).expect("path must valid");
 
         let de = if path.ends_with('/') {
-            ObjectEntry::new(self.backend.clone(), ObjectMode::DIR, path)
+            ObjectEntry::new(
+                self.backend.clone(),
+                path,
+                ObjectMetadata::new(ObjectMode::DIR),
+            )
+            .with_complete()
         } else {
-            ObjectEntry::new(self.backend.clone(), ObjectMode::FILE, path)
+            ObjectEntry::new(
+                self.backend.clone(),
+                path,
+                ObjectMetadata::new(ObjectMode::FILE),
+            )
         };
 
         Poll::Ready(Some(Ok(de)))

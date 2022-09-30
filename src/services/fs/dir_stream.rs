@@ -18,13 +18,12 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use time::OffsetDateTime;
-
 use super::error::parse_io_error;
 use super::Backend;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -62,28 +61,27 @@ impl futures::Stream for DirStream {
                 // the target file type.
                 let file_type = de.file_type()?;
 
-                let mut d = if file_type.is_file() {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
+                let d = if file_type.is_file() {
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::FILE),
+                    )
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
                     ObjectEntry::new(
                         self.backend.clone(),
-                        ObjectMode::DIR,
                         &format!("{}/", &path),
+                        ObjectMetadata::new(ObjectMode::DIR),
                     )
+                    .with_complete()
                 } else {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::Unknown),
+                    )
                 };
-
-                // metadata may not available on all platforms, it's ok not setting it here
-                if let Ok(metadata) = de.metadata() {
-                    d.set_content_length(metadata.len());
-                    // last_modified is not available in all platforms.
-                    // it's ok not setting it here.
-                    if let Ok(last_modified) = metadata.modified().map(OffsetDateTime::from) {
-                        d.set_last_modified(last_modified);
-                    }
-                }
 
                 Poll::Ready(Some(Ok(d)))
             }

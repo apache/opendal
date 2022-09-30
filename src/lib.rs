@@ -190,9 +190,9 @@ mod tests {
         assert_eq!(80, size_of::<AccessorMetadata>());
         assert_eq!(16, size_of::<Operator>());
         assert_eq!(16, size_of::<BatchOperator>());
-        assert_eq!(128, size_of::<ObjectEntry>());
+        assert_eq!(56, size_of::<ObjectEntry>());
         assert_eq!(40, size_of::<Object>());
-        assert_eq!(80, size_of::<ObjectMetadata>());
+        assert_eq!(88, size_of::<ObjectMetadata>());
         assert_eq!(1, size_of::<ObjectMode>());
         assert_eq!(64, size_of::<ObjectMultipart>());
         assert_eq!(32, size_of::<ObjectPart>());

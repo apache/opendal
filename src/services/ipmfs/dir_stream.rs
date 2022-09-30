@@ -33,6 +33,7 @@ use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -123,8 +124,14 @@ impl futures::Stream for DirStream {
                         }
                         ObjectMode::Unknown => unreachable!(),
                     };
+
                     let path = build_rel_path(&root, &path);
-                    let de = ObjectEntry::new(backend, object.mode(), &path);
+                    let de = ObjectEntry::new(
+                        backend,
+                        &path,
+                        ObjectMetadata::new(object.mode()).with_content_length(object.size),
+                    )
+                    .with_complete();
                     return Poll::Ready(Some(Ok(de)));
                 }
 

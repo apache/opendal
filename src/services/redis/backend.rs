@@ -254,8 +254,7 @@ impl Backend {
     ///
     /// Note: `to_create` have to be an absolute path.
     async fn mkdir_current(con: &mut ConnectionManager, to_create: &str, path: &str) -> Result<()> {
-        let mut metadata = ObjectMetadata::default();
-        metadata.set_mode(ObjectMode::DIR);
+        let metadata = ObjectMetadata::new(ObjectMode::DIR);
 
         let to_create = if !to_create.ends_with('/') {
             to_create.to_string() + "/"
@@ -364,8 +363,7 @@ impl Accessor for Backend {
             .map_err(|e| new_async_connection_error(e, Operation::Create, path.as_str()))?;
 
         // create current dir
-        let mut meta = ObjectMetadata::default();
-        meta.set_mode(args.mode());
+        let mut meta = ObjectMetadata::new(args.mode());
         if args.mode() == ObjectMode::FILE {
             // only set last_modified for files
             let last_modified = OffsetDateTime::now_utc();
@@ -449,12 +447,9 @@ impl Accessor for Backend {
 
         let m_path = v0_meta_prefix(abs_path.as_str());
 
-        let mut meta = ObjectMetadata::default();
-        let mode = ObjectMode::FILE;
-        let last_modified = OffsetDateTime::now_utc();
+        let mut meta = ObjectMetadata::new(ObjectMode::FILE);
         meta.set_content_length(content_length as u64);
-        meta.set_mode(mode);
-        meta.set_last_modified(last_modified);
+        meta.set_last_modified(OffsetDateTime::now_utc());
 
         // serialize and write to redis backend
         let bin = bincode::serialize(&meta)
@@ -553,8 +548,7 @@ mod redis_test {
     // this function is used for generating testing binary data
     #[test]
     fn test_generate_bincode() {
-        let mut meta = ObjectMetadata::default();
-        meta.set_mode(ObjectMode::DIR);
+        let mut meta = ObjectMetadata::new(ObjectMode::DIR);
         println!(
             "serialized directory metadata: {:?}",
             bincode::serialize(&meta).unwrap()

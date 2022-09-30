@@ -35,6 +35,7 @@ use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -73,10 +74,10 @@ impl futures::Stream for DirStream {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
         let root = self.root.clone();
+        let path = self.path.clone();
 
         match &mut self.state {
             State::Idle => {
-                let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
 
                 let fut = async move {
@@ -128,9 +129,10 @@ impl futures::Stream for DirStream {
 
                         let de = ObjectEntry::new(
                             backend,
-                            ObjectMode::DIR,
                             &build_rel_path(&root, prefix),
-                        );
+                            ObjectMetadata::new(ObjectMode::DIR),
+                        )
+                        .with_complete();
 
                         return Poll::Ready(Some(Ok(de)));
                     }
@@ -148,26 +150,26 @@ impl futures::Stream for DirStream {
                         continue;
                     }
 
-                    let mut de = ObjectEntry::new(
-                        backend,
-                        ObjectMode::FILE,
-                        &build_rel_path(&root, &object.name),
-                    );
-
-                    de.set_etag(object.properties.etag.as_str());
-                    de.set_content_length(object.properties.content_length);
-                    de.set_content_md5(object.properties.content_md5.as_str());
-
-                    let dt =
-                        OffsetDateTime::parse(object.properties.last_modified.as_str(), &Rfc2822)
-                            .map_err(|e| {
-                            new_other_object_error(
-                                Operation::List,
-                                &self.path,
-                                anyhow!("parse last modified RFC2822 datetime: {e:?}"),
+                    let meta = ObjectMetadata::new(ObjectMode::FILE)
+                        .with_etag(object.properties.etag.as_str())
+                        .with_content_length(object.properties.content_length)
+                        .with_content_md5(object.properties.content_md5.as_str())
+                        .with_last_modified(
+                            OffsetDateTime::parse(
+                                object.properties.last_modified.as_str(),
+                                &Rfc2822,
                             )
-                        })?;
-                    de.set_last_modified(dt);
+                            .map_err(|e| {
+                                new_other_object_error(
+                                    Operation::List,
+                                    &path,
+                                    anyhow!("parse last modified RFC2822 datetime: {e:?}"),
+                                )
+                            })?,
+                        );
+
+                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.name), meta)
+                        .with_complete();
 
                     return Poll::Ready(Some(Ok(de)));
                 }

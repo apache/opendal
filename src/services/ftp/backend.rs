@@ -386,12 +386,9 @@ impl Accessor for Backend {
         let mut p = path;
         let path: String;
 
-        let mut meta: ObjectMetadata = ObjectMetadata::default();
-
         // root dir, return default ObjectMetadata with Dir ObjectMode.
         if p == "/" {
-            meta.set_mode(ObjectMode::DIR);
-            return Ok(meta);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
@@ -437,15 +434,16 @@ impl Accessor for Backend {
             Err(Error::new(ErrorKind::NotFound, "Not Found"))
         } else {
             let file = files.get(0).unwrap();
-            if file.is_file() {
-                meta.set_mode(ObjectMode::FILE);
-            } else if file.is_directory() {
-                meta.set_mode(ObjectMode::DIR);
-            } else {
-                meta.set_mode(ObjectMode::Unknown);
-            }
-            meta.set_content_length(file.size() as u64);
 
+            let mode = if file.is_file() {
+                ObjectMode::FILE
+            } else if file.is_directory() {
+                ObjectMode::DIR
+            } else {
+                ObjectMode::Unknown
+            };
+            let mut meta = ObjectMetadata::new(mode);
+            meta.set_content_length(file.size() as u64);
             meta.set_last_modified(OffsetDateTime::from(file.modified()));
 
             Ok(meta)

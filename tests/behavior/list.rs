@@ -100,7 +100,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     let mut obs = op.object("/").list().await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
-        let meta = de.metadata().await?;
+        let meta = de.metadata().await;
         if de.path() == path {
             assert_eq!(meta.mode(), ObjectMode::FILE);
             assert_eq!(meta.content_length(), size as u64);
@@ -210,7 +210,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .get(&file_path)
         .expect("file should be found in list")
         .metadata()
-        .await?;
+        .await;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -219,7 +219,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .get(&dir_path)
         .expect("file should be found in list")
         .metadata()
-        .await?;
+        .await;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&file_path)

@@ -24,6 +24,7 @@ use futures::Future;
 
 use crate::Object;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 
@@ -90,7 +91,12 @@ impl futures::Stream for TopDownWalker {
                     Some(o) => o,
                     None => return Poll::Ready(None),
                 };
-                let de = ObjectEntry::new(object.accessor(), ObjectMode::DIR, object.path());
+
+                let de = ObjectEntry::new(
+                    object.accessor(),
+                    object.path(),
+                    ObjectMetadata::new(ObjectMode::DIR),
+                );
                 let future = async move { object.list().await };
 
                 self.state = WalkTopDownState::Sending(Box::pin(future));
@@ -221,7 +227,11 @@ impl futures::Stream for BottomUpWalker {
                             .dirs
                             .pop()
                             .expect("dis streamer corresponding object must exist");
-                        let de = ObjectEntry::new(dob.accessor(), ObjectMode::DIR, dob.path());
+                        let de = ObjectEntry::new(
+                            dob.accessor(),
+                            dob.path(),
+                            ObjectMetadata::new(ObjectMode::DIR),
+                        );
                         Poll::Ready(Some(Ok(de)))
                     }
                 },

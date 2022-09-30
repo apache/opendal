@@ -272,7 +272,11 @@ impl Iterator for ImmutableDir {
                     ObjectMode::FILE
                 };
 
-                Some(Ok(ObjectEntry::new(self.backend.clone(), mode, &path)))
+                Some(Ok(ObjectEntry::new(
+                    self.backend.clone(),
+                    &path,
+                    ObjectMetadata::new(mode),
+                )))
             }
         }
     }
@@ -293,8 +297,8 @@ impl futures::Stream for ImmutableDir {
 
                 Poll::Ready(Some(Ok(ObjectEntry::new(
                     self.backend.clone(),
-                    mode,
                     &path,
+                    ObjectMetadata::new(mode),
                 ))))
             }
         }

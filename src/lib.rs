@@ -117,6 +117,7 @@
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod accessor;
 pub use accessor::Accessor;
+pub use accessor::AccessorCapability;
 pub use accessor::AccessorMetadata;
 
 mod io;

@@ -60,7 +60,8 @@ pub struct DirEntry {
 }
 
 impl DirEntry {
-    pub(crate) fn new(acc: Arc<dyn Accessor>, mode: ObjectMode, path: &str) -> DirEntry {
+    /// Create a new dir entry by its corresponding underlying storage.
+    pub fn new(acc: Arc<dyn Accessor>, mode: ObjectMode, path: &str) -> DirEntry {
         debug_assert!(
             mode.is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",
@@ -78,6 +79,11 @@ impl DirEntry {
             content_md5: None,
             last_modified: None,
         }
+    }
+
+    /// Set accessor for this entry.
+    pub fn set_accessor(&mut self, acc: Arc<dyn Accessor>) {
+        self.acc = acc;
     }
 
     /// Convert [`DirEntry`] into [`Object`].
@@ -108,6 +114,18 @@ impl DirEntry {
         &self.path
     }
 
+    /// Set path for this entry.
+    pub fn set_path(&mut self, path: &str) {
+        debug_assert!(
+            self.mode.is_dir() == path.ends_with('/'),
+            "mode {:?} not match with path {}",
+            self.mode,
+            path
+        );
+
+        self.path = path.to_string();
+    }
+
     /// Return this dir entry's name.
     ///
     /// The same with [`Object::name()`]
@@ -125,6 +143,11 @@ impl DirEntry {
         self.etag.as_deref()
     }
 
+    /// Set the ETag of `DirEntry`'s corresponding object
+    pub fn set_etag(&mut self, etag: &str) {
+        self.etag = Some(etag.to_string())
+    }
+
     /// The size of `DirEntry`'s corresponding object
     ///
     /// `content_length` is a prefetched metadata field in `DirEntry`.
@@ -133,6 +156,11 @@ impl DirEntry {
     /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
     pub fn content_length(&self) -> Option<u64> {
         self.content_length
+    }
+
+    /// Set the content length of `DirEntry`'s corresponding object
+    pub fn set_content_length(&mut self, content_length: u64) {
+        self.content_length = Some(content_length)
     }
 
     /// The MD5 message digest of `DirEntry`'s corresponding object
@@ -145,6 +173,11 @@ impl DirEntry {
         self.content_md5.as_deref()
     }
 
+    /// Set the content's md5 of `DirEntry`'s corresponding object
+    pub fn set_content_md5(&mut self, content_md5: &str) {
+        self.content_md5 = Some(content_md5.to_string())
+    }
+
     /// The last modified UTC datetime of `DirEntry`'s corresponding object
     ///
     /// `last_modified` is a prefetched metadata field in `DirEntry`
@@ -153,6 +186,11 @@ impl DirEntry {
     /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
     pub fn last_modified(&self) -> Option<OffsetDateTime> {
         self.last_modified
+    }
+
+    /// Set the last modified time of `DirEntry`'s corresponding object
+    pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) {
+        self.last_modified = Some(last_modified)
     }
 
     /// Fetch metadata about this dir entry.
@@ -167,41 +205,6 @@ impl DirEntry {
     /// The same with [`Object::blocking_metadata()`]
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
         self.acc.blocking_stat(self.path(), OpStat::new())
-    }
-}
-
-// implement setters for DirEntry's metadata fields
-impl DirEntry {
-    /// Set accessor for this entry.
-    pub(crate) fn set_accessor(&mut self, acc: Arc<dyn Accessor>) {
-        self.acc = acc;
-    }
-    /// Set path for this entry.
-    pub(crate) fn set_path(&mut self, path: &str) {
-        debug_assert!(
-            self.mode.is_dir() == path.ends_with('/'),
-            "mode {:?} not match with path {}",
-            self.mode,
-            path
-        );
-
-        self.path = path.to_string();
-    }
-    /// record the ETag of `DirEntry`'s corresponding object
-    pub(crate) fn set_etag(&mut self, etag: &str) {
-        self.etag = Some(etag.to_string())
-    }
-    /// record the last modified time of `DirEntry`'s corresponding object
-    pub(crate) fn set_last_modified(&mut self, last_modified: OffsetDateTime) {
-        self.last_modified = Some(last_modified)
-    }
-    /// record the content length of `DirEntry`'s corresponding object
-    pub(crate) fn set_content_length(&mut self, content_length: u64) {
-        self.content_length = Some(content_length)
-    }
-    /// record the content's md5 of `DirEntry`'s corresponding object
-    pub(crate) fn set_content_md5(&mut self, content_md5: &str) {
-        self.content_md5 = Some(content_md5.to_string())
     }
 }
 

@@ -1223,12 +1223,13 @@ impl ObjectMetadata {
         self.mode
     }
 
-    pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+    /// Set mode for object.
+    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
         self.mode = mode;
         self
     }
 
-    /// Content length of this object
+    /// Content length of this object.
     ///
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
@@ -1236,14 +1237,15 @@ impl ObjectMetadata {
         self.content_length
     }
 
-    pub(crate) fn set_content_length(&mut self, content_length: u64) -> &mut Self {
+    /// Set content length of this object.
+    pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = content_length;
         self
     }
 
     /// Content MD5 of this object.
     ///
-    /// Content Length is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
+    /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     ///
     /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
@@ -1251,7 +1253,11 @@ impl ObjectMetadata {
         self.content_md5.as_deref()
     }
 
-    pub(crate) fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
+    /// Set content MD5 of this object.
+    ///
+    /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
+    /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
+    pub fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
         self.content_md5 = Some(content_md5.to_string());
         self
     }
@@ -1266,7 +1272,11 @@ impl ObjectMetadata {
         self.last_modified
     }
 
-    pub(crate) fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
+    /// Set Last modified of this object.
+    ///
+    /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
+    /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
+    pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
         self.last_modified = Some(last_modified);
         self
     }
@@ -1286,7 +1296,18 @@ impl ObjectMetadata {
         self.etag.as_deref()
     }
 
-    pub(crate) fn set_etag(&mut self, etag: &str) -> &mut Self {
+    /// Set ETag of this object.
+    ///
+    /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
+    /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
+    ///
+    /// OpenDAL will return this value AS-IS like the following:
+    ///
+    /// - `"33a64df551425fcc55e4d42a148795d9f25f89d4"`
+    /// - `W/"0815"`
+    ///
+    /// `"` is part of etag, don't trim it before setting.
+    pub fn set_etag(&mut self, etag: &str) -> &mut Self {
         self.etag = Some(etag.to_string());
         self
     }

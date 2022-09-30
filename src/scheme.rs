@@ -55,7 +55,7 @@ pub enum Scheme {
     Redis,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
-    /// Custom that allow users to implement services outside of OpenDAL.
+    /// Custom that allow users to implement services outside OpenDAL.
     ///
     /// # NOTE
     ///

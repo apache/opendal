@@ -24,7 +24,7 @@ use super::error::parse_io_error;
 use super::Backend;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
-use crate::DirEntry;
+use crate::ObjectEntry;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -47,7 +47,7 @@ impl DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.rd.next() {
@@ -63,16 +63,16 @@ impl futures::Stream for DirStream {
                 let file_type = de.file_type()?;
 
                 let mut d = if file_type.is_file() {
-                    DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
+                    ObjectEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
-                    DirEntry::new(
+                    ObjectEntry::new(
                         self.backend.clone(),
                         ObjectMode::DIR,
                         &format!("{}/", &path),
                     )
                 } else {
-                    DirEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
                 };
 
                 // metadata may not available on all platforms, it's ok not setting it here

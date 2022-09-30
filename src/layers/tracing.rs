@@ -41,11 +41,11 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectEntry;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectStreamer;
 
 /// TracingLayer will add tracing for OpenDAL.
 ///
@@ -111,11 +111,11 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         self.inner
             .list(path, args)
             .await
-            .map(|s| Box::new(TracingStreamer::new(Span::current(), s)) as DirStreamer)
+            .map(|s| Box::new(TracingStreamer::new(Span::current(), s)) as ObjectStreamer)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -177,10 +177,10 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         self.inner
             .blocking_list(path, args)
-            .map(|it| Box::new(TracingInterator::new(Span::current(), it)) as DirIterator)
+            .map(|it| Box::new(TracingInterator::new(Span::current(), it)) as ObjectIterator)
     }
 }
 
@@ -234,11 +234,11 @@ impl Read for BlockingTracingReader {
 
 struct TracingStreamer {
     span: Span,
-    inner: DirStreamer,
+    inner: ObjectStreamer,
 }
 
 impl TracingStreamer {
-    fn new(span: Span, streamer: DirStreamer) -> Self {
+    fn new(span: Span, streamer: ObjectStreamer) -> Self {
         Self {
             span,
             inner: streamer,
@@ -247,7 +247,7 @@ impl TracingStreamer {
 }
 
 impl futures::Stream for TracingStreamer {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -257,17 +257,17 @@ impl futures::Stream for TracingStreamer {
 
 struct TracingInterator {
     span: Span,
-    inner: DirIterator,
+    inner: ObjectIterator,
 }
 
 impl TracingInterator {
-    fn new(span: Span, inner: DirIterator) -> Self {
+    fn new(span: Span, inner: ObjectIterator) -> Self {
         Self { span, inner }
     }
 }
 
 impl Iterator for TracingInterator {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     fn next(&mut self) -> Option<Self::Item> {

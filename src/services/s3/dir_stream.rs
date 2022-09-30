@@ -35,7 +35,7 @@ use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
-use crate::DirEntry;
+use crate::ObjectEntry;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -69,7 +69,7 @@ impl DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
@@ -136,7 +136,7 @@ impl futures::Stream for DirStream {
                     let prefix = &prefixes[*common_prefixes_idx - 1].prefix;
 
                     let de =
-                        DirEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
+                        ObjectEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
 
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -153,7 +153,7 @@ impl futures::Stream for DirStream {
                         continue;
                     }
 
-                    let mut de = DirEntry::new(
+                    let mut de = ObjectEntry::new(
                         backend,
                         ObjectMode::FILE,
                         &build_rel_path(&root, &object.key),

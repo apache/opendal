@@ -47,11 +47,11 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectEntry;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// LoggingLayer will add logging for OpenDAL.
@@ -300,7 +300,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
@@ -317,7 +317,7 @@ impl Accessor for LoggingAccessor {
                     self.scheme, Operation::List, path
                 );
                 let streamer = LoggingStreamer::new(self.scheme, path, v);
-                Box::new(streamer) as DirStreamer
+                Box::new(streamer) as ObjectStreamer
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
@@ -750,7 +750,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
@@ -770,7 +770,7 @@ impl Accessor for LoggingAccessor {
                     path
                 );
                 let li = LoggingIterator::new(self.scheme, path, v);
-                Box::new(li) as DirIterator
+                Box::new(li) as ObjectIterator
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {
@@ -911,11 +911,11 @@ impl Read for BlockingLoggingReader {
 struct LoggingStreamer {
     scheme: Scheme,
     path: String,
-    inner: DirStreamer,
+    inner: ObjectStreamer,
 }
 
 impl LoggingStreamer {
-    fn new(scheme: Scheme, path: &str, inner: DirStreamer) -> Self {
+    fn new(scheme: Scheme, path: &str, inner: ObjectStreamer) -> Self {
         Self {
             scheme,
             path: path.to_string(),
@@ -925,7 +925,7 @@ impl LoggingStreamer {
 }
 
 impl Stream for LoggingStreamer {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match Pin::new(&mut (*self.inner)).poll_next(cx) {
             Poll::Ready(opt) => match opt {
@@ -993,11 +993,11 @@ impl Stream for LoggingStreamer {
 struct LoggingIterator {
     scheme: Scheme,
     path: String,
-    inner: DirIterator,
+    inner: ObjectIterator,
 }
 
 impl LoggingIterator {
-    fn new(scheme: Scheme, path: &str, inner: DirIterator) -> Self {
+    fn new(scheme: Scheme, path: &str, inner: ObjectIterator) -> Self {
         Self {
             scheme,
             path: path.to_string(),
@@ -1007,7 +1007,7 @@ impl LoggingIterator {
 }
 
 impl Iterator for LoggingIterator {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next() {

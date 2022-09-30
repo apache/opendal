@@ -37,9 +37,9 @@ use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirIterator;
-use crate::DirStreamer;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Underlying trait of all backends for implementors.
@@ -151,7 +151,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         let (_, _) = (path, args);
         unimplemented!()
     }
@@ -308,7 +308,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         let _ = args;
 
         Err(new_unsupported_object_error(Operation::BlockingList, path))
@@ -338,7 +338,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         self.as_ref().delete(path, args).await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         self.as_ref().list(path, args).await
     }
 
@@ -379,7 +379,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         self.as_ref().blocking_delete(path, args)
     }
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         self.as_ref().blocking_list(path, args)
     }
 }

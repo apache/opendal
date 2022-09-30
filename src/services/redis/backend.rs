@@ -53,9 +53,9 @@ use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
@@ -524,7 +524,7 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<ObjectStreamer> {
         let path = build_abs_path(self.root.as_str(), path);
         let con = self
             .client

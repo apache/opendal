@@ -32,9 +32,9 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
-use crate::dir::EmptyDirIterator;
-use crate::dir::EmptyDirStreamer;
 use crate::error::new_other_object_error;
+use crate::object::EmptyObjectIterator;
+use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -48,11 +48,11 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirIterator;
-use crate::DirStreamer;
+use crate::ObjectEntry;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for fs backend.
@@ -335,14 +335,14 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == ErrorKind::NotFound {
-                    Ok(Box::new(EmptyDirStreamer))
+                    Ok(Box::new(EmptyObjectStreamer))
                 } else {
                     Err(parse_io_error(e, Operation::List, path))
                 }
@@ -512,14 +512,14 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == ErrorKind::NotFound {
-                    Ok(Box::new(EmptyDirIterator))
+                    Ok(Box::new(EmptyObjectIterator))
                 } else {
                     Err(parse_io_error(e, Operation::BlockingList, path))
                 }
@@ -542,12 +542,12 @@ impl Accessor for Backend {
                 let file_type = de.file_type()?;
 
                 let mut d = if file_type.is_file() {
-                    DirEntry::new(acc.clone(), ObjectMode::FILE, &path)
+                    ObjectEntry::new(acc.clone(), ObjectMode::FILE, &path)
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
-                    DirEntry::new(acc.clone(), ObjectMode::DIR, &format!("{}/", &path))
+                    ObjectEntry::new(acc.clone(), ObjectMode::DIR, &format!("{}/", &path))
                 } else {
-                    DirEntry::new(acc.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(acc.clone(), ObjectMode::Unknown, &path)
                 };
 
                 // metadata may not available on all platforms, it's ok not setting it here

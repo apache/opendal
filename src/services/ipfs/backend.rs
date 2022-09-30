@@ -61,10 +61,10 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirStreamer;
+use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for ipfs backend.
@@ -355,7 +355,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), path)))
     }
 }
@@ -459,7 +459,7 @@ impl DirStream {
 }
 
 impl Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
@@ -520,7 +520,7 @@ impl Stream for DirStream {
                         name += "/";
                     }
 
-                    let mut de = DirEntry::new(backend, meta.mode(), &name);
+                    let mut de = ObjectEntry::new(backend, meta.mode(), &name);
                     de.set_content_length(meta.content_length());
                     if let Some(etag) = meta.etag() {
                         de.set_etag(etag);

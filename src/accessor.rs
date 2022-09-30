@@ -399,7 +399,8 @@ impl AccessorMetadata {
         self.scheme
     }
 
-    pub(crate) fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
+    /// Set [`Scheme`] for backend.
+    pub fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
         self.scheme = scheme;
         self
     }
@@ -409,7 +410,10 @@ impl AccessorMetadata {
         &self.root
     }
 
-    pub(crate) fn set_root(&mut self, root: &str) -> &mut Self {
+    /// Set root for backend.
+    ///
+    /// Note: input root must be normalized.
+    pub fn set_root(&mut self, root: &str) -> &mut Self {
         self.root = root.to_string();
         self
     }
@@ -424,7 +428,8 @@ impl AccessorMetadata {
         &self.name
     }
 
-    pub(crate) fn set_name(&mut self, name: &str) -> &mut Self {
+    /// Set name of this backend.
+    pub fn set_name(&mut self, name: &str) -> &mut Self {
         self.name = name.to_string();
         self
     }
@@ -459,13 +464,13 @@ impl AccessorMetadata {
         self.capabilities.contains(AccessorCapability::Blocking)
     }
 
-    /// Set this function to private so that users can't access capabilities
-    /// directly.
-    pub(crate) fn capabilities(&self) -> FlagSet<AccessorCapability> {
+    /// Get backend's capabilities.
+    pub fn capabilities(&self) -> FlagSet<AccessorCapability> {
         self.capabilities
     }
 
-    pub(crate) fn set_capabilities(
+    /// Set capabilities for backend.
+    pub fn set_capabilities(
         &mut self,
         capabilities: impl Into<FlagSet<AccessorCapability>>,
     ) -> &mut Self {
@@ -476,7 +481,7 @@ impl AccessorMetadata {
 
 flags! {
     /// AccessorCapability describes accessor's advanced capability.
-    pub(crate) enum AccessorCapability: u32 {
+    pub enum AccessorCapability: u32 {
         /// Add this capability if service supports `read` and `stat`
         Read,
         /// Add this capability if service supports `write` and `delete`

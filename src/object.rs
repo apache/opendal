@@ -19,6 +19,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::RangeBounds;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Context;
@@ -1439,7 +1440,7 @@ pub type ObjectIterator = Box<dyn ObjectIterate>;
 /// ObjectEntry is returned by [`ObjectStream`] during object list.
 ///
 /// Users can check returning object entry's mode or convert into an object without overhead.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ObjectEntry {
     acc: Arc<dyn Accessor>,
     path: String,
@@ -1447,7 +1448,27 @@ pub struct ObjectEntry {
 
     /// Complete means this object entry already carries all metadata
     /// that it could have. Don't call metadata anymore.
-    complete: bool,
+    ///
+    /// # Safety
+    ///
+    /// It's safe to clone this value. Because complete will only transform
+    /// into `true` and never change back.
+    ///
+    /// For the worse case, we cloned a `false` to new ObjectEntry. The cost
+    /// is an extra stat.
+    complete: AtomicBool,
+}
+
+impl Clone for ObjectEntry {
+    fn clone(&self) -> Self {
+        Self {
+            acc: self.acc.clone(),
+            path: self.path.clone(),
+            meta: self.meta.clone(),
+            // Read comments on this field.
+            complete: self.complete.load(Ordering::Relaxed).into(),
+        }
+    }
 }
 
 impl ObjectEntry {
@@ -1464,7 +1485,7 @@ impl ObjectEntry {
             acc,
             path: path.to_string(),
             meta: Arc::new(Mutex::new(meta)),
-            complete: false,
+            complete: AtomicBool::default(),
         }
     }
 
@@ -1476,14 +1497,14 @@ impl ObjectEntry {
     /// Complete means this object entry already carries all metadata
     /// that it could have. Don't call metadata anymore.
     pub fn set_complete(&mut self) -> &mut Self {
-        self.complete = true;
+        self.complete.store(true, Ordering::Relaxed);
         self
     }
 
     /// Complete means this object entry already carries all metadata
     /// that it could have. Don't call metadata anymore.
     pub fn with_complete(mut self) -> Self {
-        self.complete = true;
+        self.complete = AtomicBool::new(true);
         self
     }
 
@@ -1536,7 +1557,7 @@ impl ObjectEntry {
 
     /// Fetch metadata about this object entry.
     pub async fn metadata(&self) -> ObjectMetadata {
-        if !self.complete {
+        if !self.complete.load(Ordering::Relaxed) {
             // We will ignore all errors happened during inner metadata.
             if let Ok(meta) = self.acc.stat(self.path(), OpStat::new()).await {
                 self.set_metadata(meta);
@@ -1550,7 +1571,7 @@ impl ObjectEntry {
     ///
     /// The same with [`Object::blocking_metadata()`]
     pub fn blocking_metadata(&self) -> ObjectMetadata {
-        if !self.complete {
+        if !self.complete.load(Ordering::Relaxed) {
             // We will ignore all errors happened during inner metadata.
             if let Ok(meta) = self.acc.blocking_stat(self.path(), OpStat::new()) {
                 self.set_metadata(meta);

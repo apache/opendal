@@ -1517,19 +1517,19 @@ impl ObjectEntry {
         self.into()
     }
 
-    /// Return this dir entry's object mode.
+    /// Return this object entry's object mode.
     pub fn mode(&self) -> ObjectMode {
         self.meta.lock().expect("lock must succeed").mode
     }
 
-    /// Return this dir entry's id.
+    /// Return this object entry's id.
     ///
     /// The same with [`Object::id()`]
     pub fn id(&self) -> String {
         format!("{}{}", self.acc.metadata().root(), self.path)
     }
 
-    /// Return this dir entry's path.
+    /// Return this object entry's path.
     ///
     /// The same with [`Object::path()`]
     pub fn path(&self) -> &str {
@@ -1548,7 +1548,7 @@ impl ObjectEntry {
         self.path = path.to_string();
     }
 
-    /// Return this dir entry's name.
+    /// Return this object entry's name.
     ///
     /// The same with [`Object::name()`]
     pub fn name(&self) -> &str {
@@ -1568,7 +1568,7 @@ impl ObjectEntry {
         self.meta.lock().expect("lock must succeed").clone()
     }
 
-    /// Fetch metadata about this dir entry.
+    /// Fetch metadata about this object entry.
     ///
     /// The same with [`Object::blocking_metadata()`]
     pub fn blocking_metadata(&self) -> ObjectMetadata {

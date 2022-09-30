@@ -154,6 +154,7 @@ mod scheme;
 pub use scheme::Scheme;
 
 // Public modules, they will be accessed via `opendal::io_util::Xxxx`
+pub mod http_util;
 pub mod io_util;
 pub mod layers;
 pub use layers::Layer;
@@ -164,7 +165,6 @@ pub mod services;
 //
 // Please don't export any type from this module.
 mod error;
-mod http_util;
 mod path;
 
 #[cfg(test)]

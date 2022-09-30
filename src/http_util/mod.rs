@@ -11,6 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+//! http_util contains the util types and functions that used across OpenDAL.
+//!
+//! # NOTE
+//!
+//! This mod is not a part of OpenDAL's public API. We expose them out to make
+//! it easier to develop services and layers outside opendal.
+
 mod client;
 pub use client::HttpClient;
 

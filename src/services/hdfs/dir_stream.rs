@@ -21,6 +21,7 @@ use std::task::Poll;
 use super::Backend;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -48,18 +49,25 @@ impl futures::Stream for DirStream {
             Some(de) => {
                 let path = build_rel_path(&self.root, de.path());
 
-                let mut d = if de.is_file() {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
+                let d = if de.is_file() {
+                    let meta = ObjectMetadata::new(ObjectMode::FILE)
+                        .with_content_length(de.len())
+                        .with_last_modified(time::OffsetDateTime::from(de.modified()));
+                    ObjectEntry::new(self.backend.clone(), &path, meta)
                 } else if de.is_dir() {
                     // Make sure we are returning the correct path.
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::DIR, &format!("{}/", path))
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &format!("{}/", path),
+                        ObjectMetadata::new(ObjectMode::DIR),
+                    )
                 } else {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::Unknown),
+                    )
                 };
-
-                // set metadata fields of `DirEntry`
-                d.set_content_length(de.len());
-                d.set_last_modified(time::OffsetDateTime::from(de.modified()));
 
                 Poll::Ready(Some(Ok(d)))
             }

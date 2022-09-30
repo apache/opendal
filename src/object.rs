@@ -20,6 +20,7 @@ use std::io::Result;
 use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::task::Context;
 use std::task::Poll;
 
@@ -1207,19 +1208,41 @@ impl Object {
 }
 
 /// Metadata carries all object metadata.
-#[derive(Debug, Clone, Default)]
+///
+/// # Notes
+///
+/// mode and content_length are required metadata that all services
+/// should provide during `stat` operation. But in `list` operation,
+/// a.k.a., `ObjectEntry`'s content length could be `None`.
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ObjectMetadata {
     mode: ObjectMode,
 
-    content_length: u64,
+    /// # NOTE
+    ///
+    /// - For `stat` operation, content_length is required to set.
+    /// - For `list` operation, content_length could be None.
+    content_length: Option<u64>,
     content_md5: Option<String>,
     last_modified: Option<OffsetDateTime>,
     etag: Option<String>,
 }
 
 impl ObjectMetadata {
-    /// Object mode represent this object' mode.
+    /// Create a new object metadata
+    pub fn new(mode: ObjectMode) -> Self {
+        Self {
+            mode,
+
+            content_length: None,
+            content_md5: None,
+            last_modified: None,
+            etag: None,
+        }
+    }
+
+    /// Object mode represent this object's mode.
     pub fn mode(&self) -> ObjectMode {
         self.mode
     }
@@ -1230,17 +1253,29 @@ impl ObjectMetadata {
         self
     }
 
+    /// Set mode for object.
+    pub fn with_mode(mut self, mode: ObjectMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
     /// Content length of this object.
     ///
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
     pub fn content_length(&self) -> u64 {
-        self.content_length
+        self.content_length.unwrap_or_default()
     }
 
     /// Set content length of this object.
     pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
-        self.content_length = content_length;
+        self.content_length = Some(content_length);
+        self
+    }
+
+    /// Set content length of this object.
+    pub fn with_content_length(mut self, content_length: u64) -> Self {
+        self.content_length = Some(content_length);
         self
     }
 
@@ -1263,6 +1298,15 @@ impl ObjectMetadata {
         self
     }
 
+    /// Set content MD5 of this object.
+    ///
+    /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
+    /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
+    pub fn with_content_md5(mut self, content_md5: &str) -> Self {
+        self.content_md5 = Some(content_md5.to_string());
+        self
+    }
+
     /// Last modified of this object.
     ///
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
@@ -1278,6 +1322,15 @@ impl ObjectMetadata {
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
+        self.last_modified = Some(last_modified);
+        self
+    }
+
+    /// Set Last modified of this object.
+    ///
+    /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
+    /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
+    pub fn with_last_modified(mut self, last_modified: OffsetDateTime) -> Self {
         self.last_modified = Some(last_modified);
         self
     }
@@ -1309,6 +1362,22 @@ impl ObjectMetadata {
     ///
     /// `"` is part of etag, don't trim it before setting.
     pub fn set_etag(&mut self, etag: &str) -> &mut Self {
+        self.etag = Some(etag.to_string());
+        self
+    }
+
+    /// Set ETag of this object.
+    ///
+    /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
+    /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
+    ///
+    /// OpenDAL will return this value AS-IS like the following:
+    ///
+    /// - `"33a64df551425fcc55e4d42a148795d9f25f89d4"`
+    /// - `W/"0815"`
+    ///
+    /// `"` is part of etag, don't trim it before setting.
+    pub fn with_etag(mut self, etag: &str) -> Self {
         self.etag = Some(etag.to_string());
         self
     }
@@ -1367,49 +1436,55 @@ impl<T> ObjectIterate for T where T: Iterator<Item = Result<ObjectEntry>> {}
 /// ObjectIterator is a boxed dyn [`ObjectIterate`]
 pub type ObjectIterator = Box<dyn ObjectIterate>;
 
-/// DirEntry is returned by [`DirStream`] during object list.
+/// ObjectEntry is returned by [`ObjectStream`] during object list.
 ///
-/// DirEntry carries two information: path and mode. Users can check returning dir
-/// entry's mode or convert into an object without overhead.
+/// Users can check returning object entry's mode or convert into an object without overhead.
 #[derive(Clone, Debug)]
 pub struct ObjectEntry {
     acc: Arc<dyn Accessor>,
-
-    mode: ObjectMode,
     path: String,
+    meta: Arc<Mutex<ObjectMetadata>>,
 
-    // metadata fields
-    etag: Option<String>,
-    content_length: Option<u64>,
-    content_md5: Option<String>,
-    last_modified: Option<OffsetDateTime>,
+    /// Complete means this object entry already carries all metadata
+    /// that it could have. Don't call metadata anymore.
+    complete: bool,
 }
 
 impl ObjectEntry {
-    /// Create a new dir entry by its corresponding underlying storage.
-    pub fn new(acc: Arc<dyn Accessor>, mode: ObjectMode, path: &str) -> ObjectEntry {
+    /// Create a new object entry by its corresponding underlying storage.
+    pub fn new(acc: Arc<dyn Accessor>, path: &str, meta: ObjectMetadata) -> ObjectEntry {
         debug_assert!(
-            mode.is_dir() == path.ends_with('/'),
+            meta.mode.is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",
-            mode,
+            meta.mode,
             path
         );
 
         ObjectEntry {
             acc,
-            mode,
             path: path.to_string(),
-            // all set to None
-            etag: None,
-            content_length: None,
-            content_md5: None,
-            last_modified: None,
+            meta: Arc::new(Mutex::new(meta)),
+            complete: false,
         }
     }
 
     /// Set accessor for this entry.
     pub fn set_accessor(&mut self, acc: Arc<dyn Accessor>) {
         self.acc = acc;
+    }
+
+    /// Complete means this object entry already carries all metadata
+    /// that it could have. Don't call metadata anymore.
+    pub fn set_complete(&mut self) -> &mut Self {
+        self.complete = true;
+        self
+    }
+
+    /// Complete means this object entry already carries all metadata
+    /// that it could have. Don't call metadata anymore.
+    pub fn with_complete(mut self) -> Self {
+        self.complete = true;
+        self
     }
 
     /// Convert [`DirEntry`] into [`Object`].
@@ -1423,7 +1498,7 @@ impl ObjectEntry {
 
     /// Return this dir entry's object mode.
     pub fn mode(&self) -> ObjectMode {
-        self.mode
+        self.meta.lock().expect("lock must succeed").mode
     }
 
     /// Return this dir entry's id.
@@ -1442,11 +1517,11 @@ impl ObjectEntry {
 
     /// Set path for this entry.
     pub fn set_path(&mut self, path: &str) {
+        #[cfg(debug_assertions)]
+        let mode = self.meta.lock().expect("lock must succeed").mode;
         debug_assert!(
-            self.mode.is_dir() == path.ends_with('/'),
-            "mode {:?} not match with path {}",
-            self.mode,
-            path
+            mode.is_dir() == path.ends_with('/'),
+            "mode {mode:?} not match with path {path}",
         );
 
         self.path = path.to_string();
@@ -1459,49 +1534,68 @@ impl ObjectEntry {
         get_basename(&self.path)
     }
 
-    /// The ETag string of `DirEntry`'s corresponding object
-    ///
-    /// `etag` is a prefetched metadata field in `DirEntry`.
-    ///
-    /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
-    pub fn etag(&self) -> Option<&str> {
-        self.etag.as_deref()
+    /// Fetch metadata about this object entry.
+    pub async fn metadata(&self) -> ObjectMetadata {
+        if !self.complete {
+            // We will ignore all errors happened during inner metadata.
+            if let Ok(meta) = self.acc.stat(self.path(), OpStat::new()).await {
+                self.set_metadata(meta);
+            }
+        }
+
+        self.meta.lock().expect("lock must succeed").clone()
     }
 
-    /// Set the ETag of `DirEntry`'s corresponding object
-    pub fn set_etag(&mut self, etag: &str) {
-        self.etag = Some(etag.to_string())
-    }
-
-    /// The size of `DirEntry`'s corresponding object
+    /// Fetch metadata about this dir entry.
     ///
-    /// `content_length` is a prefetched metadata field in `DirEntry`.
+    /// The same with [`Object::blocking_metadata()`]
+    pub fn blocking_metadata(&self) -> ObjectMetadata {
+        if !self.complete {
+            // We will ignore all errors happened during inner metadata.
+            if let Ok(meta) = self.acc.blocking_stat(self.path(), OpStat::new()) {
+                self.set_metadata(meta);
+            }
+        }
+
+        self.meta.lock().expect("lock must succeed").clone()
+    }
+
+    /// Update ObjectEntry's metadata by setting new one.
+    pub fn set_metadata(&self, meta: ObjectMetadata) -> &Self {
+        let mut guard = self.meta.lock().expect("lock must succeed");
+        *guard = meta;
+        self
+    }
+
+    /// The size of `ObjectEntry`'s corresponding object
     ///
-    /// It doesn't mean this metadata field of object doesn't exist if `content_length` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
-    pub fn content_length(&self) -> Option<u64> {
-        self.content_length
+    /// `content_length` is a prefetched metadata field in `ObjectEntry`.
+    pub async fn content_length(&self) -> u64 {
+        if let Some(v) = self.meta.lock().expect("lock must succeed").content_length {
+            return v;
+        }
+
+        self.metadata().await.content_length.unwrap_or_default()
     }
 
-    /// Set the content length of `DirEntry`'s corresponding object
-    pub fn set_content_length(&mut self, content_length: u64) {
-        self.content_length = Some(content_length)
-    }
-
-    /// The MD5 message digest of `DirEntry`'s corresponding object
+    /// The MD5 message digest of `ObjectEntry`'s corresponding object
     ///
     /// `content_md5` is a prefetched metadata field in `DirEntry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
-    /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
-    pub fn content_md5(&self) -> Option<&str> {
-        self.content_md5.as_deref()
-    }
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn content_md5(&self) -> Option<String> {
+        if let Some(v) = self
+            .meta
+            .lock()
+            .expect("lock must succeed")
+            .content_md5
+            .clone()
+        {
+            return Some(v);
+        }
 
-    /// Set the content's md5 of `DirEntry`'s corresponding object
-    pub fn set_content_md5(&mut self, content_md5: &str) {
-        self.content_md5 = Some(content_md5.to_string())
+        self.metadata().await.content_md5
     }
 
     /// The last modified UTC datetime of `DirEntry`'s corresponding object
@@ -1510,27 +1604,26 @@ impl ObjectEntry {
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
     /// Then you have to call `DirEntry::metadata()` to get the metadata you want.
-    pub fn last_modified(&self) -> Option<OffsetDateTime> {
-        self.last_modified
+    pub async fn last_modified(&self) -> Option<OffsetDateTime> {
+        if let Some(v) = self.meta.lock().expect("lock must succeed").last_modified {
+            return Some(v);
+        }
+
+        self.metadata().await.last_modified
     }
 
-    /// Set the last modified time of `DirEntry`'s corresponding object
-    pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) {
-        self.last_modified = Some(last_modified)
-    }
-
-    /// Fetch metadata about this dir entry.
+    /// The ETag string of `ObjectEntry`'s corresponding object
     ///
-    /// The same with [`Object::metadata()`]
-    pub async fn metadata(&self) -> Result<ObjectMetadata> {
-        self.acc.stat(self.path(), OpStat::new()).await
-    }
-
-    /// Fetch metadata about this dir entry.
+    /// `etag` is a prefetched metadata field in `ObjectEntry`.
     ///
-    /// The same with [`Object::blocking_metadata()`]
-    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
-        self.acc.blocking_stat(self.path(), OpStat::new())
+    /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn etag(&self) -> Option<String> {
+        if let Some(v) = self.meta.lock().expect("lock must succeed").etag.clone() {
+            return Some(v);
+        }
+
+        self.metadata().await.etag
     }
 }
 

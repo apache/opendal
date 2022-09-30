@@ -129,6 +129,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
+    /// - `mode` and `content_length` must be set.
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         let (_, _) = (path, args);
         unimplemented!()

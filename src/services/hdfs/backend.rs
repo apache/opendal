@@ -272,12 +272,14 @@ impl Accessor for Backend {
             .metadata(&p)
             .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
 
-        let mut m = ObjectMetadata::default();
-        if meta.is_dir() {
-            m.set_mode(ObjectMode::DIR);
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
         } else if meta.is_file() {
-            m.set_mode(ObjectMode::FILE);
-        }
+            ObjectMode::FILE
+        } else {
+            ObjectMode::Unknown
+        };
+        let mut m = ObjectMetadata::new(mode);
         m.set_content_length(meta.len());
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
 

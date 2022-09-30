@@ -289,20 +289,20 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
 
-        let mut m = ObjectMetadata::default();
-        if meta.is_dir() {
-            m.set_mode(ObjectMode::DIR);
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
         } else if meta.is_file() {
-            m.set_mode(ObjectMode::FILE);
+            ObjectMode::FILE
         } else {
-            m.set_mode(ObjectMode::Unknown);
-        }
-        m.set_content_length(meta.len() as u64);
-        m.set_last_modified(
-            meta.modified()
-                .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, Operation::Stat, path))?,
-        );
+            ObjectMode::Unknown
+        };
+        let m = ObjectMetadata::new(mode)
+            .with_content_length(meta.len() as u64)
+            .with_last_modified(
+                meta.modified()
+                    .map(OffsetDateTime::from)
+                    .map_err(|e| parse_io_error(e, Operation::Stat, path))?,
+            );
 
         Ok(m)
     }
@@ -466,20 +466,20 @@ impl Accessor for Backend {
         let meta = Self::blocking_fs_metadata(&p)
             .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?;
 
-        let mut m = ObjectMetadata::default();
-        if meta.is_dir() {
-            m.set_mode(ObjectMode::DIR);
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
         } else if meta.is_file() {
-            m.set_mode(ObjectMode::FILE);
+            ObjectMode::FILE
         } else {
-            m.set_mode(ObjectMode::Unknown);
-        }
-        m.set_content_length(meta.len() as u64);
-        m.set_last_modified(
-            meta.modified()
-                .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?,
-        );
+            ObjectMode::Unknown
+        };
+        let m = ObjectMetadata::new(mode)
+            .with_content_length(meta.len() as u64)
+            .with_last_modified(
+                meta.modified()
+                    .map(OffsetDateTime::from)
+                    .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?,
+            );
 
         Ok(m)
     }
@@ -541,24 +541,18 @@ impl Accessor for Backend {
                 // the target file type.
                 let file_type = de.file_type()?;
 
-                let mut d = if file_type.is_file() {
-                    ObjectEntry::new(acc.clone(), ObjectMode::FILE, &path)
+                let d = if file_type.is_file() {
+                    ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::FILE))
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
-                    ObjectEntry::new(acc.clone(), ObjectMode::DIR, &format!("{}/", &path))
+                    ObjectEntry::new(
+                        acc.clone(),
+                        &format!("{}/", &path),
+                        ObjectMetadata::new(ObjectMode::DIR),
+                    )
                 } else {
-                    ObjectEntry::new(acc.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::Unknown))
                 };
-
-                // metadata may not available on all platforms, it's ok not setting it here
-                if let Ok(metadata) = de.metadata() {
-                    d.set_content_length(metadata.len());
-                    // last_modified is not available in all platforms.
-                    // it's ok not setting it here.
-                    if let Ok(last_modified) = metadata.modified().map(OffsetDateTime::from) {
-                        d.set_last_modified(last_modified);
-                    }
-                }
 
                 Ok(d)
             }

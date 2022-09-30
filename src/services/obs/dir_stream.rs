@@ -33,6 +33,7 @@ use crate::path::build_rel_path;
 use crate::services::obs::error::parse_error;
 use crate::services::obs::Backend;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -119,8 +120,8 @@ impl futures::Stream for DirStream {
 
                         let de = ObjectEntry::new(
                             backend,
-                            ObjectMode::DIR,
                             &build_rel_path(&root, prefix),
+                            ObjectMetadata::new(ObjectMode::DIR),
                         );
 
                         return Poll::Ready(Some(Ok(de)));
@@ -136,11 +137,10 @@ impl futures::Stream for DirStream {
                         continue;
                     }
 
-                    let de = ObjectEntry::new(
-                        backend,
-                        ObjectMode::FILE,
-                        &build_rel_path(&root, &object.key),
-                    );
+                    let meta =
+                        ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
+
+                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.key), meta);
 
                     return Poll::Ready(Some(Ok(de)));
                 }

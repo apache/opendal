@@ -29,6 +29,7 @@ use super::err::parse_io_error;
 use super::Backend;
 use crate::ops::Operation;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct ReadDir {
@@ -85,15 +86,23 @@ impl futures::Stream for DirStream {
                 let path = self.path.to_string() + de.name();
 
                 let d = if de.is_file() {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::FILE),
+                    )
                 } else if de.is_directory() {
                     ObjectEntry::new(
                         self.backend.clone(),
-                        ObjectMode::DIR,
                         &format!("{}/", &path),
+                        ObjectMetadata::new(ObjectMode::DIR),
                     )
                 } else {
-                    ObjectEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::Unknown),
+                    )
                 };
 
                 Poll::Ready(Some(Ok(d)))

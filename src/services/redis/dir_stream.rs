@@ -28,6 +28,7 @@ use crate::ops::Operation;
 use crate::services::redis::backend::Backend;
 use crate::services::redis::error::new_exec_async_cmd_error;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 enum State {
@@ -107,7 +108,7 @@ impl Stream for DirStream {
                         ObjectMode::FILE
                     };
 
-                    let entry = ObjectEntry::new(backend, mode, path.as_str());
+                    let entry = ObjectEntry::new(backend, path.as_str(), ObjectMetadata::new(mode));
                     Poll::Ready(Some(Ok(entry)))
                 } else {
                     self.state = State::Idle;

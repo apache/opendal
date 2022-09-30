@@ -36,6 +36,7 @@ use crate::path::build_rel_path;
 use crate::services::gcs::backend::Backend;
 use crate::services::gcs::error::parse_error;
 use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 /// DirStream takes over task of listing objects and
@@ -81,7 +82,6 @@ impl Stream for DirStream {
 
         match &mut self.state {
             State::Standby => {
-                let path = self.path.clone();
                 let token = self.page_token.clone();
 
                 let fut = async move {
@@ -130,8 +130,12 @@ impl Stream for DirStream {
                     let prefix = &prefixes[*common_prefixes_idx];
                     *common_prefixes_idx += 1;
 
-                    let de =
-                        ObjectEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
+                    let de = ObjectEntry::new(
+                        backend,
+                        &build_rel_path(&root, prefix),
+                        ObjectMetadata::new(ObjectMode::DIR),
+                    )
+                    .with_complete();
 
                     return Poll::Ready(Some(Ok(de)));
                 }
@@ -144,15 +148,11 @@ impl Stream for DirStream {
                         continue;
                     }
 
-                    let mut de = ObjectEntry::new(
-                        backend,
-                        ObjectMode::FILE,
-                        &build_rel_path(&root, &object.name),
-                    );
+                    let mut meta = ObjectMetadata::new(ObjectMode::FILE);
 
                     // set metadata fields
-                    de.set_content_md5(object.md5_hash.as_str());
-                    de.set_etag(object.etag.as_str());
+                    meta.set_content_md5(object.md5_hash.as_str());
+                    meta.set_etag(object.etag.as_str());
 
                     let size = object.size.parse().map_err(|e| {
                         new_other_object_error(
@@ -161,17 +161,20 @@ impl Stream for DirStream {
                             anyhow!("parse object size: {e:?}"),
                         )
                     })?;
-                    de.set_content_length(size);
+                    meta.set_content_length(size);
 
                     let dt =
                         OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
                             new_other_object_error(
                                 Operation::List,
-                                &self.path,
+                                &path,
                                 anyhow!("parse last modified RFC3339 datetime: {e:?}"),
                             )
                         })?;
-                    de.set_last_modified(dt);
+                    meta.set_last_modified(dt);
+
+                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.name), meta)
+                        .with_complete();
 
                     return Poll::Ready(Some(Ok(de)));
                 }

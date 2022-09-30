@@ -337,9 +337,7 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-            return Ok(m);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let resp = self.azblob_get_blob_properties(path).await?;
@@ -348,7 +346,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let mut m = ObjectMetadata::default();
+                let mode = if path.ends_with('/') {
+                    ObjectMode::DIR
+                } else {
+                    ObjectMode::FILE
+                };
+                let mut m = ObjectMetadata::new(mode);
 
                 if let Some(v) = parse_content_length(resp.headers())
                     .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
@@ -369,19 +372,10 @@ impl Accessor for Backend {
                     m.set_last_modified(v);
                 }
 
-                if path.ends_with('/') {
-                    m.set_mode(ObjectMode::DIR);
-                } else {
-                    m.set_mode(ObjectMode::FILE);
-                };
-
                 Ok(m)
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                let mut m = ObjectMetadata::default();
-                m.set_mode(ObjectMode::DIR);
-
-                Ok(m)
+                Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

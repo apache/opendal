@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::ObjectEntry;
-use futures::Stream;
-use futures::StreamExt;
 use std::io::Result;
 use std::pin::Pin;
+use std::task::ready;
+use std::task::Context;
 use std::task::Poll;
-use std::task::{ready, Context};
 use std::vec::IntoIter;
+
+use futures::Stream;
+use futures::StreamExt;
+
+use crate::ObjectEntry;
 
 /// ObjectStream represents a stream of Object.
 pub trait ObjectStream: Stream<Item = Result<ObjectEntry>> + Unpin + Send {}

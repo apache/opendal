@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.18.2] - 2022-10-01
+
+### Added
+
+- feat: Enable retry layer by default (#781)
+
+### Changed
+
+- ci: Enable IPFS NoFecth to avoid networking timeout (#780)
+- ci: Build all feature in release to prevent build failure under release profile (#783)
+
+### Fixed
+
+- fix: Fix build error under release profile (#782)
+
 ## [v0.18.1] - 2022-10-01
 
 ### Fixed
@@ -795,6 +810,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.18.2]: https://github.com/datafuselabs/opendal/compare/v0.18.1...v0.18.2
 [v0.18.1]: https://github.com/datafuselabs/opendal/compare/v0.18.0...v0.18.1
 [v0.18.0]: https://github.com/datafuselabs/opendal/compare/v0.17.4...v0.18.0
 [v0.17.4]: https://github.com/datafuselabs/opendal/compare/v0.17.3...v0.17.4

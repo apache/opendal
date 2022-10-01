@@ -160,8 +160,8 @@ impl futures::Stream for DirStream {
 
                     let mut meta = ObjectMetadata::new(ObjectMode::FILE);
 
-                    // record metadata
                     meta.set_etag(&object.etag);
+                    meta.set_content_md5(object.etag.trim_matches('"'));
                     meta.set_content_length(object.size);
 
                     let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)

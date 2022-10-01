@@ -23,7 +23,6 @@ use backon::Backoff;
 use backon::Retryable;
 use log::warn;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -44,6 +43,7 @@ use crate::BytesReader;
 use crate::Layer;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 
 /// RetryLayer will add retry for OpenDAL.

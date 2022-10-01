@@ -29,7 +29,6 @@ use log::error;
 use log::trace;
 use log::warn;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -51,6 +50,7 @@ use crate::Layer;
 use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 use crate::Scheme;
 

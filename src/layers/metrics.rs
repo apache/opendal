@@ -29,7 +29,6 @@ use metrics::counter;
 use metrics::histogram;
 use metrics::increment_counter;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -50,6 +49,7 @@ use crate::BytesReader;
 use crate::Layer;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 use crate::Scheme;
 

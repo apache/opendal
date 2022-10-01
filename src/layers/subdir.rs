@@ -22,7 +22,6 @@ use std::task::Poll;
 use async_trait::async_trait;
 use futures::Stream;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -44,6 +43,7 @@ use crate::Layer;
 use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 
 /// SubdirLayer to switch to subdir for existing operator.

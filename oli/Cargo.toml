@@ -12,7 +12,7 @@ version = "0.17.4"
 
 [dependencies]
 anyhow = "1.0"
-clap = { version = "3.2", features = ["cargo"] }
+clap = { version = "4.0", features = ["cargo"] }
 env_logger = "0.9"
 log = "0.4"
 opendal = "0.17"

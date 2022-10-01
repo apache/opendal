@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - feat: Implement convert from PresignedRequest (#756)
 - feat: Make ObjectMetadata setter public (#758)
 - feat: Implement cached metadata for ObjectEntry (#761)
+- feat: Assign unique name for memory backend (#769)
 
 ### Changed
 

@@ -43,13 +43,7 @@ pub struct DirStream {
 
     next_marker: String,
     done: bool,
-    state: State,
-}
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<Bytes>>),
-    Listing((Output, usize, usize)),
+    fut: Option<BoxFuture<'static, Result<Bytes>>>,
 }
 
 impl DirStream {
@@ -60,20 +54,20 @@ impl DirStream {
             path: path.to_string(),
             next_marker: "".to_string(),
             done: false,
-            state: State::Idle,
+            fut: None,
         }
     }
 }
 
 impl futures::Stream for DirStream {
-    type Item = Result<ObjectEntry>;
+    type Item = Result<Vec<ObjectEntry>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
         let root = self.root.clone();
 
-        match &mut self.state {
-            State::Idle => {
+        match &mut self.fut {
+            None => {
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
                 let fut = async move {
@@ -93,10 +87,10 @@ impl futures::Stream for DirStream {
 
                     Ok(bs)
                 };
-                self.state = State::Sending(Box::pin(fut));
+                self.fut = Some(Box::pin(fut));
                 self.poll_next(cx)
             }
-            State::Sending(fut) => {
+            Some(fut) => {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
                 let output: Output = de::from_reader(bs.reader())
                     .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
@@ -109,31 +103,22 @@ impl futures::Stream for DirStream {
                     Some(next_marker) => next_marker.is_empty(),
                 };
                 self.next_marker = output.next_marker.clone().unwrap_or_default();
-                self.state = State::Listing((output, 0, 0));
-                self.poll_next(cx)
-            }
-            State::Listing((output, common_prefixes_idx, objects_idx)) => {
-                if let Some(prefixes) = &output.common_prefixes {
-                    if *common_prefixes_idx < prefixes.len() {
-                        *common_prefixes_idx += 1;
-                        let prefix = &prefixes[*common_prefixes_idx - 1].prefix;
 
-                        let de = ObjectEntry::new(
-                            backend,
-                            &build_rel_path(&root, prefix),
-                            ObjectMetadata::new(ObjectMode::DIR),
-                        )
-                        .with_complete();
+                let common_prefixes = output.common_prefixes.unwrap_or_default();
+                let mut entries = Vec::with_capacity(common_prefixes.len() + output.contents.len());
 
-                        return Poll::Ready(Some(Ok(de)));
-                    }
-                };
+                for prefix in common_prefixes {
+                    let de = ObjectEntry::new(
+                        backend.clone(),
+                        &build_rel_path(&root, &prefix.prefix),
+                        ObjectMetadata::new(ObjectMode::DIR),
+                    )
+                    .with_complete();
 
-                let objects = &output.contents;
-                while *objects_idx < objects.len() {
-                    let object = &objects[*objects_idx];
-                    *objects_idx += 1;
+                    entries.push(de);
+                }
 
+                for object in output.contents {
                     if object.key.ends_with('/') {
                         continue;
                     }
@@ -141,17 +126,16 @@ impl futures::Stream for DirStream {
                     let meta =
                         ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
 
-                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.key), meta);
+                    let de = ObjectEntry::new(
+                        backend.clone(),
+                        &build_rel_path(&root, &object.key),
+                        meta,
+                    );
 
-                    return Poll::Ready(Some(Ok(de)));
+                    entries.push(de);
                 }
 
-                if self.done {
-                    return Poll::Ready(None);
-                }
-
-                self.state = State::Idle;
-                self.poll_next(cx)
+                Poll::Ready(Some(Ok(entries)))
             }
         }
     }

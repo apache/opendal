@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.18.0] - 2022-10-01
+
+### Added
+
+- feat: Add Metadata Cache Layer (#739)
+- feat: Bump reqsign version to 0.5 (#741)
+- feat: Derive Hash, Eq, PartialEq for Operation (#749)
+- feat: Make AccessorMetadata public so outer users can use (#750)
+- feat: Expose AccessorCapability to users (#751)
+- feat: Expose opendal's http util to users (#753)
+- feat: Implement convert from PresignedRequest (#756)
+- feat: Make ObjectMetadata setter public (#758)
+- feat: Implement cached metadata for ObjectEntry (#761)
+- feat: Assign unique name for memory backend (#769)
+
+### Changed
+
+- refactor: replace error::other with new_other_object_error (#738)
+- chore(compress): log with trace level instead of debug. (#752)
+- refactor: Rename DirXxxx to ObjectXxxx instead (#759)
+
+### Fixed
+
+- fix(http_util): Disable auto compress and enable http proxy (#731)
+- deps: Fix build after bump deps of oli and oay (#766)
+
 ## [v0.17.4] - 2022-09-27
 
 ### Fixed

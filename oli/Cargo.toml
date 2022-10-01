@@ -16,7 +16,7 @@ clap = { version = "3.2", features = ["cargo"] }
 env_logger = "0.9"
 log = "0.4"
 opendal = "0.17"
-tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1.21", features = ["fs", "macros", "rt-multi-thread"] }
 
 [dev-dependencies]
 assert_cmd = "2.0"

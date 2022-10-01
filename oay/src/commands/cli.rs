@@ -18,8 +18,6 @@ use anyhow::Result;
 use clap::crate_description;
 use clap::crate_name;
 use clap::crate_version;
-use clap::App;
-use clap::AppSettings;
 use clap::Command;
 
 pub async fn main() -> Result<()> {
@@ -33,13 +31,9 @@ pub async fn main() -> Result<()> {
     Ok(())
 }
 
-fn cli() -> App<'static> {
-    let app = App::new(crate_name!())
+fn cli() -> Command {
+    Command::new(crate_name!())
         .version(crate_version!())
         .about(crate_description!())
-        .setting(AppSettings::DeriveDisplayOrder)
-        .setting(AppSettings::SubcommandRequiredElseHelp)
-        .subcommand(Command::new("http"));
-
-    app
+        .subcommand(Command::new("http"))
 }

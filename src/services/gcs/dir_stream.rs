@@ -76,6 +76,10 @@ impl Stream for DirStream {
 
         match &mut self.fut {
             None => {
+                if self.done {
+                    return Poll::Ready(None);
+                }
+
                 let token = self.page_token.clone();
 
                 let fut = async move {

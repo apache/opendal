@@ -68,6 +68,10 @@ impl futures::Stream for DirStream {
 
         match &mut self.fut {
             None => {
+                if self.done {
+                    return Poll::Ready(None);
+                }
+
                 let path = self.path.clone();
                 let next_marker = self.next_marker.clone();
                 let fut = async move {

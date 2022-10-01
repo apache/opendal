@@ -20,7 +20,7 @@ log = "0.4"
 opendal = "0.17"
 percent-encoding = "2.1"
 sluice = "0.5.5"
-tokio = { version = "1.20", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.21", features = ["rt-multi-thread", "macros"] }
 
 # Please comment the following patch while releasing.
 [patch.crates-io]

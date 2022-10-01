@@ -35,6 +35,8 @@ pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
+        // IPFS Gateway will return `408 REQUEST_TIMEOUT` while `ipfs resolve -r` failed.
+        StatusCode::REQUEST_TIMEOUT => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
     };
 

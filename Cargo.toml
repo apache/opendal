@@ -1,15 +1,15 @@
 [package]
 authors = ["Databend Authors <opensource@datafuselabs.com>"]
 categories = ["filesystem"]
-description = "OpenDAL: Access data freely, painless, and efficiently."
+description = "OpenDAL: Access data freely, painlessly, and efficiently."
 edition = "2021"
 exclude = ["docs/", "testdata/"]
 homepage = "https://opendal.databend.rs/"
-keywords = ["storage", "data", "s3", "azblob", "gcs"]
+keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.17.4"
+version = "0.18.0"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -33,9 +33,6 @@ layers-metadata-cache = ["bincode", "serde"]
 
 # Enable services hdfs support
 services-hdfs = ["hdrs"]
-# Enable services http support
-# deprecated: We don't need services-http feature any more.
-services-http = []
 # Enable services ftp support
 services-ftp = ["suppaftp"]
 # Enable services ipfs support

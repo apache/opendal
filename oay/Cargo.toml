@@ -8,7 +8,7 @@ keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oay"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.17.4"
+version = "0.18.0"
 
 [dependencies]
 actix-web = "4"
@@ -17,7 +17,7 @@ clap = { version = "4", features = ["cargo"] }
 env_logger = "0.9"
 futures = "0.3"
 log = "0.4"
-opendal = "0.17"
+opendal = "0.18"
 percent-encoding = "2"
 sluice = "0.5"
 tokio = { version = "1.20", features = ["rt-multi-thread", "macros"] }

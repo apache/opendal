@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.18.1] - 2022-10-01
+
+### Fixed
+
+- fix(services/s3): Content MD5 not set during list (#775)
+- test: Add a test for ObjectEntry metadata cache (#776)
+
 ## [v0.18.0] - 2022-10-01
 
 ### Added
@@ -788,6 +795,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.18.1]: https://github.com/datafuselabs/opendal/compare/v0.18.0...v0.18.1
+[v0.18.0]: https://github.com/datafuselabs/opendal/compare/v0.17.4...v0.18.0
 [v0.17.4]: https://github.com/datafuselabs/opendal/compare/v0.17.3...v0.17.4
 [v0.17.3]: https://github.com/datafuselabs/opendal/compare/v0.17.2...v0.17.3
 [v0.17.2]: https://github.com/datafuselabs/opendal/compare/v0.17.1...v0.17.2

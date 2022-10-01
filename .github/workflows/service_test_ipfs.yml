@@ -28,7 +28,10 @@ jobs:
         with:
           # ipfs v0.15 seems can't pass our tests, need investigate.
           ipfs_version: "v0.14.0"
-          run_daemon: true
+      - name: Start IPFS Daemon
+        run: |
+          ipfs config --json Gateway.NoFetch true
+          ipfs daemon &
       - name: IPFS add speed up tests
         run: ipfs add -r ./testdata
 

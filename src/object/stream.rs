@@ -16,6 +16,7 @@ use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
+use std::vec::IntoIter;
 
 use crate::ObjectEntry;
 
@@ -34,5 +35,28 @@ impl futures::Stream for EmptyObjectStreamer {
 
     fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(None)
+    }
+}
+
+trait ObjectPageStream: futures::Stream<Item = Result<Vec<ObjectEntry>>> + Unpin + Send {}
+
+pub struct PagedObjectStreamer<S: ObjectPageStream> {
+    inner: S,
+    done: bool,
+    entries: IntoIter<ObjectEntry>,
+}
+
+impl<S> futures::Stream for PagedObjectStreamer<S>
+where
+    S: ObjectPageStream,
+{
+    type Item = Result<ObjectEntry>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(entry) = self.entries.next() {
+            return Poll::Ready(Some(Ok(entry)));
+        }
+
+        todo!()
     }
 }

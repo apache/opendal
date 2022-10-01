@@ -9,9 +9,6 @@ on:
       - main
     paths-ignore:
       - "docs/**"
-  # Run this test every hour to keep our testdata warm in ipfs network.
-  schedule:
-    - cron: "0 * * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

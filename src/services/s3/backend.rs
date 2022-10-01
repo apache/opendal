@@ -58,7 +58,6 @@ use crate::http_util::AsyncBody;
 use crate::http_util::Body;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
-use crate::multipart::ObjectPart;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
@@ -81,6 +80,7 @@ use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 use crate::Scheme;
 

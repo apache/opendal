@@ -147,16 +147,14 @@ pub use object::ObjectIterator;
 pub use object::ObjectIterator as DirIterator;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
+pub use object::ObjectMultipart;
+pub use object::ObjectPart;
 pub use object::ObjectStream;
 #[deprecated(since = "0.18.0", note = "Please use ObjectStream instead")]
 pub use object::ObjectStream as DirStream;
 pub use object::ObjectStreamer;
 #[deprecated(since = "0.18.0", note = "Please use ObjectStreamer instead")]
 pub use object::ObjectStreamer as DirStreamer;
-
-mod multipart;
-pub use multipart::ObjectMultipart;
-pub use multipart::ObjectPart;
 
 mod scheme;
 pub use scheme::Scheme;

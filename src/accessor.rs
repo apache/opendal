@@ -21,7 +21,6 @@ use flagset::flags;
 use flagset::FlagSet;
 
 use crate::error::new_unsupported_object_error;
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -39,6 +38,7 @@ use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 use crate::Scheme;
 

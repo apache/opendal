@@ -24,7 +24,6 @@ use async_trait::async_trait;
 use futures::AsyncRead;
 use tracing::Span;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -45,6 +44,7 @@ use crate::Layer;
 use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 
 /// TracingLayer will add tracing for OpenDAL.

@@ -22,7 +22,6 @@ use futures::io;
 use futures::io::Cursor;
 
 use crate::error::new_other_object_error;
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -43,6 +42,7 @@ use crate::BytesReader;
 use crate::Layer;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 
 /// MetadataCacheLayer will add metadata cache support for OpenDAL.

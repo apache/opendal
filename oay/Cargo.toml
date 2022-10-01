@@ -11,15 +11,15 @@ repository = "https://github.com/datafuselabs/opendal"
 version = "0.17.4"
 
 [dependencies]
-actix-web = "4.1"
-anyhow = "1.0"
-clap = { version = "3.2", features = ["cargo"] }
+actix-web = "4"
+anyhow = "1"
+clap = { version = "4", features = ["cargo"] }
 env_logger = "0.9"
 futures = "0.3"
 log = "0.4"
 opendal = "0.17"
-percent-encoding = "2.1"
-sluice = "0.5.5"
+percent-encoding = "2"
+sluice = "0.5"
 tokio = { version = "1.20", features = ["rt-multi-thread", "macros"] }
 
 # Please comment the following patch while releasing.

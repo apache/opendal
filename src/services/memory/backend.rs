@@ -75,7 +75,7 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Memory)
             .set_root("/")
-            .set_name("memory")
+            .set_name(&format!("{:?}", &self.inner as *const _))
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             );
@@ -309,5 +309,19 @@ impl futures::Stream for DirStream {
         };
 
         Poll::Ready(Some(Ok(de)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_accessor_metadata_name() {
+        let b1 = Builder::default().build().unwrap();
+        assert_eq!(b1.metadata().name(), b1.metadata().name());
+
+        let b2 = Builder::default().build().unwrap();
+        assert_ne!(b1.metadata().name(), b2.metadata().name())
     }
 }

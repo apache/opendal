@@ -48,13 +48,7 @@ pub struct DirStream {
     page_token: String,
 
     done: bool,
-    state: State,
-}
-
-enum State {
-    Standby,
-    Pending(BoxFuture<'static, Result<Bytes>>),
-    Walking((ListResponse, usize, usize)),
+    fut: Option<BoxFuture<'static, Result<Bytes>>>,
 }
 
 impl DirStream {
@@ -67,21 +61,21 @@ impl DirStream {
             page_token: "".to_string(),
 
             done: false,
-            state: State::Standby,
+            fut: None,
         }
     }
 }
 
 impl Stream for DirStream {
-    type Item = Result<ObjectEntry>;
+    type Item = Result<Vec<ObjectEntry>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
         let root = self.root.clone();
         let path = self.path.clone();
 
-        match &mut self.state {
-            State::Standby => {
+        match &mut self.fut {
+            None => {
                 let token = self.page_token.clone();
 
                 let fut = async move {
@@ -103,10 +97,10 @@ impl Stream for DirStream {
                     Ok(bytes)
                 };
 
-                self.state = State::Pending(Box::pin(fut));
+                self.fut = Some(Box::pin(fut));
                 self.poll_next(cx)
             }
-            State::Pending(fut) => {
+            Some(fut) => {
                 let bytes = ready!(Pin::new(fut).poll(cx))?;
                 let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
                     new_other_object_error(
@@ -121,29 +115,21 @@ impl Stream for DirStream {
                 } else {
                     self.done = true;
                 }
-                self.state = State::Walking((output, 0, 0));
-                self.poll_next(cx)
-            }
-            State::Walking((output, common_prefixes_idx, objects_idx)) => {
-                let prefixes = &output.prefixes;
-                if *common_prefixes_idx < prefixes.len() {
-                    let prefix = &prefixes[*common_prefixes_idx];
-                    *common_prefixes_idx += 1;
 
+                let mut entries = Vec::with_capacity(output.prefixes.len() + output.items.len());
+
+                for prefix in output.prefixes {
                     let de = ObjectEntry::new(
-                        backend,
-                        &build_rel_path(&root, prefix),
+                        backend.clone(),
+                        &build_rel_path(&root, &prefix),
                         ObjectMetadata::new(ObjectMode::DIR),
                     )
                     .with_complete();
 
-                    return Poll::Ready(Some(Ok(de)));
+                    entries.push(de);
                 }
-                let objects = &output.items;
-                while *objects_idx < objects.len() {
-                    let object = &objects[*objects_idx];
-                    *objects_idx += 1;
 
+                for object in output.items {
                     if object.name.ends_with('/') {
                         continue;
                     }
@@ -173,19 +159,17 @@ impl Stream for DirStream {
                         })?;
                     meta.set_last_modified(dt);
 
-                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.name), meta)
-                        .with_complete();
+                    let de = ObjectEntry::new(
+                        backend.clone(),
+                        &build_rel_path(&root, &object.name),
+                        meta,
+                    )
+                    .with_complete();
 
-                    return Poll::Ready(Some(Ok(de)));
+                    entries.push(de);
                 }
 
-                // end of asynchronous iteration
-                if self.done {
-                    return Poll::Ready(None);
-                }
-
-                self.state = State::Standby;
-                self.poll_next(cx)
+                Poll::Ready(Some(Ok(entries)))
             }
         }
     }

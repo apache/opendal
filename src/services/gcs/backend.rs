@@ -47,6 +47,7 @@ use crate::http_util::parse_error_response;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -376,11 +377,11 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        Ok(Box::new(DirStream::new(
+        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
             path,
-        )))
+        ))))
     }
 
     // inherits the default implementation of Accessor.

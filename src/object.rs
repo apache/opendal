@@ -1540,11 +1540,14 @@ impl ObjectEntry {
     /// Set path for this entry.
     pub fn set_path(&mut self, path: &str) {
         #[cfg(debug_assertions)]
-        let mode = self.meta.lock().expect("lock must succeed").mode;
-        debug_assert!(
-            mode.is_dir() == path.ends_with('/'),
-            "mode {mode:?} not match with path {path}",
-        );
+        {
+            let mode = self.meta.lock().expect("lock must succeed").mode;
+            assert_eq!(
+                mode.is_dir(),
+                path.ends_with('/'),
+                "mode {mode:?} not match with path {path}",
+            );
+        }
 
         self.path = path.to_string();
     }

@@ -164,7 +164,13 @@ impl futures::Stream for DirStream {
                     meta.set_content_md5(object.etag.trim_matches('"'));
                     meta.set_content_length(object.size);
 
+                    // object.last_modified provides more precious time that contains
+                    // nanosecond, let's trim them.
                     let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
+                        .map(|v| {
+                            v.replace_nanosecond(0)
+                                .expect("replace nanosecond of last modified must succeed")
+                        })
                         .map_err(|e| {
                             new_other_object_error(
                                 Operation::List,

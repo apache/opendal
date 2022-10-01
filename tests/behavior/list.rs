@@ -65,6 +65,7 @@ macro_rules! behavior_list_tests {
 
                 test_check,
                 test_list_dir,
+                test_list_dir_metadata_cache,
                 test_list_empty_dir,
                 test_list_non_exist_dir,
                 test_list_sub_dir,
@@ -109,6 +110,31 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
         }
     }
     assert!(found, "file should be found in list");
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// List dir should return newly created file with correct metadata.
+pub async fn test_list_dir_metadata_cache(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    op.object(&path)
+        .write(content)
+        .await
+        .expect("write must succeed");
+
+    let mut obs = op.object("/").list().await?;
+    while let Some(de) = obs.try_next().await? {
+        let meta_from_entry = de.metadata().await;
+        let meta_from_object = de.into_object().metadata().await?;
+        assert_eq!(meta_from_entry, meta_from_object)
+    }
 
     op.object(&path)
         .delete()

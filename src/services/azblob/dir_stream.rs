@@ -151,7 +151,8 @@ impl futures::Stream for DirStream {
                     }
 
                     let meta = ObjectMetadata::new(ObjectMode::FILE)
-                        .with_etag(object.properties.etag.as_str())
+                        // Keep fit with ETag header.
+                        .with_etag(&format!("\"{}\"", object.properties.etag.as_str()))
                         .with_content_length(object.properties.content_length)
                         .with_content_md5(object.properties.content_md5.as_str())
                         .with_last_modified(

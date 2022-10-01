@@ -9,4 +9,4 @@ All documents listed should be treated as highly biased. Because:
 
 Let's see OpenDAL:
 
-- [vs object_store](./object_store/)
+- [vs object_store](./object_store.html)

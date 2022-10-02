@@ -35,7 +35,6 @@ use crate::ObjectMode;
 
 /// DirStream takes over task of listing objects and
 /// helps walking directory
-#[derive(Clone)]
 pub struct DirStream {
     backend: Arc<Backend>,
     root: String,

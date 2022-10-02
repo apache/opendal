@@ -14,9 +14,11 @@
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::lock::Mutex;
 use futures::Future;
 use std::io::Result;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
@@ -48,14 +50,14 @@ impl Stream for EmptyObjectStreamer {
 /// ObjectPageStream represents a stream of Object Page which contains a vector
 /// of [`ObjectEntry`].
 #[async_trait]
-pub trait ObjectPageStream: Clone + Send {
+pub trait ObjectPageStream: Send {
     async fn next(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
 }
 
 /// ObjectPageStreamer will convert an [`ObjectPageStream`] to [`ObjectStream`]
 #[pin_project]
 pub struct ObjectPageStreamer<S: ObjectPageStream> {
-    inner: S,
+    inner: Arc<Mutex<S>>,
     fut: Option<BoxFuture<'static, Result<Option<Vec<ObjectEntry>>>>>,
     entries: IntoIter<ObjectEntry>,
 }
@@ -67,7 +69,7 @@ where
     /// Create a new ObjectPageStreamer.
     pub fn new(inner: S) -> Self {
         Self {
-            inner,
+            inner: Arc::new(Mutex::new(inner)),
             fut: None,
             entries: vec![].into_iter(),
         }
@@ -91,8 +93,8 @@ where
 
             match &mut this.fut {
                 None => {
-                    let mut stream = this.inner.clone();
-                    let fut = async move { stream.next().await };
+                    let stream = this.inner.clone();
+                    let fut = async move { stream.lock().await.next().await };
                     *this.fut = Some(Box::pin(fut));
                 }
                 Some(fut) => match ready!(Pin::new(fut).poll(cx))? {

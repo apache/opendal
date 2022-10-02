@@ -34,7 +34,6 @@ use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 
-#[derive(Clone)]
 pub struct DirStream {
     backend: Arc<Backend>,
     root: String,

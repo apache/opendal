@@ -11,18 +11,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::future::Future;
 use std::io::Result;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use anyhow::anyhow;
+use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::ready;
 use quick_xml::de;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc2822;
@@ -32,6 +26,7 @@ use super::error::parse_error;
 use super::Backend;
 use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
+use crate::object::ObjectPageStream;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
@@ -45,13 +40,6 @@ pub struct DirStream {
 
     next_marker: String,
     done: bool,
-    state: State,
-}
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<Bytes>>),
-    Listing((Output, usize, usize)),
 }
 
 impl DirStream {
@@ -63,126 +51,99 @@ impl DirStream {
 
             next_marker: "".to_string(),
             done: false,
-            state: State::Idle,
         }
     }
 }
 
-impl futures::Stream for DirStream {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let backend = self.backend.clone();
-        let root = self.root.clone();
-        let path = self.path.clone();
-
-        match &mut self.state {
-            State::Idle => {
-                let next_marker = self.next_marker.clone();
-
-                let fut = async move {
-                    let resp = backend.azblob_list_blobs(&path, &next_marker).await?;
-
-                    if resp.status() != http::StatusCode::OK {
-                        let er = parse_error_response(resp).await?;
-                        let err = parse_error(Operation::List, &path, er);
-                        return Err(err);
-                    }
-
-                    let bs = resp
-                        .into_body()
-                        .bytes()
-                        .await
-                        .map_err(|e| new_other_object_error(Operation::List, &path, e))?;
-
-                    Ok(bs)
-                };
-                self.state = State::Sending(Box::pin(fut));
-                self.poll_next(cx)
-            }
-            State::Sending(fut) => {
-                let bs = ready!(Pin::new(fut).poll(cx))?;
-
-                let output: Output = de::from_reader(bs.reader()).map_err(|e| {
-                    new_other_object_error(
-                        Operation::List,
-                        &self.path,
-                        anyhow!("deserialize xml: {e:?}"),
-                    )
-                })?;
-
-                // Try our best to check whether this list is done.
-                //
-                // - Check `next_marker`
-                if let Some(next_marker) = output.next_marker.as_ref() {
-                    self.done = next_marker.is_empty();
-                };
-                self.next_marker = output.next_marker.clone().unwrap_or_default();
-                self.state = State::Listing((output, 0, 0));
-                self.poll_next(cx)
-            }
-            State::Listing((output, common_prefixes_idx, objects_idx)) => {
-                if let Some(prefixes) = &output.blobs.blob_prefix {
-                    if *common_prefixes_idx < prefixes.len() {
-                        *common_prefixes_idx += 1;
-                        let prefix = &prefixes[*common_prefixes_idx - 1].name;
-
-                        let de = ObjectEntry::new(
-                            backend,
-                            &build_rel_path(&root, prefix),
-                            ObjectMetadata::new(ObjectMode::DIR),
-                        )
-                        .with_complete();
-
-                        return Poll::Ready(Some(Ok(de)));
-                    }
-                };
-
-                let objects = &output.blobs.blob;
-                while *objects_idx < objects.len() {
-                    let object = &objects[*objects_idx];
-                    *objects_idx += 1;
-
-                    // azblob could return the dir itself in contents
-                    // which endswith `/`.
-                    // We should ignore them.
-                    if object.name.ends_with('/') {
-                        continue;
-                    }
-
-                    let meta = ObjectMetadata::new(ObjectMode::FILE)
-                        // Keep fit with ETag header.
-                        .with_etag(&format!("\"{}\"", object.properties.etag.as_str()))
-                        .with_content_length(object.properties.content_length)
-                        .with_content_md5(object.properties.content_md5.as_str())
-                        .with_last_modified(
-                            OffsetDateTime::parse(
-                                object.properties.last_modified.as_str(),
-                                &Rfc2822,
-                            )
-                            .map_err(|e| {
-                                new_other_object_error(
-                                    Operation::List,
-                                    &path,
-                                    anyhow!("parse last modified RFC2822 datetime: {e:?}"),
-                                )
-                            })?,
-                        );
-
-                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.name), meta)
-                        .with_complete();
-
-                    return Poll::Ready(Some(Ok(de)));
-                }
-
-                if self.done {
-                    return Poll::Ready(None);
-                }
-
-                self.state = State::Idle;
-                self.poll_next(cx)
-            }
+#[async_trait]
+impl ObjectPageStream for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        if self.done {
+            return Ok(None);
         }
+
+        let resp = self
+            .backend
+            .azblob_list_blobs(&self.path, &self.next_marker)
+            .await?;
+
+        if resp.status() != http::StatusCode::OK {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error(Operation::List, &self.path, er);
+            return Err(err);
+        }
+
+        let bs = resp
+            .into_body()
+            .bytes()
+            .await
+            .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
+
+        let output: Output = de::from_reader(bs.reader()).map_err(|e| {
+            new_other_object_error(
+                Operation::List,
+                &self.path,
+                anyhow!("deserialize xml: {e:?}"),
+            )
+        })?;
+
+        // Try our best to check whether this list is done.
+        //
+        // - Check `next_marker`
+        if let Some(next_marker) = output.next_marker.as_ref() {
+            self.done = next_marker.is_empty();
+        };
+        self.next_marker = output.next_marker.clone().unwrap_or_default();
+
+        let prefixes = output.blobs.blob_prefix.unwrap_or_default();
+        let mut entries = Vec::with_capacity(prefixes.len() + output.blobs.blob.len());
+
+        for prefix in prefixes {
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &prefix.name),
+                ObjectMetadata::new(ObjectMode::DIR),
+            )
+            .with_complete();
+
+            entries.push(de)
+        }
+
+        for object in output.blobs.blob {
+            // azblob could return the dir itself in contents
+            // which endswith `/`.
+            // We should ignore them.
+            if object.name.ends_with('/') {
+                continue;
+            }
+
+            let meta = ObjectMetadata::new(ObjectMode::FILE)
+                // Keep fit with ETag header.
+                .with_etag(&format!("\"{}\"", object.properties.etag.as_str()))
+                .with_content_length(object.properties.content_length)
+                .with_content_md5(object.properties.content_md5.as_str())
+                .with_last_modified(
+                    OffsetDateTime::parse(object.properties.last_modified.as_str(), &Rfc2822)
+                        .map_err(|e| {
+                            new_other_object_error(
+                                Operation::List,
+                                &self.path,
+                                anyhow!("parse last modified RFC2822 datetime: {e:?}"),
+                            )
+                        })?,
+                );
+
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &object.name),
+                meta,
+            )
+            .with_complete();
+
+            entries.push(de);
+        }
+
+        Ok(Some(entries))
     }
 }
 

@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::lock::Mutex;
-use futures::Future;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -24,6 +20,10 @@ use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
+use async_trait::async_trait;
+use futures::future::BoxFuture;
+use futures::lock::Mutex;
+use futures::Future;
 use futures::Stream;
 use pin_project::pin_project;
 

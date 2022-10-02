@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use async_trait::async_trait;
 use std::io::Result;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
 use serde::Deserialize;

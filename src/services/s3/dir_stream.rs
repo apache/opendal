@@ -12,18 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::future::Future;
 use std::io::Result;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use anyhow::anyhow;
+use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::ready;
 use quick_xml::de;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
@@ -33,6 +27,7 @@ use super::error::parse_error;
 use super::Backend;
 use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
+use crate::object::ObjectPageStream;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
@@ -46,13 +41,6 @@ pub struct DirStream {
 
     token: String,
     done: bool,
-    state: State,
-}
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<Bytes>>),
-    Listing((Output, usize, usize)),
 }
 
 impl DirStream {
@@ -64,136 +52,104 @@ impl DirStream {
 
             token: "".to_string(),
             done: false,
-            state: State::Idle,
         }
     }
 }
 
-impl futures::Stream for DirStream {
-    type Item = Result<ObjectEntry>;
+#[async_trait]
+impl ObjectPageStream for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        if self.done {
+            return Ok(None);
+        }
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let backend = self.backend.clone();
-        let root = self.root.clone();
-        let path = self.path.clone();
+        let resp = self.backend.list_objects(&self.path, &self.token).await?;
 
-        match &mut self.state {
-            State::Idle => {
-                let token = self.token.clone();
-                let fut = async move {
-                    let resp = backend.list_objects(&path, &token).await?;
+        if resp.status() != http::StatusCode::OK {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error(Operation::List, &self.path, er);
+            return Err(err);
+        }
 
-                    if resp.status() != http::StatusCode::OK {
-                        let er = parse_error_response(resp).await?;
-                        let err = parse_error(Operation::List, &path, er);
-                        return Err(err);
-                    }
+        let bs = resp.into_body().bytes().await.map_err(|e| {
+            new_other_object_error(Operation::List, &self.path, anyhow!("read body: {:?}", e))
+        })?;
 
-                    let bs = resp.into_body().bytes().await.map_err(|e| {
-                        new_other_object_error(
-                            Operation::List,
-                            &path,
-                            anyhow!("read body: {:?}", e),
-                        )
-                    })?;
+        let output: Output = de::from_reader(bs.reader()).map_err(|e| {
+            new_other_object_error(
+                Operation::List,
+                &self.path,
+                anyhow!("deserialize list_bucket output: {:?}", e),
+            )
+        })?;
 
-                    Ok(bs)
-                };
-                self.state = State::Sending(Box::pin(fut));
-                self.poll_next(cx)
+        // Try our best to check whether this list is done.
+        //
+        // - Check `is_truncated`
+        // - Check `next_continuation_token`
+        // - Check the length of `common_prefixes` and `contents` (very rarely case)
+        self.done = if let Some(is_truncated) = output.is_truncated {
+            !is_truncated
+        } else if let Some(next_continuation_token) = output.next_continuation_token.as_ref() {
+            next_continuation_token.is_empty()
+        } else {
+            output.common_prefixes.is_empty() && output.contents.is_empty()
+        };
+        self.token = output.next_continuation_token.clone().unwrap_or_default();
+
+        let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
+
+        for prefix in output.common_prefixes {
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &prefix.prefix),
+                ObjectMetadata::new(ObjectMode::DIR),
+            )
+            .with_complete();
+            entries.push(de);
+        }
+
+        for object in output.contents {
+            // s3 could return the dir itself in contents
+            // which endswith `/`.
+            // We should ignore them.
+            if object.key.ends_with('/') {
+                continue;
             }
-            State::Sending(fut) => {
-                let bs = ready!(Pin::new(fut).poll(cx))?;
-                let output: Output = de::from_reader(bs.reader()).map_err(|e| {
+
+            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+
+            meta.set_etag(&object.etag);
+            meta.set_content_md5(object.etag.trim_matches('"'));
+            meta.set_content_length(object.size);
+
+            // object.last_modified provides more precious time that contains
+            // nanosecond, let's trim them.
+            let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
+                .map(|v| {
+                    v.replace_nanosecond(0)
+                        .expect("replace nanosecond of last modified must succeed")
+                })
+                .map_err(|e| {
                     new_other_object_error(
                         Operation::List,
-                        &path,
-                        anyhow!("deserialize list_bucket output: {:?}", e),
+                        &self.path,
+                        anyhow!("parse last modified RFC3339 datetime: {e:?}"),
                     )
                 })?;
+            meta.set_last_modified(dt);
 
-                // Try our best to check whether this list is done.
-                //
-                // - Check `is_truncated`
-                // - Check `next_continuation_token`
-                // - Check the length of `common_prefixes` and `contents` (very rarely case)
-                self.done = if let Some(is_truncated) = output.is_truncated {
-                    !is_truncated
-                } else if let Some(next_continuation_token) =
-                    output.next_continuation_token.as_ref()
-                {
-                    next_continuation_token.is_empty()
-                } else {
-                    output.common_prefixes.is_empty() && output.contents.is_empty()
-                };
-                self.token = output.next_continuation_token.clone().unwrap_or_default();
-                self.state = State::Listing((output, 0, 0));
-                self.poll_next(cx)
-            }
-            State::Listing((output, common_prefixes_idx, objects_idx)) => {
-                let prefixes = &output.common_prefixes;
-                if *common_prefixes_idx < prefixes.len() {
-                    *common_prefixes_idx += 1;
-                    let prefix = &prefixes[*common_prefixes_idx - 1].prefix;
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &object.key),
+                meta,
+            )
+            .with_complete();
 
-                    let de = ObjectEntry::new(
-                        backend,
-                        &build_rel_path(&root, prefix),
-                        ObjectMetadata::new(ObjectMode::DIR),
-                    )
-                    .with_complete();
-
-                    return Poll::Ready(Some(Ok(de)));
-                }
-
-                let objects = &output.contents;
-                while *objects_idx < objects.len() {
-                    let object = &objects[*objects_idx];
-                    *objects_idx += 1;
-
-                    // s3 could return the dir itself in contents
-                    // which endswith `/`.
-                    // We should ignore them.
-                    if object.key.ends_with('/') {
-                        continue;
-                    }
-
-                    let mut meta = ObjectMetadata::new(ObjectMode::FILE);
-
-                    meta.set_etag(&object.etag);
-                    meta.set_content_md5(object.etag.trim_matches('"'));
-                    meta.set_content_length(object.size);
-
-                    // object.last_modified provides more precious time that contains
-                    // nanosecond, let's trim them.
-                    let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
-                        .map(|v| {
-                            v.replace_nanosecond(0)
-                                .expect("replace nanosecond of last modified must succeed")
-                        })
-                        .map_err(|e| {
-                            new_other_object_error(
-                                Operation::List,
-                                &path,
-                                anyhow!("parse last modified RFC3339 datetime: {e:?}"),
-                            )
-                        })?;
-                    meta.set_last_modified(dt);
-
-                    let de = ObjectEntry::new(backend, &build_rel_path(&root, &object.key), meta)
-                        .with_complete();
-
-                    return Poll::Ready(Some(Ok(de)));
-                }
-
-                if self.done {
-                    return Poll::Ready(None);
-                }
-
-                self.state = State::Idle;
-                self.poll_next(cx)
-            }
+            entries.push(de);
         }
+
+        Ok(Some(entries))
     }
 }
 

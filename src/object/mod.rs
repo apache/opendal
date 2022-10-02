@@ -36,6 +36,8 @@ mod object;
 pub use object::Object;
 
 mod stream;
-pub(crate) use stream::EmptyObjectStreamer;
+pub use stream::EmptyObjectStreamer;
+pub use stream::ObjectPageStream;
+pub use stream::ObjectPageStreamer;
 pub use stream::ObjectStream;
 pub use stream::ObjectStreamer;

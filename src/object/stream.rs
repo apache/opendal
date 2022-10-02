@@ -14,25 +14,106 @@
 
 use std::io::Result;
 use std::pin::Pin;
+use std::sync::Arc;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::vec::IntoIter;
+
+use async_trait::async_trait;
+use futures::future::BoxFuture;
+use futures::lock::Mutex;
+use futures::Future;
+use futures::Stream;
+use pin_project::pin_project;
 
 use crate::ObjectEntry;
 
-/// ObjectStream represents a stream of Dir.
-pub trait ObjectStream: futures::Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
-impl<T> ObjectStream for T where T: futures::Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
+/// ObjectStream represents a stream of Object.
+pub trait ObjectStream: Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
+impl<T> ObjectStream for T where T: Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
 
 /// ObjectStreamer is a boxed dyn [`ObjectStream`]
 pub type ObjectStreamer = Box<dyn ObjectStream>;
 
 /// EmptyObjectStreamer that always return None.
-pub(crate) struct EmptyObjectStreamer;
+pub struct EmptyObjectStreamer;
 
-impl futures::Stream for EmptyObjectStreamer {
+impl Stream for EmptyObjectStreamer {
     type Item = Result<ObjectEntry>;
 
     fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(None)
+    }
+}
+
+/// ObjectPageStream represents a stream of Object Page which contains a
+/// vector of [`ObjectEntry`].
+///
+/// # Behavior
+///
+/// - `None` means all object pages have been iterated.
+#[async_trait]
+pub trait ObjectPageStream: Send {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
+}
+
+/// ObjectPageStreamer will convert an [`ObjectPageStream`] to [`ObjectStream`]
+#[pin_project]
+pub struct ObjectPageStreamer<S: ObjectPageStream> {
+    inner: Arc<Mutex<S>>,
+    fut: Option<BoxFuture<'static, Result<Option<Vec<ObjectEntry>>>>>,
+    entries: IntoIter<ObjectEntry>,
+}
+
+impl<S> ObjectPageStreamer<S>
+where
+    S: ObjectPageStream,
+{
+    /// Create a new ObjectPageStreamer.
+    pub fn new(inner: S) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(inner)),
+            fut: None,
+            entries: vec![].into_iter(),
+        }
+    }
+}
+
+impl<S> Stream for ObjectPageStreamer<S>
+where
+    S: ObjectPageStream + 'static,
+{
+    type Item = Result<ObjectEntry>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        loop {
+            // Try to fetch entry from already cached entries.
+            if let Some(entry) = this.entries.next() {
+                return Poll::Ready(Some(Ok(entry)));
+            }
+
+            match &mut this.fut {
+                None => {
+                    let stream = this.inner.clone();
+                    let fut = async move { stream.lock().await.next_page().await };
+                    *this.fut = Some(Box::pin(fut));
+                }
+                Some(fut) => {
+                    let entries = ready!(Pin::new(fut).poll(cx))?;
+
+                    // Set future to None after we resolved the last one.
+                    *this.fut = None;
+
+                    if let Some(entries) = entries {
+                        *this.entries = entries.into_iter();
+                    } else {
+                        return Poll::Ready(None);
+                    }
+                }
+            }
+        }
     }
 }

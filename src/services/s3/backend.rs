@@ -58,6 +58,7 @@ use crate::http_util::AsyncBody;
 use crate::http_util::Body;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
@@ -964,11 +965,11 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        Ok(Box::new(DirStream::new(
+        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
             path,
-        )))
+        ))))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {

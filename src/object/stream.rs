@@ -47,11 +47,15 @@ impl Stream for EmptyObjectStreamer {
     }
 }
 
-/// ObjectPageStream represents a stream of Object Page which contains a vector
-/// of [`ObjectEntry`].
+/// ObjectPageStream represents a stream of Object Page which contains a
+/// vector of [`ObjectEntry`].
+///
+/// # Behavior
+///
+/// - `None` means all object pages have been iterated.
 #[async_trait]
 pub trait ObjectPageStream: Send {
-    async fn next(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
 }
 
 /// ObjectPageStreamer will convert an [`ObjectPageStream`] to [`ObjectStream`]
@@ -94,19 +98,21 @@ where
             match &mut this.fut {
                 None => {
                     let stream = this.inner.clone();
-                    let fut = async move { stream.lock().await.next().await };
+                    let fut = async move { stream.lock().await.next_page().await };
                     *this.fut = Some(Box::pin(fut));
                 }
-                Some(fut) => match ready!(Pin::new(fut).poll(cx))? {
-                    None => {
-                        *this.fut = None;
+                Some(fut) => {
+                    let entries = ready!(Pin::new(fut).poll(cx))?;
+
+                    // Set future to None after we resolved the last one.
+                    *this.fut = None;
+
+                    if let Some(entries) = entries {
+                        *this.entries = entries.into_iter();
+                    } else {
                         return Poll::Ready(None);
                     }
-                    Some(entries) => {
-                        *this.entries = entries.into_iter();
-                        *this.fut = None;
-                    }
-                },
+                }
             }
         }
     }

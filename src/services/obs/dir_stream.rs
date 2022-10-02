@@ -54,7 +54,7 @@ impl DirStream {
 
 #[async_trait]
 impl ObjectPageStream for DirStream {
-    async fn next(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         if self.done {
             return Ok(None);
         }

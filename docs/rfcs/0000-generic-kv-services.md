@@ -9,23 +9,23 @@ Add generic kv services support OpenDAL.
 
 # Motivation
 
-OpenDAL now have some kv services support:
+OpenDAL now has some kv services support:
 
 - memory
 - redis
 
-However, maintaining them is complex and very easy to be wrong. We don't want to implement the similar logic for every kv services. This RFC intends to introduce a generic kv services so that we can:
+However, maintaining them is complex and very easy to be wrong. We don't want to implement similar logic for every kv service. This RFC intends to introduce a generic kv service so that we can:
 
 - Implement OpenDAL Accessor on this generic kv service
 - Add new kv service support via generic kv API.
 
 # Guide-level explanation
 
-No user side changes.
+No user-side changes.
 
 # Reference-level explanation
 
-OpenDAL will introduce a generic kv services:
+OpenDAL will introduce a generic kv service:
 
 ```rust
 trait KeyValueAccessor {
@@ -34,7 +34,7 @@ trait KeyValueAccessor {
 }
 ```
 
-We will implement OpenDAL service on `KeyValueAccessor`. To add new kv service support, users only need to implement against `KeyValueAccessor`.
+We will implement the OpenDAL service on `KeyValueAccessor`. To add new kv service support, users only need to implement it against `KeyValueAccessor`.
 
 ## Spec
 
@@ -77,7 +77,7 @@ We can encode a scoped key into a byte array as a key. Following is the common l
 
 ### Meta
 
-There is only one key in the meta scope. The meta key is designed to store metadata of our filesystem, following is the layout of an encoded meta key.
+There is only one key in the meta scope. The meta key is designed to store metadata of our filesystem. Following is the layout of an encoded meta key.
 
 ```text
 + 1byte +
@@ -103,11 +103,11 @@ pub struct Meta {
 }
 ```
 
-The meta structure contains only an auto-increasing counter `inode_next`, designed to generate inode number.
+The meta-structure contains only an auto-increasing counter `inode_next`, designed to generate an inode number.
 
 ### Inode
 
-Keys in the inode scope are designed to store attributes of files, following is the layout of an encoded inode key.
+Keys in the inode scope are designed to store attributes of files. Following is the layout of an encoded inode key.
 
 ```text
 + 1byte +<-----------------------------------+ 8bytes +------------------------------------------->+
@@ -139,7 +139,7 @@ blocks is the map from `block_id` -> `size`. We will use this map to calculate t
 
 ### Block
 
-Keys in the block scope are designed to store blocks of file, following is the layout of an encoded block key.
+Keys in the block scope are designed to store blocks of a file. Following is the layout of an encoded block key.
 
 ```text
 + 1byte +<----------------- 8bytes ---------------->+<------------------- 8bytes ----------------->+
@@ -159,7 +159,7 @@ Keys in the block scope are designed to store blocks of file, following is the l
 
 ### Index
 
-Keys in the file index scope are designed to store file index of file, following is the layout of an encoded file index key.
+Keys in the file index scope are designed to store the file index of the file. Following is the layout of an encoded file index key.
 
 ```text
 + 1byte +<----------------- 8bytes ---------------->+<-------------- dynamic size ---------------->+

@@ -1,6 +1,6 @@
 - Proposal Name: `generic-kv-services`
 - Start Date: 2022-10-03
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
+- RFC PR: [datafuselabs/opendal#793](https://github.com/datafuselabs/opendal/pull/793)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary

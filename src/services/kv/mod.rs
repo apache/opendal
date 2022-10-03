@@ -12,27 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing specific services support.
+//! KV Service support for OpenDAL.
 //!
-//! In order to implement a service, we need the following things:
-//!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
+//! This is not a real service that can be used by users. Service implementer can
+//! use this service to build service like `redis`, `memory`, `tikv`.
 
-pub mod azblob;
-pub mod fs;
-#[cfg(feature = "services-ftp")]
-pub mod ftp;
-pub mod gcs;
-#[cfg(feature = "services-hdfs")]
-pub mod hdfs;
-pub mod http;
-#[cfg(feature = "services-ipfs")]
-pub mod ipfs;
-pub mod ipmfs;
-pub mod kv;
-pub mod memory;
-pub mod obs;
-#[cfg(feature = "services-redis")]
-pub mod redis;
-pub mod s3;
+mod accessor;
+pub use accessor::KeyValueAccessor;
+
+mod backend;
+pub use backend::Backend;
+
+mod key;
+pub use key::ScopedKey;

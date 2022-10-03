@@ -12,27 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing specific services support.
-//!
-//! In order to implement a service, we need the following things:
-//!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
+use async_trait::async_trait;
+use std::fmt::Debug;
+use std::io::Result;
 
-pub mod azblob;
-pub mod fs;
-#[cfg(feature = "services-ftp")]
-pub mod ftp;
-pub mod gcs;
-#[cfg(feature = "services-hdfs")]
-pub mod hdfs;
-pub mod http;
-#[cfg(feature = "services-ipfs")]
-pub mod ipfs;
-pub mod ipmfs;
-pub mod kv;
-pub mod memory;
-pub mod obs;
-#[cfg(feature = "services-redis")]
-pub mod redis;
-pub mod s3;
+/// KeyValueAccessor is the accessor to underlying kv services.
+///
+/// By implement this trait, any kv service can work as an OpenDAL Service.
+#[async_trait]
+pub trait KeyValueAccessor: Send + Sync + Debug {
+    /// Get a key from service.
+    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
+    /// Set a key into service.
+    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
+    /// Delete a key from service.
+    async fn delete(&self, key: &[u8]) -> Result<()>;
+}

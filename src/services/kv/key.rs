@@ -35,15 +35,13 @@ pub enum ScopedKey {
         /// Block id of this block.
         block: u64,
     },
-    /// Index key represents a quick index to get the inode of a dir entry's inode.
-    Index {
+    /// Index key represents an entry under an inode.
+    Entry {
         /// Parent of this index key.
         parent: u64,
         /// Name of this index key.
         name: String,
     },
-    /// Entry key represents all dir entries of a dir.
-    Entry(u64),
 }
 
 impl ScopedKey {
@@ -62,17 +60,12 @@ impl ScopedKey {
         Self::Block { ino, block }
     }
 
-    /// Create an index scope key.
-    pub fn index(parent: u64, name: &str) -> Self {
-        Self::Index {
+    /// Create a new entry scope key.
+    pub fn entry(parent: u64, name: &str) -> Self {
+        Self::Entry {
             parent,
             name: name.to_string(),
         }
-    }
-
-    /// Create a new entry scope key.
-    pub fn entry(parent: u64) -> Self {
-        Self::Entry(parent)
     }
 
     /// Get the scope of this key
@@ -82,8 +75,7 @@ impl ScopedKey {
             ScopedKey::Meta => 0,
             ScopedKey::Inode(_) => 1,
             ScopedKey::Block { .. } => 2,
-            ScopedKey::Index { .. } => 3,
-            ScopedKey::Entry(_) => 4,
+            ScopedKey::Entry { .. } => 3,
         }
     }
 
@@ -96,8 +88,7 @@ impl ScopedKey {
             ScopedKey::Meta => 0,
             ScopedKey::Inode(_) => size_of_u64,
             ScopedKey::Block { ino: _, block: _ } => size_of_u64 * 2,
-            ScopedKey::Index { parent: _, name } => size_of_u64 + name.as_bytes().len(),
-            ScopedKey::Entry(_) => size_of_u64,
+            ScopedKey::Entry { parent: _, name } => size_of_u64 + name.as_bytes().len(),
         }
     }
 
@@ -112,12 +103,9 @@ impl ScopedKey {
                 data.extend(ino.to_be_bytes());
                 data.extend(block.to_be_bytes());
             }
-            ScopedKey::Index { parent, name } => {
+            ScopedKey::Entry { parent, name } => {
                 data.extend(parent.to_be_bytes());
                 data.extend(name.as_bytes());
-            }
-            ScopedKey::Entry(parent) => {
-                data.extend(parent.to_be_bytes());
             }
         }
         data
@@ -147,12 +135,7 @@ impl ScopedKey {
                 let parent =
                     u64::from_be_bytes(data[..size_of_u64].try_into().map_err(|_| invalid_key())?);
                 let name = std::str::from_utf8(&data[size_of_u64..]).map_err(|_| invalid_key())?;
-                Ok(Self::index(parent, name))
-            }
-            4 => {
-                let parent =
-                    u64::from_be_bytes(data[..size_of_u64].try_into().map_err(|_| invalid_key())?);
-                Ok(Self::Entry(parent))
+                Ok(Self::entry(parent, name))
             }
             _ => Err(invalid_key()),
         }

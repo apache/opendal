@@ -14,7 +14,8 @@ OpenDAL now has some kv services support:
 - memory
 - redis
 
-However, maintaining them is complex and very easy to be wrong. We don't want to implement similar logic for every kv service. This RFC intends to introduce a generic kv service so that we can:
+However, maintaining them is complex and very easy to be wrong. We don't want to implement similar logic for every kv
+service. This RFC intends to introduce a generic kv service so that we can:
 
 - Implement OpenDAL Accessor on this generic kv service
 - Add new kv service support via generic kv API.
@@ -34,11 +35,14 @@ trait KeyValueAccessor {
 }
 ```
 
-We will implement the OpenDAL service on `KeyValueAccessor`. To add new kv service support, users only need to implement it against `KeyValueAccessor`.
+We will implement the OpenDAL service on `KeyValueAccessor`. To add new kv service support, users only need to implement
+it against `KeyValueAccessor`.
 
 ## Spec
 
-This RFC is mainly inspired by [TiFS: FUSE based on TiKV](https://github.com/Hexilee/tifs/blob/main/contribution/design.md). We will use the same `ScopedKey` idea in `TiFS`.
+This RFC is mainly inspired
+by [TiFS: FUSE based on TiKV](https://github.com/Hexilee/tifs/blob/main/contribution/design.md). We will use the
+same `ScopedKey` idea in `TiFS`.
 
 ```rust
 pub enum ScopedKey {
@@ -48,11 +52,10 @@ pub enum ScopedKey {
         ino: u64,
         block: u64,
     },
-    Index {
+    Entry {
         parent: u64,
         name: String,
     },
-    Entry(u64),
 }
 ```
 
@@ -74,10 +77,10 @@ We can encode a scoped key into a byte array as a key. Following is the common l
 +-------+----------------------------------------------------------------------------------+
 ```
 
-
 ### Meta
 
-There is only one key in the meta scope. The meta key is designed to store metadata of our filesystem. Following is the layout of an encoded meta key.
+There is only one key in the meta scope. The meta key is designed to store metadata of our filesystem. Following is the
+layout of an encoded meta key.
 
 ```text
 + 1byte +
@@ -156,9 +159,10 @@ Keys in the block scope are designed to store blocks of a file. Following is the
 +-------+-------------------------------------------+----------------------------------------------+
 ```
 
-### Index
+### Entry
 
-Keys in the file index scope are designed to store the file index of the file. Following is the layout of an encoded file index key.
+Keys in the file index scope are designed to store the entry of the file. Following is the layout of an encoded file
+entry key.
 
 ```text
 + 1byte +<----------------- 8bytes ---------------->+<-------------- dynamic size ---------------->+
@@ -181,36 +185,6 @@ Store the correct inode number for this file.
 ```rust
 pub struct Index {
     pub ino: u64,
-}
-```
-
-### Entry
-
-The directory contains all mappings from the file name to the inode number and file type.
-
-```text
-+ 1byte +<-----------------------------------+ 8bytes +------------------------------------------->+
-|       |                                                                                          |
-|       |                                                                                          |
-|       |                                                                                          |
-|       |                                                                                          |
-|       |                                                                                          |
-|       |                                                                                          |
-|       v                                                                                          v
-+--------------------------------------------------------------------------------------------------+
-|       |                                                                                          |
-|   4   |                                   inode number                                           |
-|       |                                                                                          |
-+-------+------------------------------------------------------------------------------------------+
-```
-
-```rust
-pub type Directory = Vec<DirItem>;
-
-pub struct DirItem {
-    pub ino: u64,
-    pub name: String,
-    pub mode: ObjectMode,
 }
 ```
 

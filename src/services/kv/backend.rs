@@ -12,9 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::KeyValueAccessor;
+use crate::{Accessor, AccessorCapability, AccessorMetadata};
+
 /// Backend of kv service.
 #[derive(Debug)]
-pub struct Backend<S> {
+pub struct Backend<S: KeyValueAccessor> {
     #[allow(dead_code)]
     kv: S,
+}
+
+impl<S> Accessor for Backend<S>
+where
+    S: KeyValueAccessor,
+{
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_capabilities(
+            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+        );
+        am
+    }
 }

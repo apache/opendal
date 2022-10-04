@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use futures::Stream;
 use std::fmt::Debug;
 use std::io::Result;
 
@@ -25,6 +26,18 @@ pub trait KeyValueAccessor: Send + Sync + Debug {
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
     /// Set a key into service.
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
+    /// Scan a range of keys.
+    async fn scan(&self, prefix: &[u8]) -> Result<KeyValueStreamer>;
     /// Delete a key from service.
     async fn delete(&self, key: &[u8]) -> Result<()>;
 }
+
+/// KeyValuePair represents a pari of key and value.
+pub struct KeyValuePair(Vec<u8>, Vec<u8>);
+
+/// KeyValueStream represents a stream of key-value paris.
+pub trait KeyValueStream: Stream<Item = Result<KeyValuePair>> + Unpin + Send {}
+impl<T> KeyValueStream for T where T: Stream<Item = Result<KeyValuePair>> + Unpin + Send {}
+
+/// KeyValueStreamer is a boxed dyn [`KeyValueStream`]
+pub type KeyValueStreamer = Box<dyn KeyValueStream>;

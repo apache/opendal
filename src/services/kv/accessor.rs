@@ -32,12 +32,9 @@ pub trait KeyValueAccessor: Send + Sync + Debug {
     async fn delete(&self, key: &[u8]) -> Result<()>;
 }
 
-/// KeyValuePair represents a pari of key and value.
-pub struct KeyValuePair(Vec<u8>, Vec<u8>);
-
 /// KeyValueStream represents a stream of key-value paris.
-pub trait KeyValueStream: Stream<Item = Result<KeyValuePair>> + Unpin + Send {}
-impl<T> KeyValueStream for T where T: Stream<Item = Result<KeyValuePair>> + Unpin + Send {}
+pub trait KeyValueStream: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
+impl<T> KeyValueStream for T where T: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
 
 /// KeyValueStreamer is a boxed dyn [`KeyValueStream`]
 pub type KeyValueStreamer = Box<dyn KeyValueStream>;

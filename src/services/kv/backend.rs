@@ -13,12 +13,13 @@
 // limitations under the License.
 
 use super::KeyValueAccessor;
-use crate::ops::{OpCreate, OpRead, OpStat};
+use crate::ops::{OpCreate, OpList, OpRead, OpStat, OpWrite};
 use crate::path::{build_rooted_abs_path, get_basename, get_parent};
 use crate::services::kv::accessor::KeyValueStreamer;
 use crate::services::kv::ScopedKey;
 use crate::{
     Accessor, AccessorCapability, AccessorMetadata, BytesReader, ObjectMetadata, ObjectMode,
+    ObjectStreamer,
 };
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -65,6 +66,14 @@ where
         Ok(())
     }
 
+    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        todo!()
+    }
+
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        todo!()
+    }
+
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         let p = build_rooted_abs_path(&self.root, path);
         let inode = self.lookup(&p).await?;
@@ -72,7 +81,7 @@ where
         Ok(meta)
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         todo!()
     }
 }
@@ -82,12 +91,12 @@ impl<S: KeyValueAccessor> Backend<S> {
         let meta = self.kv.get(&ScopedKey::meta().encode()).await?;
         match meta {
             None => Ok(KeyValueMeta::default()),
-            Some(bs) => Ok(bincode::deserialize(&bs).map_err(format_bincode_error)?),
+            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
         }
     }
 
     async fn set_meta(&self, meta: KeyValueMeta) -> Result<()> {
-        let bs = bincode::serialize(&meta).map_err(format_bincode_error)?;
+        let bs = bincode::serialize(&meta).map_err(new_bincode_error)?;
         self.kv.set(&ScopedKey::meta().encode(), &bs).await?;
 
         Ok(())
@@ -113,19 +122,19 @@ impl<S: KeyValueAccessor> Backend<S> {
                 ErrorKind::NotFound,
                 anyhow!("inode {} not found", ino),
             )),
-            Some(bs) => Ok(bincode::deserialize(&bs).map_err(format_bincode_error)?),
+            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
         }
     }
 
     async fn create_inode(&self, ino: u64, meta: ObjectMetadata) -> Result<()> {
         let key = ScopedKey::inode(ino);
-        let value = bincode::serialize(&meta).map_err(format_bincode_error)?;
+        let value = bincode::serialize(&meta).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
     async fn create_entry(&self, parent: u64, name: &str, entry: KeyValueEntry) -> Result<()> {
         let key = ScopedKey::entry(parent, name);
-        let value = bincode::serialize(&entry).map_err(format_bincode_error)?;
+        let value = bincode::serialize(&entry).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
@@ -137,7 +146,7 @@ impl<S: KeyValueAccessor> Backend<S> {
                 ErrorKind::NotFound,
                 anyhow!("entry parent: {}, name: {} is not found", parent, name),
             )),
-            Some(bs) => Ok(bincode::deserialize(&bs).map_err(format_bincode_error)?),
+            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
         }
     }
 
@@ -227,6 +236,9 @@ impl<S: KeyValueAccessor> Backend<S> {
     }
 }
 
+/// Use 1MiB as a block.
+const BLOCK_SIZE: u32 = 1024 * 1024;
+
 /// OpenDAL will reserve all inode between 0~16.
 const INODE_ROOT: u64 = 17;
 
@@ -264,6 +276,10 @@ impl KeyValueEntry {
     }
 }
 
-fn format_bincode_error(err: bincode::Error) -> Error {
+fn new_bincode_error(err: bincode::Error) -> Error {
     Error::new(ErrorKind::Other, anyhow!("bincode: {:?}", err))
 }
+
+struct KeyValueReader {}
+
+struct KeyValueWriter {}

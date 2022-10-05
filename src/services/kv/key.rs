@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
-use std::io::{Error, ErrorKind, Result};
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::mem::size_of;
+
+use anyhow::anyhow;
 
 /// ScopedKey is the key for different key that we used to implement OpenDAL
 /// service upon kv service.
+#[derive(Debug)]
 pub enum ScopedKey {
     /// Meta key of this scope.
     ///
@@ -32,6 +36,8 @@ pub enum ScopedKey {
     Block {
         /// Inode of this block.
         ino: u64,
+        /// Version of this block.
+        version: u64,
         /// Block id of this block.
         block: u64,
     },
@@ -42,6 +48,10 @@ pub enum ScopedKey {
         /// Name of this index key.
         name: String,
     },
+    /// Version key represents a version of inode's blocks.
+    ///
+    /// We use this key to make sure every write to an inode is atomic.
+    Version(u64),
 }
 
 impl ScopedKey {
@@ -56,16 +66,36 @@ impl ScopedKey {
     }
 
     /// Create a block scope key
-    pub fn block(ino: u64, block: u64) -> Self {
-        Self::Block { ino, block }
+    pub fn block(ino: u64, version: u64, block: u64) -> Self {
+        Self::Block {
+            ino,
+            version,
+            block,
+        }
     }
 
     /// Create a new entry scope key.
     pub fn entry(parent: u64, name: &str) -> Self {
+        let name = name.trim_end_matches('/');
+
         Self::Entry {
             parent,
             name: name.to_string(),
         }
+    }
+
+    /// Convert scoped key into entry (parent, name)
+    pub fn into_entry(self) -> (u64, String) {
+        if let ScopedKey::Entry { parent, name } = self {
+            (parent, name)
+        } else {
+            unreachable!("scope key is not a valid entry: {:?}", self)
+        }
+    }
+
+    /// Create a new version scope key.
+    pub fn version(ino: u64) -> Self {
+        Self::Version(ino)
     }
 
     /// Get the scope of this key
@@ -76,6 +106,7 @@ impl ScopedKey {
             ScopedKey::Inode(_) => 1,
             ScopedKey::Block { .. } => 2,
             ScopedKey::Entry { .. } => 3,
+            ScopedKey::Version(_) => 4,
         }
     }
 
@@ -87,8 +118,9 @@ impl ScopedKey {
         1 + match self {
             ScopedKey::Meta => 0,
             ScopedKey::Inode(_) => size_of_u64,
-            ScopedKey::Block { ino: _, block: _ } => size_of_u64 * 2,
+            ScopedKey::Block { .. } => size_of_u64 * 3,
             ScopedKey::Entry { parent: _, name } => size_of_u64 + name.as_bytes().len(),
+            ScopedKey::Version(_) => size_of_u64,
         }
     }
 
@@ -99,13 +131,21 @@ impl ScopedKey {
         match self {
             ScopedKey::Meta => (),
             ScopedKey::Inode(ino) => data.extend(ino.to_be_bytes()),
-            ScopedKey::Block { ino, block } => {
+            ScopedKey::Block {
+                ino,
+                version,
+                block,
+            } => {
                 data.extend(ino.to_be_bytes());
+                data.extend(version.to_be_bytes());
                 data.extend(block.to_be_bytes());
             }
             ScopedKey::Entry { parent, name } => {
                 data.extend(parent.to_be_bytes());
                 data.extend(name.as_bytes());
+            }
+            ScopedKey::Version(version) => {
+                data.extend(version.to_be_bytes());
             }
         }
         data
@@ -127,15 +167,27 @@ impl ScopedKey {
             2 => {
                 let ino =
                     u64::from_be_bytes(data[..size_of_u64].try_into().map_err(|_| invalid_key())?);
-                let block =
-                    u64::from_be_bytes(data[size_of_u64..].try_into().map_err(|_| invalid_key())?);
-                Ok(Self::block(ino, block))
+                let version = u64::from_be_bytes(
+                    data[size_of_u64..size_of_u64 * 2]
+                        .try_into()
+                        .map_err(|_| invalid_key())?,
+                );
+                let block = u64::from_be_bytes(
+                    data[size_of_u64 * 2..]
+                        .try_into()
+                        .map_err(|_| invalid_key())?,
+                );
+                Ok(Self::block(ino, version, block))
             }
             3 => {
                 let parent =
                     u64::from_be_bytes(data[..size_of_u64].try_into().map_err(|_| invalid_key())?);
                 let name = std::str::from_utf8(&data[size_of_u64..]).map_err(|_| invalid_key())?;
                 Ok(Self::entry(parent, name))
+            }
+            4 => {
+                let ino = u64::from_be_bytes(data.try_into().map_err(|_| invalid_key())?);
+                Ok(Self::version(ino))
             }
             _ => Err(invalid_key()),
         }

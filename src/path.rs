@@ -176,6 +176,41 @@ pub fn get_basename(path: &str) -> &str {
     }
 }
 
+/// Get parent from path.
+pub fn get_parent(path: &str) -> &str {
+    if path == "/" {
+        return "/";
+    }
+
+    if !path.ends_with('/') {
+        // The idx of first `/` if path in reserve order.
+        // - `abc` => `None`
+        // - `abc/def` => `Some(3)`
+        let idx = path.rfind('/');
+
+        return match idx {
+            Some(v) => {
+                let (parent, _) = path.split_at(v + 1);
+                parent
+            }
+            None => "/",
+        };
+    }
+
+    // The idx of second `/` if path in reserve order.
+    // - `abc/` => `None`
+    // - `abc/def/` => `Some(3)`
+    let idx = path[..path.len() - 1].rfind('/').map(|v| v + 1);
+
+    match idx {
+        Some(v) => {
+            let (parent, _) = path.split_at(v);
+            parent
+        }
+        None => "/",
+    }
+}
+
 /// Validate given path is match with given ObjectMode.
 pub fn validate_path(path: &str, mode: ObjectMode) -> bool {
     debug_assert!(!path.is_empty(), "input path should not be empty");
@@ -244,6 +279,23 @@ mod tests {
 
         for (name, input, expect) in cases {
             let actual = get_basename(input);
+            assert_eq!(actual, expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_get_parent() {
+        let cases = vec![
+            ("file abs path", "foo/bar/baz.txt", "foo/bar/"),
+            ("file rel path", "bar/baz.txt", "bar/"),
+            ("file walk", "foo/bar/baz", "foo/bar/"),
+            ("dir rel path", "bar/baz/", "bar/"),
+            ("dir root", "/", "/"),
+            ("dir walk", "foo/bar/baz/", "foo/bar/"),
+        ];
+
+        for (name, input, expect) in cases {
+            let actual = get_parent(input);
             assert_eq!(actual, expect, "{}", name)
         }
     }

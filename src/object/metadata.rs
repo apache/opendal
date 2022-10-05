@@ -23,8 +23,7 @@ use crate::ObjectMode;
 /// mode and content_length are required metadata that all services
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `ObjectEntry`'s content length could be `None`.
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectMetadata {
     mode: ObjectMode,
 

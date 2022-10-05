@@ -155,14 +155,18 @@ impl<S: KeyValueAccessor> Backend<S> {
         self.kv.scan(&key.encode()).await
     }
 
-    async fn create_block(&self, ino: u64, block: u64, content: &[u8]) -> Result<()> {
-        let key = ScopedKey::block(ino, block);
+    async fn create_block(&self, ino: u64, version: u64, block: u64, content: &[u8]) -> Result<()> {
+        let key = ScopedKey::block(ino, version, block);
         self.kv.set(&key.encode(), content).await
     }
 
-    async fn list_blocks(&self, ino: u64) -> Result<KeyValueStreamer> {
-        let key = ScopedKey::block(ino, 0);
+    async fn list_blocks(&self, ino: u64, version: u64) -> Result<KeyValueStreamer> {
+        let key = ScopedKey::block(ino, version, 0);
         self.kv.scan(&key.encode()).await
+    }
+
+    async fn write_blocks(&self, ino: u64, size: u64, r: BytesReader) -> Result<()> {
+        todo!()
     }
 
     async fn create_dir(&self, parent: u64, name: &str) -> Result<u64> {
@@ -236,8 +240,8 @@ impl<S: KeyValueAccessor> Backend<S> {
     }
 }
 
-/// Use 1MiB as a block.
-const BLOCK_SIZE: u32 = 1024 * 1024;
+/// Use 64 KiB as a block.
+const BLOCK_SIZE: u32 = 64 * 1024;
 
 /// OpenDAL will reserve all inode between 0~16.
 const INODE_ROOT: u64 = 17;
@@ -279,7 +283,3 @@ impl KeyValueEntry {
 fn new_bincode_error(err: bincode::Error) -> Error {
     Error::new(ErrorKind::Other, anyhow!("bincode: {:?}", err))
 }
-
-struct KeyValueReader {}
-
-struct KeyValueWriter {}

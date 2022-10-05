@@ -30,6 +30,7 @@ pub mod http;
 #[cfg(feature = "services-ipfs")]
 pub mod ipfs;
 pub mod ipmfs;
+pub mod kv;
 pub mod memory;
 pub mod obs;
 pub mod oss;

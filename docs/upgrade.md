@@ -2,6 +2,31 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.18
+
+OpenDAL v0.18 introduces the following breaking changes:
+
+- Deprecated feature flag `services-http` has been removed.
+- All `DirXxx` items have been renamed to `ObjectXxx` to make them more consistent.
+  - `DirEntry` -> `ObjectEntry`
+  - `DirStream` -> `ObjectStream`
+  - `DirStreamer` -> `ObjectStream`
+  - `DirIterate` -> `ObjectIterate`
+  - `DirIterator` -> `ObjectIterator`
+
+Besides, we also make a big change to our `ObjectEntry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
+
+- If `content_lenght` is already known, we will return directly.
+- If not, we will check if the object entry is `complete`:
+  - If `complete`, the entry already fetched all metadata that it could have, return directly.
+  - If not, we will send a `stat` call to get the `metadata` and refresh our cache.
+
+This change means:
+
+- All API like `content_length` will be changed into async functions.
+- `metadata` and `blocking_metadata` will not return errors anymore.
+- To retrieve the latest meta, please use `entry.into_object().metadata()` instead.
+
 ## Upgrade to v0.17
 
 OpenDAL v0.17 refactor the `Accessor` to make space for future features.

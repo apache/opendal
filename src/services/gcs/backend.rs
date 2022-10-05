@@ -37,9 +37,8 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::uri::percent_encode_path;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -48,6 +47,7 @@ use crate::http_util::parse_error_response;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -61,9 +61,9 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
@@ -128,10 +128,10 @@ impl Builder {
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(other(BackendError::new(
+            true => Err(new_other_backend_error(
                 HashMap::from([("bucket".to_string(), "".to_string())]),
                 anyhow!("bucket name is empty"),
-            ))),
+            )),
         }?;
 
         // setup error context
@@ -158,7 +158,7 @@ impl Builder {
         }
         let signer = signer_builder
             .build()
-            .map_err(|e| other(BackendError::new(ctx, e)))?;
+            .map_err(|e| new_other_backend_error(ctx, e))?;
         let signer = Arc::new(signer);
 
         let backend = Backend {
@@ -311,65 +311,51 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            return Ok(m);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let resp = self.gcs_get_object_metadata(path).await?;
 
         if resp.status().is_success() {
-            let mut m = ObjectMetadata::default();
             // read http response body
             let slc = resp.into_body().bytes().await.map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Stat,
-                    path,
-                    anyhow!("read response body: {e:?}"),
-                ))
+                new_other_object_error(Operation::Stat, path, anyhow!("read response body: {e:?}"))
             })?;
             let meta: GetObjectJsonResponse = serde_json::from_slice(&slc).map_err(|e| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Stat,
                     path,
                     anyhow!("parse response body into JSON: {e:?}"),
-                ))
+                )
             })?;
+
+            let mode = if path.ends_with('/') {
+                ObjectMode::DIR
+            } else {
+                ObjectMode::FILE
+            };
+            let mut m = ObjectMetadata::new(mode);
 
             m.set_etag(&meta.etag);
             m.set_content_md5(&meta.md5_hash);
 
             let size = meta.size.parse::<u64>().map_err(|e| {
-                other(ObjectError::new(
-                    Operation::Stat,
-                    path,
-                    anyhow!("parse object size: {e:?}"),
-                ))
+                new_other_object_error(Operation::Stat, path, anyhow!("parse object size: {e:?}"))
             })?;
             m.set_content_length(size);
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Stat,
                     path,
                     anyhow!("parse object updated: {e:?}"),
-                ))
+                )
             })?;
             m.set_last_modified(datetime);
 
-            if path.ends_with('/') {
-                m.set_mode(ObjectMode::DIR);
-            } else {
-                m.set_mode(ObjectMode::FILE);
-            };
-
             Ok(m)
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            Ok(m)
+            Ok(ObjectMetadata::new(ObjectMode::DIR))
         } else {
             let er = parse_error_response(resp).await?;
             let e = parse_error(Operation::Stat, path, er);
@@ -390,12 +376,12 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
-        Ok(Box::new(DirStream::new(
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
             path,
-        )))
+        ))))
     }
 
     // inherits the default implementation of Accessor.

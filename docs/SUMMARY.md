@@ -25,6 +25,8 @@
   - [Read compressed files](examples/decompress-read.md)
   - [Generate presigned URL](examples/presign.md)
   - [Enable Server Side Encrypt](examples/server-side-encryption.md)
+- [Comparisons](comparisons/README.md)
+  - [vs object_store](comparisons/object_store.md)
 - [Upgrade](upgrade.md)
 
 # Reference Guide
@@ -57,3 +59,4 @@
   - [0623-redis-service](rfcs/0623-redis-service.md)
   - [0627-split-capabilities](rfcs/0627-split-capabilities.md)
   - [0661-path-in-accessor](rfcs/0661-path-in-accessor.md)
+  - [0793-generic-kv-services](rfcs/0793-generic-kv-services.md)

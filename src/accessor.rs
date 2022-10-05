@@ -21,7 +21,6 @@ use flagset::flags;
 use flagset::FlagSet;
 
 use crate::error::new_unsupported_object_error;
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -37,9 +36,10 @@ use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirIterator;
-use crate::DirStreamer;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Underlying trait of all backends for implementors.
@@ -129,6 +129,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
+    /// - `mode` and `content_length` must be set.
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         let (_, _) = (path, args);
         unimplemented!()
@@ -151,7 +152,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         let (_, _) = (path, args);
         unimplemented!()
     }
@@ -308,7 +309,7 @@ pub trait Accessor: Send + Sync + Debug {
     ///
     /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         let _ = args;
 
         Err(new_unsupported_object_error(Operation::BlockingList, path))
@@ -338,7 +339,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         self.as_ref().delete(path, args).await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         self.as_ref().list(path, args).await
     }
 
@@ -379,7 +380,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         self.as_ref().blocking_delete(path, args)
     }
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         self.as_ref().blocking_list(path, args)
     }
 }
@@ -399,7 +400,8 @@ impl AccessorMetadata {
         self.scheme
     }
 
-    pub(crate) fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
+    /// Set [`Scheme`] for backend.
+    pub fn set_scheme(&mut self, scheme: Scheme) -> &mut Self {
         self.scheme = scheme;
         self
     }
@@ -409,7 +411,10 @@ impl AccessorMetadata {
         &self.root
     }
 
-    pub(crate) fn set_root(&mut self, root: &str) -> &mut Self {
+    /// Set root for backend.
+    ///
+    /// Note: input root must be normalized.
+    pub fn set_root(&mut self, root: &str) -> &mut Self {
         self.root = root.to_string();
         self
     }
@@ -424,7 +429,8 @@ impl AccessorMetadata {
         &self.name
     }
 
-    pub(crate) fn set_name(&mut self, name: &str) -> &mut Self {
+    /// Set name of this backend.
+    pub fn set_name(&mut self, name: &str) -> &mut Self {
         self.name = name.to_string();
         self
     }
@@ -459,13 +465,13 @@ impl AccessorMetadata {
         self.capabilities.contains(AccessorCapability::Blocking)
     }
 
-    /// Set this function to private so that users can't access capabilities
-    /// directly.
-    pub(crate) fn capabilities(&self) -> FlagSet<AccessorCapability> {
+    /// Get backend's capabilities.
+    pub fn capabilities(&self) -> FlagSet<AccessorCapability> {
         self.capabilities
     }
 
-    pub(crate) fn set_capabilities(
+    /// Set capabilities for backend.
+    pub fn set_capabilities(
         &mut self,
         capabilities: impl Into<FlagSet<AccessorCapability>>,
     ) -> &mut Self {
@@ -476,7 +482,7 @@ impl AccessorMetadata {
 
 flags! {
     /// AccessorCapability describes accessor's advanced capability.
-    pub(crate) enum AccessorCapability: u32 {
+    pub enum AccessorCapability: u32 {
         /// Add this capability if service supports `read` and `stat`
         Read,
         /// Add this capability if service supports `write` and `delete`

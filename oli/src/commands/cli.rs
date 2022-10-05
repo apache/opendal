@@ -14,8 +14,7 @@
 
 use anyhow::anyhow;
 use anyhow::Result;
-use clap::App;
-use clap::AppSettings;
+use clap::Command;
 
 pub async fn main() -> Result<()> {
     match cli().get_matches().subcommand() {
@@ -26,13 +25,9 @@ pub async fn main() -> Result<()> {
     Ok(())
 }
 
-fn cli() -> App<'static> {
-    let app = App::new("oli")
+fn cli() -> Command {
+    Command::new("oli")
         .version("0.10.0")
         .about("OpenDAL Command Line Interface")
-        .setting(AppSettings::DeriveDisplayOrder)
-        .setting(AppSettings::SubcommandRequiredElseHelp)
-        .subcommand(super::cp::cli("cp"));
-
-    app
+        .subcommand(super::cp::cli("cp"))
 }

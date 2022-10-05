@@ -13,9 +13,8 @@ use http::Uri;
 use reqsign::services::aliyun::oss::Signer;
 
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -205,10 +204,10 @@ impl Builder {
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(other(BackendError::new(
+            true => Err(new_other_backend_error(
                 HashMap::from([("bucket".to_string(), "".to_string())]),
                 anyhow::anyhow!("bucket is empty"),
-            ))),
+            )),
         }?;
         log::debug!("backend use bucket {}", &bucket);
 
@@ -223,16 +222,13 @@ impl Builder {
         context.insert("endpoint".to_string(), endpoint.clone());
 
         let uri = endpoint.parse::<Uri>().map_err(|err| {
-            other(BackendError::new(
+            new_other_backend_error(
                 context.clone(),
                 anyhow::anyhow!("invalid endpoint uri: {:?}", err),
-            ))
+            )
         })?;
         let host = uri.host().ok_or({
-            other(BackendError::new(
-                context.clone(),
-                anyhow::anyhow!("host should be valid"),
-            ))
+            new_other_backend_error(context.clone(), anyhow::anyhow!("host should be valid"))
         })?;
 
         let host = format!("{}.{}", bucket, host);
@@ -256,7 +252,7 @@ impl Builder {
         }
         let signer = signer_builder
             .build()
-            .map_err(|e| other(BackendError::new(context, e)))?;
+            .map_err(|e| new_other_backend_error(context, e))?;
 
         log::info!("Backend build finished: {:?}", &self);
 
@@ -555,8 +551,7 @@ impl Accessor for Backend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
+            let m = ObjectMetadata::new(ObjectMode::DIR);
 
             return Ok(m);
         }
@@ -566,37 +561,33 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let mut m = ObjectMetadata::default();
+                let mut m = if path.ends_with('/') {
+                    ObjectMetadata::new(ObjectMode::DIR)
+                } else {
+                    ObjectMetadata::new(ObjectMode::FILE)
+                };
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_last_modified(v);
                 }
-                if path.ends_with('/') {
-                    m.set_mode(ObjectMode::DIR);
-                } else {
-                    m.set_mode(ObjectMode::FILE);
-                };
-
                 Ok(m)
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                let mut m = ObjectMetadata::default();
-                m.set_mode(ObjectMode::DIR);
-
+                let m = ObjectMetadata::new(ObjectMode::DIR);
                 Ok(m)
             }
 

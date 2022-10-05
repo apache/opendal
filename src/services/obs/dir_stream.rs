@@ -13,27 +13,22 @@
 // limitations under the License.
 
 use std::io::Result;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
+use async_trait::async_trait;
 use bytes::Buf;
-use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
 use quick_xml::de;
 use serde::Deserialize;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
+use crate::object::ObjectPageStream;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::services::obs::error::parse_error;
 use crate::services::obs::Backend;
-use crate::DirEntry;
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -43,13 +38,6 @@ pub struct DirStream {
 
     next_marker: String,
     done: bool,
-    state: State,
-}
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<Bytes>>),
-    Listing((Output, usize, usize)),
 }
 
 impl DirStream {
@@ -60,97 +48,77 @@ impl DirStream {
             path: path.to_string(),
             next_marker: "".to_string(),
             done: false,
-            state: State::Idle,
         }
     }
 }
 
-impl futures::Stream for DirStream {
-    type Item = Result<DirEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let backend = self.backend.clone();
-        let root = self.root.clone();
-
-        match &mut self.state {
-            State::Idle => {
-                let path = self.path.clone();
-                let next_marker = self.next_marker.clone();
-                let fut = async move {
-                    let resp = backend.obs_list_objects(&path, &next_marker).await?;
-
-                    if resp.status() != http::StatusCode::OK {
-                        let er = parse_error_response(resp).await?;
-                        let err = parse_error(Operation::List, &path, er);
-                        return Err(err);
-                    }
-
-                    let bs = resp
-                        .into_body()
-                        .bytes()
-                        .await
-                        .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;
-
-                    Ok(bs)
-                };
-                self.state = State::Sending(Box::pin(fut));
-                self.poll_next(cx)
-            }
-            State::Sending(fut) => {
-                let bs = ready!(Pin::new(fut).poll(cx))?;
-                let output: Output = de::from_reader(bs.reader())
-                    .map_err(|e| other(ObjectError::new(Operation::List, &self.path, e)))?;
-
-                // Try our best to check whether this list is done.
-                //
-                // - Check `next_marker`
-                self.done = match output.next_marker.as_ref() {
-                    None => true,
-                    Some(next_marker) => next_marker.is_empty(),
-                };
-                self.next_marker = output.next_marker.clone().unwrap_or_default();
-                self.state = State::Listing((output, 0, 0));
-                self.poll_next(cx)
-            }
-            State::Listing((output, common_prefixes_idx, objects_idx)) => {
-                if let Some(prefixes) = &output.common_prefixes {
-                    if *common_prefixes_idx < prefixes.len() {
-                        *common_prefixes_idx += 1;
-                        let prefix = &prefixes[*common_prefixes_idx - 1].prefix;
-
-                        let de =
-                            DirEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
-
-                        return Poll::Ready(Some(Ok(de)));
-                    }
-                };
-
-                let objects = &output.contents;
-                while *objects_idx < objects.len() {
-                    let object = &objects[*objects_idx];
-                    *objects_idx += 1;
-
-                    if object.key.ends_with('/') {
-                        continue;
-                    }
-
-                    let de = DirEntry::new(
-                        backend,
-                        ObjectMode::FILE,
-                        &build_rel_path(&root, &object.key),
-                    );
-
-                    return Poll::Ready(Some(Ok(de)));
-                }
-
-                if self.done {
-                    return Poll::Ready(None);
-                }
-
-                self.state = State::Idle;
-                self.poll_next(cx)
-            }
+#[async_trait]
+impl ObjectPageStream for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        if self.done {
+            return Ok(None);
         }
+
+        let resp = self
+            .backend
+            .obs_list_objects(&self.path, &self.next_marker)
+            .await?;
+
+        if resp.status() != http::StatusCode::OK {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error(Operation::List, &self.path, er);
+            return Err(err);
+        }
+
+        let bs = resp
+            .into_body()
+            .bytes()
+            .await
+            .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
+
+        let output: Output = de::from_reader(bs.reader())
+            .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
+
+        // Try our best to check whether this list is done.
+        //
+        // - Check `next_marker`
+        self.done = match output.next_marker.as_ref() {
+            None => true,
+            Some(next_marker) => next_marker.is_empty(),
+        };
+        self.next_marker = output.next_marker.clone().unwrap_or_default();
+
+        let common_prefixes = output.common_prefixes.unwrap_or_default();
+        let mut entries = Vec::with_capacity(common_prefixes.len() + output.contents.len());
+
+        for prefix in common_prefixes {
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &prefix.prefix),
+                ObjectMetadata::new(ObjectMode::DIR),
+            )
+            .with_complete();
+
+            entries.push(de);
+        }
+
+        for object in output.contents {
+            if object.key.ends_with('/') {
+                continue;
+            }
+
+            let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
+
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &object.key),
+                meta,
+            );
+
+            entries.push(de);
+        }
+
+        Ok(Some(entries))
     }
 }
 

@@ -32,10 +32,9 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
-use crate::dir::EmptyDirIterator;
-use crate::dir::EmptyDirStreamer;
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
+use crate::object::EmptyObjectIterator;
+use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -49,11 +48,11 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirIterator;
-use crate::DirStreamer;
+use crate::ObjectEntry;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for fs backend.
@@ -84,8 +83,12 @@ impl Builder {
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
             if e.kind() == ErrorKind::NotFound {
-                std::fs::create_dir_all(&root)
-                    .map_err(|e| other(anyhow!("create dir in {} error {:?}", &root, e)))?;
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        anyhow!("create dir in {} error {:?}", &root, e),
+                    )
+                })?;
             }
         }
 
@@ -171,11 +174,11 @@ impl Accessor for Backend {
             let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::Create,
                         path,
                         anyhow!("malformed path: {:?}", path),
-                    ))
+                    )
                 })?
                 .to_path_buf();
 
@@ -212,11 +215,11 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_io_error(e, Operation::Read, path))?;
         if meta.is_dir() {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 path,
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let f = fs::OpenOptions::new()
@@ -253,11 +256,11 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Write,
                     path,
                     anyhow!("malformed path: {:?}", path),
-                ))
+                )
             })?
             .to_path_buf();
 
@@ -286,20 +289,20 @@ impl Accessor for Backend {
             .await
             .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
 
-        let mut m = ObjectMetadata::default();
-        if meta.is_dir() {
-            m.set_mode(ObjectMode::DIR);
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
         } else if meta.is_file() {
-            m.set_mode(ObjectMode::FILE);
+            ObjectMode::FILE
         } else {
-            m.set_mode(ObjectMode::Unknown);
-        }
-        m.set_content_length(meta.len() as u64);
-        m.set_last_modified(
-            meta.modified()
-                .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, Operation::Stat, path))?,
-        );
+            ObjectMode::Unknown
+        };
+        let m = ObjectMetadata::new(mode)
+            .with_content_length(meta.len() as u64)
+            .with_last_modified(
+                meta.modified()
+                    .map(OffsetDateTime::from)
+                    .map_err(|e| parse_io_error(e, Operation::Stat, path))?,
+            );
 
         Ok(m)
     }
@@ -332,14 +335,14 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == ErrorKind::NotFound {
-                    Ok(Box::new(EmptyDirStreamer))
+                    Ok(Box::new(EmptyObjectStreamer))
                 } else {
                     Err(parse_io_error(e, Operation::List, path))
                 }
@@ -358,11 +361,11 @@ impl Accessor for Backend {
             let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::BlockingCreate,
                         path,
                         anyhow!("malformed path: {:?}", path),
-                    ))
+                    )
                 })?
                 .to_path_buf();
 
@@ -398,11 +401,11 @@ impl Accessor for Backend {
         let meta = Self::blocking_fs_metadata(&p)
             .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
         if meta.is_dir() {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::BlockingRead,
                 path,
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let mut f = std::fs::OpenOptions::new()
@@ -435,11 +438,11 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::BlockingWrite,
                     path,
                     anyhow!("malformed path: {:?}", path),
-                ))
+                )
             })?
             .to_path_buf();
 
@@ -463,20 +466,20 @@ impl Accessor for Backend {
         let meta = Self::blocking_fs_metadata(&p)
             .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?;
 
-        let mut m = ObjectMetadata::default();
-        if meta.is_dir() {
-            m.set_mode(ObjectMode::DIR);
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
         } else if meta.is_file() {
-            m.set_mode(ObjectMode::FILE);
+            ObjectMode::FILE
         } else {
-            m.set_mode(ObjectMode::Unknown);
-        }
-        m.set_content_length(meta.len() as u64);
-        m.set_last_modified(
-            meta.modified()
-                .map(OffsetDateTime::from)
-                .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?,
-        );
+            ObjectMode::Unknown
+        };
+        let m = ObjectMetadata::new(mode)
+            .with_content_length(meta.len() as u64)
+            .with_last_modified(
+                meta.modified()
+                    .map(OffsetDateTime::from)
+                    .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?,
+            );
 
         Ok(m)
     }
@@ -509,14 +512,14 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == ErrorKind::NotFound {
-                    Ok(Box::new(EmptyDirIterator))
+                    Ok(Box::new(EmptyObjectIterator))
                 } else {
                     Err(parse_io_error(e, Operation::BlockingList, path))
                 }
@@ -538,24 +541,19 @@ impl Accessor for Backend {
                 // the target file type.
                 let file_type = de.file_type()?;
 
-                let mut d = if file_type.is_file() {
-                    DirEntry::new(acc.clone(), ObjectMode::FILE, &path)
+                let d = if file_type.is_file() {
+                    ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::FILE))
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
-                    DirEntry::new(acc.clone(), ObjectMode::DIR, &format!("{}/", &path))
+                    ObjectEntry::new(
+                        acc.clone(),
+                        &format!("{}/", &path),
+                        ObjectMetadata::new(ObjectMode::DIR),
+                    )
+                    .with_complete()
                 } else {
-                    DirEntry::new(acc.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::Unknown))
                 };
-
-                // metadata may not available on all platforms, it's ok not setting it here
-                if let Ok(metadata) = de.metadata() {
-                    d.set_content_length(metadata.len());
-                    // last_modified is not available in all platforms.
-                    // it's ok not setting it here.
-                    if let Ok(last_modified) = metadata.modified().map(OffsetDateTime::from) {
-                        d.set_last_modified(last_modified);
-                    }
-                }
 
                 Ok(d)
             }

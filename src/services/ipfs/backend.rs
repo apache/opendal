@@ -40,9 +40,8 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
@@ -62,10 +61,10 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirStreamer;
+use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for ipfs backend.
@@ -117,19 +116,19 @@ impl Builder {
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
-            return Err(other(BackendError::new(
+            return Err(new_other_backend_error(
                 HashMap::from([("root".to_string(), root)]),
                 anyhow!("root must start with /ipfs/ or /ipns/"),
-            )));
+            ));
         }
         info!("backend use root {}", root);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(other(BackendError::new(
+            None => Err(new_other_backend_error(
                 HashMap::from([("endpoint".to_string(), "".to_string())]),
                 anyhow!("endpoint is empty"),
-            ))),
+            )),
         }?;
         info!("backend use endpoint {}", &endpoint);
 
@@ -308,10 +307,7 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            return Ok(m);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let resp = self.ipfs_head(path).await?;
@@ -320,16 +316,16 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let mut m = ObjectMetadata::default();
+                let mut m = ObjectMetadata::new(ObjectMode::Unknown);
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
 
@@ -342,12 +338,7 @@ impl Accessor for Backend {
 
                 Ok(m)
             }
-            StatusCode::FOUND => {
-                let mut m = ObjectMetadata::default();
-                m.set_mode(ObjectMode::DIR);
-
-                Ok(m)
-            }
+            StatusCode::FOUND => Ok(ObjectMetadata::new(ObjectMode::DIR)),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Stat, path, er);
@@ -356,7 +347,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         Ok(Box::new(DirStream::new(Arc::new(self.clone()), path)))
     }
 }
@@ -460,7 +451,7 @@ impl DirStream {
 }
 
 impl Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
@@ -481,7 +472,7 @@ impl Stream for DirStream {
                         .into_body()
                         .bytes()
                         .await
-                        .map_err(|e| other(ObjectError::new(Operation::List, &path, e)))?;
+                        .map_err(|e| new_other_object_error(Operation::List, &path, e))?;
 
                     Ok(bs)
                 };
@@ -493,11 +484,11 @@ impl Stream for DirStream {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
 
                 let pb_node = PBNode::decode(bs).map_err(|e| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::List,
                         &self.path,
                         anyhow!("deserialize protobuf: {e:?}"),
-                    ))
+                    )
                 })?;
 
                 let names = pb_node
@@ -521,11 +512,7 @@ impl Stream for DirStream {
                         name += "/";
                     }
 
-                    let mut de = DirEntry::new(backend, meta.mode(), &name);
-                    de.set_content_length(meta.content_length());
-                    if let Some(etag) = meta.etag() {
-                        de.set_etag(etag);
-                    }
+                    let de = ObjectEntry::new(backend, &name, meta).with_complete();
 
                     let names = mem::replace(names, vec![].into_iter().peekable());
                     self.state = State::Walking((names, None));

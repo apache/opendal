@@ -27,7 +27,8 @@ use redis::aio::ConnectionManager;
 use crate::ops::Operation;
 use crate::services::redis::backend::Backend;
 use crate::services::redis::error::new_exec_async_cmd_error;
-use crate::DirEntry;
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 enum State {
@@ -61,7 +62,7 @@ impl DirStream {
 }
 
 impl Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let path = self.path.clone();
@@ -107,7 +108,7 @@ impl Stream for DirStream {
                         ObjectMode::FILE
                     };
 
-                    let entry = DirEntry::new(backend, mode, path.as_str());
+                    let entry = ObjectEntry::new(backend, path.as_str(), ObjectMetadata::new(mode));
                     Poll::Ready(Some(Ok(entry)))
                 } else {
                     self.state = State::Idle;

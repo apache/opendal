@@ -40,9 +40,8 @@ use super::error::new_serialize_metadata_error;
 use super::v0_children_prefix;
 use super::v0_content_prefix;
 use super::v0_meta_prefix;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -54,9 +53,9 @@ use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
@@ -146,10 +145,10 @@ impl Builder {
             .unwrap_or_else(|| DEFAULT_REDIS_ENDPOINT.to_string());
 
         let ep_url = endpoint.parse::<Uri>().map_err(|e| {
-            other(BackendError::new(
+            new_other_backend_error(
                 HashMap::from([("endpoint".to_string(), endpoint.clone())]),
                 anyhow!("endpoint is invalid: {:?}", e),
-            ))
+            )
         })?;
 
         let con_addr = match ep_url.scheme_str() {
@@ -167,10 +166,10 @@ impl Builder {
                 ConnectionAddr::Unix(path)
             }
             Some(s) => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::from([("endpoint".to_string(), endpoint)]),
                     anyhow!("invalid or unsupported URL scheme: {}", s),
-                )))
+                ))
             }
         };
 
@@ -186,7 +185,7 @@ impl Builder {
         };
 
         let client = Client::open(con_info).map_err(|e| {
-            other(BackendError::new(
+            new_other_backend_error(
                 HashMap::from([
                     ("endpoint".to_string(), endpoint),
                     ("db".to_string(), self.db.to_string()),
@@ -198,7 +197,7 @@ impl Builder {
                     ),
                 ]),
                 anyhow!("establish redis client error: {:?}", e),
-            ))
+            )
         })?;
 
         let root = normalize_root(
@@ -255,8 +254,7 @@ impl Backend {
     ///
     /// Note: `to_create` have to be an absolute path.
     async fn mkdir_current(con: &mut ConnectionManager, to_create: &str, path: &str) -> Result<()> {
-        let mut metadata = ObjectMetadata::default();
-        metadata.set_mode(ObjectMode::DIR);
+        let metadata = ObjectMetadata::new(ObjectMode::DIR);
 
         let to_create = if !to_create.ends_with('/') {
             to_create.to_string() + "/"
@@ -365,8 +363,7 @@ impl Accessor for Backend {
             .map_err(|e| new_async_connection_error(e, Operation::Create, path.as_str()))?;
 
         // create current dir
-        let mut meta = ObjectMetadata::default();
-        meta.set_mode(args.mode());
+        let mut meta = ObjectMetadata::new(args.mode());
         if args.mode() == ObjectMode::FILE {
             // only set last_modified for files
             let last_modified = OffsetDateTime::now_utc();
@@ -423,11 +420,11 @@ impl Accessor for Backend {
         let path = path.to_string();
 
         if path.ends_with('/') {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 path.as_str(),
                 anyhow!("cannot write to directory"),
-            )));
+            ));
         }
 
         let mut con = self
@@ -450,12 +447,9 @@ impl Accessor for Backend {
 
         let m_path = v0_meta_prefix(abs_path.as_str());
 
-        let mut meta = ObjectMetadata::default();
-        let mode = ObjectMode::FILE;
-        let last_modified = OffsetDateTime::now_utc();
+        let mut meta = ObjectMetadata::new(ObjectMode::FILE);
         meta.set_content_length(content_length as u64);
-        meta.set_mode(mode);
-        meta.set_last_modified(last_modified);
+        meta.set_last_modified(OffsetDateTime::now_utc());
 
         // serialize and write to redis backend
         let bin = bincode::serialize(&meta)
@@ -505,11 +499,11 @@ impl Accessor for Backend {
 
         // directory is not empty
         if child_iter.next_item().await.is_some() {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Delete,
                 path.as_str(),
                 anyhow!("Directory not empty!"),
-            )));
+            ));
         }
 
         Backend::remove(&mut con, abs_path.as_str()).await?;
@@ -525,7 +519,7 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<ObjectStreamer> {
         let path = build_abs_path(self.root.as_str(), path);
         let con = self
             .client
@@ -554,8 +548,7 @@ mod redis_test {
     // this function is used for generating testing binary data
     #[test]
     fn test_generate_bincode() {
-        let mut meta = ObjectMetadata::default();
-        meta.set_mode(ObjectMode::DIR);
+        let mut meta = ObjectMetadata::new(ObjectMode::DIR);
         println!(
             "serialized directory metadata: {:?}",
             bincode::serialize(&meta).unwrap()

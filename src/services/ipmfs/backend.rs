@@ -29,8 +29,7 @@ use super::builder::Builder;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_response_consume_error;
@@ -50,9 +49,9 @@ use crate::path::build_rooted_abs_path;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Backend for IPFS service
@@ -176,10 +175,7 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            return Ok(m);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let resp = self.ipmfs_stat(path).await?;
@@ -195,19 +191,20 @@ impl Accessor for Backend {
                     .map_err(|err| new_response_consume_error(Operation::Stat, path, err))?;
 
                 let res: IpfsStatResponse = serde_json::from_slice(&bs).map_err(|err| {
-                    other(ObjectError::new(
+                    new_other_object_error(
                         Operation::Stat,
                         path,
                         anyhow!("deserialize json: {err:?}"),
-                    ))
+                    )
                 })?;
 
-                let mut meta = ObjectMetadata::default();
-                meta.set_mode(match res.file_type.as_str() {
+                let mode = match res.file_type.as_str() {
                     "file" => ObjectMode::FILE,
                     "directory" => ObjectMode::DIR,
                     _ => ObjectMode::Unknown,
-                });
+                };
+
+                let mut meta = ObjectMetadata::new(mode);
                 meta.set_content_length(res.size);
 
                 Ok(meta)
@@ -241,7 +238,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         Ok(Box::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,

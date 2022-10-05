@@ -6,7 +6,7 @@
 [crates.io]: https://crates.io/crates/opendal
 [Crate Downloads]: https://img.shields.io/crates/d/opendal.svg
 
-**Open** **D**ata **A**ccess **L**ayer: Access data freely, painless, and efficiently
+**Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
 
 ---
 
@@ -37,7 +37,7 @@ Access data **freely**
 - Access different storage services in the same way
 - Behavior tests for all services
 
-Access data **painless**
+Access data **painlessly**
 
 - **100%** documents covered
 - Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.html)
@@ -57,8 +57,8 @@ Access data **efficiently**
 use anyhow::Result;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use opendal::DirEntry;
-use opendal::DirStreamer;
+use opendal::ObjectEntry;
+use opendal::ObjectStreamer;
 use opendal::Object;
 use opendal::ObjectMetadata;
 use opendal::ObjectMode;
@@ -98,8 +98,8 @@ async fn main() -> Result<()> {
 
     // List dir object.
     let o = op.object("test_dir/");
-    let mut ds = o.list().await?;
-    while let Some(entry) = ds.try_next().await? {
+    let mut os = o.list().await?;
+    while let Some(entry) = os.try_next().await? {
         let path = entry.path();
         let mode = entry.mode();
     }
@@ -120,7 +120,7 @@ Check out the [CONTRIBUTING.md](./CONTRIBUTING.md) guide for more details on get
 
 ## Getting help
 
-Submit [issues](https://github.com/datafuselabs/opendal/issues/new/choose) for bug report or asking questions in [discussion](https://github.com/datafuselabs/opendal/discussions/new?category=q-a). 
+Submit [issues](https://github.com/datafuselabs/opendal/issues/new/choose) for bug report or asking questions in [discussion](https://github.com/datafuselabs/opendal/discussions/new?category=q-a).
 
 #### License
 

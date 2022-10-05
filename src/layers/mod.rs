@@ -18,8 +18,9 @@
 //!
 //! - [`ImmutableIndexLayer`]: Add an immutable in-memory index for OpenDAL.
 //! - [`LoggingLayer`]: Add logging for OpenDAL.
+//! - [`MetadataCacheLayer`]: Add metadata cache for OpenDAL.
 //! - [`MetricsLayer`]: Add metrics for OpenDAL, requires feature `layers-metrics`
-//! - [`RetryLayer`]: Add retry for OpenDAL, requires feature `layers-retry`
+//! - [`RetryLayer`]: Add retry for OpenDAL.
 //! - [`SubdirLayer`]: Allow OpenDAL to switch directory.
 //! - [`TracingLayer`]: Add tracing for OpenDAL, requires feature `layers-tracing`
 
@@ -32,14 +33,17 @@ pub use immutable_index::ImmutableIndexLayer;
 mod logging;
 pub use logging::LoggingLayer;
 
+#[cfg(feature = "layers-metadata-cache")]
+mod metadata_cache;
+#[cfg(feature = "layers-metadata-cache")]
+pub use metadata_cache::MetadataCacheLayer;
+
 #[cfg(feature = "layers-metrics")]
 mod metrics;
 #[cfg(feature = "layers-metrics")]
 pub use self::metrics::MetricsLayer;
 
-#[cfg(feature = "layers-retry")]
 mod retry;
-#[cfg(feature = "layers-retry")]
 pub use self::retry::RetryLayer;
 
 mod subdir;

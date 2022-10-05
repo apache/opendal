@@ -32,7 +32,7 @@ use futures::AsyncWrite;
 use parking_lot::Mutex;
 
 use crate::accessor::AccessorCapability;
-use crate::error::other;
+use crate::error::new_other_object_error;
 use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -44,10 +44,10 @@ use crate::ops::Operation;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirStreamer;
+use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -75,7 +75,7 @@ impl Accessor for Backend {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Memory)
             .set_root("/")
-            .set_name("memory")
+            .set_name(&format!("{:?}", &self.inner as *const _))
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             );
@@ -114,22 +114,22 @@ impl Accessor for Backend {
         let mut data = data.clone();
         if let Some(offset) = args.offset() {
             if offset >= data.len() as u64 {
-                return Err(other(ObjectError::new(
+                return Err(new_other_object_error(
                     Operation::Read,
                     path,
                     anyhow!("offset out of bound {} >= {}", offset, data.len()),
-                )));
+                ));
             }
             data = data.slice(offset as usize..data.len());
         };
 
         if let Some(size) = args.size() {
             if size > data.len() as u64 {
-                return Err(other(ObjectError::new(
+                return Err(new_other_object_error(
                     Operation::Read,
                     path,
                     anyhow!("size out of bound {} > {}", size, data.len()),
-                )));
+                ));
             }
             data = data.slice(0..size as usize);
         };
@@ -141,11 +141,11 @@ impl Accessor for Backend {
         let mut buf = Vec::with_capacity(args.size() as usize);
         let n = futures::io::copy(r, &mut buf).await?;
         if n != args.size() {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 path,
                 anyhow!("write short, expect {} actual {}", args.size(), n),
-            )));
+            ));
         }
         let mut map = self.inner.lock();
         map.insert(path.to_string(), Bytes::from(buf));
@@ -155,10 +155,7 @@ impl Accessor for Backend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         if path.ends_with('/') {
-            let mut meta = ObjectMetadata::default();
-            meta.set_mode(ObjectMode::DIR);
-
-            return Ok(meta);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let map = self.inner.lock();
@@ -170,9 +167,7 @@ impl Accessor for Backend {
             )
         })?;
 
-        let mut meta = ObjectMetadata::default();
-        meta.set_mode(ObjectMode::FILE)
-            .set_content_length(data.len() as u64);
+        let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(data.len() as u64);
 
         Ok(meta)
     }
@@ -184,7 +179,7 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let mut path = path.to_string();
         if path == "/" {
             path.clear();
@@ -260,7 +255,7 @@ impl AsyncWrite for MapWriter {
 
     fn poll_close(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
         if self.buf.len() != self.size as usize {
-            return Poll::Ready(Err(other(ObjectError::new(
+            return Poll::Ready(Err(new_other_object_error(
                 Operation::Write,
                 &self.path,
                 anyhow!(
@@ -268,7 +263,7 @@ impl AsyncWrite for MapWriter {
                     self.size,
                     self.buf.len()
                 ),
-            ))));
+            )));
         }
 
         let buf = mem::take(&mut self.buf);
@@ -286,7 +281,7 @@ struct DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.idx >= self.paths.len() {
@@ -299,11 +294,34 @@ impl futures::Stream for DirStream {
         let path = self.paths.get(idx).expect("path must valid");
 
         let de = if path.ends_with('/') {
-            DirEntry::new(self.backend.clone(), ObjectMode::DIR, path)
+            ObjectEntry::new(
+                self.backend.clone(),
+                path,
+                ObjectMetadata::new(ObjectMode::DIR),
+            )
+            .with_complete()
         } else {
-            DirEntry::new(self.backend.clone(), ObjectMode::FILE, path)
+            ObjectEntry::new(
+                self.backend.clone(),
+                path,
+                ObjectMetadata::new(ObjectMode::FILE),
+            )
         };
 
         Poll::Ready(Some(Ok(de)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_accessor_metadata_name() {
+        let b1 = Builder::default().build().unwrap();
+        assert_eq!(b1.metadata().name(), b1.metadata().name());
+
+        let b2 = Builder::default().build().unwrap();
+        assert_ne!(b1.metadata().name(), b2.metadata().name())
     }
 }

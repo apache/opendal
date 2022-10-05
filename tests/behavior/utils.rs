@@ -15,7 +15,9 @@
 use std::collections::HashMap;
 use std::env;
 
+use backon::ExponentialBackoff;
 use opendal::layers::LoggingLayer;
+use opendal::layers::RetryLayer;
 use opendal::Operator;
 use opendal::Scheme;
 use rand::prelude::*;
@@ -53,7 +55,8 @@ pub fn init_service(scheme: Scheme, random_root: bool) -> Option<Operator> {
 
     let op = Operator::from_iter(scheme, cfg.into_iter())
         .expect("init service must succeed")
-        .layer(LoggingLayer);
+        .layer(LoggingLayer)
+        .layer(RetryLayer::new(ExponentialBackoff::default()));
 
     Some(op)
 }

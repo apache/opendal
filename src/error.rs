@@ -88,18 +88,6 @@ impl ObjectError {
     }
 }
 
-/// Copied for [`io::Error::other`], should be removed after `io_error_other` stable.
-///
-/// TODO:
-///
-/// - Refactor this into `new_other_object_error` and `new_other_backend_error`
-pub fn other<E>(error: E) -> io::Error
-where
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-{
-    io::Error::new(io::ErrorKind::Other, error.into())
-}
-
 /// Creates new Unsupported Object Error.
 pub fn new_unsupported_object_error(op: Operation, path: &str) -> io::Error {
     io::Error::new(
@@ -110,4 +98,21 @@ pub fn new_unsupported_object_error(op: Operation, path: &str) -> io::Error {
             anyhow::anyhow!("operation is not supported by underlying services"),
         ),
     )
+}
+
+/// Creates an error as [`ObjectError`] and wrapped with [`io::Error::other`]
+pub fn new_other_object_error(
+    op: Operation,
+    path: &str,
+    source: impl Into<anyhow::Error>,
+) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, ObjectError::new(op, path, source))
+}
+
+/// Creates an error as [`BackendError`] and wrapped with [`io::Error::other`]
+pub fn new_other_backend_error(
+    context: HashMap<String, String>,
+    source: impl Into<anyhow::Error>,
+) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, BackendError::new(context, source))
 }

@@ -24,6 +24,7 @@ use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bytes::{Buf, BytesMut};
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
@@ -552,8 +553,7 @@ struct BlockReader<S: KeyValueAccessor> {
     ino: u64,
     version: u64,
     blocks: IntoIter<(u64, usize, usize)>,
-    buf: Vec<u8>,
-    cnt: usize,
+    buf: BytesMut,
     fut: Option<BoxFuture<'static, Result<Vec<u8>>>>,
 }
 
@@ -571,8 +571,7 @@ impl<S: KeyValueAccessor> BlockReader<S> {
             ino,
             version,
             blocks: blocks.into_iter(),
-            buf: Vec::with_capacity(BLOCK_SIZE),
-            cnt: 0,
+            buf: BytesMut::with_capacity(BLOCK_SIZE),
             fut: None,
         }
     }
@@ -590,10 +589,10 @@ where
         let mut this = self.project();
 
         loop {
-            if this.buf.len() - *this.cnt > 0 {
-                let size = min(buf.len(), this.buf.len() - *this.cnt);
-                buf[..size].copy_from_slice(&this.buf[*this.cnt..size + *this.cnt]);
-                *this.cnt += size;
+            if this.buf.has_remaining() {
+                let size = min(buf.len(), this.buf.len());
+                buf[..size].copy_from_slice(&this.buf[..size]);
+                this.buf.advance(size);
                 return Poll::Ready(Ok(size));
             }
 
@@ -616,22 +615,10 @@ where
                     let bs = ready!(Pin::new(fut).poll(cx)?);
                     *this.fut = None;
 
-                    *this.cnt = 0;
-
-                    // # Safety
-                    //
-                    // [0..BLOCK_SIZE] has been allocated.
-                    unsafe {
-                        this.buf.set_len(BLOCK_SIZE);
-                    }
-                    this.buf[..bs.len()].copy_from_slice(&bs);
-                    // # Safety
-                    //
-                    // We only use this buf internally and make sure that
-                    // only valid data will be read.
-                    unsafe {
-                        this.buf.set_len(bs.len());
-                    }
+                    // Clear the buf to reuse the same space.
+                    this.buf.clear();
+                    // Extend from given slice.
+                    this.buf.extend_from_slice(&bs);
                     continue;
                 }
             }

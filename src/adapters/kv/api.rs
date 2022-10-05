@@ -20,13 +20,13 @@ use futures::Stream;
 
 use crate::Scheme;
 
-/// KeyValueAccessor is the accessor to underlying kv services.
+/// KvAdapter is the adapter to underlying kv services.
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 #[async_trait]
-pub trait KeyValueAccessor: Send + Sync + Debug + Clone + 'static {
+pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// Return the medata of this key value accessor.
-    fn metadata(&self) -> KeyValueAccessorMetadata;
+    fn metadata(&self) -> Metadata;
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
@@ -34,20 +34,20 @@ pub trait KeyValueAccessor: Send + Sync + Debug + Clone + 'static {
     /// Set a key into service.
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
     /// Scan a range of keys.
-    async fn scan(&self, prefix: &[u8]) -> Result<KeyValueStreamer>;
+    async fn scan(&self, prefix: &[u8]) -> Result<KeyStreamer>;
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.
     async fn delete(&self, key: &[u8]) -> Result<()>;
 }
 
-/// Metadata for this key valud accessor.
-pub struct KeyValueAccessorMetadata {
+/// Metadata for this key value accessor.
+pub struct Metadata {
     scheme: Scheme,
     name: String,
 }
 
-impl KeyValueAccessorMetadata {
+impl Metadata {
     /// Create a new KeyValueAccessorMetadata.
     pub fn new(scheme: Scheme, name: &str) -> Self {
         Self {
@@ -67,9 +67,9 @@ impl KeyValueAccessorMetadata {
     }
 }
 
-/// KeyValueStream represents a stream of key-value paris.
-pub trait KeyValueStream: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
-impl<T> KeyValueStream for T where T: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
+/// KeyStream represents a stream of keys.
+pub trait KeyStream: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
+impl<T> KeyStream for T where T: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
 
 /// KeyValueStreamer is a boxed dyn [`KeyValueStream`]
-pub type KeyValueStreamer = Box<dyn KeyValueStream>;
+pub type KeyStreamer = Box<dyn KeyStream>;

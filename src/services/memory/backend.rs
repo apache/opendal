@@ -25,7 +25,7 @@ use std::vec::IntoIter;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 
-use crate::services::kv;
+use crate::adapters::kv;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -35,26 +35,26 @@ pub struct Builder {}
 impl Builder {
     /// Consume builder to build a memory backend.
     pub fn build(&mut self) -> Result<Backend> {
-        let engine = Engine {
+        let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        kv::Builder::new(engine).build()
+        Ok(Backend::new(adapter))
     }
 }
 
 /// Backend is used to serve `Accessor` support in memory.
-pub type Backend = kv::Backend<Engine>;
+pub type Backend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
-pub struct Engine {
+pub struct Adapter {
     inner: Arc<Mutex<BTreeMap<Vec<u8>, Vec<u8>>>>,
 }
 
 #[async_trait]
-impl kv::KeyValueAccessor for Engine {
-    fn metadata(&self) -> kv::KeyValueAccessorMetadata {
-        kv::KeyValueAccessorMetadata::new(Scheme::Memory, &format!("{:?}", &self.inner as *const _))
+impl kv::Adapter for Adapter {
+    fn metadata(&self) -> kv::Metadata {
+        kv::Metadata::new(Scheme::Memory, &format!("{:?}", &self.inner as *const _))
     }
 
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -70,7 +70,7 @@ impl kv::KeyValueAccessor for Engine {
         Ok(())
     }
 
-    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyValueStreamer> {
+    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
         let mut end = prefix.to_vec();
         // kv service makes sure that the last word is not `u8::MAX`.
         *end.last_mut().unwrap() += 1;
@@ -78,7 +78,7 @@ impl kv::KeyValueAccessor for Engine {
         let map = self.inner.lock();
         let iter = map.range((Included(prefix.to_vec()), Excluded(end.to_vec())));
 
-        Ok(Box::new(DirStream {
+        Ok(Box::new(KeyStream {
             keys: iter
                 .map(|(k, _)| k.to_vec())
                 .collect::<Vec<_>>()
@@ -93,11 +93,11 @@ impl kv::KeyValueAccessor for Engine {
     }
 }
 
-struct DirStream {
+struct KeyStream {
     keys: IntoIter<Vec<u8>>,
 }
 
-impl futures::Stream for DirStream {
+impl futures::Stream for KeyStream {
     type Item = Result<Vec<u8>>;
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {

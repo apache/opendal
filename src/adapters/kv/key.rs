@@ -11,6 +11,19 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+// Copyright 2022 Datafuse Labs.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 use std::io::Error;
 use std::io::ErrorKind;
@@ -19,10 +32,10 @@ use std::mem::size_of;
 
 use anyhow::anyhow;
 
-/// ScopedKey is the key for different key that we used to implement OpenDAL
+/// Key is the key for different key that we used to implement OpenDAL
 /// service upon kv service.
 #[derive(Debug)]
-pub enum ScopedKey {
+pub enum Key {
     /// Meta key of this scope.
     ///
     /// Every kv services will only have on of this key.
@@ -54,7 +67,7 @@ pub enum ScopedKey {
     Version(u64),
 }
 
-impl ScopedKey {
+impl Key {
     /// Create a meta scope key.
     pub fn meta() -> Self {
         Self::Meta
@@ -86,7 +99,7 @@ impl ScopedKey {
 
     /// Convert scoped key into entry (parent, name)
     pub fn into_entry(self) -> (u64, String) {
-        if let ScopedKey::Entry { parent, name } = self {
+        if let Key::Entry { parent, name } = self {
             (parent, name)
         } else {
             unreachable!("scope key is not a valid entry: {:?}", self)
@@ -102,11 +115,11 @@ impl ScopedKey {
     #[inline]
     fn scope(&self) -> u8 {
         match self {
-            ScopedKey::Meta => 0,
-            ScopedKey::Inode(_) => 1,
-            ScopedKey::Block { .. } => 2,
-            ScopedKey::Entry { .. } => 3,
-            ScopedKey::Version(_) => 4,
+            Key::Meta => 0,
+            Key::Inode(_) => 1,
+            Key::Block { .. } => 2,
+            Key::Entry { .. } => 3,
+            Key::Version(_) => 4,
         }
     }
 
@@ -116,11 +129,11 @@ impl ScopedKey {
         let size_of_u64 = size_of::<u64>();
 
         1 + match self {
-            ScopedKey::Meta => 0,
-            ScopedKey::Inode(_) => size_of_u64,
-            ScopedKey::Block { .. } => size_of_u64 * 3,
-            ScopedKey::Entry { parent: _, name } => size_of_u64 + name.as_bytes().len(),
-            ScopedKey::Version(_) => size_of_u64,
+            Key::Meta => 0,
+            Key::Inode(_) => size_of_u64,
+            Key::Block { .. } => size_of_u64 * 3,
+            Key::Entry { parent: _, name } => size_of_u64 + name.as_bytes().len(),
+            Key::Version(_) => size_of_u64,
         }
     }
 
@@ -129,9 +142,9 @@ impl ScopedKey {
         let mut data = Vec::with_capacity(self.size());
         data.push(self.scope());
         match self {
-            ScopedKey::Meta => (),
-            ScopedKey::Inode(ino) => data.extend(ino.to_be_bytes()),
-            ScopedKey::Block {
+            Key::Meta => (),
+            Key::Inode(ino) => data.extend(ino.to_be_bytes()),
+            Key::Block {
                 ino,
                 version,
                 block,
@@ -140,11 +153,11 @@ impl ScopedKey {
                 data.extend(version.to_be_bytes());
                 data.extend(block.to_be_bytes());
             }
-            ScopedKey::Entry { parent, name } => {
+            Key::Entry { parent, name } => {
                 data.extend(parent.to_be_bytes());
                 data.extend(name.as_bytes());
             }
-            ScopedKey::Version(version) => {
+            Key::Version(version) => {
                 data.extend(version.to_be_bytes());
             }
         }

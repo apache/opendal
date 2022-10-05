@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! KV Service support for OpenDAL.
+//! Providing Key Value Adapter for OpenDAL.
 //!
-//! This is not a real service that can be used by users. Service implementer can
-//! use this service to build service like `redis`, `memory`, `tikv`.
-//!
-//! # Note
-//!
-//! kv service is not stable, please don't use this for persist data.
+//! Any services that implement `Adapter` can be used an OpenDAL Service.
 
-mod accessor;
-pub use accessor::KeyValueAccessor;
-pub use accessor::KeyValueAccessorMetadata;
-pub use accessor::KeyValueStreamer;
+mod api;
+pub use api::Adapter;
+pub use api::KeyStreamer;
+pub use api::Metadata;
 
 mod backend;
 pub use backend::Backend;
-pub use backend::Builder;
 
 mod key;
-pub use key::ScopedKey;
+use key::Key;

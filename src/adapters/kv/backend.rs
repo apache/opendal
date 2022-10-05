@@ -31,13 +31,14 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use futures::Future;
 use futures::Stream;
-use log::info;
 use pin_project::pin_project;
 use serde::Deserialize;
 use serde::Serialize;
 use time::OffsetDateTime;
 
-use super::KeyValueAccessor;
+use super::Adapter;
+use super::Key;
+use super::KeyStreamer;
 use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -49,8 +50,6 @@ use crate::path::build_rooted_abs_path;
 use crate::path::get_basename;
 use crate::path::get_parent;
 use crate::path::normalize_root;
-use crate::services::kv::accessor::KeyValueStreamer;
-use crate::services::kv::ScopedKey;
 use crate::Accessor;
 use crate::AccessorCapability;
 use crate::AccessorMetadata;
@@ -60,59 +59,36 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 
-/// Builder of kv service.
+/// Backend of kv service.
 #[derive(Debug, Clone)]
-pub struct Builder<S: KeyValueAccessor> {
-    kv: Option<S>,
-    root: Option<String>,
+pub struct Backend<S: Adapter> {
+    kv: S,
+    root: String,
 }
 
-impl<S> Builder<S>
+impl<S> Backend<S>
 where
-    S: KeyValueAccessor,
+    S: Adapter,
 {
-    /// Create a new builder.
+    /// Create a new kv backend.
     pub fn new(kv: S) -> Self {
         Self {
-            kv: Some(kv),
-            root: None,
+            kv,
+            root: "/".to_string(),
         }
     }
 
-    /// Set root for builder.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
+    /// Configure root within this backend.
+    pub fn with_root(mut self, root: &str) -> Self {
+        self.root = normalize_root(root);
         self
     }
-
-    /// Build the backend.
-    pub fn build(&mut self) -> Result<Backend<S>> {
-        let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", &root);
-
-        Ok(Backend {
-            kv: self.kv.take().unwrap(),
-            root,
-        })
-    }
-}
-
-/// Backend of kv service.
-#[derive(Debug, Clone)]
-pub struct Backend<S: KeyValueAccessor> {
-    kv: S,
-    root: String,
 }
 
 #[async_trait]
 impl<S> Accessor for Backend<S>
 where
-    S: KeyValueAccessor,
+    S: Adapter,
 {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -223,10 +199,10 @@ where
     }
 }
 
-impl<S: KeyValueAccessor> Backend<S> {
+impl<S: Adapter> Backend<S> {
     /// Get current metadata.
     async fn get_meta(&self) -> Result<KeyValueMeta> {
-        let meta = self.kv.get(&ScopedKey::meta().encode()).await?;
+        let meta = self.kv.get(&Key::meta().encode()).await?;
         match meta {
             None => Ok(KeyValueMeta::default()),
             Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
@@ -236,7 +212,7 @@ impl<S: KeyValueAccessor> Backend<S> {
     /// Set current metadata.
     async fn set_meta(&self, meta: KeyValueMeta) -> Result<()> {
         let bs = bincode::serialize(&meta).map_err(new_bincode_error)?;
-        self.kv.set(&ScopedKey::meta().encode(), &bs).await?;
+        self.kv.set(&Key::meta().encode(), &bs).await?;
 
         Ok(())
     }
@@ -259,7 +235,7 @@ impl<S: KeyValueAccessor> Backend<S> {
             return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
-        let bs = self.kv.get(&ScopedKey::inode(ino).encode()).await?;
+        let bs = self.kv.get(&Key::inode(ino).encode()).await?;
         match bs {
             None => Err(Error::new(
                 ErrorKind::NotFound,
@@ -271,27 +247,27 @@ impl<S: KeyValueAccessor> Backend<S> {
 
     /// Create a new inode.
     async fn create_inode(&self, ino: u64, meta: ObjectMetadata) -> Result<()> {
-        let key = ScopedKey::inode(ino);
+        let key = Key::inode(ino);
         let value = bincode::serialize(&meta).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
     /// Remove inode.
     async fn remove_inode(&self, ino: u64) -> Result<()> {
-        let key = ScopedKey::inode(ino);
+        let key = Key::inode(ino);
         self.kv.delete(&key.encode()).await
     }
 
     /// Create a new entry.
     async fn create_entry(&self, parent: u64, name: &str, inode: u64) -> Result<()> {
-        let key = ScopedKey::entry(parent, name);
+        let key = Key::entry(parent, name);
         let value = bincode::serialize(&inode).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
     /// Get the inode of an entry by parent, and it's name.
     async fn get_entry(&self, parent: u64, name: &str) -> Result<u64> {
-        let key = ScopedKey::entry(parent, name);
+        let key = Key::entry(parent, name);
         let bs = self.kv.get(&key.encode()).await?;
         match bs {
             None => Err(Error::new(
@@ -304,19 +280,19 @@ impl<S: KeyValueAccessor> Backend<S> {
 
     /// Remove entry.
     async fn remove_entry(&self, parent: u64, name: &str) -> Result<()> {
-        let key = ScopedKey::entry(parent, name);
+        let key = Key::entry(parent, name);
         self.kv.delete(&key.encode()).await
     }
 
     /// List all entries by parent's inode.
-    async fn list_entries(&self, parent: u64) -> Result<KeyValueStreamer> {
-        let key = ScopedKey::entry(parent, "");
+    async fn list_entries(&self, parent: u64) -> Result<KeyStreamer> {
+        let key = Key::entry(parent, "");
         self.kv.scan(&key.encode()).await
     }
 
     /// Create a new block by inode, version and block id.
     async fn create_block(&self, ino: u64, version: u64, block: u64, content: &[u8]) -> Result<()> {
-        let key = ScopedKey::block(ino, version, block);
+        let key = Key::block(ino, version, block);
         self.kv.set(&key.encode(), content).await
     }
 
@@ -360,7 +336,7 @@ impl<S: KeyValueAccessor> Backend<S> {
             size
         );
 
-        let key = ScopedKey::block(ino, version, block);
+        let key = Key::block(ino, version, block);
         let bs = self.kv.get(&key.encode()).await?;
         match bs {
             None => Err(Error::new(
@@ -385,7 +361,7 @@ impl<S: KeyValueAccessor> Backend<S> {
 
     /// Get the version number of inode.
     async fn get_version(&self, ino: u64) -> Result<u64> {
-        let key = ScopedKey::version(ino);
+        let key = Key::version(ino);
         let ver = self.kv.get(&key.encode()).await?;
         match ver {
             None => Ok(0),
@@ -395,7 +371,7 @@ impl<S: KeyValueAccessor> Backend<S> {
 
     /// Set the version number of inode.
     async fn set_version(&self, ino: u64, ver: u64) -> Result<()> {
-        let key = ScopedKey::version(ino);
+        let key = Key::version(ino);
         let bs = bincode::serialize(&ver).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &bs).await
     }
@@ -545,7 +521,7 @@ fn calculate_blocks(offset: u64, size: u64) -> Vec<(u64, usize, usize)> {
 }
 
 #[pin_project]
-struct BlockReader<S: KeyValueAccessor> {
+struct BlockReader<S: Adapter> {
     backend: Backend<S>,
     ino: u64,
     version: u64,
@@ -554,7 +530,7 @@ struct BlockReader<S: KeyValueAccessor> {
     fut: Option<BoxFuture<'static, Result<Vec<u8>>>>,
 }
 
-impl<S: KeyValueAccessor> BlockReader<S> {
+impl<S: Adapter> BlockReader<S> {
     pub fn new(
         backend: Backend<S>,
         ino: u64,
@@ -574,7 +550,7 @@ impl<S: KeyValueAccessor> BlockReader<S> {
 
 impl<S> AsyncRead for BlockReader<S>
 where
-    S: KeyValueAccessor,
+    S: Adapter,
 {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -621,9 +597,9 @@ where
 }
 
 #[pin_project]
-struct ObjectStream<S: KeyValueAccessor> {
+struct ObjectStream<S: Adapter> {
     backend: Arc<Backend<S>>,
-    stream: KeyValueStreamer,
+    stream: KeyStreamer,
     path: String,
     current: String,
     fut: Option<BoxFuture<'static, Result<ObjectMetadata>>>,
@@ -631,9 +607,9 @@ struct ObjectStream<S: KeyValueAccessor> {
 
 impl<S> ObjectStream<S>
 where
-    S: KeyValueAccessor + 'static,
+    S: Adapter + 'static,
 {
-    pub fn new(backend: Arc<Backend<S>>, stream: KeyValueStreamer, path: String) -> Self {
+    pub fn new(backend: Arc<Backend<S>>, stream: KeyStreamer, path: String) -> Self {
         Self {
             backend,
             stream,
@@ -652,7 +628,7 @@ where
 
 impl<S> Stream for ObjectStream<S>
 where
-    S: KeyValueAccessor + 'static,
+    S: Adapter + 'static,
 {
     type Item = Result<ObjectEntry>;
 
@@ -668,7 +644,7 @@ where
                         Some(Err(err)) => return Poll::Ready(Some(Err(err))),
                         Some(Ok(bs)) => {
                             let backend = this.backend.clone();
-                            let key = ScopedKey::decode(&bs)?;
+                            let key = Key::decode(&bs)?;
                             let (parent, name) = key.into_entry();
                             *this.current = name.clone();
                             let fut = async move {

@@ -15,9 +15,10 @@
 use std::fmt::Debug;
 use std::io::Result;
 
-use crate::Scheme;
 use async_trait::async_trait;
 use futures::Stream;
+
+use crate::Scheme;
 
 /// KeyValueAccessor is the accessor to underlying kv services.
 ///
@@ -40,6 +41,7 @@ pub trait KeyValueAccessor: Send + Sync + Debug + Clone + 'static {
     async fn delete(&self, key: &[u8]) -> Result<()>;
 }
 
+/// Metadata for this key valud accessor.
 pub struct KeyValueAccessorMetadata {
     scheme: Scheme,
     name: String,

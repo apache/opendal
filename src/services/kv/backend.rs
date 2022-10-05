@@ -25,25 +25,30 @@ use std::vec::IntoIter;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::ready;
 use futures::AsyncRead;
+use futures::AsyncReadExt;
 use futures::Future;
 use futures::Stream;
-use futures::{ready, AsyncReadExt};
-use log::{debug, info};
+use log::debug;
+use log::info;
 use pin_project::pin_project;
 use serde::Deserialize;
 use serde::Serialize;
 use time::OffsetDateTime;
 
 use super::KeyValueAccessor;
+use crate::object::EmptyObjectStreamer;
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::{OpCreate, OpDelete};
+use crate::path::build_rooted_abs_path;
 use crate::path::get_basename;
 use crate::path::get_parent;
-use crate::path::{build_rooted_abs_path, normalize_root};
+use crate::path::normalize_root;
 use crate::services::kv::accessor::KeyValueStreamer;
 use crate::services::kv::ScopedKey;
 use crate::Accessor;
@@ -183,7 +188,13 @@ where
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
-        let inode = self.lookup(&p).await?;
+        let inode = match self.lookup(&p).await {
+            Ok(inode) => inode,
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                return Ok(Box::new(EmptyObjectStreamer))
+            }
+            Err(err) => return Err(err),
+        };
         let s = self.list_entries(inode).await?;
         let os = ObjectStream::new(Arc::new(self.clone()), s, path.to_string());
         Ok(Box::new(os))
@@ -645,7 +656,13 @@ where
         Self {
             backend,
             stream,
-            path,
+            path: {
+                if path == "/" {
+                    "".to_string()
+                } else {
+                    path
+                }
+            },
             current: "".to_string(),
             fut: None,
         }
@@ -684,6 +701,8 @@ where
                 }
                 Some(fut) => {
                     let om = ready!(Pin::new(fut).poll(cx))?;
+                    *this.fut = None;
+
                     let path = if om.mode().is_dir() {
                         this.path.clone() + this.current + "/"
                     } else {

@@ -14,7 +14,8 @@
 
 use std::collections::BTreeMap;
 use std::io::Result;
-use std::ops::Bound::{Excluded, Included};
+use std::ops::Bound::Excluded;
+use std::ops::Bound::Included;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -25,7 +26,6 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use crate::services::kv;
-use crate::Accessor;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -111,6 +111,7 @@ impl futures::Stream for DirStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Accessor;
 
     #[test]
     fn test_accessor_metadata_name() {

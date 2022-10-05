@@ -12,12 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashSet;
-use std::collections::{BTreeMap, HashMap};
-use std::io::Error;
-use std::io::ErrorKind;
+use std::collections::BTreeMap;
 use std::io::Result;
-use std::mem;
 use std::ops::Bound::{Excluded, Included};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -25,33 +21,11 @@ use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::BufMut;
-use bytes::Bytes;
-use futures::io::Cursor;
-use futures::AsyncWrite;
 use parking_lot::Mutex;
-use serde_json::to_string;
 
-use crate::accessor::AccessorCapability;
-use crate::error::new_other_object_error;
-use crate::error::ObjectError;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::services::kv;
 use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BytesReader;
-use crate::ObjectEntry;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for memory backend

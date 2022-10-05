@@ -24,13 +24,10 @@ use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::BytesMut;
-use bytes::{Buf, BufMut};
 use futures::future::BoxFuture;
 use futures::AsyncRead;
 use futures::Future;
 use futures::Stream;
-use futures::{io, AsyncBufRead};
 use futures::{ready, AsyncReadExt};
 use log::{debug, info};
 use pin_project::pin_project;
@@ -192,7 +189,7 @@ where
         Ok(Box::new(os))
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
         let p = build_rooted_abs_path(&self.root, path);
         let parent = get_parent(&p);
         let basename = get_basename(&p);
@@ -372,7 +369,7 @@ impl<S: KeyValueAccessor> Backend<S> {
     }
 
     /// Remove all blocks.
-    async fn remove_blocks(&self, ino: u64) -> Result<()> {
+    async fn remove_blocks(&self, _: u64) -> Result<()> {
         // TODO: we need to implement remove blocks.
         Ok(())
     }

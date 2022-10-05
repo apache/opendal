@@ -23,13 +23,21 @@ use crate::{
 };
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::io;
+use bytes::{Buf, BytesMut};
+use futures::future::BoxFuture;
+use futures::Future;
+use futures::{io, ready, AsyncRead};
+use pin_project::pin_project;
 use serde::{Deserialize, Serialize};
+use std::cmp::min;
 use std::io::{Error, ErrorKind, Result};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::vec::IntoIter;
 use time::OffsetDateTime;
 
 /// Backend of kv service.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Backend<S: KeyValueAccessor> {
     kv: S,
     root: String,
@@ -70,8 +78,14 @@ where
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         let p = build_rooted_abs_path(&self.root, path);
         let inode = self.lookup(&p).await?;
-
-        todo!()
+        let meta = self.get_inode(inode).await?;
+        let version = self.get_version(inode).await?;
+        let blocks = calculate_blocks(
+            args.offset().unwrap_or_default(),
+            args.size().unwrap_or_else(|| meta.content_length()),
+        );
+        let r = BlockReader::new(self.clone(), inode, version, blocks);
+        Ok(Box::new(r))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
@@ -405,9 +419,76 @@ fn calculate_blocks(offset: u64, size: u64) -> Vec<(u64, usize, usize)> {
     blocks
 }
 
+#[pin_project]
 struct BlockReader<S: KeyValueAccessor> {
     backend: Backend<S>,
     ino: u64,
+    version: u64,
+    blocks: IntoIter<(u64, usize, usize)>,
+    buf: BytesMut,
+    fut: Option<BoxFuture<'static, Result<Vec<u8>>>>,
+}
+
+impl<S: KeyValueAccessor> BlockReader<S> {
+    pub fn new(
+        backend: Backend<S>,
+        ino: u64,
+        version: u64,
+        blocks: Vec<(u64, usize, usize)>,
+    ) -> Self {
+        Self {
+            backend,
+            ino,
+            version,
+            blocks: blocks.into_iter(),
+            buf: BytesMut::with_capacity(BLOCK_SIZE),
+            fut: None,
+        }
+    }
+}
+
+impl<S> AsyncRead for BlockReader<S>
+where
+    S: KeyValueAccessor,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        let mut this = self.project();
+
+        loop {
+            if this.buf.has_remaining() {
+                let size = min(buf.len(), this.buf.len());
+                buf.copy_from_slice(&this.buf[..size]);
+                return Poll::Ready(Ok(size));
+            }
+
+            match &mut this.fut {
+                None => match this.blocks.next() {
+                    None => return Poll::Ready(Ok(0)),
+                    Some((block, offset, size)) => {
+                        let backend = this.backend.clone();
+                        let ino = *this.ino;
+                        let version = *this.version;
+                        let fut = async move {
+                            backend.read_block(ino, version, block, offset, size).await
+                        };
+                        *this.fut = Some(Box::pin(fut));
+                        continue;
+                    }
+                },
+                Some(fut) => {
+                    let bs = ready!(Pin::new(fut).poll(cx)?);
+                    *this.fut = None;
+                    this.buf.clear();
+                    this.buf.extend_from_slice(&bs);
+                    continue;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -466,7 +547,7 @@ mod tests {
         ];
         for (name, offset, size, expected) in cases {
             let actual = calculate_blocks(offset as u64, size as u64);
-            assert_eq!(expected, actual);
+            assert_eq!(expected, actual, "{}", name);
         }
     }
 }

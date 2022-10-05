@@ -21,7 +21,7 @@ use std::io::Result;
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 #[async_trait]
-pub trait KeyValueAccessor: Send + Sync + Debug + Clone {
+pub trait KeyValueAccessor: Send + Sync + Debug + Clone + 'static {
     /// Get a key from service.
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
     /// Set a key into service.

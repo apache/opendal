@@ -15,6 +15,7 @@
 use std::fmt::Debug;
 use std::io::Result;
 
+use crate::Scheme;
 use async_trait::async_trait;
 use futures::Stream;
 
@@ -23,6 +24,8 @@ use futures::Stream;
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 #[async_trait]
 pub trait KeyValueAccessor: Send + Sync + Debug + Clone + 'static {
+    /// Return the medata of this key value accessor.
+    fn metadata(&self) -> KeyValueAccessorMetadata;
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
@@ -35,6 +38,31 @@ pub trait KeyValueAccessor: Send + Sync + Debug + Clone + 'static {
     ///
     /// - return `Ok(())` even if this key is not exist.
     async fn delete(&self, key: &[u8]) -> Result<()>;
+}
+
+pub struct KeyValueAccessorMetadata {
+    scheme: Scheme,
+    name: String,
+}
+
+impl KeyValueAccessorMetadata {
+    /// Create a new KeyValueAccessorMetadata.
+    pub fn new(scheme: Scheme, name: &str) -> Self {
+        Self {
+            scheme,
+            name: name.to_string(),
+        }
+    }
+
+    /// Get the scheme.
+    pub fn scheme(&self) -> Scheme {
+        self.scheme
+    }
+
+    /// Get the name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 /// KeyValueStream represents a stream of key-value paris.

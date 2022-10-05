@@ -32,6 +32,7 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::Future;
 use futures::Stream;
+use log::info;
 use pin_project::pin_project;
 use serde::Deserialize;
 use serde::Serialize;
@@ -43,9 +44,9 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::path::build_rooted_abs_path;
 use crate::path::get_basename;
 use crate::path::get_parent;
+use crate::path::{build_rooted_abs_path, normalize_root};
 use crate::services::kv::accessor::KeyValueStreamer;
 use crate::services::kv::ScopedKey;
 use crate::Accessor;
@@ -56,6 +57,48 @@ use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+
+/// Builder of kv service.
+#[derive(Debug, Clone)]
+pub struct Builder<S: KeyValueAccessor> {
+    kv: Option<S>,
+    root: Option<String>,
+}
+
+impl<S> Builder<S>
+where
+    S: KeyValueAccessor,
+{
+    /// Create a new builder.
+    pub fn new(kv: S) -> Self {
+        Self {
+            kv: Some(kv),
+            root: None,
+        }
+    }
+
+    /// Set root for builder.
+    pub fn root(&mut self, root: &str) -> &mut Self {
+        self.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    /// Build the backend.
+    pub fn build(&mut self) -> Result<Backend<S>> {
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", &root);
+
+        Ok(Backend {
+            kv: self.kv.take().unwrap(),
+            root,
+        })
+    }
+}
 
 /// Backend of kv service.
 #[derive(Debug, Clone)]
@@ -71,10 +114,14 @@ where
 {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
-        // TODO: we should let user know about the underlying engine.
+        am.set_root(&self.root);
         am.set_capabilities(
             AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
         );
+
+        let kvam = self.kv.metadata();
+        am.set_scheme(kvam.scheme());
+        am.set_name(kvam.name());
         am
     }
 

@@ -16,6 +16,10 @@
 //!
 //! This is not a real service that can be used by users. Service implementer can
 //! use this service to build service like `redis`, `memory`, `tikv`.
+//!
+//! # Note
+//!
+//! kv service is not stable, please don't use this for persist data.
 
 mod accessor;
 pub use accessor::KeyValueAccessor;

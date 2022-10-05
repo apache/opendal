@@ -24,21 +24,23 @@ use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::Buf;
-use bytes::BytesMut;
+use bytes::{Buf, BytesMut};
 use futures::future::BoxFuture;
-use futures::io;
 use futures::ready;
 use futures::AsyncRead;
+use futures::AsyncReadExt;
 use futures::Future;
 use futures::Stream;
+use log::info;
 use pin_project::pin_project;
 use serde::Deserialize;
 use serde::Serialize;
 use time::OffsetDateTime;
 
 use super::KeyValueAccessor;
+use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
+use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -46,6 +48,7 @@ use crate::ops::OpWrite;
 use crate::path::build_rooted_abs_path;
 use crate::path::get_basename;
 use crate::path::get_parent;
+use crate::path::normalize_root;
 use crate::services::kv::accessor::KeyValueStreamer;
 use crate::services::kv::ScopedKey;
 use crate::Accessor;
@@ -56,6 +59,48 @@ use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+
+/// Builder of kv service.
+#[derive(Debug, Clone)]
+pub struct Builder<S: KeyValueAccessor> {
+    kv: Option<S>,
+    root: Option<String>,
+}
+
+impl<S> Builder<S>
+where
+    S: KeyValueAccessor,
+{
+    /// Create a new builder.
+    pub fn new(kv: S) -> Self {
+        Self {
+            kv: Some(kv),
+            root: None,
+        }
+    }
+
+    /// Set root for builder.
+    pub fn root(&mut self, root: &str) -> &mut Self {
+        self.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+
+    /// Build the backend.
+    pub fn build(&mut self) -> Result<Backend<S>> {
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        info!("backend use root {}", &root);
+
+        Ok(Backend {
+            kv: self.kv.take().unwrap(),
+            root,
+        })
+    }
+}
 
 /// Backend of kv service.
 #[derive(Debug, Clone)]
@@ -71,10 +116,14 @@ where
 {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
-        // TODO: we should let user know about the underlying engine.
+        am.set_root(&self.root);
         am.set_capabilities(
             AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
         );
+
+        let kvam = self.kv.metadata();
+        am.set_scheme(kvam.scheme());
+        am.set_name(kvam.name());
         am
     }
 
@@ -139,10 +188,38 @@ where
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
-        let inode = self.lookup(&p).await?;
+        let inode = match self.lookup(&p).await {
+            Ok(inode) => inode,
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                return Ok(Box::new(EmptyObjectStreamer))
+            }
+            Err(err) => return Err(err),
+        };
         let s = self.list_entries(inode).await?;
         let os = ObjectStream::new(Arc::new(self.clone()), s, path.to_string());
         Ok(Box::new(os))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let p = build_rooted_abs_path(&self.root, path);
+        let parent = get_parent(&p);
+        let basename = get_basename(&p);
+        let parent_inode = match self.lookup(parent).await {
+            Ok(inode) => inode,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(err),
+        };
+        let inode = match self.get_entry(parent_inode, basename).await {
+            Ok(inode) => inode,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(err),
+        };
+
+        self.remove_entry(parent_inode, basename).await?;
+        self.remove_inode(inode).await?;
+        // TODO: not implemented yet.
+        self.remove_blocks(inode).await?;
+        Ok(())
     }
 }
 
@@ -199,6 +276,12 @@ impl<S: KeyValueAccessor> Backend<S> {
         self.kv.set(&key.encode(), &value).await
     }
 
+    /// Remove inode.
+    async fn remove_inode(&self, ino: u64) -> Result<()> {
+        let key = ScopedKey::inode(ino);
+        self.kv.delete(&key.encode()).await
+    }
+
     /// Create a new entry.
     async fn create_entry(&self, parent: u64, name: &str, inode: u64) -> Result<()> {
         let key = ScopedKey::entry(parent, name);
@@ -219,6 +302,12 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
     }
 
+    /// Remove entry.
+    async fn remove_entry(&self, parent: u64, name: &str) -> Result<()> {
+        let key = ScopedKey::entry(parent, name);
+        self.kv.delete(&key.encode()).await
+    }
+
     /// List all entries by parent's inode.
     async fn list_entries(&self, parent: u64) -> Result<KeyValueStreamer> {
         let key = ScopedKey::entry(parent, "");
@@ -235,12 +324,18 @@ impl<S: KeyValueAccessor> Backend<S> {
     async fn write_blocks(&self, ino: u64, size: u64, mut r: BytesReader) -> Result<()> {
         let next_version = self.get_version(ino).await? + 1;
 
-        let blocks = div_ceil(size, BLOCK_SIZE as u64);
+        let blocks = size / BLOCK_SIZE as u64;
+        let remain = (size % BLOCK_SIZE as u64) as usize;
+
         let mut buf = vec![0; BLOCK_SIZE];
 
         for block in 0..blocks {
-            let copied = io::copy(&mut r, &mut buf).await? as usize;
-            self.create_block(ino, next_version, block, &buf[..copied])
+            r.read_exact(&mut buf).await?;
+            self.create_block(ino, next_version, block, &buf).await?;
+        }
+        if remain != 0 {
+            r.read_exact(&mut buf[..remain]).await?;
+            self.create_block(ino, next_version, blocks, &buf[..remain])
                 .await?;
         }
 
@@ -277,8 +372,15 @@ impl<S: KeyValueAccessor> Backend<S> {
                     block
                 ),
             )),
+            // Some(bs) => Ok(bs[offset..offset + size].to_vec()),
             Some(bs) => Ok(bs.into_iter().skip(offset).take(size).collect()),
         }
+    }
+
+    /// Remove all blocks.
+    async fn remove_blocks(&self, _: u64) -> Result<()> {
+        // TODO: we need to implement remove blocks.
+        Ok(())
     }
 
     /// Get the version number of inode.
@@ -354,7 +456,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
 
         let mut inode = INODE_ROOT;
-        for name in path.split('/') {
+        for name in path.split('/').filter(|v| !v.is_empty()) {
             inode = self.get_entry(inode, name).await?;
         }
         Ok(inode)
@@ -367,7 +469,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
 
         let mut inode = INODE_ROOT;
-        for name in path.split('/') {
+        for name in path.split('/').filter(|v| !v.is_empty()) {
             let entry = self.get_entry(inode, name).await;
             inode = match entry {
                 Ok(entry) => entry,
@@ -385,18 +487,19 @@ impl<S: KeyValueAccessor> Backend<S> {
 const BLOCK_SIZE: usize = 64 * 1024;
 
 /// OpenDAL will reserve all inode between 0~16.
-const INODE_ROOT: u64 = 17;
+const INODE_ROOT: u64 = 16;
+const INODE_START: u64 = INODE_ROOT + 1;
 
 #[derive(Serialize, Deserialize)]
 struct KeyValueMeta {
-    /// First valid inode will start from `17 + 1`.
+    /// First valid inode will start from `17`.
     next_inode: u64,
 }
 
 impl Default for KeyValueMeta {
     fn default() -> Self {
         Self {
-            next_inode: INODE_ROOT,
+            next_inode: INODE_START,
         }
     }
 }
@@ -411,16 +514,6 @@ impl KeyValueMeta {
 
 fn new_bincode_error(err: bincode::Error) -> Error {
     Error::new(ErrorKind::Other, anyhow!("bincode: {:?}", err))
-}
-
-fn div_ceil(lhs: u64, rhs: u64) -> u64 {
-    let d = lhs / rhs;
-    let r = lhs % rhs;
-    if r > 0 && rhs > 0 {
-        d + 1
-    } else {
-        d
-    }
 }
 
 /// Returns (block_id, offset, size)
@@ -493,7 +586,8 @@ where
         loop {
             if this.buf.has_remaining() {
                 let size = min(buf.len(), this.buf.len());
-                buf.copy_from_slice(&this.buf[..size]);
+                buf[..size].copy_from_slice(&this.buf[..size]);
+                this.buf.advance(size);
                 return Poll::Ready(Ok(size));
             }
 
@@ -514,7 +608,10 @@ where
                 Some(fut) => {
                     let bs = ready!(Pin::new(fut).poll(cx)?);
                     *this.fut = None;
+
+                    // Clear the buf to reuse the same space.
                     this.buf.clear();
+                    // Extend from given slice.
                     this.buf.extend_from_slice(&bs);
                     continue;
                 }
@@ -540,7 +637,13 @@ where
         Self {
             backend,
             stream,
-            path,
+            path: {
+                if path == "/" {
+                    "".to_string()
+                } else {
+                    path
+                }
+            },
             current: "".to_string(),
             fut: None,
         }
@@ -579,6 +682,8 @@ where
                 }
                 Some(fut) => {
                     let om = ready!(Pin::new(fut).poll(cx))?;
+                    *this.fut = None;
+
                     let path = if om.mode().is_dir() {
                         this.path.clone() + this.current + "/"
                     } else {

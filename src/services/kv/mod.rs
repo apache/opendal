@@ -23,9 +23,12 @@
 
 mod accessor;
 pub use accessor::KeyValueAccessor;
+pub use accessor::KeyValueAccessorMetadata;
+pub use accessor::KeyValueStreamer;
 
 mod backend;
 pub use backend::Backend;
+pub use backend::Builder;
 
 mod key;
 pub use key::ScopedKey;

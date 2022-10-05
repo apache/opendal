@@ -68,6 +68,9 @@ where
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+        let p = build_rooted_abs_path(&self.root, path);
+        let inode = self.lookup(&p).await?;
+
         todo!()
     }
 
@@ -177,11 +180,6 @@ impl<S: KeyValueAccessor> Backend<S> {
         self.kv.set(&key.encode(), content).await
     }
 
-    async fn list_blocks(&self, ino: u64, version: u64) -> Result<KeyValueStreamer> {
-        let key = ScopedKey::block(ino, version, 0);
-        self.kv.scan(&key.encode()).await
-    }
-
     async fn write_blocks(&self, ino: u64, size: u64, mut r: BytesReader) -> Result<()> {
         let next_version = self.get_version(ino).await? + 1;
 
@@ -196,6 +194,30 @@ impl<S: KeyValueAccessor> Backend<S> {
 
         self.set_version(ino, next_version).await?;
         Ok(())
+    }
+
+    async fn read_block(
+        &self,
+        ino: u64,
+        version: u64,
+        block: u64,
+        offset: usize,
+        size: usize,
+    ) -> Result<Vec<u8>> {
+        let key = ScopedKey::block(ino, version, block);
+        let bs = self.kv.get(&key.encode()).await?;
+        match bs {
+            None => Err(Error::new(
+                ErrorKind::NotFound,
+                anyhow!(
+                    "block ino: {}, version: {}, block: {} is not found",
+                    ino,
+                    version,
+                    block
+                ),
+            )),
+            Some(bs) => Ok(bs.into_iter().skip(offset).take(size).collect()),
+        }
     }
 
     async fn get_version(&self, ino: u64) -> Result<u64> {
@@ -352,5 +374,99 @@ fn div_ceil(lhs: u64, rhs: u64) -> u64 {
         d + 1
     } else {
         d
+    }
+}
+
+/// Returns (block_id, offset, size)
+fn calculate_blocks(offset: u64, size: u64) -> Vec<(u64, usize, usize)> {
+    let start_block = offset / BLOCK_SIZE as u64;
+
+    let skipped_rem = offset % BLOCK_SIZE as u64;
+    let read_blocks = (size + skipped_rem) / BLOCK_SIZE as u64;
+    let read_rem = (size + skipped_rem) % BLOCK_SIZE as u64;
+    // read_blocks == 0 means we are reading the part of first block.
+    if read_blocks == 0 {
+        return vec![(start_block, skipped_rem as usize, size as usize)];
+    }
+
+    let mut blocks = Vec::new();
+    blocks.push((
+        start_block,
+        skipped_rem as usize,
+        BLOCK_SIZE - skipped_rem as usize,
+    ));
+    for idx in 1..read_blocks {
+        blocks.push((start_block + idx, 0, BLOCK_SIZE));
+    }
+    if read_rem != 0 {
+        blocks.push((start_block + read_blocks, 0, read_rem as usize));
+    }
+
+    blocks
+}
+
+struct BlockReader<S: KeyValueAccessor> {
+    backend: Backend<S>,
+    ino: u64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_blocks() {
+        let cases = vec![
+            ("one block without offset", 0, 128, vec![(0, 0, 128)]),
+            ("one block with offset", 128, 128, vec![(0, 128, 128)]),
+            (
+                "block with overlapped size",
+                128,
+                BLOCK_SIZE + 1,
+                vec![(0, 128, BLOCK_SIZE - 128), (1, 0, 129)],
+            ),
+            (
+                "block with 2 block size",
+                BLOCK_SIZE,
+                2 * BLOCK_SIZE,
+                vec![(1, 0, BLOCK_SIZE), (2, 0, BLOCK_SIZE)],
+            ),
+            (
+                "block with extra size",
+                BLOCK_SIZE,
+                2 * BLOCK_SIZE + 1,
+                vec![(1, 0, BLOCK_SIZE), (2, 0, BLOCK_SIZE), (3, 0, 1)],
+            ),
+            (
+                "block with offset",
+                BLOCK_SIZE + 1,
+                2 * BLOCK_SIZE - 1,
+                vec![(1, 1, BLOCK_SIZE - 1), (2, 0, BLOCK_SIZE)],
+            ),
+            (
+                "block remain the first bytes",
+                BLOCK_SIZE - 1,
+                2 * BLOCK_SIZE - 1,
+                vec![
+                    (0, BLOCK_SIZE - 1, 1),
+                    (1, 0, BLOCK_SIZE),
+                    (2, 0, BLOCK_SIZE - 2),
+                ],
+            ),
+            (
+                "block remain the first bytes v2",
+                BLOCK_SIZE - 1,
+                2 * BLOCK_SIZE,
+                vec![
+                    (0, BLOCK_SIZE - 1, 1),
+                    (1, 0, BLOCK_SIZE),
+                    (2, 0, BLOCK_SIZE - 1),
+                ],
+            ),
+        ];
+        for (name, offset, size, expected) in cases {
+            let actual = calculate_blocks(offset as u64, size as u64);
+            assert_eq!(expected, actual);
+        }
     }
 }

@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem;
+use std::ops::Bound::{Excluded, Included};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -30,6 +32,7 @@ use bytes::Bytes;
 use futures::io::Cursor;
 use futures::AsyncWrite;
 use parking_lot::Mutex;
+use serde_json::to_string;
 
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_object_error;
@@ -41,6 +44,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::services::kv;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -57,258 +61,76 @@ pub struct Builder {}
 impl Builder {
     /// Consume builder to build a memory backend.
     pub fn build(&mut self) -> Result<Backend> {
-        Ok(Backend {
-            inner: Arc::new(Mutex::new(HashMap::default())),
-        })
+        let engine = Engine {
+            inner: Arc::new(Mutex::new(BTreeMap::default())),
+        };
+
+        kv::Builder::new(engine).build()
     }
 }
 
 /// Backend is used to serve `Accessor` support in memory.
+pub type Backend = kv::Backend<Engine>;
+
 #[derive(Debug, Clone)]
-pub struct Backend {
-    inner: Arc<Mutex<HashMap<String, Bytes>>>,
+pub struct Engine {
+    inner: Arc<Mutex<BTreeMap<Vec<u8>, Vec<u8>>>>,
 }
 
 #[async_trait]
-impl Accessor for Backend {
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::Memory)
-            .set_root("/")
-            .set_name(&format!("{:?}", &self.inner as *const _))
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
-
-        am
+impl kv::KeyValueAccessor for Engine {
+    fn metadata(&self) -> kv::KeyValueAccessorMetadata {
+        kv::KeyValueAccessorMetadata::new(Scheme::Memory, &format!("{:?}", &self.inner as *const _))
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
-        match args.mode() {
-            ObjectMode::FILE => {
-                let mut map = self.inner.lock();
-                map.insert(path.to_string(), Bytes::new());
-
-                Ok(())
-            }
-            ObjectMode::DIR => {
-                let mut map = self.inner.lock();
-                map.insert(path.to_string(), Bytes::new());
-
-                Ok(())
-            }
-            _ => unreachable!(),
+    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        match self.inner.lock().get(key) {
+            None => Ok(None),
+            Some(bs) => Ok(Some(bs.to_vec())),
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let map = self.inner.lock();
-
-        let data = map.get(path).ok_or_else(|| {
-            Error::new(
-                ErrorKind::NotFound,
-                ObjectError::new(Operation::Read, path, anyhow!("key not exists in map")),
-            )
-        })?;
-
-        let mut data = data.clone();
-        if let Some(offset) = args.offset() {
-            if offset >= data.len() as u64 {
-                return Err(new_other_object_error(
-                    Operation::Read,
-                    path,
-                    anyhow!("offset out of bound {} >= {}", offset, data.len()),
-                ));
-            }
-            data = data.slice(offset as usize..data.len());
-        };
-
-        if let Some(size) = args.size() {
-            if size > data.len() as u64 {
-                return Err(new_other_object_error(
-                    Operation::Read,
-                    path,
-                    anyhow!("size out of bound {} > {}", size, data.len()),
-                ));
-            }
-            data = data.slice(0..size as usize);
-        };
-
-        Ok(Box::new(Cursor::new(data)))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let mut buf = Vec::with_capacity(args.size() as usize);
-        let n = futures::io::copy(r, &mut buf).await?;
-        if n != args.size() {
-            return Err(new_other_object_error(
-                Operation::Write,
-                path,
-                anyhow!("write short, expect {} actual {}", args.size(), n),
-            ));
-        }
-        let mut map = self.inner.lock();
-        map.insert(path.to_string(), Bytes::from(buf));
-
-        Ok(n)
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
-        if path.ends_with('/') {
-            return Ok(ObjectMetadata::new(ObjectMode::DIR));
-        }
-
-        let map = self.inner.lock();
-
-        let data = map.get(path).ok_or_else(|| {
-            Error::new(
-                ErrorKind::NotFound,
-                ObjectError::new(Operation::Read, path, anyhow!("key not exists in map")),
-            )
-        })?;
-
-        let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(data.len() as u64);
-
-        Ok(meta)
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        let mut map = self.inner.lock();
-        map.remove(path);
+    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        self.inner.lock().insert(key.to_vec(), value.to_vec());
 
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        let mut path = path.to_string();
-        if path == "/" {
-            path.clear();
-        }
+    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyValueStreamer> {
+        let mut end = prefix.to_vec();
+        // kv service makes sure that the last word is not `u8::MAX`.
+        *end.last_mut().unwrap() += 1;
 
         let map = self.inner.lock();
-
-        let paths = map
-            .iter()
-            // Make sure k is at the same level with input path.
-            .filter_map(|(k, _)| {
-                let k = k.as_str();
-                // `/xyz` should not belong to `/abc`
-                if !k.starts_with(&path) {
-                    return None;
-                }
-
-                // We should remove `/abc` if self
-                if k == path {
-                    return None;
-                }
-
-                match k[path.len()..].find('/') {
-                    // File `/abc/def.csv` must belong to `/abc`
-                    None => Some(k.to_string()),
-                    Some(idx) => {
-                        // The index of first `/` after `/abc`.
-                        let dir_idx = idx + 1 + path.len();
-
-                        if dir_idx == k.len() {
-                            // Dir `/abc/def/` belongs to `/abc/`
-                            Some(k.to_string())
-                        } else {
-                            // File/Dir `/abc/def/xyz` deoesn't belongs to `/abc`.
-                            // But we need to list `/abc/def` out so that we can walk down.
-                            Some(k[..dir_idx].to_string())
-                        }
-                    }
-                }
-            })
-            .collect::<HashSet<_>>();
+        let iter = map.range((Included(prefix.to_vec()), Excluded(end.to_vec())));
 
         Ok(Box::new(DirStream {
-            backend: Arc::new(self.clone()),
-            paths: paths.into_iter().collect(),
-            idx: 0,
+            keys: iter
+                .map(|(k, _)| k.to_vec())
+                .collect::<Vec<_>>()
+                .into_iter(),
         }))
     }
-}
 
-struct MapWriter {
-    path: String,
-    size: u64,
-    map: Arc<Mutex<HashMap<String, Bytes>>>,
+    async fn delete(&self, key: &[u8]) -> Result<()> {
+        self.inner.lock().remove(key);
 
-    buf: bytes::BytesMut,
-}
-
-impl AsyncWrite for MapWriter {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize>> {
-        let size = buf.len();
-        self.buf.put_slice(buf);
-        Poll::Ready(Ok(size))
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_close(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<()>> {
-        if self.buf.len() != self.size as usize {
-            return Poll::Ready(Err(new_other_object_error(
-                Operation::Write,
-                &self.path,
-                anyhow!(
-                    "write short, expect {} actual {}",
-                    self.size,
-                    self.buf.len()
-                ),
-            )));
-        }
-
-        let buf = mem::take(&mut self.buf);
-        let mut map = self.map.lock();
-        map.insert(self.path.clone(), buf.freeze());
-
-        Poll::Ready(Ok(()))
+        Ok(())
     }
 }
 
 struct DirStream {
-    backend: Arc<Backend>,
-    paths: Vec<String>,
-    idx: usize,
+    keys: IntoIter<Vec<u8>>,
 }
 
 impl futures::Stream for DirStream {
-    type Item = Result<ObjectEntry>;
+    type Item = Result<Vec<u8>>;
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.idx >= self.paths.len() {
-            return Poll::Ready(None);
+        match self.keys.next() {
+            None => Poll::Ready(None),
+            Some(v) => Poll::Ready(Some(Ok(v))),
         }
-
-        let idx = self.idx;
-        self.idx += 1;
-
-        let path = self.paths.get(idx).expect("path must valid");
-
-        let de = if path.ends_with('/') {
-            ObjectEntry::new(
-                self.backend.clone(),
-                path,
-                ObjectMetadata::new(ObjectMode::DIR),
-            )
-            .with_complete()
-        } else {
-            ObjectEntry::new(
-                self.backend.clone(),
-                path,
-                ObjectMetadata::new(ObjectMode::FILE),
-            )
-        };
-
-        Poll::Ready(Some(Ok(de)))
     }
 }
 

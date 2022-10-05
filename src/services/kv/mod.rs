@@ -23,6 +23,8 @@
 
 mod accessor;
 pub use accessor::KeyValueAccessor;
+pub use accessor::KeyValueAccessorMetadata;
+pub use accessor::KeyValueStreamer;
 
 mod backend;
 pub use backend::Backend;

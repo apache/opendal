@@ -23,6 +23,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use async_trait::async_trait;
+use futures::io;
 use serde::{Deserialize, Serialize};
 use std::io::{Error, ErrorKind, Result};
 use time::OffsetDateTime;
@@ -71,7 +72,23 @@ where
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        todo!()
+        let p = build_rooted_abs_path(&self.root, path);
+        let parent = get_parent(&p);
+        let basename = get_basename(path);
+        let parent_inode = self.create_dir_parents(parent).await?;
+
+        // TODO: we need transaction here.
+        let inode = self
+            .create_file_with(
+                parent_inode,
+                basename,
+                ObjectMetadata::new(ObjectMode::FILE)
+                    .with_last_modified(OffsetDateTime::now_utc())
+                    .with_content_length(args.size()),
+            )
+            .await?;
+        self.write_blocks(inode, args.size(), r).await?;
+        Ok(args.size())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
@@ -165,8 +182,35 @@ impl<S: KeyValueAccessor> Backend<S> {
         self.kv.scan(&key.encode()).await
     }
 
-    async fn write_blocks(&self, ino: u64, size: u64, r: BytesReader) -> Result<()> {
-        todo!()
+    async fn write_blocks(&self, ino: u64, size: u64, mut r: BytesReader) -> Result<()> {
+        let next_version = self.get_version(ino).await? + 1;
+
+        let blocks = div_ceil(size, BLOCK_SIZE as u64);
+        let mut buf = vec![0; BLOCK_SIZE];
+
+        for block in 0..blocks {
+            let copied = io::copy(&mut r, &mut buf).await? as usize;
+            self.create_block(ino, next_version, block, &buf[..copied])
+                .await?;
+        }
+
+        self.set_version(ino, next_version).await?;
+        Ok(())
+    }
+
+    async fn get_version(&self, ino: u64) -> Result<u64> {
+        let key = ScopedKey::version(ino);
+        let ver = self.kv.get(&key.encode()).await?;
+        match ver {
+            None => Ok(0),
+            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
+        }
+    }
+
+    async fn set_version(&self, ino: u64, ver: u64) -> Result<()> {
+        let key = ScopedKey::version(ino);
+        let bs = bincode::serialize(&ver).map_err(new_bincode_error)?;
+        self.kv.set(&key.encode(), &bs).await
     }
 
     async fn create_dir(&self, parent: u64, name: &str) -> Result<u64> {
@@ -201,7 +245,24 @@ impl<S: KeyValueAccessor> Backend<S> {
             .with_last_modified(OffsetDateTime::now_utc())
             .with_content_length(0);
         self.create_inode(inode, meta).await?;
-        let entry = KeyValueEntry::new(inode, ObjectMode::DIR);
+        let entry = KeyValueEntry::new(inode, ObjectMode::FILE);
+        self.create_entry(parent, name, entry).await?;
+
+        Ok(inode)
+    }
+
+    async fn create_file_with(&self, parent: u64, name: &str, meta: ObjectMetadata) -> Result<u64> {
+        let name = name.trim_matches('/');
+
+        #[cfg(debug_assertions)]
+        {
+            let p = self.get_inode(parent).await?;
+            assert!(p.mode().is_dir());
+        }
+
+        let inode = self.get_next_inode().await?;
+        self.create_inode(inode, meta).await?;
+        let entry = KeyValueEntry::new(inode, ObjectMode::FILE);
         self.create_entry(parent, name, entry).await?;
 
         Ok(inode)
@@ -241,7 +302,7 @@ impl<S: KeyValueAccessor> Backend<S> {
 }
 
 /// Use 64 KiB as a block.
-const BLOCK_SIZE: u32 = 64 * 1024;
+const BLOCK_SIZE: usize = 64 * 1024;
 
 /// OpenDAL will reserve all inode between 0~16.
 const INODE_ROOT: u64 = 17;
@@ -282,4 +343,14 @@ impl KeyValueEntry {
 
 fn new_bincode_error(err: bincode::Error) -> Error {
     Error::new(ErrorKind::Other, anyhow!("bincode: {:?}", err))
+}
+
+fn div_ceil(lhs: u64, rhs: u64) -> u64 {
+    let d = lhs / rhs;
+    let r = lhs % rhs;
+    if r > 0 && rhs > 0 {
+        d + 1
+    } else {
+        d
+    }
 }

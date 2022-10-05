@@ -23,12 +23,16 @@ use std::io::Result;
 #[async_trait]
 pub trait KeyValueAccessor: Send + Sync + Debug + Clone + 'static {
     /// Get a key from service.
+    ///
+    /// - return `Ok(None)` if this key is not exist.
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
     /// Set a key into service.
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
     /// Scan a range of keys.
     async fn scan(&self, prefix: &[u8]) -> Result<KeyValueStreamer>;
     /// Delete a key from service.
+    ///
+    /// - return `Ok(())` even if this key is not exist.
     async fn delete(&self, key: &[u8]) -> Result<()>;
 }
 

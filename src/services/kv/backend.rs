@@ -127,6 +127,7 @@ where
 }
 
 impl<S: KeyValueAccessor> Backend<S> {
+    /// Get current metadata.
     async fn get_meta(&self) -> Result<KeyValueMeta> {
         let meta = self.kv.get(&ScopedKey::meta().encode()).await?;
         match meta {
@@ -135,6 +136,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
     }
 
+    /// Set current metadata.
     async fn set_meta(&self, meta: KeyValueMeta) -> Result<()> {
         let bs = bincode::serialize(&meta).map_err(new_bincode_error)?;
         self.kv.set(&ScopedKey::meta().encode(), &bs).await?;
@@ -142,6 +144,9 @@ impl<S: KeyValueAccessor> Backend<S> {
         Ok(())
     }
 
+    /// Get next inode.
+    ///
+    /// This function is used to fetch and update the next inode.
     async fn get_next_inode(&self) -> Result<u64> {
         let mut meta = self.get_meta().await?;
         let inode = meta.next_inode();
@@ -150,6 +155,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         Ok(inode)
     }
 
+    /// Get object metadata by inode.
     async fn get_inode(&self, ino: u64) -> Result<ObjectMetadata> {
         // Handle root inode.
         if ino == INODE_ROOT {
@@ -166,18 +172,21 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
     }
 
+    /// Create a new inode.
     async fn create_inode(&self, ino: u64, meta: ObjectMetadata) -> Result<()> {
         let key = ScopedKey::inode(ino);
         let value = bincode::serialize(&meta).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
+    /// Create a new entry.
     async fn create_entry(&self, parent: u64, name: &str, inode: u64) -> Result<()> {
         let key = ScopedKey::entry(parent, name);
         let value = bincode::serialize(&inode).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
+    /// Get the inode of an entry by parent, and it's name.
     async fn get_entry(&self, parent: u64, name: &str) -> Result<u64> {
         let key = ScopedKey::entry(parent, name);
         let bs = self.kv.get(&key.encode()).await?;
@@ -190,16 +199,19 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
     }
 
+    /// List all entries by parent's inode.
     async fn list_entries(&self, parent: u64) -> Result<KeyValueStreamer> {
         let key = ScopedKey::entry(parent, "");
         self.kv.scan(&key.encode()).await
     }
 
+    /// Create a new block by inode, version and block id.
     async fn create_block(&self, ino: u64, version: u64, block: u64, content: &[u8]) -> Result<()> {
         let key = ScopedKey::block(ino, version, block);
         self.kv.set(&key.encode(), content).await
     }
 
+    /// Write blocks by inode, version and input data.
     async fn write_blocks(&self, ino: u64, size: u64, mut r: BytesReader) -> Result<()> {
         let next_version = self.get_version(ino).await? + 1;
 
@@ -212,10 +224,12 @@ impl<S: KeyValueAccessor> Backend<S> {
                 .await?;
         }
 
+        // Update the version after all blocks have set correctly.
         self.set_version(ino, next_version).await?;
         Ok(())
     }
 
+    /// Read a block by its inode, version, block id along with offset and size.
     async fn read_block(
         &self,
         ino: u64,
@@ -224,6 +238,13 @@ impl<S: KeyValueAccessor> Backend<S> {
         offset: usize,
         size: usize,
     ) -> Result<Vec<u8>> {
+        debug_assert!(
+            offset + size <= BLOCK_SIZE,
+            "given offset {} size {} must be lower then block size",
+            offset,
+            size
+        );
+
         let key = ScopedKey::block(ino, version, block);
         let bs = self.kv.get(&key.encode()).await?;
         match bs {
@@ -240,6 +261,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
     }
 
+    /// Get the version number of inode.
     async fn get_version(&self, ino: u64) -> Result<u64> {
         let key = ScopedKey::version(ino);
         let ver = self.kv.get(&key.encode()).await?;
@@ -249,12 +271,14 @@ impl<S: KeyValueAccessor> Backend<S> {
         }
     }
 
+    /// Set the version number of inode.
     async fn set_version(&self, ino: u64, ver: u64) -> Result<()> {
         let key = ScopedKey::version(ino);
         let bs = bincode::serialize(&ver).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &bs).await
     }
 
+    /// Create a dir.
     async fn create_dir(&self, parent: u64, name: &str) -> Result<u64> {
         #[cfg(debug_assertions)]
         {
@@ -270,6 +294,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         Ok(inode)
     }
 
+    /// Create an empty file.
     async fn create_file(&self, parent: u64, name: &str) -> Result<u64> {
         #[cfg(debug_assertions)]
         {
@@ -287,6 +312,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         Ok(inode)
     }
 
+    /// Create a file with specified object metadata.
     async fn create_file_with(&self, parent: u64, name: &str, meta: ObjectMetadata) -> Result<u64> {
         #[cfg(debug_assertions)]
         {
@@ -301,6 +327,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         Ok(inode)
     }
 
+    /// Get the inode of given path.
     async fn lookup(&self, path: &str) -> Result<u64> {
         if path == "/" {
             return Ok(INODE_ROOT);
@@ -313,6 +340,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         Ok(inode)
     }
 
+    /// Create a dir with all its parents.
     async fn create_dir_parents(&self, path: &str) -> Result<u64> {
         if path == "/" {
             return Ok(INODE_ROOT);

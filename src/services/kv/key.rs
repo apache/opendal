@@ -18,6 +18,7 @@ use std::mem::size_of;
 
 /// ScopedKey is the key for different key that we used to implement OpenDAL
 /// service upon kv service.
+#[derive(Debug)]
 pub enum ScopedKey {
     /// Meta key of this scope.
     ///
@@ -72,9 +73,20 @@ impl ScopedKey {
 
     /// Create a new entry scope key.
     pub fn entry(parent: u64, name: &str) -> Self {
+        let name = name.trim_end_matches('/');
+
         Self::Entry {
             parent,
             name: name.to_string(),
+        }
+    }
+
+    /// Convert scoped key into entry (parent, name)
+    pub fn into_entry(self) -> (u64, String) {
+        if let ScopedKey::Entry { parent, name } = self {
+            (parent, name)
+        } else {
+            unreachable!("scope key is not a valid entry: {:?}", self)
         }
     }
 

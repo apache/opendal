@@ -18,20 +18,21 @@ use crate::path::{build_rooted_abs_path, get_basename, get_parent};
 use crate::services::kv::accessor::KeyValueStreamer;
 use crate::services::kv::ScopedKey;
 use crate::{
-    Accessor, AccessorCapability, AccessorMetadata, BytesReader, ObjectMetadata, ObjectMode,
-    ObjectStreamer,
+    Accessor, AccessorCapability, AccessorMetadata, BytesReader, ObjectEntry, ObjectMetadata,
+    ObjectMode, ObjectStreamer,
 };
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
 use futures::future::BoxFuture;
-use futures::Future;
 use futures::{io, ready, AsyncRead};
+use futures::{Future, Stream};
 use pin_project::pin_project;
 use serde::{Deserialize, Serialize};
 use std::cmp::min;
 use std::io::{Error, ErrorKind, Result};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::vec::IntoIter;
 use time::OffsetDateTime;
@@ -115,8 +116,12 @@ where
         Ok(meta)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
-        todo!()
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+        let p = build_rooted_abs_path(&self.root, path);
+        let inode = self.lookup(&p).await?;
+        let s = self.list_entries(inode).await?;
+        let os = ObjectStream::new(Arc::new(self.clone()), s, path.to_string());
+        Ok(Box::new(os))
     }
 }
 
@@ -166,13 +171,13 @@ impl<S: KeyValueAccessor> Backend<S> {
         self.kv.set(&key.encode(), &value).await
     }
 
-    async fn create_entry(&self, parent: u64, name: &str, entry: KeyValueEntry) -> Result<()> {
+    async fn create_entry(&self, parent: u64, name: &str, inode: u64) -> Result<()> {
         let key = ScopedKey::entry(parent, name);
-        let value = bincode::serialize(&entry).map_err(new_bincode_error)?;
+        let value = bincode::serialize(&inode).map_err(new_bincode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
-    async fn get_entry(&self, parent: u64, name: &str) -> Result<KeyValueEntry> {
+    async fn get_entry(&self, parent: u64, name: &str) -> Result<u64> {
         let key = ScopedKey::entry(parent, name);
         let bs = self.kv.get(&key.encode()).await?;
         match bs {
@@ -250,8 +255,6 @@ impl<S: KeyValueAccessor> Backend<S> {
     }
 
     async fn create_dir(&self, parent: u64, name: &str) -> Result<u64> {
-        let name = name.trim_matches('/');
-
         #[cfg(debug_assertions)]
         {
             let p = self.get_inode(parent).await?;
@@ -261,15 +264,12 @@ impl<S: KeyValueAccessor> Backend<S> {
         let inode = self.get_next_inode().await?;
         let meta = ObjectMetadata::new(ObjectMode::DIR);
         self.create_inode(inode, meta).await?;
-        let entry = KeyValueEntry::new(inode, ObjectMode::DIR);
-        self.create_entry(parent, name, entry).await?;
+        self.create_entry(parent, name, inode).await?;
 
         Ok(inode)
     }
 
     async fn create_file(&self, parent: u64, name: &str) -> Result<u64> {
-        let name = name.trim_matches('/');
-
         #[cfg(debug_assertions)]
         {
             let p = self.get_inode(parent).await?;
@@ -281,15 +281,12 @@ impl<S: KeyValueAccessor> Backend<S> {
             .with_last_modified(OffsetDateTime::now_utc())
             .with_content_length(0);
         self.create_inode(inode, meta).await?;
-        let entry = KeyValueEntry::new(inode, ObjectMode::FILE);
-        self.create_entry(parent, name, entry).await?;
+        self.create_entry(parent, name, inode).await?;
 
         Ok(inode)
     }
 
     async fn create_file_with(&self, parent: u64, name: &str, meta: ObjectMetadata) -> Result<u64> {
-        let name = name.trim_matches('/');
-
         #[cfg(debug_assertions)]
         {
             let p = self.get_inode(parent).await?;
@@ -298,8 +295,7 @@ impl<S: KeyValueAccessor> Backend<S> {
 
         let inode = self.get_next_inode().await?;
         self.create_inode(inode, meta).await?;
-        let entry = KeyValueEntry::new(inode, ObjectMode::FILE);
-        self.create_entry(parent, name, entry).await?;
+        self.create_entry(parent, name, inode).await?;
 
         Ok(inode)
     }
@@ -311,8 +307,7 @@ impl<S: KeyValueAccessor> Backend<S> {
 
         let mut inode = INODE_ROOT;
         for name in path.split('/') {
-            let entry = self.get_entry(inode, name).await?;
-            inode = entry.ino;
+            inode = self.get_entry(inode, name).await?;
         }
         Ok(inode)
     }
@@ -326,7 +321,7 @@ impl<S: KeyValueAccessor> Backend<S> {
         for name in path.split('/') {
             let entry = self.get_entry(inode, name).await;
             inode = match entry {
-                Ok(entry) => entry.ino,
+                Ok(entry) => entry,
                 Err(err) if err.kind() == ErrorKind::NotFound => {
                     self.create_dir(inode, name).await?
                 }
@@ -362,18 +357,6 @@ impl KeyValueMeta {
         let inode = self.next_inode;
         self.next_inode += 1;
         inode
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-struct KeyValueEntry {
-    ino: u64,
-    mode: ObjectMode,
-}
-
-impl KeyValueEntry {
-    fn new(ino: u64, mode: ObjectMode) -> Self {
-        Self { ino, mode }
     }
 }
 
@@ -485,6 +468,78 @@ where
                     this.buf.clear();
                     this.buf.extend_from_slice(&bs);
                     continue;
+                }
+            }
+        }
+    }
+}
+
+#[pin_project]
+struct ObjectStream<S: KeyValueAccessor> {
+    backend: Arc<Backend<S>>,
+    stream: KeyValueStreamer,
+    path: String,
+    current: String,
+    fut: Option<BoxFuture<'static, Result<ObjectMetadata>>>,
+}
+
+impl<S> ObjectStream<S>
+where
+    S: KeyValueAccessor + 'static,
+{
+    pub fn new(backend: Arc<Backend<S>>, stream: KeyValueStreamer, path: String) -> Self {
+        Self {
+            backend,
+            stream,
+            path,
+            current: "".to_string(),
+            fut: None,
+        }
+    }
+}
+
+impl<S> Stream for ObjectStream<S>
+where
+    S: KeyValueAccessor + 'static,
+{
+    type Item = Result<ObjectEntry>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+
+        loop {
+            match &mut this.fut {
+                None => {
+                    let key = ready!(Pin::new(&mut this.stream).poll_next(cx));
+                    match key {
+                        None => return Poll::Ready(None),
+                        Some(Err(err)) => return Poll::Ready(Some(Err(err))),
+                        Some(Ok(bs)) => {
+                            let backend = this.backend.clone();
+                            let key = ScopedKey::decode(&bs)?;
+                            let (parent, name) = key.into_entry();
+                            *this.current = name.clone();
+                            let fut = async move {
+                                let inode = backend.get_entry(parent, &name).await?;
+                                backend.get_inode(inode).await
+                            };
+                            *this.fut = Some(Box::pin(fut));
+                            continue;
+                        }
+                    }
+                }
+                Some(fut) => {
+                    let om = ready!(Pin::new(fut).poll(cx))?;
+                    let path = if om.mode().is_dir() {
+                        this.path.clone() + this.current + "/"
+                    } else {
+                        this.path.clone() + this.current
+                    };
+                    return Poll::Ready(Some(Ok(ObjectEntry::new(
+                        this.backend.clone(),
+                        &path,
+                        om,
+                    ))));
                 }
             }
         }

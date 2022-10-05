@@ -80,9 +80,9 @@ required-features = ["services-ipfs"]
 name = "ftp"
 required-features = ["services-ftp"]
 
-[[example]]
-name = "redis"
-required-features = ["services-redis"]
+#[[example]]
+#name = "redis"
+#required-features = ["services-redis"]
 
 [[example]]
 name = "tracing_layer"
@@ -99,7 +99,7 @@ async-compression = { package = "async-compression-issue-150-workaround", versio
 async-trait = "0.1"
 backon = "0.2"
 base64 = "0.13"
-bincode = "1"
+bincode = "2.0.0-rc.2"
 bytes = "1"
 dotenv = { version = "0.15", optional = true }
 flagset = "0.4"

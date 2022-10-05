@@ -41,6 +41,36 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     async fn delete(&self, key: &[u8]) -> Result<()>;
 }
 
+/// Use 64 KiB as a block.
+pub const BLOCK_SIZE: usize = 64 * 1024;
+
+/// OpenDAL will reserve all inode between 0~16.
+pub const INODE_ROOT: u64 = 16;
+pub const INODE_START: u64 = INODE_ROOT + 1;
+
+#[derive(bincode::Encode, bincode::Decode)]
+pub struct Meta {
+    /// First valid inode will start from `17`.
+    next_inode: u64,
+}
+
+impl Default for Meta {
+    fn default() -> Self {
+        Self {
+            next_inode: INODE_START,
+        }
+    }
+}
+
+impl Meta {
+    /// Get and update next inode.
+    pub fn next_inode(&mut self) -> u64 {
+        let inode = self.next_inode;
+        self.next_inode += 1;
+        inode
+    }
+}
+
 /// Metadata for this key value accessor.
 pub struct Metadata {
     scheme: Scheme,

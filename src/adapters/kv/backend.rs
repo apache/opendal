@@ -32,13 +32,14 @@ use futures::AsyncReadExt;
 use futures::Future;
 use futures::Stream;
 use pin_project::pin_project;
-use serde::Deserialize;
-use serde::Serialize;
 use time::OffsetDateTime;
 
 use super::Adapter;
 use super::Key;
 use super::KeyStreamer;
+use super::Meta;
+use super::BLOCK_SIZE;
+use super::INODE_ROOT;
 use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -201,17 +202,22 @@ where
 
 impl<S: Adapter> Backend<S> {
     /// Get current metadata.
-    async fn get_meta(&self) -> Result<KeyValueMeta> {
+    async fn get_meta(&self) -> Result<Meta> {
         let meta = self.kv.get(&Key::meta().encode()).await?;
         match meta {
-            None => Ok(KeyValueMeta::default()),
-            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
+            None => Ok(Meta::default()),
+            Some(bs) => {
+                let (meta, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
+                    .map_err(new_bincode_decode_error)?;
+                Ok(meta)
+            }
         }
     }
 
     /// Set current metadata.
-    async fn set_meta(&self, meta: KeyValueMeta) -> Result<()> {
-        let bs = bincode::serialize(&meta).map_err(new_bincode_error)?;
+    async fn set_meta(&self, meta: Meta) -> Result<()> {
+        let bs = bincode::encode_to_vec(&meta, bincode::config::standard())
+            .map_err(new_bincode_encode_error)?;
         self.kv.set(&Key::meta().encode(), &bs).await?;
 
         Ok(())
@@ -241,14 +247,19 @@ impl<S: Adapter> Backend<S> {
                 ErrorKind::NotFound,
                 anyhow!("inode {} not found", ino),
             )),
-            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
+            Some(bs) => {
+                let (meta, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
+                    .map_err(new_bincode_decode_error)?;
+                Ok(meta)
+            }
         }
     }
 
     /// Create a new inode.
     async fn create_inode(&self, ino: u64, meta: ObjectMetadata) -> Result<()> {
         let key = Key::inode(ino);
-        let value = bincode::serialize(&meta).map_err(new_bincode_error)?;
+        let value = bincode::encode_to_vec(&meta, bincode::config::standard())
+            .map_err(new_bincode_encode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
@@ -261,7 +272,8 @@ impl<S: Adapter> Backend<S> {
     /// Create a new entry.
     async fn create_entry(&self, parent: u64, name: &str, inode: u64) -> Result<()> {
         let key = Key::entry(parent, name);
-        let value = bincode::serialize(&inode).map_err(new_bincode_error)?;
+        let value = bincode::encode_to_vec(&inode, bincode::config::standard())
+            .map_err(new_bincode_encode_error)?;
         self.kv.set(&key.encode(), &value).await
     }
 
@@ -274,7 +286,11 @@ impl<S: Adapter> Backend<S> {
                 ErrorKind::NotFound,
                 anyhow!("entry parent: {}, name: {} is not found", parent, name),
             )),
-            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
+            Some(bs) => {
+                let (ino, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
+                    .map_err(new_bincode_decode_error)?;
+                Ok(ino)
+            }
         }
     }
 
@@ -365,14 +381,19 @@ impl<S: Adapter> Backend<S> {
         let ver = self.kv.get(&key.encode()).await?;
         match ver {
             None => Ok(0),
-            Some(bs) => Ok(bincode::deserialize(&bs).map_err(new_bincode_error)?),
+            Some(bs) => {
+                let (ver, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
+                    .map_err(new_bincode_decode_error)?;
+                Ok(ver)
+            }
         }
     }
 
     /// Set the version number of inode.
     async fn set_version(&self, ino: u64, ver: u64) -> Result<()> {
         let key = Key::version(ino);
-        let bs = bincode::serialize(&ver).map_err(new_bincode_error)?;
+        let bs = bincode::encode_to_vec(&ver, bincode::config::standard())
+            .map_err(new_bincode_encode_error)?;
         self.kv.set(&key.encode(), &bs).await
     }
 
@@ -459,37 +480,12 @@ impl<S: Adapter> Backend<S> {
     }
 }
 
-/// Use 64 KiB as a block.
-const BLOCK_SIZE: usize = 64 * 1024;
-
-/// OpenDAL will reserve all inode between 0~16.
-const INODE_ROOT: u64 = 16;
-const INODE_START: u64 = INODE_ROOT + 1;
-
-#[derive(Serialize, Deserialize)]
-struct KeyValueMeta {
-    /// First valid inode will start from `17`.
-    next_inode: u64,
+fn new_bincode_encode_error(err: bincode::error::EncodeError) -> Error {
+    Error::new(ErrorKind::Other, anyhow!("bincode encode: {:?}", err))
 }
 
-impl Default for KeyValueMeta {
-    fn default() -> Self {
-        Self {
-            next_inode: INODE_START,
-        }
-    }
-}
-
-impl KeyValueMeta {
-    fn next_inode(&mut self) -> u64 {
-        let inode = self.next_inode;
-        self.next_inode += 1;
-        inode
-    }
-}
-
-fn new_bincode_error(err: bincode::Error) -> Error {
-    Error::new(ErrorKind::Other, anyhow!("bincode: {:?}", err))
+fn new_bincode_decode_error(err: bincode::error::DecodeError) -> Error {
+    Error::new(ErrorKind::Other, anyhow!("bincode decode: {:?}", err))
 }
 
 /// Returns (block_id, offset, size)

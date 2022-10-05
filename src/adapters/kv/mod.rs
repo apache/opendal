@@ -19,7 +19,10 @@
 mod api;
 pub use api::Adapter;
 pub use api::KeyStreamer;
+use api::Meta;
 pub use api::Metadata;
+use api::BLOCK_SIZE;
+use api::INODE_ROOT;
 
 mod backend;
 pub use backend::Backend;

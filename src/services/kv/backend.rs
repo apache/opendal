@@ -31,7 +31,6 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use futures::Future;
 use futures::Stream;
-use log::debug;
 use log::info;
 use pin_project::pin_project;
 use serde::Deserialize;
@@ -292,8 +291,6 @@ impl<S: KeyValueAccessor> Backend<S> {
 
     /// Get the inode of an entry by parent, and it's name.
     async fn get_entry(&self, parent: u64, name: &str) -> Result<u64> {
-        debug!("access entry parent: {}, name: {}", parent, name);
-
         let key = ScopedKey::entry(parent, name);
         let bs = self.kv.get(&key.encode()).await?;
         match bs {
@@ -564,8 +561,6 @@ impl<S: KeyValueAccessor> BlockReader<S> {
         version: u64,
         blocks: Vec<(u64, usize, usize)>,
     ) -> Self {
-        debug!("reading block: {:?}", blocks);
-
         Self {
             backend,
             ino,
@@ -600,7 +595,6 @@ where
                 None => match this.blocks.next() {
                     None => return Poll::Ready(Ok(0)),
                     Some((block, offset, size)) => {
-                        debug!("reset future: block {block}, offset {offset}, size {size}");
                         let backend = this.backend.clone();
                         let ino = *this.ino;
                         let version = *this.version;

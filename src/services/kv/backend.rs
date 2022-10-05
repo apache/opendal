@@ -51,6 +51,7 @@ where
 {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
+        // TODO: we should let user know about the underlying engine.
         am.set_capabilities(
             AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
         );

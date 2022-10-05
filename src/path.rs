@@ -182,7 +182,20 @@ pub fn get_parent(path: &str) -> &str {
         return "/";
     }
 
-    // TODO: add dir support.
+    if !path.ends_with('/') {
+        // The idx of first `/` if path in reserve order.
+        // - `abc` => `None`
+        // - `abc/def` => `Some(3)`
+        let idx = path.rfind('/');
+
+        return match idx {
+            Some(v) => {
+                let (parent, _) = path.split_at(v + 1);
+                parent
+            }
+            None => "/",
+        };
+    }
 
     // The idx of second `/` if path in reserve order.
     // - `abc/` => `None`
@@ -266,6 +279,23 @@ mod tests {
 
         for (name, input, expect) in cases {
             let actual = get_basename(input);
+            assert_eq!(actual, expect, "{}", name)
+        }
+    }
+
+    #[test]
+    fn test_get_parent() {
+        let cases = vec![
+            ("file abs path", "foo/bar/baz.txt", "foo/bar/"),
+            ("file rel path", "bar/baz.txt", "bar/"),
+            ("file walk", "foo/bar/baz", "foo/bar/"),
+            ("dir rel path", "bar/baz/", "bar/"),
+            ("dir root", "/", "/"),
+            ("dir walk", "foo/bar/baz/", "foo/bar/"),
+        ];
+
+        for (name, input, expect) in cases {
+            let actual = get_parent(input);
             assert_eq!(actual, expect, "{}", name)
         }
     }

@@ -288,7 +288,7 @@ mod tests {
     fn test_parse_list_output() {
         let bs = bytes::Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
-<ListBucketResult xmlns=\u201dhttp://doc.oss-cn-hangzhou.aliyuncs.com\u201d>
+<ListBucketResult xmlns="https://doc.oss-cn-hangzhou.aliyuncs.com">
     <Name>examplebucket</Name>
     <Prefix></Prefix>
     <StartAfter>b</StartAfter>
@@ -336,7 +336,7 @@ mod tests {
         let out: ListBucketOutput = de::from_reader(bs.reader()).expect("must_success");
 
         assert!(out.is_truncated);
-        assert_eq!(out.next_continuation_token, Some("CgJiYw".to_string()));
+        assert_eq!(out.next_continuation_token, Some("CgJiYw--".to_string()));
         assert!(out.common_prefixes.is_empty());
 
         assert_eq!(
@@ -345,19 +345,19 @@ mod tests {
                 Content {
                     key: "b/c".to_string(),
                     last_modified: "2020-05-18T05:45:54.000Z".to_string(),
-                    etag: "35A27C2B9EAEEB6F48FD7FB5861D****".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
                     size: 25,
                 },
                 Content {
                     key: "ba".to_string(),
                     last_modified: "2020-05-18T11:17:58.000Z".to_string(),
-                    etag: "35A27C2B9EAEEB6F48FD7FB5861D****".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
                     size: 25,
                 },
                 Content {
                     key: "bc".to_string(),
                     last_modified: "2020-05-18T05:45:59.000Z".to_string(),
-                    etag: "35A27C2B9EAEEB6F48FD7FB5861D****".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
                     size: 25,
                 }
             ]

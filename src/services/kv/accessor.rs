@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use async_trait::async_trait;
-use futures::Stream;
 use std::fmt::Debug;
 use std::io::Result;
+
+use async_trait::async_trait;
+use futures::Stream;
 
 /// KeyValueAccessor is the accessor to underlying kv services.
 ///

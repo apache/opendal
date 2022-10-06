@@ -53,6 +53,8 @@ pub enum Key {
     Entry {
         /// Parent of this index key.
         parent: u64,
+        /// Seperator to make the entry.
+        sep: u8,
         /// Name of this index key.
         name: String,
     },
@@ -83,6 +85,7 @@ impl Key {
 
         Self::Entry {
             parent,
+            sep: b':',
             name: name.to_string(),
         }
     }
@@ -101,7 +104,7 @@ impl Key {
 
     /// Convert scoped key into entry (parent, name)
     pub fn into_entry(self) -> (u64, String) {
-        if let Key::Entry { parent, name } = self {
+        if let Key::Entry { parent, name, .. } = self {
             (parent, name)
         } else {
             unreachable!("scope key is not a valid entry: {:?}", self)

@@ -28,6 +28,9 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// Return the medata of this key value accessor.
     fn metadata(&self) -> Metadata;
     /// Fetch the next id.
+    ///
+    /// - Returning id should never be zero.
+    /// - Returning id should never be reused.
     async fn next_id(&self) -> Result<u64>;
     /// Get a key from service.
     ///

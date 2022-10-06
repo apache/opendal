@@ -381,8 +381,8 @@ impl<S: Adapter> Backend<S> {
 
         let inode = self.get_next_inode().await?;
         let meta = ObjectMetadata::new(ObjectMode::DIR);
-        self.create_inode(inode, meta).await?;
         self.create_entry(parent, name, inode).await?;
+        self.create_inode(inode, meta).await?;
 
         Ok(inode)
     }
@@ -399,8 +399,8 @@ impl<S: Adapter> Backend<S> {
         let meta = ObjectMetadata::new(ObjectMode::FILE)
             .with_last_modified(OffsetDateTime::now_utc())
             .with_content_length(0);
-        self.create_inode(inode, meta).await?;
         self.create_entry(parent, name, inode).await?;
+        self.create_inode(inode, meta).await?;
 
         Ok(inode)
     }
@@ -414,8 +414,8 @@ impl<S: Adapter> Backend<S> {
         }
 
         let inode = self.get_next_inode().await?;
-        self.create_inode(inode, meta).await?;
         self.create_entry(parent, name, inode).await?;
+        self.create_inode(inode, meta).await?;
 
         Ok(inode)
     }

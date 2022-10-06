@@ -1,4 +1,4 @@
-name: Service Test Ftp
+name: Service Test Redis
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  vsftpd:
+  redis:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

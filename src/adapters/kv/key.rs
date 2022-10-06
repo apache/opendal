@@ -28,13 +28,12 @@
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::mem::size_of;
 
 use anyhow::anyhow;
 
 /// Key is the key for different key that we used to implement OpenDAL
 /// service upon kv service.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum Key {
     /// Meta key of this scope.
     ///
@@ -97,6 +96,18 @@ impl Key {
         }
     }
 
+    /// Create the prefix for specified prefix.
+    ///
+    /// # Hack
+    ///
+    /// bincode will encode `String` as `Vec<u8>`. For an emtpy vec, bincode will
+    /// add its length: `0`. To represent build a prefix of parent, we need to
+    /// remove the last elements.
+    pub fn entry_prefix(parent: u64) -> Vec<u8> {
+        let bs = Self::entry(parent, "").encode();
+        bs[..bs.len() - 1].to_vec()
+    }
+
     /// Convert scoped key into entry (parent, name)
     pub fn into_entry(self) -> (u64, String) {
         if let Key::Entry { parent, name } = self {
@@ -111,98 +122,63 @@ impl Key {
         Self::Version(ino)
     }
 
-    /// Get the scope of this key
-    #[inline]
-    fn scope(&self) -> u8 {
-        match self {
-            Key::Meta => 0,
-            Key::Inode(_) => 1,
-            Key::Block { .. } => 2,
-            Key::Entry { .. } => 3,
-            Key::Version(_) => 4,
-        }
-    }
-
-    /// Get the size of this key after encode.
-    #[inline]
-    pub fn size(&self) -> usize {
-        let size_of_u64 = size_of::<u64>();
-
-        1 + match self {
-            Key::Meta => 0,
-            Key::Inode(_) => size_of_u64,
-            Key::Block { .. } => size_of_u64 * 3,
-            Key::Entry { parent: _, name } => size_of_u64 + name.as_bytes().len(),
-            Key::Version(_) => size_of_u64,
-        }
-    }
-
     /// Encode into bytes.
     pub fn encode(&self) -> Vec<u8> {
-        let mut data = Vec::with_capacity(self.size());
-        data.push(self.scope());
-        match self {
-            Key::Meta => (),
-            Key::Inode(ino) => data.extend(ino.to_be_bytes()),
-            Key::Block {
-                ino,
-                version,
-                block,
-            } => {
-                data.extend(ino.to_be_bytes());
-                data.extend(version.to_be_bytes());
-                data.extend(block.to_be_bytes());
-            }
-            Key::Entry { parent, name } => {
-                data.extend(parent.to_be_bytes());
-                data.extend(name.as_bytes());
-            }
-            Key::Version(version) => {
-                data.extend(version.to_be_bytes());
-            }
-        }
-        data
+        bincode::serde::encode_to_vec(&self, bincode::config::standard().with_big_endian())
+            .expect("must be valid")
     }
 
     /// Decode from bytes.
     pub fn decode(key: &[u8]) -> Result<Self> {
-        let invalid_key = || Error::new(ErrorKind::Other, anyhow!("invalid scope key"));
-        let size_of_u64 = size_of::<u64>();
+        let (v, _) =
+            bincode::serde::decode_from_slice(key, bincode::config::standard().with_big_endian())
+                .map_err(|err| Error::new(ErrorKind::Other, anyhow!("invalid key: {err:?}")))?;
 
-        let (scope, data) = key.split_first().ok_or_else(invalid_key)?;
+        Ok(v)
+    }
+}
 
-        match *scope {
-            0 => Ok(Self::Meta),
-            1 => {
-                let ino = u64::from_be_bytes(data.try_into().map_err(|_| invalid_key())?);
-                Ok(Self::inode(ino))
-            }
-            2 => {
-                let ino =
-                    u64::from_be_bytes(data[..size_of_u64].try_into().map_err(|_| invalid_key())?);
-                let version = u64::from_be_bytes(
-                    data[size_of_u64..size_of_u64 * 2]
-                        .try_into()
-                        .map_err(|_| invalid_key())?,
-                );
-                let block = u64::from_be_bytes(
-                    data[size_of_u64 * 2..]
-                        .try_into()
-                        .map_err(|_| invalid_key())?,
-                );
-                Ok(Self::block(ino, version, block))
-            }
-            3 => {
-                let parent =
-                    u64::from_be_bytes(data[..size_of_u64].try_into().map_err(|_| invalid_key())?);
-                let name = std::str::from_utf8(&data[size_of_u64..]).map_err(|_| invalid_key())?;
-                Ok(Self::entry(parent, name))
-            }
-            4 => {
-                let ino = u64::from_be_bytes(data.try_into().map_err(|_| invalid_key())?);
-                Ok(Self::version(ino))
-            }
-            _ => Err(invalid_key()),
+/// next_prefix will calculate next prefix by adding 1 for the last element.
+pub fn next_prefix(prefix: &[u8]) -> Vec<u8> {
+    let mut next = prefix.to_vec();
+
+    let mut overflow = true;
+    for i in next.iter_mut().rev() {
+        if !overflow {
+            break;
+        }
+
+        if *i == u8::MAX {
+            *i = 0;
+        } else {
+            *i += 1;
+            overflow = false;
+        }
+    }
+
+    next
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_next_prefix() {
+        let cases = vec![
+            ("normal", vec![0, 1], vec![0, 2]),
+            ("overflow", vec![0, 1, 2, 3, u8::MAX], vec![0, 1, 2, 4, 0]),
+            (
+                "overflow twice",
+                vec![0, 1, 2, u8::MAX, u8::MAX],
+                vec![0, 1, 3, 0, 0],
+            ),
+        ];
+
+        for (name, input, expected) in cases {
+            let actual = next_prefix(&input);
+
+            assert_eq!(expected, actual, "{}", name)
         }
     }
 }

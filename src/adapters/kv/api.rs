@@ -48,7 +48,7 @@ pub const BLOCK_SIZE: usize = 64 * 1024;
 pub const INODE_ROOT: u64 = 16;
 pub const INODE_START: u64 = INODE_ROOT + 1;
 
-#[derive(bincode::Encode, bincode::Decode)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Meta {
     /// First valid inode will start from `17`.
     next_inode: u64,

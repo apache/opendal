@@ -137,7 +137,7 @@ impl Operator {
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
             Scheme::Gcs => services::gcs::Backend::from_iter(it)?.into(),
             // #[cfg(feature = "services-redis")]
-            Scheme::Redis => todo!(),
+            // Scheme::Redis => todo!(),
             Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
             Scheme::Obs => services::obs::Backend::from_iter(it)?.into(),
             Scheme::Custom(v) => {

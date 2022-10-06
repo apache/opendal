@@ -28,4 +28,5 @@ mod backend;
 pub use backend::Backend;
 
 mod key;
+pub use key::next_prefix;
 use key::Key;

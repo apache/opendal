@@ -26,6 +26,7 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use crate::adapters::kv;
+use crate::adapters::kv::next_prefix;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -71,12 +72,8 @@ impl kv::Adapter for Adapter {
     }
 
     async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
-        let mut end = prefix.to_vec();
-        // kv service makes sure that the last word is not `u8::MAX`.
-        *end.last_mut().unwrap() += 1;
-
         let map = self.inner.lock();
-        let iter = map.range((Included(prefix.to_vec()), Excluded(end.to_vec())));
+        let iter = map.range((Included(prefix.to_vec()), Excluded(next_prefix(prefix))));
 
         Ok(Box::new(KeyStream {
             keys: iter

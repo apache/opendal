@@ -207,7 +207,7 @@ impl<S: Adapter> Backend<S> {
         match meta {
             None => Ok(Meta::default()),
             Some(bs) => {
-                let (meta, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
+                let (meta, _) = bincode::serde::decode_from_slice(&bs, bincode::config::standard())
                     .map_err(new_bincode_decode_error)?;
                 Ok(meta)
             }
@@ -216,7 +216,7 @@ impl<S: Adapter> Backend<S> {
 
     /// Set current metadata.
     async fn set_meta(&self, meta: Meta) -> Result<()> {
-        let bs = bincode::encode_to_vec(&meta, bincode::config::standard())
+        let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
             .map_err(new_bincode_encode_error)?;
         self.kv.set(&Key::meta().encode(), &bs).await?;
 
@@ -302,8 +302,7 @@ impl<S: Adapter> Backend<S> {
 
     /// List all entries by parent's inode.
     async fn list_entries(&self, parent: u64) -> Result<KeyStreamer> {
-        let key = Key::entry(parent, "");
-        self.kv.scan(&key.encode()).await
+        self.kv.scan(&Key::entry_prefix(parent)).await
     }
 
     /// Create a new block by inode, version and block id.

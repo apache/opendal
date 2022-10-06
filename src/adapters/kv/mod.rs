@@ -15,6 +15,12 @@
 //! Providing Key Value Adapter for OpenDAL.
 //!
 //! Any services that implement `Adapter` can be used an OpenDAL Service.
+//!
+//! # Notes
+//!
+//! This adapter creates a new storage format which is not stable.
+//!
+//! Any service that built upon this adapter should not be persisted.
 
 mod api;
 pub use api::Adapter;

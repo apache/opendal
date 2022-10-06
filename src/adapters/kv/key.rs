@@ -134,7 +134,17 @@ impl Key {
 /// next_prefix will calculate next prefix by adding 1 for the last element.
 ///
 /// The last byte of prefix is always `:`, it's ok to `+=1`
+///
+/// # Notes
+///
+/// This function should only be used in implementing `Adapter::scan` to calculate
+/// the correct range for keys.
 pub fn next_prefix(prefix: &[u8]) -> Vec<u8> {
+    debug_assert!(
+        prefix.last() == Some(&b':'),
+        "input prefix must end with ':'"
+    );
+
     let mut next = prefix.to_vec();
     *next.last_mut().unwrap() += 1;
     next

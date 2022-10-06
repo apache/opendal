@@ -24,9 +24,7 @@ serde = []
 # Enable all layers.
 layers-all = [
   "layers-metrics",
-  "layers-retry",
   "layers-tracing",
-  "layers-metadata-cache",
 ]
 # Enable layers metrics support
 layers-metrics = ["metrics"]

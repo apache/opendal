@@ -84,5 +84,5 @@ impl Metadata {
 pub trait KeyStream: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
 impl<T> KeyStream for T where T: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
 
-/// KeyValueStreamer is a boxed dyn [`KeyValueStream`]
+/// KeyValueStreamer is a boxed dyn `KeyStream`
 pub type KeyStreamer = Box<dyn KeyStream>;

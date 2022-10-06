@@ -145,7 +145,6 @@ where
         let basename = get_basename(path);
         let parent_inode = self.create_dir_parents(parent).await?;
 
-        // TODO: we need transaction here.
         let inode = self
             .create_file_with(
                 parent_inode,

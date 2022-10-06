@@ -12,29 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::Future;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
-use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use futures::{ready, Stream};
+use futures::ready;
+use futures::Future;
+use futures::Stream;
 use http::Uri;
 use pin_project::pin_project;
 use redis::aio::ConnectionManager;
+use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
-use redis::{AsyncCommands, RedisError};
+use redis::RedisError;
 use tokio::sync::OnceCell;
 
 use crate::adapters::kv;

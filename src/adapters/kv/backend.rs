@@ -24,7 +24,8 @@ use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::{Buf, BytesMut};
+use bytes::Buf;
+use bytes::BytesMut;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;

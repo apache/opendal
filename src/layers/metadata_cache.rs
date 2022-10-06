@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io::ErrorKind;
+use std::io::Read;
 use std::io::Result;
-use std::io::{ErrorKind, Read};
 use std::sync::Arc;
 
 use async_trait::async_trait;

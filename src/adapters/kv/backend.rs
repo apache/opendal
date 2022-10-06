@@ -32,6 +32,7 @@ use futures::AsyncRead;
 use futures::AsyncReadExt;
 use futures::Future;
 use futures::Stream;
+use futures::TryStreamExt;
 use pin_project::pin_project;
 use time::OffsetDateTime;
 use tokio::sync::OnceCell;
@@ -130,12 +131,11 @@ where
         let p = build_rooted_abs_path(&self.root, path);
         let inode = self.lookup(&p).await?;
         let meta = self.get_inode(inode).await?;
-        let version = self.get_version(inode).await?;
         let blocks = calculate_blocks(
             args.offset().unwrap_or_default(),
             args.size().unwrap_or_else(|| meta.content_length()),
         );
-        let r = BlockReader::new(self.clone(), inode, version, blocks);
+        let r = BlockReader::new(self.clone(), inode, blocks);
         Ok(Box::new(r))
     }
 
@@ -183,7 +183,6 @@ where
 
         self.remove_entry(parent_inode, basename).await?;
         self.remove_inode(inode).await?;
-        // TODO: not implemented yet.
         self.remove_blocks(inode).await?;
         Ok(())
     }
@@ -283,15 +282,13 @@ impl<S: Adapter> Backend<S> {
     }
 
     /// Create a new block by inode, version and block id.
-    async fn create_block(&self, ino: u64, version: u64, block: u64, content: &[u8]) -> Result<()> {
-        let key = Key::block(ino, version, block);
+    async fn create_block(&self, ino: u64, block: u64, content: &[u8]) -> Result<()> {
+        let key = Key::block(ino, block);
         self.kv.set(&key.encode(), content).await
     }
 
     /// Write blocks by inode, version and input data.
     async fn write_blocks(&self, ino: u64, size: u64, mut r: BytesReader) -> Result<()> {
-        let next_version = self.get_version(ino).await? + 1;
-
         let blocks = size / BLOCK_SIZE as u64;
         let remain = (size % BLOCK_SIZE as u64) as usize;
 
@@ -299,16 +296,13 @@ impl<S: Adapter> Backend<S> {
 
         for block in 0..blocks {
             r.read_exact(&mut buf).await?;
-            self.create_block(ino, next_version, block, &buf).await?;
+            self.create_block(ino, block, &buf).await?;
         }
         if remain != 0 {
             r.read_exact(&mut buf[..remain]).await?;
-            self.create_block(ino, next_version, blocks, &buf[..remain])
-                .await?;
+            self.create_block(ino, blocks, &buf[..remain]).await?;
         }
 
-        // Update the version after all blocks have set correctly.
-        self.set_version(ino, next_version).await?;
         Ok(())
     }
 
@@ -316,7 +310,6 @@ impl<S: Adapter> Backend<S> {
     async fn read_block(
         &self,
         ino: u64,
-        version: u64,
         block: u64,
         offset: usize,
         size: usize,
@@ -328,48 +321,30 @@ impl<S: Adapter> Backend<S> {
             size
         );
 
-        let key = Key::block(ino, version, block);
+        let key = Key::block(ino, block);
         let bs = self.kv.get(&key.encode()).await?;
         match bs {
             None => Err(Error::new(
                 ErrorKind::NotFound,
-                anyhow!(
-                    "block ino: {}, version: {}, block: {} is not found",
-                    ino,
-                    version,
-                    block
-                ),
+                anyhow!("block ino: {},  block: {} is not found", ino, block),
             )),
-            Some(bs) => Ok(bs.into_iter().skip(offset).take(size).collect()),
-        }
-    }
-
-    /// Remove all blocks.
-    async fn remove_blocks(&self, _: u64) -> Result<()> {
-        // TODO: we need to implement remove blocks.
-        Ok(())
-    }
-
-    /// Get the version number of inode.
-    async fn get_version(&self, ino: u64) -> Result<u64> {
-        let key = Key::version(ino);
-        let ver = self.kv.get(&key.encode()).await?;
-        match ver {
-            None => Ok(0),
             Some(bs) => {
-                let (ver, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
-                    .map_err(new_bincode_decode_error)?;
-                Ok(ver)
+                if offset == 0 && size == bs.len() {
+                    Ok(bs)
+                } else {
+                    Ok(bs.into_iter().skip(offset).take(size).collect())
+                }
             }
         }
     }
 
-    /// Set the version number of inode.
-    async fn set_version(&self, ino: u64, ver: u64) -> Result<()> {
-        let key = Key::version(ino);
-        let bs = bincode::encode_to_vec(&ver, bincode::config::standard())
-            .map_err(new_bincode_encode_error)?;
-        self.kv.set(&key.encode(), &bs).await
+    /// Remove all blocks.
+    async fn remove_blocks(&self, ino: u64) -> Result<()> {
+        let mut keys = self.kv.scan(&Key::block_prefix(ino)).await?;
+        while let Some(key) = keys.try_next().await? {
+            self.kv.delete(&key).await?;
+        }
+        Ok(())
     }
 
     /// Create a dir.
@@ -500,23 +475,16 @@ fn calculate_blocks(offset: u64, size: u64) -> Vec<(u64, usize, usize)> {
 struct BlockReader<S: Adapter> {
     backend: Backend<S>,
     ino: u64,
-    version: u64,
     blocks: IntoIter<(u64, usize, usize)>,
     buf: BytesMut,
     fut: Option<BoxFuture<'static, Result<Vec<u8>>>>,
 }
 
 impl<S: Adapter> BlockReader<S> {
-    pub fn new(
-        backend: Backend<S>,
-        ino: u64,
-        version: u64,
-        blocks: Vec<(u64, usize, usize)>,
-    ) -> Self {
+    pub fn new(backend: Backend<S>, ino: u64, blocks: Vec<(u64, usize, usize)>) -> Self {
         Self {
             backend,
             ino,
-            version,
             blocks: blocks.into_iter(),
             buf: BytesMut::with_capacity(BLOCK_SIZE),
             fut: None,
@@ -549,10 +517,7 @@ where
                     Some((block, offset, size)) => {
                         let backend = this.backend.clone();
                         let ino = *this.ino;
-                        let version = *this.version;
-                        let fut = async move {
-                            backend.read_block(ino, version, block, offset, size).await
-                        };
+                        let fut = async move { backend.read_block(ino, block, offset, size).await };
                         *this.fut = Some(Box::pin(fut));
                         continue;
                     }

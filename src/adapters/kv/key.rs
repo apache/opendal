@@ -33,7 +33,7 @@ use anyhow::anyhow;
 
 /// Key is the key for different key that we used to implement OpenDAL
 /// service upon kv service.
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Key {
     /// Inode key represents an inode which stores the metadata of a directory
     /// or file.
@@ -44,8 +44,6 @@ pub enum Key {
     Block {
         /// Inode of this block.
         ino: u64,
-        /// Version of this block.
-        version: u64,
         /// Block id of this block.
         block: u64,
     },
@@ -53,15 +51,9 @@ pub enum Key {
     Entry {
         /// Parent of this index key.
         parent: u64,
-        /// Seperator to make the entry.
-        sep: u8,
         /// Name of this index key.
         name: String,
     },
-    /// Version key represents a version of inode's blocks.
-    ///
-    /// We use this key to make sure every write to an inode is atomic.
-    Version(u64),
 }
 
 impl Key {
@@ -71,12 +63,8 @@ impl Key {
     }
 
     /// Create a block scope key
-    pub fn block(ino: u64, version: u64, block: u64) -> Self {
-        Self::Block {
-            ino,
-            version,
-            block,
-        }
+    pub fn block(ino: u64, block: u64) -> Self {
+        Self::Block { ino, block }
     }
 
     /// Create a new entry scope key.
@@ -85,71 +73,70 @@ impl Key {
 
         Self::Entry {
             parent,
-            sep: b':',
             name: name.to_string(),
         }
     }
 
+    /// Create the prefix for specified inode's blocks.
+    pub fn block_prefix(ino: u64) -> Vec<u8> {
+        format!("b:{ino}:").into_bytes()
+    }
+
     /// Create the prefix for specified prefix.
-    ///
-    /// # Hack
-    ///
-    /// bincode will encode `String` as `Vec<u8>`. For an emtpy vec, bincode will
-    /// add its length: `0`. To represent build a prefix of parent, we need to
-    /// remove the last elements.
     pub fn entry_prefix(parent: u64) -> Vec<u8> {
-        let bs = Self::entry(parent, "").encode();
-        bs[..bs.len() - 1].to_vec()
+        format!("e:{parent}:").into_bytes()
     }
 
     /// Convert scoped key into entry (parent, name)
     pub fn into_entry(self) -> (u64, String) {
-        if let Key::Entry { parent, name, .. } = self {
+        if let Key::Entry { parent, name } = self {
             (parent, name)
         } else {
-            unreachable!("scope key is not a valid entry: {:?}", self)
+            unreachable!("key is not a valid entry: {:?}", self)
         }
-    }
-
-    /// Create a new version scope key.
-    pub fn version(ino: u64) -> Self {
-        Self::Version(ino)
     }
 
     /// Encode into bytes.
     pub fn encode(&self) -> Vec<u8> {
-        bincode::serde::encode_to_vec(&self, bincode::config::standard().with_big_endian())
-            .expect("must be valid")
+        match self {
+            Key::Inode(v) => format!("i:{v}").into_bytes(),
+            Key::Block { ino, block } => format!("b:{ino}:{block}").into_bytes(),
+            Key::Entry { parent, name } => format!("e:{parent}:{name}").into_bytes(),
+        }
     }
 
     /// Decode from bytes.
     pub fn decode(key: &[u8]) -> Result<Self> {
-        let (v, _) =
-            bincode::serde::decode_from_slice(key, bincode::config::standard().with_big_endian())
-                .map_err(|err| Error::new(ErrorKind::Other, anyhow!("invalid key: {err:?}")))?;
-
-        Ok(v)
+        let s = String::from_utf8(key.to_vec()).expect("must be valid string");
+        let (typ, s) = s.split_at(2);
+        match typ.as_bytes()[0] {
+            b'i' => {
+                let v = s.parse().expect("must be valid u64");
+                Ok(Key::inode(v))
+            }
+            b'b' => {
+                let idx = s.find(':').expect("must have valid /");
+                let ino = s[..idx].parse().expect("must be valid u64");
+                let block = s[idx + 1..].parse().expect("must be valid u64");
+                Ok(Key::block(ino, block))
+            }
+            b'e' => {
+                let idx = s.find(':').expect("must have valid /");
+                let parent = s[..idx].parse().expect("must be valid u64");
+                let name = &s[idx + 1..];
+                Ok(Key::entry(parent, name))
+            }
+            _ => Err(Error::new(ErrorKind::Other, anyhow!("invalid key"))),
+        }
     }
 }
 
 /// next_prefix will calculate next prefix by adding 1 for the last element.
+///
+/// The last byte of prefix is always `:`, it's ok to `+=1`
 pub fn next_prefix(prefix: &[u8]) -> Vec<u8> {
     let mut next = prefix.to_vec();
-
-    let mut overflow = true;
-    for i in next.iter_mut().rev() {
-        if !overflow {
-            break;
-        }
-
-        if *i == u8::MAX {
-            *i = 0;
-        } else {
-            *i += 1;
-            overflow = false;
-        }
-    }
-
+    *next.last_mut().unwrap() += 1;
     next
 }
 
@@ -158,21 +145,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_next_prefix() {
+    fn test_decode() {
         let cases = vec![
-            ("normal", vec![0, 1], vec![0, 2]),
-            ("overflow", vec![0, 1, 2, 3, u8::MAX], vec![0, 1, 2, 4, 0]),
-            (
-                "overflow twice",
-                vec![0, 1, 2, u8::MAX, u8::MAX],
-                vec![0, 1, 3, 0, 0],
-            ),
+            ("inode", "i:123", Key::inode(123)),
+            ("block", "b:123:456", Key::block(123, 456)),
+            ("entry", "e:123:中文测试", Key::entry(123, "中文测试")),
         ];
-
-        for (name, input, expected) in cases {
-            let actual = next_prefix(&input);
-
-            assert_eq!(expected, actual, "{}", name)
+        for (name, input, expect) in cases {
+            let actual = Key::decode(input.as_bytes()).expect("must be valid");
+            assert_eq!(expect, actual, "{}", name)
         }
     }
 }

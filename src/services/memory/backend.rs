@@ -17,6 +17,8 @@ use std::io::Result;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
 use std::pin::Pin;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
@@ -25,7 +27,8 @@ use std::vec::IntoIter;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 
-use crate::services::kv;
+use crate::adapters::kv;
+use crate::adapters::kv::next_prefix;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -35,26 +38,32 @@ pub struct Builder {}
 impl Builder {
     /// Consume builder to build a memory backend.
     pub fn build(&mut self) -> Result<Backend> {
-        let engine = Engine {
+        let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
+            next_id: Arc::new(AtomicU64::new(1)),
         };
 
-        kv::Builder::new(engine).build()
+        Ok(Backend::new(adapter))
     }
 }
 
 /// Backend is used to serve `Accessor` support in memory.
-pub type Backend = kv::Backend<Engine>;
+pub type Backend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
-pub struct Engine {
+pub struct Adapter {
     inner: Arc<Mutex<BTreeMap<Vec<u8>, Vec<u8>>>>,
+    next_id: Arc<AtomicU64>,
 }
 
 #[async_trait]
-impl kv::KeyValueAccessor for Engine {
-    fn metadata(&self) -> kv::KeyValueAccessorMetadata {
-        kv::KeyValueAccessorMetadata::new(Scheme::Memory, &format!("{:?}", &self.inner as *const _))
+impl kv::Adapter for Adapter {
+    fn metadata(&self) -> kv::Metadata {
+        kv::Metadata::new(Scheme::Memory, &format!("{:?}", &self.inner as *const _))
+    }
+
+    async fn next_id(&self) -> Result<u64> {
+        Ok(self.next_id.fetch_add(1, Ordering::Relaxed))
     }
 
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -70,15 +79,11 @@ impl kv::KeyValueAccessor for Engine {
         Ok(())
     }
 
-    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyValueStreamer> {
-        let mut end = prefix.to_vec();
-        // kv service makes sure that the last word is not `u8::MAX`.
-        *end.last_mut().unwrap() += 1;
-
+    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
         let map = self.inner.lock();
-        let iter = map.range((Included(prefix.to_vec()), Excluded(end.to_vec())));
+        let iter = map.range((Included(prefix.to_vec()), Excluded(next_prefix(prefix))));
 
-        Ok(Box::new(DirStream {
+        Ok(Box::new(KeyStream {
             keys: iter
                 .map(|(k, _)| k.to_vec())
                 .collect::<Vec<_>>()
@@ -93,11 +98,11 @@ impl kv::KeyValueAccessor for Engine {
     }
 }
 
-struct DirStream {
+struct KeyStream {
     keys: IntoIter<Vec<u8>>,
 }
 
-impl futures::Stream for DirStream {
+impl futures::Stream for KeyStream {
     type Item = Result<Vec<u8>>;
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {

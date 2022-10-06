@@ -33,6 +33,10 @@ pub struct ObjectMetadata {
     /// - For `list` operation, content_length could be None.
     content_length: Option<u64>,
     content_md5: Option<String>,
+    /// # NOTE
+    ///
+    /// bincode::{Encode, Decode} is not implemented on OffsetDateTime.
+    /// We will convert it to (SystemTime, (h,m,s)) instead.
     last_modified: Option<OffsetDateTime>,
     etag: Option<String>,
 }

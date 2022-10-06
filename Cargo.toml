@@ -99,7 +99,7 @@ async-compression = { package = "async-compression-issue-150-workaround", versio
 async-trait = "0.1"
 backon = "0.2"
 base64 = "0.13"
-bincode = "1"
+bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1"
 dotenv = { version = "0.15", optional = true }
 flagset = "0.4"
@@ -116,7 +116,6 @@ pin-project = "1"
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
 redis = { version = "0.21", features = [
-  "r2d2",
   "tokio-comp",
   "connection-manager",
 ], optional = true }

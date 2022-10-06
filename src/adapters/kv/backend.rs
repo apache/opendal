@@ -33,6 +33,7 @@ use futures::Future;
 use futures::Stream;
 use pin_project::pin_project;
 use time::OffsetDateTime;
+use tokio::sync::OnceCell;
 
 use super::Adapter;
 use super::Key;
@@ -65,6 +66,7 @@ use crate::ObjectStreamer;
 pub struct Backend<S: Adapter> {
     kv: S,
     root: String,
+    initiated: OnceCell<u64>,
 }
 
 impl<S> Backend<S>
@@ -76,6 +78,7 @@ where
         Self {
             kv,
             root: "/".to_string(),
+            initiated: OnceCell::new(),
         }
     }
 
@@ -163,20 +166,6 @@ where
         Ok(meta)
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        let p = build_rooted_abs_path(&self.root, path);
-        let inode = match self.lookup(&p).await {
-            Ok(inode) => inode,
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                return Ok(Box::new(EmptyObjectStreamer))
-            }
-            Err(err) => return Err(err),
-        };
-        let s = self.list_entries(inode).await?;
-        let os = ObjectStream::new(Arc::new(self.clone()), s, path.to_string());
-        Ok(Box::new(os))
-    }
-
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
         let p = build_rooted_abs_path(&self.root, path);
         let parent = get_parent(&p);
@@ -197,6 +186,20 @@ where
         // TODO: not implemented yet.
         self.remove_blocks(inode).await?;
         Ok(())
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+        let p = build_rooted_abs_path(&self.root, path);
+        let inode = match self.lookup(&p).await {
+            Ok(inode) => inode,
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                return Ok(Box::new(EmptyObjectStreamer))
+            }
+            Err(err) => return Err(err),
+        };
+        let s = self.list_entries(inode).await?;
+        let os = ObjectStream::new(Arc::new(self.clone()), s, path.to_string());
+        Ok(Box::new(os))
     }
 }
 
@@ -363,7 +366,6 @@ impl<S: Adapter> Backend<S> {
                     block
                 ),
             )),
-            // Some(bs) => Ok(bs[offset..offset + size].to_vec()),
             Some(bs) => Ok(bs.into_iter().skip(offset).take(size).collect()),
         }
     }
@@ -450,6 +452,11 @@ impl<S: Adapter> Backend<S> {
         if path == "/" {
             return Ok(INODE_ROOT);
         }
+
+        let _ = self
+            .initiated
+            .get_or_try_init(|| async { self.create_dir_parents(&self.root).await })
+            .await?;
 
         let mut inode = INODE_ROOT;
         for name in path.split('/').filter(|v| !v.is_empty()) {

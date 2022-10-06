@@ -35,6 +35,7 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::{AsyncCommands, RedisError};
+use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
 use crate::error::new_other_backend_error;
@@ -191,20 +192,7 @@ impl Builder {
                 .as_str(),
         );
 
-        let conn = {
-            let handle = tokio::runtime::Handle::try_current().map_err(|_| {
-                new_other_backend_error(
-                    HashMap::default(),
-                    anyhow!("redis service is not running in tokio runtime"),
-                )
-            })?;
-            handle.block_on(async {
-                ConnectionManager::new(client.clone())
-                    .await
-                    .map_err(new_redis_error)
-            })?
-        };
-
+        let conn = OnceCell::new();
         Ok(Backend::new(Adapter { client, conn }).with_root(&root))
     }
 }
@@ -255,7 +243,7 @@ impl Backend {
 #[derive(Clone)]
 pub struct Adapter {
     client: Client,
-    conn: ConnectionManager,
+    conn: OnceCell<ConnectionManager>,
 }
 
 // implement `Debug` manually, or password may be leaked.
@@ -271,6 +259,19 @@ impl Debug for Adapter {
     }
 }
 
+impl Adapter {
+    async fn conn(&self) -> Result<ConnectionManager> {
+        match self
+            .conn
+            .get_or_try_init(|| async { ConnectionManager::new(self.client.clone()).await })
+            .await
+        {
+            Ok(v) => Ok(v.clone()),
+            Err(err) => Err(new_redis_error(err)),
+        }
+    }
+}
+
 #[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
@@ -281,24 +282,24 @@ impl kv::Adapter for Adapter {
     }
 
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.conn().await?;
         let bs: Option<Vec<u8>> = conn.get(key).await.map_err(new_redis_error)?;
         Ok(bs)
     }
 
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.conn().await?;
         let _: () = conn.set(key, value).await.map_err(new_redis_error)?;
         Ok(())
     }
 
     async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
-        let conn = self.conn.clone();
+        let conn = self.conn().await?;
         Ok(Box::new(KeyStream::new(conn, prefix)))
     }
 
     async fn delete(&self, key: &[u8]) -> Result<()> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.conn().await?;
         let _: () = conn.del(key).await.map_err(new_redis_error)?;
         Ok(())
     }
@@ -356,8 +357,9 @@ impl Stream for KeyStream {
                     let mut conn = this.conn.clone();
                     let fut = async move {
                         let (cursor, keys) = redis::cmd("scan")
-                            .arg(&arg)
                             .cursor_arg(cursor)
+                            .arg("MATCH")
+                            .arg(arg.into_iter().chain(vec![b'*']).collect::<Vec<_>>())
                             .query_async(&mut conn)
                             .await
                             .map_err(new_redis_error)?;

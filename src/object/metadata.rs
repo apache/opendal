@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bincode::de::Decoder;
-use bincode::enc::Encoder;
-use bincode::error::{DecodeError, EncodeError};
-use std::time::SystemTime;
-use time::{OffsetDateTime, UtcOffset};
+use time::OffsetDateTime;
 
 use crate::ObjectMode;
 
@@ -27,8 +23,7 @@ use crate::ObjectMode;
 /// mode and content_length are required metadata that all services
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `ObjectEntry`'s content length could be `None`.
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectMetadata {
     mode: ObjectMode,
 
@@ -44,45 +39,6 @@ pub struct ObjectMetadata {
     /// We will convert it to (SystemTime, (h,m,s)) instead.
     last_modified: Option<OffsetDateTime>,
     etag: Option<String>,
-}
-
-impl bincode::Encode for ObjectMetadata {
-    fn encode<E: Encoder>(&self, encoder: &mut E) -> Result<(), EncodeError> {
-        bincode::Encode::encode(&self.mode, encoder)?;
-        bincode::Encode::encode(&self.content_length, encoder)?;
-        bincode::Encode::encode(&self.content_md5, encoder)?;
-        bincode::Encode::encode(
-            &self.last_modified.map(|v| {
-                (
-                    SystemTime::from(v.to_offset(UtcOffset::UTC)),
-                    v.offset().as_hms(),
-                )
-            }),
-            encoder,
-        )?;
-        bincode::Encode::encode(&self.etag, encoder)?;
-
-        Ok(())
-    }
-}
-
-impl bincode::Decode for ObjectMetadata {
-    fn decode<D: Decoder>(decoder: &mut D) -> Result<Self, DecodeError> {
-        Ok(Self {
-            mode: bincode::Decode::decode(decoder)?,
-            content_length: bincode::Decode::decode(decoder)?,
-            content_md5: bincode::Decode::decode(decoder)?,
-            last_modified: {
-                let v: Option<(SystemTime, (i8, i8, i8))> = bincode::Decode::decode(decoder)?;
-
-                v.map(|(system_time, (h, m, s))| {
-                    OffsetDateTime::from(system_time)
-                        .to_offset(UtcOffset::from_hms(h, m, s).expect("utf offset must be valid"))
-                })
-            },
-            etag: bincode::Decode::decode(decoder)?,
-        })
-    }
 }
 
 impl ObjectMetadata {
@@ -241,33 +197,5 @@ impl ObjectMetadata {
     pub fn with_etag(mut self, etag: &str) -> Self {
         self.etag = Some(etag.to_string());
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_object_metadata_bincode() {
-        let expected = ObjectMetadata {
-            mode: ObjectMode::FILE,
-            content_length: Some(123),
-            content_md5: None,
-            last_modified: Some(
-                OffsetDateTime::from_unix_timestamp(1024 * 1024)
-                    .unwrap()
-                    .replace_offset(UtcOffset::from_hms(1, 2, 3).unwrap()),
-            ),
-            etag: Some("hello, world!".to_string()),
-        };
-
-        let bs = bincode::encode_to_vec(&expected, bincode::config::standard())
-            .expect("bincode encode must succeed");
-
-        let (actual, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
-            .expect("bincode decode must succeed");
-
-        assert_eq!(expected, actual)
     }
 }

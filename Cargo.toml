@@ -23,10 +23,10 @@ serde = []
 
 # Enable all layers.
 layers-all = [
-  "layers-metrics",
-  "layers-retry",
-  "layers-tracing",
-  "layers-metadata-cache",
+    "layers-metrics",
+    "layers-retry",
+    "layers-tracing",
+    "layers-metadata-cache",
 ]
 # Enable layers metrics support
 layers-metrics = ["metrics"]
@@ -93,13 +93,13 @@ anyhow = { version = "1.0", features = ["std"] }
 async-compat = "0.2"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
 async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
-  "futures-io",
-  "all-algorithms",
+    "futures-io",
+    "all-algorithms",
 ], optional = true }
 async-trait = "0.1"
 backon = "0.2"
 base64 = "0.13"
-bincode = "2.0.0-rc.2"
+bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1"
 dotenv = { version = "0.15", optional = true }
 flagset = "0.4"
@@ -116,15 +116,15 @@ pin-project = "1"
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
 redis = { version = "0.21", features = [
-  "r2d2",
-  "tokio-comp",
-  "connection-manager",
+    "r2d2",
+    "tokio-comp",
+    "connection-manager",
 ], optional = true }
 reqsign = "0.5"
 reqwest = { version = "0.11", features = [
-  "multipart",
-  "stream",
-  "rustls-tls-native-roots",
+    "multipart",
+    "stream",
+    "rustls-tls-native-roots",
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -143,7 +143,7 @@ env_logger = "0.9"
 itertools = "0.10"
 num-traits = "0.2"
 opentelemetry = { version = "0.17", default-features = false, features = [
-  "trace",
+    "trace",
 ] }
 opentelemetry-jaeger = "0.16"
 paste = "1"

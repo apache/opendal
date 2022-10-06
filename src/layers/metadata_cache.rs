@@ -131,14 +131,16 @@ impl Accessor for MetadataCacheAccessor {
                 let mut bs = Cursor::new(buffer);
                 io::copy(r, &mut bs).await?;
 
-                let (meta, _) =
-                    bincode::decode_from_slice(&bs.into_inner(), bincode::config::standard())
-                        .map_err(|err| new_other_object_error(Operation::Stat, path, err))?;
+                let (meta, _) = bincode::serde::decode_from_slice(
+                    &bs.into_inner(),
+                    bincode::config::standard(),
+                )
+                .map_err(|err| new_other_object_error(Operation::Stat, path, err))?;
                 Ok(meta)
             }
             Err(err) if err.kind() == ErrorKind::NotFound => {
                 let meta = self.inner.stat(path, args).await?;
-                let bs = bincode::encode_to_vec(&meta, bincode::config::standard())
+                let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| new_other_object_error(Operation::Stat, path, err))?;
                 self.cache
                     .write(
@@ -207,13 +209,13 @@ impl Accessor for MetadataCacheAccessor {
             Ok(mut r) => {
                 let mut bs = Vec::with_capacity(1024);
                 r.read_to_end(&mut bs)?;
-                let (meta, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
+                let (meta, _) = bincode::serde::decode_from_slice(&bs, bincode::config::standard())
                     .map_err(|err| new_other_object_error(Operation::BlockingStat, path, err))?;
                 Ok(meta)
             }
             Err(err) if err.kind() == ErrorKind::NotFound => {
                 let meta = self.inner.blocking_stat(path, args)?;
-                let bs = bincode::encode_to_vec(&meta, bincode::config::standard())
+                let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| new_other_object_error(Operation::BlockingStat, path, err))?;
                 self.cache.blocking_write(
                     path,

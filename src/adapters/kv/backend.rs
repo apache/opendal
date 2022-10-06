@@ -248,7 +248,7 @@ impl<S: Adapter> Backend<S> {
                 anyhow!("inode {} not found", ino),
             )),
             Some(bs) => {
-                let (meta, _) = bincode::decode_from_slice(&bs, bincode::config::standard())
+                let (meta, _) = bincode::serde::decode_from_slice(&bs, bincode::config::standard())
                     .map_err(new_bincode_decode_error)?;
                 Ok(meta)
             }
@@ -258,7 +258,7 @@ impl<S: Adapter> Backend<S> {
     /// Create a new inode.
     async fn create_inode(&self, ino: u64, meta: ObjectMetadata) -> Result<()> {
         let key = Key::inode(ino);
-        let value = bincode::encode_to_vec(&meta, bincode::config::standard())
+        let value = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
             .map_err(new_bincode_encode_error)?;
         self.kv.set(&key.encode(), &value).await
     }

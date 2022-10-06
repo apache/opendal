@@ -281,6 +281,13 @@ impl kv::Adapter for Adapter {
         )
     }
 
+    async fn next_id(&self) -> Result<u64> {
+        let mut conn = self.conn().await?;
+        // next_id will never be used by opendal.
+        let v: u64 = conn.incr("next_id", 1).await.map_err(new_redis_error)?;
+        Ok(v)
+    }
+
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let mut conn = self.conn().await?;
         let bs: Option<Vec<u8>> = conn.get(key).await.map_err(new_redis_error)?;

@@ -27,6 +27,8 @@ use crate::Scheme;
 pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// Return the medata of this key value accessor.
     fn metadata(&self) -> Metadata;
+    /// Fetch the next id.
+    async fn next_id(&self) -> Result<u64>;
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
@@ -45,31 +47,7 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
 pub const BLOCK_SIZE: usize = 64 * 1024;
 
 /// OpenDAL will reserve all inode between 0~16.
-pub const INODE_ROOT: u64 = 16;
-pub const INODE_START: u64 = INODE_ROOT + 1;
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Meta {
-    /// First valid inode will start from `17`.
-    next_inode: u64,
-}
-
-impl Default for Meta {
-    fn default() -> Self {
-        Self {
-            next_inode: INODE_START,
-        }
-    }
-}
-
-impl Meta {
-    /// Get and update next inode.
-    pub fn next_inode(&mut self) -> u64 {
-        let inode = self.next_inode;
-        self.next_inode += 1;
-        inode
-    }
-}
+pub const INODE_ROOT: u64 = 0;
 
 /// Metadata for this key value accessor.
 pub struct Metadata {

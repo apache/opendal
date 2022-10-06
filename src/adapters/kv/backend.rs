@@ -38,7 +38,6 @@ use tokio::sync::OnceCell;
 use super::Adapter;
 use super::Key;
 use super::KeyStreamer;
-use super::Meta;
 use super::BLOCK_SIZE;
 use super::INODE_ROOT;
 use crate::object::EmptyObjectStreamer;
@@ -204,37 +203,11 @@ where
 }
 
 impl<S: Adapter> Backend<S> {
-    /// Get current metadata.
-    async fn get_meta(&self) -> Result<Meta> {
-        let meta = self.kv.get(&Key::meta().encode()).await?;
-        match meta {
-            None => Ok(Meta::default()),
-            Some(bs) => {
-                let (meta, _) = bincode::serde::decode_from_slice(&bs, bincode::config::standard())
-                    .map_err(new_bincode_decode_error)?;
-                Ok(meta)
-            }
-        }
-    }
-
-    /// Set current metadata.
-    async fn set_meta(&self, meta: Meta) -> Result<()> {
-        let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
-            .map_err(new_bincode_encode_error)?;
-        self.kv.set(&Key::meta().encode(), &bs).await?;
-
-        Ok(())
-    }
-
     /// Get next inode.
     ///
     /// This function is used to fetch and update the next inode.
     async fn get_next_inode(&self) -> Result<u64> {
-        let mut meta = self.get_meta().await?;
-        let inode = meta.next_inode();
-        self.set_meta(meta).await?;
-
-        Ok(inode)
+        self.kv.next_id().await
     }
 
     /// Get object metadata by inode.

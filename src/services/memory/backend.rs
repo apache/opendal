@@ -17,6 +17,7 @@ use std::io::Result;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
@@ -38,6 +39,7 @@ impl Builder {
     pub fn build(&mut self) -> Result<Backend> {
         let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
+            next_id: Arc::new(AtomicU64::new(1)),
         };
 
         Ok(Backend::new(adapter))
@@ -50,12 +52,17 @@ pub type Backend = kv::Backend<Adapter>;
 #[derive(Debug, Clone)]
 pub struct Adapter {
     inner: Arc<Mutex<BTreeMap<Vec<u8>, Vec<u8>>>>,
+    next_id: Arc<AtomicU64>,
 }
 
 #[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(Scheme::Memory, &format!("{:?}", &self.inner as *const _))
+    }
+
+    async fn next_id(&self) -> Result<u64> {
+        Ok(self.next_id.fetch_add(1, Ordering::Relaxed))
     }
 
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {

@@ -35,10 +35,6 @@ use anyhow::anyhow;
 /// service upon kv service.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum Key {
-    /// Meta key of this scope.
-    ///
-    /// Every kv services will only have on of this key.
-    Meta,
     /// Inode key represents an inode which stores the metadata of a directory
     /// or file.
     Inode(u64),
@@ -67,11 +63,6 @@ pub enum Key {
 }
 
 impl Key {
-    /// Create a meta scope key.
-    pub fn meta() -> Self {
-        Self::Meta
-    }
-
     /// Create an inode scope key.
     pub fn inode(ino: u64) -> Self {
         Self::Inode(ino)

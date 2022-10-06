@@ -12,50 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use futures::Future;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Result;
+use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::io::AsyncReadExt;
-use futures::io::Cursor;
+use futures::future::BoxFuture;
+use futures::{ready, Stream};
 use http::Uri;
+use pin_project::pin_project;
 use redis::aio::ConnectionManager;
-use redis::AsyncCommands;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
-use time::OffsetDateTime;
+use redis::{AsyncCommands, RedisError};
 
-use super::dir_stream::DirStream;
-use super::error::new_async_connection_error;
-use super::error::new_deserialize_metadata_error;
-use super::error::new_exec_async_cmd_error;
-use super::error::new_serialize_metadata_error;
-use super::v0_children_prefix;
-use super::v0_content_prefix;
-use super::v0_meta_prefix;
+use crate::adapters::kv;
 use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::Operation;
-use crate::path::build_abs_path;
 use crate::path::normalize_root;
-use crate::Accessor;
-use crate::BytesReader;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectStreamer;
+use crate::Scheme;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
@@ -206,7 +190,22 @@ impl Builder {
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );
-        Ok(Backend { client, root })
+
+        let conn = {
+            let handle = tokio::runtime::Handle::try_current().map_err(|_| {
+                new_other_backend_error(
+                    HashMap::default(),
+                    anyhow!("redis service is not running in tokio runtime"),
+                )
+            })?;
+            handle.block_on(async {
+                ConnectionManager::new(client.clone())
+                    .await
+                    .map_err(new_redis_error)
+            })?
+        };
+
+        Ok(Backend::new(Adapter { client, conn }).with_root(&root))
     }
 }
 
@@ -228,83 +227,8 @@ impl Debug for Builder {
     }
 }
 
-/// Redis Backend of opendal
-#[derive(Clone)]
-pub struct Backend {
-    client: Client,
-    root: String,
-}
-
-impl Backend {
-    /// `remove` takes only absolute paths, and brutely delete all data held in `abs_path`. Its parent folders will not be affected
-    ///
-    /// if the directory to remove is not empty, an `other` error will be emitted.
-    async fn remove(con: &mut ConnectionManager, abs_path: &str) -> Result<()> {
-        let m_path = v0_meta_prefix(abs_path);
-        let c_path = v0_content_prefix(abs_path);
-        let s_path = v0_children_prefix(abs_path);
-
-        // it is ok to remove not existing keys.
-        con.del(&[m_path, c_path, s_path])
-            .await
-            .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, abs_path))
-    }
-
-    /// `mkdir_current` will record the metadata of `to_create`
-    ///
-    /// Note: `to_create` have to be an absolute path.
-    async fn mkdir_current(con: &mut ConnectionManager, to_create: &str, path: &str) -> Result<()> {
-        let metadata = ObjectMetadata::new(ObjectMode::DIR);
-
-        let to_create = if !to_create.ends_with('/') {
-            to_create.to_string() + "/"
-        } else {
-            to_create.to_string()
-        };
-
-        let path = path.to_string();
-        let bin = bincode::serialize(&metadata)
-            .map_err(|err| new_serialize_metadata_error(err, Operation::Create, path.as_str()))?;
-
-        let m_path = v0_meta_prefix(to_create.as_str());
-        con.set(m_path, bin)
-            .await
-            .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?;
-
-        Ok(())
-    }
-
-    /// `mkdir` works like `mkdir -p` in *NIX systems, this will create `to_create` and all of its missing parent directories
-    async fn mkdir(con: &mut ConnectionManager, to_create: &str, path: &str) -> Result<()> {
-        let path = path.to_string();
-        Backend::mkdir_current(con, to_create, path.as_str()).await?;
-
-        let mut current = to_create.to_string();
-        while let Some(parent) = PathBuf::from(current).parent() {
-            let p = parent.display().to_string() + "/";
-            let this_generation = v0_children_prefix(p.as_str());
-
-            con.sadd(this_generation, to_create)
-                .await
-                .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?;
-
-            // break if parent directory exists
-            let parent_metadata_path = v0_meta_prefix(p.as_str());
-            if con
-                .exists(parent_metadata_path)
-                .await
-                .map_err(|err| new_exec_async_cmd_error(err, Operation::Create, path.as_str()))?
-            {
-                break;
-            }
-
-            Backend::mkdir_current(con, p.as_str(), path.as_str()).await?;
-            current = p;
-        }
-
-        Ok(())
-    }
-}
+/// Backend for redis services.
+pub type Backend = kv::Backend<Adapter>;
 
 impl Backend {
     /// build from iterator
@@ -328,319 +252,138 @@ impl Backend {
     }
 }
 
+#[derive(Clone)]
+pub struct Adapter {
+    client: Client,
+    conn: ConnectionManager,
+}
+
 // implement `Debug` manually, or password may be leaked.
-impl Debug for Backend {
+impl Debug for Adapter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Backend");
-        ds.field("root", &self.root);
+        let mut ds = f.debug_struct("Adapter");
 
         let info = self.client.get_connection_info();
-
         ds.field("addr", &info.addr);
         ds.field("db", &info.redis.db);
-
-        if let Some(username) = info.redis.username.clone() {
-            ds.field("user", &username);
-        }
-        if info.redis.password.is_some() {
-            ds.field("password", &"<redacted>");
-        }
-
+        ds.field("user", &info.redis.username);
         ds.finish()
     }
 }
 
 #[async_trait]
-impl Accessor for Backend {
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
-        let mut path = path.to_string();
-
-        // establish connection to redis
-        let mut con = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|e| new_async_connection_error(e, Operation::Create, path.as_str()))?;
-
-        // create current dir
-        let mut meta = ObjectMetadata::new(args.mode());
-        if args.mode() == ObjectMode::FILE {
-            // only set last_modified for files
-            let last_modified = OffsetDateTime::now_utc();
-            meta.set_last_modified(last_modified);
-        } else if args.mode() == ObjectMode::DIR && !path.ends_with('/') {
-            // folder's name must be ends with '/'!
-            path += "/";
-        }
-
-        let abs_path = build_abs_path(self.root.as_str(), path.as_str());
-
-        let m_path = v0_meta_prefix(abs_path.as_str());
-        let bin = bincode::serialize(&meta)
-            .map_err(|err| new_serialize_metadata_error(err, Operation::Create, path.as_str()))?;
-
-        // update parent folders
-        if let Some(parent) = PathBuf::from(abs_path).parent() {
-            let p = parent.display().to_string();
-            Backend::mkdir(&mut con, p.as_str(), path.as_str()).await?;
-        }
-
-        con.set(m_path, bin)
-            .await
-            .map_err(|err| new_exec_async_cmd_error(err, Operation::Write, path.as_str()))
+impl kv::Adapter for Adapter {
+    fn metadata(&self) -> kv::Metadata {
+        kv::Metadata::new(
+            Scheme::Redis,
+            &self.client.get_connection_info().addr.to_string(),
+        )
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let c_path = v0_content_prefix(build_abs_path(self.root.as_str(), path).as_str());
-
-        // &str.clone() is unrecommended by clippy
-        let path = path.to_string();
-
-        // get range parameters
-        let from = args.offset().map_or_else(|| 0, |offset| offset as isize);
-        let to = args.size().map_or_else(|| -1, |size| size as isize + from);
-
-        let mut con = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|e| new_async_connection_error(e, Operation::Read, path.as_str()))?;
-
-        let gr = con
-            .getrange::<&str, Vec<u8>>(c_path.as_str(), from, to)
-            .await
-            .map_err(|e| new_exec_async_cmd_error(e, Operation::Read, path.as_str()))?;
-
-        let cur = Cursor::new(gr);
-        Ok(Box::new(cur) as BytesReader)
+    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        let mut conn = self.conn.clone();
+        let bs: Option<Vec<u8>> = conn.get(key).await.map_err(new_redis_error)?;
+        Ok(bs)
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let abs_path = build_abs_path(self.root.as_str(), path);
-        let path = path.to_string();
-
-        if path.ends_with('/') {
-            return Err(new_other_object_error(
-                Operation::Write,
-                path.as_str(),
-                anyhow!("cannot write to directory"),
-            ));
-        }
-
-        let mut con = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|e| new_async_connection_error(e, Operation::Write, path.as_str()))?;
-
-        let c_path = v0_content_prefix(abs_path.as_str());
-        let size = args.size();
-        let mut reader = r;
-
-        // TODO: asynchronous writing with `SETRANGE`
-
-        let mut buf = vec![];
-        let content_length = reader.read_to_end(&mut buf).await?;
-        con.set(c_path, buf)
-            .await
-            .map_err(|e| new_exec_async_cmd_error(e, Operation::Write, &path))?;
-
-        let m_path = v0_meta_prefix(abs_path.as_str());
-
-        let mut meta = ObjectMetadata::new(ObjectMode::FILE);
-        meta.set_content_length(content_length as u64);
-        meta.set_last_modified(OffsetDateTime::now_utc());
-
-        // serialize and write to redis backend
-        let bin = bincode::serialize(&meta)
-            .map_err(|e| new_serialize_metadata_error(e, Operation::Write, path.as_str()))?;
-        con.set(m_path, bin)
-            .await
-            .map_err(|e| new_exec_async_cmd_error(e, Operation::Write, path.as_str()))?;
-
-        Ok(size)
-    }
-
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<ObjectMetadata> {
-        let abs_path = build_abs_path(self.root.as_str(), path);
-        let path = path.to_string();
-
-        let mut con = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|e| new_async_connection_error(e, Operation::Stat, path.as_str()))?;
-
-        let m_path = v0_meta_prefix(abs_path.as_str());
-        let bin: Vec<u8> = con
-            .get(m_path)
-            .await
-            .map_err(|e| new_exec_async_cmd_error(e, Operation::Stat, path.as_str()))?;
-
-        bincode::deserialize(&bin[..])
-            .map_err(|e| new_deserialize_metadata_error(e, Operation::Stat, path.as_str()))
-    }
-
-    async fn delete(&self, path: &str, _args: OpDelete) -> Result<()> {
-        let path = path.to_string();
-        let abs_path = build_abs_path(self.root.as_str(), path.as_str());
-
-        let mut con = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|err| new_async_connection_error(err, Operation::Delete, path.as_str()))?;
-
-        let children = v0_children_prefix(abs_path.as_str());
-        let mut child_iter = con
-            .sscan::<String, String>(children)
-            .await
-            .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path.as_str()))?;
-
-        // directory is not empty
-        if child_iter.next_item().await.is_some() {
-            return Err(new_other_object_error(
-                Operation::Delete,
-                path.as_str(),
-                anyhow!("Directory not empty!"),
-            ));
-        }
-
-        Backend::remove(&mut con, abs_path.as_str()).await?;
-
-        if let Some(parent) = PathBuf::from(abs_path.clone()).parent() {
-            let this_generation = v0_children_prefix(parent.display().to_string().as_str()) + "/";
-
-            con.srem(this_generation, &abs_path)
-                .await
-                .map_err(|err| new_exec_async_cmd_error(err, Operation::Delete, path.as_str()))?;
-        }
-
+    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        let mut conn = self.conn.clone();
+        let _: () = conn.set(key, value).await.map_err(new_redis_error)?;
         Ok(())
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<ObjectStreamer> {
-        let path = build_abs_path(self.root.as_str(), path);
-        let con = self
-            .client
-            .get_tokio_connection_manager()
-            .await
-            .map_err(|err| new_exec_async_cmd_error(err, Operation::List, path.as_str()))?;
-        Ok(Box::new(DirStream::new(
-            Arc::new(self.clone()),
-            con,
-            path.as_str(),
-        )))
+    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
+        let conn = self.conn.clone();
+        Ok(Box::new(KeyStream::new(conn, prefix)))
+    }
+
+    async fn delete(&self, key: &[u8]) -> Result<()> {
+        let mut conn = self.conn.clone();
+        let _: () = conn.del(key).await.map_err(new_redis_error)?;
+        Ok(())
     }
 }
 
-#[cfg(test)]
-mod redis_test {
-    use time::OffsetDateTime;
+#[pin_project]
+#[allow(clippy::type_complexity)]
+struct KeyStream {
+    conn: ConnectionManager,
+    arg: Vec<u8>,
 
-    use super::Builder;
-    use crate::ObjectMetadata;
-    use crate::ObjectMode;
+    done: bool,
+    cursor: u64,
+    keys: IntoIter<Vec<u8>>,
+    /// Yep, this type is complex. But they are simple to understand and
+    /// already implemented `FromRedisValue`.
+    ///
+    /// (cursor, Vec<keys in vec>)
+    fut: Option<BoxFuture<'static, Result<(u64, Vec<Vec<u8>>)>>>,
+}
 
-    const TIMESTAMP: i64 = 7355608;
-    const CONTENT_LENGTH: u64 = 123456;
+impl KeyStream {
+    fn new(conn: ConnectionManager, arg: &[u8]) -> Self {
+        Self {
+            conn,
+            arg: arg.to_vec(),
 
-    // this function is used for generating testing binary data
-    #[test]
-    fn test_generate_bincode() {
-        let mut meta = ObjectMetadata::new(ObjectMode::DIR);
-        println!(
-            "serialized directory metadata: {:?}",
-            bincode::serialize(&meta).unwrap()
-        );
-
-        meta.set_mode(ObjectMode::FILE);
-        let datetime = OffsetDateTime::from_unix_timestamp(TIMESTAMP).unwrap();
-        meta.set_last_modified(datetime);
-        meta.set_content_length(CONTENT_LENGTH);
-
-        println!(
-            "serialized file metadata: {:?}",
-            bincode::serialize(&meta).unwrap()
-        );
+            done: false,
+            cursor: 0,
+            keys: vec![].into_iter(),
+            fut: None,
+        }
     }
+}
 
-    #[test]
-    fn test_deserialize() {
-        // test data generated from `test_generate_bincode`
-        let bin = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        let res = bincode::deserialize(&bin);
-        assert!(res.is_ok());
-        let meta: ObjectMetadata = res.unwrap();
-        assert_eq!(
-            meta.mode(),
-            ObjectMode::DIR,
-            "Got unexpected mode: {:?}",
-            meta.mode()
-        );
-        assert_eq!(
-            meta.last_modified(),
-            None,
-            "Got unexpected timestamp: {:?}",
-            meta.last_modified()
-        );
-        assert_eq!(
-            meta.content_length(),
-            0,
-            "Got unexpected content_length: {}",
-            meta.content_length()
-        );
-        assert_eq!(
-            meta.content_md5(),
-            None,
-            "Got unexpected content_md5: {:?}",
-            meta.content_md5()
-        );
-        assert_eq!(meta.etag(), None, "Got unexpected etag: {:?}", meta.etag());
+impl Stream for KeyStream {
+    type Item = Result<Vec<u8>>;
 
-        let last_modified = OffsetDateTime::from_unix_timestamp(TIMESTAMP).unwrap();
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.project();
 
-        // test data generated from `test_generate_bincode`
-        let bin = [
-            0, 0, 0, 0, 64, 226, 1, 0, 0, 0, 0, 0, 0, 1, 178, 7, 0, 0, 86, 0, 3, 13, 28, 0, 0, 0,
-            0, 0, 0, 0, 0,
-        ];
-        let res = bincode::deserialize(&bin);
-        assert!(res.is_ok());
-        let meta: ObjectMetadata = res.unwrap();
-        assert_eq!(
-            meta.mode(),
-            ObjectMode::FILE,
-            "Got unexpected mode: {:?}",
-            meta.mode()
-        );
-        assert_eq!(
-            meta.last_modified(),
-            Some(last_modified),
-            "Got unexpected timestamp: {:?}",
-            meta.last_modified()
-        );
-        assert_eq!(
-            meta.content_length(),
-            CONTENT_LENGTH,
-            "Got unexpected content_length: {}",
-            meta.content_length()
-        );
-        assert_eq!(
-            meta.content_md5(),
-            None,
-            "Got unexpected content_md5: {:?}",
-            meta.content_md5()
-        );
-        assert_eq!(meta.etag(), None, "Got unexpected etag: {:?}", meta.etag());
+        loop {
+            if let Some(key) = this.keys.next() {
+                return Poll::Ready(Some(Ok(key)));
+            }
+
+            match this.fut {
+                None => {
+                    if *this.done {
+                        return Poll::Ready(None);
+                    }
+
+                    let arg = this.arg.to_vec();
+                    let cursor = *this.cursor;
+                    let mut conn = this.conn.clone();
+                    let fut = async move {
+                        let (cursor, keys) = redis::cmd("scan")
+                            .arg(&arg)
+                            .cursor_arg(cursor)
+                            .query_async(&mut conn)
+                            .await
+                            .map_err(new_redis_error)?;
+
+                        Ok((cursor, keys))
+                    };
+                    *this.fut = Some(Box::pin(fut));
+                    continue;
+                }
+                Some(fut) => {
+                    let (cursor, keys) = ready!(Pin::new(fut).poll(cx))?;
+
+                    *this.fut = None;
+
+                    if cursor == 0 {
+                        *this.done = true;
+                    }
+                    *this.cursor = cursor;
+                    *this.keys = keys.into_iter();
+                    continue;
+                }
+            }
+        }
     }
+}
 
-    #[test]
-    fn test_parse_url() {
-        let invalid_scheme = "http://example.com";
-        let mut builder = Builder::default();
-        builder.endpoint(invalid_scheme);
-        let res = builder.build();
-        assert!(res.is_err());
-    }
+fn new_redis_error(err: RedisError) -> Error {
+    Error::new(ErrorKind::Other, anyhow!("redis: {err:?}"))
 }

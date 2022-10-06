@@ -354,6 +354,12 @@ impl Stream for KeyStream {
 
         loop {
             if let Some(key) = this.keys.next() {
+                debug_assert!(
+                    key[..this.arg.len()] == *this.arg,
+                    "prefix is not match: expect {:x?}, got {:x?}",
+                    *this.arg,
+                    key
+                );
                 return Poll::Ready(Some(Ok(key)));
             }
 
@@ -367,7 +373,7 @@ impl Stream for KeyStream {
                     let cursor = *this.cursor;
                     let mut conn = this.conn.clone();
                     let fut = async move {
-                        let (cursor, keys) = redis::cmd("scan")
+                        let (cursor, keys) = redis::cmd("SCAN")
                             .cursor_arg(cursor)
                             .arg("MATCH")
                             .arg(arg.into_iter().chain(vec![b'*']).collect::<Vec<_>>())

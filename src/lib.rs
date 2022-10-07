@@ -35,7 +35,6 @@
 //! ## Layers
 //!
 //! - `layers-all`: Enable all layers support.
-//! - `layers-retry`: Enable operator retry support.
 //! - `layers-metrics`: Enable operator metrics support.
 //! - `layers-tracing`: Enable operator tracing support.
 //!
@@ -44,12 +43,11 @@
 //! - `services-ftp`: Enable ftp service support.
 //! - `services-hdfs`: Enable hdfs service support.
 //! - `services-ipfs`: Enable ipfs service support.
+//! - `services-redis`: Enable redis service support.
 //!
 //! ## Dependencies features
 //!
 //! - `compress`: Enable object decompress read support.
-//! - `rustls`: Use rustls instead openssl for https connection
-//! - `serde`: Implement serde::{Serialize,Deserialize} for ObjectMetadata.
 //!
 //! # Example
 //!
@@ -164,6 +162,7 @@ pub mod http_util;
 pub mod io_util;
 pub mod layers;
 pub use layers::Layer;
+pub mod adapters;
 pub mod ops;
 pub mod services;
 

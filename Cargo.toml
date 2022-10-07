@@ -18,10 +18,14 @@ all-features = true
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable serde support.
-serde = ["time/serde"]
+# DEPRECATED: we will enable serde by default.
+serde = []
 
 # Enable all layers.
-layers-all = ["layers-metrics", "layers-retry", "layers-tracing", "layers-metadata-cache"]
+layers-all = [
+  "layers-metrics",
+  "layers-tracing",
+]
 # Enable layers metrics support
 layers-metrics = ["metrics"]
 # Enable layers retry support.
@@ -30,7 +34,8 @@ layers-retry = []
 # Enable layers tracing support.
 layers-tracing = ["tracing"]
 # Enable layers metadata cache.
-layers-metadata-cache = ["bincode", "serde"]
+# DEPRECATED: we will enable this layer by default.
+layers-metadata-cache = []
 
 # Enable services hdfs support
 services-hdfs = ["hdrs"]
@@ -39,7 +44,7 @@ services-ftp = ["suppaftp"]
 # Enable services ipfs support
 services-ipfs = ["prost"]
 # Enable services redis support
-services-redis = ["redis", "bincode", "serde"]
+services-redis = ["redis"]
 
 [lib]
 bench = false
@@ -92,7 +97,7 @@ async-compression = { package = "async-compression-issue-150-workaround", versio
 async-trait = "0.1"
 backon = "0.2"
 base64 = "0.13"
-bincode = { version = "1", optional = true }
+bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1"
 dotenv = { version = "0.15", optional = true }
 flagset = "0.4"
@@ -109,7 +114,6 @@ pin-project = "1"
 prost = { version = "0.11", optional = true }
 quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
 redis = { version = "0.21", features = [
-  "r2d2",
   "tokio-comp",
   "connection-manager",
 ], optional = true }
@@ -123,7 +127,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 suppaftp = { version = "4", features = ["async-secure"], optional = true }
 thiserror = "1"
-time = "0.3"
+time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
 ureq = { version = "2", features = ["rustls-native-certs"] }

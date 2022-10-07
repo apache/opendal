@@ -23,8 +23,7 @@ use crate::ObjectMode;
 /// mode and content_length are required metadata that all services
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `ObjectEntry`'s content length could be `None`.
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectMetadata {
     mode: ObjectMode,
 
@@ -34,6 +33,10 @@ pub struct ObjectMetadata {
     /// - For `list` operation, content_length could be None.
     content_length: Option<u64>,
     content_md5: Option<String>,
+    /// # NOTE
+    ///
+    /// bincode::{Encode, Decode} is not implemented on OffsetDateTime.
+    /// We will convert it to (SystemTime, (h,m,s)) instead.
     last_modified: Option<OffsetDateTime>,
     etag: Option<String>,
 }

@@ -14,6 +14,12 @@
 
 //! Redis support for OpenDAL
 //!
+//! # Note
+//!
+//! The storage format for this service is not **stable** yet.
+//!
+//! PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
+//!
 //! # Configuration
 //!
 //! - `root`: Set the working directory of `OpenDAL`
@@ -72,7 +78,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let builder = redis::Builder::default();
+//!     let mut builder = redis::Builder::default();
 //!
 //!     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
 //!     let op: Operator = Operator::new(builder.build());
@@ -81,25 +87,6 @@
 //! }
 //! ```
 
-const REDIS_CONTENT_KEY_PREFIX_V0: &str = "v0:c:";
-const REDIS_META_KEY_PREFIX_V0: &str = "v0:m:";
-const REDIS_CHILDREN_KEY_PREFIX_V0: &str = "v0:k:";
-
-fn v0_content_prefix(abs_path: &str) -> String {
-    format!("{}{}", REDIS_CONTENT_KEY_PREFIX_V0, abs_path)
-}
-
-fn v0_meta_prefix(abs_path: &str) -> String {
-    format!("{}{}", REDIS_META_KEY_PREFIX_V0, abs_path)
-}
-
-fn v0_children_prefix(abs_path: &str) -> String {
-    format!("{}{}", REDIS_CHILDREN_KEY_PREFIX_V0, abs_path)
-}
-
 mod backend;
-mod dir_stream;
-mod error;
-
 pub use backend::Backend;
 pub use backend::Builder;

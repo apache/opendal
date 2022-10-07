@@ -334,11 +334,17 @@ impl Accessor for Backend {
                     } else {
                         m.set_mode(ObjectMode::FILE);
                     }
+                } else {
+                    // Some service will stream the output of DirIndex.
+                    // If we don't have an etag, it's highly to be a dir.
+                    m.set_mode(ObjectMode::DIR);
                 }
 
                 Ok(m)
             }
-            StatusCode::FOUND => Ok(ObjectMetadata::new(ObjectMode::DIR)),
+            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
+                Ok(ObjectMetadata::new(ObjectMode::DIR))
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Stat, path, er);

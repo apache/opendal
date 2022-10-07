@@ -12,27 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::KeyValueAccessor;
-use crate::Accessor;
-use crate::AccessorCapability;
-use crate::AccessorMetadata;
+//! Providing Key Value Adapter for OpenDAL.
+//!
+//! Any services that implement `Adapter` can be used an OpenDAL Service.
+//!
+//! # Notes
+//!
+//! This adapter creates a new storage format which is not stable.
+//!
+//! Any service that built upon this adapter should not be persisted.
 
-/// Backend of kv service.
-#[derive(Debug)]
-pub struct Backend<S: KeyValueAccessor> {
-    #[allow(dead_code)]
-    kv: S,
-}
+mod api;
+pub use api::Adapter;
+pub use api::KeyStreamer;
+pub use api::Metadata;
+use api::BLOCK_SIZE;
+use api::INODE_ROOT;
 
-impl<S> Accessor for Backend<S>
-where
-    S: KeyValueAccessor,
-{
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
-        am.set_capabilities(
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-        );
-        am
-    }
-}
+mod backend;
+pub use backend::Backend;
+
+mod key;
+pub use key::next_prefix;
+use key::Key;

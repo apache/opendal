@@ -27,8 +27,8 @@ jobs:
       - name: Start IPFS Daemon
         run: |
           ipfs daemon &
-      - name: IPFS add speed up tests
-        run: ipfs add -r ./testdata
+      - name: IPFS Add testdata
+        run: ipfs add -r --to-files ./testdata
 
       - name: Test
         shell: bash

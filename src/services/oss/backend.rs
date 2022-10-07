@@ -44,6 +44,7 @@ use crate::http_util::IncomingAsyncBody;
 use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
+use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
@@ -65,7 +66,7 @@ use super::error::parse_error;
 type AsyncReq = Request<AsyncBody>;
 type AsyncResp = Response<IncomingAsyncBody>;
 
-const OSS_DEFAULT_ENDPOINT_URL: &str = "https://oss-accelerate.aliyuncs.com";
+const OSS_DEFAULT_ENDPOINT_HOST: &str = "oss-accelerate.aliyuncs.com";
 
 /// Builder for Aliyun Object Storage Service
 #[derive(Default, Clone)]
@@ -99,7 +100,7 @@ impl Debug for Builder {
         }
 
         if self.secret_access_key.is_some() {
-            d.field("access_key_secret", &"<redacted>");
+            d.field("secret_access_key", &"<redacted>");
         }
 
         if self.role_arn.is_some() {
@@ -137,7 +138,7 @@ impl Builder {
 
     /// Set endpoint of this backend.
     ///
-    /// Endpoint must be full uri, e.g.
+    /// if the endpoint is set, the `region` field will be ignored.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
@@ -147,12 +148,15 @@ impl Builder {
         self
     }
 
-    /// Region represent the signing region of this endpoint.
+    /// Region represent the signing region and storage region of this endpoint.
     ///
-    /// - If region is set, we will take user's input first.
-    /// - If not, We will try to detect region via [RFC-0057: Auto Region](https://github.com/datafuselabs/opendal/blob/main/docs/rfcs/0057-auto-region.md).
+    /// The final endpoint will be set like: `https://<region>.aliyuncs.com`
     ///
-    /// Most of time, region is not need to be set, especially for AWS S3 and minio.
+    /// Please ensure the `region` is valid, like `oss-cn-hangzhou`, e.g.
+    ///
+    /// NOTE:
+    /// - if the `endpoint` field is set, the `region` field will be ignored
+    /// - if both of them are unset, the global oss accelerate endpoint will be used
     pub fn region(&mut self, region: &str) -> &mut Self {
         if !region.is_empty() {
             self.region = Some(region.to_string())
@@ -177,7 +181,7 @@ impl Builder {
     ///
     /// - If secret_access_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn access_key_secret(&mut self, v: &str) -> &mut Self {
+    pub fn secret_access_key(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.secret_access_key = Some(v.to_string())
         }
@@ -185,6 +189,7 @@ impl Builder {
         self
     }
 
+    /// Set the role of this backend
     pub fn role_arn(&mut self, role_arn: &str) -> &mut Self {
         if !role_arn.is_empty() {
             self.role_arn = Some(role_arn.to_string());
@@ -192,10 +197,17 @@ impl Builder {
         self
     }
 
+    /// Aliyun's temporary token support
     pub fn oidc_token(&mut self, token: &str) -> &mut Self {
         if !token.is_empty() {
             self.oidc_token = Some(token.to_string());
         }
+        self
+    }
+
+    /// Anonymously access the bucket.
+    pub fn allow_anonymous(&mut self) -> &mut Self {
+        self.allow_anonymous = true;
         self
     }
 
@@ -220,23 +232,34 @@ impl Builder {
         let mut context: HashMap<String, String> =
             HashMap::from([("bucket".to_string(), bucket.to_string())]);
 
-        let endpoint = self
-            .endpoint
-            .clone()
-            .unwrap_or_else(|| OSS_DEFAULT_ENDPOINT_URL.to_string());
+        let (endpoint, host) = match self.endpoint.clone() {
+            Some(ep) => {
+                let uri = ep.parse::<Uri>().map_err(|err| {
+                    new_other_backend_error(
+                        context.clone(),
+                        anyhow::anyhow!("invalid endpoint uri: {:?}", err),
+                    )
+                })?;
+                let host = uri.host().ok_or_else(|| {
+                    new_other_backend_error(
+                        context.clone(),
+                        anyhow::anyhow!("host should be valid"),
+                    )
+                })?;
+                (ep, host.to_string())
+            }
+            None => match self.region.clone() {
+                Some(rg) => {
+                    let host = format!("{}.aliyuncs.com", rg);
+                    (format!("https://{}", host), host)
+                }
+                None => (
+                    format!("https://{}", OSS_DEFAULT_ENDPOINT_HOST),
+                    OSS_DEFAULT_ENDPOINT_HOST.to_string(),
+                ),
+            },
+        };
         context.insert("endpoint".to_string(), endpoint.clone());
-
-        let uri = endpoint.parse::<Uri>().map_err(|err| {
-            new_other_backend_error(
-                context.clone(),
-                anyhow::anyhow!("invalid endpoint uri: {:?}", err),
-            )
-        })?;
-        let host = uri.host().ok_or({
-            new_other_backend_error(context.clone(), anyhow::anyhow!("host should be valid"))
-        })?;
-
-        let host = format!("{}.{}", bucket, host);
 
         let mut signer_builder = reqsign::services::aliyun::oss::Builder::default();
 
@@ -268,12 +291,12 @@ impl Builder {
             client: HttpClient::new(),
             bucket: self.bucket.clone(),
             signer: Arc::new(signer),
-            enable_internal_host_style: self.enable_internal_host_style,
         })
     }
 }
 
 #[derive(Clone)]
+/// Aliyun Object Storage Service backend
 pub struct Backend {
     client: HttpClient,
 
@@ -285,8 +308,6 @@ pub struct Backend {
     host: String,
     endpoint: String,
     signer: Arc<Signer>,
-
-    enable_internal_host_style: bool,
 }
 
 impl Debug for Backend {
@@ -296,15 +317,12 @@ impl Debug for Backend {
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
             .field("host", &self.host)
-            .field(
-                "enable_internal_host_style",
-                &self.enable_internal_host_style.to_string(),
-            )
             .finish()
     }
 }
 
 impl Backend {
+    /// The builder of OSS backend
     pub fn builder() -> Builder {
         Builder::default()
     }
@@ -320,9 +338,10 @@ impl Backend {
                 "region" => builder.region(v),
 
                 "access_key_id" => builder.access_key_id(v),
-                "access_key_secret" => builder.access_key_secret(v),
+                "secret_access_key" => builder.secret_access_key(v),
                 "oidc_token" => builder.oidc_token(v),
                 "role_arn" => builder.role_arn(v),
+                "allow_anonymous" => builder.allow_anonymous(),
                 _ => continue,
             };
         }
@@ -469,6 +488,11 @@ impl Backend {
         let req = self.list_object_request(path, token)?;
         self.sign_and_send(req, Operation::List, path).await
     }
+
+    async fn delete_object(&self, path: &str) -> Result<AsyncResp> {
+        let req = self.delete_object_request(path)?;
+        self.sign_and_send(req, Operation::Delete, path).await
+    }
     async fn sign_and_send(
         &self,
         mut req: Request<AsyncBody>,
@@ -599,6 +623,20 @@ impl Accessor for Backend {
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Stat, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
+        let resp = self.delete_object(&p).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Delete, path, er);
                 Err(err)
             }
         }

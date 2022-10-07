@@ -41,6 +41,7 @@ use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpList;
@@ -53,9 +54,9 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 use super::dir_stream::DirStream;
@@ -66,6 +67,7 @@ type AsyncResp = Response<IncomingAsyncBody>;
 
 const OSS_DEFAULT_ENDPOINT_URL: &str = "https://oss-accelerate.aliyuncs.com";
 
+/// Builder for Aliyun Object Storage Service
 #[derive(Default, Clone)]
 pub struct Builder {
     root: Option<String>,
@@ -81,8 +83,6 @@ pub struct Builder {
     oidc_token: Option<String>,
 
     allow_anonymous: bool,
-
-    enable_internal_host_style: bool,
 }
 
 impl Debug for Builder {
@@ -92,11 +92,7 @@ impl Debug for Builder {
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
             .field("region", &self.region)
-            .field("allow_anonymous", &self.allow_anonymous.to_string())
-            .field(
-                "enable_internal_host_style",
-                &self.enable_internal_host_style.to_string(),
-            );
+            .field("allow_anonymous", &self.allow_anonymous.to_string());
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
@@ -177,7 +173,7 @@ impl Builder {
         self
     }
 
-    /// Set  of this backend.
+    /// Set access_key_secret of this backend.
     ///
     /// - If secret_access_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
@@ -186,11 +182,6 @@ impl Builder {
             self.secret_access_key = Some(v.to_string())
         }
 
-        self
-    }
-
-    pub fn enable_internal_host_style(&mut self) -> &mut Self {
-        self.enable_internal_host_style = true;
         self
     }
 
@@ -613,11 +604,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
-        Ok(Box::new(DirStream::new(
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
             path,
-        )))
+        ))))
     }
 }

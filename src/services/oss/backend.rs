@@ -28,6 +28,7 @@ use reqsign::services::aliyun::oss::Signer;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::uri::percent_encode_path;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
@@ -39,7 +40,6 @@ use crate::http_util::parse_content_length;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
-use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
@@ -62,23 +62,17 @@ use crate::ObjectMode;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
-type AsyncReq = Request<AsyncBody>;
-type AsyncResp = Response<IncomingAsyncBody>;
-
-const OSS_DEFAULT_ENDPOINT_HOST: &str = "oss-accelerate.aliyuncs.com";
-
 /// Builder for Aliyun Object Storage Service
 #[derive(Default, Clone)]
 pub struct Builder {
     root: Option<String>,
 
-    region: Option<String>,
     endpoint: Option<String>,
     bucket: String,
 
     // authenticate options
     access_key_id: Option<String>,
-    secret_access_key: Option<String>,
+    access_key_secret: Option<String>,
     role_arn: Option<String>,
     oidc_token: Option<String>,
 
@@ -91,15 +85,14 @@ impl Debug for Builder {
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("region", &self.region)
             .field("allow_anonymous", &self.allow_anonymous.to_string());
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
         }
 
-        if self.secret_access_key.is_some() {
-            d.field("secret_access_key", &"<redacted>");
+        if self.access_key_secret.is_some() {
+            d.field("access_key_secret", &"<redacted>");
         }
 
         if self.role_arn.is_some() {
@@ -136,29 +129,10 @@ impl Builder {
     }
 
     /// Set endpoint of this backend.
-    ///
-    /// if the endpoint is set, the `region` field will be ignored.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.endpoint = Some(endpoint.trim_end_matches('/').to_string())
-        }
-
-        self
-    }
-
-    /// Region represent the signing region and storage region of this endpoint.
-    ///
-    /// The final endpoint will be set like: `https://<region>.aliyuncs.com`
-    ///
-    /// Please ensure the `region` is valid, like `oss-cn-hangzhou`, e.g.
-    ///
-    /// NOTE:
-    /// - if the `endpoint` field is set, the `region` field will be ignored
-    /// - if both of them are unset, the global oss accelerate endpoint will be used
-    pub fn region(&mut self, region: &str) -> &mut Self {
-        if !region.is_empty() {
-            self.region = Some(region.to_string())
         }
 
         self
@@ -178,11 +152,11 @@ impl Builder {
 
     /// Set access_key_secret of this backend.
     ///
-    /// - If secret_access_key is set, we will take user's input first.
+    /// - If access_key_secret is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
-    pub fn secret_access_key(&mut self, v: &str) -> &mut Self {
+    pub fn access_key_secret(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
-            self.secret_access_key = Some(v.to_string())
+            self.access_key_secret = Some(v.to_string())
         }
 
         self
@@ -246,19 +220,16 @@ impl Builder {
                     )
                 })?;
                 let full_host = format!("{}.{}", bucket, host);
-                let ep = format!("https://{}", full_host);
-                (ep, full_host)
+                let endpoint = format!("https://{}", host);
+                (endpoint, full_host)
             }
-            None => match self.region.clone() {
-                Some(rg) => {
-                    let host = format!("{}.{}.aliyuncs.com", bucket, rg);
-                    (format!("https://{}", host), host)
-                }
-                None => {
-                    let host = format!("{}.{}", bucket, OSS_DEFAULT_ENDPOINT_HOST);
-                    (format!("https://{}", host), host)
-                }
-            },
+            None => {
+                let err = new_other_backend_error(
+                    context.clone(),
+                    anyhow::anyhow!("endpoint or region could not be empty!"),
+                );
+                return Err(err);
+            }
         };
         context.insert("endpoint".to_string(), endpoint.clone());
 
@@ -268,9 +239,9 @@ impl Builder {
             signer_builder.allow_anonymous();
         }
 
-        signer_builder.bucket(&bucket);
+        signer_builder.bucket(bucket);
 
-        if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
+        if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.access_key_secret) {
             signer_builder.access_key_id(ak);
             signer_builder.access_key_secret(sk);
         }
@@ -338,10 +309,9 @@ impl Backend {
                 "root" => builder.root(v),
                 "bucket" => builder.bucket(v),
                 "endpoint" => builder.endpoint(v),
-                "region" => builder.region(v),
 
                 "access_key_id" => builder.access_key_id(v),
-                "secret_access_key" => builder.secret_access_key(v),
+                "access_key_secret" => builder.access_key_secret(v),
                 "oidc_token" => builder.oidc_token(v),
                 "role_arn" => builder.role_arn(v),
                 "allow_anonymous" => builder.allow_anonymous(),
@@ -353,12 +323,12 @@ impl Backend {
 }
 
 impl Backend {
-    fn put_object_request(
+    fn oss_put_object_request(
         &self,
         path: &str,
         size: Option<u64>,
         body: AsyncBody,
-    ) -> Result<AsyncReq> {
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -382,12 +352,12 @@ impl Backend {
         Ok(req)
     }
 
-    fn get_object_request(
+    fn oss_get_object_request(
         &self,
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<AsyncReq> {
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -410,7 +380,7 @@ impl Backend {
         Ok(req)
     }
 
-    fn delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn oss_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -428,7 +398,7 @@ impl Backend {
         Ok(req)
     }
 
-    fn head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn oss_head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -446,11 +416,11 @@ impl Backend {
         Ok(req)
     }
 
-    fn list_object_request(&self, path: &str, token: String) -> Result<AsyncReq> {
+    fn oss_list_object_request(&self, path: &str, token: String) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/?list-type=2&delimiter=/&prefix={}&continuation-token={}",
+            "{}/?list-type=2&delimiter=%2F&prefix={}&continuation-token={}",
             self.endpoint,
             percent_encode_path(&p),
             token
@@ -466,49 +436,77 @@ impl Backend {
         Ok(req)
     }
 
-    async fn get_object(
+    async fn oss_get_object(
         &self,
         path: &str,
         offset: Option<u64>,
         size: Option<u64>,
-    ) -> Result<AsyncResp> {
-        let req = self.get_object_request(path, offset, size)?;
-
-        self.sign_and_send(req, Operation::Read, path).await
-    }
-
-    async fn put_object(&self, path: &str) -> Result<AsyncResp> {
-        let req = self.put_object_request(path, Some(0), AsyncBody::Empty)?;
-        self.sign_and_send(req, Operation::Create, path).await
-    }
-
-    async fn stat_object(&self, path: &str) -> Result<AsyncResp> {
-        let req = self.head_object_request(path)?;
-        self.sign_and_send(req, Operation::Stat, path).await
-    }
-
-    pub(super) async fn list_object(&self, path: &str, token: String) -> Result<AsyncResp> {
-        let req = self.list_object_request(path, token)?;
-        self.sign_and_send(req, Operation::List, path).await
-    }
-
-    async fn delete_object(&self, path: &str) -> Result<AsyncResp> {
-        let req = self.delete_object_request(path)?;
-        self.sign_and_send(req, Operation::Delete, path).await
-    }
-    async fn sign_and_send(
-        &self,
-        mut req: Request<AsyncBody>,
-        op: Operation,
-        path: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.oss_get_object_request(path, offset, size)?;
+
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(op, path, e))?;
+            .map_err(|e| new_request_sign_error(Operation::Read, path, e))?;
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(op, path, e))
+            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+    }
+
+    async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.oss_head_object_request(path)?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::Stat, path, e))?;
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+    }
+
+    async fn oss_put_object(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.oss_put_object_request(path, size, body)?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::Write, path, e))
+    }
+
+    pub(super) async fn oss_list_object(
+        &self,
+        path: &str,
+        token: String,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.oss_list_object_request(path, token)?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::List, path, e))?;
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::List, path, e))
+    }
+
+    async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+        let mut req = self.oss_delete_object_request(path)?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::Delete, path, e))?;
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
 }
 
@@ -526,7 +524,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let resp = self.put_object(path).await?;
+        let resp = self.oss_put_object(path, None, AsyncBody::Empty).await?;
         let status = resp.status();
 
         match status {
@@ -546,7 +544,9 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let resp = self.get_object(path, args.offset(), args.size()).await?;
+        let resp = self
+            .oss_get_object(path, args.offset(), args.size())
+            .await?;
 
         let status = resp.status();
 
@@ -561,8 +561,9 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let req = self.put_object_request(path, Some(args.size()), AsyncBody::Reader(r))?;
-        let resp = self.sign_and_send(req, Operation::Write, path).await?;
+        let resp = self
+            .oss_put_object(path, Some(args.size()), AsyncBody::Reader(r))
+            .await?;
 
         let status = resp.status();
         match status {
@@ -588,7 +589,7 @@ impl Accessor for Backend {
             return Ok(m);
         }
 
-        let resp = self.stat_object(path).await?;
+        let resp = self.oss_head_object(path).await?;
         let status = resp.status();
 
         match status {
@@ -616,9 +617,32 @@ impl Accessor for Backend {
                 {
                     m.set_last_modified(v);
                 }
+                match resp.headers().get("Content-Md5") {
+                    Some(v) => {
+                        m.set_content_md5(
+                            v.to_str()
+                                .map_err(|e| new_other_object_error(Operation::Stat, path, e))?,
+                        );
+                    }
+                    None => {
+                        return Err(new_other_object_error(
+                            Operation::Stat,
+                            path,
+                            anyhow::anyhow!("expected Content-Md5 header"),
+                        ))
+                    }
+                }
+                resp.into_body()
+                    .consume()
+                    .await
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
                 Ok(m)
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
+                resp.into_body()
+                    .consume()
+                    .await
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
                 let m = ObjectMetadata::new(ObjectMode::DIR);
                 Ok(m)
             }
@@ -633,10 +657,16 @@ impl Accessor for Backend {
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
         let p = build_abs_path(&self.root, path);
-        let resp = self.delete_object(&p).await?;
+        let resp = self.obs_delete_object(&p).await?;
         let status = resp.status();
         match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
+                resp.into_body()
+                    .consume()
+                    .await
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                Ok(())
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Delete, path, er);

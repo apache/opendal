@@ -67,14 +67,10 @@ impl ObjectPageStream for DirStream {
 
         let resp = self
             .backend
-            .list_object(&self.path, self.token.clone())
+            .oss_list_object(&self.path, self.token.clone())
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            if resp.status() == http::StatusCode::NOT_FOUND {
-                self.done = true;
-                return Ok(None);
-            }
             let er = parse_error_response(resp).await?;
             let err = parse_error(Operation::List, &self.path, er);
             return Err(err);

@@ -16,6 +16,7 @@
 use std::env;
 
 use anyhow::Result;
+use futures::StreamExt;
 use log::info;
 use opendal::services::oss;
 use opendal::services::oss::Builder;
@@ -35,8 +36,7 @@ Available Environment Values:
 
 - OPENDAL_OSS_ROOT: root path, default: /
 - OPENDAL_OSS_BUCKET: bukcet name, required.
-- OPENDAL_OSS_ENDPOINT: endpoint of oss service, default: https://oss-accelerate.aliyuncs.com
-- OPENDAL_OSS_REGION: region of oss service
+- OPENDAL_OSS_ENDPOINT: endpoint of oss service, for example: https://oss-accelerate.aliyuncs.com
 - OPENDAL_OSS_ACCESS_KEY_ID: access key id of oss service, could be auto detected.
 - OPENDAL_OSS_SECRET_ACCESS_KEY: secret access key of oss service, could be auto detected.
     "#
@@ -58,10 +58,6 @@ Available Environment Values:
     //
     // Default to "https://oss-accelerate.aliyuncs.com"
     builder.endpoint(&env::var("OPENDAL_OSS_ENDPOINT").unwrap_or_default());
-    // Set the region in we have this env.
-    if let Ok(region) = env::var("OPENDAL_OSS_REGION") {
-        builder.region(&region);
-    }
     // Set the credential.
     //
     // OpenDAL will try load credential from the env.
@@ -70,16 +66,19 @@ Available Environment Values:
     builder.access_key_id(
         &env::var("OPENDAL_OSS_ACCESS_KEY_ID").expect("env OPENDAL_OSS_ACCESS_KEY_ID not set"),
     );
-    builder.secret_access_key(
-        &env::var("OPENDAL_OSS_SECRET_ACCESS_KEY")
-            .expect("env OPENDAL_OSS_SECRET_ACCESS_KEY not set"),
+    builder.access_key_secret(
+        &env::var("OPENDAL_OSS_ACCESS_KEY_SECRET")
+            .expect("env OPENDAL_OSS_ACCESS_KEY_SECRET not set"),
     );
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder.build()?);
     info!("operator: {:?}", op);
 
-    let path = uuid::Uuid::new_v4().to_string();
+    let dir = uuid::Uuid::new_v4().to_string();
+    let p = uuid::Uuid::new_v4().to_string();
+
+    let path = format!("{}/{}", dir, p);
 
     // Create an object handle to start operation on object.
     info!("try to write file: {}", &path);
@@ -92,6 +91,13 @@ Available Environment Values:
         "read file successful, content: {}",
         String::from_utf8_lossy(&content)
     );
+
+    info!("try to list file under: {}/", &dir);
+    let mut s = op.object(&(dir + "/")).list().await?;
+    while let Some(p) = s.next().await {
+        info!("listed: {:?}", p);
+    }
+    info!("list file successful!");
 
     info!("try to get file metadata: {}", &path);
     let meta = op.object(&path).metadata().await?;

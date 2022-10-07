@@ -19,7 +19,6 @@
 //! - `root`: Set the work dir for backend.
 //! - `bucket`: Set the container name for backend.
 //! - `endpoint`: Set the endpoint for backend.
-//! - `region`: Set the region for backend.
 //! - `access_key_id`: Set the access_key_id for backend.
 //! - `secret_access_key`: Set the secret_access_key for backend. (refered as `access_key_secret` in OSS documentation)
 //! - `role_arn`: Set the role of backend.
@@ -33,7 +32,6 @@
 //! - `OPENDAL_OSS_ROOT`
 //! - `OPENDAL_OSS_BUCKET`
 //! - `OPENDAL_OSS_ENDPOINT`
-//! - `OPENDAL_OSS_REGION`
 //! - `OPENDAL_OSS_ACCESS_KEY_ID`
 //! - `OPENDAL_OSS_SECRET_ACCESS_KEY`
 //! - `OPENDAL_OSS_ROLE_ARN`
@@ -99,16 +97,14 @@
 //!     // For example:
 //!     // - "https://oss-ap-northeast-1.aliyuncs.com"
 //!     // - "https://oss-hangzhou.aliyuncs.com"
-//!     //
-//!     // Default to "https://oss-accelerate.amazonaws.com"
-//!     builder.endpoint("https://s3.amazonaws.com");
+//!     builder.endpoint("https://oss-cn-beijing.aliyuncs.com");
 //!     // Set the access_key_id and secret_access_key.
 //!     //
 //!     // OpenDAL will try load credential from the env.
 //!     // If credential not set and no valid credential in env, OpenDAL will
 //!     // send request without signing like anonymous user.
 //!     builder.access_key_id("access_key_id");
-//!     builder.secret_access_key("secret_access_key");
+//!     builder.access_key_secret("secret_access_key");
 //!
 //!     let op: Operator = Operator::new(builder.build()?);
 //!
@@ -124,3 +120,4 @@ pub use backend::Backend;
 pub use backend::Builder;
 mod dir_stream;
 mod error;
+mod uri;

@@ -28,7 +28,7 @@ jobs:
         run: |
           ipfs daemon &
       - name: IPFS Add testdata
-        run: ipfs add -r --to-files ./testdata
+        run: ipfs add -r ./testdata --to-files /opendal-testdata
 
       - name: Test
         shell: bash

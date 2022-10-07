@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{io::Result, sync::Arc};
+use std::io::Result;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -29,7 +30,9 @@ use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
-use crate::{ObjectEntry, ObjectMetadata, ObjectMode};
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 
 pub struct DirStream {
     backend: Arc<Backend>,

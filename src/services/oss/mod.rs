@@ -52,7 +52,7 @@
 //! export OPENDAL_OSS_ENDPOINT=https://oss-cn-beijing.aliyuncs.com
 //! export OPENDAL_OSS_ACCESS_KEY_ID=access_key_id
 //! export OPENDAL_OSS_SECRET_ACCESS_KEY=secret_access_key
-//!```
+//! ```
 //!
 //! ```no_run
 //! use std::sync::Arc;
@@ -71,7 +71,7 @@
 //!
 //!     Ok(())
 //! }
-//!```
+//! ```
 //!
 //! ## Via Builder
 //!

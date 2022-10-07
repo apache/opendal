@@ -26,6 +26,8 @@ use http::StatusCode;
 use http::Uri;
 use reqsign::services::aliyun::oss::Signer;
 
+use super::dir_stream::DirStream;
+use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
@@ -59,9 +61,6 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
 use crate::Scheme;
-
-use super::dir_stream::DirStream;
-use super::error::parse_error;
 
 type AsyncReq = Request<AsyncBody>;
 type AsyncResp = Response<IncomingAsyncBody>;

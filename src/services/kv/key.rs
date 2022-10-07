@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
-use std::io::{Error, ErrorKind, Result};
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::mem::size_of;
+
+use anyhow::anyhow;
 
 /// ScopedKey is the key for different key that we used to implement OpenDAL
 /// service upon kv service.

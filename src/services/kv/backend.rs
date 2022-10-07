@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use super::KeyValueAccessor;
-use crate::{Accessor, AccessorCapability, AccessorMetadata};
+use crate::Accessor;
+use crate::AccessorCapability;
+use crate::AccessorMetadata;
 
 /// Backend of kv service.
 #[derive(Debug)]

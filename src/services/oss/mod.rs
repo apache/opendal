@@ -64,7 +64,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::OSS)?;
+//!     let op: Operator = Operator::from_env(Scheme::Oss)?;
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

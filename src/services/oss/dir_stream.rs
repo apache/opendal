@@ -12,28 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::pin::Pin;
-use std::{io::Result, sync::Arc, task::Poll};
+use std::{io::Result, sync::Arc};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use bytes::{Buf, Bytes};
-use futures::future::Future;
-use futures::{future::BoxFuture, ready, Stream};
+use bytes::Buf;
 use quick_xml::de;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
+use super::backend::Backend;
+use super::error::parse_error;
 use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::{ObjectEntry, ObjectMetadata, ObjectMode};
-
-use super::backend::Backend;
-use super::error::parse_error;
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -43,13 +39,6 @@ pub struct DirStream {
     token: String,
 
     done: bool,
-    state: State,
-}
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<Bytes>>),
-    Listing((ListBucketOutput, usize, usize)),
 }
 
 impl DirStream {
@@ -62,7 +51,6 @@ impl DirStream {
             token: "".to_string(),
 
             done: false,
-            state: State::Idle,
         }
     }
 }

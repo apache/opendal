@@ -57,10 +57,7 @@ Available Environment Values:
     // - "https://oss-cn-hangzhou.aliyuncs.com"
     //
     // Default to "https://oss-accelerate.aliyuncs.com"
-    builder.endpoint(
-        &env::var("OPENDAL_OSS_ENDPOINT")
-            .unwrap_or_else(|_| "https://oss-accelerate.aliyuncs.com".to_string()),
-    );
+    builder.endpoint(&env::var("OPENDAL_OSS_ENDPOINT").unwrap_or_default());
     // Set the region in we have this env.
     if let Ok(region) = env::var("OPENDAL_OSS_REGION") {
         builder.region(&region);

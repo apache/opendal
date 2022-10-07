@@ -246,17 +246,19 @@ impl Builder {
                         anyhow::anyhow!("host should be valid"),
                     )
                 })?;
-                (ep, host.to_string())
+                let full_host = format!("{}.{}", bucket, host);
+                let ep = format!("https://{}", full_host);
+                (ep, full_host)
             }
             None => match self.region.clone() {
                 Some(rg) => {
-                    let host = format!("{}.aliyuncs.com", rg);
+                    let host = format!("{}.{}.aliyuncs.com", bucket, rg);
                     (format!("https://{}", host), host)
                 }
-                None => (
-                    format!("https://{}", OSS_DEFAULT_ENDPOINT_HOST),
-                    OSS_DEFAULT_ENDPOINT_HOST.to_string(),
-                ),
+                None => {
+                    let host = format!("{}.{}", bucket, OSS_DEFAULT_ENDPOINT_HOST);
+                    (format!("https://{}", host), host)
+                }
             },
         };
         context.insert("endpoint".to_string(), endpoint.clone());
@@ -266,6 +268,8 @@ impl Builder {
         if self.allow_anonymous {
             signer_builder.allow_anonymous();
         }
+
+        signer_builder.bucket(&bucket);
 
         if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
             signer_builder.access_key_id(ak);

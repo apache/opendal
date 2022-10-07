@@ -334,6 +334,10 @@ impl Accessor for Backend {
                     } else {
                         m.set_mode(ObjectMode::FILE);
                     }
+                } else {
+                    // Some service will stream the output of DirIndex.
+                    // If we don't have an etag, it's highly to be a dir.
+                    m.set_mode(ObjectMode::DIR);
                 }
 
                 Ok(m)

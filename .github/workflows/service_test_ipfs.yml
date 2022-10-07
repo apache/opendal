@@ -23,14 +23,12 @@ jobs:
         uses: ibnesayeed/setup-ipfs@cacf727ab8eae418dc4a2534c2c2c19343021c7c
         id: ipfs_setup
         with:
-          # ipfs v0.15 seems can't pass our tests, need investigate.
-          ipfs_version: "v0.14.0"
+          ipfs_version: "v0.16.0"
       - name: Start IPFS Daemon
         run: |
-          ipfs config --json Gateway.NoFetch true
           ipfs daemon &
-      - name: IPFS add speed up tests
-        run: ipfs add -r ./testdata
+      - name: IPFS Add testdata
+        run: ipfs add -r ./testdata --to-files /opendal-testdata
 
       - name: Test
         shell: bash

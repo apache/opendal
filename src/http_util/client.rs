@@ -23,6 +23,7 @@ use std::str::FromStr;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use reqwest::redirect::Policy;
 use reqwest::ClientBuilder;
 use reqwest::Url;
 
@@ -63,6 +64,8 @@ impl HttpClient {
             builder = builder.no_brotli();
             // Make sure we don't enable auto deflate decompress.
             builder = builder.no_deflate();
+            // Redirect will be handled by ourselves.
+            builder = builder.redirect(Policy::none());
 
             builder.build().expect("reqwest client must build succeed")
         };

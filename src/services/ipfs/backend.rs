@@ -338,7 +338,9 @@ impl Accessor for Backend {
 
                 Ok(m)
             }
-            StatusCode::FOUND => Ok(ObjectMetadata::new(ObjectMode::DIR)),
+            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
+                Ok(ObjectMetadata::new(ObjectMode::DIR))
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Stat, path, er);

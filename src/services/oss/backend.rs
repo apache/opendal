@@ -640,7 +640,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        let resp = self.obs_delete_object(&path).await?;
+        let resp = self.obs_delete_object(path).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {

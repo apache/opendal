@@ -38,7 +38,7 @@ Available Environment Values:
 - OPENDAL_OSS_BUCKET: bukcet name, required.
 - OPENDAL_OSS_ENDPOINT: endpoint of oss service, for example: https://oss-accelerate.aliyuncs.com
 - OPENDAL_OSS_ACCESS_KEY_ID: access key id of oss service, could be auto detected.
-- OPENDAL_OSS_SECRET_ACCESS_KEY: secret access key of oss service, could be auto detected.
+- OPENDAL_OSS_ACCESS_KEY_SECRET: secret access key of oss service, could be auto detected.
     "#
     );
 
@@ -55,8 +55,6 @@ Available Environment Values:
     // For examples:
     // - "https://oss-ap-northeast-1.aliyuncs.com"
     // - "https://oss-cn-hangzhou.aliyuncs.com"
-    //
-    // Default to "https://oss-accelerate.aliyuncs.com"
     builder.endpoint(&env::var("OPENDAL_OSS_ENDPOINT").unwrap_or_default());
     // Set the credential.
     //

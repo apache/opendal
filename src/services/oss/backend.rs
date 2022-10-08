@@ -648,15 +648,14 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
-        let resp = self.obs_delete_object(&p).await?;
+        let resp = self.obs_delete_object(&path).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
                 resp.into_body()
                     .consume()
                     .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                    .map_err(|err| new_response_consume_error(Operation::Delete, path, err))?;
                 Ok(())
             }
             _ => {

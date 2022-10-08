@@ -121,12 +121,12 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
-    let mut expected: Vec<String> = (0..=1000).map(|num| format!("x/file-{}", num)).collect();
+    let mut expected: Vec<String> = (0..=1000).map(|num| format!("test_list_rich_dir/file-{}", num)).collect();
     for path in expected.iter() {
         op.object(path).create().await?;
     }
 
-    let mut objects = op.object("x/").list().await?;
+    let mut objects = op.object("test_list_rich_dir/").list().await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
         let path = o.path().to_string();
@@ -137,7 +137,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
     assert_eq!(actual, expected);
 
-    op.batch().remove_all("x/").await?;
+    op.batch().remove_all("test_list_rich_dir/").await?;
     Ok(())
 }
 

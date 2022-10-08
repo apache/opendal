@@ -26,7 +26,7 @@ use crate::Object;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 
-/// ObjectEntry is returned by [`ObjectStream`][crate::ObjectStream] or [`ObjectIterate`][crate::ObjectIterate] during object list.
+/// ObjectEntry is returned by `ObjectStream` or `ObjectIterate` during object list.
 ///
 /// Users can check returning object entry's mode or convert into an object without overhead.
 #[derive(Debug)]

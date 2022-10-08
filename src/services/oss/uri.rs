@@ -41,7 +41,7 @@ pub(super) fn percent_encode_path_hard(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::percent_encode_path_hard;
     use crate::http_util::percent_encode_path;
 
     #[test]

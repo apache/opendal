@@ -14,12 +14,12 @@
 
 use std::io::Result;
 
-use crate::Accessor;
 use log::info;
 
 use super::backend::Backend;
 use crate::http_util::HttpClient;
 use crate::path::normalize_root;
+use crate::Accessor;
 
 /// Builder for service ipfs.
 #[derive(Default, Debug)]

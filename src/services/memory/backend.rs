@@ -29,7 +29,8 @@ use parking_lot::Mutex;
 
 use crate::adapters::kv;
 use crate::adapters::kv::next_prefix;
-use crate::{Accessor, Scheme};
+use crate::Accessor;
+use crate::Scheme;
 
 /// Builder for memory backend
 #[derive(Default)]

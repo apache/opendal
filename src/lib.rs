@@ -135,24 +135,12 @@ pub use operator::Operator;
 mod object;
 pub use object::Object;
 pub use object::ObjectEntry;
-#[deprecated(since = "0.18.0", note = "Please use ObjectEntry instead")]
-pub use object::ObjectEntry as DirEntry;
-pub use object::ObjectIterate;
-#[deprecated(since = "0.18.0", note = "Please use ObjectIterate instead")]
-pub use object::ObjectIterate as DirIterate;
 pub use object::ObjectIterator;
-#[deprecated(since = "0.18.0", note = "Please use ObjectIterator instead")]
-pub use object::ObjectIterator as DirIterator;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
 pub use object::ObjectMultipart;
 pub use object::ObjectPart;
-pub use object::ObjectStream;
-#[deprecated(since = "0.18.0", note = "Please use ObjectStream instead")]
-pub use object::ObjectStream as DirStream;
 pub use object::ObjectStreamer;
-#[deprecated(since = "0.18.0", note = "Please use ObjectStreamer instead")]
-pub use object::ObjectStreamer as DirStreamer;
 
 mod scheme;
 pub use scheme::Scheme;

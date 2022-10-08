@@ -20,8 +20,7 @@ mod mode;
 pub use mode::ObjectMode;
 
 mod iterate;
-pub(crate) use iterate::EmptyObjectIterator;
-pub use iterate::ObjectIterate;
+pub use iterate::EmptyObjectIterator;
 pub use iterate::ObjectIterator;
 
 mod metadata;
@@ -39,5 +38,4 @@ mod stream;
 pub use stream::EmptyObjectStreamer;
 pub use stream::ObjectPageStream;
 pub use stream::ObjectPageStreamer;
-pub use stream::ObjectStream;
 pub use stream::ObjectStreamer;

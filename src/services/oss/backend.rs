@@ -21,7 +21,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
-use http::header;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -33,6 +32,8 @@ use http::Uri;
 use quick_xml::de;
 use quick_xml::se;
 use reqsign::services::aliyun::oss::Signer;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
@@ -66,7 +67,6 @@ use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
-use crate::services::oss::uri::percent_encode_path_hard;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -546,12 +546,13 @@ impl Backend {
             part_number,
             upload_id
         );
-        let mut req = Request::put(url)
+        let mut req = Request::put(url);
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size);
+        }
+        let mut req = req
             .body(body)
             .map_err(|e| new_request_build_error(Operation::WriteMultipart, path, e))?;
-        if let Some(size) = size {
-            req.header(CONTENT_LENGTH, size);
-        }
         self.signer
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Operation::WriteMultipart, path, e))?;
@@ -591,9 +592,10 @@ impl Backend {
             )
         })?;
 
+        let length = content.len();
         let body = AsyncBody::Bytes(Bytes::from(content));
         let mut req = Request::post(url)
-            .header(CONTENT_LENGTH, content.len())
+            .header(CONTENT_LENGTH, length)
             .header(CONTENT_TYPE, "application/xml")
             .body(body)
             .map_err(|e| new_request_build_error(Operation::CompleteMultipart, path, e))?;
@@ -855,6 +857,7 @@ impl Accessor for Backend {
                 AsyncBody::Reader(r),
             )
             .await?;
+        let status = resp.status();
 
         match status {
             StatusCode::OK => {
@@ -885,7 +888,7 @@ impl Accessor for Backend {
 
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         let resp = self
-            .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
+            .oss_complete_multipart_upload(path, args.upload_id(), args.parts())
             .await?;
 
         let status = resp.status();
@@ -908,7 +911,7 @@ impl Accessor for Backend {
 
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         let resp = self
-            .s3_abort_multipart_upload(path, args.upload_id())
+            .oss_abort_multipart_upload(path, args.upload_id())
             .await?;
 
         let status = resp.status();
@@ -945,9 +948,30 @@ struct CompleteMultipartUploadRequest {
 }
 
 #[derive(Clone, Debug, Deserialize, Default)]
-#[serde(rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+#[serde(rename = "InitiateMultipartUploadResult", rename_all = "PascalCase")]
 struct InitiateMultipartUploadResult {
     bucket: String,
     key: String,
     upload_id: String,
+}
+
+#[cfg(test)]
+mod parsing_test {
+    use crate::services::oss::backend::InitiateMultipartUploadResult;
+    use quick_xml::de;
+
+    #[test]
+    fn test_init_multipart_upload() {
+        let resp = r#"<?xml version="1.0" encoding="UTF-8"?>
+<InitiateMultipartUploadResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
+    <Bucket>oss-example</Bucket>
+    <Key>multipart.data</Key>
+    <UploadId>0004B9894A22E5B1888A1E29F823****</UploadId>
+</InitiateMultipartUploadResult>"#;
+
+        let parsed: InitiateMultipartUploadResult = de::from_str(resp).expect("must success");
+        assert_eq!(parsed.bucket, "oss-example");
+        assert_eq!(parsed.key, "multipart.data");
+        assert_eq!(parsed.upload_id, "0004B9894A22E5B1888A1E29F823****");
+    }
 }

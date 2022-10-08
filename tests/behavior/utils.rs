@@ -40,7 +40,9 @@ pub fn init_service(scheme: Scheme, random_root: bool) -> Option<Operator> {
         })
         .collect::<HashMap<String, String>>();
 
-    if cfg.get("test").cloned().unwrap_or_default() != "on" {
+    let turn_on_test = cfg.get("test").cloned().unwrap_or_default();
+
+    if turn_on_test != "on" && turn_on_test != "true" {
         return None;
     }
 

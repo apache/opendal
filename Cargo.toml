@@ -22,10 +22,7 @@ compress = ["async-compression"]
 serde = []
 
 # Enable all layers.
-layers-all = [
-  "layers-metrics",
-  "layers-tracing",
-]
+layers-all = ["layers-metrics", "layers-tracing"]
 # Enable layers metrics support
 layers-metrics = ["metrics"]
 # Enable layers retry support.
@@ -126,7 +123,7 @@ reqwest = { version = "0.11", features = [
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-suppaftp = { version = "4", features = ["async-secure"], optional = true }
+suppaftp = { version = "=4.4", features = ["async-secure"], optional = true }
 thiserror = "1"
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }

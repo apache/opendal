@@ -140,6 +140,7 @@ impl Operator {
             Scheme::Redis => services::redis::Backend::from_iter(it)?.into(),
             Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
             Scheme::Obs => services::obs::Backend::from_iter(it)?.into(),
+            Scheme::Oss => services::oss::Backend::from_iter(it)?.into(),
             Scheme::Custom(v) => {
                 return Err(new_other_backend_error(
                     HashMap::default(),

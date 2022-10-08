@@ -35,7 +35,6 @@ use super::uri::percent_encode_path_hard;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
-use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
@@ -47,6 +46,7 @@ use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::http_util::{new_request_build_error, parse_content_md5};
 use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -609,21 +609,13 @@ impl Accessor for Backend {
                 {
                     m.set_last_modified(v);
                 }
-                match resp.headers().get("Content-Md5") {
-                    Some(v) => {
-                        m.set_content_md5(
-                            v.to_str()
-                                .map_err(|e| new_other_object_error(Operation::Stat, path, e))?,
-                        );
-                    }
-                    None => {
-                        return Err(new_other_object_error(
-                            Operation::Stat,
-                            path,
-                            anyhow::anyhow!("expected Content-Md5 header"),
-                        ))
-                    }
+
+                if let Some(v) = parse_content_md5(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+                {
+                    m.set_content_md5(v);
                 }
+
                 resp.into_body()
                     .consume()
                     .await

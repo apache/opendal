@@ -111,7 +111,6 @@ impl ObjectPageStream for DirStream {
             let mut meta = ObjectMetadata::new(ObjectMode::FILE);
 
             meta.set_etag(&object.etag);
-            meta.set_content_md5(object.etag.trim_matches('"'));
             meta.set_content_length(object.size);
             let dt = OffsetDateTime::parse(object.last_modified.as_str(), &Rfc3339)
                 .map(|v| {
@@ -130,7 +129,7 @@ impl ObjectPageStream for DirStream {
             let rel = build_rel_path(&self.root, &object.key);
             let path = unescape(&rel)
                 .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
-            let de = ObjectEntry::new(self.backend.clone(), &path, meta).with_complete();
+            let de = ObjectEntry::new(self.backend.clone(), &path, meta);
             entries.push(de);
         }
 

@@ -129,7 +129,8 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     let mut objects = op.object("x/").list().await?;
     let mut actual = vec![];
     while let Some(o) = objects.try_next().await? {
-        actual.push(o.path())
+        let path = o.path().to_string();
+        actual.push(path)
     }
     expected.sort_unstable();
     actual.sort_unstable();

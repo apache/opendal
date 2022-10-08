@@ -38,7 +38,7 @@ Available Environment Values:
 - OPENDAL_OSS_BUCKET: bukcet name, required.
 - OPENDAL_OSS_ENDPOINT: endpoint of oss service, for example: https://oss-accelerate.aliyuncs.com
 - OPENDAL_OSS_ACCESS_KEY_ID: access key id of oss service, could be auto detected.
-- OPENDAL_OSS_ACCESS_KEY_SECRET: secret access key of oss service, could be auto detected.
+- OPENDAL_OSS_ACCESS_KEY_SECRET: access key secret of oss service, could be auto detected.
     "#
     );
 
@@ -90,12 +90,23 @@ Available Environment Values:
         String::from_utf8_lossy(&content)
     );
 
-    info!("try to list file under: {}/", &dir);
-    let mut s = op.object(&(dir + "/")).list().await?;
-    while let Some(p) = s.next().await {
-        info!("listed: {}", p.unwrap().path());
+    info!("try to create a rich number of files");
+
+    let files: Vec<String> = (0..=500)
+        .map(|num| format!("{}/{}/file-{}", dir, dir, num))
+        .collect();
+    for file in files {
+        op.object(&file).create().await?;
     }
-    info!("list file successful!");
+
+    info!("try to list file under: {}/{}", &dir, &dir);
+    let mut s = op.object(&format!("{}/{}/", dir, dir)).list().await?;
+    let mut counter = 0;
+    while let Some(p) = s.next().await {
+        info!("listed file: {}", p.unwrap().path());
+        counter += 1;
+    }
+    info!("list {} files successfully!", counter);
 
     info!("try to get file metadata: {}", &path);
     let meta = op.object(&path).metadata().await?;

@@ -31,6 +31,7 @@ use reqsign::services::aliyun::oss::Signer;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::uri::percent_encode_path_hard;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
@@ -338,11 +339,9 @@ impl Backend {
 
         let mut req = Request::put(&url);
 
-        req = req.header(HOST, &self.host);
-
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size)
-        }
+        req = req
+            .header(HOST, &self.host)
+            .header(CONTENT_LENGTH, size.unwrap_or_default());
 
         let req = req
             .body(body)
@@ -413,13 +412,17 @@ impl Backend {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/?list-type=2", self.endpoint,);
+        let url = format!(
+            "{}/?list-type=2&delimiter=/&prefix={}{}",
+            self.endpoint,
+            percent_encode_path_hard(&p),
+            token
+                .map(|t| format!("&continuation-token={}", percent_encode_path(&t)))
+                .unwrap_or_default(),
+        );
 
         let req = Request::get(&url)
             .header(HOST, &self.host)
-            .header("delimiter", "/")
-            .header("prefix", p)
-            .header("continuation-token", token.unwrap_or_default())
             .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::List, path, e))?;
         Ok(req)

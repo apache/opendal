@@ -20,7 +20,7 @@
 //! - `bucket`: Set the container name for backend.
 //! - `endpoint`: Set the endpoint for backend.
 //! - `access_key_id`: Set the access_key_id for backend.
-//! - `secret_access_key`: Set the secret_access_key for backend. (refered as `access_key_secret` in OSS documentation)
+//! - `access_key_secret`: Set the access_key_secret for backend.
 //! - `role_arn`: Set the role of backend.
 //! - `oidc_token`: Set the oidc_token for backend.
 //! - `allow_anonymous`: Set the backend access OSS in anonymous way.
@@ -33,7 +33,7 @@
 //! - `OPENDAL_OSS_BUCKET`
 //! - `OPENDAL_OSS_ENDPOINT`
 //! - `OPENDAL_OSS_ACCESS_KEY_ID`
-//! - `OPENDAL_OSS_SECRET_ACCESS_KEY`
+//! - `OPENDAL_OSS_ACCESS_KEY_SECRET`
 //! - `OPENDAL_OSS_ROLE_ARN`
 //! - `OPENDAL_OSS_OIDC_TOKEN`
 //! - `OPENDAL_OSS_ALLOW_ANONYMOUS`
@@ -49,7 +49,7 @@
 //! export OPENDAL_OSS_BUCKET=test
 //! export OPENDAL_OSS_ENDPOINT=https://oss-cn-beijing.aliyuncs.com
 //! export OPENDAL_OSS_ACCESS_KEY_ID=access_key_id
-//! export OPENDAL_OSS_SECRET_ACCESS_KEY=secret_access_key
+//! export OPENDAL_OSS_ACCESS_KEY_SECRET=access_key_secret
 //! ```
 //!
 //! ```no_run
@@ -98,13 +98,13 @@
 //!     // - "https://oss-ap-northeast-1.aliyuncs.com"
 //!     // - "https://oss-hangzhou.aliyuncs.com"
 //!     builder.endpoint("https://oss-cn-beijing.aliyuncs.com");
-//!     // Set the access_key_id and secret_access_key.
+//!     // Set the access_key_id and access_key_secret.
 //!     //
 //!     // OpenDAL will try load credential from the env.
 //!     // If credential not set and no valid credential in env, OpenDAL will
 //!     // send request without signing like anonymous user.
 //!     builder.access_key_id("access_key_id");
-//!     builder.access_key_secret("secret_access_key");
+//!     builder.access_key_secret("access_key_secret");
 //!
 //!     let op: Operator = Operator::new(builder.build()?);
 //!
@@ -120,3 +120,4 @@ pub use backend::Backend;
 pub use backend::Builder;
 mod dir_stream;
 mod error;
+mod uri;

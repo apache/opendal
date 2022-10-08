@@ -950,8 +950,6 @@ struct CompleteMultipartUploadRequest {
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename = "InitiateMultipartUploadResult", rename_all = "PascalCase")]
 struct InitiateMultipartUploadResult {
-    bucket: String,
-    key: String,
     upload_id: String,
 }
 
@@ -970,8 +968,6 @@ mod parsing_test {
 </InitiateMultipartUploadResult>"#;
 
         let parsed: InitiateMultipartUploadResult = de::from_str(resp).expect("must success");
-        assert_eq!(parsed.bucket, "oss-example");
-        assert_eq!(parsed.key, "multipart.data");
         assert_eq!(parsed.upload_id, "0004B9894A22E5B1888A1E29F823****");
     }
 }

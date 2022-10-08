@@ -36,7 +36,7 @@ pub fn init_service(scheme: Scheme, random_root: bool) -> Option<Operator> {
         .filter_map(|(k, v)| {
             k.to_lowercase()
                 .strip_prefix(&prefix)
-                .map(|k| (k.to_string(), v.to_lowercase()))
+                .map(|k| (k.to_string(), v))
         })
         .collect::<HashMap<String, String>>();
 

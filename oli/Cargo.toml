@@ -8,14 +8,14 @@ keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oli"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.18.1"
+version = "0.19.0"
 
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["cargo", "string"] }
 env_logger = "0.9"
 log = "0.4"
-opendal = "0.18"
+opendal = "0.19"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 
 [dev-dependencies]

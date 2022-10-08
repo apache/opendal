@@ -28,7 +28,6 @@
 //! - `list`: List internal index.
 
 mod backend;
-mod error;
-
-pub use backend::Backend;
 pub use backend::Builder;
+
+mod error;

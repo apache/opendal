@@ -80,8 +80,6 @@
 //! ```
 
 mod backend;
-pub use backend::Backend;
-
 mod builder;
 pub use builder::Builder;
 

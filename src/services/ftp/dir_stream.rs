@@ -26,8 +26,8 @@ use std::task::Poll;
 use suppaftp::list::File;
 use time::OffsetDateTime;
 
+use super::backend::Backend;
 use super::err::parse_io_error;
-use super::Backend;
 use crate::ops::Operation;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;

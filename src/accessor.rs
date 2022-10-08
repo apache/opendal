@@ -83,7 +83,7 @@ use crate::Scheme;
 ///   - Services can implement them based on services capabilities.
 ///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
 #[async_trait]
-pub trait Accessor: Send + Sync + Debug {
+pub trait Accessor: Send + Sync + Debug + 'static {
     /// Invoke the `metadata` operation to get metadata of accessor.
     fn metadata(&self) -> AccessorMetadata {
         unimplemented!()
@@ -98,7 +98,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// - Create on existing file SHOULD overwrite and truncate.
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         let (_, _) = (path, args);
-        unimplemented!()
+
+        Err(new_unsupported_object_error(Operation::Create, path))
     }
 
     /// Invoke the `read` operation on the specified path, returns a
@@ -109,7 +110,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
         let (_, _) = (path, args);
-        unimplemented!()
+
+        Err(new_unsupported_object_error(Operation::Read, path))
     }
 
     /// Invoke the `write` operation on the specified path, returns a
@@ -120,7 +122,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let (_, _, _) = (path, args, r);
-        unimplemented!()
+
+        Err(new_unsupported_object_error(Operation::Write, path))
     }
 
     /// Invoke the `stat` operation on the specified path.
@@ -132,7 +135,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// - `mode` and `content_length` must be set.
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         let (_, _) = (path, args);
-        unimplemented!()
+
+        Err(new_unsupported_object_error(Operation::Stat, path))
     }
 
     /// Invoke the `delete` operation on the specified path.
@@ -143,7 +147,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         let (_, _) = (path, args);
-        unimplemented!()
+
+        Err(new_unsupported_object_error(Operation::Delete, path))
     }
 
     /// Invoke the `list` operation on the specified path.
@@ -154,7 +159,8 @@ pub trait Accessor: Send + Sync + Debug {
     /// - List non-exist dir should return Empty.
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         let (_, _) = (path, args);
-        unimplemented!()
+
+        Err(new_unsupported_object_error(Operation::List, path))
     }
 
     /// Invoke the `presign` operation on the specified path.
@@ -165,6 +171,7 @@ pub trait Accessor: Send + Sync + Debug {
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
         let _ = args;
+
         Err(new_unsupported_object_error(Operation::Presign, path))
     }
 

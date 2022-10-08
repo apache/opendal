@@ -26,8 +26,8 @@ use futures::Future;
 use http::StatusCode;
 use serde::Deserialize;
 
+use super::backend::Backend;
 use super::error::parse_error;
-use super::Backend;
 use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;

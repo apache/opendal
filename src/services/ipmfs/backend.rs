@@ -25,7 +25,6 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::builder::Builder;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
@@ -78,21 +77,6 @@ impl Backend {
             client,
             endpoint,
         }
-    }
-
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (key, val) in it {
-            let val = val.as_str();
-            match key.as_ref() {
-                "root" => builder.root(val),
-                "endpoint" => builder.endpoint(val),
-                _ => continue,
-            };
-        }
-
-        builder.build()
     }
 }
 

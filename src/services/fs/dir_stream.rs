@@ -18,8 +18,8 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use super::backend::Backend;
 use super::error::parse_io_error;
-use super::Backend;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;

@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use super::Backend;
+use super::backend::Backend;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;

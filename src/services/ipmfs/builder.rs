@@ -16,9 +16,10 @@ use std::io::Result;
 
 use log::info;
 
-use super::Backend;
+use super::backend::Backend;
 use crate::http_util::HttpClient;
 use crate::path::normalize_root;
+use crate::Accessor;
 
 /// Builder for service ipfs.
 #[derive(Default, Debug)]
@@ -28,6 +29,21 @@ pub struct Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (key, val) in it {
+            let val = val.as_str();
+            match key.as_ref() {
+                "root" => builder.root(val),
+                "endpoint" => builder.endpoint(val),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root for ipfs.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -52,7 +68,7 @@ impl Builder {
     }
 
     /// Consume builder to build an ipfs::Backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         info!("backend use root {}", root);
 

@@ -22,8 +22,8 @@ use serde::Deserialize;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
+use super::backend::Backend;
 use super::error::parse_error;
-use super::Backend;
 use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;

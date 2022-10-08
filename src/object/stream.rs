@@ -33,7 +33,7 @@ use crate::ObjectEntry;
 pub trait ObjectStream: Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
 impl<T> ObjectStream for T where T: Stream<Item = Result<ObjectEntry>> + Unpin + Send {}
 
-/// ObjectStreamer is a boxed dyn [`ObjectStream`]
+/// ObjectStreamer is a boxed dyn `ObjectStream`
 pub type ObjectStreamer = Box<dyn ObjectStream>;
 
 /// EmptyObjectStreamer that always return None.

@@ -20,7 +20,7 @@ use crate::ObjectEntry;
 pub trait ObjectIterate: Iterator<Item = Result<ObjectEntry>> {}
 impl<T> ObjectIterate for T where T: Iterator<Item = Result<ObjectEntry>> {}
 
-/// ObjectIterator is a boxed dyn [`ObjectIterate`]
+/// ObjectIterator is a boxed dyn `ObjectIterate`
 pub type ObjectIterator = Box<dyn ObjectIterate>;
 
 /// EmptyObjectIterator that always return None.

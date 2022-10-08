@@ -9,7 +9,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.18.2"
+version = "0.19.0"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -22,10 +22,7 @@ compress = ["async-compression"]
 serde = []
 
 # Enable all layers.
-layers-all = [
-  "layers-metrics",
-  "layers-tracing",
-]
+layers-all = ["layers-metrics", "layers-tracing"]
 # Enable layers metrics support
 layers-metrics = ["metrics"]
 # Enable layers retry support.
@@ -117,7 +114,8 @@ redis = { version = "0.21", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.5"
+# Make sure reqsign version is larger than 0.5.2
+reqsign = "0.5.2"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",
@@ -125,7 +123,7 @@ reqwest = { version = "0.11", features = [
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-suppaftp = { version = "4", features = ["async-secure"], optional = true }
+suppaftp = { version = "=4.4", features = ["async-secure"], optional = true }
 thiserror = "1"
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }

@@ -28,7 +28,8 @@ You may be looking for:
 - [ipmfs](https://opendal.databend.rs/opendal/services/ipmfs/index.html): [InterPlanetary File System](https://ipfs.tech/) MFS API support.
 - [memory](https://opendal.databend.rs/opendal/services/memory/index.html): In memory backend.
 - [obs](https://opendal.databend.rs/opendal/services/obs/index.html): [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS).
-- [redis](https://opendal.databend.rs/opendal/services/redis/index.html): [Redis](https://redis.io/) services support. 
+- [oss](https://opendal.databend.rs/opendal/services/oss/index.html): [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS).
+- [redis](https://opendal.databend.rs/opendal/services/redis/index.html): [Redis](https://redis.io/) services support.
 - [s3](https://opendal.databend.rs/opendal/services/s3/index.html): [AWS S3](https://aws.amazon.com/s3/) alike services.
 
 ## Features

@@ -806,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -826,7 +826,7 @@ checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 
 [[package]]
 name = "opendal"
-version = "0.18.2"
+version = "0.19.0"
 dependencies = [
  "anyhow",
  "async-compat",
@@ -1086,9 +1086,9 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "reqsign"
-version = "0.5.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c338306df4ba0010b78f1c4469bf034313ad46b2c43020ec448432e5e07fab26"
+checksum = "a082aef1e547f31ddde9db1eb92e983ed92dbd521678709ba2574cf768c919ef"
 dependencies = [
  "anyhow",
  "backon",

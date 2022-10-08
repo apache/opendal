@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.19.0] - 2022-10-08
+
+### Added
+
+- feat: Implement object page stream for services like s3 (#787)
+- RFC-0793: Generic KV Services (#793)
+- feat(services/kv): Implement Scoped Key (#796)
+- feat: Add scan in KeyValueAccessor (#797)
+- feat: Implement basic kv services support (#799)
+- feat: Introduce kv adapter for opendal (#802)
+- feat: Add integration test for redis (#804)
+- feat: Add OSS Service Support (#801)
+- feat: Add integration tests for OSS (#814)
+
+### Changed
+
+- refactor: Move object to mod (#786)
+- refactor: Implement azblob dir stream based on ObjectPageStream (#790)
+- refactor: Implement memory services by generic kv (#800)
+- refactor: Don't expose backend to users (#816)
+- tests: allow running tests when env is `true` (#818)
+- refactor: Remove deprecated type aliases (#819)
+- test: list rich dir (#820)
+
+### Fixed
+
+- fix(services/redis): MATCH can't handle correctly (#803)
+- fix: Disable ipfs redirection (#809)
+- fix(services/ipfs): Use ipfs files API to copy data (#811)
+- fix(services/hdfs): Allow retrying would block (#815)
+
 ## [v0.18.2] - 2022-10-01
 
 ### Added
@@ -810,6 +841,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.19.0]: https://github.com/datafuselabs/opendal/compare/v0.18.2...v0.19.0
 [v0.18.2]: https://github.com/datafuselabs/opendal/compare/v0.18.1...v0.18.2
 [v0.18.1]: https://github.com/datafuselabs/opendal/compare/v0.18.0...v0.18.1
 [v0.18.0]: https://github.com/datafuselabs/opendal/compare/v0.17.4...v0.18.0

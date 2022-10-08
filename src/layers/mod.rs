@@ -33,9 +33,7 @@ pub use immutable_index::ImmutableIndexLayer;
 mod logging;
 pub use logging::LoggingLayer;
 
-#[cfg(feature = "layers-metadata-cache")]
 mod metadata_cache;
-#[cfg(feature = "layers-metadata-cache")]
 pub use metadata_cache::MetadataCacheLayer;
 
 #[cfg(feature = "layers-metrics")]

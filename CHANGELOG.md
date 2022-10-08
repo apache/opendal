@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.18.2] - 2022-10-01
+
+### Added
+
+- feat: Enable retry layer by default (#781)
+
+### Changed
+
+- ci: Enable IPFS NoFecth to avoid networking timeout (#780)
+- ci: Build all feature in release to prevent build failure under release profile (#783)
+
+### Fixed
+
+- fix: Fix build error under release profile (#782)
+
+## [v0.18.1] - 2022-10-01
+
+### Fixed
+
+- fix(services/s3): Content MD5 not set during list (#775)
+- test: Add a test for ObjectEntry metadata cache (#776)
+
+## [v0.18.0] - 2022-10-01
+
+### Added
+
+- feat: Add Metadata Cache Layer (#739)
+- feat: Bump reqsign version to 0.5 (#741)
+- feat: Derive Hash, Eq, PartialEq for Operation (#749)
+- feat: Make AccessorMetadata public so outer users can use (#750)
+- feat: Expose AccessorCapability to users (#751)
+- feat: Expose opendal's http util to users (#753)
+- feat: Implement convert from PresignedRequest (#756)
+- feat: Make ObjectMetadata setter public (#758)
+- feat: Implement cached metadata for ObjectEntry (#761)
+- feat: Assign unique name for memory backend (#769)
+
+### Changed
+
+- refactor: replace error::other with new_other_object_error (#738)
+- chore(compress): log with trace level instead of debug. (#752)
+- refactor: Rename DirXxxx to ObjectXxxx instead (#759)
+
+### Fixed
+
+- fix(http_util): Disable auto compress and enable http proxy (#731)
+- deps: Fix build after bump deps of oli and oay (#766)
+
 ## [v0.17.4] - 2022-09-27
 
 ### Fixed
@@ -762,6 +810,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.18.2]: https://github.com/datafuselabs/opendal/compare/v0.18.1...v0.18.2
+[v0.18.1]: https://github.com/datafuselabs/opendal/compare/v0.18.0...v0.18.1
+[v0.18.0]: https://github.com/datafuselabs/opendal/compare/v0.17.4...v0.18.0
 [v0.17.4]: https://github.com/datafuselabs/opendal/compare/v0.17.3...v0.17.4
 [v0.17.3]: https://github.com/datafuselabs/opendal/compare/v0.17.2...v0.17.3
 [v0.17.2]: https://github.com/datafuselabs/opendal/compare/v0.17.1...v0.17.2

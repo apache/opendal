@@ -73,7 +73,7 @@ jobs:
           hdfs-version: "3.3.2"
 
       - name: Build
-        run: cargo build --all-features
+        run: cargo build --all-features --release
 
   unit:
     runs-on: ${{ matrix.os }}

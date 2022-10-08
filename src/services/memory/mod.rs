@@ -15,5 +15,4 @@
 //! In memory backend support.
 
 mod backend;
-pub use backend::Backend;
 pub use backend::Builder;

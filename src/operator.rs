@@ -23,17 +23,16 @@ use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
-use crate::error::other;
-use crate::error::BackendError;
+use crate::error::new_other_backend_error;
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::services;
 use crate::Accessor;
 use crate::AccessorMetadata;
-use crate::DirStreamer;
 use crate::Layer;
 use crate::Object;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// User-facing APIs for object and object streams.
@@ -83,7 +82,7 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(accessor: impl Accessor + 'static) -> Self {
+    pub fn new(accessor: impl Accessor) -> Self {
         Self {
             accessor: Arc::new(accessor),
         }
@@ -123,29 +122,33 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn from_iter(scheme: Scheme, it: impl Iterator<Item = (String, String)>) -> Result<Self> {
+    pub fn from_iter(
+        scheme: Scheme,
+        it: impl Iterator<Item = (String, String)> + 'static,
+    ) -> Result<Self> {
         let op = match scheme {
-            Scheme::Azblob => services::azblob::Backend::from_iter(it)?.into(),
-            Scheme::Fs => services::fs::Backend::from_iter(it)?.into(),
-            #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => services::hdfs::Backend::from_iter(it)?.into(),
-            Scheme::Http => services::http::Backend::from_iter(it)?.into(),
+            Scheme::Azblob => services::azblob::Builder::from_iter(it).build()?.into(),
+            Scheme::Fs => services::fs::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-ftp")]
-            Scheme::Ftp => services::ftp::Backend::from_iter(it)?.into(),
+            Scheme::Ftp => services::ftp::Builder::from_iter(it).build()?.into(),
+            Scheme::Gcs => services::gcs::Builder::from_iter(it).build()?.into(),
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs => services::hdfs::Builder::from_iter(it).build()?.into(),
+            Scheme::Http => services::http::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-ipfs")]
-            Scheme::Ipfs => services::ipfs::Backend::from_iter(it)?.into(),
-            Scheme::Ipmfs => services::ipmfs::Backend::from_iter(it)?.into(),
+            Scheme::Ipfs => services::ipfs::Builder::from_iter(it).build()?.into(),
+            Scheme::Ipmfs => services::ipmfs::Builder::from_iter(it).build()?.into(),
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
-            Scheme::Gcs => services::gcs::Backend::from_iter(it)?.into(),
+            Scheme::Obs => services::obs::Builder::from_iter(it).build()?.into(),
+            Scheme::Oss => services::oss::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-redis")]
-            Scheme::Redis => services::redis::Backend::from_iter(it)?.into(),
-            Scheme::S3 => services::s3::Backend::from_iter(it)?.into(),
-            Scheme::Obs => services::obs::Backend::from_iter(it)?.into(),
+            Scheme::Redis => services::redis::Builder::from_iter(it).build()?.into(),
+            Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
             Scheme::Custom(v) => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::default(),
                     anyhow!("custom service {v} is not supported"),
-                )))
+                ))
             }
         };
 
@@ -191,7 +194,7 @@ impl Operator {
     /// ```
     pub fn from_env(scheme: Scheme) -> Result<Self> {
         let prefix = format!("opendal_{scheme}_");
-        let envs = env::vars().filter_map(|(k, v)| {
+        let envs = env::vars().filter_map(move |(k, v)| {
             k.to_lowercase()
                 .strip_prefix(&prefix)
                 .map(|k| (k.to_string(), v))
@@ -317,7 +320,7 @@ impl BatchOperator {
     ///
     /// The returning order could be differ for different underlying storage.
     /// And could be changed at any time. Users MUST NOT relay on the order.
-    pub fn walk(&self, path: &str) -> Result<DirStreamer> {
+    pub fn walk(&self, path: &str) -> Result<ObjectStreamer> {
         // # TODO
         //
         // After https://github.com/datafuselabs/opendal/issues/353, we can
@@ -328,7 +331,7 @@ impl BatchOperator {
     /// Walk a dir in top down way: list current dir first and then list nested dir.
     ///
     /// Refer to [`TopDownWalker`] for more about the behavior details.
-    pub fn walk_top_down(&self, path: &str) -> Result<DirStreamer> {
+    pub fn walk_top_down(&self, path: &str) -> Result<ObjectStreamer> {
         Ok(Box::new(TopDownWalker::new(Object::new(
             self.src.inner(),
             path,
@@ -338,7 +341,7 @@ impl BatchOperator {
     /// Walk a dir in bottom up way: list nested dir first and then current dir.
     ///
     /// Refer to [`BottomUpWalker`] for more about the behavior details.
-    pub fn walk_bottom_up(&self, path: &str) -> Result<DirStreamer> {
+    pub fn walk_bottom_up(&self, path: &str) -> Result<ObjectStreamer> {
         Ok(Box::new(BottomUpWalker::new(Object::new(
             self.src.inner(),
             path,

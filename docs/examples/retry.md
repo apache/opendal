@@ -6,8 +6,6 @@ OpenDAL has native support for retry.
 
 [RetryLayer](https://opendal.databend.rs/opendal/layers/struct.RetryLayer.html) will add retry for OpenDAL operations.
 
-Enable retry layer requires enable feature `layer-retry`:
-
 ```rust
 use anyhow::Result;
 use backon::ExponentialBackoff;

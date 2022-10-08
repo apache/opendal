@@ -26,9 +26,8 @@ use log::info;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
@@ -71,6 +70,21 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
@@ -96,15 +110,15 @@ impl Builder {
     }
 
     /// Build a HTTP backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
             None => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::new(),
                     anyhow!("endpoint must be specified"),
-                )))
+                ))
             }
             Some(v) => v,
         };
@@ -141,23 +155,6 @@ impl Debug for Backend {
     }
 }
 
-impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-
-        builder.build()
-    }
-}
-
 #[async_trait]
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
@@ -187,10 +184,7 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            return Ok(m);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let resp = self.http_head(path).await?;
@@ -199,47 +193,43 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let mut m = ObjectMetadata::default();
+                let mode = if path.ends_with('/') {
+                    ObjectMode::DIR
+                } else {
+                    ObjectMode::FILE
+                };
+                let mut m = ObjectMetadata::new(mode);
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_content_md5(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_md5(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_last_modified(v);
                 }
-
-                if path.ends_with('/') {
-                    m.set_mode(ObjectMode::DIR);
-                } else {
-                    m.set_mode(ObjectMode::FILE);
-                };
 
                 Ok(m)
             }
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                let mut m = ObjectMetadata::default();
-                m.set_mode(ObjectMode::DIR);
-
-                Ok(m)
+                Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

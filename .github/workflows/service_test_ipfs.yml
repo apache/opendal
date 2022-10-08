@@ -9,9 +9,6 @@ on:
       - main
     paths-ignore:
       - "docs/**"
-  # Run this test every hour to keep our testdata warm in ipfs network.
-  schedule:
-    - cron: "0 * * * *"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -26,11 +23,14 @@ jobs:
         uses: ibnesayeed/setup-ipfs@cacf727ab8eae418dc4a2534c2c2c19343021c7c
         id: ipfs_setup
         with:
-          # ipfs v0.15 seems can't pass our tests, need investigate.
-          ipfs_version: "v0.14.0"
-          run_daemon: true
-      - name: IPFS add speed up tests
-        run: ipfs add -r ./testdata
+          ipfs_version: "v0.16.0"
+      - name: Start IPFS Daemon
+        run: |
+          ipfs daemon &
+      - name: IPFS Add testdata
+        run: |
+          ipfs add -r ./testdata --to-files /opendal-testdata
+          ipfs files ls /opendal-testdata -l
 
       - name: Test
         shell: bash

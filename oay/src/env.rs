@@ -35,7 +35,7 @@ pub async fn get_oay_operator() -> Result<Operator> {
     let scheme = get_oay_backend_type()?;
 
     let prefix = format!("oay_backend_{scheme}_");
-    let envs = env::vars().filter_map(|(k, v)| {
+    let envs = env::vars().filter_map(move |(k, v)| {
         k.to_lowercase()
             .strip_prefix(&prefix)
             .map(|k| (k.to_string(), v))

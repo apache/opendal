@@ -23,7 +23,6 @@ use backon::Backoff;
 use backon::Retryable;
 use log::warn;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -41,10 +40,11 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
+use crate::ObjectStreamer;
 
 /// RetryLayer will add retry for OpenDAL.
 ///
@@ -107,7 +107,7 @@ struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
 #[async_trait]
 impl<B> Accessor for RetryAccessor<B>
 where
-    B: Backoff + Debug + Send + Sync,
+    B: Backoff + Debug + Send + Sync + 'static,
 {
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()
@@ -169,7 +169,7 @@ where
             })
             .await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
@@ -363,7 +363,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         let retry = self.backoff.clone();
 
         let mut e = None;
@@ -406,7 +406,6 @@ mod tests {
     use backon::ConstantBackoff;
     use tokio::sync::Mutex;
 
-    use crate::error::other;
     use crate::layers::RetryLayer;
     use crate::ops::OpRead;
     use crate::Accessor;
@@ -429,7 +428,10 @@ mod tests {
                     io::ErrorKind::Interrupted,
                     anyhow!("retryable_error"),
                 )),
-                _ => Err(other(anyhow!("not_retryable_error"))),
+                _ => Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    anyhow!("not_retryable_error"),
+                )),
             }
         }
     }
@@ -463,7 +465,10 @@ mod tests {
 
         let result = op.object("not_retryable_error").read().await;
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "not_retryable_error");
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not_retryable_error"));
         // The error is not retryable, we should only request it once.
         assert_eq!(*srv.attempt.lock().await, 1);
 

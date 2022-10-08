@@ -55,6 +55,8 @@ pub enum Scheme {
     Redis,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
+    /// [oss][crate::services::oss]: Aliyun Object Storage Services
+    Oss,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -96,6 +98,7 @@ impl Display for Scheme {
             #[cfg(feature = "services-redis")]
             Scheme::Redis => write!(f, "redis"),
             Scheme::S3 => write!(f, "s3"),
+            Scheme::Oss => write!(f, "oss"),
             Scheme::Custom(v) => write!(f, "{v}"),
         }
     }
@@ -123,6 +126,7 @@ impl FromStr for Scheme {
             #[cfg(feature = "services-redis")]
             "redis" => Ok(Scheme::Redis),
             "s3" => Ok(Scheme::S3),
+            "oss" => Ok(Scheme::Oss),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -147,6 +151,7 @@ impl From<Scheme> for &'static str {
             #[cfg(feature = "services-redis")]
             Scheme::Redis => "redis",
             Scheme::S3 => "s3",
+            Scheme::Oss => "oss",
             Scheme::Custom(v) => v,
         }
     }

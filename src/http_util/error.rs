@@ -24,27 +24,19 @@ use http::HeaderValue;
 use http::Response;
 use http::StatusCode;
 
-use crate::error::other;
+use crate::error::new_other_object_error;
 use crate::error::ObjectError;
 use crate::http_util::IncomingAsyncBody;
 use crate::ops::Operation;
 
 /// Create error happened during building http request.
 pub fn new_request_build_error(op: Operation, path: &str, err: http::Error) -> Error {
-    other(ObjectError::new(
-        op,
-        path,
-        anyhow!("building request: {err:?}"),
-    ))
+    new_other_object_error(op, path, anyhow!("building request: {err:?}"))
 }
 
 /// Create error happened during signing http request.
 pub fn new_request_sign_error(op: Operation, path: &str, err: anyhow::Error) -> Error {
-    other(ObjectError::new(
-        op,
-        path,
-        anyhow!("signing request: {err:?}"),
-    ))
+    new_other_object_error(op, path, anyhow!("signing request: {err:?}"))
 }
 
 /// Create error happened during sending http request.

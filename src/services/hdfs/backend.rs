@@ -31,10 +31,9 @@ use time::OffsetDateTime;
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
-use crate::dir::EmptyDirStreamer;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
+use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -47,9 +46,9 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Builder for hdfs services
@@ -60,6 +59,21 @@ pub struct Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "name_node" => builder.name_node(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -89,15 +103,15 @@ impl Builder {
     }
 
     /// Finish the building and create hdfs backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let name_node = match &self.name_node {
             None => {
-                return Err(other(BackendError::new(
+                return Err(new_other_backend_error(
                     HashMap::new(),
                     anyhow!("endpoint must be specified"),
-                )))
+                ))
             }
             Some(v) => v,
         };
@@ -106,13 +120,13 @@ impl Builder {
         info!("backend use root {}", root);
 
         let client = hdrs::Client::connect(name_node).map_err(|e| {
-            other(BackendError::new(
+            new_other_backend_error(
                 HashMap::from([
                     ("root".to_string(), root.clone()),
                     ("endpoint".to_string(), name_node.clone()),
                 ]),
                 anyhow!("connect hdfs name node: {}", e),
-            ))
+            )
         })?;
 
         // Create root dir if not exist.
@@ -121,13 +135,13 @@ impl Builder {
                 debug!("root {} is not exist, creating now", root);
 
                 client.create_dir(&root).map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         HashMap::from([
                             ("root".to_string(), root.clone()),
                             ("endpoint".to_string(), name_node.clone()),
                         ]),
                         anyhow!("create root dir: {}", e),
-                    ))
+                    )
                 })?
             }
         }
@@ -151,23 +165,6 @@ pub struct Backend {
 unsafe impl Send for Backend {}
 unsafe impl Sync for Backend {}
 
-impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "name_node" => builder.name_node(v),
-                _ => continue,
-            };
-        }
-
-        builder.build()
-    }
-}
-
 #[async_trait]
 impl Accessor for Backend {
     fn metadata(&self) -> AccessorMetadata {
@@ -189,11 +186,11 @@ impl Accessor for Backend {
                 let parent = PathBuf::from(&p)
                     .parent()
                     .ok_or_else(|| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::Create,
                             path,
                             anyhow!("malformed path: {:?}", path),
-                        ))
+                        )
                     })?
                     .to_path_buf();
 
@@ -246,11 +243,11 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                other(ObjectError::new(
+                new_other_object_error(
                     Operation::Write,
                     path,
                     anyhow!("malformed path: {:?}", path),
-                ))
+                )
             })?
             .to_path_buf();
 
@@ -273,12 +270,14 @@ impl Accessor for Backend {
             .metadata(&p)
             .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
 
-        let mut m = ObjectMetadata::default();
-        if meta.is_dir() {
-            m.set_mode(ObjectMode::DIR);
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
         } else if meta.is_file() {
-            m.set_mode(ObjectMode::FILE);
-        }
+            ObjectMode::FILE
+        } else {
+            ObjectMode::Unknown
+        };
+        let mut m = ObjectMetadata::new(mode);
         m.set_content_length(meta.len());
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
 
@@ -312,14 +311,14 @@ impl Accessor for Backend {
         Ok(())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == ErrorKind::NotFound {
-                    Ok(Box::new(EmptyDirStreamer))
+                    Ok(Box::new(EmptyObjectStreamer))
                 } else {
                     Err(parse_io_error(e, Operation::List, path))
                 }

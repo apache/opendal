@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::multipart::ObjectPart;
+use crate::ObjectPart;
 
 /// Args for `create_multipart` operation.
 #[derive(Debug, Clone, Default)]

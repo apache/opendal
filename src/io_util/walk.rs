@@ -22,10 +22,11 @@ use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
 
-use crate::DirEntry;
-use crate::DirStreamer;
 use crate::Object;
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectStreamer;
 
 /// TopDownWalker will walk dir in top down way:
 ///
@@ -76,12 +77,12 @@ impl TopDownWalker {
 
 enum WalkTopDownState {
     Idle,
-    Sending(BoxFuture<'static, Result<DirStreamer>>),
-    Listing(DirStreamer),
+    Sending(BoxFuture<'static, Result<ObjectStreamer>>),
+    Listing(ObjectStreamer),
 }
 
 impl futures::Stream for TopDownWalker {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match &mut self.state {
@@ -90,7 +91,12 @@ impl futures::Stream for TopDownWalker {
                     Some(o) => o,
                     None => return Poll::Ready(None),
                 };
-                let de = DirEntry::new(object.accessor(), ObjectMode::DIR, object.path());
+
+                let de = ObjectEntry::new(
+                    object.accessor(),
+                    object.path(),
+                    ObjectMetadata::new(ObjectMode::DIR),
+                );
                 let future = async move { object.list().await };
 
                 self.state = WalkTopDownState::Sending(Box::pin(future));
@@ -160,7 +166,7 @@ impl futures::Stream for TopDownWalker {
 /// always output directly while listing.
 pub struct BottomUpWalker {
     dirs: Vec<Object>,
-    ds: Vec<DirStreamer>,
+    ds: Vec<ObjectStreamer>,
     state: WalkBottomUpState,
 }
 
@@ -177,12 +183,12 @@ impl BottomUpWalker {
 
 enum WalkBottomUpState {
     Starting(Option<Object>),
-    Sending(BoxFuture<'static, Result<DirStreamer>>),
+    Sending(BoxFuture<'static, Result<ObjectStreamer>>),
     Listing,
 }
 
 impl futures::Stream for BottomUpWalker {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match &mut self.state {
@@ -221,7 +227,11 @@ impl futures::Stream for BottomUpWalker {
                             .dirs
                             .pop()
                             .expect("dis streamer corresponding object must exist");
-                        let de = DirEntry::new(dob.accessor(), ObjectMode::DIR, dob.path());
+                        let de = ObjectEntry::new(
+                            dob.accessor(),
+                            dob.path(),
+                            ObjectMetadata::new(ObjectMode::DIR),
+                        );
                         Poll::Ready(Some(Ok(de)))
                     }
                 },

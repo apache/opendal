@@ -13,8 +13,6 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::fmt::Display;
-use std::fmt::Formatter;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::RangeBounds;
@@ -23,15 +21,9 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use futures::io;
 use futures::io::Cursor;
-#[cfg(feature = "serde")]
-use serde::Deserialize;
-#[cfg(feature = "serde")]
-use serde::Serialize;
 use time::Duration;
-use time::OffsetDateTime;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
@@ -39,7 +31,6 @@ use crate::io_util::CompressAlgorithm;
 #[cfg(feature = "compress")]
 use crate::io_util::DecompressReader;
 use crate::io_util::SeekableReader;
-use crate::multipart::ObjectMultipart;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpCreateMultipart;
@@ -56,8 +47,11 @@ use crate::path::normalize_path;
 use crate::path::validate_path;
 use crate::Accessor;
 use crate::BlockingBytesRead;
-use crate::DirIterator;
-use crate::DirStreamer;
+use crate::ObjectIterator;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
+use crate::ObjectMultipart;
+use crate::ObjectStreamer;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -353,11 +347,11 @@ impl Object {
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let s = self
@@ -404,11 +398,11 @@ impl Object {
     /// ```
     pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let mut s = self.acc.blocking_read(
@@ -494,11 +488,11 @@ impl Object {
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         self.acc.read(self.path(), OpRead::new(range)).await
@@ -527,11 +521,11 @@ impl Object {
         range: impl RangeBounds<u64>,
     ) -> Result<impl BlockingBytesRead> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Read,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         self.acc.blocking_read(self.path(), OpRead::new(range))
@@ -734,11 +728,11 @@ impl Object {
     /// ```
     pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let bs = bs.into();
@@ -774,11 +768,11 @@ impl Object {
     /// ```
     pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let bs = bs.into();
@@ -817,11 +811,11 @@ impl Object {
     /// ```
     pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let _ = self
@@ -864,11 +858,11 @@ impl Object {
         br: impl BlockingBytesRead + 'static,
     ) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::Write,
                 self.path(),
                 anyhow!("Is a directory"),
-            )));
+            ));
         }
 
         let _ = self
@@ -928,7 +922,7 @@ impl Object {
 
     /// List current dir object.
     ///
-    /// This function will create a new [`DirStreamer`] handle to list objects.
+    /// This function will create a new [`ObjectStreamer`] handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///
@@ -947,7 +941,7 @@ impl Object {
     /// let op = Operator::from_env(Scheme::Memory)?;
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.list().await?;
-    /// // DirStreamer implements `futures::Stream`
+    /// // ObjectStreamer implements `futures::Stream`
     /// while let Some(de) = ds.try_next().await? {
     ///     match de.mode() {
     ///         ObjectMode::FILE => {
@@ -962,13 +956,13 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<DirStreamer> {
+    pub async fn list(&self) -> Result<ObjectStreamer> {
         if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::List,
                 self.path(),
                 anyhow!("Not a directory"),
-            )));
+            ));
         }
 
         self.acc.list(self.path(), OpList::new()).await
@@ -976,7 +970,7 @@ impl Object {
 
     /// List current dir object.
     ///
-    /// This function will create a new [`DirIterator`] handle to list objects.
+    /// This function will create a new [`ObjectIterator`] handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///
@@ -1009,13 +1003,13 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_list(&self) -> Result<DirIterator> {
+    pub fn blocking_list(&self) -> Result<ObjectIterator> {
         if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(other(ObjectError::new(
+            return Err(new_other_object_error(
                 Operation::List,
                 self.path(),
                 anyhow!("Not a directory"),
-            )));
+            ));
         }
 
         self.acc.blocking_list(self.path(), OpList::new())
@@ -1203,131 +1197,5 @@ impl Object {
             .create_multipart(self.path(), OpCreateMultipart::new())
             .await?;
         Ok(self.to_multipart(&upload_id))
-    }
-}
-
-/// Metadata carries all object metadata.
-#[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ObjectMetadata {
-    mode: ObjectMode,
-
-    content_length: u64,
-    content_md5: Option<String>,
-    last_modified: Option<OffsetDateTime>,
-    etag: Option<String>,
-}
-
-impl ObjectMetadata {
-    /// Object mode represent this object' mode.
-    pub fn mode(&self) -> ObjectMode {
-        self.mode
-    }
-
-    pub(crate) fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
-        self.mode = mode;
-        self
-    }
-
-    /// Content length of this object
-    ///
-    /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
-    /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
-    pub fn content_length(&self) -> u64 {
-        self.content_length
-    }
-
-    pub(crate) fn set_content_length(&mut self, content_length: u64) -> &mut Self {
-        self.content_length = content_length;
-        self
-    }
-
-    /// Content MD5 of this object.
-    ///
-    /// Content Length is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
-    /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
-    ///
-    /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
-    pub fn content_md5(&self) -> Option<&str> {
-        self.content_md5.as_deref()
-    }
-
-    pub(crate) fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
-        self.content_md5 = Some(content_md5.to_string());
-        self
-    }
-
-    /// Last modified of this object.
-    ///
-    /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
-    /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    ///
-    /// OpenDAL parse the raw value into [`OffsetDateTime`] for convenient.
-    pub fn last_modified(&self) -> Option<OffsetDateTime> {
-        self.last_modified
-    }
-
-    pub(crate) fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
-        self.last_modified = Some(last_modified);
-        self
-    }
-
-    /// ETag of this object.
-    ///
-    /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
-    /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
-    ///
-    /// OpenDAL will return this value AS-IS like the following:
-    ///
-    /// - `"33a64df551425fcc55e4d42a148795d9f25f89d4"`
-    /// - `W/"0815"`
-    ///
-    /// `"` is part of etag.
-    pub fn etag(&self) -> Option<&str> {
-        self.etag.as_deref()
-    }
-
-    pub(crate) fn set_etag(&mut self, etag: &str) -> &mut Self {
-        self.etag = Some(etag.to_string());
-        self
-    }
-}
-
-/// ObjectMode represents the corresponding object's mode.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ObjectMode {
-    /// FILE means the object has data to read.
-    FILE,
-    /// DIR means the object can be listed.
-    DIR,
-    /// Unknown means we don't know what we can do on thi object.
-    Unknown,
-}
-
-impl ObjectMode {
-    /// Check if this object mode is FILE.
-    pub fn is_file(self) -> bool {
-        self == ObjectMode::FILE
-    }
-    /// Check if this object mode is DIR.
-    pub fn is_dir(self) -> bool {
-        self == ObjectMode::DIR
-    }
-}
-
-impl Default for ObjectMode {
-    fn default() -> Self {
-        Self::Unknown
-    }
-}
-
-impl Display for ObjectMode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ObjectMode::FILE => write!(f, "file"),
-            ObjectMode::DIR => write!(f, "dir"),
-            ObjectMode::Unknown => write!(f, "unknown"),
-        }
     }
 }

@@ -22,7 +22,6 @@ use std::task::Poll;
 use async_trait::async_trait;
 use futures::Stream;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -40,11 +39,12 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectEntry;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
+use crate::ObjectStreamer;
 
 /// SubdirLayer to switch to subdir for existing operator.
 ///
@@ -141,7 +141,7 @@ impl Accessor for SubdirAccessor {
         self.inner.delete(&path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         let path = self.prepend_subdir(path);
 
         Ok(Box::new(SubdirStreamer::new(
@@ -216,7 +216,7 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_delete(&path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         let path = self.prepend_subdir(path);
 
         Ok(Box::new(SubdirIterator::new(
@@ -236,11 +236,11 @@ fn strip_subdir(subdir: &str, path: &str) -> String {
 struct SubdirStreamer {
     acc: Arc<dyn Accessor>,
     subdir: String,
-    inner: DirStreamer,
+    inner: ObjectStreamer,
 }
 
 impl SubdirStreamer {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: DirStreamer) -> Self {
+    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectStreamer) -> Self {
         Self {
             acc,
             subdir: subdir.to_string(),
@@ -250,7 +250,7 @@ impl SubdirStreamer {
 }
 
 impl Stream for SubdirStreamer {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match Pin::new(&mut (*self.inner)).poll_next(cx) {
@@ -267,11 +267,11 @@ impl Stream for SubdirStreamer {
 struct SubdirIterator {
     acc: Arc<dyn Accessor>,
     subdir: String,
-    inner: DirIterator,
+    inner: ObjectIterator,
 }
 
 impl SubdirIterator {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: DirIterator) -> Self {
+    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectIterator) -> Self {
         Self {
             acc,
             subdir: subdir.to_string(),
@@ -281,7 +281,7 @@ impl SubdirIterator {
 }
 
 impl Iterator for SubdirIterator {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next() {

@@ -29,7 +29,6 @@ use metrics::counter;
 use metrics::histogram;
 use metrics::increment_counter;
 
-use crate::multipart::ObjectPart;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -47,10 +46,11 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
+use crate::ObjectPart;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
@@ -269,7 +269,7 @@ impl Accessor for MetricsAccessor {
         result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::Delete))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),
@@ -511,7 +511,7 @@ impl Accessor for MetricsAccessor {
         result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingDelete))
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         increment_counter!(
             METRIC_REQUESTS_TOTAL,
             LABEL_SERVICE => self.meta.scheme().into_static(),

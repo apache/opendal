@@ -24,7 +24,7 @@ impl<T> ObjectIterate for T where T: Iterator<Item = Result<ObjectEntry>> {}
 pub type ObjectIterator = Box<dyn ObjectIterate>;
 
 /// EmptyObjectIterator that always return None.
-pub(crate) struct EmptyObjectIterator;
+pub struct EmptyObjectIterator;
 
 impl Iterator for EmptyObjectIterator {
     type Item = Result<ObjectEntry>;

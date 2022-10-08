@@ -44,7 +44,7 @@ use tokio::sync::OnceCell;
 use crate::adapters::kv;
 use crate::error::new_other_backend_error;
 use crate::path::normalize_root;
-use crate::Scheme;
+use crate::{Accessor, Scheme};
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
@@ -75,6 +75,25 @@ pub struct Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                "username" => builder.username(v),
+                "password" => builder.password(v),
+                "db" => match v.parse::<i64>() {
+                    Ok(num) => builder.db(num),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+        }
+        builder
+    }
+
     /// set the network address of redis service.
     ///
     /// currently supported schemes:
@@ -127,7 +146,7 @@ impl Builder {
     }
 
     /// Establish connection to Redis and finish making Redis endpoint
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         let endpoint = self
             .endpoint
             .clone()
@@ -221,28 +240,6 @@ impl Debug for Builder {
 
 /// Backend for redis services.
 pub type Backend = kv::Backend<Adapter>;
-
-impl Backend {
-    /// build from iterator
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "username" => builder.username(v),
-                "password" => builder.password(v),
-                "db" => match v.parse::<i64>() {
-                    Ok(num) => builder.db(num),
-                    _ => continue,
-                },
-                _ => continue,
-            };
-        }
-        builder.build()
-    }
-}
 
 #[derive(Clone)]
 pub struct Adapter {

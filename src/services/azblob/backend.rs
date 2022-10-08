@@ -100,6 +100,24 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "container" => builder.container(v),
+                "endpoint" => builder.endpoint(v),
+                "account_name" => builder.account_name(v),
+                "account_key" => builder.account_key(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -158,7 +176,7 @@ impl Builder {
     }
 
     /// Consume builder to build an azblob backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -220,26 +238,6 @@ pub struct Backend {
     endpoint: String,
     signer: Arc<Signer>,
     _account_name: String,
-}
-
-impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "container" => builder.container(v),
-                "endpoint" => builder.endpoint(v),
-                "account_name" => builder.account_name(v),
-                "account_key" => builder.account_key(v),
-                _ => continue,
-            };
-        }
-
-        builder.build()
-    }
 }
 
 #[async_trait]

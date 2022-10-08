@@ -70,6 +70,21 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
@@ -95,7 +110,7 @@ impl Builder {
     }
 
     /// Build a HTTP backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
@@ -137,23 +152,6 @@ impl Debug for Backend {
             .field("root", &self.root)
             .field("client", &self.client)
             .finish()
-    }
-}
-
-impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-
-        builder.build()
     }
 }
 

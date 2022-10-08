@@ -75,6 +75,21 @@ pub struct Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root of ipfs backend.
     ///
     /// Root must be a valid ipfs address like the following:
@@ -111,7 +126,7 @@ impl Builder {
     }
 
     /// Consume builder to build an ipfs backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -156,23 +171,6 @@ impl Debug for Backend {
             .field("root", &self.root)
             .field("client", &self.client)
             .finish()
-    }
-}
-
-impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-
-        builder.build()
     }
 }
 

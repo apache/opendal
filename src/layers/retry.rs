@@ -107,7 +107,7 @@ struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
 #[async_trait]
 impl<B> Accessor for RetryAccessor<B>
 where
-    B: Backoff + Debug + Send + Sync,
+    B: Backoff + Debug + Send + Sync + 'static,
 {
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()

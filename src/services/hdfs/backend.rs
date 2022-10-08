@@ -59,6 +59,21 @@ pub struct Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "name_node" => builder.name_node(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -88,7 +103,7 @@ impl Builder {
     }
 
     /// Finish the building and create hdfs backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let name_node = match &self.name_node {
@@ -149,23 +164,6 @@ pub struct Backend {
 /// hdrs::Client is thread-safe.
 unsafe impl Send for Backend {}
 unsafe impl Sync for Backend {}
-
-impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "name_node" => builder.name_node(v),
-                _ => continue,
-            };
-        }
-
-        builder.build()
-    }
-}
 
 #[async_trait]
 impl Accessor for Backend {

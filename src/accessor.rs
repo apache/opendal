@@ -83,7 +83,7 @@ use crate::Scheme;
 ///   - Services can implement them based on services capabilities.
 ///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
 #[async_trait]
-pub trait Accessor: Send + Sync + Debug {
+pub trait Accessor: Send + Sync + Debug + 'static {
     /// Invoke the `metadata` operation to get metadata of accessor.
     fn metadata(&self) -> AccessorMetadata {
         unimplemented!()

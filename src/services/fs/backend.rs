@@ -62,6 +62,20 @@ pub struct Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root for backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -74,7 +88,7 @@ impl Builder {
     }
 
     /// Consume current builder to build a fs backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -85,7 +99,7 @@ impl Builder {
             if e.kind() == ErrorKind::NotFound {
                 std::fs::create_dir_all(&root).map_err(|e| {
                     std::io::Error::new(
-                        std::io::ErrorKind::Other,
+                        ErrorKind::Other,
                         anyhow!("create dir in {} error {:?}", &root, e),
                     )
                 })?;
@@ -104,20 +118,6 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                _ => continue,
-            };
-        }
-
-        builder.build()
-    }
-
     // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
     #[inline]
     async fn fs_metadata(path: &str) -> Result<std::fs::Metadata> {

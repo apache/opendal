@@ -29,7 +29,7 @@ use parking_lot::Mutex;
 
 use crate::adapters::kv;
 use crate::adapters::kv::next_prefix;
-use crate::Scheme;
+use crate::{Accessor, Scheme};
 
 /// Builder for memory backend
 #[derive(Default)]
@@ -37,7 +37,7 @@ pub struct Builder {}
 
 impl Builder {
     /// Consume builder to build a memory backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
             next_id: Arc::new(AtomicU64::new(1)),

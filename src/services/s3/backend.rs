@@ -173,6 +173,41 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "bucket" => builder.bucket(v),
+                "endpoint" => builder.endpoint(v),
+                "region" => builder.region(v),
+                "access_key_id" => builder.access_key_id(v),
+                "secret_access_key" => builder.secret_access_key(v),
+                "security_token" => builder.security_token(v),
+                "server_side_encryption" => builder.server_side_encryption(v),
+                "server_side_encryption_aws_kms_key_id" => {
+                    builder.server_side_encryption_aws_kms_key_id(v)
+                }
+                "server_side_encryption_customer_algorithm" => {
+                    builder.server_side_encryption_customer_algorithm(v)
+                }
+                "server_side_encryption_customer_key" => {
+                    builder.server_side_encryption_customer_key(v)
+                }
+                "server_side_encryption_customer_key_md5" => {
+                    builder.server_side_encryption_customer_key_md5(v)
+                }
+                "disable_credential_loader" if !v.is_empty() => builder.disable_credential_loader(),
+                "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -545,7 +580,7 @@ impl Builder {
     }
 
     /// Finish the build process and create a new accessor.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -706,41 +741,6 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "region" => builder.region(v),
-                "access_key_id" => builder.access_key_id(v),
-                "secret_access_key" => builder.secret_access_key(v),
-                "security_token" => builder.security_token(v),
-                "server_side_encryption" => builder.server_side_encryption(v),
-                "server_side_encryption_aws_kms_key_id" => {
-                    builder.server_side_encryption_aws_kms_key_id(v)
-                }
-                "server_side_encryption_customer_algorithm" => {
-                    builder.server_side_encryption_customer_algorithm(v)
-                }
-                "server_side_encryption_customer_key" => {
-                    builder.server_side_encryption_customer_key(v)
-                }
-                "server_side_encryption_customer_key_md5" => {
-                    builder.server_side_encryption_customer_key_md5(v)
-                }
-                "disable_credential_loader" if !v.is_empty() => builder.disable_credential_loader(),
-                "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
-                _ => continue,
-            };
-        }
-
-        builder.build()
-    }
-
     /// # Note
     ///
     /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while

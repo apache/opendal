@@ -79,6 +79,23 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                "user" => builder.user(v),
+                "password" => builder.password(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// set endpoint for ftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
@@ -124,7 +141,7 @@ impl Builder {
     }
 
     /// Build a ftp backend.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
             None => {
@@ -222,24 +239,6 @@ impl Debug for Backend {
             .field("root", &self.root)
             .field("enable_secure", &self.enable_secure)
             .finish()
-    }
-}
-
-impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "user" => builder.user(v),
-                "password" => builder.password(v),
-                _ => continue,
-            };
-        }
-        builder.build()
     }
 }
 
@@ -590,35 +589,23 @@ mod build_test {
 
     #[test]
     fn test_build() {
-        // ftps scheme, should suffixed with default port 21
+        // ftps scheme, should suffix with default port 21
         let mut builder = Builder::default();
         builder.endpoint("ftps://ftp_server.local");
         let b = builder.build();
         assert!(b.is_ok());
-        let b = b.unwrap();
-
-        assert!(b.enable_secure);
-        assert_eq!(b.endpoint, "ftp_server.local:21");
 
         // ftp scheme
         let mut builder = Builder::default();
         builder.endpoint("ftp://ftp_server.local:1234");
         let b = builder.build();
         assert!(b.is_ok());
-        let b = b.unwrap();
-
-        assert!(!b.enable_secure);
-        assert_eq!(b.endpoint, "ftp_server.local:1234");
 
         // no scheme
         let mut builder = Builder::default();
         builder.endpoint("ftp_server.local:8765");
         let b = builder.build();
         assert!(b.is_ok());
-        let b = b.unwrap();
-
-        assert!(b.enable_secure);
-        assert_eq!(b.endpoint, "ftp_server.local:8765");
 
         // invalid scheme
         let mut builder = Builder::default();

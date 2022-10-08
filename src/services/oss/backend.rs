@@ -113,6 +113,26 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "bucket" => builder.bucket(v),
+                "endpoint" => builder.endpoint(v),
+
+                "access_key_id" => builder.access_key_id(v),
+                "access_key_secret" => builder.access_key_secret(v),
+                "oidc_token" => builder.oidc_token(v),
+                "role_arn" => builder.role_arn(v),
+                "allow_anonymous" => builder.allow_anonymous(),
+                _ => continue,
+            };
+        }
+        builder
+    }
+
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -190,7 +210,7 @@ impl Builder {
     }
 
     /// finish building
-    pub fn build(&self) -> Result<Backend> {
+    pub fn build(&self) -> Result<impl Accessor> {
         log::info!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.clone().unwrap_or_default());
@@ -297,33 +317,6 @@ impl Debug for Backend {
             .field("endpoint", &self.endpoint)
             .field("host", &self.host)
             .finish()
-    }
-}
-
-impl Backend {
-    /// The builder of OSS backend
-    pub fn builder() -> Builder {
-        Builder::default()
-    }
-
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-
-                "access_key_id" => builder.access_key_id(v),
-                "access_key_secret" => builder.access_key_secret(v),
-                "oidc_token" => builder.oidc_token(v),
-                "role_arn" => builder.role_arn(v),
-                "allow_anonymous" => builder.allow_anonymous(),
-                _ => continue,
-            };
-        }
-        builder.build()
     }
 }
 

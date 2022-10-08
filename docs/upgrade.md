@@ -2,6 +2,16 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.19
+
+OpenDAL deprecate some features:
+
+- `serde`: We will enable it by default.
+- `layers-retry`: We will enable retry support by default.
+- `layers-metadata-cache`: We will enable it by default.
+
+Deprecated types like `DirEntry` has been removed.
+
 ## Upgrade to v0.18
 
 OpenDAL v0.18 introduces the following breaking changes:

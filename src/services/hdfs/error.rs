@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Error, ErrorKind};
+use std::io::Error;
+use std::io::ErrorKind;
 
 use crate::error::ObjectError;
 use crate::ops::Operation;

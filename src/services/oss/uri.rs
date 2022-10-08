@@ -42,7 +42,6 @@ pub(super) fn percent_encode_path_hard(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::percent_encode_path_hard;
-    use crate::http_util::percent_encode_path;
 
     #[test]
     fn test_percent_encode_path() {
@@ -67,7 +66,7 @@ mod tests {
         ];
 
         for (name, input, expected) in cases {
-            let actual = percent_encode_path(input);
+            let actual = percent_encode_path_hard(input);
 
             assert_eq!(actual, expected, "{name}");
         }

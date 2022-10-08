@@ -65,6 +65,7 @@ macro_rules! behavior_list_tests {
 
                 test_check,
                 test_list_dir,
+                test_list_rich_dir,
                 test_list_dir_metadata_cache,
                 test_list_empty_dir,
                 test_list_non_exist_dir,
@@ -115,6 +116,27 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
         .delete()
         .await
         .expect("delete must succeed");
+    Ok(())
+}
+
+/// listing a directory, which contains more objects than a single page can take.
+pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
+    let mut expected: Vec<String> = (0..=1000).map(|num| format!("x/file-{}", num)).collect();
+    for path in expected.iter() {
+        op.object(path).create().await?;
+    }
+
+    let mut objects = op.object("x/").list().await?;
+    let mut actual = vec![];
+    while let Some(o) = objects.try_next().await? {
+        actual.push(o.path())
+    }
+    expected.sort_unstable();
+    actual.sort_unstable();
+
+    assert_eq!(actual, expected);
+
+    op.batch().remove_all("x/").await?;
     Ok(())
 }
 

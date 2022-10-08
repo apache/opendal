@@ -28,11 +28,9 @@ use reqsign::services::aliyun::oss::Signer;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use super::uri::percent_encode_path;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
-use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
@@ -43,6 +41,7 @@ use crate::http_util::parse_last_modified;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::http_util::{new_request_build_error, percent_encode_path};
 use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
@@ -54,6 +53,7 @@ use crate::ops::OpWrite;
 use crate::ops::Operation;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
+use crate::services::oss::uri::percent_encode_path_hard;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -220,7 +220,7 @@ impl Builder {
                     )
                 })?;
                 let full_host = format!("{}.{}", bucket, host);
-                let endpoint = format!("https://{}", host);
+                let endpoint = format!("https://{}", full_host);
                 (endpoint, full_host)
             }
             None => {
@@ -335,12 +335,9 @@ impl Backend {
 
         let mut req = Request::put(&url);
 
-        let timestamp = reqsign::time::format_rfc2822(time::OffsetDateTime::now_utc());
-
         req = req
             .header(header::HOST, &self.host)
-            .header(header::CONTENT_TYPE, "application/octet-stream")
-            .header(header::DATE, timestamp);
+            .header(header::CONTENT_TYPE, "application/octet-stream");
 
         if let Some(size) = size {
             req = req.header(header::CONTENT_LENGTH, size)
@@ -362,12 +359,10 @@ impl Backend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let timestamp = reqsign::time::format_rfc2822(time::OffsetDateTime::now_utc());
         let mut req = Request::get(&url);
         req = req
             .header("Host", &self.host)
-            .header(header::CONTENT_TYPE, "application/octet-stream")
-            .header(header::DATE, timestamp);
+            .header(header::CONTENT_TYPE, "application/octet-stream");
 
         if offset.unwrap_or_default() != 0 || size.is_some() {
             req = req.header(header::RANGE, BytesRange::new(offset, size).to_string());
@@ -385,11 +380,8 @@ impl Backend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let timestamp = reqsign::time::format_rfc2822(time::OffsetDateTime::now_utc());
         let mut req = Request::delete(&url);
-        req = req
-            .header("Host", &self.host)
-            .header(header::DATE, timestamp);
+        req = req.header("Host", &self.host);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -403,11 +395,8 @@ impl Backend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let timestamp = reqsign::time::format_rfc2822(time::OffsetDateTime::now_utc());
         let mut req = Request::head(&url);
-        req = req
-            .header(header::HOST, &self.host)
-            .header(header::DATE, timestamp);
+        req = req.header(header::HOST, &self.host);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -416,21 +405,20 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_list_object_request(&self, path: &str, token: String) -> Result<Request<AsyncBody>> {
+    fn oss_list_object_request(
+        &self,
+        path: &str,
+        token: Option<String>,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/?list-type=2&delimiter=%2F&prefix={}&continuation-token={}",
-            self.endpoint,
-            percent_encode_path(&p),
-            token
-        );
-
-        let timestamp = reqsign::time::format_rfc2822(time::OffsetDateTime::now_utc());
+        let url = format!("{}/?list-type=2", self.endpoint,);
 
         let req = Request::get(&url)
             .header(header::HOST, &self.host)
-            .header(header::DATE, timestamp)
+            .header("delimiter", "/")
+            .header("prefix", p)
+            .header("continuation-token", token.unwrap_or_default())
             .body(AsyncBody::Empty)
             .map_err(|e| new_request_build_error(Operation::List, path, e))?;
         Ok(req)
@@ -485,7 +473,7 @@ impl Backend {
     pub(super) async fn oss_list_object(
         &self,
         path: &str,
-        token: String,
+        token: Option<String>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_list_object_request(path, token)?;
 

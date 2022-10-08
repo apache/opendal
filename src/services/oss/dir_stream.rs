@@ -19,6 +19,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
+use quick_xml::escape::unescape;
 use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -39,7 +40,7 @@ pub struct DirStream {
     root: String,
     path: String,
 
-    token: String,
+    token: Option<String>,
 
     done: bool,
 }
@@ -51,7 +52,7 @@ impl DirStream {
             root: root.to_string(),
             path: path.to_string(),
 
-            token: "".to_string(),
+            token: None,
 
             done: false,
         }
@@ -89,7 +90,7 @@ impl ObjectPageStream for DirStream {
         })?;
 
         self.done = !output.is_truncated;
-        self.token = output.next_continuation_token.clone().unwrap_or_default();
+        self.token = output.next_continuation_token.clone();
 
         let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
 
@@ -126,7 +127,10 @@ impl ObjectPageStream for DirStream {
                 })?;
             meta.set_last_modified(dt);
 
-            let de = ObjectEntry::new(self.backend.clone(), &self.path, meta).with_complete();
+            let rel = build_rel_path(&self.root, &object.key);
+            let path = unescape(&rel)
+                .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
+            let de = ObjectEntry::new(self.backend.clone(), &path, meta).with_complete();
             entries.push(de);
         }
 

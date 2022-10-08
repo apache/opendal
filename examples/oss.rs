@@ -76,9 +76,10 @@ Available Environment Values:
     info!("operator: {:?}", op);
 
     let dir = uuid::Uuid::new_v4().to_string();
-    let p = uuid::Uuid::new_v4().to_string();
+    // let p = uuid::Uuid::new_v4().to_string();
 
-    let path = format!("{}/{}", dir, p);
+    // let path = format!("{}/{}", dir, p);
+    let path = format!("{}/<><<", dir);
 
     // Create an object handle to start operation on object.
     info!("try to write file: {}", &path);
@@ -95,7 +96,7 @@ Available Environment Values:
     info!("try to list file under: {}/", &dir);
     let mut s = op.object(&(dir + "/")).list().await?;
     while let Some(p) = s.next().await {
-        info!("listed: {:?}", p);
+        info!("listed: {}", p.unwrap().path());
     }
     info!("list file successful!");
 

@@ -33,13 +33,12 @@ static PATH_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
     .remove(b'(')
     .remove(b')');
 
-/// percent_encode_path will do percent encoding for http encode path.
+/// percent_encode_path_hard will do percent encoding for http encode path.
 ///
 /// Follows [encodeURIComponent](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent) which will encode all non-ASCII characters except `A-Z a-z 0-9 - _ . ! ~ * ' ( )`
 ///
-/// There is a special case for `/` in path: we will allow `/` in path as
-/// required by storage services like s3.
-pub fn percent_encode_path(path: &str) -> String {
+/// This will not allow '/' comparing to percent encoding in `crate::http_util::percent_encode_path`
+pub fn percent_encode_path_hard(path: &str) -> String {
     utf8_percent_encode(path, &PATH_ENCODE_SET).to_string()
 }
 
@@ -70,7 +69,7 @@ mod tests {
         ];
 
         for (name, input, expected) in cases {
-            let actual = percent_encode_path(input);
+            let actual = percent_encode_path_hard(input);
 
             assert_eq!(actual, expected, "{name}");
         }

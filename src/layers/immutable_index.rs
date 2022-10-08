@@ -41,13 +41,13 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
-use crate::DirEntry;
-use crate::DirIterator;
-use crate::DirStreamer;
 use crate::Layer;
+use crate::ObjectEntry;
+use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectPart;
+use crate::ObjectStreamer;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for
 /// underlying storage services.
@@ -175,7 +175,7 @@ impl Accessor for ImmutableIndexAccessor {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
         let mut path = path;
         if path == "/" {
             path = ""
@@ -232,7 +232,7 @@ impl Accessor for ImmutableIndexAccessor {
         self.inner.blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<DirIterator> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {
         let mut path = path;
         if path == "/" {
             path = ""
@@ -260,7 +260,7 @@ impl ImmutableDir {
 }
 
 impl Iterator for ImmutableDir {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.idx.next() {
@@ -272,14 +272,18 @@ impl Iterator for ImmutableDir {
                     ObjectMode::FILE
                 };
 
-                Some(Ok(DirEntry::new(self.backend.clone(), mode, &path)))
+                Some(Ok(ObjectEntry::new(
+                    self.backend.clone(),
+                    &path,
+                    ObjectMetadata::new(mode),
+                )))
             }
         }
     }
 }
 
 impl futures::Stream for ImmutableDir {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.idx.next() {
@@ -291,7 +295,11 @@ impl futures::Stream for ImmutableDir {
                     ObjectMode::FILE
                 };
 
-                Poll::Ready(Some(Ok(DirEntry::new(self.backend.clone(), mode, &path))))
+                Poll::Ready(Some(Ok(ObjectEntry::new(
+                    self.backend.clone(),
+                    &path,
+                    ObjectMetadata::new(mode),
+                ))))
             }
         }
     }

@@ -26,15 +26,22 @@ use crate::BytesReader;
 
 /// Body used in blocking HTTP requests.
 pub enum Body {
+    /// An empty body.
     Empty,
-    #[allow(unused)]
+    /// Body with bytes.
     Bytes(Bytes),
+    /// Body with a Reader.
     Reader(BlockingBytesReader),
+}
+
+impl Default for Body {
+    fn default() -> Self {
+        Body::Empty
+    }
 }
 
 impl Body {
     /// Consume the entire body.
-    #[allow(unused)]
     pub fn consume(self) -> Result<()> {
         if let Body::Reader(mut r) = self {
             std::io::copy(&mut r, &mut std::io::sink())?;
@@ -74,6 +81,12 @@ pub enum AsyncBody {
     /// If input with this field, we will goto the internal multipart
     /// handle logic.
     Multipart(String, BytesReader),
+}
+
+impl Default for AsyncBody {
+    fn default() -> Self {
+        AsyncBody::Empty
+    }
 }
 
 impl From<AsyncBody> for reqwest::Body {

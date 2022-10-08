@@ -14,9 +14,9 @@
 
 use crate::utils::parse_location;
 use anyhow::{anyhow, Result};
-use clap::AppSettings;
 use clap::Arg;
-use clap::{App, ArgMatches};
+use clap::ArgMatches;
+use clap::Command;
 
 pub async fn main(args: Option<ArgMatches>) -> Result<()> {
     let args = args.unwrap_or_else(|| cli("ocp").get_matches());
@@ -39,13 +39,10 @@ pub async fn main(args: Option<ArgMatches>) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn cli(name: &str) -> App<'static> {
-    let app = App::new(name)
+pub(crate) fn cli(name: &str) -> Command {
+    Command::new(name.to_string())
         .version("0.10.0")
         .about("copy")
-        .setting(AppSettings::DeriveDisplayOrder)
         .arg(Arg::new("source").required(true))
-        .arg(Arg::new("destination").required(true));
-
-    app
+        .arg(Arg::new("destination").required(true))
 }

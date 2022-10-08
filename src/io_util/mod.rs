@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing IO utils like `into_sink`, `into_stream`.
+//! io_util Providing IO utils like `into_sink`, `into_stream`.
+//!
+//! # NOTE
+//!
+//! This mod is not a part of OpenDAL's public API. We expose them out to make
+//! it easier to develop services and layers outside opendal.
 
 mod into_stream;
 pub use into_stream::into_stream;

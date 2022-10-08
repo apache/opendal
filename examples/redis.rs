@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
     println!(
         r#"
         OpenDAL redis example.
-        
+
         Available Environment Variables:
 
         - OPENDAL_REDIS_ENDPOINT: network address of redis server, default is "tcp://127.0.0.1:6379"

@@ -26,8 +26,7 @@ use futures::FutureExt;
 use suppaftp::FtpStream;
 use suppaftp::Status;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::ops::Operation;
 use crate::BytesReader;
 
@@ -79,19 +78,19 @@ impl AsyncRead for FtpReader {
                                 ])
                                 .await
                                 .map_err(|e| {
-                                    other(ObjectError::new(
+                                    new_other_object_error(
                                         Operation::Read,
                                         path.as_str(),
                                         anyhow!("unexpected response: {e:?}"),
-                                    ))
+                                    )
                                 })?;
 
                                 ft.quit().await.map_err(|e| {
-                                    other(ObjectError::new(
+                                    new_other_object_error(
                                         Operation::Read,
                                         path.as_str(),
                                         anyhow!("quit request: {e:?}"),
-                                    ))
+                                    )
                                 })?;
 
                                 Ok(())

@@ -13,30 +13,24 @@
 // limitations under the License.
 
 use std::io::Result;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use anyhow::anyhow;
-use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
-use futures::Stream;
+use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use crate::error::other;
-use crate::error::ObjectError;
+use super::backend::Backend;
+use super::error::parse_error;
+use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
+use crate::object::ObjectPageStream;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
-use crate::services::gcs::backend::Backend;
-use crate::services::gcs::error::parse_error;
-use crate::DirEntry;
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 /// DirStream takes over task of listing objects and
@@ -48,13 +42,6 @@ pub struct DirStream {
     page_token: String,
 
     done: bool,
-    state: State,
-}
-
-enum State {
-    Standby,
-    Pending(BoxFuture<'static, Result<Bytes>>),
-    Walking((ListResponse, usize, usize)),
 }
 
 impl DirStream {
@@ -67,125 +54,98 @@ impl DirStream {
             page_token: "".to_string(),
 
             done: false,
-            state: State::Standby,
         }
     }
 }
 
-impl Stream for DirStream {
-    type Item = Result<DirEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let backend = self.backend.clone();
-        let root = self.root.clone();
-        let path = self.path.clone();
-
-        match &mut self.state {
-            State::Standby => {
-                let path = self.path.clone();
-                let token = self.page_token.clone();
-
-                let fut = async move {
-                    let resp = backend.gcs_list_objects(&path, token.as_str()).await?;
-
-                    if !resp.status().is_success() {
-                        let er = parse_error_response(resp).await?;
-                        let err = parse_error(Operation::List, &path, er);
-                        return Err(err);
-                    }
-                    let bytes = resp.into_body().bytes().await.map_err(|e| {
-                        other(ObjectError::new(
-                            Operation::List,
-                            &path,
-                            anyhow!("read body: {:?}", e),
-                        ))
-                    })?;
-
-                    Ok(bytes)
-                };
-
-                self.state = State::Pending(Box::pin(fut));
-                self.poll_next(cx)
-            }
-            State::Pending(fut) => {
-                let bytes = ready!(Pin::new(fut).poll(cx))?;
-                let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
-                    other(ObjectError::new(
-                        Operation::List,
-                        &self.path,
-                        anyhow!("deserialize list_bucket output: {:?}", e),
-                    ))
-                })?;
-
-                if let Some(token) = &output.next_page_token {
-                    self.page_token = token.clone();
-                } else {
-                    self.done = true;
-                }
-                self.state = State::Walking((output, 0, 0));
-                self.poll_next(cx)
-            }
-            State::Walking((output, common_prefixes_idx, objects_idx)) => {
-                let prefixes = &output.prefixes;
-                if *common_prefixes_idx < prefixes.len() {
-                    let prefix = &prefixes[*common_prefixes_idx];
-                    *common_prefixes_idx += 1;
-
-                    let de =
-                        DirEntry::new(backend, ObjectMode::DIR, &build_rel_path(&root, prefix));
-
-                    return Poll::Ready(Some(Ok(de)));
-                }
-                let objects = &output.items;
-                while *objects_idx < objects.len() {
-                    let object = &objects[*objects_idx];
-                    *objects_idx += 1;
-
-                    if object.name.ends_with('/') {
-                        continue;
-                    }
-
-                    let mut de = DirEntry::new(
-                        backend,
-                        ObjectMode::FILE,
-                        &build_rel_path(&root, &object.name),
-                    );
-
-                    // set metadata fields
-                    de.set_content_md5(object.md5_hash.as_str());
-                    de.set_etag(object.etag.as_str());
-
-                    let size = object.size.parse().map_err(|e| {
-                        other(ObjectError::new(
-                            Operation::List,
-                            path.as_str(),
-                            anyhow!("parse object size: {e:?}"),
-                        ))
-                    })?;
-                    de.set_content_length(size);
-
-                    let dt =
-                        OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
-                            other(ObjectError::new(
-                                Operation::List,
-                                &self.path,
-                                anyhow!("parse last modified RFC3339 datetime: {e:?}"),
-                            ))
-                        })?;
-                    de.set_last_modified(dt);
-
-                    return Poll::Ready(Some(Ok(de)));
-                }
-
-                // end of asynchronous iteration
-                if self.done {
-                    return Poll::Ready(None);
-                }
-
-                self.state = State::Standby;
-                self.poll_next(cx)
-            }
+#[async_trait]
+impl ObjectPageStream for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        if self.done {
+            return Ok(None);
         }
+
+        let resp = self
+            .backend
+            .gcs_list_objects(&self.path, &self.page_token)
+            .await?;
+
+        if !resp.status().is_success() {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error(Operation::List, &self.path, er);
+            return Err(err);
+        }
+        let bytes = resp.into_body().bytes().await.map_err(|e| {
+            new_other_object_error(Operation::List, &self.path, anyhow!("read body: {:?}", e))
+        })?;
+
+        let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
+            new_other_object_error(
+                Operation::List,
+                &self.path,
+                anyhow!("deserialize list_bucket output: {:?}", e),
+            )
+        })?;
+
+        if let Some(token) = &output.next_page_token {
+            self.page_token = token.clone();
+        } else {
+            self.done = true;
+        }
+
+        let mut entries = Vec::with_capacity(output.prefixes.len() + output.items.len());
+
+        for prefix in output.prefixes {
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &prefix),
+                ObjectMetadata::new(ObjectMode::DIR),
+            )
+            .with_complete();
+
+            entries.push(de);
+        }
+
+        for object in output.items {
+            if object.name.ends_with('/') {
+                continue;
+            }
+
+            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+
+            // set metadata fields
+            meta.set_content_md5(object.md5_hash.as_str());
+            meta.set_etag(object.etag.as_str());
+
+            let size = object.size.parse().map_err(|e| {
+                new_other_object_error(
+                    Operation::List,
+                    &self.path,
+                    anyhow!("parse object size: {e:?}"),
+                )
+            })?;
+            meta.set_content_length(size);
+
+            let dt = OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
+                new_other_object_error(
+                    Operation::List,
+                    &self.path,
+                    anyhow!("parse last modified RFC3339 datetime: {e:?}"),
+                )
+            })?;
+            meta.set_last_modified(dt);
+
+            let de = ObjectEntry::new(
+                self.backend.clone(),
+                &build_rel_path(&self.root, &object.name),
+                meta,
+            )
+            .with_complete();
+
+            entries.push(de);
+        }
+
+        Ok(Some(entries))
     }
 }
 

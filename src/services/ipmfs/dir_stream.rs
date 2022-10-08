@@ -26,14 +26,14 @@ use futures::Future;
 use http::StatusCode;
 use serde::Deserialize;
 
+use super::backend::Backend;
 use super::error::parse_error;
-use super::Backend;
-use crate::error::other;
-use crate::error::ObjectError;
+use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::ops::Operation;
 use crate::path::build_rel_path;
-use crate::DirEntry;
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -61,7 +61,7 @@ impl DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = io::Result<DirEntry>;
+    type Item = io::Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
@@ -80,11 +80,11 @@ impl futures::Stream for DirStream {
                     }
 
                     let bs = resp.into_body().bytes().await.map_err(|e| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::List,
                             &path,
                             anyhow!("read body: {:?}", e),
-                        ))
+                        )
                     })?;
 
                     Ok(bs)
@@ -97,14 +97,14 @@ impl futures::Stream for DirStream {
 
                 let entries_body: IpfsLsResponse =
                     serde_json::from_slice(&contents).map_err(|err| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::List,
                             &path,
                             anyhow!(
                                 "deserialize {} list response: {err:?}",
                                 String::from_utf8_lossy(&contents)
                             ),
-                        ))
+                        )
                     })?;
 
                 self.state = State::Listing((entries_body.entries.unwrap_or_default(), 0));
@@ -124,8 +124,14 @@ impl futures::Stream for DirStream {
                         }
                         ObjectMode::Unknown => unreachable!(),
                     };
+
                     let path = build_rel_path(&root, &path);
-                    let de = DirEntry::new(backend, object.mode(), &path);
+                    let de = ObjectEntry::new(
+                        backend,
+                        &path,
+                        ObjectMetadata::new(object.mode()).with_content_length(object.size),
+                    )
+                    .with_complete();
                     return Poll::Ready(Some(Ok(de)));
                 }
 

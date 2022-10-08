@@ -34,8 +34,8 @@ use log::debug;
 use log::error;
 use log::info;
 use once_cell::sync::Lazy;
-use reqsign::services::aws::loader::CredentialLoadChain;
-use reqsign::services::aws::loader::DummyLoader;
+use reqsign::credential::CredentialLoadChain;
+use reqsign::credential::DummyLoader;
 use reqsign::services::aws::v4::Signer;
 use serde::Deserialize;
 use serde::Serialize;
@@ -43,9 +43,8 @@ use serde::Serialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::other;
-use crate::error::BackendError;
-use crate::error::ObjectError;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -59,7 +58,7 @@ use crate::http_util::AsyncBody;
 use crate::http_util::Body;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
-use crate::multipart::ObjectPart;
+use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
@@ -80,9 +79,10 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
-use crate::DirStreamer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectPart;
+use crate::ObjectStreamer;
 use crate::Scheme;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -173,6 +173,41 @@ impl Debug for Builder {
 }
 
 impl Builder {
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "bucket" => builder.bucket(v),
+                "endpoint" => builder.endpoint(v),
+                "region" => builder.region(v),
+                "access_key_id" => builder.access_key_id(v),
+                "secret_access_key" => builder.secret_access_key(v),
+                "security_token" => builder.security_token(v),
+                "server_side_encryption" => builder.server_side_encryption(v),
+                "server_side_encryption_aws_kms_key_id" => {
+                    builder.server_side_encryption_aws_kms_key_id(v)
+                }
+                "server_side_encryption_customer_algorithm" => {
+                    builder.server_side_encryption_customer_algorithm(v)
+                }
+                "server_side_encryption_customer_key" => {
+                    builder.server_side_encryption_customer_key(v)
+                }
+                "server_side_encryption_customer_key_md5" => {
+                    builder.server_side_encryption_customer_key_md5(v)
+                }
+                "disable_credential_loader" if !v.is_empty() => builder.disable_credential_loader(),
+                "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -478,18 +513,15 @@ impl Builder {
 
         let req = http::Request::head(&url).body(Body::Empty).map_err(|e| {
             error!("backend detect_region {}: {:?}", url, e);
-            other(BackendError::new(
-                context.clone(),
-                anyhow!("build request {}: {:?}", url, e),
-            ))
+            new_other_backend_error(context.clone(), anyhow!("build request {}: {:?}", url, e))
         })?;
 
         let res = client.send(req).map_err(|e| {
             error!("backend detect_region: {}: {:?}", url, e);
-            other(BackendError::new(
+            new_other_backend_error(
                 context.clone(),
                 anyhow!("sending request: {}: {:?}", url, e),
-            ))
+            )
         })?;
 
         debug!(
@@ -506,7 +538,7 @@ impl Builder {
                     .get("x-amz-bucket-region")
                     .unwrap_or(&HeaderValue::from_static("us-east-1"))
                     .to_str()
-                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
+                    .map_err(|e| new_other_backend_error(context.clone(), e))?
                     .to_string();
                 Ok((endpoint, region))
             }
@@ -516,21 +548,21 @@ impl Builder {
                     .headers()
                     .get("x-amz-bucket-region")
                     .ok_or_else(|| {
-                        other(BackendError::new(
+                        new_other_backend_error(
                             context.clone(),
                             anyhow!("can't detect region automatically, region is empty"),
-                        ))
+                        )
                     })?
                     .to_str()
-                    .map_err(|e| other(BackendError::new(context.clone(), e)))?
+                    .map_err(|e| new_other_backend_error(context.clone(), e))?
                     .to_string();
                 let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "can't detect region automatically, no valid endpoint template for {endpoint}",
                         ),
-                    ))
+                    )
                 })?;
 
                 let endpoint = template.replace("{region}", &region);
@@ -538,17 +570,17 @@ impl Builder {
                 Ok((endpoint, region))
             }
             // Unexpected status code
-            code => Err(other(BackendError::new(
+            code => Err(new_other_backend_error(
                 context.clone(),
                 anyhow!(
                     "can't detect region automatically, unexpected response: status code {code}",
                 ),
-            ))),
+            )),
         }
     }
 
     /// Finish the build process and create a new accessor.
-    pub fn build(&mut self) -> Result<Backend> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         info!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -557,10 +589,10 @@ impl Builder {
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(other(BackendError::new(
+            true => Err(new_other_backend_error(
                 HashMap::from([("bucket".to_string(), "".to_string())]),
                 anyhow!("bucket is empty"),
-            ))),
+            )),
         }?;
         debug!("backend use bucket {}", &bucket);
 
@@ -571,10 +603,10 @@ impl Builder {
         let server_side_encryption = match &self.server_side_encryption {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
-                other(BackendError::new(
+                new_other_backend_error(
                     context.clone(),
                     anyhow!("server_side_encryption value {} invalid: {}", v, e),
-                ))
+                )
             })?),
         };
 
@@ -582,14 +614,14 @@ impl Builder {
             match &self.server_side_encryption_aws_kms_key_id {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "server_side_encryption_aws_kms_key_id value {} invalid: {}",
                             v,
                             e
                         ),
-                    ))
+                    )
                 })?),
             };
 
@@ -597,42 +629,42 @@ impl Builder {
             match &self.server_side_encryption_customer_algorithm {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "server_side_encryption_customer_algorithm value {} invalid: {}",
                             v,
                             e
                         ),
-                    ))
+                    )
                 })?),
             };
 
         let server_side_encryption_customer_key = match &self.server_side_encryption_customer_key {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
-                other(BackendError::new(
+                new_other_backend_error(
                     context.clone(),
                     anyhow!(
                         "server_side_encryption_customer_key value {} invalid: {}",
                         v,
                         e
                     ),
-                ))
+                )
             })?),
         };
         let server_side_encryption_customer_key_md5 =
             match &self.server_side_encryption_customer_key_md5 {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    other(BackendError::new(
+                    new_other_backend_error(
                         context.clone(),
                         anyhow!(
                             "server_side_encryption_customer_key_md5 value {} invalid: {}",
                             v,
                             e
                         ),
-                    ))
+                    )
                 })?),
             };
 
@@ -672,7 +704,7 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .map_err(|e| other(BackendError::new(context, e)))?;
+            .map_err(|e| new_other_backend_error(context, e))?;
 
         info!("backend build finished: {:?}", &self);
         Ok(Backend {
@@ -709,41 +741,6 @@ pub struct Backend {
 }
 
 impl Backend {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Result<Self> {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "region" => builder.region(v),
-                "access_key_id" => builder.access_key_id(v),
-                "secret_access_key" => builder.secret_access_key(v),
-                "security_token" => builder.security_token(v),
-                "server_side_encryption" => builder.server_side_encryption(v),
-                "server_side_encryption_aws_kms_key_id" => {
-                    builder.server_side_encryption_aws_kms_key_id(v)
-                }
-                "server_side_encryption_customer_algorithm" => {
-                    builder.server_side_encryption_customer_algorithm(v)
-                }
-                "server_side_encryption_customer_key" => {
-                    builder.server_side_encryption_customer_key(v)
-                }
-                "server_side_encryption_customer_key_md5" => {
-                    builder.server_side_encryption_customer_key_md5(v)
-                }
-                "disable_credential_loader" if !v.is_empty() => builder.disable_credential_loader(),
-                "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
-                _ => continue,
-            };
-        }
-
-        builder.build()
-    }
-
     /// # Note
     ///
     /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
@@ -904,10 +901,7 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         // Stat root always returns a DIR.
         if path == "/" {
-            let mut m = ObjectMetadata::default();
-            m.set_mode(ObjectMode::DIR);
-
-            return Ok(m);
+            return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
         let resp = self.head_object(path).await?;
@@ -916,40 +910,36 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let mut m = ObjectMetadata::default();
+                let mode = if path.ends_with('/') {
+                    ObjectMode::DIR
+                } else {
+                    ObjectMode::FILE
+                };
+                let mut m = ObjectMetadata::new(mode);
 
                 if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_etag(v);
                     m.set_content_md5(v.trim_matches('"'));
                 }
 
                 if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::Stat, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_last_modified(v);
                 }
 
-                if path.ends_with('/') {
-                    m.set_mode(ObjectMode::DIR);
-                } else {
-                    m.set_mode(ObjectMode::FILE);
-                };
-
                 Ok(m)
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                let mut m = ObjectMetadata::default();
-                m.set_mode(ObjectMode::DIR);
-
-                Ok(m)
+                Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -974,12 +964,12 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<DirStreamer> {
-        Ok(Box::new(DirStream::new(
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
             Arc::new(self.clone()),
             &self.root,
             path,
-        )))
+        ))))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
@@ -1024,11 +1014,11 @@ impl Accessor for Backend {
 
                 let result: InitiateMultipartUploadResult = quick_xml::de::from_reader(bs.reader())
                     .map_err(|err| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::CreateMultipart,
                             path,
                             anyhow!("parse xml: {err:?}"),
-                        ))
+                        )
                     })?;
 
                 Ok(result.upload_id)
@@ -1070,13 +1060,13 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK => {
                 let etag = parse_etag(resp.headers())
-                    .map_err(|e| other(ObjectError::new(Operation::WriteMultipart, path, e)))?
+                    .map_err(|e| new_other_object_error(Operation::WriteMultipart, path, e))?
                     .ok_or_else(|| {
-                        other(ObjectError::new(
+                        new_other_object_error(
                             Operation::WriteMultipart,
                             path,
                             anyhow!("ETag not present in returning response"),
-                        ))
+                        )
                     })?
                     .to_string();
 
@@ -1394,11 +1384,11 @@ impl Backend {
                 .collect(),
         })
         .map_err(|err| {
-            other(ObjectError::new(
+            new_other_object_error(
                 Operation::CompleteMultipart,
                 path,
                 anyhow!("build xml: {err:?}"),
-            ))
+            )
         })?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());

@@ -18,9 +18,10 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use super::Backend;
+use super::backend::Backend;
 use crate::path::build_rel_path;
-use crate::DirEntry;
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 pub struct DirStream {
@@ -40,7 +41,7 @@ impl DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = Result<DirEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.rd.next() {
@@ -48,18 +49,26 @@ impl futures::Stream for DirStream {
             Some(de) => {
                 let path = build_rel_path(&self.root, de.path());
 
-                let mut d = if de.is_file() {
-                    DirEntry::new(self.backend.clone(), ObjectMode::FILE, &path)
+                let d = if de.is_file() {
+                    let meta = ObjectMetadata::new(ObjectMode::FILE)
+                        .with_content_length(de.len())
+                        .with_last_modified(time::OffsetDateTime::from(de.modified()));
+                    ObjectEntry::new(self.backend.clone(), &path, meta)
                 } else if de.is_dir() {
                     // Make sure we are returning the correct path.
-                    DirEntry::new(self.backend.clone(), ObjectMode::DIR, &format!("{}/", path))
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &format!("{}/", path),
+                        ObjectMetadata::new(ObjectMode::DIR),
+                    )
+                    .with_complete()
                 } else {
-                    DirEntry::new(self.backend.clone(), ObjectMode::Unknown, &path)
+                    ObjectEntry::new(
+                        self.backend.clone(),
+                        &path,
+                        ObjectMetadata::new(ObjectMode::Unknown),
+                    )
                 };
-
-                // set metadata fields of `DirEntry`
-                d.set_content_length(de.len());
-                d.set_last_modified(time::OffsetDateTime::from(de.modified()));
 
                 Poll::Ready(Some(Ok(d)))
             }

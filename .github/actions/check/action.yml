@@ -21,7 +21,7 @@ runs:
 
     - name: Doc check
       shell: bash
-      run: cargo doc --no-deps
+      run: cargo doc --no-deps --all-features
 
     - name: Install cargo-audit
       uses: actions-rs/cargo@v1

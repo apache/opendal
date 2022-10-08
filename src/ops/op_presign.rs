@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use http::Request;
 use time::Duration;
 
 use crate::ops::OpRead;
@@ -106,5 +107,67 @@ impl PresignedRequest {
     /// Return request's header.
     pub fn header(&self) -> &http::HeaderMap {
         &self.headers
+    }
+}
+
+impl<T: Default> From<PresignedRequest> for Request<T> {
+    fn from(v: PresignedRequest) -> Self {
+        let mut builder = Request::builder().method(v.method).uri(v.uri);
+
+        let headers = builder.headers_mut().expect("header map must be valid");
+        headers.extend(v.headers);
+
+        builder
+            .body(T::default())
+            .expect("request must build succeed")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use http::header::CONTENT_LENGTH;
+    use http::header::CONTENT_TYPE;
+    use http::HeaderMap;
+    use http::Method;
+    use http::Uri;
+
+    use super::*;
+    use crate::http_util::AsyncBody;
+    use crate::http_util::Body;
+
+    #[test]
+    fn test_presigned_request_convert() -> Result<()> {
+        let pr = PresignedRequest {
+            method: Method::PATCH,
+            uri: Uri::from_static("https://opendal.databend.rs/path/to/file"),
+            headers: {
+                let mut headers = HeaderMap::new();
+                headers.insert(CONTENT_LENGTH, "123".parse()?);
+                headers.insert(CONTENT_TYPE, "application/json".parse()?);
+
+                headers
+            },
+        };
+
+        let req: Request<AsyncBody> = pr.clone().into();
+        assert_eq!(Method::PATCH, req.method());
+        assert_eq!(
+            "https://opendal.databend.rs/path/to/file",
+            req.uri().to_string()
+        );
+        assert_eq!("123", req.headers().get(CONTENT_LENGTH).unwrap());
+        assert_eq!("application/json", req.headers().get(CONTENT_TYPE).unwrap());
+
+        let req: Request<Body> = pr.into();
+        assert_eq!(Method::PATCH, req.method());
+        assert_eq!(
+            "https://opendal.databend.rs/path/to/file",
+            req.uri().to_string()
+        );
+        assert_eq!("123", req.headers().get(CONTENT_LENGTH).unwrap());
+        assert_eq!("application/json", req.headers().get(CONTENT_TYPE).unwrap());
+
+        Ok(())
     }
 }

@@ -1,0 +1,32 @@
+name: Service Test Oss
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  oss:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test
+        shell: bash
+        run: cargo test oss --features compress -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_OSS_TEST: ${{ secrets.OPENDAL_OSS_TEST }}
+          OPENDAL_OSS_BUCKET: ${{ secrets.OPENDAL_OSS_BUCKET }}
+          OPENDAL_OSS_ENDPOINT: ${{ secrets.OPENDAL_OSS_ENDPOINT }}
+          OPENDAL_OSS_ACCESS_KEY_ID: ${{ secrets.OPENDAL_OSS_ACCESS_KEY_ID }}
+          OPENDAL_OSS_ACCESS_KEY_SECRET: ${{ secrets.OPENDAL_OSS_ACCESS_KEY_SECRET }}

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::io::Error;
+use std::io::ErrorKind;
 
 use crate::error::ObjectError;
 use crate::ops::Operation;
@@ -23,5 +24,10 @@ use crate::ops::Operation;
 ///
 /// Skip utf-8 check to allow invalid path input.
 pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {
-    Error::new(err.kind(), ObjectError::new(op, path, err))
+    let kind = match err.kind() {
+        // Always retry would block error.
+        ErrorKind::WouldBlock => ErrorKind::Interrupted,
+        v => v,
+    };
+    Error::new(kind, ObjectError::new(op, path, err))
 }

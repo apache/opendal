@@ -35,7 +35,7 @@ use bytes::BytesMut;
 use futures::io::AsyncBufRead;
 use futures::io::BufReader;
 use futures::ready;
-use log::debug;
+use log::trace;
 use pin_project::pin_project;
 
 use crate::BytesRead;
@@ -334,7 +334,7 @@ impl DecompressDecoder {
         self.buf.extend_from_slice(bs);
         self.state = DecompressState::Decoding;
 
-        debug!(
+        trace!(
             "fill: read {len} bytes from src, next state {:?}",
             self.state
         );
@@ -348,7 +348,7 @@ impl DecompressDecoder {
 
         // If input is empty, inner reader must reach EOF, return directly.
         if self.buf.is_empty() {
-            debug!("input is empty, return directly");
+            trace!("input is empty, return directly");
             // Avoid attempting to reinitialise the decoder if the reader
             // has returned EOF.
             self.multiple_members = false;
@@ -370,7 +370,7 @@ impl DecompressDecoder {
         } else {
             self.state = DecompressState::Decoding;
         }
-        debug!("decode: consume {read_len} bytes from src, write {written_len} bytes into dst, next state {:?}", self.state);
+        trace!("decode: consume {read_len} bytes from src, write {written_len} bytes into dst, next state {:?}", self.state);
         Ok(written_len)
     }
 
@@ -393,7 +393,7 @@ impl DecompressDecoder {
         }
 
         let len = output.written().len();
-        debug!(
+        trace!(
             "finish: flush {len} bytes into dst, next state {:?}",
             self.state
         );

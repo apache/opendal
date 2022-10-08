@@ -28,6 +28,8 @@
 //! | [ipmfs][crate::services::ipmfs] | IPFS Mutable File System support. |
 //! | [memory][crate::services::memory] | In memory backend support. |
 //! | [obs][crate::services::obs] | Huawei Cloud OBS service. |
+//! | [oss][crate::services::oss] | Aliyun Object Storage Service (OSS).|
+//! | [redis][crate::services::redis] | Redis service. |
 //! | [s3][crate::services::s3] | AWS S3 alike services. |
 //!
 //! # Optional features

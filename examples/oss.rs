@@ -76,10 +76,9 @@ Available Environment Values:
     info!("operator: {:?}", op);
 
     let dir = uuid::Uuid::new_v4().to_string();
-    // let p = uuid::Uuid::new_v4().to_string();
+    let p = uuid::Uuid::new_v4().to_string();
 
-    // let path = format!("{}/{}", dir, p);
-    let path = format!("{}/<><<", dir);
+    let path = format!("{}/{}", dir, p);
 
     // Create an object handle to start operation on object.
     info!("try to write file: {}", &path);

@@ -19,11 +19,19 @@ use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
+use bytes::Bytes;
 use http::header;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
+use http::header::HOST;
+use http::header::RANGE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
+use quick_xml::de;
+use quick_xml::se;
 use reqsign::services::aliyun::oss::Signer;
 
 use super::dir_stream::DirStream;
@@ -31,6 +39,7 @@ use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
+use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
@@ -38,18 +47,22 @@ use crate::http_util::parse_content_length;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
+use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
-use crate::http_util::{new_request_build_error, percent_encode_path};
 use crate::object::ObjectPageStreamer;
 use crate::ops::BytesRange;
+use crate::ops::OpAbortMultipart;
+use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
+use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
@@ -59,6 +72,7 @@ use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectPart;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -336,11 +350,11 @@ impl Backend {
         let mut req = Request::put(&url);
 
         req = req
-            .header(header::HOST, &self.host)
-            .header(header::CONTENT_TYPE, "application/octet-stream");
+            .header(HOST, &self.host)
+            .header(CONTENT_TYPE, "application/octet-stream");
 
         if let Some(size) = size {
-            req = req.header(header::CONTENT_LENGTH, size)
+            req = req.header(CONTENT_LENGTH, size)
         }
 
         let req = req
@@ -362,10 +376,10 @@ impl Backend {
         let mut req = Request::get(&url);
         req = req
             .header("Host", &self.host)
-            .header(header::CONTENT_TYPE, "application/octet-stream");
+            .header(CONTENT_TYPE, "application/octet-stream");
 
         if offset.unwrap_or_default() != 0 || size.is_some() {
-            req = req.header(header::RANGE, BytesRange::new(offset, size).to_string());
+            req = req.header(RANGE, BytesRange::new(offset, size).to_string());
         }
 
         let req = req
@@ -396,7 +410,7 @@ impl Backend {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
-        req = req.header(header::HOST, &self.host);
+        req = req.header(HOST, &self.host);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -415,7 +429,7 @@ impl Backend {
         let url = format!("{}/?list-type=2", self.endpoint,);
 
         let req = Request::get(&url)
-            .header(header::HOST, &self.host)
+            .header(HOST, &self.host)
             .header("delimiter", "/")
             .header("prefix", p)
             .header("continuation-token", token.unwrap_or_default())
@@ -496,6 +510,127 @@ impl Backend {
             .await
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
     }
+
+    async fn oss_initiate_multipart_upload(
+        &self,
+        path: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!("{}/{}?uploads", self.endpoint, p);
+        let mut req = Request::post(&url)
+            .body(AsyncBody::Empty)
+            .map_err(|e| new_request_build_error(Operation::CreateMultipart, path, e))?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::CreateMultipart, path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::CreateMultipart, path, e))
+    }
+
+    async fn oss_upload_part(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        size: Option<u64>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            part_number,
+            upload_id
+        );
+        let mut req = Request::put(url)
+            .body(body)
+            .map_err(|e| new_request_build_error(Operation::WriteMultipart, path, e))?;
+        if let Some(size) = size {
+            req.header(CONTENT_LENGTH, size);
+        }
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::WriteMultipart, path, e))?;
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::WriteMultipart, path, e))
+    }
+
+    async fn oss_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: &[ObjectPart],
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            upload_id
+        );
+        let content = se::to_string(&CompleteMultipartUploadRequest {
+            part: parts
+                .iter()
+                .map(|v| CompleteMultipartUploadRequestPart {
+                    part_number: v.part_number(),
+                    etag: v.etag().to_string(),
+                })
+                .collect(),
+        })
+        .map_err(|e| {
+            new_other_object_error(
+                Operation::CompleteMultipart,
+                path,
+                anyhow::anyhow!("build xml: {:?}", e),
+            )
+        })?;
+
+        let body = AsyncBody::Bytes(Bytes::from(content));
+        let mut req = Request::post(url)
+            .header(CONTENT_LENGTH, content.len())
+            .header(CONTENT_TYPE, "application/xml")
+            .body(body)
+            .map_err(|e| new_request_build_error(Operation::CompleteMultipart, path, e))?;
+
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::CompleteMultipart, path, e))?;
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::CompleteMultipart, path, e))
+    }
+
+    async fn oss_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            upload_id
+        );
+        let mut req = Request::delete(url)
+            .body(AsyncBody::Empty)
+            .map_err(|e| new_request_build_error(Operation::AbortMultipart, path, e))?;
+        self.signer
+            .sign(&mut req)
+            .map_err(|e| new_request_sign_error(Operation::AbortMultipart, path, e))?;
+
+        self.client
+            .send_async(req)
+            .await
+            .map_err(|e| new_request_send_error(Operation::AbortMultipart, path, e))
+    }
 }
 
 #[async_trait]
@@ -506,7 +641,10 @@ impl Accessor for Backend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::List
+                    | AccessorCapability::Multipart,
             );
         am
     }
@@ -670,4 +808,146 @@ impl Accessor for Backend {
             path,
         ))))
     }
+
+    async fn create_multipart(&self, path: &str, _: OpCreateMultipart) -> Result<String> {
+        let resp = self.oss_initiate_multipart_upload(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let bs =
+                    resp.into_body().bytes().await.map_err(|e| {
+                        new_response_consume_error(Operation::CreateMultipart, path, e)
+                    })?;
+
+                let result: InitiateMultipartUploadResult =
+                    de::from_reader(bs.reader()).map_err(|err| {
+                        new_other_object_error(
+                            Operation::CreateMultipart,
+                            path,
+                            anyhow::anyhow!("parse xml: {err:?}"),
+                        )
+                    })?;
+
+                Ok(result.upload_id)
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::CreateMultipart, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
+        let resp = self
+            .oss_upload_part(
+                path,
+                args.upload_id(),
+                args.part_number(),
+                Some(args.size()),
+                AsyncBody::Reader(r),
+            )
+            .await?;
+
+        match status {
+            StatusCode::OK => {
+                let etag = parse_etag(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::WriteMultipart, path, e))?
+                    .ok_or_else(|| {
+                        new_other_object_error(
+                            Operation::WriteMultipart,
+                            path,
+                            anyhow::anyhow!("ETag not present in returning response"),
+                        )
+                    })?
+                    .to_string();
+
+                resp.into_body().consume().await.map_err(|err| {
+                    new_response_consume_error(Operation::WriteMultipart, path, err)
+                })?;
+
+                Ok(ObjectPart::new(args.part_number(), &etag))
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::WriteMultipart, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+        let resp = self
+            .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await.map_err(|e| {
+                    new_response_consume_error(Operation::CompleteMultipart, path, e)
+                })?;
+
+                Ok(())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::CompleteMultipart, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+        let resp = self
+            .s3_abort_multipart_upload(path, args.upload_id())
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::NO_CONTENT => {
+                resp.into_body()
+                    .consume()
+                    .await
+                    .map_err(|e| new_response_consume_error(Operation::AbortMultipart, path, e))?;
+
+                Ok(())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::AbortMultipart, path, er);
+                Err(err)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Default)]
+#[serde(rename_all = "PascalCase")]
+struct CompleteMultipartUploadRequestPart {
+    part_number: usize,
+    #[serde(rename = "ETag")]
+    etag: String,
+}
+#[derive(Clone, Debug, Serialize, Default)]
+#[serde(rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+struct CompleteMultipartUploadRequest {
+    part: Vec<CompleteMultipartUploadRequestPart>,
+}
+
+#[derive(Clone, Debug, Deserialize, Default)]
+#[serde(rename = "CompleteMultipartUpload", rename_all = "PascalCase")]
+struct InitiateMultipartUploadResult {
+    bucket: String,
+    key: String,
+    upload_id: String,
 }

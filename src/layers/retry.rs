@@ -14,6 +14,7 @@
 
 use std::fmt::Debug;
 use std::future::Future;
+use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
@@ -132,6 +133,7 @@ where
                     Operation::Create, dur.as_secs_f64(), err)
             })
             .await
+            .map_err(convert_interrupted_error)
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
@@ -144,7 +146,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Read, dur.as_secs_f64(), err)
             })
-            .await?;
+            .await
+            .map_err(convert_interrupted_error)?;
         Ok(Box::new(RetryReader::new(
             r,
             Operation::Read,
@@ -155,7 +158,10 @@ where
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let r = Box::new(RetryReader::new(r, Operation::Write, self.backoff.clone()));
 
-        self.inner.write(path, args.clone(), r).await
+        self.inner
+            .write(path, args.clone(), r)
+            .await
+            .map_err(convert_interrupted_error)
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
@@ -169,6 +175,7 @@ where
                     Operation::Stat, dur.as_secs_f64(), err)
             })
             .await
+            .map_err(convert_interrupted_error)
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
@@ -182,6 +189,7 @@ where
                     Operation::Delete, dur.as_secs_f64(), err)
             })
             .await
+            .map_err(convert_interrupted_error)
     }
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         { || self.inner.list(path, args.clone()) }
@@ -194,6 +202,7 @@ where
                     Operation::List, dur.as_secs_f64(), err)
             })
             .await
+            .map_err(convert_interrupted_error)
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
@@ -211,6 +220,7 @@ where
                     Operation::CreateMultipart, dur.as_secs_f64(), err)
             })
             .await
+            .map_err(convert_interrupted_error)
     }
 
     async fn write_multipart(
@@ -220,7 +230,10 @@ where
         r: BytesReader,
     ) -> Result<ObjectPart> {
         // Write can't retry, until can reset this reader.
-        self.inner.write_multipart(path, args.clone(), r).await
+        self.inner
+            .write_multipart(path, args.clone(), r)
+            .await
+            .map_err(convert_interrupted_error)
     }
 
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
@@ -234,6 +247,7 @@ where
                     Operation::CompleteMultipart, dur.as_secs_f64(), err)
             })
             .await
+            .map_err(convert_interrupted_error)
     }
 
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
@@ -247,6 +261,7 @@ where
                     Operation::AbortMultipart, dur.as_secs_f64(), err)
             })
             .await
+            .map_err(convert_interrupted_error)
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -473,7 +488,7 @@ where
                                 // Reset retry to none.
                                 *this.retry = None;
 
-                                return Poll::Ready(Err(err));
+                                return Poll::Ready(Err(convert_interrupted_error(err)));
                             }
                             Some(dur) => {
                                 warn!(
@@ -494,6 +509,21 @@ where
                 }
             }
         }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("permanent error: still failing after retry, source: {source}")]
+struct PermanentError {
+    source: Error,
+}
+
+/// Convert all interrupted error into permanent error.
+fn convert_interrupted_error(source: Error) -> Error {
+    if source.kind() == ErrorKind::Interrupted {
+        Error::new(ErrorKind::Other, PermanentError { source })
+    } else {
+        source
     }
 }
 
@@ -557,7 +587,7 @@ mod tests {
 
         let result = op.object("retryable_error").read().await;
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "retryable_error");
+        assert!(result.unwrap_err().to_string().contains("retryable_error"));
         // The error is retryable, we should request it 1 + 10 times.
         assert_eq!(*srv.attempt.lock().unwrap(), 11);
 

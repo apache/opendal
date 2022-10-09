@@ -126,16 +126,18 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     let mut expected: Vec<String> = (0..=1000)
         .map(|num| format!("test_list_rich_dir/file-{}", num))
         .collect();
-    let mut futs = FuturesUnordered::new();
-    for path in expected.iter() {
-        let op = op.clone();
-        let path = path.clone();
-        let th = tokio::spawn(async move { op.object(&path).create().await });
-        futs.push(th);
-    }
-    while let Some(fut) = futs.next().await {
-        fut??;
-    }
+
+    expected
+        .iter()
+        .map(|v| async {
+            let o = op.object(v);
+            o.create().await.expect("create must succeed");
+        })
+        // Collect into a FuturesUnordered.
+        .collect::<FuturesUnordered<_>>()
+        // Collect to consume all features.
+        .collect::<Vec<_>>()
+        .await;
 
     let mut objects = op.object("test_list_rich_dir/").list().await?;
     let mut actual = vec![];

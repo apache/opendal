@@ -47,6 +47,7 @@ use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
+use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -586,9 +587,10 @@ impl Backend {
 
         pool.get_owned().await.map_err(|err| match err {
             RunError::User(err) => new_ftp_error(err, op, ""),
-            RunError::TimedOut => {
-                new_other_object_error(op, "", anyhow!("connection request: timeout"))
-            }
+            RunError::TimedOut => Error::new(
+                ErrorKind::Interrupted,
+                ObjectError::new(op, "", anyhow!("connection request: timeout")),
+            ),
         })
     }
 }

@@ -23,12 +23,12 @@ jobs:
         image: fauria/vsftpd
         ports:
           - 2121:21
-          - 21000-22000:21000-22000
+          - 20000-22000:20000-22000
         env:
           FTP_USER: admin
           FTP_PASS: admin
           PASV_ADDRESS: 127.0.0.1
-          PASV_MIN_PORT: 21000
+          PASV_MIN_PORT: 20000
           PASV_MAX_PORT: 22000
         volumes:
           - vsftpd-data:/home/vsftpd

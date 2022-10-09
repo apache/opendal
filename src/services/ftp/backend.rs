@@ -42,8 +42,7 @@ use tokio::sync::OnceCell;
 
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
-use super::err::new_request_connection_err;
-use super::err::new_request_quit_err;
+use super::err::new_ftp_error;
 use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
@@ -358,7 +357,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
+            .map_err(|e| new_ftp_error(e, Operation::Create, path))?;
 
         return Ok(());
     }
@@ -435,7 +434,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Write, path))?;
+            .map_err(|e| new_ftp_error(e, Operation::Write, path))?;
 
         Ok(bytes)
     }
@@ -486,7 +485,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Stat, &path))?;
+            .map_err(|e| new_ftp_error(e, Operation::Stat, &path))?;
 
         if files.is_empty() {
             Err(Error::new(ErrorKind::NotFound, "Not Found"))
@@ -535,7 +534,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::Delete, path))?;
+            .map_err(|e| new_ftp_error(e, Operation::Delete, path))?;
 
         Ok(())
     }
@@ -551,7 +550,7 @@ impl Accessor for Backend {
         ftp_stream
             .quit()
             .await
-            .map_err(|e| new_request_quit_err(e, Operation::List, path))?;
+            .map_err(|e| new_ftp_error(e, Operation::List, path))?;
 
         let rd = ReadDir::new(files);
 
@@ -582,11 +581,11 @@ impl Backend {
             .await
         {
             Ok(v) => Ok(v.clone()),
-            Err(err) => Err(new_request_connection_err(err, op, "")),
+            Err(err) => Err(new_ftp_error(err, op, "")),
         }?;
 
         pool.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => new_request_connection_err(err, op, ""),
+            RunError::User(err) => new_ftp_error(err, op, ""),
             RunError::TimedOut => {
                 new_other_object_error(op, "", anyhow!("connection request: timeout"))
             }

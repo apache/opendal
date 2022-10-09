@@ -576,8 +576,8 @@ mod build_test {
 
     use super::Builder;
 
-    #[test]
-    fn test_build() {
+    #[tokio::test]
+    async fn test_build() {
         // ftps scheme, should suffix with default port 21
         let mut builder = Builder::default();
         builder.endpoint("ftps://ftp_server.local");

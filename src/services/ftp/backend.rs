@@ -280,7 +280,7 @@ impl bb8::ManageConnection for Manager {
     }
 
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
+        true
     }
 }
 

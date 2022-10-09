@@ -123,6 +123,11 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
+    // Create dir first to avoid concurrent create parent.
+    //
+    // Should be removed after <https://github.com/datafuselabs/opendal/issues/829>
+    op.object("test_list_rich_dir/").create().await?;
+
     let mut expected: Vec<String> = (0..=1000)
         .map(|num| format!("test_list_rich_dir/file-{}", num))
         .collect();

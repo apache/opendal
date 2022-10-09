@@ -587,7 +587,7 @@ mod tests {
 
         let result = op.object("retryable_error").read().await;
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "retryable_error");
+        assert!(result.unwrap_err().to_string().contains("retryable_error"));
         // The error is retryable, we should request it 1 + 10 times.
         assert_eq!(*srv.attempt.lock().unwrap(), 11);
 

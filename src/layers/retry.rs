@@ -145,11 +145,15 @@ where
                     Operation::Read, dur.as_secs_f64(), err)
             })
             .await?;
-        Ok(Box::new(RetryReader::new(r, self.backoff.clone())))
+        Ok(Box::new(RetryReader::new(
+            r,
+            Operation::Read,
+            self.backoff.clone(),
+        )))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let r = Box::new(RetryReader::new(r, self.backoff.clone()));
+        let r = Box::new(RetryReader::new(r, Operation::Write, self.backoff.clone()));
 
         self.inner.write(path, args.clone(), r).await
     }
@@ -408,15 +412,18 @@ where
 #[pin_project]
 struct RetryReader<B: Backoff + Debug + Send + Sync> {
     inner: BytesReader,
+    op: Operation,
+
     backoff: B,
     retry: Option<B>,
     sleep: Option<Pin<Box<Sleep>>>,
 }
 
 impl<B: Backoff + Debug + Send + Sync> RetryReader<B> {
-    fn new(inner: BytesReader, backoff: B) -> Self {
+    fn new(inner: BytesReader, op: Operation, backoff: B) -> Self {
         Self {
             inner,
+            op,
             backoff,
             retry: None,
             sleep: None,
@@ -472,7 +479,7 @@ where
                                 warn!(
                                     target: "opendal::service",
                                     "operation={}  -> retry after {}s: error={:?}",
-                                    Operation::Read, dur.as_secs_f64(), err);
+                                    *this.op, dur.as_secs_f64(), err);
 
                                 *this.sleep = Some(Box::pin(tokio::time::sleep(dur)));
                                 continue;

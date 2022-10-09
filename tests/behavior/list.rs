@@ -123,8 +123,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
-    let files = 1000;
-    let mut expected: Vec<String> = (0..=files)
+    let mut expected: Vec<String> = (0..=1000)
         .map(|num| format!("test_list_rich_dir/file-{}", num))
         .collect();
     let mut futs = FuturesUnordered::new();

@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Error, ErrorKind};
+use std::io::Error;
+use std::io::ErrorKind;
 
 use anyhow::anyhow;
-use suppaftp::{FtpError, Status};
+use suppaftp::FtpError;
+use suppaftp::Status;
 
 use crate::error::new_other_object_error;
 use crate::error::ObjectError;

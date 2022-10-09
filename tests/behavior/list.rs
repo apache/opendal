@@ -15,6 +15,8 @@
 use std::collections::HashMap;
 use std::io::Result;
 
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 use opendal::ObjectMode;
@@ -121,11 +123,19 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
-    let mut expected: Vec<String> = (0..=1000)
+    let files = 1000;
+    let mut expected: Vec<String> = (0..=files)
         .map(|num| format!("test_list_rich_dir/file-{}", num))
         .collect();
+    let mut futs = FuturesUnordered::new();
     for path in expected.iter() {
-        op.object(path).create().await?;
+        let op = op.clone();
+        let path = path.clone();
+        let th = tokio::spawn(async move { op.object(&path).create().await });
+        futs.push(th);
+    }
+    while let Some(fut) = futs.next().await {
+        fut??;
     }
 
     let mut objects = op.object("test_list_rich_dir/").list().await?;

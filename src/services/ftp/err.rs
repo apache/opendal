@@ -31,10 +31,12 @@ pub fn new_request_connection_err(e: FtpError, op: Operation, path: &str) -> Err
         // Allow retry for error
         //
         // `{ status: NotAvailable, body: "421 There are too many connections from your internet address." }`
-        FtpError::UnexpectedResponse(resp) if resp.status == Status::NotAvailable => Error::new(
-            ErrorKind::Interrupted,
-            ObjectError::new(op, path, anyhow!("connection request: {e:?}")),
-        ),
+        FtpError::UnexpectedResponse(ref resp) if resp.status == Status::NotAvailable => {
+            Error::new(
+                ErrorKind::Interrupted,
+                ObjectError::new(op, path, anyhow!("connection request: {e:?}")),
+            )
+        }
         _ => new_other_object_error(op, path, anyhow!("connection request: {e:?}")),
     }
 }

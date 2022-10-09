@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 
 use anyhow::anyhow;
-use suppaftp::FtpError;
+use suppaftp::{FtpError, Status};
 
 use crate::error::new_other_object_error;
 use crate::error::ObjectError;
@@ -27,7 +27,16 @@ use crate::ops::Operation;
 ///
 /// In the future, we may have our own error struct.
 pub fn new_request_connection_err(e: FtpError, op: Operation, path: &str) -> Error {
-    new_other_object_error(op, path, anyhow!("connection request: {e:?}"))
+    match e {
+        // Allow retry for error
+        //
+        // `{ status: NotAvailable, body: "421 There are too many connections from your internet address." }`
+        FtpError::UnexpectedResponse(resp) if resp.status == Status::NotAvailable => Error::new(
+            ErrorKind::Interrupted,
+            ObjectError::new(op, path, anyhow!("connection request: {e:?}")),
+        ),
+        _ => new_other_object_error(op, path, anyhow!("connection request: {e:?}")),
+    }
 }
 
 pub fn new_request_quit_err(e: FtpError, op: Operation, path: &str) -> Error {

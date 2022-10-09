@@ -38,6 +38,7 @@ use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
 use time::OffsetDateTime;
+use tokio::sync::OnceCell;
 
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
@@ -214,15 +215,14 @@ impl Builder {
         };
 
         info!("ftp backend finished: {:?}", &self);
+
         Ok(Backend {
-            root: root.to_string(),
-            pool: bb8::Pool::builder().max_size(64).build_unchecked(Manager {
-                endpoint,
-                root,
-                user,
-                password,
-                enable_secure,
-            }),
+            endpoint,
+            root,
+            user,
+            password,
+            enable_secure,
+            pool: OnceCell::new(),
         })
     }
 }
@@ -287,8 +287,12 @@ impl bb8::ManageConnection for Manager {
 /// Backend is used to serve `Accessor` support for ftp.
 #[derive(Clone)]
 pub struct Backend {
+    endpoint: String,
     root: String,
-    pool: bb8::Pool<Manager>,
+    user: String,
+    password: String,
+    enable_secure: bool,
+    pool: OnceCell<bb8::Pool<Manager>>,
 }
 
 impl Debug for Backend {
@@ -561,7 +565,27 @@ impl Accessor for Backend {
 
 impl Backend {
     async fn ftp_connect(&self, op: Operation) -> Result<PooledConnection<'static, Manager>> {
-        self.pool.get_owned().await.map_err(|err| match err {
+        let pool = match self
+            .pool
+            .get_or_try_init(|| async {
+                bb8::Pool::builder()
+                    .max_size(64)
+                    .build(Manager {
+                        endpoint: self.endpoint.to_string(),
+                        root: self.root.to_string(),
+                        user: self.user.to_string(),
+                        password: self.password.to_string(),
+                        enable_secure: self.enable_secure,
+                    })
+                    .await
+            })
+            .await
+        {
+            Ok(v) => Ok(v.clone()),
+            Err(err) => Err(new_request_connection_err(err, op, "")),
+        }?;
+
+        pool.get_owned().await.map_err(|err| match err {
             RunError::User(err) => new_request_connection_err(err, op, ""),
             RunError::TimedOut => {
                 new_other_object_error(op, "", anyhow!("connection request: timeout"))
@@ -576,8 +600,8 @@ mod build_test {
 
     use super::Builder;
 
-    #[tokio::test]
-    async fn test_build() {
+    #[test]
+    fn test_build() {
         // ftps scheme, should suffix with default port 21
         let mut builder = Builder::default();
         builder.endpoint("ftps://ftp_server.local");

@@ -355,11 +355,6 @@ impl Accessor for Backend {
             }
         }
 
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_ftp_error(e, Operation::Create, path))?;
-
         return Ok(());
     }
 
@@ -432,11 +427,6 @@ impl Accessor for Backend {
                 )
             })?;
 
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_ftp_error(e, Operation::Write, path))?;
-
         Ok(bytes)
     }
 
@@ -483,11 +473,6 @@ impl Accessor for Backend {
                 .collect::<Vec<File>>()
         };
 
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_ftp_error(e, Operation::Stat, &path))?;
-
         if files.is_empty() {
             Err(Error::new(ErrorKind::NotFound, "Not Found"))
         } else {
@@ -532,11 +517,6 @@ impl Accessor for Backend {
             }
         }
 
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_ftp_error(e, Operation::Delete, path))?;
-
         Ok(())
     }
 
@@ -547,11 +527,6 @@ impl Accessor for Backend {
         let files = ftp_stream.list(pathname).await.map_err(|e| {
             new_other_object_error(Operation::List, path, anyhow!("list request: {e:?}"))
         })?;
-
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_ftp_error(e, Operation::List, path))?;
 
         let rd = ReadDir::new(files);
 
@@ -588,7 +563,7 @@ impl Backend {
         pool.get_owned().await.map_err(|err| match err {
             RunError::User(err) => new_ftp_error(err, op, ""),
             RunError::TimedOut => Error::new(
-                ErrorKind::Interrupted,
+                ErrorKind::Other,
                 ObjectError::new(op, "", anyhow!("connection request: timeout")),
             ),
         })

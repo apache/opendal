@@ -86,14 +86,6 @@ impl AsyncRead for FtpReader {
                                     )
                                 })?;
 
-                                ft.quit().await.map_err(|e| {
-                                    new_other_object_error(
-                                        Operation::Read,
-                                        path.as_str(),
-                                        anyhow!("quit request: {e:?}"),
-                                    )
-                                })?;
-
                                 Ok(())
                             };
                             self.state = State::Finalize(Box::pin(fut));

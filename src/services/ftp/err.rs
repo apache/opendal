@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Error, ErrorKind};
+use std::io::Error;
+use std::io::ErrorKind;
 
 use anyhow::anyhow;
-use suppaftp::{FtpError, Status};
+use suppaftp::FtpError;
+use suppaftp::Status;
 
 use crate::error::new_other_object_error;
 use crate::error::ObjectError;
@@ -26,7 +28,7 @@ use crate::ops::Operation;
 /// # TODO
 ///
 /// In the future, we may have our own error struct.
-pub fn new_request_connection_err(e: FtpError, op: Operation, path: &str) -> Error {
+pub fn new_ftp_error(e: FtpError, op: Operation, path: &str) -> Error {
     match e {
         // Allow retry for error
         //
@@ -34,15 +36,16 @@ pub fn new_request_connection_err(e: FtpError, op: Operation, path: &str) -> Err
         FtpError::UnexpectedResponse(ref resp) if resp.status == Status::NotAvailable => {
             Error::new(
                 ErrorKind::Interrupted,
-                ObjectError::new(op, path, anyhow!("connection request: {e:?}")),
+                ObjectError::new(op, path, anyhow!("ftp error: {e:?}")),
             )
         }
-        _ => new_other_object_error(op, path, anyhow!("connection request: {e:?}")),
+        // Allow retry bad response.
+        FtpError::BadResponse => Error::new(
+            ErrorKind::Interrupted,
+            ObjectError::new(op, path, anyhow!("ftp error: {e:?}")),
+        ),
+        _ => new_other_object_error(op, path, anyhow!("ftp error: {e:?}")),
     }
-}
-
-pub fn new_request_quit_err(e: FtpError, op: Operation, path: &str) -> Error {
-    new_other_object_error(op, path, anyhow!("quit request: {e:?}"))
 }
 
 pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {

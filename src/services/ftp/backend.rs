@@ -24,6 +24,8 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use bb8::PooledConnection;
+use bb8::RunError;
 use futures::io::copy;
 use futures::AsyncReadExt;
 use http::Uri;
@@ -36,15 +38,16 @@ use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
 use time::OffsetDateTime;
+use tokio::sync::OnceCell;
 
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
-use super::err::new_request_connection_err;
-use super::err::new_request_quit_err;
+use super::err::new_ftp_error;
 use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
 use crate::error::new_other_object_error;
+use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -212,13 +215,73 @@ impl Builder {
         };
 
         info!("ftp backend finished: {:?}", &self);
+
         Ok(Backend {
             endpoint,
             root,
             user,
             password,
             enable_secure,
+            pool: OnceCell::new(),
         })
+    }
+}
+
+pub struct Manager {
+    endpoint: String,
+    root: String,
+    user: String,
+    password: String,
+    enable_secure: bool,
+}
+
+#[async_trait]
+impl bb8::ManageConnection for Manager {
+    type Connection = FtpStream;
+    type Error = FtpError;
+
+    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+        let stream = FtpStream::connect(&self.endpoint).await?;
+
+        // switch to secure mode if ssl/tls is on.
+        let mut ftp_stream = if self.enable_secure {
+            stream
+                .into_secure(TlsConnector::new(), &self.endpoint)
+                .await?
+        } else {
+            stream
+        };
+
+        // login if needed
+        if !self.user.is_empty() {
+            ftp_stream.login(&self.user, &self.password).await?;
+        }
+
+        // change to the root path
+        match ftp_stream.cwd(&self.root).await {
+            Err(FtpError::UnexpectedResponse(e)) if e.status == Status::FileUnavailable => {
+                ftp_stream.mkdir(&self.root).await?;
+                // Then change to root path
+                ftp_stream.cwd(&self.root).await?;
+            }
+            // Other errors, return.
+            Err(e) => return Err(e),
+            // Do nothing if success.
+            Ok(_) => (),
+        }
+
+        ftp_stream.transfer_type(FileType::Binary).await?;
+
+        Ok(ftp_stream)
+    }
+
+    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+        conn.noop().await
+    }
+
+    /// Always allow reuse conn.
+    fn has_broken(&self, _: &mut Self::Connection) -> bool {
+        false
     }
 }
 
@@ -230,15 +293,12 @@ pub struct Backend {
     user: String,
     password: String,
     enable_secure: bool,
+    pool: OnceCell<bb8::Pool<Manager>>,
 }
 
 impl Debug for Backend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
-            .field("endpoint", &self.endpoint)
-            .field("root", &self.root)
-            .field("enable_secure", &self.enable_secure)
-            .finish()
+        f.debug_struct("Backend").finish()
     }
 }
 
@@ -295,11 +355,6 @@ impl Accessor for Backend {
                     })?;
             }
         }
-
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_request_quit_err(e, Operation::Create, path))?;
 
         return Ok(());
     }
@@ -373,11 +428,6 @@ impl Accessor for Backend {
                 )
             })?;
 
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_request_quit_err(e, Operation::Write, path))?;
-
         Ok(bytes)
     }
 
@@ -424,11 +474,6 @@ impl Accessor for Backend {
                 .collect::<Vec<File>>()
         };
 
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_request_quit_err(e, Operation::Stat, &path))?;
-
         if files.is_empty() {
             Err(Error::new(ErrorKind::NotFound, "Not Found"))
         } else {
@@ -473,11 +518,6 @@ impl Accessor for Backend {
             }
         }
 
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_request_quit_err(e, Operation::Delete, path))?;
-
         Ok(())
     }
 
@@ -488,11 +528,6 @@ impl Accessor for Backend {
         let files = ftp_stream.list(pathname).await.map_err(|e| {
             new_other_object_error(Operation::List, path, anyhow!("list request: {e:?}"))
         })?;
-
-        ftp_stream
-            .quit()
-            .await
-            .map_err(|e| new_request_quit_err(e, Operation::List, path))?;
 
         let rd = ReadDir::new(files);
 
@@ -505,79 +540,34 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    async fn ftp_connect(&self, op: Operation) -> Result<FtpStream> {
-        let stream = FtpStream::connect(&self.endpoint)
+    async fn ftp_connect(&self, op: Operation) -> Result<PooledConnection<'static, Manager>> {
+        let pool = match self
+            .pool
+            .get_or_try_init(|| async {
+                bb8::Pool::builder()
+                    .max_size(64)
+                    .build(Manager {
+                        endpoint: self.endpoint.to_string(),
+                        root: self.root.to_string(),
+                        user: self.user.to_string(),
+                        password: self.password.to_string(),
+                        enable_secure: self.enable_secure,
+                    })
+                    .await
+            })
             .await
-            .map_err(|e| new_request_connection_err(e, op, &self.endpoint))?;
+        {
+            Ok(v) => Ok(v),
+            Err(err) => Err(new_ftp_error(err, op, "")),
+        }?;
 
-        // switch to secure mode if ssl/tls is on.
-        let mut ftp_stream = if self.enable_secure {
-            stream
-                .into_secure(TlsConnector::new(), &self.endpoint)
-                .await
-                .map_err(|e| {
-                    new_other_object_error(
-                        op,
-                        &self.endpoint,
-                        anyhow!("enable secure request: {e:?}"),
-                    )
-                })?
-        } else {
-            stream
-        };
-
-        // login if needed
-        if !self.user.is_empty() {
-            ftp_stream
-                .login(&self.user, &self.password)
-                .await
-                .map_err(|e| {
-                    new_other_object_error(op, &self.endpoint, anyhow!("login request: {e:?}"))
-                })?;
-        }
-
-        // change to the root path
-        match ftp_stream.cwd(&self.root).await {
-            Err(FtpError::UnexpectedResponse(e)) => {
-                // Dir does not exist.
-                if e.status == Status::FileUnavailable {
-                    // Make new dir first.
-                    ftp_stream.mkdir(&self.root).await.map_err(|e| {
-                        new_other_object_error(op, &self.endpoint, anyhow!("mkdir request: {e:?}"))
-                    })?;
-                    // Then change to root path
-                    ftp_stream.cwd(&self.root).await.map_err(|e| {
-                        new_other_object_error(op, &self.endpoint, anyhow!("cwd request: {e:?}"))
-                    })?;
-                } else {
-                    // Other errors, return
-                    return Err(new_other_object_error(
-                        op,
-                        &self.endpoint,
-                        anyhow!("cwd request: {e:?}"),
-                    ));
-                }
-            }
-            // Other errors, return.
-            Err(e) => {
-                return Err(new_other_object_error(
-                    op,
-                    &self.endpoint,
-                    anyhow!("cwd request: {e:?}"),
-                ))
-            }
-            // Do nothing if success.
-            Ok(_) => (),
-        }
-
-        ftp_stream
-            .transfer_type(FileType::Binary)
-            .await
-            .map_err(|e| {
-                new_other_object_error(op, &self.endpoint, anyhow!("transfer type request: {e:?}"))
-            })?;
-
-        Ok(ftp_stream)
+        pool.get_owned().await.map_err(|err| match err {
+            RunError::User(err) => new_ftp_error(err, op, ""),
+            RunError::TimedOut => Error::new(
+                ErrorKind::Interrupted,
+                ObjectError::new(op, "", anyhow!("connection request: timeout")),
+            ),
+        })
     }
 }
 

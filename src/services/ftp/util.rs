@@ -19,13 +19,14 @@ use std::task::Context;
 use std::task::Poll;
 
 use anyhow::anyhow;
+use bb8::PooledConnection;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
-use suppaftp::FtpStream;
 use suppaftp::Status;
 
+use super::backend::Manager;
 use crate::error::new_other_object_error;
 use crate::ops::Operation;
 use crate::BytesReader;
@@ -38,13 +39,13 @@ pub struct FtpReader {
 }
 
 pub enum State {
-    Reading(Option<FtpStream>),
+    Reading(Option<PooledConnection<'static, Manager>>),
     Finalize(BoxFuture<'static, Result<()>>),
 }
 
 impl FtpReader {
     /// Create an instance of FtpReader.
-    pub fn new(r: BytesReader, c: FtpStream, path: &str) -> Self {
+    pub fn new(r: BytesReader, c: PooledConnection<'static, Manager>, path: &str) -> Self {
         Self {
             reader: r,
             path: path.to_string(),
@@ -82,14 +83,6 @@ impl AsyncRead for FtpReader {
                                         Operation::Read,
                                         path.as_str(),
                                         anyhow!("unexpected response: {e:?}"),
-                                    )
-                                })?;
-
-                                ft.quit().await.map_err(|e| {
-                                    new_other_object_error(
-                                        Operation::Read,
-                                        path.as_str(),
-                                        anyhow!("quit request: {e:?}"),
                                     )
                                 })?;
 

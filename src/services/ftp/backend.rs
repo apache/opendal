@@ -279,8 +279,9 @@ impl bb8::ManageConnection for Manager {
         conn.noop().await
     }
 
+    /// Always allow reuse conn.
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        true
+        false
     }
 }
 
@@ -556,7 +557,7 @@ impl Backend {
             })
             .await
         {
-            Ok(v) => Ok(v.clone()),
+            Ok(v) => Ok(v),
             Err(err) => Err(new_ftp_error(err, op, "")),
         }?;
 

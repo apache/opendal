@@ -563,7 +563,7 @@ impl Backend {
         pool.get_owned().await.map_err(|err| match err {
             RunError::User(err) => new_ftp_error(err, op, ""),
             RunError::TimedOut => Error::new(
-                ErrorKind::Other,
+                ErrorKind::Interrupted,
                 ObjectError::new(op, "", anyhow!("connection request: timeout")),
             ),
         })

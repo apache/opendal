@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cell::Cell;
 use std::fmt::Debug;
 use std::future::Future;
 use std::io::Error;
@@ -157,9 +158,17 @@ where
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let r = Box::new(RetryReader::new(r, Operation::Write, self.backoff.clone()));
+        let r = Box::new(CloneableReader::new(r));
 
-        self.inner
-            .write(path, args.clone(), r)
+        { || self.inner.write(path, args.clone(), r.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Write, dur.as_secs_f64(), err)
+            })
             .await
             .map_err(convert_interrupted_error)
     }
@@ -512,6 +521,63 @@ where
     }
 }
 
+/// CloneableReader makes a reader cloneable while it been never consumed.
+///
+/// # Safety
+///
+/// The clone for CloneableReader is not a real clone. Instead, we will take
+/// the inner content of `Cell`. After a clone, the previous reader is
+/// invalid. In this way, we will only have one mutable reference to inner reader.
+///
+/// Once `poll_read` has been called on `CloneableReader`, `consumed` will be
+/// set to `true`. So no clone will happen once read has started.
+///
+/// CloneableReader should only be used inside this mod (for write operation retry).
+struct CloneableReader {
+    inner: Cell<Option<BytesReader>>,
+    consumed: bool,
+}
+
+unsafe impl Send for CloneableReader {}
+unsafe impl Sync for CloneableReader {}
+
+impl CloneableReader {
+    fn new(r: BytesReader) -> Self {
+        Self {
+            inner: Cell::new(Some(r)),
+            consumed: false,
+        }
+    }
+}
+
+impl Clone for CloneableReader {
+    fn clone(&self) -> Self {
+        if self.consumed {
+            unreachable!("consumed reader should never be cloned")
+        }
+
+        Self {
+            inner: Cell::new(self.inner.take()),
+            consumed: false,
+        }
+    }
+}
+
+impl AsyncRead for CloneableReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        // Once `poll_read` has been called, we should mark consumed as true.
+        // So that we can't clone this reader anymore.
+        self.consumed = true;
+
+        let r = self.inner.get_mut().as_mut().expect("Reader must be valid");
+        Pin::new(r).poll_read(cx, buf)
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 #[error("permanent error: still failing after retry, source: {source}")]
 struct PermanentError {
@@ -540,6 +606,7 @@ mod tests {
     use anyhow::anyhow;
     use async_trait::async_trait;
     use backon::ConstantBackoff;
+    use futures::io::Cursor;
     use futures::AsyncRead;
     use futures::AsyncReadExt;
 
@@ -572,6 +639,22 @@ mod tests {
                 )),
             }
         }
+
+        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> io::Result<u64> {
+            let mut attempt = self.attempt.lock().unwrap();
+            *attempt += 1;
+
+            match path {
+                "retryable_error" => Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    anyhow!("retryable_error"),
+                )),
+                _ => Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    anyhow!("not_retryable_error"),
+                )),
+            }
+        }
     }
 
     #[tokio::test]
@@ -586,6 +669,27 @@ mod tests {
         let op = Operator::new(srv.clone()).layer(RetryLayer::new(backoff));
 
         let result = op.object("retryable_error").read().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("retryable_error"));
+        // The error is retryable, we should request it 1 + 10 times.
+        assert_eq!(*srv.attempt.lock().unwrap(), 11);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_retryable_error_write() -> anyhow::Result<()> {
+        let _ = env_logger::try_init();
+
+        let srv = Arc::new(MockService::default());
+
+        let backoff = ConstantBackoff::default()
+            .with_delay(Duration::from_micros(1))
+            .with_max_times(10);
+        let op = Operator::new(srv.clone()).layer(RetryLayer::new(backoff));
+
+        let bs = Box::new(Cursor::new("Hello, World!".as_bytes()));
+        let result = op.object("retryable_error").write_from(13, bs).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("retryable_error"));
         // The error is retryable, we should request it 1 + 10 times.

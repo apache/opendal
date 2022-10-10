@@ -35,6 +35,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Set swap
+        shell: bash
+        run: |
+          SWAP_PATH="swapfile"
+
+          sudo fallocate -l 10G $SWAP_PATH
+          sudo chmod 600 $SWAP_PATH
+          sudo mkswap $SWAP_PATH
+          sudo swapon $SWAP_PATH
+      - name: Swap space report after modification
+        shell: bash
+        run: |
+          echo "Memory and swap:"
+          free -h
+          echo
+          swapon --show
+          echo
+
       - name: Test
         shell: bash
         run: cargo test ftp --features compress,layers-retry,services-ftp -- --nocapture

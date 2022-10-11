@@ -15,6 +15,7 @@
 use std::collections::VecDeque;
 use std::io::Result;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
@@ -22,11 +23,11 @@ use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
 
-use crate::Object;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+use crate::{Accessor, Object};
 
 /// TopDownWalker will walk dir in top down way:
 ///
@@ -61,6 +62,7 @@ use crate::ObjectStreamer;
 /// There is no guarantee about the order between files and dirs at the same level.
 /// We only make sure the parent dirs will show up before nest dirs.
 pub struct TopDownWalker {
+    acc: Arc<dyn Accessor>,
     dirs: VecDeque<Object>,
     state: WalkTopDownState,
 }
@@ -69,6 +71,7 @@ impl TopDownWalker {
     /// Create a new [`TopDownWalker`]
     pub fn new(parent: Object) -> Self {
         TopDownWalker {
+            acc: parent.accessor(),
             dirs: VecDeque::from([parent]),
             state: WalkTopDownState::Idle,
         }
@@ -93,7 +96,7 @@ impl futures::Stream for TopDownWalker {
                 };
 
                 let de = ObjectEntry::new(
-                    object.accessor(),
+                    self.acc.clone(),
                     object.path(),
                     ObjectMetadata::new(ObjectMode::DIR),
                 );
@@ -110,7 +113,10 @@ impl futures::Stream for TopDownWalker {
                 Err(e) => Poll::Ready(Some(Err(e))),
             },
             WalkTopDownState::Listing(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
-                Some(Ok(de)) => {
+                Some(Ok(mut de)) => {
+                    // Make returning entry uses the same accessor.
+                    de.set_accessor(self.acc.clone());
+
                     if de.mode().is_dir() {
                         self.dirs.push_back(de.into());
                         self.poll_next(cx)
@@ -165,6 +171,7 @@ impl futures::Stream for TopDownWalker {
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
 pub struct BottomUpWalker {
+    acc: Arc<dyn Accessor>,
     dirs: Vec<Object>,
     ds: Vec<ObjectStreamer>,
     state: WalkBottomUpState,
@@ -174,6 +181,7 @@ impl BottomUpWalker {
     /// Create a new [`BottomUpWalker`]
     pub fn new(parent: Object) -> Self {
         BottomUpWalker {
+            acc: parent.accessor(),
             dirs: Vec::new(),
             ds: Vec::new(),
             state: WalkBottomUpState::Starting(Some(parent)),
@@ -212,7 +220,10 @@ impl futures::Stream for BottomUpWalker {
             },
             WalkBottomUpState::Listing => match self.ds.last_mut() {
                 Some(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
-                    Some(Ok(de)) => {
+                    Some(Ok(mut de)) => {
+                        // Make returning entry uses the same accessor.
+                        de.set_accessor(self.acc.clone());
+
                         if de.mode().is_dir() {
                             self.state = WalkBottomUpState::Starting(Some(de.into()));
                             self.poll_next(cx)
@@ -228,7 +239,7 @@ impl futures::Stream for BottomUpWalker {
                             .pop()
                             .expect("dis streamer corresponding object must exist");
                         let de = ObjectEntry::new(
-                            dob.accessor(),
+                            self.acc.clone(),
                             dob.path(),
                             ObjectMetadata::new(ObjectMode::DIR),
                         );

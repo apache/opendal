@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.19.1] - 2022-10-11
+
+### Added
+
+- feat: Allow retry read and write (#826)
+- feat: Convert interrupted error to permanent after retry (#827)
+- feat(services/ftp): Add connection pool for FTP (#832)
+- feat: Implement retry for write operation (#831)
+- feat: Bump reqsign to latest version (#837)
+- feat(services/s3): Add role_arn and external_id for assume_role (#838)
+
+### Changed
+
+- test: accelerate behaviour test `test_list_rich_dir` (#828)
+
+### Fixed
+
+- fix: ObjectEntry returned in batch operator doesn't have corrent accessor (#839)
+- fix: Accessor in layers not set correctly (#840)
+
 ## [v0.19.0] - 2022-10-08
 
 ### Added
@@ -841,6 +861,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.19.1]: https://github.com/datafuselabs/opendal/compare/v0.19.0...v0.19.1
 [v0.19.0]: https://github.com/datafuselabs/opendal/compare/v0.18.2...v0.19.0
 [v0.18.2]: https://github.com/datafuselabs/opendal/compare/v0.18.1...v0.18.2
 [v0.18.1]: https://github.com/datafuselabs/opendal/compare/v0.18.0...v0.18.1

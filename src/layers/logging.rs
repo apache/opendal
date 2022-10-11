@@ -96,7 +96,7 @@ impl Layer for LoggingLayer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct LoggingAccessor {
     scheme: Scheme,
     inner: Arc<dyn Accessor>,
@@ -316,7 +316,7 @@ impl Accessor for LoggingAccessor {
                     "service={} operation={} path={} -> got dir streamer",
                     self.scheme, Operation::List, path
                 );
-                let streamer = LoggingStreamer::new(self.scheme, path, v);
+                let streamer = LoggingStreamer::new(Arc::new(self.clone()), self.scheme, path, v);
                 Box::new(streamer) as ObjectStreamer
             })
             .map_err(|err| {
@@ -769,7 +769,7 @@ impl Accessor for LoggingAccessor {
                     Operation::BlockingList,
                     path
                 );
-                let li = LoggingIterator::new(self.scheme, path, v);
+                let li = LoggingIterator::new(Arc::new(self.clone()), self.scheme, path, v);
                 Box::new(li) as ObjectIterator
             })
             .map_err(|err| {
@@ -909,14 +909,16 @@ impl Read for BlockingLoggingReader {
 }
 
 struct LoggingStreamer {
+    acc: Arc<LoggingAccessor>,
     scheme: Scheme,
     path: String,
     inner: ObjectStreamer,
 }
 
 impl LoggingStreamer {
-    fn new(scheme: Scheme, path: &str, inner: ObjectStreamer) -> Self {
+    fn new(acc: Arc<LoggingAccessor>, scheme: Scheme, path: &str, inner: ObjectStreamer) -> Self {
         Self {
+            acc,
             scheme,
             path: path.to_string(),
             inner,
@@ -930,7 +932,7 @@ impl Stream for LoggingStreamer {
         match Pin::new(&mut (*self.inner)).poll_next(cx) {
             Poll::Ready(opt) => match opt {
                 Some(res) => match res {
-                    Ok(de) => {
+                    Ok(mut de) => {
                         debug!(
                             target: "opendal::service",
                             "service={} operation={} path={} -> got entry: mode={} path={}",
@@ -940,6 +942,7 @@ impl Stream for LoggingStreamer {
                             de.mode(),
                             de.path(),
                         );
+                        de.set_accessor(self.acc.clone());
                         Poll::Ready(Some(Ok(de)))
                     }
                     Err(e) => {
@@ -991,14 +994,16 @@ impl Stream for LoggingStreamer {
 }
 
 struct LoggingIterator {
+    acc: Arc<LoggingAccessor>,
     scheme: Scheme,
     path: String,
     inner: ObjectIterator,
 }
 
 impl LoggingIterator {
-    fn new(scheme: Scheme, path: &str, inner: ObjectIterator) -> Self {
+    fn new(acc: Arc<LoggingAccessor>, scheme: Scheme, path: &str, inner: ObjectIterator) -> Self {
         Self {
+            acc,
             scheme,
             path: path.to_string(),
             inner,
@@ -1012,7 +1017,7 @@ impl Iterator for LoggingIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next() {
             Some(res) => match res {
-                Ok(de) => {
+                Ok(mut de) => {
                     debug!(
                         target: "opendal::service",
                         "service={} operation={} path={} -> got entry: mode={} path={}",
@@ -1022,6 +1027,7 @@ impl Iterator for LoggingIterator {
                         de.mode(),
                         de.path(),
                     );
+                    de.set_accessor(self.acc.clone());
                     Some(Ok(de))
                 }
                 Err(e) => {

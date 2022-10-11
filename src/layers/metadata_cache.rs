@@ -22,6 +22,8 @@ use async_trait::async_trait;
 use futures::io;
 use futures::io::Cursor;
 
+use super::util::set_accessor_for_object_iterator;
+use super::util::set_accessor_for_object_steamer;
 use crate::error::new_other_object_error;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
@@ -99,7 +101,7 @@ impl Layer for MetadataCacheLayer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct MetadataCacheAccessor {
     cache: Arc<dyn Accessor>,
     inner: Arc<dyn Accessor>,
@@ -162,7 +164,10 @@ impl Accessor for MetadataCacheAccessor {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
-        self.inner.list(path, args).await
+        self.inner
+            .list(path, args)
+            .await
+            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
@@ -235,7 +240,9 @@ impl Accessor for MetadataCacheAccessor {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
-        self.inner.blocking_list(path, args)
+        self.inner
+            .blocking_list(path, args)
+            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
     }
 }
 

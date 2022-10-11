@@ -23,11 +23,12 @@ use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
 
+use crate::Accessor;
+use crate::Object;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
-use crate::{Accessor, Object};
 
 /// TopDownWalker will walk dir in top down way:
 ///

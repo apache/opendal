@@ -29,6 +29,8 @@ use metrics::counter;
 use metrics::histogram;
 use metrics::increment_counter;
 
+use super::util::set_accessor_for_object_iterator;
+use super::util::set_accessor_for_object_steamer;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -126,6 +128,7 @@ impl Layer for MetricsLayer {
     }
 }
 
+#[derive(Clone)]
 struct MetricsAccessor {
     meta: AccessorMetadata,
     inner: Arc<dyn Accessor>,
@@ -286,7 +289,9 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::List.into_static(),
         );
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::List))
+        result
+            .map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::List))
+            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
@@ -528,7 +533,9 @@ impl Accessor for MetricsAccessor {
             LABEL_OPERATION => Operation::BlockingList.into_static(),
         );
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingList))
+        result
+            .map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingList))
+            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
     }
 }
 

@@ -24,6 +24,8 @@ use async_trait::async_trait;
 use futures::AsyncRead;
 use tracing::Span;
 
+use super::util::set_accessor_for_object_iterator;
+use super::util::set_accessor_for_object_steamer;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -69,7 +71,7 @@ impl Layer for TracingLayer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct TracingAccessor {
     inner: Arc<dyn Accessor>,
 }
@@ -116,6 +118,7 @@ impl Accessor for TracingAccessor {
             .list(path, args)
             .await
             .map(|s| Box::new(TracingStreamer::new(Span::current(), s)) as ObjectStreamer)
+            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -181,6 +184,7 @@ impl Accessor for TracingAccessor {
         self.inner
             .blocking_list(path, args)
             .map(|it| Box::new(TracingInterator::new(Span::current(), it)) as ObjectIterator)
+            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
     }
 }
 

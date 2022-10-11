@@ -33,6 +33,8 @@ use log::warn;
 use pin_project::pin_project;
 use tokio::time::Sleep;
 
+use super::util::set_accessor_for_object_iterator;
+use super::util::set_accessor_for_object_steamer;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -108,7 +110,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
     inner: Arc<dyn Accessor>,
     backoff: B,
@@ -212,6 +214,7 @@ where
             })
             .await
             .map_err(convert_interrupted_error)
+            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
@@ -410,7 +413,7 @@ where
             let res = self.inner.blocking_list(path, args.clone());
 
             match res {
-                Ok(v) => return Ok(v),
+                Ok(v) => return Ok(set_accessor_for_object_iterator(v, self.clone())),
                 Err(err) => {
                     let kind = err.kind();
                     e = Some(err);

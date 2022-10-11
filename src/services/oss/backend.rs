@@ -27,7 +27,8 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
-use reqsign::services::aliyun::oss::Signer;
+use reqsign::AliyunOssBuilder;
+use reqsign::AliyunOssSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
@@ -78,8 +79,6 @@ pub struct Builder {
     // authenticate options
     access_key_id: Option<String>,
     access_key_secret: Option<String>,
-    role_arn: Option<String>,
-    oidc_token: Option<String>,
 
     allow_anonymous: bool,
 }
@@ -100,14 +99,6 @@ impl Debug for Builder {
             d.field("access_key_secret", &"<redacted>");
         }
 
-        if self.role_arn.is_some() {
-            d.field("role_arn", &"<redacted>");
-        }
-
-        if self.oidc_token.is_some() {
-            d.field("oidc_token", &"<redacted>");
-        }
-
         d.finish()
     }
 }
@@ -124,8 +115,6 @@ impl Builder {
 
                 "access_key_id" => builder.access_key_id(v),
                 "access_key_secret" => builder.access_key_secret(v),
-                "oidc_token" => builder.oidc_token(v),
-                "role_arn" => builder.role_arn(v),
                 "allow_anonymous" => builder.allow_anonymous(),
                 _ => continue,
             };
@@ -187,22 +176,6 @@ impl Builder {
         self
     }
 
-    /// Set the role of this backend
-    pub fn role_arn(&mut self, role_arn: &str) -> &mut Self {
-        if !role_arn.is_empty() {
-            self.role_arn = Some(role_arn.to_string());
-        }
-        self
-    }
-
-    /// Aliyun's temporary token support
-    pub fn oidc_token(&mut self, token: &str) -> &mut Self {
-        if !token.is_empty() {
-            self.oidc_token = Some(token.to_string());
-        }
-        self
-    }
-
     /// Anonymously access the bucket.
     pub fn allow_anonymous(&mut self) -> &mut Self {
         self.allow_anonymous = true;
@@ -258,7 +231,7 @@ impl Builder {
         };
         context.insert("endpoint".to_string(), endpoint.clone());
 
-        let mut signer_builder = reqsign::services::aliyun::oss::Builder::default();
+        let mut signer_builder = AliyunOssBuilder::default();
 
         if self.allow_anonymous {
             signer_builder.allow_anonymous();
@@ -271,12 +244,6 @@ impl Builder {
             signer_builder.access_key_secret(sk);
         }
 
-        if let Some(token) = &self.oidc_token {
-            signer_builder.oidc_token(token);
-        }
-        if let Some(role_arn) = &self.role_arn {
-            signer_builder.role_arn(role_arn);
-        }
         let signer = signer_builder
             .build()
             .map_err(|e| new_other_backend_error(context, e))?;
@@ -306,7 +273,7 @@ pub struct Backend {
     /// format: <bucket-name>.<endpoint-domain-name>
     host: String,
     endpoint: String,
-    signer: Arc<Signer>,
+    signer: Arc<AliyunOssSigner>,
 }
 
 impl Debug for Backend {

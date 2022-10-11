@@ -34,9 +34,7 @@ use log::debug;
 use log::error;
 use log::info;
 use once_cell::sync::Lazy;
-use reqsign::credential::CredentialLoadChain;
-use reqsign::credential::DummyLoader;
-use reqsign::services::aws::v4::Signer;
+use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -681,7 +679,7 @@ impl Builder {
         context.insert("region".to_string(), region.clone());
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
-        let mut signer_builder = Signer::builder();
+        let mut signer_builder = AwsV4Signer::builder();
         signer_builder.service("s3");
         signer_builder.region(&region);
         signer_builder.allow_anonymous();
@@ -689,12 +687,9 @@ impl Builder {
             signer_builder.security_token(&token);
         }
         if self.disable_credential_loader {
-            signer_builder.credential_loader({
-                let mut chain = CredentialLoadChain::default();
-                chain.push(DummyLoader {});
-
-                chain
-            });
+            signer_builder.disable_load_from_env();
+            signer_builder.disable_load_from_profile();
+            signer_builder.disable_load_from_assume_role_with_web_identity();
         }
 
         if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
@@ -728,7 +723,7 @@ impl Builder {
 pub struct Backend {
     bucket: String,
     endpoint: String,
-    signer: Arc<Signer>,
+    signer: Arc<AwsV4Signer>,
     client: HttpClient,
     // root will be "/" or "/abc/"
     root: String,

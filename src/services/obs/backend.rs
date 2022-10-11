@@ -27,7 +27,7 @@ use http::StatusCode;
 use http::Uri;
 use log::debug;
 use log::info;
-use reqsign::services::huaweicloud::obs::Signer;
+use reqsign::HuaweicloudObsSigner;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
@@ -217,7 +217,7 @@ impl Builder {
 
         let client = HttpClient::new();
 
-        let mut signer_builder = Signer::builder();
+        let mut signer_builder = HuaweicloudObsSigner::builder();
         if let (Some(access_key_id), Some(secret_access_key)) =
             (&self.access_key_id, &self.secret_access_key)
         {
@@ -260,7 +260,7 @@ pub struct Backend {
     client: HttpClient,
     root: String,
     endpoint: String,
-    signer: Arc<Signer>,
+    signer: Arc<HuaweicloudObsSigner>,
     bucket: String,
 }
 

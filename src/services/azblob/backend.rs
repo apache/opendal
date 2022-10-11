@@ -29,7 +29,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::info;
-use reqsign::services::azure::storage::Signer;
+use reqsign::AzureStorageSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
@@ -208,7 +208,7 @@ impl Builder {
 
         let client = HttpClient::new();
 
-        let mut signer_builder = Signer::builder();
+        let mut signer_builder = AzureStorageSigner::builder();
         if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
             signer_builder.account_name(name).account_key(key);
         }
@@ -236,7 +236,7 @@ pub struct Backend {
     client: HttpClient,
     root: String, // root will be "/" or /abc/
     endpoint: String,
-    signer: Arc<Signer>,
+    signer: Arc<AzureStorageSigner>,
     _account_name: String,
 }
 

@@ -27,7 +27,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::info;
-use reqsign::services::google::Signer;
+use reqsign::GoogleSigner;
 use serde::Deserialize;
 use serde_json;
 use time::format_description::well_known::Rfc3339;
@@ -166,7 +166,7 @@ impl Builder {
 
         // build signer
         let auth_url = DEFAULT_GCS_AUTH.to_string();
-        let mut signer_builder = Signer::builder();
+        let mut signer_builder = GoogleSigner::builder();
         signer_builder.scope(&auth_url);
         if let Some(cred) = &self.credential {
             signer_builder.credential_from_content(cred);
@@ -211,7 +211,7 @@ pub struct Backend {
     root: String,
 
     client: HttpClient,
-    signer: Arc<Signer>,
+    signer: Arc<GoogleSigner>,
 }
 
 impl Debug for Backend {

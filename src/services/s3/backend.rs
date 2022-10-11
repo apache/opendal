@@ -114,6 +114,8 @@ pub struct Builder {
     bucket: String,
     endpoint: Option<String>,
     region: Option<String>,
+    role_arn: Option<String>,
+    external_id: Option<String>,
     access_key_id: Option<String>,
     secret_access_key: Option<String>,
     server_side_encryption: Option<String>,
@@ -137,6 +139,8 @@ impl Debug for Builder {
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
             .field("region", &self.region)
+            .field("role_arn", &self.role_arn)
+            .field("external_id", &self.external_id)
             .field("disable_credential_loader", &self.disable_credential_loader)
             .field("enable_virtual_host_style", &self.disable_credential_loader);
 
@@ -184,6 +188,8 @@ impl Builder {
                 "access_key_id" => builder.access_key_id(v),
                 "secret_access_key" => builder.secret_access_key(v),
                 "security_token" => builder.security_token(v),
+                "role_arn" => builder.role_arn(v),
+                "external_id" => builder.external_id(v),
                 "server_side_encryption" => builder.server_side_encryption(v),
                 "server_side_encryption_aws_kms_key_id" => {
                     builder.server_side_encryption_aws_kms_key_id(v)
@@ -279,6 +285,24 @@ impl Builder {
     pub fn secret_access_key(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
             self.secret_access_key = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set role_arn for this backend.
+    pub fn role_arn(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.role_arn = Some(v.to_string())
+        }
+
+        self
+    }
+
+    /// Set external_id for this backend.
+    pub fn external_id(&mut self, v: &str) -> &mut Self {
+        if !v.is_empty() {
+            self.external_id = Some(v.to_string())
         }
 
         self
@@ -683,8 +707,14 @@ impl Builder {
         signer_builder.service("s3");
         signer_builder.region(&region);
         signer_builder.allow_anonymous();
-        if let Some(token) = self.security_token.clone() {
-            signer_builder.security_token(&token);
+        if let Some(v) = &self.security_token {
+            signer_builder.security_token(v);
+        }
+        if let Some(v) = &self.role_arn {
+            signer_builder.role_arn(v);
+        }
+        if let Some(v) = &self.external_id {
+            signer_builder.external_id(v);
         }
         if self.disable_credential_loader {
             signer_builder.disable_load_from_env();

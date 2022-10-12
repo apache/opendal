@@ -16,8 +16,11 @@ use std::fmt::Debug;
 use std::io::Result;
 
 use async_trait::async_trait;
+use flagset::FlagSet;
 use futures::Stream;
 
+use crate::AccessorCapability;
+use crate::AccessorMetadata;
 use crate::Scheme;
 
 /// KvAdapter is the adapter to underlying kv services.
@@ -58,14 +61,20 @@ pub const INODE_ROOT: u64 = 0;
 pub struct Metadata {
     scheme: Scheme,
     name: String,
+    capabilities: FlagSet<AccessorCapability>,
 }
 
 impl Metadata {
     /// Create a new KeyValueAccessorMetadata.
-    pub fn new(scheme: Scheme, name: &str) -> Self {
+    pub fn new(
+        scheme: Scheme,
+        name: &str,
+        capabilities: impl Into<FlagSet<AccessorCapability>>,
+    ) -> Self {
         Self {
             scheme,
             name: name.to_string(),
+            capabilities: capabilities.into(),
         }
     }
 
@@ -77,6 +86,22 @@ impl Metadata {
     /// Get the name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Get the capabilities.
+    pub fn capabilities(&self) -> FlagSet<AccessorCapability> {
+        self.capabilities
+    }
+}
+
+impl From<Metadata> for AccessorMetadata {
+    fn from(m: Metadata) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_name(m.name());
+        am.set_scheme(m.scheme());
+        am.set_capabilities(m.capabilities());
+
+        am
     }
 }
 

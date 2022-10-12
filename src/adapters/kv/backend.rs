@@ -54,7 +54,6 @@ use crate::path::get_basename;
 use crate::path::get_parent;
 use crate::path::normalize_root;
 use crate::Accessor;
-use crate::AccessorCapability;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectEntry;
@@ -96,15 +95,9 @@ where
     S: Adapter,
 {
     fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
+        let mut am: AccessorMetadata = self.kv.metadata().into();
         am.set_root(&self.root);
-        am.set_capabilities(
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-        );
 
-        let kvam = self.kv.metadata();
-        am.set_scheme(kvam.scheme());
-        am.set_name(kvam.name());
         am
     }
 

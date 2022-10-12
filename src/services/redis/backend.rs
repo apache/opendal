@@ -45,6 +45,7 @@ use crate::adapters::kv;
 use crate::error::new_other_backend_error;
 use crate::path::normalize_root;
 use crate::Accessor;
+use crate::AccessorCapability;
 use crate::Scheme;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
@@ -280,6 +281,7 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Redis,
             &self.client.get_connection_info().addr.to_string(),
+            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
         )
     }
 

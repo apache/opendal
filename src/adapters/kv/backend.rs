@@ -53,13 +53,13 @@ use crate::path::build_rooted_abs_path;
 use crate::path::get_basename;
 use crate::path::get_parent;
 use crate::path::normalize_root;
-use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+use crate::{Accessor, AccessorCapability};
 
 /// Backend of kv service.
 #[derive(Debug, Clone)]
@@ -86,6 +86,14 @@ where
     pub fn with_root(mut self, root: &str) -> Self {
         self.root = normalize_root(root);
         self
+    }
+
+    /// Configure root within this backend.
+    fn can_list(&self) -> bool {
+        self.kv
+            .metadata()
+            .capabilities()
+            .contains(AccessorCapability::List)
     }
 }
 
@@ -124,6 +132,28 @@ where
         let p = build_rooted_abs_path(&self.root, path);
         let inode = self.lookup(&p).await?;
         let meta = self.get_inode(inode).await?;
+
+        // kv can't list means it will only have one block.
+        if !self.can_list() {
+            let key = Key::block(inode, 0);
+            let buf = self.kv.get(&key.encode()).await?;
+            return match buf {
+                None => Err(Error::new(
+                    ErrorKind::NotFound,
+                    anyhow!("entry inode: {inode} is not found"),
+                )),
+                Some(mut buf) => {
+                    if let Some(v) = args.offset() {
+                        buf = buf.split_off(v as usize);
+                    }
+                    if let Some(v) = args.size() {
+                        let _ = buf.split_off(v as usize);
+                    }
+                    Ok(Box::new(futures::io::Cursor::new(buf)))
+                }
+            };
+        }
+
         let blocks = calculate_blocks(
             args.offset().unwrap_or_default(),
             args.size().unwrap_or_else(|| meta.content_length()),
@@ -281,6 +311,14 @@ impl<S: Adapter> Backend<S> {
 
     /// Write blocks by inode, version and input data.
     async fn write_blocks(&self, ino: u64, size: u64, mut r: BytesReader) -> Result<()> {
+        // kv can't list means it will only have one block.
+        if !self.can_list() {
+            let mut buf = Vec::with_capacity(size as usize);
+            r.read_to_end(&mut buf).await?;
+            self.create_block(ino, 0, &buf).await?;
+            return Ok(());
+        }
+
         let blocks = size / BLOCK_SIZE as u64;
         let remain = (size % BLOCK_SIZE as u64) as usize;
 
@@ -332,6 +370,13 @@ impl<S: Adapter> Backend<S> {
 
     /// Remove all blocks.
     async fn remove_blocks(&self, ino: u64) -> Result<()> {
+        // kv can't list means it will only have one block.
+        if !self.can_list() {
+            let key = Key::block(ino, 0);
+            self.kv.delete(&key.encode()).await?;
+            return Ok(());
+        }
+
         let mut keys = self.kv.scan(&Key::block_prefix(ino)).await?;
         while let Some(key) = keys.try_next().await? {
             self.kv.delete(&key).await?;

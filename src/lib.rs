@@ -27,6 +27,7 @@
 //! | [ipfs][crate::services::ipfs] | IPFS HTTP Gateway support. |
 //! | [ipmfs][crate::services::ipmfs] | IPFS Mutable File System support. |
 //! | [memory][crate::services::memory] | In memory backend support. |
+//! | [moka][crate::services::moka] | [moka](https://github.com/moka-rs/moka) backend support. |
 //! | [obs][crate::services::obs] | Huawei Cloud OBS service. |
 //! | [oss][crate::services::oss] | Aliyun Object Storage Service (OSS).|
 //! | [redis][crate::services::redis] | Redis service. |
@@ -44,6 +45,7 @@
 //!
 //! - `services-ftp`: Enable ftp service support.
 //! - `services-hdfs`: Enable hdfs service support.
+//! - `services-moka`: Enable moka service support.
 //! - `services-ipfs`: Enable ipfs service support.
 //! - `services-redis`: Enable redis service support.
 //!

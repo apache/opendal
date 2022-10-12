@@ -16,10 +16,11 @@
 //!
 //! # Available Layers
 //!
+//! - [`ConcurrentLimitLayer`]: Add concurrent limit for OpenDAL.
+//! - [`ContentCacheLayer`]: Add content data cache for OpenDAL.
 //! - [`ImmutableIndexLayer`]: Add an immutable in-memory index for OpenDAL.
 //! - [`LoggingLayer`]: Add logging for OpenDAL.
 //! - [`MetadataCacheLayer`]: Add metadata cache for OpenDAL.
-//! - [`ContentCacheLayer`]: Add content data cache for OpenDAL.
 //! - [`MetricsLayer`]: Add metrics for OpenDAL, requires feature `layers-metrics`
 //! - [`RetryLayer`]: Add retry for OpenDAL.
 //! - [`SubdirLayer`]: Allow OpenDAL to switch directory.
@@ -31,6 +32,9 @@ pub use layer::Layer;
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
+mod content_cache;
+pub use content_cache::ContentCacheLayer;
+
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;
 
@@ -39,9 +43,6 @@ pub use logging::LoggingLayer;
 
 mod metadata_cache;
 pub use metadata_cache::MetadataCacheLayer;
-
-mod content_cache;
-pub use content_cache::ContentCacheLayer;
 
 #[cfg(feature = "layers-metrics")]
 mod metrics;

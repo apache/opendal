@@ -136,19 +136,7 @@ impl Accessor for ContentCacheAccessor {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        match self.cache.stat(path, OpStat::new()).await {
-            Ok(meta) => Ok(meta),
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                let meta = self.inner.stat(path, args).await?;
-                if meta.mode().is_file() {
-                    let size = meta.content_length();
-                    let reader = self.inner.read(path, OpRead::new(..)).await?;
-                    self.cache.write(path, OpWrite::new(size), reader).await?;
-                }
-                Ok(meta)
-            }
-            Err(err) => Err(err),
-        }
+        self.inner.stat(path, args).await
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
@@ -217,20 +205,7 @@ impl Accessor for ContentCacheAccessor {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        match self.cache.blocking_stat(path, OpStat::new()) {
-            Ok(meta) => Ok(meta),
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                let meta = self.inner.blocking_stat(path, args)?;
-                if meta.mode().is_file() {
-                    let size = meta.content_length();
-                    let reader = self.inner.blocking_read(path, OpRead::new(..))?;
-                    self.cache
-                        .blocking_write(path, OpWrite::new(size), reader)?;
-                }
-                Ok(meta)
-            }
-            Err(err) => Err(err),
-        }
+        self.inner.blocking_stat(path, args)
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
@@ -262,9 +237,10 @@ mod tests {
         op.object("test_exist")
             .write("Hello, World!".as_bytes())
             .await?;
-        // Stat from cached op.
-        let meta = cached_op.object("test_exist").metadata().await?;
-        assert_eq!(meta.content_length(), 13);
+
+        // Read from cached op.
+        let data = cached_op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 13);
 
         // Write into cache op.
         cached_op
@@ -272,14 +248,14 @@ mod tests {
             .write("Hello, Xuanwo!".as_bytes())
             .await?;
         // op and cached op should have same data.
-        let meta = op.object("test_exist").metadata().await?;
-        assert_eq!(meta.content_length(), 14);
-        let meta = cached_op.object("test_exist").metadata().await?;
-        assert_eq!(meta.content_length(), 14);
+        let data = op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 14);
+        let data = cached_op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 14);
 
-        // Stat not exist object.
-        let meta = cached_op.object("test_not_exist").metadata().await;
-        assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+        // Read not exist object.
+        let data = cached_op.object("test_not_exist").read().await;
+        assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);
 
         Ok(())
     }

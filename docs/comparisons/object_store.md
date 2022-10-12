@@ -103,6 +103,7 @@ opendal supports:
 - ImmutableIndexLayer: immutable in-memory index.
 - LoggingLayer: logging.
 - MetadataCacheLayer: metadata cache.
+- ContentCacheLayer: content data cache.
 - MetricsLayer: metrics
 - RetryLayer: retry
 - SubdirLayer: Allow switch directory without changing original operator.

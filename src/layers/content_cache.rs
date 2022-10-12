@@ -117,13 +117,15 @@ impl Accessor for ContentCacheAccessor {
         match self.cache.read(path, args.clone()).await {
             Ok(r) => Ok(r),
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                let r = self.inner.read(path, args).await?;
                 let meta = self.inner.stat(path, OpStat::new()).await?;
-                if meta.mode().is_file() {
+                let r = if meta.mode().is_file() {
                     let size = meta.content_length();
                     let reader = self.inner.read(path, OpRead::new(..)).await?;
                     self.cache.write(path, OpWrite::new(size), reader).await?;
-                }
+                    self.cache.read(path, args).await?
+                } else {
+                    self.inner.read(path, args).await?
+                };
                 Ok(r)
             }
             Err(err) => Err(err),
@@ -185,14 +187,16 @@ impl Accessor for ContentCacheAccessor {
         match self.cache.blocking_read(path, args.clone()) {
             Ok(r) => Ok(r),
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                let r = self.inner.blocking_read(path, args)?;
                 let meta = self.inner.blocking_stat(path, OpStat::new())?;
-                if meta.mode().is_file() {
+                let r = if meta.mode().is_file() {
                     let size = meta.content_length();
                     let reader = self.inner.blocking_read(path, OpRead::new(..))?;
                     self.cache
                         .blocking_write(path, OpWrite::new(size), reader)?;
-                }
+                    self.cache.blocking_read(path, args)?
+                } else {
+                    self.inner.blocking_read(path, args)?
+                };
                 Ok(r)
             }
             Err(err) => Err(err),

@@ -29,4 +29,4 @@ jobs:
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
-          OPENDAL_MEMORY_TEST: on
+          OPENDAL_MOKA_TEST: on

@@ -143,7 +143,7 @@ pub struct Adapter {
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
         kv::Metadata::new(
-            Scheme::Memory,
+            Scheme::Moka,
             self.inner.name().unwrap_or("moka"),
             AccessorCapability::Read | AccessorCapability::Write,
         )

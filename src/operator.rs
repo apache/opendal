@@ -139,6 +139,8 @@ impl Operator {
             Scheme::Ipfs => services::ipfs::Builder::from_iter(it).build()?.into(),
             Scheme::Ipmfs => services::ipmfs::Builder::from_iter(it).build()?.into(),
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka => services::moka::Builder::from_iter(it).build()?.into(),
             Scheme::Obs => services::obs::Builder::from_iter(it).build()?.into(),
             Scheme::Oss => services::oss::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-redis")]

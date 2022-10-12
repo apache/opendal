@@ -31,6 +31,8 @@ pub mod http;
 pub mod ipfs;
 pub mod ipmfs;
 pub mod memory;
+#[cfg(feature = "services-moka")]
+pub mod moka;
 pub mod obs;
 pub mod oss;
 #[cfg(feature = "services-redis")]

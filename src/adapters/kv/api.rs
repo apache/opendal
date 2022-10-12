@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io;
 use std::io::Result;
 
 use async_trait::async_trait;
@@ -44,7 +45,14 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// Set a key into service.
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
     /// Scan a range of keys.
-    async fn scan(&self, prefix: &[u8]) -> Result<KeyStreamer>;
+    async fn scan(&self, prefix: &[u8]) -> Result<KeyStreamer> {
+        let _ = prefix;
+
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            anyhow::anyhow!("scan operation is not supported"),
+        ))
+    }
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.

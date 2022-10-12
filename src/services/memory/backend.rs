@@ -30,6 +30,7 @@ use parking_lot::Mutex;
 use crate::adapters::kv;
 use crate::adapters::kv::next_prefix;
 use crate::Accessor;
+use crate::AccessorCapability;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -60,7 +61,11 @@ pub struct Adapter {
 #[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(Scheme::Memory, &format!("{:?}", &self.inner as *const _))
+        kv::Metadata::new(
+            Scheme::Memory,
+            &format!("{:?}", &self.inner as *const _),
+            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+        )
     }
 
     async fn next_id(&self) -> Result<u64> {

@@ -32,15 +32,15 @@ pub struct Builder {
     name: Option<String>,
     /// Sets the max capacity of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::max_capacity`]
+    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
     max_capacity: Option<u64>,
     /// Sets the time to live of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_live`]
+    /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     time_to_live: Option<Duration>,
     /// Sets the time to idle of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_idle`]
+    /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
     time_to_idle: Option<Duration>,
 }
 

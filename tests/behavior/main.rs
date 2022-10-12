@@ -71,6 +71,7 @@ behavior_tests!(Azblob);
 behavior_tests!(Fs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-ftp")] { behavior_tests!(Ftp); }}
 behavior_tests!(Memory);
+cfg_if::cfg_if! { if #[cfg(feature = "services-moka")] { behavior_tests!(Moka); }}
 behavior_tests!(Gcs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-ipfs")] { behavior_tests!(Ipfs); }}
 behavior_tests!(Ipmfs);

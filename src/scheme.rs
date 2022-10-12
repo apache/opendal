@@ -48,6 +48,9 @@ pub enum Scheme {
     Ipmfs,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
+    /// [moka][crate::services::moka]: moka backend support.
+    #[cfg(feature = "services-moka")]
+    Moka,
     /// [obs][crate::services::obs]: Huawei Cloud OBS services.
     Obs,
     /// [redis][crate::services::redis]: Redis services
@@ -94,6 +97,8 @@ impl Display for Scheme {
             Scheme::Ipfs => write!(f, "ipfs"),
             Scheme::Ipmfs => write!(f, "ipmfs"),
             Scheme::Memory => write!(f, "memory"),
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka => write!(f, "moka"),
             Scheme::Obs => write!(f, "obs"),
             #[cfg(feature = "services-redis")]
             Scheme::Redis => write!(f, "redis"),
@@ -122,6 +127,8 @@ impl FromStr for Scheme {
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
             "memory" => Ok(Scheme::Memory),
+            #[cfg(feature = "services-moka")]
+            "moka" => Ok(Scheme::Moka),
             "obs" => Ok(Scheme::Obs),
             #[cfg(feature = "services-redis")]
             "redis" => Ok(Scheme::Redis),
@@ -147,6 +154,8 @@ impl From<Scheme> for &'static str {
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
             Scheme::Memory => "memory",
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka => "moka",
             Scheme::Obs => "obs",
             #[cfg(feature = "services-redis")]
             Scheme::Redis => "redis",

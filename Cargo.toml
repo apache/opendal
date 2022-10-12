@@ -40,6 +40,8 @@ services-hdfs = ["hdrs"]
 services-ftp = ["suppaftp", "bb8"]
 # Enable services ipfs support
 services-ipfs = ["prost"]
+# Enable services moka support
+services-moka = ["moka"]
 # Enable services redis support
 services-redis = ["redis"]
 
@@ -105,6 +107,7 @@ http = "0.2"
 log = "0.4"
 md5 = "0.7"
 metrics = { version = "0.20", optional = true }
+moka = { version = "0.9", optional = true, features = ["future"] }
 once_cell = "1"
 parking_lot = "0.12"
 percent-encoding = "2"

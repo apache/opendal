@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::ops::OpCreate;
-use crate::{Accessor, AccessorMetadata};
-use async_trait::async_trait;
 use std::fmt::Debug;
 use std::io::Read;
 use std::io::Result;
@@ -22,14 +19,17 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
+use async_trait::async_trait;
 use futures::AsyncRead;
+use tokio::sync::OwnedSemaphorePermit;
+use tokio::sync::Semaphore;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
+use crate::ops::OpCreate;
 use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -39,6 +39,8 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
+use crate::Accessor;
+use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::Layer;

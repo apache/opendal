@@ -27,6 +27,9 @@
 mod layer;
 pub use layer::Layer;
 
+mod concurrent_limit;
+pub use concurrent_limit::ConcurrentLimitLayer;
+
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;
 

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.19.3] - 2022-10-13
+
+### Fixed
+
+- fix: Retry for write is not implemented correctly (#860)
+
 ## [v0.19.2] - 2022-10-13
 
 ### Added
@@ -871,6 +877,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.19.3]: https://github.com/datafuselabs/opendal/compare/v0.19.2...v0.19.3
 [v0.19.2]: https://github.com/datafuselabs/opendal/compare/v0.19.1...v0.19.2
 [v0.19.1]: https://github.com/datafuselabs/opendal/compare/v0.19.0...v0.19.1
 [v0.19.0]: https://github.com/datafuselabs/opendal/compare/v0.18.2...v0.19.0

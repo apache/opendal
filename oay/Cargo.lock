@@ -1061,7 +1061,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.19.1"
+version = "0.19.2"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -1083,7 +1083,7 @@ checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 
 [[package]]
 name = "opendal"
-version = "0.19.1"
+version = "0.19.2"
 dependencies = [
  "anyhow",
  "async-compat",

@@ -35,6 +35,8 @@ pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
+        // OBS could return `520 Origin Error` errors which should be retried.
+        v if v.as_u16() == 520 => ErrorKind::Interrupted,
         _ => ErrorKind::Other,
     };
 

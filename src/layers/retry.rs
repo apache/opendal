@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::future::Future;
 use std::io::Error;
@@ -202,6 +202,7 @@ where
             .await
             .map_err(convert_interrupted_error)
     }
+
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
@@ -524,21 +525,16 @@ where
     }
 }
 
-/// CloneableReader makes a reader cloneable while it been never consumed.
+/// CloneableReader makes a reader cloneable.
 ///
 /// # Safety
 ///
-/// The clone for CloneableReader is not a real clone. Instead, we will take
-/// the inner content of `Cell`. After a clone, the previous reader is
-/// invalid. In this way, we will only have one mutable reference to inner reader.
+/// `AsyncRead` makes sure that only one mutable reference will be alive.
 ///
-/// Once `poll_read` has been called on `CloneableReader`, `consumed` will be
-/// set to `true`. So no clone will happen once read has started.
-///
-/// CloneableReader should only be used inside this mod (for write operation retry).
+/// Instead of `Mutex`, we use a `RefCell` to borrow the inner reader at runtime.
+#[derive(Clone)]
 struct CloneableReader {
-    inner: Cell<Option<BytesReader>>,
-    consumed: bool,
+    inner: Arc<RefCell<BytesReader>>,
 }
 
 unsafe impl Send for CloneableReader {}
@@ -547,37 +543,19 @@ unsafe impl Sync for CloneableReader {}
 impl CloneableReader {
     fn new(r: BytesReader) -> Self {
         Self {
-            inner: Cell::new(Some(r)),
-            consumed: false,
-        }
-    }
-}
-
-impl Clone for CloneableReader {
-    fn clone(&self) -> Self {
-        if self.consumed {
-            unreachable!("consumed reader should never be cloned")
-        }
-
-        Self {
-            inner: Cell::new(self.inner.take()),
-            consumed: false,
+            inner: Arc::new(RefCell::new(r)),
         }
     }
 }
 
 impl AsyncRead for CloneableReader {
     fn poll_read(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        // Once `poll_read` has been called, we should mark consumed as true.
-        // So that we can't clone this reader anymore.
-        self.consumed = true;
-
-        let r = self.inner.get_mut().as_mut().expect("Reader must be valid");
-        Pin::new(r).poll_read(cx, buf)
+        let mut r = (*self.inner).borrow_mut();
+        Pin::new(r.as_mut()).poll_read(cx, buf)
     }
 }
 
@@ -734,6 +712,18 @@ mod tests {
         }
 
         async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> io::Result<u64> {
+            {
+                let mut attempt = self.attempt.lock().unwrap();
+                *attempt += 1;
+
+                if *attempt < 2 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Interrupted,
+                        anyhow!("retryable_error from Accessor"),
+                    ));
+                }
+            }
+
             let size = futures::io::copy(&mut r, &mut futures::io::sink()).await?;
             assert_eq!(size, args.size());
             Ok(args.size())
@@ -757,7 +747,7 @@ mod tests {
             Poll::Ready(match *attempt {
                 1 => Err(io::Error::new(
                     io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error"),
+                    anyhow!("retryable_error from reader"),
                 )),
                 2 => {
                     buf[..7].copy_from_slice("Hello, ".as_bytes());
@@ -765,7 +755,7 @@ mod tests {
                 }
                 3 => Err(io::Error::new(
                     io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error"),
+                    anyhow!("retryable_error from reader"),
                 )),
                 4 => {
                     buf[..6].copy_from_slice("World!".as_bytes());
@@ -811,7 +801,7 @@ mod tests {
 
         op.object("retryable_error")
             .write_from(
-                13,
+                6,
                 Box::new(MockReader {
                     attempt: srv.attempt.clone(),
                 }),

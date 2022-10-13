@@ -42,9 +42,14 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     ///
     /// - return `Ok(None)` if this key is not exist.
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
+
     /// Set a key into service.
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
+
     /// Scan a range of keys.
+    ///
+    /// If `scan` is not supported, we will disable the block split
+    /// logic. Only one block will be store for one file.
     async fn scan(&self, prefix: &[u8]) -> Result<KeyStreamer> {
         let _ = prefix;
 
@@ -53,6 +58,7 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
             anyhow::anyhow!("scan operation is not supported"),
         ))
     }
+
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.

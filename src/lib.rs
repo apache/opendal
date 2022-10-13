@@ -14,24 +14,48 @@
 
 //! OpenDAL is the Open Data Access Layer to **freely**, **painlessly**, and **efficiently** access data.
 //!
-//! # Supported Services
+//! # Services
+//!
+//! `Service` represents a backend scheme that OpenDAL supported.
+//!
+//! OpenDAL supports the following services now:
 //!
 //! | Services | Description |
 //! | -------- | ----------- |
-//! | [azblob][crate::services::azblob] | Azure Storage Blob services. |
-//! | [fs][crate::services::fs] | POSIX alike file system. |
-//! | [ftp][crate::services::ftp] | FTP and FTPS support. |
-//! | [gcs][crate::services::gcs] | Google Cloud Storage service. |
-//! | [hdfs][crate::services::hdfs] | Hadoop Distributed File System(HDFS). |
-//! | [http][crate::services::http] | HTTP read-only backend. |
-//! | [ipfs][crate::services::ipfs] | IPFS HTTP Gateway support. |
-//! | [ipmfs][crate::services::ipmfs] | IPFS Mutable File System support. |
-//! | [memory][crate::services::memory] | In memory backend support. |
-//! | [moka][crate::services::moka] | [moka](https://github.com/moka-rs/moka) backend support. |
-//! | [obs][crate::services::obs] | Huawei Cloud OBS service. |
-//! | [oss][crate::services::oss] | Aliyun Object Storage Service (OSS).|
-//! | [redis][crate::services::redis] | Redis service. |
-//! | [s3][crate::services::s3] | AWS S3 alike services. |
+//! | [azblob][services::azblob] | Azure Storage Blob services. |
+//! | [fs][services::fs] | POSIX alike file system. |
+//! | [ftp][services::ftp] | FTP and FTPS support. |
+//! | [gcs][services::gcs] | Google Cloud Storage service. |
+//! | [hdfs][services::hdfs] | Hadoop Distributed File System(HDFS). |
+//! | [http][services::http] | HTTP read-only backend. |
+//! | [ipfs][services::ipfs] | IPFS HTTP Gateway support. |
+//! | [ipmfs][services::ipmfs] | IPFS Mutable File System support. |
+//! | [memory][services::memory] | In memory backend support. |
+//! | [moka][services::moka] | [moka](https://github.com/moka-rs/moka) backend support. |
+//! | [obs][services::obs] | Huawei Cloud OBS service. |
+//! | [oss][services::oss] | Aliyun Object Storage Service (OSS).|
+//! | [redis][services::redis] | Redis service. |
+//! | [s3][services::s3] | AWS S3 alike services. |
+//!
+//! More services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5)
+//!
+//! # Layers
+//!
+//! `Layer` is the mechanism to intercept operations.
+//!
+//! OpenDAL supports the following layers now:
+//!
+//! | Layers | Description |
+//! | -------- | ----------- |
+//! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
+//! | [ContentCacheLayer][layers::ContentCacheLayer] | Content cache. |
+//! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
+//! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
+//! | [MetadataCacheLayer][layers::MetadataCacheLayer] | Metadata cache. |
+//! | [MetricsLayer][layers::MetricsLayer] | Metrics for every operations. |
+//! | [RetryLayer][layers::RetryLayer] | Retry for failed operations. |
+//! | [SubdirLayer][layers::SubdirLayer] | Allow switching directory. |
+//! | [TracingLayer][layers::TracingLayer] | Tracing for every operations. |
 //!
 //! # Optional features
 //!
@@ -55,10 +79,15 @@
 //!
 //! # Examples
 //!
-//! ```no_run
+//! More examples could be found at <https://opendal.databend.rs/examples/index.html>
+//!
+//! ```rust
 //! use anyhow::Result;
+//! use backon::ExponentialBackoff;
 //! use futures::StreamExt;
 //! use futures::TryStreamExt;
+//! use opendal::layers::LoggingLayer;
+//! use opendal::layers::RetryLayer;
 //! use opendal::Object;
 //! use opendal::ObjectEntry;
 //! use opendal::ObjectMetadata;
@@ -69,36 +98,33 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     // Init Operator
-//!     let op = Operator::from_env(Scheme::Fs)?;
+//!     // Init a memory operator
+//!     let op = Operator::from_env(Scheme::Memory)?
+//!         // Init with logging layer enabled.
+//!         .layer(LoggingLayer)
+//!         // Init with retry layer enabled.
+//!         .layer(RetryLayer::new(ExponentialBackoff::default()));
 //!
 //!     // Create object handler.
 //!     let o = op.object("test_file");
 //!
-//!     // Write data info object;
+//!     // Write data
 //!     o.write("Hello, World!").await?;
 //!
-//!     // Read data from object;
+//!     // Read data
 //!     let bs = o.read().await?;
 //!
-//!     // Read range from object;
-//!     let bs = o.range_read(1..=11).await?;
-//!
-//!     // Get object's path
+//!     // Fetch metadata
 //!     let name = o.name();
 //!     let path = o.path();
-//!
-//!     // Fetch more meta about object.
 //!     let meta = o.metadata().await?;
 //!     let mode = meta.mode();
 //!     let length = meta.content_length();
-//!     let content_md5 = meta.content_md5();
-//!     let etag = meta.etag();
 //!
-//!     // Delete object.
+//!     // Delete
 //!     o.delete().await?;
 //!
-//!     // List dir object.
+//!     // Readdir
 //!     let o = op.object("test_dir/");
 //!     let mut ds = o.list().await?;
 //!     while let Some(entry) = ds.try_next().await? {

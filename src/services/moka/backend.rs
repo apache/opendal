@@ -23,8 +23,9 @@ use log::info;
 use moka::future::Cache;
 
 use crate::adapters::kv;
+use crate::Accessor;
+use crate::AccessorCapability;
 use crate::Scheme;
-use crate::{Accessor, AccessorCapability};
 
 /// Builder for moka backend
 #[derive(Default, Debug)]

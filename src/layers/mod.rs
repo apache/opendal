@@ -13,18 +13,6 @@
 // limitations under the License.
 
 //! Providing Layer trait and its implementations.
-//!
-//! # Available Layers
-//!
-//! - [`ConcurrentLimitLayer`]: Add concurrent limit for OpenDAL.
-//! - [`ContentCacheLayer`]: Add content data cache for OpenDAL.
-//! - [`ImmutableIndexLayer`]: Add an immutable in-memory index for OpenDAL.
-//! - [`LoggingLayer`]: Add logging for OpenDAL.
-//! - [`MetadataCacheLayer`]: Add metadata cache for OpenDAL.
-//! - [`MetricsLayer`]: Add metrics for OpenDAL, requires feature `layers-metrics`
-//! - [`RetryLayer`]: Add retry for OpenDAL.
-//! - [`SubdirLayer`]: Allow OpenDAL to switch directory.
-//! - [`TracingLayer`]: Add tracing for OpenDAL, requires feature `layers-tracing`
 
 mod layer;
 pub use layer::Layer;

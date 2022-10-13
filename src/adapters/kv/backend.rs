@@ -53,13 +53,14 @@ use crate::path::build_rooted_abs_path;
 use crate::path::get_basename;
 use crate::path::get_parent;
 use crate::path::normalize_root;
+use crate::Accessor;
+use crate::AccessorCapability;
 use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
-use crate::{Accessor, AccessorCapability};
 
 /// Backend of kv service.
 #[derive(Debug, Clone)]

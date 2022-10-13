@@ -33,6 +33,7 @@ use http::StatusCode;
 use log::debug;
 use log::error;
 use log::info;
+use md5::{Digest, Md5};
 use once_cell::sync::Lazy;
 use reqsign::AwsV4Signer;
 use serde::Deserialize;
@@ -457,7 +458,7 @@ impl Builder {
         self.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
         self.server_side_encryption_customer_key = Some(base64::encode(key));
         self.server_side_encryption_customer_key_md5 =
-            Some(base64::encode(md5::compute(key).as_slice()));
+            Some(base64::encode(Md5::digest(key).as_slice()));
         self
     }
 

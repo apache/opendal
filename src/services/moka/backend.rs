@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use log::info;
 use moka::future::Cache;
 
 use crate::adapters::kv;
@@ -26,7 +27,7 @@ use crate::Scheme;
 use crate::{Accessor, AccessorCapability};
 
 /// Builder for moka backend
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Builder {
     /// Name for this cache instance.
     name: Option<String>,
@@ -79,7 +80,7 @@ impl Builder {
 
     /// Sets the max capacity of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::max_capacity`]
+    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
     pub fn max_capacity(&mut self, v: u64) -> &mut Self {
         if v != 0 {
             self.max_capacity = Some(v);
@@ -89,7 +90,7 @@ impl Builder {
 
     /// Sets the time to live of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_live`]
+    /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(&mut self, v: Duration) -> &mut Self {
         if !v.is_zero() {
             self.time_to_live = Some(v);
@@ -99,7 +100,7 @@ impl Builder {
 
     /// Sets the time to idle of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_idle`]
+    /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(&mut self, v: Duration) -> &mut Self {
         if !v.is_zero() {
             self.time_to_idle = Some(v);
@@ -109,6 +110,8 @@ impl Builder {
 
     /// Consume builder to build a moka backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
+        info!("backend build started: {:?}", &self);
+
         let mut builder = Cache::builder();
         if let Some(v) = &self.name {
             builder = builder.name(v);
@@ -123,6 +126,7 @@ impl Builder {
             builder = builder.time_to_idle(v)
         }
 
+        info!("backend build finished: {:?}", &self);
         Ok(Backend::new(Adapter {
             inner: builder.build(),
             next_id: Arc::new(AtomicU64::new(1)),

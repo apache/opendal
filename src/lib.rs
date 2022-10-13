@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! OpenDAL is the Open Data Access Layer that connect the whole world together.
+//! OpenDAL is the Open Data Access Layer to **freely**, **painlessly**, and **efficiently** access data.
 //!
 //! # Supported Services
 //!
@@ -53,7 +53,7 @@
 //!
 //! - `compress`: Enable object decompress read support.
 //!
-//! # Example
+//! # Examples
 //!
 //! ```no_run
 //! use anyhow::Result;

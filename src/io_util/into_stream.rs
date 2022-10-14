@@ -79,9 +79,19 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
 
-        // TODO: we can adopt MaybeUninit to reduce the extra resize.
         if this.buf.is_empty() {
-            this.buf.resize(*this.cap, 0);
+            // Reserve with the given cap every time.
+            //
+            // Ideally, no allocation should be happened because we can reclaim
+            // the previous space.
+            this.buf.reserve(*this.cap);
+            // # Safety
+            //
+            // We will make sure that only valid content will be returned
+            // after write by calling `this.buf.split_to(n)`.
+            unsafe {
+                this.buf.set_len(*this.cap);
+            }
         }
 
         match ready!(this.r.poll_read(cx, this.buf)) {

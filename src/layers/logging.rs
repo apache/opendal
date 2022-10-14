@@ -829,7 +829,13 @@ impl AsyncRead for LoggingReader {
                     trace!(
                         target: "opendal::services",
                         "service={} operation={} path={} has_read={} -> {}: {}B",
-                        self.scheme, self.op, self.path, self.has_read,self.op, n);
+                        self.scheme, self.op, self.path, self.has_read, self.op, n);
+                    if n == 0 {
+                        debug!(
+                            target: "opendal::services",
+                            "service={} operation={} path={} has_read={} -> closed reader",
+                            self.scheme, self.op, self.path, self.has_read);
+                    }
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => {

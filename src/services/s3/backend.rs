@@ -105,6 +105,7 @@ mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
+    pub const X_AMZ_BUCKET_REGION: &str = "x-amz-bucket-region";
 }
 
 /// Builder for s3 services
@@ -558,7 +559,7 @@ impl Builder {
             StatusCode::OK | StatusCode::FORBIDDEN => {
                 let region = res
                     .headers()
-                    .get("x-amz-bucket-region")
+                    .get(constants::X_AMZ_BUCKET_REGION)
                     .unwrap_or(&HeaderValue::from_static("us-east-1"))
                     .to_str()
                     .map_err(|e| new_other_backend_error(context.clone(), e))?
@@ -569,7 +570,7 @@ impl Builder {
             StatusCode::MOVED_PERMANENTLY => {
                 let region = res
                     .headers()
-                    .get("x-amz-bucket-region")
+                    .get(constants::X_AMZ_BUCKET_REGION)
                     .ok_or_else(|| {
                         new_other_backend_error(
                             context.clone(),

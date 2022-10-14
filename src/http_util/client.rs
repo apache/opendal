@@ -19,11 +19,11 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::str::FromStr;
-use std::time::Duration;
 
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use log::debug;
 use reqwest::redirect::Policy;
 use reqwest::ClientBuilder;
 use reqwest::Url;
@@ -68,21 +68,6 @@ impl HttpClient {
             // Redirect will be handled by ourselves.
             builder = builder.redirect(Policy::none());
 
-            // # TODO
-            //
-            // This feature is temporary for now, we should provide a config for users.
-            if let Ok(v) = env::var("OPENDAL_HTTP_POOL_IDLE_TIMEOUT") {
-                if let Ok(v) = v.parse::<u64>() {
-                    builder = builder.pool_idle_timeout(Duration::from_secs(v));
-                }
-            }
-
-            if let Ok(v) = env::var("OPENDAL_HTTP_POOL_MAX_IDLE_PER_HOST") {
-                if let Ok(v) = v.parse::<usize>() {
-                    builder = builder.pool_max_idle_per_host(v);
-                }
-            }
-
             builder.build().expect("reqwest client must build succeed")
         };
 
@@ -93,6 +78,7 @@ impl HttpClient {
                 if let Ok(proxy) = env::var(key) {
                     // Ignore proxy setting if proxy is invalid.
                     if let Ok(proxy) = ureq::Proxy::new(proxy) {
+                        debug!("sync client: set proxy to {proxy:?}");
                         builder = builder.proxy(proxy);
                     }
                 }

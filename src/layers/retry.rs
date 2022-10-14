@@ -158,6 +158,9 @@ where
         )))
     }
 
+    /// Return `Interrupted` Error even after retry.
+    ///
+    /// Allowing users to retry the write request from upper logic.
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let r = Box::new(RetryReader::new(r, Operation::Write, self.backoff.clone()));
         let r = Box::new(CloneableReader::new(r));
@@ -172,7 +175,6 @@ where
                     Operation::Write, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
@@ -501,7 +503,7 @@ where
                                 // Reset retry to none.
                                 *this.retry = None;
 
-                                return Poll::Ready(Err(convert_interrupted_error(err)));
+                                return Poll::Ready(Err(err));
                             }
                             Some(dur) => {
                                 warn!(

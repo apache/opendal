@@ -201,5 +201,6 @@ fn error_kind_from_reqwest_error(err: &reqwest::Error) -> ErrorKind {
     if err.is_status() {
         return ErrorKind::Other;
     }
+
     ErrorKind::Interrupted
 }

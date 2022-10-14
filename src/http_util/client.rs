@@ -19,7 +19,6 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::str::FromStr;
-use std::time::Duration;
 
 use futures::TryStreamExt;
 use http::Request;

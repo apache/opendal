@@ -122,6 +122,7 @@ reqsign = "0.6"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",
+  "trust-dns",
   "rustls-tls-native-roots",
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }

@@ -801,6 +801,8 @@ struct LoggingReader {
     path: String,
     op: Operation,
     has_read: u64,
+    finished: bool,
+
     inner: BytesReader,
 }
 
@@ -811,7 +813,25 @@ impl LoggingReader {
             op,
             path: path.to_string(),
             has_read: 0,
+            finished: false,
+
             inner: reader,
+        }
+    }
+}
+
+impl Drop for LoggingReader {
+    fn drop(&mut self) {
+        if self.finished {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} has_read={} -> consumed reader fully",
+                self.scheme, self.op, self.path, self.has_read);
+        } else {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} has_read={} -> dropped reader",
+                self.scheme, self.op, self.path, self.has_read);
         }
     }
 }
@@ -831,10 +851,7 @@ impl AsyncRead for LoggingReader {
                         "service={} operation={} path={} has_read={} -> {}: {}B",
                         self.scheme, self.op, self.path, self.has_read, self.op, n);
                     if n == 0 {
-                        debug!(
-                            target: "opendal::services",
-                            "service={} operation={} path={} has_read={} -> closed reader",
-                            self.scheme, self.op, self.path, self.has_read);
+                        self.finished = true;
                     }
                     Poll::Ready(Ok(n))
                 }
@@ -870,6 +887,8 @@ struct BlockingLoggingReader {
     path: String,
     op: Operation,
     has_read: u64,
+    finished: bool,
+
     inner: BlockingBytesReader,
 }
 
@@ -880,7 +899,24 @@ impl BlockingLoggingReader {
             op,
             path: path.to_string(),
             has_read: 0,
+            finished: false,
             inner: reader,
+        }
+    }
+}
+
+impl Drop for BlockingLoggingReader {
+    fn drop(&mut self) {
+        if self.finished {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} has_read={} -> consumed reader fully",
+                self.scheme, self.op, self.path, self.has_read);
+        } else {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} has_read={} -> dropped reader",
+                self.scheme, self.op, self.path, self.has_read);
         }
     }
 }
@@ -918,6 +954,7 @@ struct LoggingStreamer {
     acc: Arc<LoggingAccessor>,
     scheme: Scheme,
     path: String,
+    finished: bool,
     inner: ObjectStreamer,
 }
 
@@ -927,7 +964,24 @@ impl LoggingStreamer {
             acc,
             scheme,
             path: path.to_string(),
+            finished: false,
             inner,
+        }
+    }
+}
+
+impl Drop for LoggingStreamer {
+    fn drop(&mut self) {
+        if self.finished {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} -> consumed streamer fully",
+                self.scheme, Operation::List, self.path);
+        } else {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} -> dropped streamer",
+                self.scheme, Operation::List, self.path);
         }
     }
 }
@@ -982,6 +1036,7 @@ impl Stream for LoggingStreamer {
                         Operation::List,
                         self.path
                     );
+                    self.finished = true;
                     Poll::Ready(None)
                 }
             },
@@ -1003,6 +1058,7 @@ struct LoggingIterator {
     acc: Arc<LoggingAccessor>,
     scheme: Scheme,
     path: String,
+    finished: bool,
     inner: ObjectIterator,
 }
 
@@ -1012,7 +1068,24 @@ impl LoggingIterator {
             acc,
             scheme,
             path: path.to_string(),
+            finished: false,
             inner,
+        }
+    }
+}
+
+impl Drop for LoggingIterator {
+    fn drop(&mut self) {
+        if self.finished {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} -> consumed iterator fully",
+                self.scheme, Operation::BlockingList, self.path);
+        } else {
+            debug!(
+                target: "opendal::services",
+                "service={} operation={} path={} -> dropped iterator",
+                self.scheme, Operation::BlockingList, self.path);
         }
     }
 }
@@ -1067,6 +1140,7 @@ impl Iterator for LoggingIterator {
                     Operation::BlockingList,
                     self.path
                 );
+                self.finished = true;
                 None
             }
         }

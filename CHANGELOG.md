@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.19.4] - 2022-10-15
+
+### Added
+
+- feat: Improve into_stream by reduce zero byte fill (#864)
+- debug: Add log for sync http client (#865)
+- feat: Add debug log for finishing read (#867)
+- feat: Try to use trust-dns-resolver (#869)
+- feat: Add log for dropping reader and streamer (#870)
+
+### Changed
+
+- refactor: replace md5 with md-5 (#862)
+- refactor: replace the hard code to X_AMZ_BUCKET_REGION constant (#866)
+
 ## [v0.19.3] - 2022-10-13
 
 ### Fixed
@@ -877,6 +892,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.19.4]: https://github.com/datafuselabs/opendal/compare/v0.19.3...v0.19.4
 [v0.19.3]: https://github.com/datafuselabs/opendal/compare/v0.19.2...v0.19.3
 [v0.19.2]: https://github.com/datafuselabs/opendal/compare/v0.19.1...v0.19.2
 [v0.19.1]: https://github.com/datafuselabs/opendal/compare/v0.19.0...v0.19.1

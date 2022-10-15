@@ -173,7 +173,7 @@ impl Accessor for LoggingAccessor {
                     self.scheme, Operation::Read, path,
                     args.offset(), args.size()
                 );
-                let r = LoggingReader::new(self.scheme, Operation::Read, path, v);
+                let r = LoggingReader::new(self.scheme, Operation::Read, path, args.size(), v);
                 Box::new(r) as BytesReader
             })
             .map_err(|err| {
@@ -199,7 +199,7 @@ impl Accessor for LoggingAccessor {
             self.scheme, Operation::Write, path, args.size()
         );
 
-        let reader = LoggingReader::new(self.scheme, Operation::Write, path, r);
+        let reader = LoggingReader::new(self.scheme, Operation::Write, path, Some(args.size()), r);
         let r = Box::new(reader) as BytesReader;
 
         self.inner
@@ -422,7 +422,7 @@ impl Accessor for LoggingAccessor {
             args.size()
         );
 
-        let r = LoggingReader::new(self.scheme, Operation::Write, path, r);
+        let r = LoggingReader::new(self.scheme, Operation::Write, path, Some(args.size()), r);
         let r = Box::new(r);
 
         self.inner
@@ -604,7 +604,13 @@ impl Accessor for LoggingAccessor {
                     args.offset(),
                     args.size()
                 );
-                let r = BlockingLoggingReader::new(self.scheme, Operation::BlockingRead, path, v);
+                let r = BlockingLoggingReader::new(
+                    self.scheme,
+                    Operation::BlockingRead,
+                    path,
+                    args.size(),
+                    v,
+                );
                 Box::new(r) as BlockingBytesReader
             })
             .map_err(|err| {
@@ -633,7 +639,13 @@ impl Accessor for LoggingAccessor {
             args.size()
         );
 
-        let reader = BlockingLoggingReader::new(self.scheme, Operation::BlockingWrite, path, r);
+        let reader = BlockingLoggingReader::new(
+            self.scheme,
+            Operation::BlockingWrite,
+            path,
+            Some(args.size()),
+            r,
+        );
         let r = Box::new(reader) as BlockingBytesReader;
 
         self.inner
@@ -800,20 +812,28 @@ struct LoggingReader {
     scheme: Scheme,
     path: String,
     op: Operation,
+
+    size: Option<u64>,
     has_read: u64,
-    finished: bool,
 
     inner: BytesReader,
 }
 
 impl LoggingReader {
-    fn new(scheme: Scheme, op: Operation, path: &str, reader: BytesReader) -> Self {
+    fn new(
+        scheme: Scheme,
+        op: Operation,
+        path: &str,
+        size: Option<u64>,
+        reader: BytesReader,
+    ) -> Self {
         Self {
             scheme,
             op,
             path: path.to_string(),
+
+            size,
             has_read: 0,
-            finished: false,
 
             inner: reader,
         }
@@ -822,17 +842,21 @@ impl LoggingReader {
 
 impl Drop for LoggingReader {
     fn drop(&mut self) {
-        if self.finished {
-            debug!(
+        if let Some(size) = self.size {
+            if size == self.has_read {
+                debug!(
                 target: "opendal::services",
                 "service={} operation={} path={} has_read={} -> consumed reader fully",
                 self.scheme, self.op, self.path, self.has_read);
-        } else {
-            debug!(
-                target: "opendal::services",
-                "service={} operation={} path={} has_read={} -> dropped reader",
-                self.scheme, self.op, self.path, self.has_read);
+
+                return;
+            }
         }
+
+        debug!(
+            target: "opendal::services",
+            "service={} operation={} path={} has_read={} -> dropped reader",
+            self.scheme, self.op, self.path, self.has_read);
     }
 }
 
@@ -850,9 +874,6 @@ impl AsyncRead for LoggingReader {
                         target: "opendal::services",
                         "service={} operation={} path={} has_read={} -> {}: {}B",
                         self.scheme, self.op, self.path, self.has_read, self.op, n);
-                    if n == 0 {
-                        self.finished = true;
-                    }
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => {
@@ -886,20 +907,28 @@ struct BlockingLoggingReader {
     scheme: Scheme,
     path: String,
     op: Operation,
+
+    size: Option<u64>,
     has_read: u64,
-    finished: bool,
 
     inner: BlockingBytesReader,
 }
 
 impl BlockingLoggingReader {
-    fn new(scheme: Scheme, op: Operation, path: &str, reader: BlockingBytesReader) -> Self {
+    fn new(
+        scheme: Scheme,
+        op: Operation,
+        path: &str,
+        size: Option<u64>,
+        reader: BlockingBytesReader,
+    ) -> Self {
         Self {
             scheme,
             op,
             path: path.to_string(),
+
+            size,
             has_read: 0,
-            finished: false,
             inner: reader,
         }
     }
@@ -907,17 +936,21 @@ impl BlockingLoggingReader {
 
 impl Drop for BlockingLoggingReader {
     fn drop(&mut self) {
-        if self.finished {
-            debug!(
-                target: "opendal::services",
-                "service={} operation={} path={} has_read={} -> consumed reader fully",
-                self.scheme, self.op, self.path, self.has_read);
-        } else {
-            debug!(
-                target: "opendal::services",
-                "service={} operation={} path={} has_read={} -> dropped reader",
-                self.scheme, self.op, self.path, self.has_read);
+        if let Some(size) = self.size {
+            if size == self.has_read {
+                debug!(
+                    target: "opendal::services",
+                    "service={} operation={} path={} has_read={} -> consumed reader fully",
+                    self.scheme, self.op, self.path, self.has_read);
+
+                return;
+            }
         }
+
+        debug!(
+            target: "opendal::services",
+            "service={} operation={} path={} has_read={} -> dropped reader",
+            self.scheme, self.op, self.path, self.has_read);
     }
 }
 

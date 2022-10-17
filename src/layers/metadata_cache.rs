@@ -145,10 +145,13 @@ impl Accessor for MetadataCacheAccessor {
                 let meta = self.inner.stat(path, args).await?;
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| new_other_object_error(Operation::Stat, path, err))?;
+                let content_type = mime_guess::from_path(path)
+                    .first_or_octet_stream()
+                    .to_string();
                 self.cache
                     .write(
                         path,
-                        OpWrite::new(bs.len() as u64),
+                        OpWrite::new(bs.len() as u64, &content_type),
                         Box::new(Cursor::new(bs)),
                     )
                     .await?;
@@ -223,9 +226,12 @@ impl Accessor for MetadataCacheAccessor {
                 let meta = self.inner.blocking_stat(path, args)?;
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| new_other_object_error(Operation::BlockingStat, path, err))?;
+                let content_type = mime_guess::from_path(path)
+                    .first_or_octet_stream()
+                    .to_string();
                 self.cache.blocking_write(
                     path,
-                    OpWrite::new(bs.len() as u64),
+                    OpWrite::new(bs.len() as u64, &content_type),
                     Box::new(std::io::Cursor::new(bs)),
                 )?;
                 Ok(meta)

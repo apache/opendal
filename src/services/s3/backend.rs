@@ -849,7 +849,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let mut req = self.put_object_request(path, Some(0), AsyncBody::Empty)?;
+        let mut req = self.put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
@@ -895,7 +895,12 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let mut req = self.put_object_request(path, Some(args.size()), AsyncBody::Reader(r))?;
+        let mut req = self.put_object_request(
+            path,
+            Some(args.size()),
+            Some(args.mime_type()),
+            AsyncBody::Reader(r),
+        )?;
 
         self.signer
             .sign(&mut req)
@@ -1003,7 +1008,9 @@ impl Accessor for Backend {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Read(v) => self.get_object_request(path, v.offset(), v.size())?,
-            PresignOperation::Write(_) => self.put_object_request(path, None, AsyncBody::Empty)?,
+            PresignOperation::Write(_) => {
+                self.put_object_request(path, None, None, AsyncBody::Empty)?
+            }
             PresignOperation::WriteMultipart(v) => self.s3_upload_part_request(
                 path,
                 v.upload_id(),
@@ -1212,6 +1219,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
+        mime: Option<String>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -1222,6 +1230,10 @@ impl Backend {
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
+        }
+
+        if let Some(mime) = mime {
+            req = req.header(CONTENT_TYPE, mime)
         }
 
         // Set SSE headers.

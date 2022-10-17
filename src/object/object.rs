@@ -58,6 +58,7 @@ use crate::ObjectStreamer;
 pub struct Object {
     acc: Arc<dyn Accessor>,
     path: String,
+    content_type: String,
 }
 
 impl Object {
@@ -67,9 +68,13 @@ impl Object {
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        let content_type = mime_guess::from_path(path)
+            .first_or_octet_stream()
+            .to_string();
         Self {
             acc,
             path: normalize_path(path),
+            content_type,
         }
     }
 
@@ -736,7 +741,7 @@ impl Object {
         }
 
         let bs = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
+        let op = OpWrite::new(bs.len() as u64, &self.content_type);
         let r = Cursor::new(bs);
         let _ = self.acc.write(self.path(), op, Box::new(r)).await?;
         Ok(())
@@ -776,7 +781,7 @@ impl Object {
         }
 
         let bs = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
+        let op = OpWrite::new(bs.len() as u64, &self.content_type);
         let r = std::io::Cursor::new(bs);
         let _ = self.acc.blocking_write(self.path(), op, Box::new(r))?;
         Ok(())
@@ -820,7 +825,11 @@ impl Object {
 
         let _ = self
             .acc
-            .write(self.path(), OpWrite::new(size), Box::new(br))
+            .write(
+                self.path(),
+                OpWrite::new(size, &self.content_type),
+                Box::new(br),
+            )
             .await?;
         Ok(())
     }
@@ -865,9 +874,11 @@ impl Object {
             ));
         }
 
-        let _ = self
-            .acc
-            .blocking_write(self.path(), OpWrite::new(size), Box::new(br))?;
+        let _ = self.acc.blocking_write(
+            self.path(),
+            OpWrite::new(size, &self.content_type),
+            Box::new(br),
+        )?;
         Ok(())
     }
 
@@ -1180,7 +1191,7 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpWrite::new(0).into(), expire);
+        let op = OpPresign::new(OpWrite::new(0, "").into(), expire);
 
         self.acc.presign(self.path(), op)
     }

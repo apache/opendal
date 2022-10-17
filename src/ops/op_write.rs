@@ -16,18 +16,27 @@
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     size: u64,
+    mime: String,
 }
 
 impl OpWrite {
     /// Create a new `OpWrite`.
     ///
     /// If input path is not a file path, an error will be returned.
-    pub fn new(size: u64) -> Self {
-        Self { size }
+    pub fn new(size: u64, mime: &str) -> Self {
+        Self {
+            size,
+            mime: mime.to_string(),
+        }
     }
 
     /// Get size from option.
     pub fn size(&self) -> u64 {
         self.size
+    }
+
+    /// Get MIME type from option.
+    pub fn mime_type(&self) -> String {
+        self.mime.clone()
     }
 }

@@ -121,7 +121,12 @@ impl Accessor for ContentCacheAccessor {
                 let r = if meta.mode().is_file() {
                     let size = meta.content_length();
                     let reader = self.inner.read(path, OpRead::new(..)).await?;
-                    self.cache.write(path, OpWrite::new(size), reader).await?;
+                    let content_type = mime_guess::from_path(path)
+                        .first_or_octet_stream()
+                        .to_string();
+                    self.cache
+                        .write(path, OpWrite::new(size, &content_type), reader)
+                        .await?;
                     self.cache.read(path, args).await?
                 } else {
                     self.inner.read(path, args).await?
@@ -191,8 +196,11 @@ impl Accessor for ContentCacheAccessor {
                 let r = if meta.mode().is_file() {
                     let size = meta.content_length();
                     let reader = self.inner.blocking_read(path, OpRead::new(..))?;
+                    let content_type = mime_guess::from_path(path)
+                        .first_or_octet_stream()
+                        .to_string();
                     self.cache
-                        .blocking_write(path, OpWrite::new(size), reader)?;
+                        .blocking_write(path, OpWrite::new(size, &content_type), reader)?;
                     self.cache.blocking_read(path, args)?
                 } else {
                     self.inner.blocking_read(path, args)?

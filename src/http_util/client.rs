@@ -67,8 +67,13 @@ impl HttpClient {
             builder = builder.no_deflate();
             // Redirect will be handled by ourselves.
             builder = builder.redirect(Policy::none());
-            // Enable trust dns for better dns cache.
-            builder = builder.trust_dns(true);
+
+            #[cfg(feature = "trust-dns")]
+            // using trust-dns async resolver
+            let builder = builder.trust_dns(true);
+            #[cfg(not(feature = "trust-dns"))]
+            // using `getaddrinfo`
+            let builder = builder.no_trust_dns();
 
             builder.build().expect("reqwest client must build succeed")
         };

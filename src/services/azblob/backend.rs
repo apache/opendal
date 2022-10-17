@@ -307,7 +307,7 @@ impl Accessor for Backend {
         let mut req = self.azblob_put_blob_request(
             path,
             Some(args.size()),
-            Some(args.mime_type()),
+            Some(args.content_type()),
             AsyncBody::Reader(r),
         )?;
 

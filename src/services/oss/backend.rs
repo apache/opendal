@@ -292,7 +292,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        mime: Option<String>,
+        content_type: Option<String>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -305,8 +305,8 @@ impl Backend {
             .header(HOST, &self.host)
             .header(CONTENT_LENGTH, size.unwrap_or_default());
 
-        if let Some(mime) = mime {
-            req = req.header(CONTENT_TYPE, mime);
+        if let Some(content_type) = content_type {
+            req = req.header(CONTENT_TYPE, content_type);
         }
 
         let req = req
@@ -526,7 +526,7 @@ impl Accessor for Backend {
             .oss_put_object(
                 path,
                 Some(args.size()),
-                Some(args.mime_type()),
+                Some(args.content_type()),
                 AsyncBody::Reader(r),
             )
             .await?;

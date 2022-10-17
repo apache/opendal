@@ -22,6 +22,7 @@ compress = ["async-compression"]
 # Enable serde support.
 # DEPRECATED: we will enable serde by default.
 serde = []
+# Enable trust-dns for better dns cache.
 trust-dns = ["reqwest/trust-dns"]
 
 # Enable all layers.

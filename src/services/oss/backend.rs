@@ -27,6 +27,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
+use mime::Mime;
 use reqsign::AliyunOssBuilder;
 use reqsign::AliyunOssSigner;
 
@@ -292,6 +293,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
+        content_type: Option<Mime>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -303,6 +305,10 @@ impl Backend {
         req = req
             .header(HOST, &self.host)
             .header(CONTENT_LENGTH, size.unwrap_or_default());
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime.to_string());
+        }
 
         let req = req
             .body(body)
@@ -422,9 +428,10 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
+        content_type: Option<Mime>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_put_object_request(path, size, body)?;
+        let mut req = self.oss_put_object_request(path, size, content_type, body)?;
 
         self.signer
             .sign(&mut req)
@@ -477,7 +484,9 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let resp = self.oss_put_object(path, None, AsyncBody::Empty).await?;
+        let resp = self
+            .oss_put_object(path, None, None, AsyncBody::Empty)
+            .await?;
         let status = resp.status();
 
         match status {
@@ -515,7 +524,12 @@ impl Accessor for Backend {
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         let resp = self
-            .oss_put_object(path, Some(args.size()), AsyncBody::Reader(r))
+            .oss_put_object(
+                path,
+                Some(args.size()),
+                Some(args.content_type()),
+                AsyncBody::Reader(r),
+            )
             .await?;
 
         let status = resp.status();

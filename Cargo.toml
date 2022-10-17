@@ -15,8 +15,6 @@ version = "0.19.4"
 all-features = true
 
 [features]
-default = ["trust-dns"]
-
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable serde support.

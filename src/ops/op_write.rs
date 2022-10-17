@@ -25,6 +25,11 @@ impl Default for OpWrite {
     fn default() -> Self {
         Self {
             size: 0,
+            /// MIME type of content
+            ///
+            /// # NOTE
+            /// > Generic binary data (or binary data whose true type is unknown) is application/octet-stream
+            /// --- [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types)
             content_type: mime::APPLICATION_OCTET_STREAM,
         }
     }
@@ -47,7 +52,7 @@ impl OpWrite {
     }
 
     /// Set the content type of option
-    pub fn with_content_type(&self, content_type: Mime) -> Self {
+    pub fn with_content_type(self, content_type: Mime) -> Self {
         Self {
             size: self.size(),
             content_type,

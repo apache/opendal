@@ -16,6 +16,7 @@
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     size: u64,
+    content_type: Option<String>,
 }
 
 impl OpWrite {
@@ -23,11 +24,28 @@ impl OpWrite {
     ///
     /// If input path is not a file path, an error will be returned.
     pub fn new(size: u64) -> Self {
-        Self { size }
+        Self {
+            size,
+            content_type: None,
+        }
     }
 
+    /// Set the content type of option
+    pub fn with_content_type(self, content_type: &str) -> Self {
+        Self {
+            size: self.size(),
+            content_type: Some(content_type.to_string()),
+        }
+    }
+}
+
+impl OpWrite {
     /// Get size from option.
     pub fn size(&self) -> u64 {
         self.size
+    }
+    /// Get the content type from option
+    pub fn content_type(&self) -> Option<&str> {
+        self.content_type.as_deref()
     }
 }

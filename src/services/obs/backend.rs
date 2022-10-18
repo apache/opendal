@@ -21,6 +21,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -279,7 +280,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let mut req = self.obs_put_object_request(path, Some(0), AsyncBody::Empty)?;
+        let mut req = self.obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.signer
             .sign(&mut req)
@@ -327,7 +328,12 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let mut req = self.obs_put_object_request(path, Some(args.size()), AsyncBody::Reader(r))?;
+        let mut req = self.obs_put_object_request(
+            path,
+            Some(args.size()),
+            args.content_type(),
+            AsyncBody::Reader(r),
+        )?;
 
         self.signer
             .sign(&mut req)
@@ -471,6 +477,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
+        content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -481,6 +488,10 @@ impl Backend {
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime)
         }
 
         let req = req

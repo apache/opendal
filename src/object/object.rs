@@ -755,7 +755,7 @@ impl Object {
     /// let op = Operator::from_env(Scheme::S3)?;
     /// let o = op.object("path/to/file");
     /// let bs = b"hello, world!".to_vec();
-    /// let args = OpWrite::new(bs.len() as u64);
+    /// let args = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
     /// let _ = o.write_with(args, bs).await?;
     /// # Ok(())
     /// # }
@@ -827,7 +827,7 @@ impl Object {
     /// # let op = Operator::from_env(Scheme::S3)?;
     /// let o = op.object("hello.txt");
     /// let bs = b"hello, world!".to_vec();
-    /// let ow = OpWrite::new(bs.len() as u64);
+    /// let ow = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
     /// let _ = o.blocking_write_with(ow, bs)?;
     /// # Ok(())
     /// # }

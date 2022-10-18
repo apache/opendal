@@ -107,7 +107,6 @@ http = "0.2"
 log = "0.4"
 md-5 = "0.10"
 metrics = { version = "0.20", optional = true }
-mime = "0.3"
 moka = { version = "0.9", optional = true, features = ["future"] }
 once_cell = "1"
 parking_lot = "0.12"

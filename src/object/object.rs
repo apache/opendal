@@ -727,6 +727,40 @@ impl Object {
     /// # }
     /// ```
     pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+        let bs: Vec<u8> = bs.into();
+        let op = OpWrite::new(bs.len() as u64);
+        self.write_with(op, bs).await
+    }
+
+    /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::s3;
+    /// # use opendal::ops::OpWrite;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// # use opendal::Scheme;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::from_env(Scheme::S3)?;
+    /// let o = op.object("path/to/file");
+    /// let bs = b"hello, world!".to_vec();
+    /// let args = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
+    /// let _ = o.write_with(args, bs).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(new_other_object_error(
                 Operation::Write,
@@ -736,9 +770,9 @@ impl Object {
         }
 
         let bs = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
         let r = Cursor::new(bs);
-        let _ = self.acc.write(self.path(), op, Box::new(r)).await?;
+        let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
+
         Ok(())
     }
 
@@ -767,6 +801,39 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+        let bs: Vec<u8> = bs.into();
+        let op = OpWrite::new(bs.len() as u64);
+        self.blocking_write_with(op, bs)
+    }
+
+    /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::services::s3;
+    /// # use opendal::ops::OpWrite;
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// # use opendal::Scheme;
+    /// use bytes::Bytes;
+    ///
+    /// # fn main() -> Result<()> {
+    /// # let op = Operator::from_env(Scheme::S3)?;
+    /// let o = op.object("hello.txt");
+    /// let bs = b"hello, world!".to_vec();
+    /// let ow = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
+    /// let _ = o.blocking_write_with(ow, bs)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(new_other_object_error(
                 Operation::Write,
@@ -776,9 +843,9 @@ impl Object {
         }
 
         let bs = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
         let r = std::io::Cursor::new(bs);
-        let _ = self.acc.blocking_write(self.path(), op, Box::new(r))?;
+
+        let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
         Ok(())
     }
 
@@ -868,95 +935,6 @@ impl Object {
         let _ = self
             .acc
             .blocking_write(self.path(), OpWrite::new(size), Box::new(br))?;
-        Ok(())
-    }
-
-    /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use opendal::services::s3;
-    /// # use opendal::ops::OpWrite;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
-    /// use bytes::Bytes;
-    /// use mime::TEXT_PLAIN_UTF_8;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::S3)?;
-    /// let o = op.object("path/to/file");
-    /// let bs = b"hello, world!".to_vec();
-    /// let args = OpWrite::new(bs.len() as u64).with_content_type(TEXT_PLAIN_UTF_8);
-    /// let _ = o.write_with(args, bs).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Write,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
-        }
-
-        let bs = bs.into();
-        let r = Cursor::new(bs);
-        let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
-
-        Ok(())
-    }
-
-    /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use opendal::services::s3;
-    /// # use opendal::ops::OpWrite;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
-    /// use bytes::Bytes;
-    /// use mime::TEXT_PLAIN_UTF_8;
-    ///
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::S3)?;
-    /// let o = op.object("hello.txt");
-    /// let bs = b"hello, world!".to_vec();
-    /// let ow = OpWrite::new(bs.len() as u64).with_content_type(TEXT_PLAIN_UTF_8);
-    /// let _ = o.blocking_write_with(ow, bs)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Write,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
-        }
-
-        let bs = bs.into();
-        let r = std::io::Cursor::new(bs);
-
-        let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
         Ok(())
     }
 

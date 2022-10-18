@@ -34,7 +34,6 @@ use log::debug;
 use log::error;
 use log::info;
 use md5::{Digest, Md5};
-use mime::Mime;
 use once_cell::sync::Lazy;
 use reqsign::AwsV4Signer;
 use serde::Deserialize;
@@ -1220,7 +1219,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<Mime>,
+        content_type: Option<String>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -1234,7 +1233,9 @@ impl Backend {
         }
 
         if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime.to_string());
+            if !mime.is_empty() {
+                req = req.header(CONTENT_TYPE, mime)
+            }
         }
 
         // Set SSE headers.

@@ -28,7 +28,6 @@ use http::StatusCode;
 use http::Uri;
 use log::debug;
 use log::info;
-use mime::Mime;
 use reqsign::HuaweicloudObsSigner;
 
 use super::error::parse_error;
@@ -478,7 +477,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<Mime>,
+        content_type: Option<String>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -492,7 +491,9 @@ impl Backend {
         }
 
         if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime.to_string())
+            if !mime.is_empty() {
+                req = req.header(CONTENT_TYPE, mime)
+            }
         }
 
         let req = req

@@ -12,27 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use mime::Mime;
-
 /// Args for `write` operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     size: u64,
-    content_type: Mime,
-}
-
-impl Default for OpWrite {
-    fn default() -> Self {
-        Self {
-            size: 0,
-            /// MIME type of content
-            ///
-            /// # NOTE
-            /// > Generic binary data (or binary data whose true type is unknown) is application/octet-stream
-            /// --- [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types)
-            content_type: mime::APPLICATION_OCTET_STREAM,
-        }
-    }
+    content_type: String,
 }
 
 impl OpWrite {
@@ -42,20 +26,15 @@ impl OpWrite {
     pub fn new(size: u64) -> Self {
         Self {
             size,
-            /// MIME type of content
-            ///
-            /// # NOTE
-            /// > Generic binary data (or binary data whose true type is unknown) is application/octet-stream
-            /// --- [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types)
-            content_type: mime::APPLICATION_OCTET_STREAM,
+            content_type: Default::default(),
         }
     }
 
     /// Set the content type of option
-    pub fn with_content_type(self, content_type: Mime) -> Self {
+    pub fn with_content_type(self, content_type: &str) -> Self {
         Self {
             size: self.size(),
-            content_type,
+            content_type: content_type.to_string(),
         }
     }
 }
@@ -66,7 +45,7 @@ impl OpWrite {
         self.size
     }
     /// Get the content type from option
-    pub fn content_type(&self) -> Mime {
+    pub fn content_type(&self) -> String {
         self.content_type.clone()
     }
 }

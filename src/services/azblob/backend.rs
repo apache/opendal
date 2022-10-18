@@ -30,7 +30,6 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::info;
-use mime::Mime;
 use reqsign::AzureStorageSigner;
 
 use super::dir_stream::DirStream;
@@ -463,7 +462,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<Mime>,
+        content_type: Option<String>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -482,7 +481,9 @@ impl Backend {
         }
 
         if let Some(ty) = content_type {
-            req = req.header(CONTENT_TYPE, ty.to_string())
+            if !ty.is_empty() {
+                req = req.header(CONTENT_TYPE, ty)
+            }
         }
 
         req = req.header(HeaderName::from_static(X_MS_BLOB_TYPE), "BlockBlob");

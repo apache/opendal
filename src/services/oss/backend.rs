@@ -27,7 +27,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
-use mime::Mime;
 use reqsign::AliyunOssBuilder;
 use reqsign::AliyunOssSigner;
 
@@ -293,7 +292,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<Mime>,
+        content_type: Option<String>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -307,7 +306,9 @@ impl Backend {
             .header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(mime) = content_type {
-            req = req.header(CONTENT_TYPE, mime.to_string());
+            if !mime.is_empty() {
+                req = req.header(CONTENT_TYPE, mime)
+            }
         }
 
         let req = req
@@ -428,7 +429,7 @@ impl Backend {
         &self,
         path: &str,
         size: Option<u64>,
-        content_type: Option<Mime>,
+        content_type: Option<String>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_put_object_request(path, size, content_type, body)?;

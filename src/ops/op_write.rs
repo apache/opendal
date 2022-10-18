@@ -16,7 +16,7 @@
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
     size: u64,
-    content_type: String,
+    content_type: Option<String>,
 }
 
 impl OpWrite {
@@ -26,7 +26,7 @@ impl OpWrite {
     pub fn new(size: u64) -> Self {
         Self {
             size,
-            content_type: Default::default(),
+            content_type: None,
         }
     }
 
@@ -34,7 +34,7 @@ impl OpWrite {
     pub fn with_content_type(self, content_type: &str) -> Self {
         Self {
             size: self.size(),
-            content_type: content_type.to_string(),
+            content_type: Some(content_type.to_string()),
         }
     }
 }
@@ -45,7 +45,7 @@ impl OpWrite {
         self.size
     }
     /// Get the content type from option
-    pub fn content_type(&self) -> String {
-        self.content_type.clone()
+    pub fn content_type(&self) -> Option<&str> {
+        self.content_type.as_deref()
     }
 }

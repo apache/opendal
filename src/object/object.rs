@@ -772,7 +772,6 @@ impl Object {
         let bs = bs.into();
         let r = Cursor::new(bs);
         let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
-
         Ok(())
     }
 
@@ -844,7 +843,6 @@ impl Object {
 
         let bs = bs.into();
         let r = std::io::Cursor::new(bs);
-
         let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
         Ok(())
     }

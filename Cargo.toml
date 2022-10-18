@@ -20,6 +20,8 @@ compress = ["async-compression"]
 # Enable serde support.
 # DEPRECATED: we will enable serde by default.
 serde = []
+# Enable trust-dns for better dns cache.
+trust-dns = ["reqwest/trust-dns"]
 
 # Enable all layers.
 layers-all = ["layers-metrics", "layers-tracing"]
@@ -122,7 +124,6 @@ reqsign = "0.6"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",
-  "trust-dns",
   "rustls-tls-native-roots",
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }

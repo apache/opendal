@@ -115,7 +115,7 @@ parking_lot = "0.12"
 percent-encoding = "2"
 pin-project = "1"
 prost = { version = "0.11", optional = true }
-quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.26", features = ["serialize", "overlapped-lists"] }
 redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",

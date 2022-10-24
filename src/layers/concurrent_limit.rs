@@ -92,6 +92,10 @@ struct ConcurrentLimitAccessor {
 
 #[async_trait]
 impl Accessor for ConcurrentLimitAccessor {
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        Some(self.inner.clone())
+    }
+
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()
     }

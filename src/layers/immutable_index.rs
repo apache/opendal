@@ -25,28 +25,14 @@ use std::vec::IntoIter;
 use async_trait::async_trait;
 
 use crate::accessor::AccessorCapability;
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpCreate;
-use crate::ops::OpCreateMultipart;
-use crate::ops::OpDelete;
 use crate::ops::OpList;
-use crate::ops::OpPresign;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
-use crate::ops::PresignedRequest;
 use crate::Accessor;
 use crate::AccessorMetadata;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
 use crate::Layer;
 use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::ObjectPart;
 use crate::ObjectStreamer;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for
@@ -147,32 +133,16 @@ impl ImmutableIndexAccessor {
 
 #[async_trait]
 impl Accessor for ImmutableIndexAccessor {
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        Some(self.inner.clone())
+    }
+
     /// Add list capabilities for underlying storage services.
     fn metadata(&self) -> AccessorMetadata {
         let mut meta = self.inner.metadata();
         meta.set_capabilities(meta.capabilities() | AccessorCapability::List);
 
         meta
-    }
-
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
-        self.inner.create(path, args).await
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        self.inner.read(path, args).await
-    }
-
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        self.inner.write(path, args, r).await
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        self.inner.stat(path, args).await
-    }
-
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
@@ -185,51 +155,6 @@ impl Accessor for ImmutableIndexAccessor {
             Arc::new(self.clone()),
             self.children(path),
         )))
-    }
-
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
-        self.inner.presign(path, args)
-    }
-
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
-        self.inner.create_multipart(path, args).await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: BytesReader,
-    ) -> Result<ObjectPart> {
-        self.inner.write_multipart(path, args, r).await
-    }
-
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
-        self.inner.complete_multipart(path, args).await
-    }
-
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
-        self.inner.abort_multipart(path, args).await
-    }
-
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
-        self.inner.blocking_create(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
-        self.inner.blocking_read(path, args)
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        self.inner.blocking_write(path, args, r)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        self.inner.blocking_stat(path, args)
-    }
-
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.blocking_delete(path, args)
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {

@@ -78,6 +78,10 @@ struct TracingAccessor {
 
 #[async_trait]
 impl Accessor for TracingAccessor {
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        Some(self.inner.clone())
+    }
+
     #[tracing::instrument(level = "debug")]
     fn metadata(&self) -> AccessorMetadata {
         self.inner.metadata()

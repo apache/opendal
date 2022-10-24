@@ -104,6 +104,10 @@ struct LoggingAccessor {
 
 #[async_trait]
 impl Accessor for LoggingAccessor {
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        Some(self.inner.clone())
+    }
+
     fn metadata(&self) -> AccessorMetadata {
         debug!(
             target: "opendal::services",

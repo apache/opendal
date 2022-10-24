@@ -21,26 +21,17 @@ use async_trait::async_trait;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
-use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
-use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
-use crate::ops::PresignedRequest;
 use crate::Accessor;
-use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::Layer;
 use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectPart;
 use crate::ObjectStreamer;
 
 /// ContentCacheLayer will add content data cache support for OpenDAL.
@@ -104,8 +95,8 @@ struct ContentCacheAccessor {
 
 #[async_trait]
 impl Accessor for ContentCacheAccessor {
-    fn metadata(&self) -> AccessorMetadata {
-        self.inner.metadata()
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        Some(self.inner.clone())
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -137,10 +128,6 @@ impl Accessor for ContentCacheAccessor {
         self.inner.write(path, args, r).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        self.inner.stat(path, args).await
-    }
-
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.delete(path, args).await
@@ -151,31 +138,6 @@ impl Accessor for ContentCacheAccessor {
             .list(path, args)
             .await
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
-    }
-
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
-        self.inner.presign(path, args)
-    }
-
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
-        self.inner.create_multipart(path, args).await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: BytesReader,
-    ) -> Result<ObjectPart> {
-        self.inner.write_multipart(path, args, r).await
-    }
-
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
-        self.inner.complete_multipart(path, args).await
-    }
-
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
-        self.inner.abort_multipart(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -206,10 +168,6 @@ impl Accessor for ContentCacheAccessor {
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
         self.cache.blocking_delete(path, OpDelete::new())?;
         self.inner.blocking_write(path, args, r)
-    }
-
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        self.inner.blocking_stat(path, args)
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {

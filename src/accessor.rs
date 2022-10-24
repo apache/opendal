@@ -84,9 +84,24 @@ use crate::Scheme;
 ///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug + 'static {
+    /// Return the inner accessor if there is one.
+    ///
+    /// # Behavior
+    ///
+    /// - Service should not implement this method.
+    /// - Layers can implement this method to forward API call to inner accessor.
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        None
+    }
+
     /// Invoke the `metadata` operation to get metadata of accessor.
     fn metadata(&self) -> AccessorMetadata {
-        unimplemented!()
+        match self.inner() {
+            None => {
+                unimplemented!()
+            }
+            Some(inner) => inner.metadata(),
+        }
     }
 
     /// Invoke the `create` operation on the specified path
@@ -97,9 +112,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
-        let (_, _) = (path, args);
-
-        Err(new_unsupported_object_error(Operation::Create, path))
+        match self.inner() {
+            Some(inner) => inner.create(path, args).await,
+            None => Err(new_unsupported_object_error(Operation::Create, path)),
+        }
     }
 
     /// Invoke the `read` operation on the specified path, returns a
@@ -109,9 +125,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        let (_, _) = (path, args);
-
-        Err(new_unsupported_object_error(Operation::Read, path))
+        match self.inner() {
+            Some(inner) => inner.read(path, args).await,
+            None => Err(new_unsupported_object_error(Operation::Read, path)),
+        }
     }
 
     /// Invoke the `write` operation on the specified path, returns a
@@ -121,9 +138,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let (_, _, _) = (path, args, r);
-
-        Err(new_unsupported_object_error(Operation::Write, path))
+        match self.inner() {
+            Some(inner) => inner.write(path, args, r).await,
+            None => Err(new_unsupported_object_error(Operation::Write, path)),
+        }
     }
 
     /// Invoke the `stat` operation on the specified path.
@@ -134,9 +152,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - `stat` a path endswith "/" means stating a dir.
     /// - `mode` and `content_length` must be set.
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        let (_, _) = (path, args);
-
-        Err(new_unsupported_object_error(Operation::Stat, path))
+        match self.inner() {
+            Some(inner) => inner.stat(path, args).await,
+            None => Err(new_unsupported_object_error(Operation::Stat, path)),
+        }
     }
 
     /// Invoke the `delete` operation on the specified path.
@@ -146,9 +165,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
     /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
-        let (_, _) = (path, args);
-
-        Err(new_unsupported_object_error(Operation::Delete, path))
+        match self.inner() {
+            Some(inner) => inner.delete(path, args).await,
+            None => Err(new_unsupported_object_error(Operation::Delete, path)),
+        }
     }
 
     /// Invoke the `list` operation on the specified path.
@@ -158,9 +178,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
-        let (_, _) = (path, args);
-
-        Err(new_unsupported_object_error(Operation::List, path))
+        match self.inner() {
+            Some(inner) => inner.list(path, args).await,
+            None => Err(new_unsupported_object_error(Operation::List, path)),
+        }
     }
 
     /// Invoke the `presign` operation on the specified path.
@@ -170,9 +191,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(Operation::Presign, path))
+        match self.inner() {
+            Some(inner) => inner.presign(path, args),
+            None => Err(new_unsupported_object_error(Operation::Presign, path)),
+        }
     }
 
     /// Invoke the `create_multipart` operation on the specified path.
@@ -182,12 +204,13 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(
-            Operation::CreateMultipart,
-            path,
-        ))
+        match self.inner() {
+            Some(inner) => inner.create_multipart(path, args).await,
+            None => Err(new_unsupported_object_error(
+                Operation::CreateMultipart,
+                path,
+            )),
+        }
     }
 
     /// Invoke the `write_multipart` operation on the specified path.
@@ -201,12 +224,13 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         args: OpWriteMultipart,
         r: BytesReader,
     ) -> Result<ObjectPart> {
-        let (_, _) = (args, r);
-
-        Err(new_unsupported_object_error(
-            Operation::WriteMultipart,
-            path,
-        ))
+        match self.inner() {
+            Some(inner) => inner.write_multipart(path, args, r).await,
+            None => Err(new_unsupported_object_error(
+                Operation::WriteMultipart,
+                path,
+            )),
+        }
     }
 
     /// Invoke the `complete_multipart` operation on the specified path.
@@ -215,12 +239,13 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Multipart`
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(
-            Operation::CompleteMultipart,
-            path,
-        ))
+        match self.inner() {
+            Some(inner) => inner.complete_multipart(path, args).await,
+            None => Err(new_unsupported_object_error(
+                Operation::CompleteMultipart,
+                path,
+            )),
+        }
     }
 
     /// Invoke the `abort_multipart` operation on the specified path.
@@ -229,12 +254,13 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Multipart`
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(
-            Operation::AbortMultipart,
-            path,
-        ))
+        match self.inner() {
+            Some(inner) => inner.abort_multipart(path, args).await,
+            None => Err(new_unsupported_object_error(
+                Operation::AbortMultipart,
+                path,
+            )),
+        }
     }
 
     /// Invoke the `blocking_create` operation on the specified path.
@@ -245,12 +271,13 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(
-            Operation::BlockingCreate,
-            path,
-        ))
+        match self.inner() {
+            Some(inner) => inner.blocking_create(path, args),
+            None => Err(new_unsupported_object_error(
+                Operation::BlockingCreate,
+                path,
+            )),
+        }
     }
 
     /// Invoke the `blocking_read` operation on the specified path.
@@ -261,9 +288,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(Operation::BlockingRead, path))
+        match self.inner() {
+            Some(inner) => inner.blocking_read(path, args),
+            None => Err(new_unsupported_object_error(Operation::BlockingRead, path)),
+        }
     }
 
     /// Invoke the `blocking_write` operation on the specified path.
@@ -274,9 +302,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        let (_, _) = (args, r);
-
-        Err(new_unsupported_object_error(Operation::BlockingWrite, path))
+        match self.inner() {
+            Some(inner) => inner.blocking_write(path, args, r),
+            None => Err(new_unsupported_object_error(Operation::BlockingWrite, path)),
+        }
     }
 
     /// Invoke the `blocking_stat` operation on the specified path.
@@ -287,9 +316,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(Operation::BlockingStat, path))
+        match self.inner() {
+            Some(inner) => inner.blocking_stat(path, args),
+            None => Err(new_unsupported_object_error(Operation::BlockingStat, path)),
+        }
     }
 
     /// Invoke the `blocking_delete` operation on the specified path.
@@ -300,12 +330,13 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(
-            Operation::BlockingDelete,
-            path,
-        ))
+        match self.inner() {
+            Some(inner) => inner.blocking_delete(path, args),
+            None => Err(new_unsupported_object_error(
+                Operation::BlockingDelete,
+                path,
+            )),
+        }
     }
 
     /// Invoke the `blocking_list` operation on the specified path.
@@ -317,9 +348,10 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
     fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
-        let _ = args;
-
-        Err(new_unsupported_object_error(Operation::BlockingList, path))
+        match self.inner() {
+            Some(inner) => inner.blocking_list(path, args),
+            None => Err(new_unsupported_object_error(Operation::BlockingList, path)),
+        }
     }
 }
 

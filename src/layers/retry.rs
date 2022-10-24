@@ -41,15 +41,12 @@ use crate::ops::OpCreate;
 use crate::ops::OpCreateMultipart;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
-use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
 use crate::ops::Operation;
-use crate::ops::PresignedRequest;
 use crate::Accessor;
-use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::Layer;
@@ -121,8 +118,8 @@ impl<B> Accessor for RetryAccessor<B>
 where
     B: Backoff + Debug + Send + Sync + 'static,
 {
-    fn metadata(&self) -> AccessorMetadata {
-        self.inner.metadata()
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        Some(self.inner.clone())
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -218,10 +215,6 @@ where
             .await
             .map_err(convert_interrupted_error)
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
-    }
-
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
-        self.inner.presign(path, args)
     }
 
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {

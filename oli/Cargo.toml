@@ -8,7 +8,7 @@ keywords = ["storage", "data", "s3", "fs", "azblob"]
 license = "Apache-2.0"
 name = "oli"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.19.5"
+version = "0.19.6"
 
 [dependencies]
 anyhow = "1"

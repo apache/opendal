@@ -580,8 +580,8 @@ impl AsyncRead for MetricReader {
                                 LABEL_OPERATION => self.op.into_static(),
                             );
                         }
-                        _ => {
-                            unreachable!();
+                        v => {
+                            unreachable!("expect Read or Write, but got {v:?}");
                         }
                     };
                     Ok(bytes)
@@ -624,22 +624,22 @@ impl Read for BlockingMetricReader {
             .read(buf)
             .map(|n| {
                 match self.op {
-                    Operation::Read => {
+                    Operation::BlockingRead => {
                         counter!(
                             METRIC_BYTES_READ_TOTAL, n as u64,
                             LABEL_SERVICE => self.scheme.into_static(),
                             LABEL_OPERATION => self.op.into_static(),
                         );
                     }
-                    Operation::Write => {
+                    Operation::BlockingWrite => {
                         counter!(
                             METRIC_BYTES_WRITTEN_TOTAL, n as u64,
                             LABEL_SERVICE => self.scheme.into_static(),
                             LABEL_OPERATION => self.op.into_static(),
                         );
                     }
-                    _ => {
-                        unreachable!();
+                    v => {
+                        unreachable!("expect BlockingRead or BlockingWrite, but got {v:?}");
                     }
                 }
                 n

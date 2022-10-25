@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.19.6] - 2022-10-25
+
+### Fixed
+
+- fix: Metrics blocking reader doesn't handle operation correctly (#887)
+
 ## [v0.19.5] - 2022-10-24
 
 ### Added
@@ -904,6 +910,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.19.6]: https://github.com/datafuselabs/opendal/compare/v0.19.4...v0.19.6
 [v0.19.5]: https://github.com/datafuselabs/opendal/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/datafuselabs/opendal/compare/v0.19.3...v0.19.4
 [v0.19.3]: https://github.com/datafuselabs/opendal/compare/v0.19.2...v0.19.3

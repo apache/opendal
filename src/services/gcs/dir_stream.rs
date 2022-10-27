@@ -125,7 +125,9 @@ impl ObjectPageStream for DirStream {
                 )
             })?;
             meta.set_content_length(size);
-            meta.set_content_type(&object.content_type);
+            if !object.content_type.is_empty() {
+                meta.set_content_type(&object.content_type);
+            }
 
             let dt = OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
                 new_other_object_error(

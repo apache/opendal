@@ -346,7 +346,9 @@ impl Accessor for Backend {
                 new_other_object_error(Operation::Stat, path, anyhow!("parse object size: {e:?}"))
             })?;
             m.set_content_length(size);
-            m.set_content_type(&meta.content_type);
+            if !meta.content_type.is_empty() {
+                m.set_content_type(&meta.content_type);
+            }
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
                 new_other_object_error(
@@ -565,8 +567,8 @@ impl Backend {
 }
 
 /// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 struct GetObjectJsonResponse {
     /// GCS will return size in string.
     ///

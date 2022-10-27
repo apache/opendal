@@ -1,5 +1,5 @@
-name: 'Check'
-description: 'Check will do all essential checks'
+name: "Check"
+description: "Check will do all essential checks"
 inputs:
   github_token:
     description: "Github Token"
@@ -9,7 +9,7 @@ runs:
   using: "composite"
   steps:
     - name: Check License Header
-      uses: apache/skywalking-eyes/header@main
+      uses: apache/skywalking-eyes/header@0.4.0
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       with:

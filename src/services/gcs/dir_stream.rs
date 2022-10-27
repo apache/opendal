@@ -170,7 +170,7 @@ struct ListResponse {
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 struct ListResponseItem {
     name: String,
     size: String,

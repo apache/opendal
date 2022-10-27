@@ -125,6 +125,7 @@ impl ObjectPageStream for DirStream {
                 )
             })?;
             meta.set_content_length(size);
+            meta.set_content_type(&object.content_type);
 
             let dt = OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
                 new_other_object_error(
@@ -175,6 +176,7 @@ struct ListResponseItem {
     etag: String,
     md5_hash: String,
     updated: String,
+    content_type: String,
 }
 
 #[cfg(test)]
@@ -247,6 +249,7 @@ mod tests {
         assert_eq!(output.items[1].md5_hash, "e6LsGusU7pFJZk+114NV1g==");
         assert_eq!(output.items[1].etag, "CIm0s4TgyPkCEAE=");
         assert_eq!(output.items[1].updated, "2022-08-15T11:33:34.886Z");
+        assert_eq!(output.items[1].content_type, "image/png");
         assert_eq!(output.prefixes, vec!["dir/", "test/"])
     }
 

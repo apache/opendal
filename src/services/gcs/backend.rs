@@ -346,6 +346,7 @@ impl Accessor for Backend {
                 new_other_object_error(Operation::Stat, path, anyhow!("parse object size: {e:?}"))
             })?;
             m.set_content_length(size);
+            m.set_content_type(&meta.content_type);
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
                 new_other_object_error(
@@ -583,6 +584,10 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
     md5_hash: String,
+    /// Content type of this object.
+    ///
+    /// For examlpe: `"contentType": "image/png",`
+    content_type: String,
 }
 
 #[cfg(test)]
@@ -618,5 +623,6 @@ mod tests {
         assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(meta.content_type, "image/png");
     }
 }

@@ -346,6 +346,9 @@ impl Accessor for Backend {
                 new_other_object_error(Operation::Stat, path, anyhow!("parse object size: {e:?}"))
             })?;
             m.set_content_length(size);
+            if !meta.content_type.is_empty() {
+                m.set_content_type(&meta.content_type);
+            }
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
                 new_other_object_error(
@@ -564,8 +567,8 @@ impl Backend {
 }
 
 /// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 struct GetObjectJsonResponse {
     /// GCS will return size in string.
     ///
@@ -583,6 +586,10 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
     md5_hash: String,
+    /// Content type of this object.
+    ///
+    /// For examlpe: `"contentType": "image/png",`
+    content_type: String,
 }
 
 #[cfg(test)]
@@ -618,5 +625,6 @@ mod tests {
         assert_eq!(meta.updated, "2022-08-15T11:33:34.866Z");
         assert_eq!(meta.md5_hash, "fHcEH1vPwA6eTPqxuasXcg==");
         assert_eq!(meta.etag, "CKWasoTgyPkCEAE=");
+        assert_eq!(meta.content_type, "image/png");
     }
 }

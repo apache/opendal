@@ -143,8 +143,7 @@ impl ObjectPageStream for DirStream {
                 self.backend.clone(),
                 &build_rel_path(&self.root, &object.key),
                 meta,
-            )
-            .with_complete();
+            );
 
             entries.push(de);
         }

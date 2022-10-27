@@ -45,6 +45,7 @@ use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
+use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::percent_encode_path;
@@ -320,6 +321,12 @@ impl Accessor for Backend {
                     .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
+                }
+
+                if let Some(v) = parse_content_type(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+                {
+                    m.set_content_type(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())

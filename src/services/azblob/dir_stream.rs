@@ -122,6 +122,7 @@ impl ObjectPageStream for DirStream {
                 .with_etag(&format!("\"{}\"", object.properties.etag.as_str()))
                 .with_content_length(object.properties.content_length)
                 .with_content_md5(object.properties.content_md5.as_str())
+                .with_content_type(&object.properties.content_type)
                 .with_last_modified(
                     OffsetDateTime::parse(object.properties.last_modified.as_str(), &Rfc2822)
                         .map_err(|e| {
@@ -184,6 +185,8 @@ struct Properties {
     last_modified: String,
     #[serde(rename = "Content-MD5")]
     content_md5: String,
+    #[serde(rename = "Content-Type")]
+    content_type: String,
     etag: String,
 }
 

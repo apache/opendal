@@ -114,7 +114,7 @@ impl Layer for MetricsLayer {
 
 /// metrics will hold all metrics handlers in a `RwLock<Map>`.
 ///
-/// By holding all metrics hanlers we needed here, we can reduce the lock
+/// By holding all metrics handlers we needed, we can reduce the lock
 /// cost on fetching them. All metrics update will be atomic operations.
 #[derive(Clone)]
 struct MetricsHandler {

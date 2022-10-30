@@ -666,17 +666,17 @@ impl Accessor for MetricsAccessor {
         self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
+
         let result = self.inner.read(path, args).await.map(|reader| {
             Box::new(MetricReader::new(
                 reader,
                 self.handle.bytes_total_read.clone(),
                 self.handle.failures_total_read.clone(),
                 self.handle.errors_total_read.clone(),
+                self.handle.requests_duration_seconds_read.clone(),
+                Some(start),
             )) as BytesReader
         });
-        let dur = start.elapsed().as_secs_f64();
-
-        self.handle.requests_duration_seconds_read.record(dur);
 
         result.map_err(|e| {
             if e.kind() == ErrorKind::Other {
@@ -696,6 +696,8 @@ impl Accessor for MetricsAccessor {
             self.handle.bytes_total_write.clone(),
             self.handle.failures_total_write.clone(),
             self.handle.errors_total_write.clone(),
+            self.handle.requests_duration_seconds_write.clone(),
+            None,
         ));
 
         let start = Instant::now();
@@ -826,6 +828,10 @@ impl Accessor for MetricsAccessor {
             self.handle.bytes_total_write_multipart.clone(),
             self.handle.failures_total_write_multipart.clone(),
             self.handle.errors_total_write_multipart.clone(),
+            self.handle
+                .requests_duration_seconds_write_multipart
+                .clone(),
+            None,
         ));
 
         let start = Instant::now();
@@ -919,13 +925,10 @@ impl Accessor for MetricsAccessor {
                 self.handle.bytes_total_blocking_read.clone(),
                 self.handle.failures_total_blocking_read.clone(),
                 self.handle.errors_total_blocking_read.clone(),
+                self.handle.requests_duration_seconds_blocking_read.clone(),
+                Some(start),
             )) as BlockingBytesReader
         });
-        let dur = start.elapsed().as_secs_f64();
-
-        self.handle
-            .requests_duration_seconds_blocking_read
-            .record(dur);
 
         result.map_err(|e| {
             if e.kind() == ErrorKind::Other {
@@ -945,6 +948,8 @@ impl Accessor for MetricsAccessor {
             self.handle.bytes_total_blocking_write.clone(),
             self.handle.failures_total_blocking_write.clone(),
             self.handle.errors_total_blocking_write.clone(),
+            self.handle.requests_duration_seconds_blocking_write.clone(),
+            None,
         ));
 
         let start = Instant::now();
@@ -1037,6 +1042,10 @@ struct MetricReader {
     bytes_counter: Counter,
     failures_counter: Counter,
     errors_counter: Counter,
+    requests_duration_seconds: Histogram,
+
+    start: Option<Instant>,
+    bytes: u64,
 }
 
 impl MetricReader {
@@ -1045,12 +1054,18 @@ impl MetricReader {
         bytes_counter: Counter,
         failures_counter: Counter,
         errors_counter: Counter,
+        requests_duration_seconds: Histogram,
+        start: Option<Instant>,
     ) -> Self {
         Self {
             inner,
             bytes_counter,
             failures_counter,
             errors_counter,
+            requests_duration_seconds,
+
+            start,
+            bytes: 0,
         }
     }
 }
@@ -1065,7 +1080,7 @@ impl AsyncRead for MetricReader {
             .poll_read(cx, buf)
             .map(|res| match res {
                 Ok(bytes) => {
-                    self.bytes_counter.increment(bytes as u64);
+                    self.bytes += bytes as u64;
                     Ok(bytes)
                 }
                 Err(e) => {
@@ -1080,12 +1095,26 @@ impl AsyncRead for MetricReader {
     }
 }
 
+impl Drop for MetricReader {
+    fn drop(&mut self) {
+        self.bytes_counter.increment(self.bytes);
+        if let Some(instant) = self.start {
+            let dur = instant.elapsed().as_secs_f64();
+            self.requests_duration_seconds.record(dur);
+        }
+    }
+}
+
 struct BlockingMetricReader {
     inner: BlockingBytesReader,
 
     bytes_counter: Counter,
     failures_counter: Counter,
     errors_counter: Counter,
+    requests_duration_seconds: Histogram,
+
+    start: Option<Instant>,
+    bytes: u64,
 }
 
 impl BlockingMetricReader {
@@ -1094,12 +1123,18 @@ impl BlockingMetricReader {
         bytes_counter: Counter,
         failures_counter: Counter,
         errors_counter: Counter,
+        requests_duration_seconds: Histogram,
+        start: Option<Instant>,
     ) -> Self {
         Self {
             inner,
             bytes_counter,
             failures_counter,
             errors_counter,
+            requests_duration_seconds,
+
+            start,
+            bytes: 0,
         }
     }
 }
@@ -1109,7 +1144,7 @@ impl Read for BlockingMetricReader {
         self.inner
             .read(buf)
             .map(|n| {
-                self.bytes_counter.increment(n as u64);
+                self.bytes += n as u64;
                 n
             })
             .map_err(|e| {
@@ -1120,5 +1155,15 @@ impl Read for BlockingMetricReader {
                 }
                 e
             })
+    }
+}
+
+impl Drop for BlockingMetricReader {
+    fn drop(&mut self) {
+        self.bytes_counter.increment(self.bytes);
+        if let Some(instant) = self.start {
+            let dur = instant.elapsed().as_secs_f64();
+            self.requests_duration_seconds.record(dur);
+        }
     }
 }

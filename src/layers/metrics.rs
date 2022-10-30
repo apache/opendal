@@ -25,9 +25,10 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use futures::AsyncRead;
-use metrics::counter;
-use metrics::histogram;
-use metrics::increment_counter;
+use metrics::register_counter;
+use metrics::register_histogram;
+use metrics::Counter;
+use metrics::Histogram;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
@@ -53,7 +54,6 @@ use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
 use crate::ObjectStreamer;
-use crate::Scheme;
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
 static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_seconds";
@@ -61,30 +61,11 @@ static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_secon
 static METRIC_FAILURES_TOTAL: &str = "opendal_failures_total";
 /// Metrics of Errored requests, poll error
 static METRIC_ERRORS_TOTAL: &str = "opendal_errors_total";
-static METRIC_BYTES_READ_TOTAL: &str = "opendal_bytes_read_total";
-static METRIC_BYTES_WRITTEN_TOTAL: &str = "opendal_bytes_written_total";
+/// Metrics of bytes consumed by opendal.
+static METRIC_BYTES_TOTAL: &str = "opendal_bytes_total";
 
 static LABEL_SERVICE: &str = "service";
 static LABEL_OPERATION: &str = "operation";
-
-/// update metrics on error results
-#[inline]
-fn increase_error_counter(error: std::io::Error, scheme: Scheme, op: Operation) -> std::io::Error {
-    if error.kind() == ErrorKind::Other {
-        increment_counter!(
-        METRIC_FAILURES_TOTAL,
-        LABEL_SERVICE => scheme.into_static(),
-        LABEL_OPERATION => op.into_static(),
-        );
-    } else {
-        increment_counter!(
-        METRIC_ERRORS_TOTAL,
-        LABEL_SERVICE => scheme.into_static(),
-        LABEL_OPERATION => op.into_static(),
-        );
-    }
-    error
-}
 
 /// MetricsLayer will add metrics for OpenDAL.
 ///
@@ -124,14 +105,516 @@ impl Layer for MetricsLayer {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
         let meta = inner.metadata();
 
-        Arc::new(MetricsAccessor { meta, inner })
+        Arc::new(MetricsAccessor {
+            inner,
+            handle: MetricsHandler::new(meta.scheme().into_static()),
+        })
+    }
+}
+
+/// metrics will hold all metrics handlers in a `RwLock<Map>`.
+///
+/// By holding all metrics hanlers we needed here, we can reduce the lock
+/// cost on fetching them. All metrics update will be atomic operations.
+#[derive(Clone)]
+struct MetricsHandler {
+    requests_total_metadata: Counter,
+    requests_duration_seconds_metadata: Histogram,
+
+    requests_total_create: Counter,
+    requests_duration_seconds_create: Histogram,
+    failures_total_create: Counter,
+    errors_total_create: Counter,
+
+    requests_total_read: Counter,
+    requests_duration_seconds_read: Histogram,
+    failures_total_read: Counter,
+    errors_total_read: Counter,
+    bytes_total_read: Counter,
+
+    requests_total_write: Counter,
+    requests_duration_seconds_write: Histogram,
+    failures_total_write: Counter,
+    errors_total_write: Counter,
+    bytes_total_write: Counter,
+
+    requests_total_stat: Counter,
+    requests_duration_seconds_stat: Histogram,
+    failures_total_stat: Counter,
+    errors_total_stat: Counter,
+
+    requests_total_delete: Counter,
+    requests_duration_seconds_delete: Histogram,
+    failures_total_delete: Counter,
+    errors_total_delete: Counter,
+
+    requests_total_list: Counter,
+    requests_duration_seconds_list: Histogram,
+    failures_total_list: Counter,
+    errors_total_list: Counter,
+
+    requests_total_presign: Counter,
+    requests_duration_seconds_presign: Histogram,
+    failures_total_presign: Counter,
+    errors_total_presign: Counter,
+
+    requests_total_create_multipart: Counter,
+    requests_duration_seconds_create_multipart: Histogram,
+    failures_total_create_multipart: Counter,
+    errors_total_create_multipart: Counter,
+
+    requests_total_write_multipart: Counter,
+    requests_duration_seconds_write_multipart: Histogram,
+    failures_total_write_multipart: Counter,
+    errors_total_write_multipart: Counter,
+    bytes_total_write_multipart: Counter,
+
+    requests_total_complete_multipartt: Counter,
+    requests_duration_seconds_complete_multipart: Histogram,
+    failures_total_complete_multipart: Counter,
+    errors_total_complete_multipart: Counter,
+
+    requests_total_abort_multipart: Counter,
+    requests_duration_seconds_abort_multipart: Histogram,
+    failures_total_abort_multipart: Counter,
+    errors_total_abort_multipart: Counter,
+
+    requests_total_blocking_create: Counter,
+    requests_duration_seconds_blocking_create: Histogram,
+    failures_total_blocking_create: Counter,
+    errors_total_blocking_create: Counter,
+
+    requests_total_blocking_read: Counter,
+    requests_duration_seconds_blocking_read: Histogram,
+    failures_total_blocking_read: Counter,
+    errors_total_blocking_read: Counter,
+    bytes_total_blocking_read: Counter,
+
+    requests_total_blocking_write: Counter,
+    requests_duration_seconds_blocking_write: Histogram,
+    failures_total_blocking_write: Counter,
+    errors_total_blocking_write: Counter,
+    bytes_total_blocking_write: Counter,
+
+    requests_total_blocking_stat: Counter,
+    requests_duration_seconds_blocking_stat: Histogram,
+    failures_total_blocking_stat: Counter,
+    errors_total_blocking_stat: Counter,
+
+    requests_total_blocking_delete: Counter,
+    requests_duration_seconds_blocking_delete: Histogram,
+    failures_total_blocking_delete: Counter,
+    errors_total_blocking_delete: Counter,
+
+    requests_total_blocking_list: Counter,
+    requests_duration_seconds_blocking_list: Histogram,
+    failures_total_blocking_list: Counter,
+    errors_total_blocking_list: Counter,
+}
+
+impl MetricsHandler {
+    fn new(service: &'static str) -> Self {
+        Self {
+            requests_total_metadata: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Metadata.into_static(),
+            ),
+            requests_duration_seconds_metadata: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Metadata.into_static(),
+            ),
+
+            requests_total_create: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Create.into_static(),
+            ),
+            requests_duration_seconds_create: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Create.into_static(),
+            ),
+            failures_total_create: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Create.into_static(),
+            ),
+            errors_total_create: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Create.into_static(),
+            ),
+
+            requests_total_read: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Read.into_static(),
+            ),
+            requests_duration_seconds_read: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Read.into_static(),
+            ),
+            failures_total_read: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Read.into_static(),
+            ),
+            errors_total_read: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Read.into_static(),
+            ),
+            bytes_total_read: register_counter!(
+                METRIC_BYTES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Read.into_static(),
+            ),
+
+            requests_total_write: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Write.into_static(),
+            ),
+            requests_duration_seconds_write: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Write.into_static(),
+            ),
+            failures_total_write: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Write.into_static(),
+            ),
+            errors_total_write: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Write.into_static(),
+            ),
+            bytes_total_write: register_counter!(
+                METRIC_BYTES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Write.into_static(),
+            ),
+
+            requests_total_stat: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Stat.into_static(),
+            ),
+            requests_duration_seconds_stat: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Stat.into_static(),
+            ),
+            failures_total_stat: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Stat.into_static(),
+            ),
+            errors_total_stat: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Stat.into_static(),
+            ),
+
+            requests_total_delete: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Delete.into_static(),
+            ),
+            requests_duration_seconds_delete: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Delete.into_static(),
+            ),
+            failures_total_delete: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Delete.into_static(),
+            ),
+            errors_total_delete: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Delete.into_static(),
+            ),
+
+            requests_total_list: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::List.into_static(),
+            ),
+            requests_duration_seconds_list: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::List.into_static(),
+            ),
+            failures_total_list: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::List.into_static(),
+            ),
+            errors_total_list: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::List.into_static(),
+            ),
+
+            requests_total_presign: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Presign.into_static(),
+            ),
+            requests_duration_seconds_presign: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Presign.into_static(),
+            ),
+            failures_total_presign: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Presign.into_static(),
+            ),
+            errors_total_presign: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Presign.into_static(),
+            ),
+
+            requests_total_create_multipart: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CreateMultipart.into_static(),
+            ),
+            requests_duration_seconds_create_multipart: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CreateMultipart.into_static(),
+            ),
+            failures_total_create_multipart: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CreateMultipart.into_static(),
+            ),
+            errors_total_create_multipart: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CreateMultipart.into_static(),
+            ),
+
+            requests_total_write_multipart: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
+            ),
+            requests_duration_seconds_write_multipart: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
+            ),
+            failures_total_write_multipart: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
+            ),
+            errors_total_write_multipart: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
+            ),
+            bytes_total_write_multipart: register_counter!(
+                METRIC_BYTES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
+            ),
+
+            requests_total_complete_multipartt: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
+            ),
+            requests_duration_seconds_complete_multipart: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
+            ),
+            failures_total_complete_multipart: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
+            ),
+            errors_total_complete_multipart: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
+            ),
+
+            requests_total_abort_multipart: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::AbortMultipart.into_static(),
+            ),
+            requests_duration_seconds_abort_multipart: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::AbortMultipart.into_static(),
+            ),
+            failures_total_abort_multipart: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::AbortMultipart.into_static(),
+            ),
+            errors_total_abort_multipart: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::AbortMultipart.into_static(),
+            ),
+
+            requests_total_blocking_create: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+            ),
+            requests_duration_seconds_blocking_create: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+            ),
+            failures_total_blocking_create: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+            ),
+            errors_total_blocking_create: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingCreate.into_static(),
+            ),
+
+            requests_total_blocking_read: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingRead.into_static(),
+            ),
+            requests_duration_seconds_blocking_read: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingRead.into_static(),
+            ),
+            failures_total_blocking_read: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingRead.into_static(),
+            ),
+            errors_total_blocking_read: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingRead.into_static(),
+            ),
+            bytes_total_blocking_read: register_counter!(
+                METRIC_BYTES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingRead.into_static(),
+            ),
+
+            requests_total_blocking_write: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingWrite.into_static(),
+            ),
+            requests_duration_seconds_blocking_write: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingWrite.into_static(),
+            ),
+            failures_total_blocking_write: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingWrite.into_static(),
+            ),
+            errors_total_blocking_write: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingWrite.into_static(),
+            ),
+            bytes_total_blocking_write: register_counter!(
+                METRIC_BYTES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingWrite.into_static(),
+            ),
+
+            requests_total_blocking_stat: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingStat.into_static(),
+            ),
+            requests_duration_seconds_blocking_stat: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingStat.into_static(),
+            ),
+            failures_total_blocking_stat: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingStat.into_static(),
+            ),
+            errors_total_blocking_stat: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingStat.into_static(),
+            ),
+
+            requests_total_blocking_delete: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingDelete.into_static(),
+            ),
+            requests_duration_seconds_blocking_delete: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingDelete.into_static(),
+            ),
+            failures_total_blocking_delete: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingDelete.into_static(),
+            ),
+            errors_total_blocking_delete: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingDelete.into_static(),
+            ),
+
+            requests_total_blocking_list: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingList.into_static(),
+            ),
+            requests_duration_seconds_blocking_list: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingList.into_static(),
+            ),
+            failures_total_blocking_list: register_counter!(
+                METRIC_FAILURES_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingList.into_static(),
+            ),
+            errors_total_blocking_list: register_counter!(
+                METRIC_ERRORS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingList.into_static(),
+            ),
+        }
     }
 }
 
 #[derive(Clone)]
 struct MetricsAccessor {
-    meta: AccessorMetadata,
     inner: Arc<dyn Accessor>,
+    handle: MetricsHandler,
 }
 
 impl Debug for MetricsAccessor {
@@ -149,194 +632,185 @@ impl Accessor for MetricsAccessor {
     }
 
     fn metadata(&self) -> AccessorMetadata {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Metadata.into_static(),
-        );
+        self.handle.requests_total_metadata.increment(1);
 
         let start = Instant::now();
         let result = self.inner.metadata();
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Metadata.into_static(),
-        );
+        self.handle.requests_duration_seconds_metadata.record(dur);
 
         result
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Create.into_static(),
-        );
+        self.handle.requests_total_create.increment(1);
 
         let start = Instant::now();
         let result = self.inner.create(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Create.into_static(),
-        );
+        self.handle.requests_duration_seconds_create.record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::Create))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_create.increment(1);
+            } else {
+                self.handle.errors_total_create.increment(1);
+            }
+            e
+        })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Read.into_static(),
-        );
+        self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
         let result = self.inner.read(path, args).await.map(|reader| {
             Box::new(MetricReader::new(
-                self.meta.scheme(),
-                Operation::Read,
                 reader,
+                self.handle.bytes_total_read.clone(),
+                self.handle.failures_total_read.clone(),
+                self.handle.errors_total_read.clone(),
             )) as BytesReader
         });
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Read.into_static(),
-        );
+        self.handle.requests_duration_seconds_read.record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::Read))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_read.increment(1);
+            } else {
+                self.handle.errors_total_read.increment(1);
+            }
+            e
+        })
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Write.into_static(),
-        );
+        self.handle.requests_total_write.increment(1);
 
-        let r = Box::new(MetricReader::new(self.meta.scheme(), Operation::Write, r));
+        let r = Box::new(MetricReader::new(
+            r,
+            self.handle.bytes_total_write.clone(),
+            self.handle.failures_total_write.clone(),
+            self.handle.errors_total_write.clone(),
+        ));
 
         let start = Instant::now();
         let result = self.inner.write(path, args, r).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Write.into_static(),
-        );
+        self.handle.requests_duration_seconds_write.record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::Write))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_write.increment(1);
+            } else {
+                self.handle.errors_total_write.increment(1);
+            }
+            e
+        })
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Stat.into_static(),
-        );
+        self.handle.requests_total_stat.increment(1);
 
         let start = Instant::now();
         let result = self.inner.stat(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Stat.into_static(),
-        );
+        self.handle.requests_duration_seconds_stat.record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::Stat))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_stat.increment(1);
+            } else {
+                self.handle.errors_total_stat.increment(1);
+            }
+            e
+        })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Delete.into_static(),
-        );
+        self.handle.requests_total_delete.increment(1);
 
         let start = Instant::now();
         let result = self.inner.delete(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Delete.into_static(),
-        );
+        self.handle.requests_duration_seconds_delete.record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::Delete))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_delete.increment(1);
+            } else {
+                self.handle.errors_total_delete.increment(1);
+            }
+            e
+        })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::List.into_static(),
-        );
+        self.handle.requests_total_list.increment(1);
 
         let start = Instant::now();
         let result = self.inner.list(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::List.into_static(),
-        );
+        self.handle.requests_duration_seconds_list.record(dur);
 
         result
-            .map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::List))
+            .map_err(|e| {
+                if e.kind() == ErrorKind::Other {
+                    self.handle.failures_total_list.increment(1);
+                } else {
+                    self.handle.errors_total_list.increment(1);
+                }
+                e
+            })
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Presign.into_static(),
-        );
+        self.handle.requests_total_presign.increment(1);
 
         let start = Instant::now();
         let result = self.inner.presign(path, args);
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::Presign.into_static(),
-        );
+        self.handle.requests_duration_seconds_presign.record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::Presign))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_presign.increment(1);
+            } else {
+                self.handle.errors_total_presign.increment(1);
+            }
+            e
+        })
     }
 
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::CreateMultipart.into_static(),
-        );
+        self.handle.requests_total_create_multipart.increment(1);
 
         let start = Instant::now();
         let result = self.inner.create_multipart(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::CreateMultipart.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_create_multipart
+            .record(dur);
 
-        result
-            .map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::CreateMultipart))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_create_multipart.increment(1);
+            } else {
+                self.handle.errors_total_create_multipart.increment(1);
+            }
+            e
+        })
     }
 
     async fn write_multipart(
@@ -345,213 +819,239 @@ impl Accessor for MetricsAccessor {
         args: OpWriteMultipart,
         r: BytesReader,
     ) -> Result<ObjectPart> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::WriteMultipart.into_static(),
-        );
+        self.handle.requests_total_write_multipart.increment(1);
 
-        let r = Box::new(MetricReader::new(self.meta.scheme(), Operation::Write, r));
+        let r = Box::new(MetricReader::new(
+            r,
+            self.handle.bytes_total_write_multipart.clone(),
+            self.handle.failures_total_write_multipart.clone(),
+            self.handle.errors_total_write_multipart.clone(),
+        ));
 
         let start = Instant::now();
         let result = self.inner.write_multipart(path, args, r).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::WriteMultipart.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_write_multipart
+            .record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::WriteMultipart))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_write_multipart.increment(1);
+            } else {
+                self.handle.errors_total_write_multipart.increment(1);
+            }
+            e
+        })
     }
 
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
-        );
+        self.handle.requests_total_complete_multipartt.increment(1);
 
         let start = Instant::now();
         let result = self.inner.complete_multipart(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_complete_multipart
+            .record(dur);
 
         result.map_err(|e| {
-            increase_error_counter(e, self.meta.scheme(), Operation::CompleteMultipart)
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_complete_multipart.increment(1);
+            } else {
+                self.handle.errors_total_complete_multipart.increment(1);
+            }
+            e
         })
     }
 
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::AbortMultipart.into_static(),
-        );
+        self.handle.requests_total_abort_multipart.increment(1);
 
         let start = Instant::now();
         let result = self.inner.abort_multipart(path, args).await;
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::AbortMultipart.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_abort_multipart
+            .record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::AbortMultipart))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_abort_multipart.increment(1);
+            } else {
+                self.handle.errors_total_abort_multipart.increment(1);
+            }
+            e
+        })
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingCreate.into_static(),
-        );
+        self.handle.requests_total_blocking_create.increment(1);
 
         let start = Instant::now();
         let result = self.inner.blocking_create(path, args);
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingCreate.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_blocking_create
+            .record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingCreate))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_blocking_create.increment(1);
+            } else {
+                self.handle.errors_total_blocking_create.increment(1);
+            }
+            e
+        })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingRead.into_static(),
-        );
+        self.handle.requests_total_blocking_read.increment(1);
 
         let start = Instant::now();
         let result = self.inner.blocking_read(path, args).map(|reader| {
             Box::new(BlockingMetricReader::new(
-                self.meta.scheme(),
-                Operation::BlockingRead,
                 reader,
+                self.handle.bytes_total_blocking_read.clone(),
+                self.handle.failures_total_blocking_read.clone(),
+                self.handle.errors_total_blocking_read.clone(),
             )) as BlockingBytesReader
         });
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingRead.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_blocking_read
+            .record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingRead))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_blocking_read.increment(1);
+            } else {
+                self.handle.errors_total_blocking_read.increment(1);
+            }
+            e
+        })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingWrite.into_static(),
-        );
+        self.handle.requests_total_blocking_write.increment(1);
 
         let r = Box::new(BlockingMetricReader::new(
-            self.meta.scheme(),
-            Operation::BlockingWrite,
             r,
+            self.handle.bytes_total_blocking_write.clone(),
+            self.handle.failures_total_blocking_write.clone(),
+            self.handle.errors_total_blocking_write.clone(),
         ));
 
         let start = Instant::now();
         let result = self.inner.blocking_write(path, args, r);
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingWrite.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_blocking_write
+            .record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingWrite))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_blocking_write.increment(1);
+            } else {
+                self.handle.errors_total_blocking_write.increment(1);
+            }
+            e
+        })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingStat.into_static(),
-        );
+        self.handle.requests_total_blocking_stat.increment(1);
 
         let start = Instant::now();
         let result = self.inner.blocking_stat(path, args);
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingStat.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_blocking_stat
+            .record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingStat))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_blocking_stat.increment(1);
+            } else {
+                self.handle.errors_total_blocking_stat.increment(1);
+            }
+            e
+        })
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingDelete.into_static(),
-        );
+        self.handle.requests_total_blocking_delete.increment(1);
 
         let start = Instant::now();
         let result = self.inner.blocking_delete(path, args);
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingDelete.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_blocking_delete
+            .record(dur);
 
-        result.map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingDelete))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Other {
+                self.handle.failures_total_blocking_delete.increment(1);
+            } else {
+                self.handle.errors_total_blocking_delete.increment(1);
+            }
+            e
+        })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
-        increment_counter!(
-            METRIC_REQUESTS_TOTAL,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingList.into_static(),
-        );
+        self.handle.requests_total_blocking_list.increment(1);
 
         let start = Instant::now();
         let result = self.inner.blocking_list(path, args);
         let dur = start.elapsed().as_secs_f64();
 
-        histogram!(
-            METRIC_REQUESTS_DURATION_SECONDS, dur,
-            LABEL_SERVICE => self.meta.scheme().into_static(),
-            LABEL_OPERATION => Operation::BlockingList.into_static(),
-        );
+        self.handle
+            .requests_duration_seconds_blocking_list
+            .record(dur);
 
         result
-            .map_err(|e| increase_error_counter(e, self.meta.scheme(), Operation::BlockingList))
+            .map_err(|e| {
+                if e.kind() == ErrorKind::Other {
+                    self.handle.failures_total_blocking_list.increment(1);
+                } else {
+                    self.handle.errors_total_blocking_list.increment(1);
+                }
+                e
+            })
             .map(|s| set_accessor_for_object_iterator(s, self.clone()))
     }
 }
 
 struct MetricReader {
-    scheme: Scheme,
-    op: Operation,
     inner: BytesReader,
+
+    bytes_counter: Counter,
+    failures_counter: Counter,
+    errors_counter: Counter,
 }
 
 impl MetricReader {
-    fn new(scheme: Scheme, op: Operation, inner: BytesReader) -> Self {
-        Self { scheme, op, inner }
+    fn new(
+        inner: BytesReader,
+        bytes_counter: Counter,
+        failures_counter: Counter,
+        errors_counter: Counter,
+    ) -> Self {
+        Self {
+            inner,
+            bytes_counter,
+            failures_counter,
+            errors_counter,
+        }
     }
 }
 
@@ -565,40 +1065,14 @@ impl AsyncRead for MetricReader {
             .poll_read(cx, buf)
             .map(|res| match res {
                 Ok(bytes) => {
-                    match self.op {
-                        Operation::Read => {
-                            counter!(
-                                METRIC_BYTES_READ_TOTAL, bytes as u64,
-                                LABEL_SERVICE => self.scheme.into_static(),
-                                LABEL_OPERATION => self.op.into_static(),
-                            );
-                        }
-                        Operation::Write => {
-                            counter!(
-                                METRIC_BYTES_WRITTEN_TOTAL, bytes as u64,
-                                LABEL_SERVICE => self.scheme.into_static(),
-                                LABEL_OPERATION => self.op.into_static(),
-                            );
-                        }
-                        v => {
-                            unreachable!("expect Read or Write, but got {v:?}");
-                        }
-                    };
+                    self.bytes_counter.increment(bytes as u64);
                     Ok(bytes)
                 }
                 Err(e) => {
                     if e.kind() == ErrorKind::Other {
-                        increment_counter!(
-                            METRIC_FAILURES_TOTAL,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
+                        self.failures_counter.increment(1);
                     } else {
-                        increment_counter!(
-                            METRIC_ERRORS_TOTAL,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
+                        self.errors_counter.increment(1);
                     }
                     Err(e)
                 }
@@ -607,14 +1081,26 @@ impl AsyncRead for MetricReader {
 }
 
 struct BlockingMetricReader {
-    scheme: Scheme,
-    op: Operation,
     inner: BlockingBytesReader,
+
+    bytes_counter: Counter,
+    failures_counter: Counter,
+    errors_counter: Counter,
 }
 
 impl BlockingMetricReader {
-    fn new(scheme: Scheme, op: Operation, inner: BlockingBytesReader) -> Self {
-        Self { scheme, op, inner }
+    fn new(
+        inner: BlockingBytesReader,
+        bytes_counter: Counter,
+        failures_counter: Counter,
+        errors_counter: Counter,
+    ) -> Self {
+        Self {
+            inner,
+            bytes_counter,
+            failures_counter,
+            errors_counter,
+        }
     }
 }
 
@@ -623,40 +1109,14 @@ impl Read for BlockingMetricReader {
         self.inner
             .read(buf)
             .map(|n| {
-                match self.op {
-                    Operation::BlockingRead => {
-                        counter!(
-                            METRIC_BYTES_READ_TOTAL, n as u64,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
-                    }
-                    Operation::BlockingWrite => {
-                        counter!(
-                            METRIC_BYTES_WRITTEN_TOTAL, n as u64,
-                            LABEL_SERVICE => self.scheme.into_static(),
-                            LABEL_OPERATION => self.op.into_static(),
-                        );
-                    }
-                    v => {
-                        unreachable!("expect BlockingRead or BlockingWrite, but got {v:?}");
-                    }
-                }
+                self.bytes_counter.increment(n as u64);
                 n
             })
             .map_err(|e| {
                 if e.kind() == ErrorKind::Other {
-                    increment_counter!(
-                        METRIC_FAILURES_TOTAL,
-                        LABEL_SERVICE => self.scheme.into_static(),
-                        LABEL_OPERATION => self.op.into_static(),
-                    );
+                    self.failures_counter.increment(1);
                 } else {
-                    increment_counter!(
-                        METRIC_ERRORS_TOTAL,
-                        LABEL_SERVICE => self.scheme.into_static(),
-                        LABEL_OPERATION => self.op.into_static(),
-                    );
+                    self.errors_counter.increment(1);
                 }
                 e
             })

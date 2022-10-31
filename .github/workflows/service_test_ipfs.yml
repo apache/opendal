@@ -32,7 +32,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test ipfs --features compress,layers-retry,services-ipfs -- --nocapture
+        run: cargo test ipfs --features layers-retry,services-ipfs -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

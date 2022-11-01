@@ -12,12 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
+use std::{
+    io::{Error, ErrorKind, Result},
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use futures::ready;
-use tikv_client::{RawClient, Config};
+use futures::{ready, Stream};
+use pin_project::pin_project;
+use tikv_client::{Config, Key, KvPair, TransactionClient};
 
-use crate::{adapters::kv::Adapter, error::new_other_backend_error, path::normalize_root};
+use crate::{
+    adapters::kv::Adapter,
+    error::{new_other_backend_error, new_other_object_error},
+    ops::Operation,
+    path::normalize_root,
+};
 
 const DEFAULT_TIKV_ENDPOINT: &str = "127.0.0.1:2379";
 const DEFAULT_TIKV_PORT: u16 = 6379;
@@ -89,29 +99,56 @@ impl Builder {
 
 impl Builder {
     pub async fn build(&mut self) -> Result<Backend> {
-        let endpoints = 
-            self.endpoints.clone().unwrap_or_else(
-             ||   
-            vec![DEFAULT_TIKV_ENDPOINT.to_string()]
-            );
+        let endpoints = self
+            .endpoints
+            .clone()
+            .unwrap_or_else(|| vec![DEFAULT_TIKV_ENDPOINT.to_string()]);
 
-        let r = self.root.clone().unwrap_or_else(||"/".to_string()).as_str();
+        let r = self
+            .root
+            .clone()
+            .unwrap_or_else(|| "/".to_string())
+            .as_str();
         let root = normalize_root(r);
 
-        let mut ctx = Hashmap::from([("endpoints".to_string(), format!("{:?}",endpoint.clone()))]);
+        let mut ctx = Hashmap::from([("endpoints".to_string(), format!("{:?}", endpoint.clone()))]);
 
-        let client  = if self.insecure {
-            RawClient::new(endpoints).await.map_err(|err| {
-            new_other_backend_error(ctx.clone(), anyhow::anyhow!("invalid configuration",err))
+        let client = if self.insecure {
+            TransactionClient::new(endpoints).await.map_err(|err| {
+                new_other_backend_error(ctx.clone(), anyhow::anyhow!("invalid configuration", err))
             })?
-        } else self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
-            let (ca_path, key_path, cert_path) = (self.ca_path.clone().unwrap(), self.key_path.clone().unwrap(), self.cert_path.clone().unwrap());
-            ctx.extend();
+        } else if self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
+            let (ca_path, key_path, cert_path) = (
+                self.ca_path.clone().unwrap(),
+                self.key_path.clone().unwrap(),
+                self.cert_path.clone().unwrap(),
+            );
+            ctx.extend([
+                ("ca_path".to_string(), ca_path.clone()),
+                ("key_path".to_string(), key_path.clone()),
+                ("cert_path".to_string(), cert_path.clone()),
+            ]);
             let config = Config::default().with_security(ca_path, cert_path, key_path);
-            RawClient::new_with_config(endpoints, )
+            Transaction::new_with_config(endpoints, config)
+                .await
+                .map_err(|err| {
+                    new_other_backend_error(
+                        ctx.clone(),
+                        anyhow::anyhow!("invalid configuration", err),
+                    )
+                })?
         } else {
+            return Err(new_other_backend_error(
+                ctx.clone(),
+                anyhow::anyhow!("invalid configuration: no enough certifications"),
+            ));
+        };
 
-        }
+        debug!("backend build finished: {:?}", &self);
+        Ok(Backend::new(Adapter {
+            client,
+            next_id: Arc::new(AtomicU64::new(0)),
+        }))
     }
 }
 
@@ -120,6 +157,93 @@ pub type Backend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    client: RawClient,
-    conn: OnceCel,
+    client: TransactionClient,
+    next_id: Arc<AtomicU64>,
+}
+
+#[async_trait::async_trait]
+impl kv::Adapter for Adapter {
+    fn metadata(&self) -> kv::Metadata {
+        kv::Metadata::new(
+            Scheme::TiKV,
+            "TiKV",
+            AccessorCapability::Read | AccessorCapability::Write,
+        )
+    }
+
+    async fn next_id(&self) -> Result<u64> {
+        Ok(self.next_id.fetch_add(1, Ordering::Relaxed))
+    }
+
+    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        let mut txn = self
+            .client
+            .begin_optimistic()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
+
+        txn.put(key, value)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
+    }
+
+    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        let mut txn = self
+            .client
+            .begin_optimistic()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
+
+        txn.get(key)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
+    }
+
+    async fn delete(&self, key: &[u8]) -> Result<()> {
+        let mut txn = self
+            .client
+            .begin_optimistic()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
+
+        txn.delete(key)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
+    }
+
+    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
+        let mut txn = self
+            .client
+            .begin_optimistic()
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
+
+        let it = txn
+            .scan_keys(prefix)
+            .await
+            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
+        Ok(kv::KeyStreamer::new(it))
+    }
+}
+
+#[pin_project]
+struct KeyStream {
+    iter: Box<impl Iterator<Item = Key>>,
+}
+
+impl KeyStream {
+    fn new(it: impl Iterator<Item = Key>) -> Self {
+        Self { iter: Box::new(it) }
+    }
+}
+
+impl Stream for KeyStream {
+    type Item = Result<Vec<u8>>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.iter.next() {
+            Some(k) => Poll::Ready(Some(Ok(k.into()))),
+            None => Poll::Ready(None),
+        }
+    }
 }

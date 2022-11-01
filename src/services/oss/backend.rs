@@ -27,6 +27,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
+use log::debug;
 use reqsign::AliyunOssBuilder;
 use reqsign::AliyunOssSigner;
 
@@ -185,10 +186,10 @@ impl Builder {
 
     /// finish building
     pub fn build(&self) -> Result<impl Accessor> {
-        log::info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.clone().unwrap_or_default());
-        log::info!("backend use root {}", &root);
+        debug!("backend use root {}", &root);
 
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
@@ -198,7 +199,7 @@ impl Builder {
                 anyhow::anyhow!("bucket is empty"),
             )),
         }?;
-        log::debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", &bucket);
 
         // Setup error context so that we don't need to construct many times.
         let mut context: HashMap<String, String> =
@@ -249,7 +250,7 @@ impl Builder {
             .build()
             .map_err(|e| new_other_backend_error(context, e))?;
 
-        log::info!("Backend build finished: {:?}", &self);
+        debug!("Backend build finished: {:?}", &self);
 
         Ok(Backend {
             root,

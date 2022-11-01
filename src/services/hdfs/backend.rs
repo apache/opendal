@@ -25,7 +25,6 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use log::debug;
-use log::info;
 use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
@@ -104,7 +103,7 @@ impl Builder {
 
     /// Finish the building and create hdfs backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let name_node = match &self.name_node {
             None => {
@@ -117,7 +116,7 @@ impl Builder {
         };
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let client = hdrs::Client::connect(name_node).map_err(|e| {
             new_other_backend_error(
@@ -146,7 +145,7 @@ impl Builder {
             }
         }
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             root,
             client: Arc::new(client),

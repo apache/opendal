@@ -29,7 +29,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use log::info;
 use reqsign::AzureStorageSigner;
 
 use super::dir_stream::DirStream;
@@ -179,10 +178,10 @@ impl Builder {
 
     /// Consume builder to build an azblob backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         // Handle endpoint, region and container name.
         let container = match self.container.is_empty() {
@@ -219,7 +218,7 @@ impl Builder {
             .build()
             .map_err(|e| new_other_backend_error(context, e))?;
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             root,
             endpoint,

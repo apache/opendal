@@ -14,7 +14,7 @@
 
 use std::io::Result;
 
-use log::info;
+use log::debug;
 
 use super::backend::Backend;
 use crate::http_util::HttpClient;
@@ -70,7 +70,7 @@ impl Builder {
     /// Consume builder to build an ipfs::Backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let endpoint = self
             .endpoint
@@ -79,7 +79,7 @@ impl Builder {
 
         let client = HttpClient::new();
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend::new(root, client, endpoint))
     }
 }

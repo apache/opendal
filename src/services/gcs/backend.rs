@@ -27,7 +27,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use log::info;
 use reqsign::GoogleSigner;
 use serde::Deserialize;
 use serde_json;
@@ -136,10 +135,10 @@ impl Builder {
 
     /// Establish connection to GCS and finish making GCS backend
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", self);
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {

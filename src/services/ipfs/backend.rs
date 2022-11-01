@@ -34,7 +34,7 @@ use futures::Stream;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use log::info;
+use log::debug;
 use prost::Message;
 
 use super::error::parse_error;
@@ -128,7 +128,7 @@ impl Builder {
 
     /// Consume builder to build an ipfs backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
@@ -137,7 +137,7 @@ impl Builder {
                 anyhow!("root must start with /ipfs/ or /ipns/"),
             ));
         }
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
@@ -146,9 +146,9 @@ impl Builder {
                 anyhow!("endpoint is empty"),
             )),
         }?;
-        info!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", &endpoint);
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             root,
             endpoint,

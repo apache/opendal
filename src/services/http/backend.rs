@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use log::info;
+use log::debug;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
@@ -112,7 +112,7 @@ impl Builder {
 
     /// Build a HTTP backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
             None => {
@@ -125,11 +125,11 @@ impl Builder {
         };
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let client = HttpClient::new();
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             endpoint: endpoint.to_string(),
             root,

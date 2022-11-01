@@ -29,7 +29,7 @@ use bb8::RunError;
 use futures::io::copy;
 use futures::AsyncReadExt;
 use http::Uri;
-use log::info;
+use log::debug;
 use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
@@ -145,7 +145,7 @@ impl Builder {
 
     /// Build a ftp backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("ftp backend build started: {:?}", &self);
+        debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
             None => {
                 return Err(new_other_backend_error(
@@ -214,7 +214,7 @@ impl Builder {
             Some(v) => v.clone(),
         };
 
-        info!("ftp backend finished: {:?}", &self);
+        debug!("ftp backend finished: {:?}", &self);
 
         Ok(Backend {
             endpoint,

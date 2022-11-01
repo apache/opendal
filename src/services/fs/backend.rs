@@ -24,7 +24,7 @@ use async_compat::Compat;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
-use log::info;
+use log::debug;
 use time::OffsetDateTime;
 use tokio::fs;
 
@@ -89,10 +89,10 @@ impl Builder {
 
     /// Consume current builder to build a fs backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
@@ -106,7 +106,7 @@ impl Builder {
             }
         }
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend { root })
     }
 }

@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use log::info;
+use log::debug;
 use moka::future::Cache;
 
 use crate::adapters::kv;
@@ -111,7 +111,7 @@ impl Builder {
 
     /// Consume builder to build a moka backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let mut builder = Cache::builder();
         if let Some(v) = &self.name {
@@ -127,7 +127,7 @@ impl Builder {
             builder = builder.time_to_idle(v)
         }
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend::new(Adapter {
             inner: builder.build(),
             next_id: Arc::new(AtomicU64::new(1)),

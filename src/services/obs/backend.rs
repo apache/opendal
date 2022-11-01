@@ -27,7 +27,6 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use log::info;
 use reqsign::HuaweicloudObsSigner;
 
 use super::error::parse_error;
@@ -169,10 +168,10 @@ impl Builder {
 
     /// Consume builder to build an OBS backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let bucket = match &self.bucket {
             Some(bucket) => Ok(bucket.to_string()),
@@ -245,7 +244,7 @@ impl Builder {
             .build()
             .map_err(|e| new_other_backend_error(context, e))?;
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             client,
             root,

@@ -22,7 +22,7 @@ use async_trait::async_trait;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use log::info;
+use log::debug;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
@@ -32,6 +32,7 @@ use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_md5;
+use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
@@ -111,7 +112,7 @@ impl Builder {
 
     /// Build a HTTP backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
             None => {
@@ -124,11 +125,11 @@ impl Builder {
         };
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let client = HttpClient::new();
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             endpoint: endpoint.to_string(),
             root,
@@ -210,6 +211,12 @@ impl Accessor for Backend {
                     .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_md5(v);
+                }
+
+                if let Some(v) = parse_content_type(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+                {
+                    m.set_content_type(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())

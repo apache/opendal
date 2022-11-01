@@ -9,7 +9,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.19.4"
+version = "0.19.7"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -117,12 +117,14 @@ parking_lot = "0.12"
 percent-encoding = "2"
 pin-project = "1"
 prost = { version = "0.11", optional = true }
-quick-xml = { version = "0.25", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.26", features = ["serialize", "overlapped-lists"] }
 redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.6"
+# Make sure we are using the latest pathc of reqsign.
+# Should be removed after reqsign bumped to 0.7
+reqsign = "0.6.3"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",

@@ -32,8 +32,8 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::error;
-use log::info;
-use md5::{Digest, Md5};
+use md5::Digest;
+use md5::Md5;
 use once_cell::sync::Lazy;
 use reqsign::AwsV4Signer;
 use serde::Deserialize;
@@ -49,6 +49,7 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
+use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
@@ -605,10 +606,10 @@ impl Builder {
 
     /// Finish the build process and create a new accessor.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", &root);
+        debug!("backend use root {}", &root);
 
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
@@ -733,7 +734,7 @@ impl Builder {
             .build()
             .map_err(|e| new_other_backend_error(context, e))?;
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             root,
             endpoint,
@@ -953,6 +954,12 @@ impl Accessor for Backend {
                     .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
+                }
+
+                if let Some(v) = parse_content_type(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+                {
+                    m.set_content_type(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())

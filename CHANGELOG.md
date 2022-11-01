@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.19.7] - 2022-10-31
+
+### Added
+
+- feat: Implement content type support for stat (#891)
+
+### Changed
+
+- refactor(layers/metrics): Holding all metrics handlers to avoid lock (#894)
+- refactor(layers/metrics): Only update metrics while dropping readers (#896)
+
+## [v0.19.6] - 2022-10-25
+
+### Fixed
+
+- fix: Metrics blocking reader doesn't handle operation correctly (#887)
+
+## [v0.19.5] - 2022-10-24
+
+### Added
+
+- feat: add a feature named trust-dns (#879)
+- feat: implement write_with (#880)
+- feat: `content-type` configuration (#878)
+
+### Fixed
+
+- fix: Allow forward layers' acesser operations to inner (#884)
+
 ## [v0.19.4] - 2022-10-15
 
 ### Added
@@ -892,6 +921,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.19.7]: https://github.com/datafuselabs/opendal/compare/v0.19.6...v0.19.7
+[v0.19.6]: https://github.com/datafuselabs/opendal/compare/v0.19.5...v0.19.6
+[v0.19.5]: https://github.com/datafuselabs/opendal/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/datafuselabs/opendal/compare/v0.19.3...v0.19.4
 [v0.19.3]: https://github.com/datafuselabs/opendal/compare/v0.19.2...v0.19.3
 [v0.19.2]: https://github.com/datafuselabs/opendal/compare/v0.19.1...v0.19.2

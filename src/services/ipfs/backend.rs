@@ -34,7 +34,7 @@ use futures::Stream;
 use http::Request;
 use http::Response;
 use http::StatusCode;
-use log::info;
+use log::debug;
 use prost::Message;
 
 use super::error::parse_error;
@@ -45,6 +45,7 @@ use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
+use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::percent_encode_path;
@@ -127,7 +128,7 @@ impl Builder {
 
     /// Consume builder to build an ipfs backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
@@ -136,7 +137,7 @@ impl Builder {
                 anyhow!("root must start with /ipfs/ or /ipns/"),
             ));
         }
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
@@ -145,9 +146,9 @@ impl Builder {
                 anyhow!("endpoint is empty"),
             )),
         }?;
-        info!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", &endpoint);
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             root,
             endpoint,
@@ -320,6 +321,12 @@ impl Accessor for Backend {
                     .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
+                }
+
+                if let Some(v) = parse_content_type(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+                {
+                    m.set_content_type(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())

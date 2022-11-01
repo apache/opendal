@@ -33,6 +33,7 @@ pub struct ObjectMetadata {
     /// - For `list` operation, content_length could be None.
     content_length: Option<u64>,
     content_md5: Option<String>,
+    content_type: Option<String>,
     /// # NOTE
     ///
     /// bincode::{Encode, Decode} is not implemented on OffsetDateTime.
@@ -49,6 +50,7 @@ impl ObjectMetadata {
 
             content_length: None,
             content_md5: None,
+            content_type: None,
             last_modified: None,
             etag: None,
         }
@@ -121,6 +123,29 @@ impl ObjectMetadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn with_content_md5(mut self, content_md5: &str) -> Self {
         self.content_md5 = Some(content_md5.to_string());
+        self
+    }
+
+    /// Content Type of this object.
+    ///
+    /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
+    pub fn content_type(&self) -> Option<&str> {
+        self.content_type.as_deref()
+    }
+
+    /// Set Content Type of this object.
+    ///
+    /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
+    pub fn set_content_type(&mut self, v: &str) -> &mut Self {
+        self.content_type = Some(v.to_string());
+        self
+    }
+
+    /// Set Content Type of this object.
+    ///
+    /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
+    pub fn with_content_type(mut self, v: &str) -> Self {
+        self.content_type = Some(v.to_string());
         self
     }
 

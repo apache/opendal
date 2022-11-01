@@ -105,6 +105,10 @@ impl SubdirAccessor {
 
 #[async_trait]
 impl Accessor for SubdirAccessor {
+    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+        Some(self.inner.clone())
+    }
+
     fn metadata(&self) -> AccessorMetadata {
         let mut meta = self.inner.metadata();
         meta.set_root(&format!("{}{}", meta.root(), self.subdir));

@@ -27,6 +27,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::Uri;
+use log::debug;
 use reqsign::AliyunOssBuilder;
 use reqsign::AliyunOssSigner;
 
@@ -42,6 +43,7 @@ use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_md5;
+use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
@@ -184,10 +186,10 @@ impl Builder {
 
     /// finish building
     pub fn build(&self) -> Result<impl Accessor> {
-        log::info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.clone().unwrap_or_default());
-        log::info!("backend use root {}", &root);
+        debug!("backend use root {}", &root);
 
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
@@ -197,7 +199,7 @@ impl Builder {
                 anyhow::anyhow!("bucket is empty"),
             )),
         }?;
-        log::debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", &bucket);
 
         // Setup error context so that we don't need to construct many times.
         let mut context: HashMap<String, String> =
@@ -248,7 +250,7 @@ impl Builder {
             .build()
             .map_err(|e| new_other_backend_error(context, e))?;
 
-        log::info!("Backend build finished: {:?}", &self);
+        debug!("Backend build finished: {:?}", &self);
 
         Ok(Backend {
             root,
@@ -570,6 +572,12 @@ impl Accessor for Backend {
                     .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
+                }
+
+                if let Some(v) = parse_content_type(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+                {
+                    m.set_content_type(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())

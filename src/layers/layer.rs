@@ -26,6 +26,14 @@ use crate::Accessor;
 ///
 /// # Notes
 ///
+/// ## Inner
+///
+/// It's required to implement `fn inner() -> Option<Arc<dyn Accessor>>` for layer's accessors.
+///
+/// By implement this method, all API calls will be forwarded to inner accessor instead.
+///
+/// ## List Operations
+///
 /// `list` and `blocking_list` operations will set `Arc<dyn Accessor>` for
 /// `ObjectEntry`.
 ///

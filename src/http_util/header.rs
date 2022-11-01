@@ -16,6 +16,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::HeaderMap;
@@ -36,13 +37,24 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
 }
 
 /// Parse content md5 from header map.
-#[allow(unused)]
 pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
     match headers.get(HeaderName::from_static("content-md5")) {
         None => Ok(None),
         Some(v) => {
             Ok(Some(v.to_str().map_err(|e| {
                 anyhow!("parse content-md5 header: {:?}", e)
+            })?))
+        }
+    }
+}
+
+/// Parse content type from header map.
+pub fn parse_content_type(headers: &HeaderMap) -> Result<Option<&str>> {
+    match headers.get(CONTENT_TYPE) {
+        None => Ok(None),
+        Some(v) => {
+            Ok(Some(v.to_str().map_err(|e| {
+                anyhow!("parse content-type header: {:?}", e)
             })?))
         }
     }

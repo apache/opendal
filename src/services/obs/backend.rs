@@ -27,7 +27,6 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use log::info;
 use reqsign::HuaweicloudObsSigner;
 
 use super::error::parse_error;
@@ -39,6 +38,7 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
+use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_last_modified;
@@ -168,10 +168,10 @@ impl Builder {
 
     /// Consume builder to build an OBS backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        info!("backend build started: {:?}", &self);
+        debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        info!("backend use root {}", root);
+        debug!("backend use root {}", root);
 
         let bucket = match &self.bucket {
             Some(bucket) => Ok(bucket.to_string()),
@@ -244,7 +244,7 @@ impl Builder {
             .build()
             .map_err(|e| new_other_backend_error(context, e))?;
 
-        info!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", &self);
         Ok(Backend {
             client,
             root,
@@ -387,6 +387,12 @@ impl Accessor for Backend {
                     .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
                 {
                     m.set_content_length(v);
+                }
+
+                if let Some(v) = parse_content_type(resp.headers())
+                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+                {
+                    m.set_content_type(v);
                 }
 
                 if let Some(v) = parse_etag(resp.headers())

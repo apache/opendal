@@ -38,3 +38,5 @@ pub mod oss;
 #[cfg(feature = "services-redis")]
 pub mod redis;
 pub mod s3;
+#[cfg(feature = "services-tikv")]
+pub mod tikv;

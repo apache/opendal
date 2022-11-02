@@ -12,22 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{
-    io::{Error, ErrorKind, Result},
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
 
-use futures::{future::BoxFuture, ready, Stream};
+use futures::future::BoxFuture;
+use futures::ready;
+use futures::Stream;
 use pin_project::pin_project;
-use tikv_client::{BoundRange, Config, Key, KvPair, RawClient};
+use tikv_client::BoundRange;
+use tikv_client::Config;
+use tikv_client::Key;
+use tikv_client::KvPair;
+use tikv_client::RawClient;
 
-use crate::{
-    adapters::kv::Adapter,
-    error::{new_other_backend_error, new_other_object_error},
-    ops::Operation,
-    path::normalize_root,
-};
+use crate::adapters::kv::Adapter;
+use crate::error::new_other_backend_error;
+use crate::error::new_other_object_error;
+use crate::ops::Operation;
+use crate::path::normalize_root;
 
 const DEFAULT_TIKV_ENDPOINT: &str = "127.0.0.1:2379";
 const DEFAULT_TIKV_PORT: u16 = 6379;

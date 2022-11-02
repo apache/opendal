@@ -18,9 +18,9 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures::{ready, Stream};
+use futures::{future::BoxFuture, ready, Stream};
 use pin_project::pin_project;
-use tikv_client::{Config, Key, KvPair, TransactionClient};
+use tikv_client::{BoundRange, Config, Key, KvPair, RawClient};
 
 use crate::{
     adapters::kv::Adapter,
@@ -114,7 +114,7 @@ impl Builder {
         let mut ctx = Hashmap::from([("endpoints".to_string(), format!("{:?}", endpoint.clone()))]);
 
         let client = if self.insecure {
-            TransactionClient::new(endpoints).await.map_err(|err| {
+            RawClient::new(endpoints).await.map_err(|err| {
                 new_other_backend_error(ctx.clone(), anyhow::anyhow!("invalid configuration", err))
             })?
         } else if self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
@@ -129,7 +129,7 @@ impl Builder {
                 ("cert_path".to_string(), cert_path.clone()),
             ]);
             let config = Config::default().with_security(ca_path, cert_path, key_path);
-            Transaction::new_with_config(endpoints, config)
+            RawClient::new_with_config(endpoints, config)
                 .await
                 .map_err(|err| {
                     new_other_backend_error(
@@ -176,64 +176,59 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        let mut txn = self
-            .client
-            .begin_optimistic()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
-
-        txn.put(key, value)
+        self.client
+            .put(key, value)
             .await
             .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
     }
 
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        let mut txn = self
-            .client
-            .begin_optimistic()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
-
-        txn.get(key)
+        self.client
+            .get(key)
             .await
             .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
     }
 
     async fn delete(&self, key: &[u8]) -> Result<()> {
-        let mut txn = self
-            .client
-            .begin_optimistic()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
-
-        txn.delete(key)
+        self.client
+            .delete(key)
             .await
             .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))
     }
 
     async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
-        let mut txn = self
-            .client
-            .begin_optimistic()
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
-
-        let it = txn
-            .scan_keys(prefix)
-            .await
-            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
-        Ok(kv::KeyStreamer::new(it))
+        Ok(kv::KeyStreamer::new(self.client.clone(), prefix))
     }
 }
 
 #[pin_project]
 struct KeyStream {
-    iter: Box<impl Iterator<Item = Key>>,
+    client: RawClient,
+    bound: BoundRange,
+    end: Vec<u8>,
+    keys: IntoIter<Vec<u8>>,
+
+    fut: Option<BoxFuture<'static, Result<Vec<Vec<u8>>>>>,
+
+    cursor: &[u8],
+    done: bool,
 }
 
 impl KeyStream {
-    fn new(it: impl Iterator<Item = Key>) -> Self {
-        Self { iter: Box::new(it) }
+    fn new(client: RawClient, prefix: &[u8]) -> Self {
+        let end = prefix.to_vec().extend_one(b"\0");
+        let bound = BoundRange::new(prefix, &end);
+
+        Self {
+            client,
+            bound,
+            end,
+
+            keys: vec![].into_iter(),
+            fut: None,
+            done: false,
+            cursor: prefix,
+        }
     }
 }
 
@@ -241,9 +236,54 @@ impl Stream for KeyStream {
     type Item = Result<Vec<u8>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.iter.next() {
-            Some(k) => Poll::Ready(Some(Ok(k.into()))),
-            None => Poll::Ready(None),
+        let this = self.project();
+
+        loop {
+            if let Some(key) = this.keys.next() {
+                debug_assert!(
+                    this.bound.contains(key),
+                    "prefix is not match: expect {:x?}, got {:x?}",
+                    *this.arg,
+                    key
+                );
+                return Poll::Ready(Some(Ok(key)));
+            }
+
+            match this.fut {
+                None => {
+                    if *this.done {
+                        return Poll::Ready(None);
+                    }
+
+                    let arg = this.arg.to_vec();
+                    let cursor = *this.cursor;
+                    let mut client = this.client.clone();
+                    let bound = BoundRange::new(cursor, &self.end);
+                    let fut = async move {
+                        let keys = client
+                            .scan_keys(bound, 100)
+                            .await
+                            .map_err(|e| Error::new(ErrorKind::Other, anyhow!("tikv: {:?}", e)))?;
+                        cursor = keys.last();
+                        Ok((cursor, keys))
+                    };
+                    *this.fut = Some(Box::pin(fut));
+                    continue;
+                }
+                Some(fut) => {
+                    let (cursor, keys) = ready!(Pin::new(fut).poll(cx))?;
+
+                    *this.fut = None;
+
+                    if let Some(cursor) = cursor {
+                        *this.cursor = cursor;
+                    } else {
+                        *this.done = true;
+                    }
+                    *this.keys = keys.into_iter();
+                    continue;
+                }
+            }
         }
     }
 }

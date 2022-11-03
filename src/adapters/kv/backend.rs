@@ -271,7 +271,7 @@ impl<S: Adapter> Backend<S> {
     /// Create a new entry.
     async fn create_entry(&self, parent: u64, name: &str, inode: u64) -> Result<()> {
         let key = Key::entry(parent, name);
-        let value = bincode::encode_to_vec(&inode, bincode::config::standard())
+        let value = bincode::encode_to_vec(inode, bincode::config::standard())
             .map_err(new_bincode_encode_error)?;
         self.kv.set(&key.encode(), &value).await
     }

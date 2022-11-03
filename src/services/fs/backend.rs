@@ -137,7 +137,7 @@ impl Backend {
     // Synchronously get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
     #[inline]
     fn blocking_fs_metadata(path: &str) -> Result<std::fs::Metadata> {
-        match std::fs::metadata(&path) {
+        match std::fs::metadata(path) {
             Ok(meta) => {
                 if meta.is_dir() != path.ends_with('/') {
                     Err(ErrorKind::NotFound.into())

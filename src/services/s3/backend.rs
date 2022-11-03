@@ -1634,10 +1634,8 @@ mod tests {
                <ETag>"acbd18db4cc2f85cedef654fccc4a4d8"</ETag>
              </Part>
             </CompleteMultipartUpload>"#
-                // Cleanup space
-                .replace(' ', "")
-                // Cleanup new line
-                .replace('\n', "")
+                // Cleanup space and new line
+                .replace([' ', '\n'], "")
                 // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
                 .replace('"', "&quot;")
         )

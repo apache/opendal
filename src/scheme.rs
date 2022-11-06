@@ -56,6 +56,8 @@ pub enum Scheme {
     /// [redis][crate::services::redis]: Redis services
     #[cfg(feature = "services-redis")]
     Redis,
+    /// [rocksdb][crate::services::rocksdb]: RocksDB services
+    Rocksdb,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,
     /// [oss][crate::services::oss]: Aliyun Object Storage Services
@@ -102,6 +104,7 @@ impl Display for Scheme {
             Scheme::Obs => write!(f, "obs"),
             #[cfg(feature = "services-redis")]
             Scheme::Redis => write!(f, "redis"),
+            Scheme::Rocksdb => write!(f, "rocksdb"),
             Scheme::S3 => write!(f, "s3"),
             Scheme::Oss => write!(f, "oss"),
             Scheme::Custom(v) => write!(f, "{v}"),
@@ -159,6 +162,7 @@ impl From<Scheme> for &'static str {
             Scheme::Obs => "obs",
             #[cfg(feature = "services-redis")]
             Scheme::Redis => "redis",
+            Scheme::Rocksdb => "service-rocksdb",
             Scheme::S3 => "s3",
             Scheme::Oss => "oss",
             Scheme::Custom(v) => v,

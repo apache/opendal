@@ -1,0 +1,83 @@
+// Copyright 2022 Datafuse Labs.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Rocksdb support for OpenDAL
+//!
+//! # Note
+//!
+//! The storage format for this service is not **stable** yet.
+//!
+//! PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
+//!
+//! # Configuration
+//!
+//! - `root`: Set the working directory of `OpenDAL`
+//! - `path`: Set the path to the rocksdb database
+//!
+//! You can refer to [`Builder`]'s docs for more information
+//!
+//! # Environment
+//!
+//! - `OPENDAL_ROCKSDB_ROOT` optional
+//! - `OPENDAL_ROCKSDB_PATH` required
+//!
+//! # Example
+//!
+//! ## Initiate via environment variables:
+//!
+//! Set environment correctly:
+//!
+//! ```shell
+//! export OPENDAL_ROCKSDB_ROOT=/path/to/root
+//! export OPENDAL_ROCKSDB_PATH=/path/to/rocksdb
+//! ```
+//! ```no_run
+//! use anyhow::Result;
+//! use opendal::Object;
+//! use opendal::Operator;
+//! use opendal::Scheme;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let op = Operator::from_env(Scheme::Rocksdb)?;
+//!
+//!     // create an object handler to start operation on rocksdb!
+//!     let _op: Object = op.object("hello_rocksdb!");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Via Builder
+//!
+//! ```no_run
+//! use anyhow::Result;
+//! use opendal::services::rocksdb;
+//! use opendal::Object;
+//! use opendal::Operator;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<()> {
+//!     let accessor = rocksdb::Builder::default()
+//!         .path("/tmp/opendal/rocksdb")
+//!         .build()?;
+//!
+//!     let op: Operator = Operator::new(accessor);
+//!     let _: Object = op.object("test_file");
+//!     Ok(())
+//! }
+//! ```
+
+mod backend;
+pub use backend::Builder;

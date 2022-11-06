@@ -145,6 +145,7 @@ impl Operator {
             Scheme::Oss => services::oss::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-redis")]
             Scheme::Redis => services::redis::Builder::from_iter(it).build()?.into(),
+            Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
             Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
             Scheme::Custom(v) => {
                 return Err(new_other_backend_error(

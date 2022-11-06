@@ -37,5 +37,6 @@ pub mod obs;
 pub mod oss;
 #[cfg(feature = "services-redis")]
 pub mod redis;
+#[cfg(feature = "services-rocksdb")]
 pub mod rocksdb;
 pub mod s3;

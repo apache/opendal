@@ -166,13 +166,15 @@ impl kv::Adapter for Adapter {
     }
 }
 
+type ScanKeysResult = Result<(Option<Vec<u8>>, Vec<Vec<u8>>)>; // (cursor, keys)
+
 #[pin_project]
 struct KeyStream {
     db: Arc<TransactionDB>,
     prefix: Vec<u8>,
     cursor: Option<Vec<u8>>,
     keys: IntoIter<Vec<u8>>,
-    fut: Option<BoxFuture<'static, Result<(Option<Vec<u8>>, Vec<Vec<u8>>)>>>,
+    fut: Option<BoxFuture<'static, ScanKeysResult>>,
 }
 
 impl KeyStream {
@@ -223,12 +225,7 @@ impl Stream for KeyStream {
     }
 }
 
-fn scan_keys(
-    db: &TransactionDB,
-    prefix: &[u8],
-    cursor: &[u8],
-    limit: usize,
-) -> Result<(Option<Vec<u8>>, Vec<Vec<u8>>)> {
+fn scan_keys(db: &TransactionDB, prefix: &[u8], cursor: &[u8], limit: usize) -> ScanKeysResult {
     let keys: Result<Vec<_>> = db
         .prefix_iterator(cursor)
         .take(limit)

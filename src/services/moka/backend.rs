@@ -21,6 +21,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use log::debug;
 use moka::future::Cache;
+use moka::future::CacheBuilder;
 
 use crate::adapters::kv;
 use crate::Accessor;
@@ -113,7 +114,9 @@ impl Builder {
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder = Cache::builder();
+        let mut builder: CacheBuilder<Vec<u8>, Vec<u8>, _> = Cache::builder();
+        // Use entries's bytes as capacity weigher.
+        builder = builder.weigher(|k, v| (k.len() + v.len()) as u32);
         if let Some(v) = &self.name {
             builder = builder.name(v);
         }

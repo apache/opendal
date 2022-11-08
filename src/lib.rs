@@ -35,6 +35,7 @@
 //! | [obs][services::obs] | Huawei Cloud OBS service. |
 //! | [oss][services::oss] | Aliyun Object Storage Service (OSS).|
 //! | [redis][services::redis] | Redis service. |
+//! | [rocksdb][services::rocksdb] | RocksDB service. |
 //! | [s3][services::s3] | AWS S3 alike services. |
 //!
 //! More services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5)
@@ -72,6 +73,7 @@
 //! - `services-moka`: Enable moka service support.
 //! - `services-ipfs`: Enable ipfs service support.
 //! - `services-redis`: Enable redis service support.
+//! - `services-rocksdb`: Enable rocksdb service support.
 //!
 //! ## Dependencies features
 //!

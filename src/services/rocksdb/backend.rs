@@ -130,16 +130,17 @@ impl kv::Adapter for Adapter {
         let txn = self.db.transaction();
         match txn.get("next_id").map_err(new_rocksdb_error)? {
             Some(v) => {
-                let id = String::from_utf8_lossy(&v)
-                    .parse::<u64>()
-                    .map_err(new_rocksdb_error)?;
-                txn.put("next_id", (id + 1).to_string().as_bytes())
+                let bytes = v.try_into().map_err(|e| {
+                    new_rocksdb_error(format!("bytes are not a valid be u64: {e:?}"))
+                })?;
+                let id = u64::from_be_bytes(bytes);
+                txn.put("next_id", (id + 1).to_be_bytes())
                     .map_err(new_rocksdb_error)?;
                 txn.commit().map_err(new_rocksdb_error)?;
                 Ok(id + 1)
             }
             None => {
-                txn.put("next_id", "1".as_bytes())
+                txn.put("next_id", 1u64.to_be_bytes())
                     .map_err(new_rocksdb_error)?;
                 txn.commit().map_err(new_rocksdb_error)?;
                 Ok(1)
@@ -246,6 +247,6 @@ fn scan_keys(db: &TransactionDB, prefix: &[u8], cursor: &[u8], limit: usize) -> 
     })
 }
 
-fn new_rocksdb_error(err: impl std::error::Error) -> Error {
+fn new_rocksdb_error(err: impl Debug) -> Error {
     Error::new(ErrorKind::Other, anyhow!("rocksdb: {err:?}"))
 }

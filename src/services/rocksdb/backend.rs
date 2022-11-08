@@ -20,15 +20,12 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::Future;
 use futures::Stream;
 use pin_project::pin_project;
 use rocksdb::TransactionDB;
@@ -165,15 +162,12 @@ impl kv::Adapter for Adapter {
     }
 }
 
-type ScanKeysResult = Result<(Option<Vec<u8>>, Vec<Vec<u8>>)>; // (cursor, keys)
-
 #[pin_project]
 struct KeyStream {
     db: Arc<TransactionDB>,
     prefix: Vec<u8>,
     cursor: Option<Vec<u8>>,
     keys: IntoIter<Vec<u8>>,
-    fut: Option<BoxFuture<'static, ScanKeysResult>>,
 }
 
 impl KeyStream {
@@ -183,7 +177,6 @@ impl KeyStream {
             prefix: prefix.to_vec(),
             cursor: Some(prefix.to_vec()),
             keys: vec![].into_iter(),
-            fut: None,
         }
     }
 }
@@ -191,41 +184,34 @@ impl KeyStream {
 impl Stream for KeyStream {
     type Item = Result<Vec<u8>>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
         loop {
             if let Some(key) = this.keys.next() {
                 return Poll::Ready(Some(Ok(key)));
             }
 
-            match this.fut {
-                None => match this.cursor.take() {
-                    None => return Poll::Ready(None),
-                    Some(cursor) => {
-                        let db = this.db.clone();
-                        let prefix = this.prefix.clone();
-                        let fut = async move {
-                            scan_keys(db.as_ref(), &prefix, &cursor, SCAN_LIMIT)
-                                .map_err(new_rocksdb_error)
-                        };
-                        *this.fut = Some(Box::pin(fut));
-                        continue;
-                    }
-                },
-                Some(fut) => {
-                    let (cursor, keys) = ready!(Pin::new(fut).poll(cx))?;
+            match this.cursor.take() {
+                None => return Poll::Ready(None),
+                Some(cursor) => {
+                    let (cursor, keys) = scan_keys(this.db, this.prefix, &cursor, SCAN_LIMIT)
+                        .map_err(new_rocksdb_error)?;
                     *this.cursor = cursor;
-                    *this.fut = None;
                     *this.keys = keys.into_iter();
-                    continue;
                 }
             }
         }
     }
 }
 
-fn scan_keys(db: &TransactionDB, prefix: &[u8], cursor: &[u8], limit: usize) -> ScanKeysResult {
-    let keys: Result<Vec<_>> = db
+#[allow(clippy::type_complexity)]
+fn scan_keys(
+    db: &TransactionDB,
+    prefix: &[u8],
+    cursor: &[u8],
+    limit: usize,
+) -> Result<(Option<Vec<u8>>, Vec<Vec<u8>>)> {
+    let keys: Vec<_> = db
         .prefix_iterator(cursor)
         .take(limit)
         .map(|kv| kv.map(|(k, _)| k.to_vec()).map_err(new_rocksdb_error))
@@ -233,8 +219,9 @@ fn scan_keys(db: &TransactionDB, prefix: &[u8], cursor: &[u8], limit: usize) -> 
             Ok(k) => k.starts_with(prefix),
             Err(_) => true,
         })
-        .collect();
-    keys.map(|keys| match &keys[..] {
+        .collect::<Result<_>>()?;
+
+    let (cursor, keys) = match &keys[..] {
         [] => (None, keys),
         [.., last] => {
             if keys.len() < limit {
@@ -244,7 +231,8 @@ fn scan_keys(db: &TransactionDB, prefix: &[u8], cursor: &[u8], limit: usize) -> 
                 (Some(cursor), keys)
             }
         }
-    })
+    };
+    Ok((cursor, keys))
 }
 
 fn new_rocksdb_error(err: impl Debug) -> Error {

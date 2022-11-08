@@ -79,5 +79,6 @@ cfg_if::cfg_if! { if #[cfg(feature = "services-hdfs")] { behavior_tests!(Hdfs); 
 cfg_if::cfg_if! { if #[cfg(feature = "services-http")] { behavior_tests!(Http); }}
 behavior_tests!(Obs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-redis")] { behavior_tests!(Redis); }}
+cfg_if::cfg_if! { if #[cfg(feature = "services-rocksdb")] { behavior_tests!(Rocksdb); }}
 behavior_tests!(S3);
 behavior_tests!(Oss);

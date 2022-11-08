@@ -18,8 +18,6 @@ use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::path::Path;
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::ready;
@@ -46,8 +44,8 @@ const SCAN_LIMIT: usize = 100;
 /// Rocksdb backend builder
 #[derive(Clone, Default, Debug)]
 pub struct Builder {
-    /// The path to the rocksdb database
-    path: Option<PathBuf>,
+    /// The path to the rocksdb database directory
+    path: Option<String>,
     /// the working directory of the Redis service. Can be "/path/to/dir"
     ///
     /// default is "/"
@@ -67,9 +65,9 @@ impl Builder {
         builder
     }
 
-    /// Set the path to the rocksdb database
-    pub fn path<P: AsRef<Path>>(&mut self, path: P) -> &mut Self {
-        self.path = Some(path.as_ref().into());
+    /// Set the path to the rocksdb database directory
+    pub fn path(&mut self, path: &str) -> &mut Self {
+        self.path = Some(path.into());
         self
     }
 
@@ -93,7 +91,7 @@ impl Builder {
         })?;
         let db = TransactionDB::open_default(&path).map_err(|e| {
             new_other_backend_error(
-                HashMap::from([("path".into(), path.to_string_lossy().into_owned())]),
+                HashMap::from([("path".into(), path)]),
                 anyhow!("failed to open the database: {:?}", e),
             )
         })?;

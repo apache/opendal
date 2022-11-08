@@ -56,8 +56,8 @@ pub enum Scheme {
     /// [redis][crate::services::redis]: Redis services
     #[cfg(feature = "services-redis")]
     Redis,
-    #[cfg(feature = "services-rocksdb")]
     /// [rocksdb][crate::services::rocksdb]: RocksDB services
+    #[cfg(feature = "services-rocksdb")]
     Rocksdb,
     /// [s3][crate::services::s3]: AWS S3 alike services.
     S3,

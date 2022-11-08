@@ -15,6 +15,7 @@
   - [ipmfs](services/ipmfs.md)
   - [obs](services/obs.md)
   - [redis](services/redis.md)
+  - [rocksdb](services/rocksdb.md)
   - [s3](services/s3.md)
 - [Examples](examples/README.md)
   - [Retry](examples/retry.md)

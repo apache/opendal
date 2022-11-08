@@ -23,14 +23,14 @@
 //! # Configuration
 //!
 //! - `root`: Set the working directory of `OpenDAL`
-//! - `path`: Set the path to the rocksdb database
+//! - `datadir`: Set the path to the rocksdb data directory
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
 //! # Environment
 //!
 //! - `OPENDAL_ROCKSDB_ROOT` optional
-//! - `OPENDAL_ROCKSDB_PATH` required
+//! - `OPENDAL_ROCKSDB_DATADIR` required
 //!
 //! # Example
 //!
@@ -40,7 +40,7 @@
 //!
 //! ```shell
 //! export OPENDAL_ROCKSDB_ROOT=/path/to/root
-//! export OPENDAL_ROCKSDB_PATH=/path/to/rocksdb
+//! export OPENDAL_ROCKSDB_DATADIR=/path/to/data
 //! ```
 //! ```no_run
 //! use anyhow::Result;
@@ -70,7 +70,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     let accessor = rocksdb::Builder::default()
-//!         .path("/tmp/opendal/rocksdb")
+//!         .datadir("/tmp/opendal/rocksdb")
 //!         .build()?;
 //!
 //!     let op: Operator = Operator::new(accessor);

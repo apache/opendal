@@ -34,8 +34,8 @@ async fn main() -> Result<()> {
 
         Available Environment Variables:
 
-        - OPENDAL_ROCKSDB_PATH: the path to the rocksdb database (required)
-        - OPENDAL_ROCKSDB_ROOT: working directory of opendal, default is "/"
+        - OPENDAL_ROCKSDB_DATADIR: the path to the rocksdb data directory (required)
+        - OPENDAL_ROCKSDB_ROOT:    working directory of opendal, default is "/"
         "#
     );
 
@@ -47,8 +47,10 @@ async fn main() -> Result<()> {
     // NOTE: the root must be absolute path
     builder.root(&env::var("OPENDAL_ROCKSDB_ROOT").unwrap_or_else(|_| "/".to_string()));
 
-    // Set the path to the rocksdb database
-    builder.path(&env::var("OPENDAL_ROCKSDB_PATH").expect("env OPENDAL_ROCKSDB_PATH is not set"));
+    // Set the path to the rocksdb data directory
+    builder.datadir(
+        &env::var("OPENDAL_ROCKSDB_DATADIR").expect("env OPENDAL_ROCKSDB_DATADIR is not set"),
+    );
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
     let op: Operator = Operator::new(builder.build()?);

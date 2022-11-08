@@ -44,8 +44,8 @@ const SCAN_LIMIT: usize = 100;
 /// Rocksdb backend builder
 #[derive(Clone, Default, Debug)]
 pub struct Builder {
-    /// The path to the rocksdb database directory
-    path: Option<String>,
+    /// The path to the rocksdb data directory.
+    datadir: Option<String>,
     /// the working directory of the Redis service. Can be "/path/to/dir"
     ///
     /// default is "/"
@@ -58,16 +58,16 @@ impl Builder {
         for (k, v) in it {
             let v = v.as_str();
             match k.as_ref() {
-                "path" => builder.path(v),
+                "datadir" => builder.datadir(v),
                 _ => continue,
             };
         }
         builder
     }
 
-    /// Set the path to the rocksdb database directory
-    pub fn path(&mut self, path: &str) -> &mut Self {
-        self.path = Some(path.into());
+    /// Set the path to the rocksdb data directory. Will create if not exists.
+    pub fn datadir(&mut self, path: &str) -> &mut Self {
+        self.datadir = Some(path.into());
         self
     }
 
@@ -83,15 +83,15 @@ impl Builder {
 
     /// Consumes the builder and returns a `Rocksdb` instance.
     pub fn build(&mut self) -> Result<impl Accessor> {
-        let path = self.path.take().ok_or_else(|| {
+        let path = self.datadir.take().ok_or_else(|| {
             new_other_backend_error(
-                HashMap::from([("path".into(), "".into())]),
-                anyhow!("path is required but not set"),
+                HashMap::from([("datadir".into(), "".into())]),
+                anyhow!("datadir is required but not set"),
             )
         })?;
         let db = TransactionDB::open_default(&path).map_err(|e| {
             new_other_backend_error(
-                HashMap::from([("path".into(), path)]),
+                HashMap::from([("datadir".into(), path)]),
                 anyhow!("failed to open the database: {:?}", e),
             )
         })?;

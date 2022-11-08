@@ -28,4 +28,4 @@ jobs:
           RUST_LOG: debug
           OPENDAL_ROCKSDB_TEST: on
           OPENDAL_ROCKSDB_ROOT: /
-          OPENDAL_ROCKSDB_PATH: /tmp/opendal/rocksdb/
+          OPENDAL_ROCKSDB_DATADIR: /tmp/opendal/rocksdb/

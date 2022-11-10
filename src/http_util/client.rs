@@ -28,6 +28,7 @@ use reqwest::redirect::Policy;
 use reqwest::ClientBuilder;
 use reqwest::Url;
 
+use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
 use crate::http_util::body::IncomingAsyncBody;
@@ -171,6 +172,10 @@ impl HttpClient {
             Error::new(kind, err)
         })?;
 
+        // Get content length from header so that we can check it.
+        let content_length =
+            parse_content_length(resp.headers()).expect("response content length must be valid");
+
         let mut hr = Response::builder()
             .version(resp.version())
             .status(resp.status());
@@ -183,7 +188,7 @@ impl HttpClient {
 
             Error::new(kind, err)
         });
-        let body = IncomingAsyncBody::new(Box::new(into_reader(stream)));
+        let body = IncomingAsyncBody::new(Box::new(into_reader(stream, content_length)));
 
         let resp = hr.body(body).expect("response must build succeed");
 

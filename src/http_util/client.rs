@@ -145,6 +145,7 @@ impl HttpClient {
 
     /// Send a request in async way.
     pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+        let is_head = req.method() == http::Method::HEAD;
         let (parts, body) = req.into_parts();
 
         let mut req_builder = self
@@ -173,8 +174,12 @@ impl HttpClient {
         })?;
 
         // Get content length from header so that we can check it.
-        let content_length =
-            parse_content_length(resp.headers()).expect("response content length must be valid");
+        // If the request method is HEAD, we will ignore this.
+        let content_length = if is_head {
+            None
+        } else {
+            parse_content_length(resp.headers()).expect("response content length must be valid")
+        };
 
         let mut hr = Response::builder()
             .version(resp.version())

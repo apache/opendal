@@ -605,10 +605,6 @@ impl Accessor for Backend {
                 Ok(m)
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
                 let m = ObjectMetadata::new(ObjectMode::DIR);
                 Ok(m)
             }

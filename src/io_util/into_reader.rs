@@ -53,7 +53,7 @@ use crate::BytesStream;
 /// # let stream = Box::pin(stream::once(async {
 /// #     Ok::<_, Error>(Bytes::from(vec![0; 1024]))
 /// # }));
-/// let mut s = into_reader(stream);
+/// let mut s = into_reader(stream, Some(1024));
 /// let mut bs = Vec::new();
 /// s.read_to_end(&mut bs).await;
 /// # Ok(())

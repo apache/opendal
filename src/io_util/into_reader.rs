@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp;
+use std::cmp::min;
+use std::cmp::Ordering;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -49,15 +53,17 @@ use crate::BytesStream;
 /// # let stream = Box::pin(stream::once(async {
 /// #     Ok::<_, Error>(Bytes::from(vec![0; 1024]))
 /// # }));
-/// let mut s = into_reader(stream);
+/// let mut s = into_reader(stream, Some(1024));
 /// let mut bs = Vec::new();
 /// s.read_to_end(&mut bs).await;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_reader<S: BytesStream>(stream: S) -> IntoReader<S> {
+pub fn into_reader<S: BytesStream>(stream: S, size: Option<u64>) -> IntoReader<S> {
     IntoReader {
         stream,
+        size,
+        read: 0,
         chunk: None,
     }
 }
@@ -66,6 +72,8 @@ pub fn into_reader<S: BytesStream>(stream: S) -> IntoReader<S> {
 pub struct IntoReader<S: BytesStream> {
     #[pin]
     stream: S,
+    size: Option<u64>,
+    read: u64,
     chunk: Option<Bytes>,
 }
 
@@ -74,11 +82,27 @@ where
     S: BytesStream,
 {
     /// Do we have a chunk and is it non-empty?
+    #[inline]
     fn has_chunk(&self) -> bool {
         if let Some(ref chunk) = self.chunk {
             chunk.remaining() > 0
         } else {
             false
+        }
+    }
+
+    #[inline]
+    fn check(expect: u64, actual: u64) -> Result<()> {
+        match actual.cmp(&expect) {
+            Ordering::Equal => Ok(()),
+            Ordering::Less => Err(Error::new(
+                ErrorKind::UnexpectedEof,
+                format!("reader got too less data, expect: {expect}, actual: {actual}"),
+            )),
+            Ordering::Greater => Err(Error::new(
+                ErrorKind::Other,
+                format!("reader got too much data, expect: {expect}, actual: {actual}"),
+            )),
         }
     }
 }
@@ -91,7 +115,7 @@ where
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         mut buf: &mut [u8],
-    ) -> Poll<std::io::Result<usize>> {
+    ) -> Poll<Result<usize>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
@@ -101,8 +125,18 @@ where
             Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
             Poll::Pending => return Poll::Pending,
         };
-        let len = cmp::min(inner_buf.len(), buf.len());
+        let len = min(inner_buf.len(), buf.len());
         buf.put_slice(&inner_buf[..len]);
+
+        // Make read has been updated.
+        self.read += len as u64;
+        // len == 0 means we are reaching the EOF, let go check it.
+        if len == 0 {
+            if let Some(size) = self.size {
+                Self::check(size, self.read)?;
+            }
+        }
+
         self.consume(len);
         Poll::Ready(Ok(len))
     }
@@ -112,10 +146,7 @@ impl<S> AsyncBufRead for IntoReader<S>
 where
     S: BytesStream,
 {
-    fn poll_fill_buf(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<&[u8]>> {
+    fn poll_fill_buf(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         loop {
             if self.as_mut().has_chunk() {
                 let buf = self.project().chunk.as_ref().unwrap().chunk();
@@ -168,11 +199,35 @@ mod tests {
         let s = Box::pin(stream::once(async {
             Ok::<_, Error>(Bytes::from(stream_content))
         }));
-        let mut r = into_reader(s);
+        let mut r = into_reader(s, Some(size as u64));
 
         let mut bs = Vec::new();
         r.read_to_end(&mut bs).await.expect("read must succeed");
 
         assert_eq!(bs, content)
+    }
+
+    #[tokio::test]
+    async fn test_into_reader_unexpected_eof() {
+        let mut rng = ThreadRng::default();
+        // Generate size between 1B..16MB.
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+
+        let stream_content = content.clone();
+        let s = Box::pin(stream::once(async {
+            Ok::<_, Error>(Bytes::from(stream_content))
+        }));
+        // Size is larger then expected.
+        let mut r = into_reader(s, Some(size as u64 + 1));
+
+        let mut bs = Vec::new();
+        let err = r
+            .read_to_end(&mut bs)
+            .await
+            .expect_err("must returning error");
+
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof)
     }
 }

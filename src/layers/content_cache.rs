@@ -15,9 +15,13 @@
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
+use futures::AsyncRead;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
@@ -179,6 +183,21 @@ impl Accessor for ContentCacheAccessor {
         self.inner
             .blocking_list(path, args)
             .map(|s| set_accessor_for_object_iterator(s, self.clone()))
+    }
+}
+
+struct WholeCacheReader {
+    cache: Arc<dyn Accessor>,
+    inner: Arc<dyn Accessor>,
+}
+
+impl AsyncRead for WholeCacheReader {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        todo!()
     }
 }
 

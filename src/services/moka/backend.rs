@@ -48,7 +48,7 @@ pub struct Builder {
     /// Sets the segments number of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    num_segments: usize,
+    num_segments: Option<usize>,
     /// Decides whether to enable thread pool of the cache.
     ///
     /// Refer to [`moka::sync::CacheBuilder::thread_pool_enabled`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.thread_pool_enabled)
@@ -131,7 +131,7 @@ impl Builder {
     /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
     pub fn segments(&mut self, v: usize) -> &mut Self {
         assert!(v != 0);
-        self.num_segments = v;
+        self.num_segments = Some(v);
         self
     }
 
@@ -148,7 +148,8 @@ impl Builder {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<Vec<u8>, Vec<u8>, _> =
-            SegmentedCache::builder(self.num_segments);
+            SegmentedCache::builder(self.num_segments.unwrap())
+                .thread_pool_enabled(self.thread_pool_enabled.unwrap_or(false));
         // Use entries's bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.len()) as u32);
         if let Some(v) = &self.name {
@@ -162,11 +163,6 @@ impl Builder {
         }
         if let Some(v) = self.time_to_idle {
             builder = builder.time_to_idle(v)
-        }
-        if let Some(v) = self.thread_pool_enabled {
-            builder = builder.thread_pool_enabled(v)
-        } else {
-            builder = builder.thread_pool_enabled(false)
         }
 
         debug!("backend build finished: {:?}", &self);

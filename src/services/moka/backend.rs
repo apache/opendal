@@ -148,7 +148,7 @@ impl Builder {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<Vec<u8>, Vec<u8>, _> =
-            SegmentedCache::builder(self.num_segments.unwrap())
+            SegmentedCache::builder(self.num_segments.unwrap_or(1))
                 .thread_pool_enabled(self.thread_pool_enabled.unwrap_or(false));
         // Use entries's bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.len()) as u32);

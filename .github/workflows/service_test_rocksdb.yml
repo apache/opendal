@@ -22,7 +22,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test rocksdb --features compress,layers-retry,services-rocksdb -- --nocapture --test-threads=1
+        run: cargo test rocksdb --features compress,services-rocksdb -- --nocapture --test-threads=1
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

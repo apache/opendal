@@ -55,7 +55,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test ftp --features compress,layers-retry,services-ftp -- --nocapture
+        run: cargo test ftp --features compress,services-ftp -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

@@ -20,8 +20,8 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use log::debug;
-use moka::future::Cache;
-use moka::future::CacheBuilder;
+use moka::sync::SegmentedCache;
+use moka::sync::CacheBuilder;
 
 use crate::adapters::kv;
 use crate::Accessor;
@@ -35,16 +35,20 @@ pub struct Builder {
     name: Option<String>,
     /// Sets the max capacity of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
+    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
     max_capacity: Option<u64>,
     /// Sets the time to live of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
+    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
     time_to_live: Option<Duration>,
     /// Sets the time to idle of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
+    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     time_to_idle: Option<Duration>,
+    /// Sets the segments number of the cache.
+    ///
+    /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
+    num_segments: usize,
 }
 
 impl Builder {
@@ -66,6 +70,10 @@ impl Builder {
                     Ok(v) => builder.time_to_idle(Duration::from_secs(v)),
                     _ => continue,
                 },
+                "num_segments" => match v.parse::<usize>() {
+                    Ok(v) => builder.segments(v),
+                    _ => continue,
+                },
                 _ => continue,
             };
         }
@@ -82,7 +90,7 @@ impl Builder {
 
     /// Sets the max capacity of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
+    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
     pub fn max_capacity(&mut self, v: u64) -> &mut Self {
         if v != 0 {
             self.max_capacity = Some(v);
@@ -92,7 +100,7 @@ impl Builder {
 
     /// Sets the time to live of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
+    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(&mut self, v: Duration) -> &mut Self {
         if !v.is_zero() {
             self.time_to_live = Some(v);
@@ -102,7 +110,7 @@ impl Builder {
 
     /// Sets the time to idle of the cache.
     ///
-    /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
+    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(&mut self, v: Duration) -> &mut Self {
         if !v.is_zero() {
             self.time_to_idle = Some(v);
@@ -110,11 +118,20 @@ impl Builder {
         self
     }
 
+    /// Sets the segments number of the cache.
+    ///
+    /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
+    pub fn segments(&mut self, v: usize) -> &mut Self {
+        assert!(v != 0);
+        self.num_segments = v;
+        self
+    }
+
     /// Consume builder to build a moka backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder: CacheBuilder<Vec<u8>, Vec<u8>, _> = Cache::builder();
+        let mut builder: CacheBuilder<Vec<u8>, Vec<u8>, _> = SegmentedCache::builder(self.num_segments);
         // Use entries's bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.len()) as u32);
         if let Some(v) = &self.name {
@@ -143,7 +160,7 @@ pub type Backend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
-    inner: Cache<Vec<u8>, Vec<u8>>,
+    inner: SegmentedCache<Vec<u8>, Vec<u8>>,
     next_id: Arc<AtomicU64>,
 }
 
@@ -169,13 +186,13 @@ impl kv::Adapter for Adapter {
     }
 
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        self.inner.insert(key.to_vec(), value.to_vec()).await;
+        self.inner.insert(key.to_vec(), value.to_vec());
 
         Ok(())
     }
 
     async fn delete(&self, key: &[u8]) -> Result<()> {
-        self.inner.invalidate(key).await;
+        self.inner.invalidate(key);
 
         Ok(())
     }

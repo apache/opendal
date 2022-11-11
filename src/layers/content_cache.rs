@@ -21,6 +21,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::AsyncRead;
 
 use super::util::set_accessor_for_object_iterator;
@@ -189,6 +190,12 @@ impl Accessor for ContentCacheAccessor {
 struct WholeCacheReader {
     cache: Arc<dyn Accessor>,
     inner: Arc<dyn Accessor>,
+}
+
+enum WholeCacheState {
+    Idle,
+    Sending(BoxFuture<'static, Result<BytesReader>>),
+    Reading(BytesReader),
 }
 
 impl AsyncRead for WholeCacheReader {

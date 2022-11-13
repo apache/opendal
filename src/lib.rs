@@ -172,6 +172,7 @@ pub use object::ObjectMetadata;
 pub use object::ObjectMode;
 pub use object::ObjectMultipart;
 pub use object::ObjectPart;
+pub use object::ObjectReader;
 pub use object::ObjectStreamer;
 
 mod scheme;

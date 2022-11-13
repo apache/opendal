@@ -13,14 +13,16 @@
 // limitations under the License.
 
 use std::io::Result;
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
 
-use crate::{BytesReader, ObjectMetadata, ObjectMode};
 use futures::AsyncRead;
 use time::OffsetDateTime;
+
+use crate::BytesReader;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 
 /// ObjectReader is a bytes reader that carries it's related metadata.
 /// Users could fetch part of metadata that carried by read response.

@@ -1,7 +1,7 @@
 - Proposal Name: `object_reader`
 - Start Date: 2022-11-13
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#926](https://github.com/datafuselabs/opendal/pull/926)
+- Tracking Issue: [datafuselabs/opendal#927](https://github.com/datafuselabs/opendal/issues/927)
 
 # Summary
 

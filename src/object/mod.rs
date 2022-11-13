@@ -34,6 +34,9 @@ pub use multipart::ObjectPart;
 mod object;
 pub use object::Object;
 
+mod reader;
+pub use reader::ObjectReader;
+
 mod stream;
 pub use stream::EmptyObjectStreamer;
 pub use stream::ObjectPageStream;

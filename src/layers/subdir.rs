@@ -44,6 +44,7 @@ use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// SubdirLayer to switch to subdir for existing operator.
@@ -121,7 +122,7 @@ impl Accessor for SubdirAccessor {
         self.inner.create(&path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let path = self.prepend_subdir(path);
 
         self.inner.read(&path, args).await

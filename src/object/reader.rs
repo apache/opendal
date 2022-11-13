@@ -27,17 +27,17 @@ use crate::ObjectMode;
 /// ObjectReader is a bytes reader that carries it's related metadata.
 /// Users could fetch part of metadata that carried by read response.
 pub struct ObjectReader {
-    inner: BytesReader,
     meta: ObjectMetadata,
+    inner: BytesReader,
 }
 
 impl ObjectReader {
     /// Create a new object reader.
     pub fn new(inner: BytesReader) -> Self {
         ObjectReader {
-            inner,
             // the object meta must be file.
             meta: ObjectMetadata::new(ObjectMode::FILE),
+            inner,
         }
     }
 
@@ -45,6 +45,23 @@ impl ObjectReader {
     pub fn with_meta(mut self, meta: ObjectMetadata) -> Self {
         self.meta = meta;
         self
+    }
+
+    /// Replace the bytes reader with new one.
+    pub fn with_reader(mut self, inner: BytesReader) -> Self {
+        self.inner = inner;
+        self
+    }
+
+    /// Replace the bytes reader with new one.
+    pub fn map_reader(mut self, f: impl FnOnce(BytesReader) -> BytesReader) -> Self {
+        self.inner = f(self.inner);
+        self
+    }
+
+    /// Convert into a bytes reader to consume the reader.
+    pub fn into_reader(self) -> BytesReader {
+        self.inner
     }
 
     /// Content length of this object reader.

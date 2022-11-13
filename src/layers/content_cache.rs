@@ -32,6 +32,7 @@ use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::Layer;
 use crate::ObjectIterator;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// ContentCacheLayer will add content data cache support for OpenDAL.
@@ -104,7 +105,7 @@ impl Accessor for ContentCacheAccessor {
         self.inner.create(path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.cache.read(path, args.clone()).await {
             Ok(r) => Ok(r),
             Err(err) if err.kind() == ErrorKind::NotFound => {
@@ -112,7 +113,9 @@ impl Accessor for ContentCacheAccessor {
                 let r = if meta.mode().is_file() {
                     let size = meta.content_length();
                     let reader = self.inner.read(path, OpRead::new(..)).await?;
-                    self.cache.write(path, OpWrite::new(size), reader).await?;
+                    self.cache
+                        .write(path, OpWrite::new(size), reader.into_reader())
+                        .await?;
                     self.cache.read(path, args).await?
                 } else {
                     self.inner.read(path, args).await?

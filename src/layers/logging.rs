@@ -51,6 +51,7 @@ use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -160,7 +161,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} offset={:?} size={:?} -> started",
@@ -177,8 +178,15 @@ impl Accessor for LoggingAccessor {
                     self.scheme, Operation::Read, path,
                     args.offset(), args.size()
                 );
-                let r = LoggingReader::new(self.scheme, Operation::Read, path, args.size(), v);
-                Box::new(r) as BytesReader
+                v.map_reader(|r| {
+                    Box::new(LoggingReader::new(
+                        self.scheme,
+                        Operation::Read,
+                        path,
+                        args.size(),
+                        r,
+                    ))
+                })
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Other {

@@ -52,6 +52,7 @@ use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -207,7 +208,7 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
@@ -241,7 +242,7 @@ impl Accessor for Backend {
             None => Box::new(f),
         };
 
-        Ok(Box::new(r))
+        Ok(ObjectReader::new(Box::new(r)))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

@@ -67,6 +67,7 @@ use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -506,7 +507,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let resp = self
             .oss_get_object(path, args.offset(), args.size())
             .await?;
@@ -514,7 +515,9 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok(ObjectReader::new(resp.into_body().reader()))
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Read, path, er);

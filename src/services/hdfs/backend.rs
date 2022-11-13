@@ -47,6 +47,7 @@ use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -218,7 +219,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let mut f = self.client.open_file().read(true).open(&p)?;
@@ -233,7 +234,7 @@ impl Accessor for Backend {
             Some(size) => Box::new(f.take(size)),
         };
 
-        Ok(f)
+        Ok(ObjectReader::new(f))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

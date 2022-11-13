@@ -47,6 +47,7 @@ use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// TracingLayer will add tracing for OpenDAL.
@@ -93,11 +94,11 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         self.inner
             .read(path, args)
             .await
-            .map(|r| Box::new(TracingReader::new(Span::current(), r)) as BytesReader)
+            .map(|r| r.map_reader(|r| Box::new(TracingReader::new(Span::current(), r))))
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]

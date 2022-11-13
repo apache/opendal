@@ -48,6 +48,7 @@ use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// ConcurrentLimitLayer will add concurrent limit for OpenDAL.
@@ -110,7 +111,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.create(path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let permit = self
             .semaphore
             .clone()
@@ -121,7 +122,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner
             .read(path, args)
             .await
-            .map(|r| Box::new(ConcurrentLimitReader::new(r, permit)) as BytesReader)
+            .map(|r| r.map_reader(|r| Box::new(ConcurrentLimitReader::new(r, permit))))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {

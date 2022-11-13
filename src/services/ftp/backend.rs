@@ -60,6 +60,7 @@ use crate::AccessorMetadata;
 use crate::BytesReader;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -359,7 +360,7 @@ impl Accessor for Backend {
         return Ok(());
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         if let Some(offset) = args.offset() {
@@ -405,7 +406,7 @@ impl Accessor for Backend {
                 path,
             )),
         };
-        Ok(r)
+        Ok(ObjectReader::new(r))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

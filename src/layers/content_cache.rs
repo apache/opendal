@@ -17,12 +17,14 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::AsyncRead;
+use futures::FutureExt;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
@@ -111,24 +113,12 @@ impl Accessor for ContentCacheAccessor {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        match self.cache.read(path, args.clone()).await {
-            Ok(r) => Ok(r),
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                let meta = self.inner.stat(path, OpStat::new()).await?;
-                let r = if meta.mode().is_file() {
-                    let size = meta.content_length();
-                    let reader = self.inner.read(path, OpRead::new(..)).await?;
-                    self.cache
-                        .write(path, OpWrite::new(size), reader.into_reader())
-                        .await?;
-                    self.cache.read(path, args).await?
-                } else {
-                    self.inner.read(path, args).await?
-                };
-                Ok(r)
-            }
-            Err(err) => Err(err),
-        }
+        Ok(ObjectReader::new(Box::new(WholeCacheReader::new(
+            self.inner.clone(),
+            self.cache.clone(),
+            path,
+            args,
+        ))))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
@@ -191,23 +181,77 @@ impl Accessor for ContentCacheAccessor {
 }
 
 struct WholeCacheReader {
-    cache: Arc<dyn Accessor>,
     inner: Arc<dyn Accessor>,
+    cache: Arc<dyn Accessor>,
+    state: WholeCacheState,
+
+    path: String,
+    args: OpRead,
+}
+
+impl WholeCacheReader {
+    fn new(inner: Arc<dyn Accessor>, cache: Arc<dyn Accessor>, path: &str, args: OpRead) -> Self {
+        Self {
+            inner,
+            cache,
+            state: WholeCacheState::Idle,
+            path: path.to_string(),
+            args,
+        }
+    }
 }
 
 enum WholeCacheState {
     Idle,
-    Sending(BoxFuture<'static, Result<BytesReader>>),
-    Reading(BytesReader),
+    Sending(BoxFuture<'static, Result<ObjectReader>>),
+    Reading(ObjectReader),
 }
 
 impl AsyncRead for WholeCacheReader {
     fn poll_read(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        todo!()
+        match &mut self.state {
+            WholeCacheState::Idle => {
+                let cache = self.cache.clone();
+                let inner = self.inner.clone();
+                let path = self.path.clone();
+                let args = self.args.clone();
+
+                let fut = async move {
+                    match cache.read(&path, args.clone()).await {
+                        Ok(r) => Ok(r),
+                        Err(err) if err.kind() == ErrorKind::NotFound => {
+                            let r = inner.read(&path, OpRead::new(..)).await?;
+
+                            let length = r.content_length();
+                            let size = if let Some(size) = length {
+                                size
+                            } else {
+                                let meta = inner.stat(&path, OpStat::new()).await?;
+                                meta.content_length()
+                            };
+                            cache
+                                .write(&path, OpWrite::new(size), r.into_reader())
+                                .await?;
+                            cache.read(&path, args).await
+                        }
+                        Err(err) => Err(err),
+                    }
+                };
+
+                self.state = WholeCacheState::Sending(Box::pin(fut));
+                self.poll_read(cx, buf)
+            }
+            WholeCacheState::Sending(fut) => {
+                let r = ready!(fut.poll_unpin(cx))?;
+                self.state = WholeCacheState::Reading(r);
+                self.poll_read(cx, buf)
+            }
+            WholeCacheState::Reading(r) => Pin::new(r).poll_read(cx, buf),
+        }
     }
 }
 

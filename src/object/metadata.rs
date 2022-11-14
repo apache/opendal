@@ -14,7 +14,8 @@
 
 use time::OffsetDateTime;
 
-use crate::{ops::BytesContentRange, ObjectMode};
+use crate::ops::BytesContentRange;
+use crate::ObjectMode;
 
 /// Metadata carries all object metadata.
 ///

@@ -18,14 +18,28 @@ use std::io::Result;
 use std::ops::Bound;
 use std::ops::Range;
 use std::ops::RangeBounds;
+use std::str::FromStr;
 
 use anyhow::anyhow;
 
 /// BytesRange(offset, size) carries a range of content.
 ///
 /// BytesRange implements `ToString` which can be used as `Range` HTTP header directly.
+///
+/// <unit> should always be `bytes`.
+///
+/// ```text
+/// Range: bytes=<range-start>-
+/// Range: bytes=<range-start>-<range-end>
+/// Range: bytes=-<suffix-length>
+/// ```
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct BytesRange(Option<u64>, Option<u64>);
+pub struct BytesRange(
+    /// Start position of the range.
+    Option<u64>,
+    /// End position of the range.
+    Option<u64>,
+);
 
 impl BytesRange {
     /// Create a new `BytesRange`
@@ -52,14 +66,36 @@ impl BytesRange {
         self.1
     }
 
-    /// Parse header Range into BytesRange
-    ///
-    /// NOTE: we don't support multi range.
-    ///
-    /// Range: <unit>=<range-start>-
-    /// Range: <unit>=<range-start>-<range-end>
-    /// Range: <unit>=-<suffix-length>
-    pub fn from_header_range(s: &str) -> Result<Self> {
+    /// Build [`Range<u64>`] with total size.
+    pub fn to_range(&self, total_size: u64) -> Range<u64> {
+        match (self.0, self.1) {
+            (Some(offset), None) => offset..total_size,
+            (None, Some(size)) => total_size - size..total_size,
+            (Some(offset), Some(size)) => offset..offset + size,
+            _ => panic!("invalid range"),
+        }
+    }
+}
+
+impl ToString for BytesRange {
+    // # NOTE
+    //
+    // - `bytes=-1023` means get the suffix of the file.
+    // - `bytes=0-1023` means get the first 1024 bytes, we must set the end to 1023.
+    fn to_string(&self) -> String {
+        match (self.0, self.1) {
+            (Some(offset), None) => format!("bytes={}-", offset),
+            (None, Some(size)) => format!("bytes=-{}", size - 1),
+            (Some(offset), Some(size)) => format!("bytes={}-{}", offset, offset + size - 1),
+            _ => panic!("invalid range"),
+        }
+    }
+}
+
+impl FromStr for BytesRange {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         let s = s.strip_prefix("bytes=").ok_or_else(|| {
             Error::new(
                 ErrorKind::InvalidInput,
@@ -106,75 +142,6 @@ impl BytesRange {
             let start: u64 = v[0].parse().map_err(parse_int_error)?;
             let end: u64 = v[1].parse().map_err(parse_int_error)?;
             Ok(BytesRange::new(Some(start), Some(end - start + 1)))
-        }
-    }
-
-    /// Parse header Content-Range into BytesRange
-    ///
-    /// Content-Range: <unit> <range-start>-<range-end>/<size>
-    /// Content-Range: <unit> <range-start>-<range-end>/*
-    /// Content-Range: <unit> */<size>
-    pub fn from_header_content_range(s: &str) -> Result<Self> {
-        let s = s.strip_prefix("bytes ").ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header content range is invalid: {s}"),
-            )
-        })?;
-
-        let parse_int_error = |e: std::num::ParseIntError| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range must contain valid integer: {e}"),
-            )
-        };
-
-        if let Some(size) = s.strip_prefix("*/") {
-            return Ok(BytesRange::new(
-                Some(0),
-                Some(size.parse().map_err(parse_int_error)?),
-            ));
-        }
-
-        // We don't care about the total size in content-range.
-        let s = s
-            .get(..s.find('/').expect("content-range must have /"))
-            .expect("content-range must has /");
-        let v = s.split('-').collect::<Vec<_>>();
-        if v.len() != 2 {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range should not contain multiple ranges: {s}"),
-            ));
-        }
-
-        let start: u64 = v[0].parse().map_err(parse_int_error)?;
-        let end: u64 = v[1].parse().map_err(parse_int_error)?;
-        Ok(BytesRange::new(Some(start), Some(end - start + 1)))
-    }
-
-    /// Build [`Range<u64>`] with total size.
-    pub fn to_range(&self, total_size: u64) -> Range<u64> {
-        match (self.0, self.1) {
-            (Some(offset), None) => offset..total_size,
-            (None, Some(size)) => total_size - size..total_size,
-            (Some(offset), Some(size)) => offset..offset + size,
-            _ => panic!("invalid range"),
-        }
-    }
-}
-
-impl ToString for BytesRange {
-    // # NOTE
-    //
-    // - `bytes=-1023` means get the suffix of the file.
-    // - `bytes=0-1023` means get the first 1024 bytes, we must set the end to 1023.
-    fn to_string(&self) -> String {
-        match (self.0, self.1) {
-            (Some(offset), None) => format!("bytes={}-", offset),
-            (None, Some(size)) => format!("bytes=-{}", size - 1),
-            (Some(offset), Some(size)) => format!("bytes={}-{}", offset, offset + size - 1),
-            _ => panic!("invalid range"),
         }
     }
 }
@@ -232,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bytes_range_from_header_range() -> Result<()> {
+    fn test_bytes_range_from_str() -> Result<()> {
         let cases = vec![
             (
                 "range-start",
@@ -254,36 +221,7 @@ mod tests {
         ];
 
         for (name, input, expected) in cases {
-            let actual = BytesRange::from_header_range(input)?;
-
-            assert_eq!(expected, actual, "{name}")
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_bytes_range_from_header_content_range() -> Result<()> {
-        let cases = vec![
-            (
-                "range start with unknown size",
-                "bytes 123-123/*",
-                BytesRange::new(Some(123), Some(1)),
-            ),
-            (
-                "range start with known size",
-                "bytes 123-123/1",
-                BytesRange::new(Some(123), Some(1)),
-            ),
-            (
-                "only have size",
-                "bytes */1024",
-                BytesRange::new(Some(0), Some(1024)),
-            ),
-        ];
-
-        for (name, input, expected) in cases {
-            let actual = BytesRange::from_header_content_range(input)?;
+            let actual = input.parse()?;
 
             assert_eq!(expected, actual, "{name}")
         }

@@ -29,13 +29,13 @@ jobs:
       - uses: actions/checkout@v3
       - name: Setup test bucket
         run: |
-            az storage container create \
-                --name test \
-                --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+          az storage container create \
+              --name test \
+              --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
 
       - name: Test
         shell: bash
-        run: cargo test azblob --features compress,layers-retry -- --nocapture
+        run: cargo test azblob --features compress -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

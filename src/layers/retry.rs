@@ -53,6 +53,7 @@ use crate::Layer;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// RetryLayer will add retry for OpenDAL.
@@ -136,7 +137,7 @@ where
             .map_err(convert_interrupted_error)
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let r = { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.kind() == ErrorKind::Interrupted)
@@ -148,11 +149,8 @@ where
             })
             .await
             .map_err(convert_interrupted_error)?;
-        Ok(Box::new(RetryReader::new(
-            r,
-            Operation::Read,
-            self.backoff.clone(),
-        )))
+
+        Ok(r.map_reader(|r| Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone()))))
     }
 
     /// Return `Interrupted` Error even after retry.
@@ -591,6 +589,7 @@ mod tests {
     use crate::ops::OpWrite;
     use crate::Accessor;
     use crate::BytesReader;
+    use crate::ObjectReader;
     use crate::Operator;
 
     #[derive(Debug, Clone, Default)]
@@ -600,7 +599,7 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, path: &str, _: OpRead) -> io::Result<BytesReader> {
+        async fn read(&self, path: &str, _: OpRead) -> io::Result<ObjectReader> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -700,10 +699,10 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, _: OpRead) -> io::Result<BytesReader> {
-            Ok(Box::new(MockReader {
+        async fn read(&self, _: &str, _: OpRead) -> io::Result<ObjectReader> {
+            Ok(ObjectReader::new(Box::new(MockReader {
                 attempt: self.attempt.clone(),
-            }))
+            })))
         }
 
         async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> io::Result<u64> {

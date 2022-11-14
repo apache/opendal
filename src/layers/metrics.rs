@@ -53,6 +53,7 @@ use crate::Layer;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
@@ -662,20 +663,22 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
 
         let result = self.inner.read(path, args).await.map(|reader| {
-            Box::new(MetricReader::new(
-                reader,
-                self.handle.bytes_total_read.clone(),
-                self.handle.failures_total_read.clone(),
-                self.handle.errors_total_read.clone(),
-                self.handle.requests_duration_seconds_read.clone(),
-                Some(start),
-            )) as BytesReader
+            reader.map_reader(|r| {
+                Box::new(MetricReader::new(
+                    r,
+                    self.handle.bytes_total_read.clone(),
+                    self.handle.failures_total_read.clone(),
+                    self.handle.errors_total_read.clone(),
+                    self.handle.requests_duration_seconds_read.clone(),
+                    Some(start),
+                ))
+            })
         });
 
         result.map_err(|e| {

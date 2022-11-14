@@ -60,6 +60,7 @@ use crate::BytesReader;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// Backend of kv service.
@@ -129,7 +130,7 @@ where
         Ok(())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let p = build_rooted_abs_path(&self.root, path);
         let inode = self.lookup(&p).await?;
         let meta = self.get_inode(inode).await?;
@@ -150,7 +151,7 @@ where
                     if let Some(v) = args.size() {
                         let _ = buf.split_off(v as usize);
                     }
-                    Ok(Box::new(futures::io::Cursor::new(buf)))
+                    Ok(ObjectReader::new(Box::new(futures::io::Cursor::new(buf))))
                 }
             };
         }
@@ -160,7 +161,8 @@ where
             args.size().unwrap_or_else(|| meta.content_length()),
         );
         let r = BlockReader::new(self.clone(), inode, blocks);
-        Ok(Box::new(r))
+
+        Ok(ObjectReader::new(Box::new(r)))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {

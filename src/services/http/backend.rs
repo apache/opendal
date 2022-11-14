@@ -48,9 +48,9 @@ use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
-use crate::BytesReader;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::ObjectReader;
 use crate::Scheme;
 
 /// Builder for http backend.
@@ -167,13 +167,15 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let resp = self.http_get(path, args.offset(), args.size()).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(resp.into_body().reader()),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                Ok(ObjectReader::new(resp.into_body().reader()))
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Read, path, er);

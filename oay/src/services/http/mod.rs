@@ -16,6 +16,7 @@ use std::convert::Infallible;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::str::FromStr;
 
 use actix_web::body::SizedStream;
 use actix_web::http;
@@ -80,7 +81,7 @@ impl Service {
         let meta = o.metadata().await?;
 
         let (size, r) = if let Some(range) = req.headers().get(header::RANGE) {
-            let br = BytesRange::from_header_range(range.to_str().map_err(|e| {
+            let br = BytesRange::from_str(range.to_str().map_err(|e| {
                 Error::new(
                     ErrorKind::InvalidInput,
                     anyhow!("header range is invalid: {e}"),

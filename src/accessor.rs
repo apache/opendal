@@ -39,6 +39,7 @@ use crate::BytesReader;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 use crate::Scheme;
 
@@ -119,12 +120,12 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     }
 
     /// Invoke the `read` operation on the specified path, returns a
-    /// [`BytesReader`][crate::BytesReader] if operate successful.
+    /// [`ObjectReader`][crate::ObjectReader] if operate successful.
     ///
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,
             None => Err(new_unsupported_object_error(Operation::Read, path)),
@@ -366,7 +367,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         self.as_ref().create(path, args).await
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         self.as_ref().read(path, args).await
     }
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {

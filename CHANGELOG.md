@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.19.8] - 2022-11-13
+
+## Added
+
+- feat(services/moka): Use entry's bytes as capacity weigher (#914)
+- feat: Implement rocksdb service (#913)
+
+## Changed
+
+- refactor: Reduce backend builder log level to debug (#907)
+- refactor: Remove deprecated features (#920)
+- refactor: use moka::sync::SegmentedCache (#921)
+
+## Fixed
+
+- fix(http): Check already read size before returning (#919)
+
 ## [v0.19.7] - 2022-10-31
 
 ### Added
@@ -921,6 +938,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.19.8]: https://github.com/datafuselabs/opendal/compare/v0.19.7...v0.19.8
 [v0.19.7]: https://github.com/datafuselabs/opendal/compare/v0.19.6...v0.19.7
 [v0.19.6]: https://github.com/datafuselabs/opendal/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/datafuselabs/opendal/compare/v0.19.4...v0.19.5

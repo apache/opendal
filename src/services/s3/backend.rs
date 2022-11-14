@@ -50,6 +50,7 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
+use crate::http_util::parse_content_range;
 use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
@@ -885,7 +886,7 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let resp = self.get_object(path, args.offset(), args.size()).await?;
 
-        let meta = Self::s3_parse_object_meta(path, resp.headers())?;
+        let meta = Self::s3_parse_object_meta(Operation::Read, path, resp.headers())?;
 
         let status = resp.status();
 
@@ -948,7 +949,7 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Self::s3_parse_object_meta(path, resp.headers()),
+            StatusCode::OK => Self::s3_parse_object_meta(Operation::Stat, path, resp.headers()),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
@@ -1455,7 +1456,11 @@ impl Backend {
             .map_err(|e| new_request_send_error(Operation::AbortMultipart, path, e))
     }
 
-    fn s3_parse_object_meta(path: &str, headers: &HeaderMap) -> Result<ObjectMetadata> {
+    fn s3_parse_object_meta(
+        op: Operation,
+        path: &str,
+        headers: &HeaderMap,
+    ) -> Result<ObjectMetadata> {
         let mode = if path.ends_with('/') {
             ObjectMode::DIR
         } else {
@@ -1463,27 +1468,31 @@ impl Backend {
         };
         let mut m = ObjectMetadata::new(mode);
 
-        if let Some(v) = parse_content_length(headers)
-            .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+        if let Some(v) =
+            parse_content_length(headers).map_err(|e| new_other_object_error(op, path, e))?
         {
             m.set_content_length(v);
         }
 
-        if let Some(v) = parse_content_type(headers)
-            .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+        if let Some(v) =
+            parse_content_type(headers).map_err(|e| new_other_object_error(op, path, e))?
         {
             m.set_content_type(v);
         }
 
         if let Some(v) =
-            parse_etag(headers).map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+            parse_content_range(headers).map_err(|e| new_other_object_error(op, path, e))?
         {
+            m.set_content_range(v);
+        }
+
+        if let Some(v) = parse_etag(headers).map_err(|e| new_other_object_error(op, path, e))? {
             m.set_etag(v);
             m.set_content_md5(v.trim_matches('"'));
         }
 
-        if let Some(v) = parse_last_modified(headers)
-            .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
+        if let Some(v) =
+            parse_last_modified(headers).map_err(|e| new_other_object_error(op, path, e))?
         {
             m.set_last_modified(v);
         }

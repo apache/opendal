@@ -44,7 +44,7 @@ use anyhow::anyhow;
 /// - When BytesContentRange's range is known, it must be non-empty.
 /// - When BytesContentRange's range is no known, we don't know whethre it's empty.
 #[allow(clippy::len_without_is_empty)]
-#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BytesContentRange(
     /// Start position of the range. `None` means unknown.
     Option<u64>,

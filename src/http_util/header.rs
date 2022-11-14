@@ -16,12 +16,15 @@ use anyhow::anyhow;
 use anyhow::Result;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::HeaderMap;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
+
+use crate::ops::BytesContentRange;
 
 /// Parse content length from header map.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
@@ -57,6 +60,18 @@ pub fn parse_content_type(headers: &HeaderMap) -> Result<Option<&str>> {
                 anyhow!("parse content-type header: {:?}", e)
             })?))
         }
+    }
+}
+
+/// Parse content range from header map.
+pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRange>> {
+    match headers.get(CONTENT_RANGE) {
+        None => Ok(None),
+        Some(v) => Ok(Some(
+            v.to_str()
+                .map_err(|e| anyhow!("parse content-range header: {:?}", e))?
+                .parse()?,
+        )),
     }
 }
 

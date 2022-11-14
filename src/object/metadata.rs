@@ -14,7 +14,7 @@
 
 use time::OffsetDateTime;
 
-use crate::ObjectMode;
+use crate::{ops::BytesContentRange, ObjectMode};
 
 /// Metadata carries all object metadata.
 ///
@@ -25,20 +25,31 @@ use crate::ObjectMode;
 /// a.k.a., `ObjectEntry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectMetadata {
+    /// Mode of this object.
     mode: ObjectMode,
 
+    /// Content Length of this object
+    ///
     /// # NOTE
     ///
     /// - For `stat` operation, content_length is required to set.
     /// - For `list` operation, content_length could be None.
+    /// - For `read` operation, content_length could be the length of request.
     content_length: Option<u64>,
+    /// Content MD5 of this object.
     content_md5: Option<String>,
+    /// Content Type of this object.
     content_type: Option<String>,
+    /// Content Range of this object.
+    content_range: Option<BytesContentRange>,
+    /// Last Modified of this object.
+    ///
     /// # NOTE
     ///
     /// bincode::{Encode, Decode} is not implemented on OffsetDateTime.
     /// We will convert it to (SystemTime, (h,m,s)) instead.
     last_modified: Option<OffsetDateTime>,
+    /// ETag of this object.
     etag: Option<String>,
 }
 
@@ -51,6 +62,7 @@ impl ObjectMetadata {
             content_length: None,
             content_md5: None,
             content_type: None,
+            content_range: None,
             last_modified: None,
             etag: None,
         }
@@ -146,6 +158,29 @@ impl ObjectMetadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn with_content_type(mut self, v: &str) -> Self {
         self.content_type = Some(v.to_string());
+        self
+    }
+
+    /// Content Range of this object.
+    ///
+    /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
+    pub fn content_range(&self) -> Option<BytesContentRange> {
+        self.content_range
+    }
+
+    /// Set Content Range of this object.
+    ///
+    /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
+    pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
+        self.content_range = Some(v);
+        self
+    }
+
+    /// Set Content Range of this object.
+    ///
+    /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
+    pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
+        self.content_range = Some(v);
         self
     }
 

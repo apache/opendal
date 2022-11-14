@@ -30,6 +30,7 @@ pub use body::IncomingAsyncBody;
 mod header;
 pub use header::parse_content_length;
 pub use header::parse_content_md5;
+pub use header::parse_content_range;
 pub use header::parse_content_type;
 pub use header::parse_etag;
 pub use header::parse_last_modified;

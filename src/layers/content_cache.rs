@@ -150,7 +150,7 @@ impl Accessor for ContentCacheAccessor {
                 let meta = self.inner.blocking_stat(path, OpStat::new())?;
                 let r = if meta.mode().is_file() {
                     let size = meta.content_length();
-                    let reader = self.inner.blocking_read(path, OpRead::new(..))?;
+                    let reader = self.inner.blocking_read(path, OpRead::new())?;
                     self.cache
                         .blocking_write(path, OpWrite::new(size), reader)?;
                     self.cache.blocking_read(path, args)?
@@ -224,7 +224,7 @@ impl AsyncRead for WholeCacheReader {
                     match cache.read(&path, args.clone()).await {
                         Ok(r) => Ok(r),
                         Err(err) if err.kind() == ErrorKind::NotFound => {
-                            let r = inner.read(&path, OpRead::new(..)).await?;
+                            let r = inner.read(&path, OpRead::new()).await?;
 
                             let length = r.content_length();
                             let size = if let Some(size) = length {

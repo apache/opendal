@@ -62,6 +62,7 @@ use crate::ObjectStreamer;
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::ContentCacheLayer;
+/// use opendal::layers::ContentCacheStrategy;
 /// use opendal::services::memory;
 /// use opendal::Operator;
 /// use opendal::Scheme;
@@ -70,18 +71,21 @@ use crate::ObjectStreamer;
 ///     .expect("must init")
 ///     .layer(ContentCacheLayer::new(
 ///         memory::Builder::default().build().expect("must init"),
+///         ContentCacheStrategy::Whole,
 ///     ));
 /// ```
 #[derive(Debug, Clone)]
 pub struct ContentCacheLayer {
     cache: Arc<dyn Accessor>,
+    strategy: ContentCacheStrategy,
 }
 
 impl ContentCacheLayer {
     /// Create a new metadata cache layer.
-    pub fn new(acc: impl Accessor + 'static) -> Self {
+    pub fn new(acc: impl Accessor + 'static, strategy: ContentCacheStrategy) -> Self {
         Self {
             cache: Arc::new(acc),
+            strategy,
         }
     }
 }
@@ -89,16 +93,28 @@ impl ContentCacheLayer {
 impl Layer for ContentCacheLayer {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
         Arc::new(ContentCacheAccessor {
-            cache: self.cache.clone(),
             inner,
+            cache: self.cache.clone(),
+            strategy: self.strategy.clone(),
         })
     }
 }
 
+/// The strategy of content cache.
+#[derive(Debug, Clone)]
+pub enum ContentCacheStrategy {
+    /// Always cache the whole object content.
+    Whole,
+    /// Cache the object content in parts with fixed size.
+    Fixed(u64),
+}
+
 #[derive(Debug, Clone)]
 struct ContentCacheAccessor {
-    cache: Arc<dyn Accessor>,
     inner: Arc<dyn Accessor>,
+    cache: Arc<dyn Accessor>,
+
+    strategy: ContentCacheStrategy,
 }
 
 #[async_trait]
@@ -113,12 +129,17 @@ impl Accessor for ContentCacheAccessor {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        Ok(ObjectReader::new(Box::new(WholeCacheReader::new(
-            self.inner.clone(),
-            self.cache.clone(),
-            path,
-            args,
-        ))))
+        let r = match self.strategy {
+            ContentCacheStrategy::Whole => Box::new(WholeCacheReader::new(
+                self.inner.clone(),
+                self.cache.clone(),
+                path,
+                args,
+            )) as BytesReader,
+            ContentCacheStrategy::Fixed(_) => todo!(),
+        };
+
+        Ok(ObjectReader::new(r))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
@@ -265,7 +286,10 @@ mod tests {
     async fn test_content_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
-        let cache_layer = ContentCacheLayer::new(memory::Builder::default().build()?);
+        let cache_layer = ContentCacheLayer::new(
+            memory::Builder::default().build()?,
+            ContentCacheStrategy::Whole,
+        );
         let cached_op = op.clone().layer(cache_layer);
 
         // Write a new object into op.

@@ -33,6 +33,16 @@ use anyhow::anyhow;
 /// Range: bytes=<range-start>-<range-end>
 /// Range: bytes=-<suffix-length>
 /// ```
+///
+/// # Notes
+///
+/// BytesRange support constuct via rust native range syntex like `..`, `1024..`, `..2048`.
+/// But it's has different symantic on `RangeTo`: `..<end>`.
+/// In rust, `..<end>` means all items that `< end`, but in BytesRange, `..<end>` means the
+/// tailing part of content, a.k.a, the last `<end>` bytes of content.
+///
+/// - `0..1024` will be converted to header `range: bytes=0-1024`
+/// - `..1024` will be converted to header `range: bytes=-1024`
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BytesRange(
     /// Start position of the range.
@@ -50,8 +60,8 @@ impl BytesRange {
     ///
     /// The behavior for `None` and `Some(0)` is different.
     ///
-    /// - offset=None => `bytes=-<size>`
-    /// - offset=Some(0) => `bytes=0-<size>`
+    /// - offset=None => `bytes=-<size>`, read <size> bytes from end.
+    /// - offset=Some(0) => `bytes=0-<size>`, read <size> bytes from start.
     pub fn new(offset: Option<u64>, size: Option<u64>) -> Self {
         BytesRange(offset, size)
     }
@@ -78,10 +88,10 @@ impl BytesRange {
 }
 
 impl ToString for BytesRange {
-    // # NOTE
-    //
-    // - `bytes=-1023` means get the suffix of the file.
-    // - `bytes=0-1023` means get the first 1024 bytes, we must set the end to 1023.
+    /// # NOTE
+    ///
+    /// - `bytes=-1023` means get the suffix of the file.
+    /// - `bytes=0-1023` means get the first 1024 bytes, we must set the end to 1023.
     fn to_string(&self) -> String {
         match (self.0, self.1) {
             (Some(offset), None) => format!("bytes={}-", offset),
@@ -154,8 +164,7 @@ where
         let offset = match range.start_bound().cloned() {
             Bound::Included(n) => Some(n),
             Bound::Excluded(n) => Some(n + 1),
-            // Note: RangeBounds `..x` means `0..x`, it's different from `bytes=..x`
-            Bound::Unbounded => Some(0),
+            Bound::Unbounded => None,
         };
         let size = match range.end_bound().cloned() {
             Bound::Included(n) => Some(n + 1 - offset.unwrap_or_default()),
@@ -188,13 +197,17 @@ mod tests {
 
     #[test]
     fn test_bytes_range_from_range_bounds() {
-        assert_eq!(BytesRange::new(Some(0), None), BytesRange::from(..));
+        assert_eq!(BytesRange::new(None, None), BytesRange::from(..));
         assert_eq!(BytesRange::new(Some(10), None), BytesRange::from(10..));
-        assert_eq!(BytesRange::new(Some(0), Some(11)), BytesRange::from(..=10));
-        assert_eq!(BytesRange::new(Some(0), Some(10)), BytesRange::from(..10));
+        assert_eq!(BytesRange::new(None, Some(11)), BytesRange::from(..=10));
+        assert_eq!(BytesRange::new(None, Some(10)), BytesRange::from(..10));
         assert_eq!(
             BytesRange::new(Some(10), Some(10)),
             BytesRange::from(10..20)
+        );
+        assert_eq!(
+            BytesRange::new(Some(10), Some(11)),
+            BytesRange::from(10..=20)
         );
     }
 

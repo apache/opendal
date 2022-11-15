@@ -15,11 +15,13 @@
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
@@ -275,6 +277,28 @@ impl AsyncRead for WholeCacheReader {
         }
     }
 }
+
+struct FixedCacheReader {
+    inner: Arc<dyn Accessor>,
+    cache: Arc<dyn Accessor>,
+    state: FixedCacheState,
+
+    path: String,
+    args: OpRead,
+
+    /// size of the fixed range.
+    size: u64,
+    /// total size of this obejct.
+    total_size: Option<u64>,
+}
+
+enum FixedCacheState {}
+
+impl FixedCacheReader {
+    fn next_range(&mut self) -> Range<u64> {}
+}
+
+struct FixedCacheRangeIterator {}
 
 #[cfg(test)]
 mod tests {

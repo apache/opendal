@@ -51,6 +51,7 @@ use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectMultipart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// Handler for all object related operations.
@@ -328,6 +329,10 @@ impl Object {
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`Object::range_reader`]
     ///
+    /// # Notes
+    ///
+    /// - The returning contnet's length may be smaller than the range specifed.
+    ///
     /// # Examples
     ///
     /// ```
@@ -362,8 +367,10 @@ impl Object {
             )
             .await?;
 
-        let br = BytesRange::from(range);
-        let buffer = if let Some(range_size) = br.size() {
+        // Check returning object reader's size first.
+        let buffer = if let Some(content_length) = s.content_length() {
+            Vec::with_capacity(content_length as usize)
+        } else if let Some(range_size) = BytesRange::from(range).size() {
             Vec::with_capacity(range_size as usize)
         } else {
             Vec::with_capacity(4 * 1024 * 1024)
@@ -469,6 +476,10 @@ impl Object {
 
     /// Create a new reader which can read the specified range.
     ///
+    /// # Notes
+    ///
+    /// - The returning contnet's length may be smaller than the range specifed.
+    ///
     /// # Examples
     ///
     /// ```
@@ -486,7 +497,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
+    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<ObjectReader> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(new_other_object_error(
                 Operation::Read,

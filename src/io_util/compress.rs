@@ -37,11 +37,13 @@ use futures::io::BufReader;
 use futures::ready;
 use log::trace;
 use pin_project::pin_project;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::BytesRead;
 
 /// CompressAlgorithm represents all compress algorithm that OpenDAL supports.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]
 pub enum CompressAlgorithm {
     /// [Brotli](https://github.com/google/brotli) compression format.
     Brotli,

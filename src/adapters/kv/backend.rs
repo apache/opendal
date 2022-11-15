@@ -145,10 +145,10 @@ where
                     anyhow!("entry inode: {inode} is not found"),
                 )),
                 Some(mut buf) => {
-                    if let Some(v) = args.offset() {
+                    if let Some(v) = args.range().offset() {
                         buf = buf.split_off(v as usize);
                     }
-                    if let Some(v) = args.size() {
+                    if let Some(v) = args.range().size() {
                         let _ = buf.split_off(v as usize);
                     }
                     Ok(ObjectReader::new(Box::new(futures::io::Cursor::new(buf))))
@@ -156,9 +156,10 @@ where
             };
         }
 
+        let br = args.range();
         let blocks = calculate_blocks(
-            args.offset().unwrap_or_default(),
-            args.size().unwrap_or_else(|| meta.content_length()),
+            br.offset().unwrap_or_default(),
+            br.size().unwrap_or_else(|| meta.content_length()),
         );
         let r = BlockReader::new(self.clone(), inode, blocks);
 

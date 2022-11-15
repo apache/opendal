@@ -231,13 +231,14 @@ impl Accessor for Backend {
 
         let mut f = Compat::new(f);
 
-        if let Some(offset) = args.offset() {
+        let br = args.range();
+        if let Some(offset) = br.offset() {
             f.seek(SeekFrom::Start(offset))
                 .await
                 .map_err(|e| parse_io_error(e, Operation::Read, path))?;
         };
 
-        let r: BytesReader = match args.size() {
+        let r: BytesReader = match br.size() {
             Some(size) => Box::new(f.take(size)),
             None => Box::new(f),
         };
@@ -414,12 +415,13 @@ impl Accessor for Backend {
             .open(&p)
             .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
 
-        if let Some(offset) = args.offset() {
+        let br = args.range();
+        if let Some(offset) = br.offset() {
             f.seek(SeekFrom::Start(offset))
                 .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
         };
 
-        let f: BlockingBytesReader = match args.size() {
+        let f: BlockingBytesReader = match br.size() {
             Some(size) => Box::new(f.take(size)),
             None => Box::new(f),
         };

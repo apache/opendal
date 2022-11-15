@@ -884,7 +884,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let resp = self.get_object(path, args.offset(), args.size()).await?;
+        let resp = self.get_object(path, args.range()).await?;
 
         let meta = Self::s3_parse_object_meta(Operation::Read, path, resp.headers())?;
 
@@ -987,7 +987,7 @@ impl Accessor for Backend {
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Read(v) => self.get_object_request(path, v.offset(), v.size())?,
+            PresignOperation::Read(v) => self.get_object_request(path, v.range())?,
             PresignOperation::Write(_) => {
                 self.put_object_request(path, None, None, AsyncBody::Empty)?
             }
@@ -1147,23 +1147,15 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    fn get_object_request(
-        &self,
-        path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
-    ) -> Result<Request<AsyncBody>> {
+    fn get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
-        if offset.unwrap_or_default() != 0 || size.is_some() {
-            req = req.header(
-                http::header::RANGE,
-                BytesRange::new(offset, size).to_string(),
-            );
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
         }
 
         // Set SSE headers.
@@ -1180,10 +1172,9 @@ impl Backend {
     async fn get_object(
         &self,
         path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
+        range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.get_object_request(path, offset, size)?;
+        let mut req = self.get_object_request(path, range)?;
 
         self.signer
             .sign(&mut req)

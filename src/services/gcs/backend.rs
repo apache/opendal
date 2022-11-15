@@ -267,9 +267,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let resp = self
-            .gcs_get_object(path, args.offset(), args.size())
-            .await?;
+        let resp = self.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
             Ok(ObjectReader::new(resp.into_body().reader()))
@@ -394,12 +392,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    fn gcs_get_object_request(
-        &self,
-        path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
-    ) -> Result<Request<AsyncBody>> {
+    fn gcs_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -411,11 +404,8 @@ impl Backend {
 
         let mut req = Request::get(&url);
 
-        if offset.is_some() || size.is_some() {
-            req = req.header(
-                http::header::RANGE,
-                BytesRange::new(offset, size).to_string(),
-            );
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
         }
 
         let req = req
@@ -428,10 +418,9 @@ impl Backend {
     async fn gcs_get_object(
         &self,
         path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
+        range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.gcs_get_object_request(path, offset, size)?;
+        let mut req = self.gcs_get_object_request(path, range)?;
 
         self.signer
             .sign(&mut req)

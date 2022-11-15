@@ -224,12 +224,13 @@ impl Accessor for Backend {
 
         let mut f = self.client.open_file().read(true).open(&p)?;
 
-        if let Some(offset) = args.offset() {
+        let br = args.range();
+        if let Some(offset) = br.offset() {
             f.seek(SeekFrom::Start(offset))
                 .map_err(|e| parse_io_error(e, Operation::Read, path))?;
         };
 
-        let f: BytesReader = match args.size() {
+        let f: BytesReader = match br.size() {
             None => Box::new(f),
             Some(size) => Box::new(f.take(size)),
         };

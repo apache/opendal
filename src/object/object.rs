@@ -354,15 +354,13 @@ impl Object {
             ));
         }
 
+        let br = BytesRange::from(range);
+
         let s = self
             .acc
-            .read(
-                self.path(),
-                OpRead::new((range.start_bound(), range.end_bound())),
-            )
+            .read(self.path(), OpRead::new().with_range(br))
             .await?;
 
-        let br = BytesRange::from(range);
         let buffer = if let Some(range_size) = br.size() {
             Vec::with_capacity(range_size as usize)
         } else {
@@ -405,12 +403,11 @@ impl Object {
             ));
         }
 
-        let mut s = self.acc.blocking_read(
-            self.path(),
-            OpRead::new((range.start_bound(), range.end_bound())),
-        )?;
-
         let br = BytesRange::from(range);
+        let mut s = self
+            .acc
+            .blocking_read(self.path(), OpRead::new().with_range(br))?;
+
         let mut buffer = if let Some(range_size) = br.size() {
             Vec::with_capacity(range_size as usize)
         } else {
@@ -495,7 +492,9 @@ impl Object {
             ));
         }
 
-        self.acc.read(self.path(), OpRead::new(range)).await
+        self.acc
+            .read(self.path(), OpRead::new().with_range(range.into()))
+            .await
     }
 
     /// Create a new reader which can read the specified range.
@@ -528,7 +527,8 @@ impl Object {
             ));
         }
 
-        self.acc.blocking_read(self.path(), OpRead::new(range))
+        self.acc
+            .blocking_read(self.path(), OpRead::new().with_range(range.into()))
     }
 
     /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.
@@ -1215,7 +1215,7 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpRead::new(..).into(), expire);
+        let op = OpPresign::new(OpRead::new().into(), expire);
 
         self.acc.presign(self.path(), op)
     }

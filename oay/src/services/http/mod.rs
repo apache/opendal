@@ -38,6 +38,7 @@ use futures::StreamExt;
 use log::error;
 use log::warn;
 use opendal::io_util::into_stream;
+use opendal::ops::BytesContentRange;
 use opendal::ops::BytesRange;
 use opendal::BytesReader;
 use opendal::Operator;
@@ -88,11 +89,14 @@ impl Service {
                 )
             })?)?;
 
-            let range = br.to_range(meta.content_length());
+            let bcr = BytesContentRange::from_bytes_range(meta.content_length(), br);
 
             (
-                range.size_hint().0 as u64,
-                Box::new(o.range_reader(range).await?) as BytesReader,
+                bcr.len().expect("range must be specifed"),
+                Box::new(
+                    o.range_reader(bcr.range().expect("range must be specifed"))
+                        .await?,
+                ) as BytesReader,
             )
         } else {
             (

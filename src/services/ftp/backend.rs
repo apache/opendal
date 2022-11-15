@@ -363,7 +363,8 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
-        if let Some(offset) = args.offset() {
+        let br = args.range();
+        if let Some(offset) = br.offset() {
             ftp_stream
                 .resume_transfer(offset as usize)
                 .await
@@ -397,7 +398,7 @@ impl Accessor for Backend {
         // As we handle all error above, it is save to unwrap without panic.
         let data_stream = result.unwrap();
 
-        let r: BytesReader = match args.size() {
+        let r: BytesReader = match br.size() {
             None => Box::new(FtpReader::new(Box::new(data_stream), ftp_stream, path)),
 
             Some(size) => Box::new(FtpReader::new(

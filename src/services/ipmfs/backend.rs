@@ -37,6 +37,7 @@ use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -120,7 +121,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let resp = self.ipmfs_read(path, args.offset(), args.size()).await?;
+        let resp = self.ipmfs_read(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -256,8 +257,7 @@ impl Backend {
     async fn ipmfs_read(
         &self,
         path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
+        range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -266,10 +266,11 @@ impl Backend {
             self.endpoint,
             percent_encode_path(&p)
         );
-        if let Some(offset) = offset {
+
+        if let Some(offset) = range.offset() {
             write!(url, "&offset={offset}").expect("write into string must succeed")
         }
-        if let Some(count) = size {
+        if let Some(count) = range.size() {
             write!(url, "&count={count}").expect("write into string must succeed")
         }
 

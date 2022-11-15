@@ -117,7 +117,7 @@ impl Accessor for MetadataCacheAccessor {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        match self.cache.read(path, OpRead::new(..)).await {
+        match self.cache.read(path, OpRead::new()).await {
             Ok(r) => {
                 let buffer = Vec::with_capacity(1024);
                 let mut bs = Cursor::new(buffer);
@@ -175,7 +175,7 @@ impl Accessor for MetadataCacheAccessor {
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
-        match self.cache.blocking_read(path, OpRead::new(..)) {
+        match self.cache.blocking_read(path, OpRead::new()) {
             Ok(mut r) => {
                 let mut bs = Vec::with_capacity(1024);
                 r.read_to_end(&mut bs)?;

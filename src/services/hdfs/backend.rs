@@ -245,7 +245,8 @@ impl Accessor for Backend {
                 (Box::new(f), meta.len() - offset)
             }
             (None, Some(size)) => {
-                f.seek(SeekFrom::End(-(size as i64)))
+                // hdfs doesn't support seed from end.
+                f.seek(SeekFrom::Start(meta.len() - size))
                     .map_err(|e| parse_io_error(e, Operation::Read, path))?;
                 (Box::new(f), size)
             }

@@ -329,6 +329,10 @@ impl Object {
     /// This function will allocate a new bytes internally. For more precise memory control or
     /// reading data lazily, please use [`Object::range_reader`]
     ///
+    /// # Notes
+    ///
+    /// - The returning contnet's length may be smaller than the range specifed.
+    ///
     /// # Examples
     ///
     /// ```
@@ -462,6 +466,10 @@ impl Object {
     }
 
     /// Create a new reader which can read the specified range.
+    ///
+    /// # Notes
+    ///
+    /// - The returning contnet's length may be smaller than the range specifed.
     ///
     /// # Examples
     ///

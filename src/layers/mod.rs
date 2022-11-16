@@ -22,6 +22,7 @@ pub use concurrent_limit::ConcurrentLimitLayer;
 
 mod content_cache;
 pub use content_cache::ContentCacheLayer;
+pub use content_cache::ContentCacheStrategy;
 
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;

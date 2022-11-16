@@ -125,6 +125,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
+    /// - The returning contnet length may be smaller than the range specifed.
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,

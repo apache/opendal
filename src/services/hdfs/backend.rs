@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::ErrorKind;
@@ -222,20 +223,37 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
+        // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
+        let meta = self
+            .client
+            .metadata(&p)
+            .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
+
         let mut f = self.client.open_file().read(true).open(&p)?;
 
         let br = args.range();
-        if let Some(offset) = br.offset() {
-            f.seek(SeekFrom::Start(offset))
-                .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+
+        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
+            (Some(offset), Some(size)) => {
+                f.seek(SeekFrom::Start(offset))
+                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                (Box::new(f.take(size)), min(size, meta.len() - offset))
+            }
+            (Some(offset), None) => {
+                f.seek(SeekFrom::Start(offset))
+                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                (Box::new(f), meta.len() - offset)
+            }
+            (None, Some(size)) => {
+                f.seek(SeekFrom::End(-(size as i64)))
+                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                (Box::new(f), size)
+            }
+            (None, None) => (Box::new(f), meta.len()),
         };
 
-        let f: BytesReader = match br.size() {
-            None => Box::new(f),
-            Some(size) => Box::new(f.take(size)),
-        };
-
-        Ok(ObjectReader::new(f))
+        Ok(ObjectReader::new(r)
+            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

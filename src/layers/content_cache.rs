@@ -490,6 +490,21 @@ mod tests {
         let data = cached_op.object("test_exist").read().await?;
         assert_eq!(data.len(), 14);
 
+        // Read part of data
+        let data = cached_op.object("test_exist").range_read(5..).await?;
+        assert_eq!(data.len(), 9);
+        assert_eq!(data, ", Xuanwo!".as_bytes());
+
+        // Write a new object into op.
+        op.object("test_new")
+            .write("Hello, OpenDAL!".as_bytes())
+            .await?;
+
+        // Read part of data
+        let data = cached_op.object("test_new").range_read(6..).await?;
+        assert_eq!(data.len(), 9);
+        assert_eq!(data, " OpenDAL!".as_bytes());
+
         // Read not exist object.
         let data = cached_op.object("test_not_exist").read().await;
         assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);

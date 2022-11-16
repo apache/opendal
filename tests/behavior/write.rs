@@ -13,10 +13,12 @@
 // limitations under the License.
 
 use std::io;
+use std::io::ErrorKind;
 use std::io::Result;
 
 use futures::io::Cursor;
 use log::debug;
+use log::warn;
 use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
@@ -492,7 +494,15 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let r = op.object(&path).range_reader(..length).await?;
+    let r = match op.object(&path).range_reader(..length).await {
+        Ok(r) => r,
+        // Not all services support range with tail range, let's tolerate this.
+        Err(err) if err.kind() == ErrorKind::Unsupported => {
+            warn!("service doesn't support range with tail");
+            return Ok(());
+        }
+        Err(err) => return Err(err),
+    };
     assert_eq!(r.content_length(), length, "read size");
 
     let buffer = Vec::with_capacity(r.content_length() as usize);

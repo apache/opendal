@@ -16,6 +16,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
 use std::mem;
 use std::sync::Arc;
@@ -36,6 +38,7 @@ use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::error::new_other_backend_error;
+use crate::error::ObjectError;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -401,6 +404,20 @@ impl Backend {
         let mut req = Request::get(&url);
 
         if !range.is_full() {
+            // azblob doesn't support read with suffix range.
+            //
+            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
+            if range.offset().is_none() && range.size().is_some() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    ObjectError::new(
+                        Operation::Read,
+                        path,
+                        anyhow::anyhow!("azblob doesn't support read with suffix range"),
+                    ),
+                ));
+            }
+
             req = req.header(http::header::RANGE, range.to_header());
         }
 

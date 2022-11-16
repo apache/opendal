@@ -424,12 +424,49 @@ mod tests {
     use crate::Operator;
 
     #[tokio::test]
-    async fn test_content_cache() -> anyhow::Result<()> {
+    async fn test_whole_content_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
         let cache_layer = ContentCacheLayer::new(
             memory::Builder::default().build()?,
             ContentCacheStrategy::Whole,
+        );
+        let cached_op = op.clone().layer(cache_layer);
+
+        // Write a new object into op.
+        op.object("test_exist")
+            .write("Hello, World!".as_bytes())
+            .await?;
+
+        // Read from cached op.
+        let data = cached_op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 13);
+
+        // Write into cache op.
+        cached_op
+            .object("test_exist")
+            .write("Hello, Xuanwo!".as_bytes())
+            .await?;
+        // op and cached op should have same data.
+        let data = op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 14);
+        let data = cached_op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 14);
+
+        // Read not exist object.
+        let data = cached_op.object("test_not_exist").read().await;
+        assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fixed_content_cache() -> anyhow::Result<()> {
+        let op = Operator::new(memory::Builder::default().build()?);
+
+        let cache_layer = ContentCacheLayer::new(
+            memory::Builder::default().build()?,
+            ContentCacheStrategy::Fixed(5),
         );
         let cached_op = op.clone().layer(cache_layer);
 

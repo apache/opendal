@@ -110,7 +110,9 @@ pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
 ///
 /// # Notes
 ///
-/// Services can implement their own parser logic based on this function.
+/// parse_into_object_metadata only handles the standard behavior of http
+/// headers. If services have their own logic, they should update the parsed
+/// metadata on demand.
 pub fn parse_into_object_metadata(
     op: Operation,
     path: &str,

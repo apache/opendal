@@ -138,7 +138,13 @@ impl Accessor for ContentCacheAccessor {
                 path,
                 args,
             )) as BytesReader,
-            ContentCacheStrategy::Fixed(_) => todo!(),
+            ContentCacheStrategy::Fixed(step) => Box::new(FixedCacheReader::new(
+                self.inner.clone(),
+                self.cache.clone(),
+                path,
+                args,
+                step,
+            )) as BytesReader,
         };
 
         Ok(ObjectReader::new(r))
@@ -354,6 +360,10 @@ enum FixedCacheState {
     Reading((FixedCacheRangeIterator, ObjectReader)),
 }
 
+fn format_cache_path(path: &str, idx: u64) -> String {
+    format!("{path}-{idx}")
+}
+
 struct FixedCacheReader {
     inner: Arc<dyn Accessor>,
     cache: Arc<dyn Accessor>,
@@ -365,8 +375,23 @@ struct FixedCacheReader {
     step: u64,
 }
 
-fn format_cache_path(path: &str, idx: u64) -> String {
-    format!("{path}-{idx}")
+impl FixedCacheReader {
+    fn new(
+        inner: Arc<dyn Accessor>,
+        cache: Arc<dyn Accessor>,
+        path: &str,
+        args: OpRead,
+        step: u64,
+    ) -> Self {
+        Self {
+            inner,
+            cache,
+            state: FixedCacheState::Idle,
+            path: path.to_string(),
+            args,
+            step,
+        }
+    }
 }
 
 impl AsyncRead for FixedCacheReader {
@@ -417,9 +442,7 @@ impl AsyncRead for FixedCacheReader {
             FixedCacheState::Iterating(it) => {
                 let range = it.next();
                 match range {
-                    None => {
-                        return Poll::Ready(Ok(0));
-                    }
+                    None => Poll::Ready(Ok(0)),
                     Some((idx, cache_range, total_range)) => {
                         let cache_path = format_cache_path(&path, idx);
                         let fut = async move {
@@ -433,7 +456,7 @@ impl AsyncRead for FixedCacheReader {
                                         .read(&path, OpRead::new().with_range(total_range))
                                         .await?;
                                     let size =
-                                        total_range.size().expect("total range size must be valid");
+                                        r.content_length().expect("total range size must be valid");
                                     cache
                                         .write(&path, OpWrite::new(size), r.into_reader())
                                         .await?;
@@ -462,9 +485,9 @@ impl AsyncRead for FixedCacheReader {
 
                 if n == 0 {
                     self.state = FixedCacheState::Iterating(*it);
-                    return self.poll_read(cx, buf);
+                    self.poll_read(cx, buf)
                 } else {
-                    return Poll::Ready(Ok(n));
+                    Poll::Ready(Ok(n))
                 }
             }
         }

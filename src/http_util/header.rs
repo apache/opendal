@@ -24,7 +24,11 @@ use http::HeaderMap;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
+use crate::error::new_other_object_error;
 use crate::ops::BytesContentRange;
+use crate::ops::Operation;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 
 /// Parse content length from header map.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
@@ -100,4 +104,56 @@ pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
                 .map_err(|e| anyhow!("parse etag header: {:?}", e))?,
         )),
     }
+}
+
+/// parse_into_object_metadata will parse standards http headers into ObjectMetadata.
+///
+/// # Notes
+///
+/// parse_into_object_metadata only handles the standard behavior of http
+/// headers. If services have their own logic, they should update the parsed
+/// metadata on demand.
+pub fn parse_into_object_metadata(
+    op: Operation,
+    path: &str,
+    headers: &HeaderMap,
+) -> std::io::Result<ObjectMetadata> {
+    let mode = if path.ends_with('/') {
+        ObjectMode::DIR
+    } else {
+        ObjectMode::FILE
+    };
+    let mut m = ObjectMetadata::new(mode);
+
+    if let Some(v) =
+        parse_content_length(headers).map_err(|e| new_other_object_error(op, path, e))?
+    {
+        m.set_content_length(v);
+    }
+
+    if let Some(v) = parse_content_type(headers).map_err(|e| new_other_object_error(op, path, e))? {
+        m.set_content_type(v);
+    }
+
+    if let Some(v) =
+        parse_content_range(headers).map_err(|e| new_other_object_error(op, path, e))?
+    {
+        m.set_content_range(v);
+    }
+
+    if let Some(v) = parse_etag(headers).map_err(|e| new_other_object_error(op, path, e))? {
+        m.set_etag(v);
+    }
+
+    if let Some(v) = parse_content_md5(headers).map_err(|e| new_other_object_error(op, path, e))? {
+        m.set_content_md5(v);
+    }
+
+    if let Some(v) =
+        parse_last_modified(headers).map_err(|e| new_other_object_error(op, path, e))?
+    {
+        m.set_last_modified(v);
+    }
+
+    Ok(m)
 }

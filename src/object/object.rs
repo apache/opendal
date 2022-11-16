@@ -51,6 +51,7 @@ use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectMultipart;
+use crate::ObjectReader;
 use crate::ObjectStreamer;
 
 /// Handler for all object related operations.
@@ -361,11 +362,7 @@ impl Object {
             .read(self.path(), OpRead::new().with_range(br))
             .await?;
 
-        let buffer = if let Some(range_size) = br.size() {
-            Vec::with_capacity(range_size as usize)
-        } else {
-            Vec::with_capacity(4 * 1024 * 1024)
-        };
+        let buffer = Vec::with_capacity(s.content_length() as usize);
         let mut bs = Cursor::new(buffer);
 
         io::copy(s, &mut bs).await?;
@@ -483,7 +480,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<impl BytesRead> {
+    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<ObjectReader> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(new_other_object_error(
                 Operation::Read,

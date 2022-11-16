@@ -36,17 +36,12 @@ use super::error::parse_error;
 use super::uri::percent_encode_path_hard;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
-use crate::http_util::parse_content_length;
-use crate::http_util::parse_content_md5;
-use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
-use crate::http_util::parse_etag;
-use crate::http_util::parse_last_modified;
+use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
@@ -290,6 +285,139 @@ impl Debug for Backend {
     }
 }
 
+#[async_trait]
+impl Accessor for Backend {
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::Oss)
+            .set_root(&self.root)
+            .set_name(&self.bucket)
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
+        am
+    }
+
+    async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
+        let resp = self
+            .oss_put_object(path, None, None, AsyncBody::Empty)
+            .await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body()
+                    .consume()
+                    .await
+                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
+                Ok(())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Create, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+        let resp = self.oss_get_object(path, args.range()).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Read, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+        let resp = self
+            .oss_put_object(
+                path,
+                Some(args.size()),
+                args.content_type(),
+                AsyncBody::Reader(r),
+            )
+            .await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body()
+                    .consume()
+                    .await
+                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                Ok(args.size())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Write, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        if path == "/" {
+            let m = ObjectMetadata::new(ObjectMode::DIR);
+            return Ok(m);
+        }
+
+        let resp = self.oss_head_object(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_object_metadata(Operation::Stat, path, resp.headers()),
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
+                let m = ObjectMetadata::new(ObjectMode::DIR);
+                Ok(m)
+            }
+
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Stat, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        let resp = self.obs_delete_object(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
+                resp.into_body()
+                    .consume()
+                    .await
+                    .map_err(|err| new_response_consume_error(Operation::Delete, path, err))?;
+                Ok(())
+            }
+            _ => {
+                let er = parse_error_response(resp).await?;
+                let err = parse_error(Operation::Delete, path, er);
+                Err(err)
+            }
+        }
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
+            Arc::new(self.clone()),
+            &self.root,
+            path,
+        ))))
+    }
+}
+
 impl Backend {
     fn oss_put_object_request(
         &self,
@@ -463,179 +591,5 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::Delete, path, e))
-    }
-}
-
-#[async_trait]
-impl Accessor for Backend {
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::Oss)
-            .set_root(&self.root)
-            .set_name(&self.bucket)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
-        am
-    }
-
-    async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
-        let resp = self
-            .oss_put_object(path, None, None, AsyncBody::Empty)
-            .await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
-                Ok(())
-            }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, path, er);
-                Err(err)
-            }
-        }
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let resp = self.oss_get_object(path, args.range()).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok(ObjectReader::new(resp.into_body().reader()))
-            }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, path, er);
-                Err(err)
-            }
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
-        let resp = self
-            .oss_put_object(
-                path,
-                Some(args.size()),
-                args.content_type(),
-                AsyncBody::Reader(r),
-            )
-            .await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
-                Ok(args.size())
-            }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, path, er);
-                Err(err)
-            }
-        }
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
-        if path == "/" {
-            let m = ObjectMetadata::new(ObjectMode::DIR);
-
-            return Ok(m);
-        }
-
-        let resp = self.oss_head_object(path).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let mut m = if path.ends_with('/') {
-                    ObjectMetadata::new(ObjectMode::DIR)
-                } else {
-                    ObjectMetadata::new(ObjectMode::FILE)
-                };
-
-                if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_length(v);
-                }
-
-                if let Some(v) = parse_content_type(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_type(v);
-                }
-
-                if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_etag(v);
-                }
-
-                if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_last_modified(v);
-                }
-
-                if let Some(v) = parse_content_md5(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_md5(v);
-                }
-
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
-                Ok(m)
-            }
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                let m = ObjectMetadata::new(ObjectMode::DIR);
-                Ok(m)
-            }
-
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
-                Err(err)
-            }
-        }
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        let resp = self.obs_delete_object(path).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Delete, path, err))?;
-                Ok(())
-            }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, path, er);
-                Err(err)
-            }
-        }
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
-            Arc::new(self.clone()),
-            &self.root,
-            path,
-        ))))
     }
 }

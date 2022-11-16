@@ -15,6 +15,7 @@
 use std::io;
 use std::io::Result;
 
+use futures::io::Cursor;
 use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
@@ -68,6 +69,9 @@ macro_rules! behavior_read_tests {
                 test_read_full,
                 test_read_full_with_special_chars,
                 test_read_range,
+                test_reader_range,
+                test_reader_from,
+                test_reader_tail,
                 test_read_not_exist,
                 test_read_with_dir_path,
                 #[cfg(feature = "compress")]
@@ -178,6 +182,66 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read range should match.
+pub async fn test_reader_range(op: Operator) -> Result<()> {
+    let r = op.object("normal_file").range_reader(1024..2048).await?;
+    assert_eq!(r.content_length(), 1024, "read size");
+
+    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let mut bs = Cursor::new(buffer);
+    futures::io::copy(r, &mut bs).await?;
+
+    let bs = bs.into_inner();
+    assert_eq!(bs.len(), 1024, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "28786fb63abfe5545479e4f50da853652d1d67b88be5553c265ede4022774913",
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read from should match.
+pub async fn test_reader_from(op: Operator) -> Result<()> {
+    let r = op.object("normal_file").range_reader(261120..).await?;
+    assert_eq!(r.content_length(), 1024, "read size");
+
+    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let mut bs = Cursor::new(buffer);
+    futures::io::copy(r, &mut bs).await?;
+
+    let bs = bs.into_inner();
+    assert_eq!(bs.len(), 1024, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "81fa400e85baa2a5c7006d77d4320b73d36222974b923e03ed9891580f989e2a",
+        "read content"
+    );
+
+    Ok(())
+}
+
+/// Read tail should match.
+pub async fn test_reader_tail(op: Operator) -> Result<()> {
+    let r = op.object("normal_file").range_reader(..1024).await?;
+    assert_eq!(r.content_length(), 1024, "read size");
+
+    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let mut bs = Cursor::new(buffer);
+    futures::io::copy(r, &mut bs).await?;
+
+    let bs = bs.into_inner();
+    assert_eq!(bs.len(), 1024, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        "81fa400e85baa2a5c7006d77d4320b73d36222974b923e03ed9891580f989e2a",
         "read content"
     );
 

@@ -44,6 +44,7 @@ use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
+use crate::http_util::parse_into_object_metadata;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
@@ -270,7 +271,8 @@ impl Accessor for Backend {
         let resp = self.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
-            Ok(ObjectReader::new(resp.into_body().reader()))
+            let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+            Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
         } else {
             let er = parse_error_response(resp).await?;
             let e = parse_error(Operation::Read, path, er);

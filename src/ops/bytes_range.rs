@@ -68,17 +68,17 @@ impl BytesRange {
         BytesRange(offset, size)
     }
 
-    /// Get start position of BytesRange.
+    /// Get offset of BytesRange.
     pub fn offset(&self) -> Option<u64> {
         self.0
     }
 
-    /// Get end position of BytesRange.
+    /// Get size of BytesRange.
     pub fn size(&self) -> Option<u64> {
         self.1
     }
 
-    /// If this range is full of this object content.
+    /// Check if this range is full of this object content.
     ///
     /// If this range is full, we don't need to specify it in http request.
     pub fn is_full(&self) -> bool {

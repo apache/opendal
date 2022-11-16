@@ -555,7 +555,7 @@ impl Backend {
         let mut files = resp
             .into_iter()
             .filter_map(|file| File::from_str(file.as_str()).ok())
-            .filter(|f| f.name() == basename)
+            .filter(|f| f.name() == basename.trim_end_matches('/'))
             .collect::<Vec<File>>();
 
         if files.is_empty() {

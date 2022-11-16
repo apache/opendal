@@ -545,7 +545,9 @@ impl Backend {
 
         let (parent, basename) = (get_parent(path), get_basename(path));
 
-        let resp = ftp_stream.list(Some(parent)).await.map_err(|e| {
+        let pathname = if parent == "/" { None } else { Some(parent) };
+
+        let resp = ftp_stream.list(pathname).await.map_err(|e| {
             new_other_object_error(Operation::Stat, path, anyhow!("list request: {e:?}"))
         })?;
 

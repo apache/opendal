@@ -110,9 +110,10 @@ impl AsyncRead for SeekableReader {
             State::Idle => {
                 let acc = self.acc.clone();
                 let path = self.path.clone();
-                let op = OpRead::default()
-                    .with_offset(Some(self.current_offset()))
-                    .with_size(self.current_size());
+                let op = OpRead::default().with_range(BytesRange::new(
+                    Some(self.current_offset()),
+                    self.current_size(),
+                ));
 
                 let future = async move { acc.read(&path, op).await };
 

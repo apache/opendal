@@ -15,13 +15,11 @@
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
-use std::vec::IntoIter;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
@@ -30,6 +28,8 @@ use futures::FutureExt;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
+use crate::ops::BytesContentRange;
+use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -278,6 +278,41 @@ impl AsyncRead for WholeCacheReader {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+struct FixedCacheRangeIterator {
+    offset: u64,
+    size: u64,
+    step: u64,
+}
+
+impl FixedCacheRangeIterator {
+    fn new(offset: u64, size: u64, step: u64) -> Self {
+        Self { offset, size, step }
+    }
+}
+
+impl Iterator for FixedCacheRangeIterator {
+    /// Item with return (cache_idx, cache_range, total_range)
+    type Item = (usize, BytesRange, BytesRange);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
+
+enum FixedCacheState {
+    Idle,
+    Starting(BoxFuture<'static, Result<FixedCacheRangeIterator>>),
+    Iterating(FixedCacheRangeIterator),
+    Fetching(
+        (
+            FixedCacheRangeIterator,
+            BoxFuture<'static, Result<ObjectReader>>,
+        ),
+    ),
+    Reading((FixedCacheRangeIterator, ObjectReader)),
+}
+
 struct FixedCacheReader {
     inner: Arc<dyn Accessor>,
     cache: Arc<dyn Accessor>,
@@ -285,20 +320,115 @@ struct FixedCacheReader {
 
     path: String,
     args: OpRead,
-
     /// size of the fixed range.
-    size: u64,
-    /// total size of this obejct.
-    total_size: Option<u64>,
+    step: u64,
 }
 
-enum FixedCacheState {}
-
-impl FixedCacheReader {
-    fn next_range(&mut self) -> Range<u64> {}
+fn format_cache_path(path: &str, idx: usize) -> String {
+    format!("{path}-{idx}")
 }
 
-struct FixedCacheRangeIterator {}
+impl AsyncRead for FixedCacheReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<Result<usize>> {
+        let cache = self.cache.clone();
+        let inner = self.inner.clone();
+        let path = self.path.clone();
+        let step = self.step;
+
+        match &mut self.state {
+            FixedCacheState::Idle => {
+                let range = self.args.range();
+                let fut = async move {
+                    let it = match (range.offset(), range.size()) {
+                        (Some(offset), Some(size)) => {
+                            FixedCacheRangeIterator::new(offset, size, step)
+                        }
+                        _ => {
+                            let meta = inner.stat(&path, OpStat::new()).await?;
+
+                            let bcr =
+                                BytesContentRange::from_bytes_range(meta.content_length(), range);
+                            let br = bcr.to_bytes_range().expect("bytes range must be valid");
+
+                            FixedCacheRangeIterator::new(
+                                br.offset().expect("offset must be valid"),
+                                br.size().expect("size must be valid"),
+                                step,
+                            )
+                        }
+                    };
+
+                    Ok(it)
+                };
+
+                self.state = FixedCacheState::Starting(Box::pin(fut));
+                self.poll_read(cx, buf)
+            }
+            FixedCacheState::Starting(fut) => {
+                let it = ready!(fut.poll_unpin(cx))?;
+                self.state = FixedCacheState::Iterating(it);
+                self.poll_read(cx, buf)
+            }
+            FixedCacheState::Iterating(it) => {
+                let range = it.next();
+                match range {
+                    None => {
+                        return Poll::Ready(Ok(0));
+                    }
+                    Some((idx, cache_range, total_range)) => {
+                        let cache_path = format_cache_path(&path, idx);
+                        let fut = async move {
+                            match cache
+                                .read(&cache_path, OpRead::new().with_range(cache_range))
+                                .await
+                            {
+                                Ok(r) => Ok(r),
+                                Err(err) if err.kind() == ErrorKind::NotFound => {
+                                    let r = inner
+                                        .read(&path, OpRead::new().with_range(total_range))
+                                        .await?;
+                                    let size =
+                                        total_range.size().expect("total range size must be valid");
+                                    cache
+                                        .write(&path, OpWrite::new(size), r.into_reader())
+                                        .await?;
+                                    cache
+                                        .read(&path, OpRead::new().with_range(cache_range))
+                                        .await
+                                }
+                                Err(err) => Err(err),
+                            }
+                        };
+                        self.state = FixedCacheState::Fetching((*it, Box::pin(fut)));
+                        self.poll_read(cx, buf)
+                    }
+                }
+            }
+            FixedCacheState::Fetching((it, fut)) => {
+                let r = ready!(fut.poll_unpin(cx))?;
+                self.state = FixedCacheState::Reading((*it, r));
+                self.poll_read(cx, buf)
+            }
+            FixedCacheState::Reading((it, r)) => {
+                let n = match ready!(Pin::new(r).poll_read(cx, buf)) {
+                    Ok(n) => n,
+                    Err(err) => return Poll::Ready(Err(err)),
+                };
+
+                if n == 0 {
+                    self.state = FixedCacheState::Iterating(*it);
+                    return self.poll_read(cx, buf);
+                } else {
+                    return Poll::Ready(Ok(n));
+                }
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

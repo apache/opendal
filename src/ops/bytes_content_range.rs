@@ -72,16 +72,18 @@ impl BytesContentRange {
         self
     }
 
-    /// Calculate bytes content range from size and specfied range.
-    pub fn from_bytes_range(total_size: u64, range: BytesRange) -> Self {
-        let (start, end) = match (range.offset(), range.size()) {
-            (Some(offset), Some(size)) => (offset, offset + size - 1),
-            (Some(offset), None) => (offset, total_size - 1),
-            (None, Some(size)) => (total_size - size, total_size - 1),
-            (None, None) => (0, total_size - 1),
-        };
+    /// Get the length that specifed by this BytesContentRange, return `None` if range is not known.
+    pub fn len(&self) -> Option<u64> {
+        if let (Some(start), Some(end)) = (self.0, self.1) {
+            Some(end - start + 1)
+        } else {
+            None
+        }
+    }
 
-        Self(Some(start), Some(end), Some(total_size))
+    /// Get the size of this BytesContentRange, return `None` if size is not known.
+    pub fn size(&self) -> Option<u64> {
+        self.2
     }
 
     /// Get the range inclusive of this BytesContentRange, return `None` if range is not known.
@@ -102,18 +104,25 @@ impl BytesContentRange {
         }
     }
 
-    /// Get the length that specifed by this BytesContentRange, return `None` if range is not known.
-    pub fn len(&self) -> Option<u64> {
-        if let (Some(start), Some(end)) = (self.0, self.1) {
-            Some(end - start + 1)
-        } else {
-            None
-        }
+    /// Calculate bytes content range from size and specfied range.
+    pub fn from_bytes_range(total_size: u64, range: BytesRange) -> Self {
+        let (start, end) = match (range.offset(), range.size()) {
+            (Some(offset), Some(size)) => (offset, offset + size - 1),
+            (Some(offset), None) => (offset, total_size - 1),
+            (None, Some(size)) => (total_size - size, total_size - 1),
+            (None, None) => (0, total_size - 1),
+        };
+
+        Self(Some(start), Some(end), Some(total_size))
     }
 
-    /// Get the size of this BytesContentRange, return `None` if size is not known.
-    pub fn size(&self) -> Option<u64> {
-        self.2
+    /// Calculate bytes range from bytes content range.
+    pub fn to_bytes_range(self) -> Option<BytesRange> {
+        match (self.0, self.1, self.2) {
+            (Some(start), Some(end), _) => Some(BytesRange::from(start..=end)),
+            (None, None, Some(_)) => None,
+            _ => unreachable!("invalid bytes range: {:?}", self),
+        }
     }
 }
 

@@ -94,6 +94,20 @@ impl BytesRange {
     pub fn to_header(&self) -> String {
         format!("bytes={self}")
     }
+
+    /// Convert bytes range into rust range.
+    pub fn to_range(&self) -> impl RangeBounds<u64> {
+        (
+            match self.0 {
+                Some(offset) => Bound::Included(offset),
+                None => Bound::Unbounded,
+            },
+            match self.1 {
+                Some(size) => Bound::Excluded(self.0.unwrap_or_default() + size),
+                None => Bound::Unbounded,
+            },
+        )
+    }
 }
 
 impl Display for BytesRange {

@@ -15,9 +15,16 @@
 use std::fmt::Debug;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::ready;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
+use futures::AsyncRead;
+use futures::FutureExt;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
@@ -34,6 +41,8 @@ use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::Layer;
 use crate::ObjectIterator;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
 
@@ -125,14 +134,10 @@ impl Accessor for ContentCacheAccessor {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.strategy {
-            ContentCacheStrategy::Whole => WholeCacheReader::create(self.inner.clone(), self.cache.clone(), path, args).await,
-            ContentCacheStrategy::Fixed(step) => Ok(ObjectReader::new(Box::new(FixedCacheReader::new(
-                self.inner.clone(),
-                self.cache.clone(),
-                path,
-                args,
-                step,
-            )) as BytesReader)),
+            ContentCacheStrategy::Whole => self.new_whole_cache_reader(path, args).await,
+            ContentCacheStrategy::Fixed(step) => {
+                self.new_fixed_cache_reader(path, args, step).await
+            }
         }
     }
 
@@ -195,28 +200,49 @@ impl Accessor for ContentCacheAccessor {
     }
 }
 
-struct WholeCacheReader;
-
-impl WholeCacheReader {
-    async fn create(
-        inner: Arc<dyn Accessor>,
-        cache: Arc<dyn Accessor>,
-        path: &str,
-        args: OpRead,
-    ) -> Result<ObjectReader> {
-        match cache.read(path, args.clone()).await {
+impl ContentCacheAccessor {
+    /// Create a new whole cache reader.
+    async fn new_whole_cache_reader(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+        match self.cache.read(path, args.clone()).await {
             Ok(r) => Ok(r),
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                let r = inner.read(path, OpRead::new()).await?;
+                let r = self.inner.read(path, OpRead::new()).await?;
 
                 let length = r.content_length();
-                cache
+                self.cache
                     .write(path, OpWrite::new(length), r.into_reader())
                     .await?;
-                cache.read(path, args).await
+                self.cache.read(path, args).await
             }
             Err(err) => Err(err),
         }
+    }
+
+    async fn new_fixed_cache_reader(
+        &self,
+        path: &str,
+        args: OpRead,
+        step: u64,
+    ) -> Result<ObjectReader> {
+        let range = args.range();
+        let it = match (range.offset(), range.size()) {
+            (Some(offset), Some(size)) => FixedCacheRangeIterator::new(offset, size, step),
+            _ => {
+                let meta = self.inner.stat(path, OpStat::new()).await?;
+                let bcr = BytesContentRange::from_bytes_range(meta.content_length(), range);
+                let br = bcr.to_bytes_range().expect("bytes range must be valid");
+                FixedCacheRangeIterator::new(
+                    br.offset().expect("offset must be valid"),
+                    br.size().expect("size must be valid"),
+                    step,
+                )
+            }
+        };
+
+        let length = it.size();
+        let r = FixedCacheReader::new(self.inner.clone(), self.cache.clone(), path, it);
+        Ok(ObjectReader::new(Box::new(r))
+            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(length)))
     }
 }
 
@@ -238,6 +264,10 @@ impl FixedCacheRangeIterator {
 
             cur: offset,
         }
+    }
+
+    fn size(&self) -> u64 {
+        self.size
     }
 
     /// Cache index is the file index across the whole file.
@@ -284,8 +314,6 @@ impl Iterator for FixedCacheRangeIterator {
 }
 
 enum FixedCacheState {
-    Idle,
-    Starting(BoxFuture<'static, Result<FixedCacheRangeIterator>>),
     Iterating(FixedCacheRangeIterator),
     Fetching(
         (
@@ -306,9 +334,6 @@ struct FixedCacheReader {
     state: FixedCacheState,
 
     path: String,
-    args: OpRead,
-    /// size of the fixed range.
-    step: u64,
 }
 
 impl FixedCacheReader {
@@ -316,16 +341,13 @@ impl FixedCacheReader {
         inner: Arc<dyn Accessor>,
         cache: Arc<dyn Accessor>,
         path: &str,
-        args: OpRead,
-        step: u64,
+        it: FixedCacheRangeIterator,
     ) -> Self {
         Self {
             inner,
             cache,
-            state: FixedCacheState::Idle,
+            state: FixedCacheState::Iterating(it),
             path: path.to_string(),
-            args,
-            step,
         }
     }
 }
@@ -339,42 +361,8 @@ impl AsyncRead for FixedCacheReader {
         let cache = self.cache.clone();
         let inner = self.inner.clone();
         let path = self.path.clone();
-        let step = self.step;
 
         match &mut self.state {
-            FixedCacheState::Idle => {
-                let range = self.args.range();
-                let fut = async move {
-                    let it = match (range.offset(), range.size()) {
-                        (Some(offset), Some(size)) => {
-                            FixedCacheRangeIterator::new(offset, size, step)
-                        }
-                        _ => {
-                            let meta = inner.stat(&path, OpStat::new()).await?;
-
-                            let bcr =
-                                BytesContentRange::from_bytes_range(meta.content_length(), range);
-                            let br = bcr.to_bytes_range().expect("bytes range must be valid");
-
-                            FixedCacheRangeIterator::new(
-                                br.offset().expect("offset must be valid"),
-                                br.size().expect("size must be valid"),
-                                step,
-                            )
-                        }
-                    };
-
-                    Ok(it)
-                };
-
-                self.state = FixedCacheState::Starting(Box::pin(fut));
-                self.poll_read(cx, buf)
-            }
-            FixedCacheState::Starting(fut) => {
-                let it = ready!(fut.poll_unpin(cx))?;
-                self.state = FixedCacheState::Iterating(it);
-                self.poll_read(cx, buf)
-            }
             FixedCacheState::Iterating(it) => {
                 let range = it.next();
                 match range {
@@ -391,8 +379,7 @@ impl AsyncRead for FixedCacheReader {
                                     let r = inner
                                         .read(&path, OpRead::new().with_range(total_range))
                                         .await?;
-                                    let size =
-                                        r.content_length().expect("total range size must be valid");
+                                    let size = r.content_length();
                                     cache
                                         .write(&path, OpWrite::new(size), r.into_reader())
                                         .await?;

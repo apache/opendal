@@ -47,9 +47,9 @@ use anyhow::anyhow;
 /// - `..1024` will be converted to header `range: bytes=-1024`
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub struct BytesRange(
-    /// Start position of the range.
+    /// Offset of the range.
     Option<u64>,
-    /// End position of the range.
+    /// Size of the range.
     Option<u64>,
 );
 
@@ -68,26 +68,14 @@ impl BytesRange {
         BytesRange(offset, size)
     }
 
-    /// Get offset from BytesRange.
+    /// Get start position of BytesRange.
     pub fn offset(&self) -> Option<u64> {
         self.0
     }
 
-    /// Update offset in BytesRange.
-    pub fn with_offset(mut self, offset: Option<u64>) -> Self {
-        self.0 = offset;
-        self
-    }
-
-    /// Get size from BytesRange.
+    /// Get end position of BytesRange.
     pub fn size(&self) -> Option<u64> {
         self.1
-    }
-
-    /// Update size in BytesRange.
-    pub fn with_size(mut self, size: Option<u64>) -> Self {
-        self.1 = size;
-        self
     }
 
     /// If this range is full of this object content.

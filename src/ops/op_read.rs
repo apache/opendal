@@ -32,18 +32,6 @@ impl OpRead {
         self
     }
 
-    /// Create a new OpRead with offset.
-    pub fn with_offset(mut self, offset: Option<u64>) -> Self {
-        self.br = self.br.with_offset(offset);
-        self
-    }
-
-    /// Create a new OpRead with offset.
-    pub fn with_size(mut self, size: Option<u64>) -> Self {
-        self.br = self.br.with_size(size);
-        self
-    }
-
     /// Get range from OpRead.
     pub fn range(&self) -> BytesRange {
         self.br

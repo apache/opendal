@@ -73,8 +73,10 @@ impl ObjectReader {
     ///
     /// The content length returned here is the length of this read request.
     /// It's **different** from the object's content length.
-    pub fn content_length(&self) -> Option<u64> {
-        self.meta.content_length_raw()
+    pub fn content_length(&self) -> u64 {
+        self.meta
+            .content_length_raw()
+            .expect("object reader must have content length")
     }
 
     /// Last modified of this object.

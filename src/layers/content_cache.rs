@@ -227,14 +227,8 @@ impl AsyncRead for WholeCacheReader {
                             let r = inner.read(&path, OpRead::new()).await?;
 
                             let length = r.content_length();
-                            let size = if let Some(size) = length {
-                                size
-                            } else {
-                                let meta = inner.stat(&path, OpStat::new()).await?;
-                                meta.content_length()
-                            };
                             cache
-                                .write(&path, OpWrite::new(size), r.into_reader())
+                                .write(&path, OpWrite::new(length), r.into_reader())
                                 .await?;
                             cache.read(&path, args).await
                         }

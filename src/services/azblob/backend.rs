@@ -25,6 +25,7 @@ use async_trait::async_trait;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -43,6 +44,7 @@ use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_md5;
+use crate::http_util::parse_content_range;
 use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
@@ -290,11 +292,13 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let resp = self.azblob_get_blob(path, args.range()).await?;
 
+        let meta = Self::azblob_parse_object_meta(Operation::Read, path, resp.headers())?;
+
         let status = resp.status();
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok(ObjectReader::new(resp.into_body().reader()))
+                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -351,46 +355,7 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let mode = if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                };
-                let mut m = ObjectMetadata::new(mode);
-
-                if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_length(v);
-                }
-
-                if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_etag(v);
-                }
-
-                if let Some(v) = parse_content_md5(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_md5(v);
-                }
-
-                if let Some(v) = parse_content_type(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_type(v);
-                }
-
-                if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_last_modified(v);
-                }
-
-                Ok(m)
-            }
+            StatusCode::OK => Self::azblob_parse_object_meta(Operation::Stat, path, resp.headers()),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
@@ -580,5 +545,54 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::List, path, e))
+    }
+
+    fn azblob_parse_object_meta(
+        op: Operation,
+        path: &str,
+        headers: &HeaderMap,
+    ) -> Result<ObjectMetadata> {
+        let mode = if path.ends_with('/') {
+            ObjectMode::DIR
+        } else {
+            ObjectMode::FILE
+        };
+        let mut m = ObjectMetadata::new(mode);
+
+        if let Some(v) =
+            parse_content_length(headers).map_err(|e| new_other_object_error(op, path, e))?
+        {
+            m.set_content_length(v);
+        }
+
+        if let Some(v) =
+            parse_content_type(headers).map_err(|e| new_other_object_error(op, path, e))?
+        {
+            m.set_content_type(v);
+        }
+
+        if let Some(v) =
+            parse_content_range(headers).map_err(|e| new_other_object_error(op, path, e))?
+        {
+            m.set_content_range(v);
+        }
+
+        if let Some(v) = parse_etag(headers).map_err(|e| new_other_object_error(op, path, e))? {
+            m.set_etag(v);
+        }
+
+        if let Some(v) =
+            parse_content_md5(headers).map_err(|e| new_other_object_error(op, path, e))?
+        {
+            m.set_content_md5(v);
+        }
+
+        if let Some(v) =
+            parse_last_modified(headers).map_err(|e| new_other_object_error(op, path, e))?
+        {
+            m.set_last_modified(v);
+        }
+
+        Ok(m)
     }
 }

@@ -15,6 +15,7 @@
 use std::io;
 use std::io::Result;
 
+use futures::io::Cursor;
 use log::debug;
 use opendal::ObjectMode;
 use opendal::Operator;
@@ -79,6 +80,9 @@ macro_rules! behavior_write_tests {
                 test_stat_root,
                 test_read_full,
                 test_read_range,
+                test_reader_range,
+                test_reader_from,
+                test_reader_tail,
                 test_read_not_exist,
                 test_read_with_dir_path,
                 #[cfg(feature = "compress")]
@@ -394,6 +398,111 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
             "{:x}",
             Sha256::digest(&content[offset as usize..(offset + length) as usize])
         ),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Read range content should match.
+pub async fn test_reader_range(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, length) = gen_offset_length(size as usize);
+
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
+
+    let r = op
+        .object(&path)
+        .range_reader(offset..offset + length)
+        .await?;
+    assert_eq!(r.content_length(), length, "read size");
+
+    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let mut bs = Cursor::new(buffer);
+    futures::io::copy(r, &mut bs).await?;
+
+    let bs = bs.into_inner();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!(
+            "{:x}",
+            Sha256::digest(&content[offset as usize..(offset + length) as usize])
+        ),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Read range from should match.
+pub async fn test_reader_from(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, _) = gen_offset_length(size as usize);
+
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
+
+    let r = op.object(&path).range_reader(offset..).await?;
+    assert_eq!(r.content_length(), size as u64 - offset, "read size");
+
+    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let mut bs = Cursor::new(buffer);
+    futures::io::copy(r, &mut bs).await?;
+
+    let bs = bs.into_inner();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[offset as usize..])),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Read range tail should match.
+pub async fn test_reader_tail(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (_, length) = gen_offset_length(size as usize);
+
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
+
+    let r = op.object(&path).range_reader(..length).await?;
+    assert_eq!(r.content_length(), length, "read size");
+
+    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let mut bs = Cursor::new(buffer);
+    futures::io::copy(r, &mut bs).await?;
+
+    let bs = bs.into_inner();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[size - length as usize..])),
         "read content"
     );
 

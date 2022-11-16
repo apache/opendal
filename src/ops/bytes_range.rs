@@ -100,7 +100,7 @@ impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match (self.0, self.1) {
             (Some(offset), None) => write!(f, "{}-", offset),
-            (None, Some(size)) => write!(f, "-{}", size - 1),
+            (None, Some(size)) => write!(f, "-{}", size),
             (Some(offset), Some(size)) => write!(f, "{}-{}", offset, offset + size - 1),
             (None, None) => write!(f, "0-"),
         }
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn test_bytes_range_to_string() {
         let h = BytesRange::new(None, Some(1024));
-        assert_eq!(h.to_string(), "-1023");
+        assert_eq!(h.to_string(), "-1024");
 
         let h = BytesRange::new(Some(0), Some(1024));
         assert_eq!(h.to_string(), "0-1023");

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::min;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result;
@@ -232,18 +233,34 @@ impl Accessor for Backend {
         let mut f = Compat::new(f);
 
         let br = args.range();
-        if let Some(offset) = br.offset() {
-            f.seek(SeekFrom::Start(offset))
-                .await
-                .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
+            // Read a specific range.
+            (Some(offset), Some(size)) => {
+                f.seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                (Box::new(f.take(size)), min(size, meta.len() - offset))
+            }
+            // Read from offset.
+            (Some(offset), None) => {
+                f.seek(SeekFrom::Start(offset))
+                    .await
+                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                (Box::new(f), meta.len() - offset)
+            }
+            // Read the last size bytes.
+            (None, Some(size)) => {
+                f.seek(SeekFrom::End(-(size as i64)))
+                    .await
+                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                (Box::new(f), size)
+            }
+            // Read the whole file.
+            (None, None) => (Box::new(f), meta.len()),
         };
 
-        let r: BytesReader = match br.size() {
-            Some(size) => Box::new(f.take(size)),
-            None => Box::new(f),
-        };
-
-        Ok(ObjectReader::new(Box::new(r)))
+        Ok(ObjectReader::new(Box::new(r))
+            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

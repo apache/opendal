@@ -27,15 +27,10 @@ use log::debug;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
-use crate::http_util::parse_content_length;
-use crate::http_util::parse_content_md5;
-use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
-use crate::http_util::parse_etag;
-use crate::http_util::parse_last_modified;
+use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
@@ -174,7 +169,8 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok(ObjectReader::new(resp.into_body().reader()))
+                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -195,46 +191,7 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let mode = if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                };
-                let mut m = ObjectMetadata::new(mode);
-
-                if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_length(v);
-                }
-
-                if let Some(v) = parse_content_md5(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_md5(v);
-                }
-
-                if let Some(v) = parse_content_type(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_content_type(v);
-                }
-
-                if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_etag(v);
-                }
-
-                if let Some(v) = parse_last_modified(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
-                    m.set_last_modified(v);
-                }
-
-                Ok(m)
-            }
+            StatusCode::OK => parse_into_object_metadata(Operation::Stat, path, resp.headers()),
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {

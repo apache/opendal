@@ -64,6 +64,18 @@ impl ObjectReader {
         self.inner
     }
 
+    /// Convert into parts.
+    ///
+    /// # Notes
+    ///
+    /// This function must be used **carefully**.
+    ///
+    /// The [`ObjectMetadata`] is **different** from the whole object's
+    /// metadata. It just described the corresbonding reader's metadata.
+    pub fn into_parts(self) -> (ObjectMetadata, BytesReader) {
+        (self.meta, self.inner)
+    }
+
     /// Content length of this object reader.
     ///
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
@@ -73,8 +85,10 @@ impl ObjectReader {
     ///
     /// The content length returned here is the length of this read request.
     /// It's **different** from the object's content length.
-    pub fn content_length(&self) -> Option<u64> {
-        self.meta.content_length_raw()
+    pub fn content_length(&self) -> u64 {
+        self.meta
+            .content_length_raw()
+            .expect("object reader must have content length")
     }
 
     /// Last modified of this object.

@@ -145,25 +145,49 @@ where
                     anyhow!("entry inode: {inode} is not found"),
                 )),
                 Some(mut buf) => {
-                    if let Some(v) = args.range().offset() {
-                        buf = buf.split_off(v as usize);
+                    let br = args.range();
+                    match (br.offset(), br.size()) {
+                        (Some(offset), Some(size)) => {
+                            buf = buf.split_off(offset as usize);
+                            let _ = buf.split_off(size as usize);
+                        }
+                        (Some(offset), None) => {
+                            buf = buf.split_off(offset as usize);
+                        }
+                        (None, Some(size)) => {
+                            buf = buf.split_off(buf.len() - size as usize);
+                        }
+                        (None, None) => {}
                     }
-                    if let Some(v) = args.range().size() {
-                        let _ = buf.split_off(v as usize);
-                    }
-                    Ok(ObjectReader::new(Box::new(futures::io::Cursor::new(buf))))
+                    let size = buf.len() as u64;
+                    Ok(ObjectReader::new(Box::new(futures::io::Cursor::new(buf)))
+                        .with_meta(meta.with_content_length(size)))
                 }
             };
         }
 
         let br = args.range();
-        let blocks = calculate_blocks(
-            br.offset().unwrap_or_default(),
-            br.size().unwrap_or_else(|| meta.content_length()),
-        );
-        let r = BlockReader::new(self.clone(), inode, blocks);
+        let (blocks, size) = match (br.offset(), br.size()) {
+            (Some(offset), Some(size)) => {
+                let size = min(size, meta.content_length() - offset);
+                (calculate_blocks(offset, size), size)
+            }
+            (Some(offset), None) => {
+                let size = meta.content_length() - offset;
+                (calculate_blocks(offset, size), size)
+            }
+            (None, Some(size)) => {
+                let offset = meta.content_length() - size;
+                (calculate_blocks(offset, size), size)
+            }
+            (None, None) => (
+                calculate_blocks(0, meta.content_length()),
+                meta.content_length(),
+            ),
+        };
 
-        Ok(ObjectReader::new(Box::new(r)))
+        let r = BlockReader::new(self.clone(), inode, blocks);
+        Ok(ObjectReader::new(Box::new(r)).with_meta(meta.with_content_length(size)))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {

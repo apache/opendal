@@ -48,6 +48,7 @@ use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
+use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
@@ -193,7 +194,8 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok(ObjectReader::new(resp.into_body().reader()))
+                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

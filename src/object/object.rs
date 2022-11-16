@@ -366,14 +366,7 @@ impl Object {
             .read(self.path(), OpRead::new().with_range(br))
             .await?;
 
-        // Check returning object reader's size first.
-        let buffer = if let Some(content_length) = s.content_length() {
-            Vec::with_capacity(content_length as usize)
-        } else if let Some(range_size) = br.size() {
-            Vec::with_capacity(range_size as usize)
-        } else {
-            Vec::with_capacity(4 * 1024 * 1024)
-        };
+        let buffer = Vec::with_capacity(s.content_length() as usize);
         let mut bs = Cursor::new(buffer);
 
         io::copy(s, &mut bs).await?;

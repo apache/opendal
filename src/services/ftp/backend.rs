@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -55,6 +56,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::Operation;
+use crate::path::get_basename;
+use crate::path::get_parent;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -363,51 +366,57 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
+        let meta = self.ftp_stat(path).await?;
+
         let br = args.range();
-        if let Some(offset) = br.offset() {
-            ftp_stream
-                .resume_transfer(offset as usize)
-                .await
-                .map_err(|e| {
-                    new_other_object_error(
-                        Operation::Read,
-                        path,
-                        anyhow!("resume transfer request: {e:?}"),
-                    )
-                })?;
-        }
-
-        let result = ftp_stream.retr_as_stream(path).await;
-        match result {
-            Err(FtpError::UnexpectedResponse(Response {
-                status: Status::FileUnavailable,
-                body: e,
-            })) => {
-                return Err(Error::new(ErrorKind::NotFound, e));
+        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
+            (Some(offset), Some(size)) => {
+                ftp_stream
+                    .resume_transfer(offset as usize)
+                    .await
+                    .map_err(|e| new_ftp_error(e, Operation::Read, path))?;
+                let ds = ftp_stream
+                    .retr_as_stream(path)
+                    .await
+                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?
+                    .take(size);
+                (Box::new(ds), min(size, meta.size() as u64 - offset))
             }
-            Err(e) => {
-                return Err(new_other_object_error(
-                    Operation::Read,
-                    path,
-                    anyhow!("retr request: {e:?}"),
-                ));
+            (Some(offset), None) => {
+                ftp_stream
+                    .resume_transfer(offset as usize)
+                    .await
+                    .map_err(|e| new_ftp_error(e, Operation::Read, path))?;
+                let ds = ftp_stream
+                    .retr_as_stream(path)
+                    .await
+                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?;
+                (Box::new(ds), meta.size() as u64 - offset)
             }
-            Ok(_) => (),
-        }
-
-        // As we handle all error above, it is save to unwrap without panic.
-        let data_stream = result.unwrap();
-
-        let r: BytesReader = match br.size() {
-            None => Box::new(FtpReader::new(Box::new(data_stream), ftp_stream, path)),
-
-            Some(size) => Box::new(FtpReader::new(
-                Box::new(data_stream.take(size)),
-                ftp_stream,
-                path,
-            )),
+            (None, Some(size)) => {
+                ftp_stream
+                    .resume_transfer((meta.size() as u64 - size) as usize)
+                    .await
+                    .map_err(|e| new_ftp_error(e, Operation::Read, path))?;
+                let ds = ftp_stream
+                    .retr_as_stream(path)
+                    .await
+                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?;
+                (Box::new(ds), size)
+            }
+            (None, None) => {
+                let ds = ftp_stream
+                    .retr_as_stream(path)
+                    .await
+                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?;
+                (Box::new(ds), meta.size() as u64)
+            }
         };
-        Ok(ObjectReader::new(r))
+
+        Ok(
+            ObjectReader::new(Box::new(FtpReader::new(r, ftp_stream, path)))
+                .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)),
+        )
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
@@ -434,66 +443,25 @@ impl Accessor for Backend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
-        let mut p = path;
-        let path: String;
-
         // root dir, return default ObjectMetadata with Dir ObjectMode.
-        if p == "/" {
+        if path == "/" {
             return Ok(ObjectMetadata::new(ObjectMode::DIR));
         }
 
-        let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
+        let file = self.ftp_stat(path).await?;
 
-        // If given path points to a directory, split it into parent path and basename.
-        if p.ends_with('/') {
-            if let Some((basename, parent_path)) =
-                p.split_inclusive('/').collect::<Vec<&str>>().split_last()
-            {
-                path = parent_path.join("");
-                p = &basename[..basename.len() - 1];
-            } else {
-                path = "".to_string();
-            }
+        let mode = if file.is_file() {
+            ObjectMode::FILE
+        } else if file.is_directory() {
+            ObjectMode::DIR
         } else {
-            // otherwise, directly use the path provided by arg.
-            path = p.to_string();
-        }
-
-        let resp = ftp_stream.list(Some(&path)).await.map_err(|e| {
-            new_other_object_error(Operation::Stat, &path, anyhow!("list request: {e:?}"))
-        })?;
-
-        // Get stat of file.
-        let files = if p == path {
-            resp.into_iter()
-                .filter_map(|file| File::from_str(file.as_str()).ok())
-                .collect::<Vec<File>>()
-        // Get stat of directory.
-        } else {
-            resp.into_iter()
-                .filter_map(|file| File::from_str(file.as_str()).ok())
-                .filter(|f| f.name() == p)
-                .collect::<Vec<File>>()
+            ObjectMode::Unknown
         };
+        let mut meta = ObjectMetadata::new(mode);
+        meta.set_content_length(file.size() as u64);
+        meta.set_last_modified(OffsetDateTime::from(file.modified()));
 
-        if files.is_empty() {
-            Err(Error::new(ErrorKind::NotFound, "Not Found"))
-        } else {
-            let file = files.get(0).unwrap();
-
-            let mode = if file.is_file() {
-                ObjectMode::FILE
-            } else if file.is_directory() {
-                ObjectMode::DIR
-            } else {
-                ObjectMode::Unknown
-            };
-            let mut meta = ObjectMetadata::new(mode);
-            meta.set_content_length(file.size() as u64);
-            meta.set_last_modified(OffsetDateTime::from(file.modified()));
-
-            Ok(meta)
-        }
+        Ok(meta)
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
@@ -570,6 +538,34 @@ impl Backend {
                 ObjectError::new(op, "", anyhow!("connection request: timeout")),
             ),
         })
+    }
+
+    async fn ftp_stat(&self, path: &str) -> Result<File> {
+        let mut ftp_stream = self.ftp_connect(Operation::Stat).await?;
+
+        let (parent, basename) = (get_parent(path), get_basename(path));
+
+        let pathname = if parent == "/" { None } else { Some(parent) };
+
+        let resp = ftp_stream.list(pathname).await.map_err(|e| {
+            new_other_object_error(Operation::Stat, path, anyhow!("list request: {e:?}"))
+        })?;
+
+        // Get stat of file.
+        let mut files = resp
+            .into_iter()
+            .filter_map(|file| File::from_str(file.as_str()).ok())
+            .filter(|f| f.name() == basename.trim_end_matches('/'))
+            .collect::<Vec<File>>();
+
+        if files.is_empty() {
+            Err(Error::new(
+                ErrorKind::NotFound,
+                ObjectError::new(Operation::Stat, path, anyhow!("file not found")),
+            ))
+        } else {
+            Ok(files.remove(0))
+        }
     }
 }
 

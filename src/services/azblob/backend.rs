@@ -292,12 +292,11 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let resp = self.azblob_get_blob(path, args.range()).await?;
 
-        let meta = Self::azblob_parse_object_meta(Operation::Read, path, resp.headers())?;
-
         let status = resp.status();
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = Self::azblob_parse_object_meta(Operation::Read, path, resp.headers())?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {

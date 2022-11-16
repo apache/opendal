@@ -274,9 +274,8 @@ impl Accessor for Backend {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let resp = self.gcs_get_object(path, args.range()).await?;
 
-        let meta = Self::gcs_parse_object_meta(Operation::Read, path, resp.headers())?;
-
         if resp.status().is_success() {
+            let meta = Self::gcs_parse_object_meta(Operation::Read, path, resp.headers())?;
             Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
         } else {
             let er = parse_error_response(resp).await?;

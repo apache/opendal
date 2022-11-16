@@ -39,6 +39,12 @@ pub fn new_ftp_error(e: FtpError, op: Operation, path: &str) -> Error {
                 ObjectError::new(op, path, anyhow!("ftp error: {e:?}")),
             )
         }
+        FtpError::UnexpectedResponse(ref resp) if resp.status == Status::FileUnavailable => {
+            Error::new(
+                ErrorKind::NotFound,
+                ObjectError::new(op, path, anyhow!("file not found: {e:?}")),
+            )
+        }
         // Allow retry bad response.
         FtpError::BadResponse => Error::new(
             ErrorKind::Interrupted,

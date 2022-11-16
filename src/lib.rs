@@ -78,6 +78,9 @@
 //! ## Dependencies features
 //!
 //! - `compress`: Enable object decompress read support.
+//! - `rustls`: Enable TLS functionality provided by `rustls`, enabled by default
+//! - `native-tls`: Enable TLS functionality provided by `native-tls`
+//! - `native-tls-vendored`: Enable the `vendored` feature of `native-tls`
 //!
 //! # Examples
 //!

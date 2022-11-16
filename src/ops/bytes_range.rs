@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn test_bytes_range_to_header() {
         let h = BytesRange::new(None, Some(1024));
-        assert_eq!(h.to_header(), "bytes=-1023");
+        assert_eq!(h.to_header(), "bytes=-1024");
 
         let h = BytesRange::new(Some(0), Some(1024));
         assert_eq!(h.to_header(), "bytes=0-1023");

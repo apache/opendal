@@ -23,7 +23,6 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -44,11 +43,8 @@ use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
-use crate::http_util::parse_content_length;
-use crate::http_util::parse_content_range;
-use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
-use crate::http_util::parse_etag;
+use crate::http_util::parse_into_object_metadata;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
@@ -275,7 +271,7 @@ impl Accessor for Backend {
         let resp = self.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
-            let meta = Self::gcs_parse_object_meta(Operation::Read, path, resp.headers())?;
+            let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
             Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
         } else {
             let er = parse_error_response(resp).await?;
@@ -558,66 +554,6 @@ impl Backend {
             .send_async(req)
             .await
             .map_err(|e| new_request_send_error(Operation::List, path, e))
-    }
-
-    /// Parse object.get with `alt=media`'s header into object metadata.
-    ///
-    /// ```shell
-    /// < HTTP/2 206
-    /// < x-guploader-uploadid: ADPycdugij87Au0-O1vTSR55BHYVUubB9RA0PY26ocja-Y6Lc4qDqKvhIG69KYUeCPPnogF7YBmjpQExFHQ9hkR5ne5qdg
-    /// < content-range: bytes 1-1336122/1336123
-    /// < etag: CKL9i/fIsvsCEAE=
-    /// < content-type: image/png
-    /// < x-goog-stored-content-encoding: identity
-    /// < x-goog-stored-content-length: 1336123
-    /// < x-goog-generation: 1668597191736994
-    /// < x-goog-metageneration: 1
-    // < x-goog-storage-class: STANDARD
-    /// < pragma: no-cache
-    /// < expires: Mon, 01 Jan 1990 00:00:00 GMT
-    /// < cache-control: no-cache, no-store, max-age=0, must-revalidate
-    /// < date: Wed, 16 Nov 2022 11:23:15 GMT
-    /// < vary: Origin
-    /// < vary: X-Origin
-    /// < content-length: 1336122
-    /// < server: UploadServer
-    /// < alt-svc: h3=":443"; ma=2592000,h3-29=":443"; ma=2592000,h3-Q050=":443"; ma=2592000,h3-Q046=":443"; ma=2592000,h3-Q043=":443"; ma=2592000,quic=":443"; ma=2592000; v="46,43"
-    /// ```
-    fn gcs_parse_object_meta(
-        op: Operation,
-        path: &str,
-        headers: &HeaderMap,
-    ) -> Result<ObjectMetadata> {
-        let mode = if path.ends_with('/') {
-            ObjectMode::DIR
-        } else {
-            ObjectMode::FILE
-        };
-        let mut m = ObjectMetadata::new(mode);
-
-        if let Some(v) =
-            parse_content_length(headers).map_err(|e| new_other_object_error(op, path, e))?
-        {
-            m.set_content_length(v);
-        }
-
-        if let Some(v) =
-            parse_content_type(headers).map_err(|e| new_other_object_error(op, path, e))?
-        {
-            m.set_content_type(v);
-        }
-
-        if let Some(v) =
-            parse_content_range(headers).map_err(|e| new_other_object_error(op, path, e))?
-        {
-            m.set_content_range(v);
-        }
-
-        if let Some(v) = parse_etag(headers).map_err(|e| new_other_object_error(op, path, e))? {
-            m.set_etag(v);
-        }
-
-        Ok(m)
     }
 }
 

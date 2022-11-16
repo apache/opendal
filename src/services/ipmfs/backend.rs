@@ -33,6 +33,7 @@ use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
+use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
@@ -126,7 +127,10 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(ObjectReader::new(resp.into_body().reader())),
+            StatusCode::OK => {
+                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
+            }
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(Operation::Stat, path, er);

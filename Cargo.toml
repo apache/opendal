@@ -15,10 +15,19 @@ version = "0.19.8"
 all-features = true
 
 [features]
+default = ["rustls"]
+
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable trust-dns for better dns cache.
 trust-dns = ["reqwest/trust-dns"]
+
+# Enable rustls for TLS support
+rustls = ["reqwest/rustls-tls-native-roots", "ureq/tls", "ureq/native-certs"]
+# Enable native-tls for TLS support
+native-tls = ["reqwest/native-tls", "ureq/native-tls"]
+# Enable vendored native-tls for TLS support
+native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
 
 # Enable all layers.
 layers-all = ["layers-metrics", "layers-tracing"]
@@ -119,11 +128,10 @@ redis = { version = "0.22", features = [
 ], optional = true }
 # Make sure we are using the latest pathc of reqsign.
 # Should be removed after reqsign bumped to 0.7
-reqsign = "0.6.3"
+reqsign = "0.6.4"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",
-  "rustls-tls-native-roots",
 ], default-features = false }
 rocksdb = { version = "0.19", optional = true }
 serde = { version = "1", features = ["derive"] }
@@ -133,7 +141,7 @@ thiserror = "1"
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
-ureq = { version = "2", features = ["rustls-native-certs"] }
+ureq = { version = "2", default-features = false }
 
 [dev-dependencies]
 cfg-if = "1"

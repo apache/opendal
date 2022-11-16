@@ -168,7 +168,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let resp = self.http_get(path, args.offset(), args.size()).await?;
+        let resp = self.http_get(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -250,23 +250,15 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    async fn http_get(
-        &self,
-        path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
-    ) -> Result<Response<IncomingAsyncBody>> {
+    async fn http_get(&self, path: &str, range: BytesRange) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
 
-        if offset.is_some() || size.is_some() {
-            req = req.header(
-                http::header::RANGE,
-                BytesRange::new(offset, size).to_string(),
-            );
+        if !range.is_full() {
+            req = req.header(http::header::RANGE, range.to_header());
         }
 
         let req = req

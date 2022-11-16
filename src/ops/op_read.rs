@@ -12,51 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::ops::RangeBounds;
-
 use super::BytesRange;
 
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
-    offset: Option<u64>,
-    size: Option<u64>,
+    br: BytesRange,
 }
 
 impl OpRead {
-    /// Create a new `OpRead`.
-    ///
-    /// If input path is not a file path, an error will be returned.
-    pub fn new(range: impl RangeBounds<u64>) -> Self {
-        let br = BytesRange::from(range);
-
-        Self {
-            offset: br.offset(),
-            size: br.size(),
-        }
+    /// Create a default `OpRead` which will read whole content of object.
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// Get offset from option.
-    pub fn offset(&self) -> Option<u64> {
-        self.offset
-    }
-
-    /// Create a new OpRead with offset.
-    pub fn with_offset(mut self, offset: Option<u64>) -> Self {
-        self.offset = offset;
-
+    /// Create a new OpRead with range.
+    pub fn with_range(mut self, range: BytesRange) -> Self {
+        self.br = range;
         self
     }
 
-    /// Get size from option.
-    pub fn size(&self) -> Option<u64> {
-        self.size
-    }
-
-    /// Create a new OpRead with offset.
-    pub fn with_size(mut self, size: Option<u64>) -> Self {
-        self.size = size;
-
-        self
+    /// Get range from OpRead.
+    pub fn range(&self) -> BytesRange {
+        self.br
     }
 }

@@ -318,12 +318,7 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_get_object_request(
-        &self,
-        path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
-    ) -> Result<Request<AsyncBody>> {
+    fn oss_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -333,8 +328,8 @@ impl Backend {
             .header(HOST, &self.host)
             .header(CONTENT_TYPE, "application/octet-stream");
 
-        if offset.unwrap_or_default() != 0 || size.is_some() {
-            req = req.header(RANGE, BytesRange::new(offset, size).to_string());
+        if !range.is_full() {
+            req = req.header(RANGE, range.to_header());
         }
 
         let req = req
@@ -400,10 +395,9 @@ impl Backend {
     async fn oss_get_object(
         &self,
         path: &str,
-        offset: Option<u64>,
-        size: Option<u64>,
+        range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_get_object_request(path, offset, size)?;
+        let mut req = self.oss_get_object_request(path, range)?;
 
         self.signer
             .sign(&mut req)
@@ -508,9 +502,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let resp = self
-            .oss_get_object(path, args.offset(), args.size())
-            .await?;
+        let resp = self.oss_get_object(path, args.range()).await?;
 
         let status = resp.status();
 

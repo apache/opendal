@@ -164,8 +164,8 @@ impl Accessor for LoggingAccessor {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         debug!(
             target: "opendal::services",
-            "service={} operation={} path={} offset={:?} size={:?} -> started",
-            self.scheme, Operation::Read, path, args.offset(), args.size()
+            "service={} operation={} path={} range={} -> started",
+            self.scheme, Operation::Read, path, args.range()
         );
 
         self.inner
@@ -174,16 +174,16 @@ impl Accessor for LoggingAccessor {
             .map(|v| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} offset={:?} size={:?} -> got reader",
+                    "service={} operation={} path={} range={} -> got reader",
                     self.scheme, Operation::Read, path,
-                    args.offset(), args.size()
+                    args.range()
                 );
                 v.map_reader(|r| {
                     Box::new(LoggingReader::new(
                         self.scheme,
                         Operation::Read,
                         path,
-                        args.size(),
+                        args.range().size(),
                         r,
                     ))
                 })
@@ -192,13 +192,13 @@ impl Accessor for LoggingAccessor {
                 if err.kind() == ErrorKind::Other {
                     error!(
                         target: "opendal::services",
-                        "service={} operation={} path={} offset={:?} size={:?} -> failed: {err:?}",
-                        self.scheme, Operation::Read, path,args.offset(),  args.size());
+                        "service={} operation={} path={} range={} -> failed: {err:?}",
+                        self.scheme, Operation::Read, path, args.range());
                 } else {
                     warn!(
                         target: "opendal::services",
-                        "service={} operation={} path={} offset={:?} size={:?} -> errored: {err:?}",
-                        self.scheme, Operation::Read, path, args.offset(),  args.size());
+                        "service={} operation={} path={} range={} -> errored: {err:?}",
+                        self.scheme, Operation::Read, path, args.range());
                 };
                 err
             })
@@ -596,12 +596,11 @@ impl Accessor for LoggingAccessor {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         debug!(
             target: "opendal::services",
-            "service={} operation={} path={} offset={:?} size={:?} -> started",
+            "service={} operation={} path={} range={} -> started",
             self.scheme,
             Operation::BlockingRead,
             path,
-            args.offset(),
-            args.size()
+            args.range(),
         );
 
         self.inner
@@ -609,18 +608,17 @@ impl Accessor for LoggingAccessor {
             .map(|v| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} offset={:?} size={:?} -> got reader",
+                    "service={} operation={} path={} range={} -> got reader",
                     self.scheme,
                     Operation::BlockingRead,
                     path,
-                    args.offset(),
-                    args.size()
+                    args.range(),
                 );
                 let r = BlockingLoggingReader::new(
                     self.scheme,
                     Operation::BlockingRead,
                     path,
-                    args.size(),
+                    args.range().size(),
                     v,
                 );
                 Box::new(r) as BlockingBytesReader
@@ -629,13 +627,13 @@ impl Accessor for LoggingAccessor {
                 if err.kind() == ErrorKind::Other {
                     error!(
                         target: "opendal::services",
-                        "service={} operation={} path={} offset={:?} size={:?} -> failed: {err:?}",
-                        self.scheme, Operation::BlockingRead, path, args.offset(), args.size());
+                        "service={} operation={} path={} range={} -> failed: {err:?}",
+                        self.scheme, Operation::BlockingRead, path, args.range());
                 } else {
                     warn!(
                         target: "opendal::services",
-                        "service={} operation={} path={} offset={:?} size={:?} -> errored: {err:?}",
-                        self.scheme, Operation::BlockingRead, path, args.offset(), args.size());
+                        "service={} operation={} path={} range={} -> errored: {err:?}",
+                        self.scheme, Operation::BlockingRead, path, args.range());
                 };
                 err
             })

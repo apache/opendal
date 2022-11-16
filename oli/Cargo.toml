@@ -15,13 +15,9 @@ anyhow = "1"
 clap = { version = "4", features = ["cargo", "string"] }
 env_logger = "0.9"
 log = "0.4"
-opendal = "0.19"
+opendal = { version = "0.19", path = "../" }
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "2"
-
-# Please comment the following patch while releasing.
-[patch.crates-io]
-opendal = { path = "../" }

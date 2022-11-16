@@ -283,20 +283,61 @@ struct FixedCacheRangeIterator {
     offset: u64,
     size: u64,
     step: u64,
+
+    cur: u64,
 }
 
 impl FixedCacheRangeIterator {
     fn new(offset: u64, size: u64, step: u64) -> Self {
-        Self { offset, size, step }
+        Self {
+            offset,
+            size,
+            step,
+
+            cur: offset,
+        }
+    }
+
+    /// Cache index is the file index across the whole file.
+    fn cache_index(&self) -> u64 {
+        self.cur / self.step
+    }
+
+    /// Cache range is the range that we need to read from cache file.
+    fn cache_range(&self) -> BytesRange {
+        let skipped_rem = self.cur % self.step;
+        let to_read = self.size + self.offset - self.cur;
+        if to_read >= (self.step - skipped_rem) {
+            (skipped_rem..self.step).into()
+        } else {
+            (skipped_rem..skipped_rem + to_read).into()
+        }
+    }
+
+    /// Total range is the range that we need to read from underlying storage.
+    ///
+    /// # Note
+    ///
+    /// We will always read `step` bytes from underlying storage.
+    fn total_range(&self) -> BytesRange {
+        let idx = self.cur / self.step;
+        (self.step * idx..self.step * (idx + 1)).into()
     }
 }
 
 impl Iterator for FixedCacheRangeIterator {
     /// Item with return (cache_idx, cache_range, total_range)
-    type Item = (usize, BytesRange, BytesRange);
+    type Item = (u64, BytesRange, BytesRange);
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        if self.cur >= self.offset + self.size {
+            None
+        } else {
+            let (cache_index, cache_range, total_range) =
+                (self.cache_index(), self.cache_range(), self.total_range());
+            self.cur += cache_range.size().expect("cache range size must be valid");
+            Some((cache_index, cache_range, total_range))
+        }
     }
 }
 
@@ -324,7 +365,7 @@ struct FixedCacheReader {
     step: u64,
 }
 
-fn format_cache_path(path: &str, idx: usize) -> String {
+fn format_cache_path(path: &str, idx: u64) -> String {
     format!("{path}-{idx}")
 }
 
@@ -471,5 +512,56 @@ mod tests {
         assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_fixed_cache_range_iterator() {
+        let cases = vec![
+            (
+                "first part",
+                0,
+                1,
+                1000,
+                vec![(0, BytesRange::from(0..1), BytesRange::from(0..1000))],
+            ),
+            (
+                "first part with offset",
+                900,
+                1,
+                1000,
+                vec![(0, BytesRange::from(900..901), BytesRange::from(0..1000))],
+            ),
+            (
+                "first part with edge case",
+                900,
+                100,
+                1000,
+                vec![(0, BytesRange::from(900..1000), BytesRange::from(0..1000))],
+            ),
+            (
+                "two parts",
+                900,
+                101,
+                1000,
+                vec![
+                    (0, BytesRange::from(900..1000), BytesRange::from(0..1000)),
+                    (1, BytesRange::from(0..1), BytesRange::from(1000..2000)),
+                ],
+            ),
+            (
+                "second part",
+                1001,
+                1,
+                1000,
+                vec![(1, BytesRange::from(1..2), BytesRange::from(1000..2000))],
+            ),
+        ];
+
+        for (name, offset, size, step, expected) in cases {
+            let it = FixedCacheRangeIterator::new(offset, size, step);
+            let actual: Vec<_> = it.collect();
+
+            assert_eq!(expected, actual, "{name}")
+        }
     }
 }

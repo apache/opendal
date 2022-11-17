@@ -5,20 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.20.0] - 2022-11-17
+
+### Added
+
+- RFC-0926: Object Reader (#926)
+- feat: Implement Object Reader (#928)
+- feat(services/s3): Return Object Meta for Read operation (#932)
+- feat: Implement Bytes Content Range (#933)
+- feat: Add Content Range support in ObjectMetadata (#935)
+- feat(layers/content_cache): Implement WholeCacheReader (#936)
+- feat: CompressAlgorithm derive serde. (#939)
+- feat: Allow using opendal without tls support (#945)
+- refactor: Refactor OpRead with BytesRange (#946)
+- feat: Allow using opendal with native tls support (#949)
+- docs: add docs for tls dependencies features (#951)
+- feat: Make ObjectReader content_length returned for all services (#954)
+- feat(layers): Implement fixed content cache (#953)
+- feat: Enable default_ttl support for redis (#960)
+
+### Changed
+
+- refactor: Return ObjectReader in Accessor::read (#929)
+- refactor(oay,oli): drop unnecessary patch.crates-io from `Cargo.toml`
+- refactor: Polish bytes range (#950)
+- refactor: Use simplifed kv adapter instead (#959)
+
+### Fixed
+
+- fix(ops): Fix suffix range behavior of bytes range (#942)
+- fix: Fix cache path not used correctly (#958)
+
 ## [v0.19.8] - 2022-11-13
 
-## Added
+### Added
 
 - feat(services/moka): Use entry's bytes as capacity weigher (#914)
 - feat: Implement rocksdb service (#913)
 
-## Changed
+### Changed
 
 - refactor: Reduce backend builder log level to debug (#907)
 - refactor: Remove deprecated features (#920)
 - refactor: use moka::sync::SegmentedCache (#921)
 
-## Fixed
+### Fixed
 
 - fix(http): Check already read size before returning (#919)
 
@@ -938,6 +969,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.20.0]: https://github.com/datafuselabs/opendal/compare/v0.19.8...v0.20.0
 [v0.19.8]: https://github.com/datafuselabs/opendal/compare/v0.19.7...v0.19.8
 [v0.19.7]: https://github.com/datafuselabs/opendal/compare/v0.19.6...v0.19.7
 [v0.19.6]: https://github.com/datafuselabs/opendal/compare/v0.19.5...v0.19.6

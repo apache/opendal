@@ -18,16 +18,10 @@ use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
-use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::Stream;
-use pin_project::pin_project;
 use rocksdb::TransactionDB;
 
 use crate::adapters::kv;
@@ -35,8 +29,6 @@ use crate::error::new_other_backend_error;
 use crate::Accessor;
 use crate::AccessorCapability;
 use crate::Scheme;
-
-const SCAN_LIMIT: usize = 100;
 
 /// Rocksdb backend builder
 #[derive(Clone, Default, Debug)]
@@ -119,30 +111,8 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Rocksdb,
             &self.db.path().to_string_lossy(),
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            AccessorCapability::Read | AccessorCapability::Write,
         )
-    }
-
-    async fn next_id(&self) -> Result<u64> {
-        let txn = self.db.transaction();
-        match txn.get("next_id").map_err(new_rocksdb_error)? {
-            Some(v) => {
-                let bytes = v.try_into().map_err(|e| {
-                    new_rocksdb_error(format!("bytes are not a valid be u64: {e:?}"))
-                })?;
-                let id = u64::from_be_bytes(bytes);
-                txn.put("next_id", (id + 1).to_be_bytes())
-                    .map_err(new_rocksdb_error)?;
-                txn.commit().map_err(new_rocksdb_error)?;
-                Ok(id + 1)
-            }
-            None => {
-                txn.put("next_id", 1u64.to_be_bytes())
-                    .map_err(new_rocksdb_error)?;
-                txn.commit().map_err(new_rocksdb_error)?;
-                Ok(1)
-            }
-        }
     }
 
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
@@ -153,86 +123,9 @@ impl kv::Adapter for Adapter {
         self.db.put(key, value).map_err(new_rocksdb_error)
     }
 
-    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
-        Ok(Box::new(KeyStream::new(self.db.clone(), prefix)))
-    }
-
     async fn delete(&self, key: &[u8]) -> Result<()> {
         self.db.delete(key).map_err(new_rocksdb_error)
     }
-}
-
-#[pin_project]
-struct KeyStream {
-    db: Arc<TransactionDB>,
-    prefix: Vec<u8>,
-    cursor: Option<Vec<u8>>,
-    keys: IntoIter<Vec<u8>>,
-}
-
-impl KeyStream {
-    fn new(db: Arc<TransactionDB>, prefix: &[u8]) -> Self {
-        Self {
-            db,
-            prefix: prefix.to_vec(),
-            cursor: Some(prefix.to_vec()),
-            keys: vec![].into_iter(),
-        }
-    }
-}
-
-impl Stream for KeyStream {
-    type Item = Result<Vec<u8>>;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-        loop {
-            if let Some(key) = this.keys.next() {
-                return Poll::Ready(Some(Ok(key)));
-            }
-
-            match this.cursor.take() {
-                None => return Poll::Ready(None),
-                Some(cursor) => {
-                    let (cursor, keys) = scan_keys(this.db, this.prefix, &cursor, SCAN_LIMIT)
-                        .map_err(new_rocksdb_error)?;
-                    *this.cursor = cursor;
-                    *this.keys = keys.into_iter();
-                }
-            }
-        }
-    }
-}
-
-#[allow(clippy::type_complexity)]
-fn scan_keys(
-    db: &TransactionDB,
-    prefix: &[u8],
-    cursor: &[u8],
-    limit: usize,
-) -> Result<(Option<Vec<u8>>, Vec<Vec<u8>>)> {
-    let keys: Vec<_> = db
-        .prefix_iterator(cursor)
-        .take(limit)
-        .map(|kv| kv.map(|(k, _)| k.to_vec()).map_err(new_rocksdb_error))
-        .take_while(|k| match k {
-            Ok(k) => k.starts_with(prefix),
-            Err(_) => true,
-        })
-        .collect::<Result<_>>()?;
-
-    let (cursor, keys) = match &keys[..] {
-        [] => (None, keys),
-        [.., last] => {
-            if keys.len() < limit {
-                (None, keys)
-            } else {
-                let cursor = last.iter().cloned().chain(Some(0)).collect();
-                (Some(cursor), keys)
-            }
-        }
-    };
-    Ok((cursor, keys))
 }
 
 fn new_rocksdb_error(err: impl Debug) -> Error {

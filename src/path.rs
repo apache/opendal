@@ -177,6 +177,7 @@ pub fn get_basename(path: &str) -> &str {
 }
 
 /// Get parent from path.
+#[allow(dead_code)]
 pub fn get_parent(path: &str) -> &str {
     if path == "/" {
         return "/";

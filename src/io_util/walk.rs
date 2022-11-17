@@ -256,12 +256,13 @@ impl futures::Stream for BottomUpWalker {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use std::env;
 
     use futures::TryStreamExt;
     use log::debug;
 
     use super::*;
-    use crate::services::memory::Builder;
+    use crate::services::fs::Builder;
     use crate::Operator;
 
     fn get_position(vs: &[String], s: &str) -> usize {
@@ -274,7 +275,13 @@ mod tests {
     async fn test_walk_top_down() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let op = Operator::new(Builder::default().build()?);
+        let mut builder = Builder::default();
+        builder.root(&format!(
+            "{}/{}",
+            env::temp_dir().display(),
+            uuid::Uuid::new_v4()
+        ));
+        let op = Operator::new(builder.build()?);
         let mut expected = vec![
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         ];
@@ -314,7 +321,13 @@ mod tests {
     async fn test_walk_top_down_same_level() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let op = Operator::new(Builder::default().build()?);
+        let mut builder = Builder::default();
+        builder.root(&format!(
+            "{}/{}",
+            env::temp_dir().display(),
+            uuid::Uuid::new_v4()
+        ));
+        let op = Operator::new(builder.build()?);
         for path in ["x/x/a", "x/x/b", "x/x/c"] {
             op.object(path).create().await?;
         }
@@ -350,7 +363,13 @@ mod tests {
     async fn test_walk_bottom_up() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let op = Operator::new(Builder::default().build()?);
+        let mut builder = Builder::default();
+        builder.root(&format!(
+            "{}/{}",
+            env::temp_dir().display(),
+            uuid::Uuid::new_v4()
+        ));
+        let op = Operator::new(builder.build()?);
         let mut expected = vec![
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         ];

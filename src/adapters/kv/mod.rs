@@ -24,14 +24,7 @@
 
 mod api;
 pub use api::Adapter;
-pub use api::KeyStreamer;
 pub use api::Metadata;
-use api::BLOCK_SIZE;
-use api::INODE_ROOT;
 
 mod backend;
 pub use backend::Backend;
-
-mod key;
-pub use key::next_prefix;
-use key::Key;

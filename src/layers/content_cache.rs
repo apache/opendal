@@ -17,12 +17,12 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
 
@@ -65,6 +65,7 @@ use crate::ObjectStreamer;
 ///
 /// ```
 /// use std::sync::Arc;
+///
 /// use anyhow::Result;
 /// use opendal::layers::ContentCacheLayer;
 /// use opendal::layers::ContentCacheStrategy;

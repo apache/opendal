@@ -30,6 +30,7 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
+use time::Duration;
 use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
@@ -65,6 +66,8 @@ pub struct Builder {
     ///
     /// default is db 0
     db: i64,
+    /// The default ttl for put operations.
+    default_ttl: Option<Duration>,
 }
 
 impl Builder {
@@ -125,6 +128,14 @@ impl Builder {
     /// default: 0
     pub fn db(&mut self, db: i64) -> &mut Self {
         self.db = db;
+        self
+    }
+
+    /// Set the default ttl for redis services.
+    ///
+    /// If set, we will specify `EX` for write operations.
+    pub fn default_ttl(&mut self, ttl: Duration) -> &mut Self {
+        self.default_ttl = Some(ttl);
         self
     }
 
@@ -209,7 +220,12 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(Backend::new(Adapter { client, conn }).with_root(&root))
+        Ok(Backend::new(Adapter {
+            client,
+            conn,
+            default_ttl: self.default_ttl,
+        })
+        .with_root(&root))
     }
 }
 
@@ -238,6 +254,8 @@ pub type Backend = kv::Backend<Adapter>;
 pub struct Adapter {
     client: Client,
     conn: OnceCell<ConnectionManager>,
+
+    default_ttl: Option<Duration>,
 }
 
 // implement `Debug` manually, or password may be leaked.
@@ -284,7 +302,13 @@ impl kv::Adapter for Adapter {
 
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let mut conn = self.conn().await?;
-        let _: () = conn.set(key, value).await.map_err(new_redis_error)?;
+        match self.default_ttl {
+            Some(ttl) => conn
+                .set_ex(key, value, ttl.as_seconds_f64() as usize)
+                .await
+                .map_err(new_redis_error)?,
+            None => conn.set(key, value).await.map_err(new_redis_error)?,
+        }
         Ok(())
     }
 

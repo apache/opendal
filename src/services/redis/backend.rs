@@ -272,7 +272,7 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Redis,
             &self.client.get_connection_info().addr.to_string(),
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            AccessorCapability::Read | AccessorCapability::Write,
         )
     }
 

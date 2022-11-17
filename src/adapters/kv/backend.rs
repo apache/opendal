@@ -97,7 +97,9 @@ where
         let bs = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 let mut bs = bs.split_off(offset as usize);
-                let _ = bs.split_off(size as usize);
+                if (size as usize) < bs.len() {
+                    let _ = bs.split_off(size as usize);
+                }
                 bs
             }
             (Some(offset), None) => bs.split_off(offset as usize),

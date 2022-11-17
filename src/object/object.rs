@@ -998,7 +998,7 @@ impl Object {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # use opendal::services::memory;
     /// # use anyhow::Result;
     /// # use futures::io;

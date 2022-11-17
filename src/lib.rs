@@ -86,7 +86,7 @@
 //!
 //! More examples could be found at <https://opendal.databend.rs/examples/index.html>
 //!
-//! ```rust
+//! ```no_run
 //! use anyhow::Result;
 //! use backon::ExponentialBackoff;
 //! use futures::StreamExt;
@@ -103,8 +103,8 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     // Init a memory operator
-//!     let op = Operator::from_env(Scheme::Memory)?
+//!     // Init a fs operator
+//!     let op = Operator::from_env(Scheme::Fs)?
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer)
 //!         // Init with retry layer enabled.

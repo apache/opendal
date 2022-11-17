@@ -19,6 +19,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -30,7 +31,6 @@ use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::RedisConnectionInfo;
 use redis::RedisError;
-use time::Duration;
 use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
@@ -304,7 +304,7 @@ impl kv::Adapter for Adapter {
         let mut conn = self.conn().await?;
         match self.default_ttl {
             Some(ttl) => conn
-                .set_ex(key, value, ttl.as_seconds_f64() as usize)
+                .set_ex(key, value, ttl.as_secs() as usize)
                 .await
                 .map_err(new_redis_error)?,
             None => conn.set(key, value).await.map_err(new_redis_error)?,

@@ -19,19 +19,10 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::path::PathBuf;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
-use std::vec::IntoIter;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
-use futures::Stream;
 use http::Uri;
-use pin_project::pin_project;
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use redis::Client;
@@ -285,13 +276,6 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn next_id(&self) -> Result<u64> {
-        let mut conn = self.conn().await?;
-        // next_id will never be used by opendal.
-        let v: u64 = conn.incr("next_id", 1).await.map_err(new_redis_error)?;
-        Ok(v)
-    }
-
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         let mut conn = self.conn().await?;
         let bs: Option<Vec<u8>> = conn.get(key).await.map_err(new_redis_error)?;
@@ -304,102 +288,10 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn scan(&self, prefix: &[u8]) -> Result<kv::KeyStreamer> {
-        let conn = self.conn().await?;
-        Ok(Box::new(KeyStream::new(conn, prefix)))
-    }
-
     async fn delete(&self, key: &[u8]) -> Result<()> {
         let mut conn = self.conn().await?;
         let _: () = conn.del(key).await.map_err(new_redis_error)?;
         Ok(())
-    }
-}
-
-#[pin_project]
-#[allow(clippy::type_complexity)]
-struct KeyStream {
-    conn: ConnectionManager,
-    arg: Vec<u8>,
-
-    done: bool,
-    cursor: u64,
-    keys: IntoIter<Vec<u8>>,
-    /// Yep, this type is complex. But they are simple to understand and
-    /// already implemented `FromRedisValue`.
-    ///
-    /// (cursor, Vec<keys in vec>)
-    fut: Option<BoxFuture<'static, Result<(u64, Vec<Vec<u8>>)>>>,
-}
-
-impl KeyStream {
-    fn new(conn: ConnectionManager, arg: &[u8]) -> Self {
-        Self {
-            conn,
-            arg: arg.to_vec(),
-
-            done: false,
-            cursor: 0,
-            keys: vec![].into_iter(),
-            fut: None,
-        }
-    }
-}
-
-impl Stream for KeyStream {
-    type Item = Result<Vec<u8>>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
-
-        loop {
-            if let Some(key) = this.keys.next() {
-                debug_assert!(
-                    key[..this.arg.len()] == *this.arg,
-                    "prefix is not match: expect {:x?}, got {:x?}",
-                    *this.arg,
-                    key
-                );
-                return Poll::Ready(Some(Ok(key)));
-            }
-
-            match this.fut {
-                None => {
-                    if *this.done {
-                        return Poll::Ready(None);
-                    }
-
-                    let arg = this.arg.to_vec();
-                    let cursor = *this.cursor;
-                    let mut conn = this.conn.clone();
-                    let fut = async move {
-                        let (cursor, keys) = redis::cmd("SCAN")
-                            .cursor_arg(cursor)
-                            .arg("MATCH")
-                            .arg(arg.into_iter().chain(vec![b'*']).collect::<Vec<_>>())
-                            .query_async(&mut conn)
-                            .await
-                            .map_err(new_redis_error)?;
-
-                        Ok((cursor, keys))
-                    };
-                    *this.fut = Some(Box::pin(fut));
-                    continue;
-                }
-                Some(fut) => {
-                    let (cursor, keys) = ready!(Pin::new(fut).poll(cx))?;
-
-                    *this.fut = None;
-
-                    if cursor == 0 {
-                        *this.done = true;
-                    }
-                    *this.cursor = cursor;
-                    *this.keys = keys.into_iter();
-                    continue;
-                }
-            }
-        }
     }
 }
 

@@ -13,12 +13,10 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io;
 use std::io::Result;
 
 use async_trait::async_trait;
 use flagset::FlagSet;
-use futures::Stream;
 
 use crate::AccessorCapability;
 use crate::AccessorMetadata;
@@ -32,12 +30,6 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// Return the medata of this key value accessor.
     fn metadata(&self) -> Metadata;
 
-    /// Fetch the next id.
-    ///
-    /// - Returning id should never be zero.
-    /// - Returning id should never be reused.
-    async fn next_id(&self) -> Result<u64>;
-
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
@@ -46,30 +38,11 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// Set a key into service.
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
 
-    /// Scan a range of keys.
-    ///
-    /// If `scan` is not supported, we will disable the block split
-    /// logic. Only one block will be store for one file.
-    async fn scan(&self, prefix: &[u8]) -> Result<KeyStreamer> {
-        let _ = prefix;
-
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            anyhow::anyhow!("scan operation is not supported"),
-        ))
-    }
-
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.
     async fn delete(&self, key: &[u8]) -> Result<()>;
 }
-
-/// Use 64 KiB as a block.
-pub const BLOCK_SIZE: usize = 64 * 1024;
-
-/// OpenDAL will reserve all inode between 0~16.
-pub const INODE_ROOT: u64 = 0;
 
 /// Metadata for this key value accessor.
 pub struct Metadata {
@@ -118,10 +91,3 @@ impl From<Metadata> for AccessorMetadata {
         am
     }
 }
-
-/// KeyStream represents a stream of keys.
-pub trait KeyStream: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
-impl<T> KeyStream for T where T: Stream<Item = Result<Vec<u8>>> + Unpin + Send {}
-
-/// KeyValueStreamer is a boxed dyn `KeyStream`
-pub type KeyStreamer = Box<dyn KeyStream>;

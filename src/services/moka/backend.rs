@@ -13,9 +13,6 @@
 // limitations under the License.
 
 use std::io::Result;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -168,7 +165,6 @@ impl Builder {
         debug!("backend build finished: {:?}", &self);
         Ok(Backend::new(Adapter {
             inner: builder.build(),
-            next_id: Arc::new(AtomicU64::new(1)),
         }))
     }
 }
@@ -179,7 +175,6 @@ pub type Backend = kv::Backend<Adapter>;
 #[derive(Debug, Clone)]
 pub struct Adapter {
     inner: SegmentedCache<Vec<u8>, Vec<u8>>,
-    next_id: Arc<AtomicU64>,
 }
 
 #[async_trait]
@@ -190,10 +185,6 @@ impl kv::Adapter for Adapter {
             self.inner.name().unwrap_or("moka"),
             AccessorCapability::Read | AccessorCapability::Write,
         )
-    }
-
-    async fn next_id(&self) -> Result<u64> {
-        Ok(self.next_id.fetch_add(1, Ordering::Relaxed))
     }
 
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {

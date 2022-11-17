@@ -35,13 +35,24 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// - return `Ok(None)` if this key is not exist.
     async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
 
+    /// The blocking version of get.
+    fn blocking_get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
+
     /// Set a key into service.
     async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
+
+    /// The blocking version of set.
+    fn blocking_set(&self, key: &[u8], value: &[u8]) -> Result<()>;
 
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.
     async fn delete(&self, key: &[u8]) -> Result<()>;
+
+    /// Delete a key from service in blocking way.
+    ///
+    /// - return `Ok(())` even if this key is not exist.
+    fn blocking_delete(&self, key: &[u8]) -> Result<()>;
 }
 
 /// Metadata for this key value accessor.

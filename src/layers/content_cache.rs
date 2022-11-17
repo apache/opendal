@@ -65,6 +65,7 @@ use crate::ObjectStreamer;
 ///
 /// ```
 /// use std::sync::Arc;
+///
 /// use anyhow::Result;
 /// use opendal::layers::ContentCacheLayer;
 /// use opendal::layers::ContentCacheStrategy;

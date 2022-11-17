@@ -2,6 +2,34 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.20
+
+v0.20 is a big release that we introduce a lot of performance related changes.
+
+To make the best of information from `read` operation, we propose and implemented [RFC-0926: Object Reader](https://opendal.databend.rs/rfcs/0926-object-reader.html). By this RFC, we can fetch content length from `ObjectReader` now!
+
+```rust
+pub struct ObjectReader {
+    inner: BytesReader
+    meta: ObjectMetadata,
+}
+
+impl ObjectReader {
+    pub fn content_length(&self) -> u64 {}
+    pub fn last_modified(&self) -> Option<OffsetDateTime> {}
+    pub fn etag(&self) -> Option<String> {}
+}
+```
+
+To make this happen, we changed our `Accessor` API:
+
+```diff
+- async fn read(&self, path: &str, args: OpRead) -> Result<BytesReader> {}
++ async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {}
+```
+
+All layers should be updated to meet this change. Also, it's required to return `content_length` while building `ObjectReader`. Please make sure the returning `ObjectMetadata` is used correctly.
+
 ## Upgrade to v0.19
 
 OpenDAL deprecate some features:

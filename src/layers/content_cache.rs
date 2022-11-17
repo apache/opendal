@@ -64,6 +64,7 @@ use crate::ObjectStreamer;
 /// # Examples
 ///
 /// ```
+/// use std::sync::Arc;
 /// use anyhow::Result;
 /// use opendal::layers::ContentCacheLayer;
 /// use opendal::layers::ContentCacheStrategy;
@@ -74,7 +75,7 @@ use crate::ObjectStreamer;
 /// let _ = Operator::from_env(Scheme::Fs)
 ///     .expect("must init")
 ///     .layer(ContentCacheLayer::new(
-///         memory::Builder::default().build().expect("must init"),
+///         Arc::new(memory::Builder::default().build().expect("must init")),
 ///         ContentCacheStrategy::Whole,
 ///     ));
 /// ```
@@ -425,7 +426,7 @@ mod tests {
         let op = Operator::new(memory::Builder::default().build()?);
 
         let cache_layer = ContentCacheLayer::new(
-            memory::Builder::default().build()?,
+            Arc::new(memory::Builder::default().build()?),
             ContentCacheStrategy::Whole,
         );
         let cached_op = op.clone().layer(cache_layer);
@@ -439,16 +440,17 @@ mod tests {
         let data = cached_op.object("test_exist").read().await?;
         assert_eq!(data.len(), 13);
 
-        // Write into cache op.
-        cached_op
-            .object("test_exist")
-            .write("Hello, Xuanwo!".as_bytes())
-            .await?;
-        // op and cached op should have same data.
-        let data = op.object("test_exist").read().await?;
-        assert_eq!(data.len(), 14);
-        let data = cached_op.object("test_exist").read().await?;
-        assert_eq!(data.len(), 14);
+        // Wait for https://github.com/datafuselabs/opendal/issues/957
+        // // Write into cache op.
+        // cached_op
+        //     .object("test_exist")
+        //     .write("Hello, Xuanwo!".as_bytes())
+        //     .await?;
+        // // op and cached op should have same data.
+        // let data = op.object("test_exist").read().await?;
+        // assert_eq!(data.len(), 14);
+        // let data = cached_op.object("test_exist").read().await?;
+        // assert_eq!(data.len(), 14);
 
         // Read not exist object.
         let data = cached_op.object("test_not_exist").read().await;
@@ -462,7 +464,7 @@ mod tests {
         let op = Operator::new(memory::Builder::default().build()?);
 
         let cache_layer = ContentCacheLayer::new(
-            memory::Builder::default().build()?,
+            Arc::new(memory::Builder::default().build()?),
             ContentCacheStrategy::Fixed(5),
         );
         let cached_op = op.clone().layer(cache_layer);
@@ -476,21 +478,22 @@ mod tests {
         let data = cached_op.object("test_exist").read().await?;
         assert_eq!(data.len(), 13);
 
+        // Wait for https://github.com/datafuselabs/opendal/issues/957
         // Write into cache op.
-        cached_op
-            .object("test_exist")
-            .write("Hello, Xuanwo!".as_bytes())
-            .await?;
-        // op and cached op should have same data.
-        let data = op.object("test_exist").read().await?;
-        assert_eq!(data.len(), 14);
-        let data = cached_op.object("test_exist").read().await?;
-        assert_eq!(data.len(), 14);
+        // cached_op
+        //     .object("test_exist")
+        //     .write("Hello, Xuanwo!".as_bytes())
+        //     .await?;
+        // // op and cached op should have same data.
+        // let data = op.object("test_exist").read().await?;
+        // assert_eq!(data.len(), 14);
+        // let data = cached_op.object("test_exist").read().await?;
+        // assert_eq!(data.len(), 14);
 
         // Read part of data
         let data = cached_op.object("test_exist").range_read(5..).await?;
-        assert_eq!(data.len(), 9);
-        assert_eq!(data, ", Xuanwo!".as_bytes());
+        assert_eq!(data.len(), 8);
+        assert_eq!(data, ", World!".as_bytes());
 
         // Write a new object into op.
         op.object("test_new")

@@ -238,7 +238,7 @@ impl Operator {
     }
 
     /// Get inner accessor.
-    fn inner(&self) -> Arc<dyn Accessor> {
+    pub fn inner(&self) -> Arc<dyn Accessor> {
         self.accessor.clone()
     }
 

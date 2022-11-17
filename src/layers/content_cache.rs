@@ -86,11 +86,8 @@ pub struct ContentCacheLayer {
 
 impl ContentCacheLayer {
     /// Create a new metadata cache layer.
-    pub fn new(acc: impl Accessor + 'static, strategy: ContentCacheStrategy) -> Self {
-        Self {
-            cache: Arc::new(acc),
-            strategy,
-        }
+    pub fn new(cache: Arc<dyn Accessor>, strategy: ContentCacheStrategy) -> Self {
+        Self { cache, strategy }
     }
 }
 
@@ -325,7 +322,7 @@ enum FixedCacheState {
 }
 
 fn format_cache_path(path: &str, idx: u64) -> String {
-    format!("{path}-{idx}")
+    format!("{path}.cache-{idx}")
 }
 
 struct FixedCacheReader {
@@ -381,10 +378,10 @@ impl AsyncRead for FixedCacheReader {
                                         .await?;
                                     let size = r.content_length();
                                     cache
-                                        .write(&path, OpWrite::new(size), r.into_reader())
+                                        .write(&cache_path, OpWrite::new(size), r.into_reader())
                                         .await?;
                                     cache
-                                        .read(&path, OpRead::new().with_range(cache_range))
+                                        .read(&cache_path, OpRead::new().with_range(cache_range))
                                         .await
                                 }
                                 Err(err) => Err(err),

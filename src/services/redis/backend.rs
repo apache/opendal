@@ -294,13 +294,13 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+    async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let mut conn = self.conn().await?;
         let bs: Option<Vec<u8>> = conn.get(key).await.map_err(new_redis_error)?;
         Ok(bs)
     }
 
-    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
+    async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
         let mut conn = self.conn().await?;
         match self.default_ttl {
             Some(ttl) => conn
@@ -312,7 +312,7 @@ impl kv::Adapter for Adapter {
         Ok(())
     }
 
-    async fn delete(&self, key: &[u8]) -> Result<()> {
+    async fn delete(&self, key: &str) -> Result<()> {
         let mut conn = self.conn().await?;
         let _: () = conn.del(key).await.map_err(new_redis_error)?;
         Ok(())

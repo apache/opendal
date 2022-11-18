@@ -23,6 +23,7 @@ use futures::AsyncReadExt;
 
 use super::Adapter;
 use crate::error::ObjectError;
+use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
@@ -32,6 +33,7 @@ use crate::ops::Operation;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
@@ -77,13 +79,20 @@ where
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         match args.mode() {
-            ObjectMode::FILE => self.kv.set(path.as_bytes(), &[]).await,
+            ObjectMode::FILE => self.kv.set(path, &[]).await,
+            _ => Ok(()),
+        }
+    }
+
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+        match args.mode() {
+            ObjectMode::FILE => self.kv.blocking_set(path, &[]),
             _ => Ok(()),
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let mut bs = match self.kv.get(path.as_bytes()).await? {
+        let bs = match self.kv.get(path).await? {
             Some(bs) => bs,
             None => {
                 return Err(Error::new(
@@ -93,30 +102,42 @@ where
             }
         };
 
-        let br = args.range();
-        let bs = match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                let mut bs = bs.split_off(offset as usize);
-                if (size as usize) < bs.len() {
-                    let _ = bs.split_off(size as usize);
-                }
-                bs
-            }
-            (Some(offset), None) => bs.split_off(offset as usize),
-            (None, Some(size)) => bs.split_off(bs.len() - size as usize),
-            (None, None) => bs,
-        };
+        let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
         Ok(ObjectReader::new(Box::new(Cursor::new(bs)))
             .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(length as u64)))
     }
 
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+        let bs = match self.kv.blocking_get(path)? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    ObjectError::new(Operation::Read, path, anyhow!("key {path} is not found")),
+                ))
+            }
+        };
+
+        let bs = self.apply_range(bs, args.range());
+        Ok(Box::new(std::io::Cursor::new(bs)))
+    }
+
     async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs).await?;
 
-        self.kv.set(path.as_bytes(), &bs).await?;
+        self.kv.set(path, &bs).await?;
+
+        Ok(args.size())
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
+        let mut bs = Vec::with_capacity(args.size() as usize);
+        r.read_to_end(&mut bs)?;
+
+        self.kv.blocking_set(path, &bs)?;
 
         Ok(args.size())
     }
@@ -125,7 +146,24 @@ where
         if path.ends_with('/') {
             Ok(ObjectMetadata::new(ObjectMode::DIR))
         } else {
-            let bs = self.kv.get(path.as_bytes()).await?;
+            let bs = self.kv.get(path).await?;
+            match bs {
+                Some(bs) => {
+                    Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
+                }
+                None => Err(Error::new(
+                    ErrorKind::NotFound,
+                    ObjectError::new(Operation::Stat, path, anyhow!("key {path} is not found")),
+                )),
+            }
+        }
+    }
+
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+        if path.ends_with('/') {
+            Ok(ObjectMetadata::new(ObjectMode::DIR))
+        } else {
+            let bs = self.kv.blocking_get(path)?;
             match bs {
                 Some(bs) => {
                     Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
@@ -139,7 +177,32 @@ where
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
-        self.kv.delete(path.as_bytes()).await?;
+        self.kv.delete(path).await?;
         Ok(())
+    }
+
+    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<()> {
+        self.kv.blocking_delete(path)?;
+        Ok(())
+    }
+}
+
+impl<S> Backend<S>
+where
+    S: Adapter,
+{
+    fn apply_range(&self, mut bs: Vec<u8>, br: BytesRange) -> Vec<u8> {
+        match (br.offset(), br.size()) {
+            (Some(offset), Some(size)) => {
+                let mut bs = bs.split_off(offset as usize);
+                if (size as usize) < bs.len() {
+                    let _ = bs.split_off(size as usize);
+                }
+                bs
+            }
+            (Some(offset), None) => bs.split_off(offset as usize),
+            (None, Some(size)) => bs.split_off(bs.len() - size as usize),
+            (None, None) => bs,
+        }
     }
 }

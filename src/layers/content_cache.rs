@@ -156,47 +156,6 @@ impl Accessor for ContentCacheAccessor {
             .await
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
-
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
-        self.cache.blocking_delete(path, OpDelete::new())?;
-        self.inner.blocking_create(path, args)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
-        match self.cache.blocking_read(path, args.clone()) {
-            Ok(r) => Ok(r),
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                let meta = self.inner.blocking_stat(path, OpStat::new())?;
-                let r = if meta.mode().is_file() {
-                    let size = meta.content_length();
-                    let reader = self.inner.blocking_read(path, OpRead::new())?;
-                    self.cache
-                        .blocking_write(path, OpWrite::new(size), reader)?;
-                    self.cache.blocking_read(path, args)?
-                } else {
-                    self.inner.blocking_read(path, args)?
-                };
-                Ok(r)
-            }
-            Err(err) => Err(err),
-        }
-    }
-
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
-        self.cache.blocking_delete(path, OpDelete::new())?;
-        self.inner.blocking_write(path, args, r)
-    }
-
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
-        self.cache.blocking_delete(path, OpDelete::new())?;
-        self.inner.blocking_delete(path, args)
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
-        self.inner
-            .blocking_list(path, args)
-            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
-    }
 }
 
 impl ContentCacheAccessor {

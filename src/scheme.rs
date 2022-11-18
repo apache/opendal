@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::Error;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
@@ -115,7 +116,7 @@ impl Display for Scheme {
 }
 
 impl FromStr for Scheme {
-    type Err = io::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();

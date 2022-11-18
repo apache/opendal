@@ -15,8 +15,9 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Result;
 
+use crate::http_util::new_request_send_async_error;
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::Request;
@@ -26,7 +27,6 @@ use log::debug;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::parse_error_response;
@@ -220,12 +220,12 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Http, Operation::Read, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Http, Operation::Read, path, e))
     }
 
     async fn http_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -237,12 +237,12 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Http, Operation::Stat, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Http, Operation::Stat, path, e))
     }
 }
 

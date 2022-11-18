@@ -13,11 +13,11 @@
 // limitations under the License.
 
 use std::io::Error;
-use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
+use crate::Result;
 use anyhow::anyhow;
 use bb8::PooledConnection;
 use futures::future::BoxFuture;

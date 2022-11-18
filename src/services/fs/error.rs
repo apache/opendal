@@ -12,16 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
+use std::io;
 
-use crate::error::ObjectError;
 use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
+use anyhow::anyhow;
 
 /// Parse all path related errors.
 ///
 /// ## Notes
 ///
 /// Skip utf-8 check to allow invalid path input.
-pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {
+pub fn parse_io_error(err: io::Error, op: Operation, path: &str) -> Error {
     Error::new(err.kind(), ObjectError::new(op, path, err))
+}
+
+pub fn new_unexpected_io_error(op: Operation, path: &str, message: &str, err: io::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, op.into_static(), message)
+        .with_context("path", path)
+        .with_source(anyhow!(err))
 }

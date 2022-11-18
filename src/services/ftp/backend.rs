@@ -18,11 +18,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Result;
 use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bb8::PooledConnection;

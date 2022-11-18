@@ -15,9 +15,7 @@
 use std::env;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io;
 use std::str::FromStr;
 
 use futures::TryStreamExt;
@@ -102,7 +100,7 @@ impl HttpClient {
     }
 
     /// Send a request in blocking way.
-    pub fn send(&self, req: Request<Body>) -> Result<Response<Body>> {
+    pub fn send(&self, req: Request<Body>) -> Result<Response<Body>, ureq::Error> {
         let (parts, body) = req.into_parts();
 
         let mut ur = self
@@ -117,14 +115,7 @@ impl HttpClient {
             Err(err_resp) => match err_resp {
                 ureq::Error::Status(_code, resp) => resp,
                 ureq::Error::Transport(transport) => {
-                    let kind = match transport.kind() {
-                        ureq::ErrorKind::Dns
-                        | ureq::ErrorKind::ConnectionFailed
-                        | ureq::ErrorKind::Io => ErrorKind::Interrupted,
-                        _ => ErrorKind::Other,
-                    };
-
-                    return Err(Error::new(kind, transport));
+                    return Err(err_resp);
                 }
             },
         };
@@ -144,7 +135,10 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
+    pub async fn send_async(
+        &self,
+        req: Request<AsyncBody>,
+    ) -> Result<Response<IncomingAsyncBody>, reqwest::Error> {
         let is_head = req.method() == http::Method::HEAD;
         let (parts, body) = req.into_parts();
 
@@ -167,11 +161,7 @@ impl HttpClient {
             req_builder.body(body)
         };
 
-        let resp = req_builder.send().await.map_err(|err| {
-            let kind = error_kind_from_reqwest_error(&err);
-
-            Error::new(kind, err)
-        })?;
+        let resp = req_builder.send().await?;
 
         // Get content length from header so that we can check it.
         // If the request method is HEAD, we will ignore this.
@@ -188,36 +178,13 @@ impl HttpClient {
             hr = hr.header(k, v);
         }
 
-        let stream = resp.bytes_stream().map_err(|err| {
-            let kind = error_kind_from_reqwest_error(&err);
-
-            Error::new(kind, err)
-        });
+        let stream = resp
+            .bytes_stream()
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err));
         let body = IncomingAsyncBody::new(Box::new(into_reader(stream, content_length)));
 
         let resp = hr.body(body).expect("response must build succeed");
 
         Ok(resp)
     }
-}
-
-fn error_kind_from_reqwest_error(err: &reqwest::Error) -> ErrorKind {
-    // Builder related error should not be retried.
-    if err.is_builder() {
-        return ErrorKind::Other;
-    }
-    // Error returned by RedirectPolicy.
-    //
-    // We don't set this by hand, just don't allow retry.
-    if err.is_redirect() {
-        return ErrorKind::Other;
-    }
-    // We never use `Response::error_for_status`, just don't allow retry.
-    //
-    // Status should be checked by our services.
-    if err.is_status() {
-        return ErrorKind::Other;
-    }
-
-    ErrorKind::Interrupted
 }

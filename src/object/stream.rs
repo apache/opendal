@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
+use crate::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::lock::Mutex;

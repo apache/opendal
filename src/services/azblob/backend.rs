@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::mem;
 use std::sync::Arc;
 
+use crate::error::new_unexpected_backend_error;
+use crate::error::new_unsupported_object_error;
+use crate::http_util::new_request_send_async_error;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::HeaderName;
@@ -37,8 +39,6 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
-use crate::error::new_other_backend_error;
-use crate::error::ObjectError;
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
@@ -185,26 +185,23 @@ impl Builder {
         // Handle endpoint, region and container name.
         let container = match self.container.is_empty() {
             false => Ok(&self.container),
-            true => Err(new_other_backend_error(
-                HashMap::from([("container".to_string(), "".to_string())]),
-                anyhow!("container is empty"),
+            true => Err(new_unexpected_backend_error(
+                Scheme::Azblob,
+                "build",
+                "container is empty",
             )),
         }?;
         debug!("backend use container {}", &container);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(new_other_backend_error(
-                HashMap::from([("endpoint".to_string(), "".to_string())]),
-                anyhow!("endpoint is empty"),
+            None => Err(new_unexpected_backend_error(
+                Scheme::Azblob,
+                "build",
+                "endpoint is empty",
             )),
         }?;
         debug!("backend use endpoint {}", &container);
-
-        let context = HashMap::from([
-            ("container".to_string(), container.to_string()),
-            ("endpoint".to_string(), endpoint.to_string()),
-        ]);
 
         let client = HttpClient::new();
 
@@ -213,9 +210,12 @@ impl Builder {
             signer_builder.account_name(name).account_key(key);
         }
 
-        let signer = signer_builder
-            .build()
-            .map_err(|e| new_other_backend_error(context, e))?;
+        let signer = signer_builder.build().map_err(|e| {
+            new_unexpected_backend_error(Scheme::Azblob, "build", "build signer failed")
+                .with_context("container", container)
+                .with_context("endpoint", &endpoint)
+                .with_source(anyhow!(e))
+        })?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(Backend {
@@ -259,7 +259,7 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Create, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Azblob, Operation::Create, path, e))?;
 
         let resp = self
             .client
@@ -271,10 +271,9 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
+                resp.into_body().consume().await.map_err(|err| {
+                    new_response_consume_error(Scheme::Azblob, Operation::Create, path, err)
+                })?;
                 Ok(())
             }
             _ => {
@@ -408,14 +407,12 @@ impl Backend {
             //
             // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
             if range.offset().is_none() && range.size().is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    ObjectError::new(
-                        Operation::Read,
-                        path,
-                        anyhow::anyhow!("azblob doesn't support read with suffix range"),
-                    ),
-                ));
+                return Err(
+                    new_unsupported_object_error(Scheme::Azblob, Operation::Read, path)
+                        .with_source(anyhow::anyhow!(
+                            "azblob doesn't support read with suffix range"
+                        )),
+                );
             }
 
             req = req.header(http::header::RANGE, range.to_header());
@@ -423,16 +420,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Azblob, Operation::Read, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Azblob, Operation::Read, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Azblob, Operation::Read, path, e))
     }
 
     fn azblob_put_blob_request(
@@ -466,7 +463,7 @@ impl Backend {
         // Set body
         let req = req
             .body(body)
-            .map_err(|e| new_request_build_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Azblob, Operation::Write, path, e))?;
 
         Ok(req)
     }
@@ -485,16 +482,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Azblob, Operation::Stat, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Azblob, Operation::Stat, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Azblob, Operation::Stat, path, e))
     }
 
     async fn azblob_delete_blob(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -511,16 +508,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Azblob, Operation::Delete, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Azblob, Operation::Delete, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Azblob, Operation::Delete, path, e))
     }
 
     pub(crate) async fn azblob_list_blobs(
@@ -544,15 +541,15 @@ impl Backend {
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Azblob, Operation::List, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Azblob, Operation::List, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::List, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Azblob, Operation::List, path, e))
     }
 }

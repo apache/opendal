@@ -17,10 +17,10 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Result;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::Uri;

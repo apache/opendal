@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -41,6 +40,7 @@ use crate::ObjectMetadata;
 use crate::ObjectPart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Underlying trait of all backends for implementors.
@@ -115,7 +115,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.create(path, args).await,
-            None => Err(new_unsupported_object_error(Operation::Create, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::Create,
+                path,
+            )),
         }
     }
 
@@ -129,7 +133,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,
-            None => Err(new_unsupported_object_error(Operation::Read, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::Read,
+                path,
+            )),
         }
     }
 
@@ -142,7 +150,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         match self.inner() {
             Some(inner) => inner.write(path, args, r).await,
-            None => Err(new_unsupported_object_error(Operation::Write, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::Write,
+                path,
+            )),
         }
     }
 
@@ -156,7 +168,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         match self.inner() {
             Some(inner) => inner.stat(path, args).await,
-            None => Err(new_unsupported_object_error(Operation::Stat, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::Stat,
+                path,
+            )),
         }
     }
 
@@ -169,7 +185,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.delete(path, args).await,
-            None => Err(new_unsupported_object_error(Operation::Delete, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::Delete,
+                path,
+            )),
         }
     }
 
@@ -182,7 +202,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         match self.inner() {
             Some(inner) => inner.list(path, args).await,
-            None => Err(new_unsupported_object_error(Operation::List, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::List,
+                path,
+            )),
         }
     }
 
@@ -195,7 +219,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
         match self.inner() {
             Some(inner) => inner.presign(path, args),
-            None => Err(new_unsupported_object_error(Operation::Presign, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::Presign,
+                path,
+            )),
         }
     }
 
@@ -209,6 +237,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         match self.inner() {
             Some(inner) => inner.create_multipart(path, args).await,
             None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
                 Operation::CreateMultipart,
                 path,
             )),
@@ -229,6 +258,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         match self.inner() {
             Some(inner) => inner.write_multipart(path, args, r).await,
             None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
                 Operation::WriteMultipart,
                 path,
             )),
@@ -244,6 +274,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         match self.inner() {
             Some(inner) => inner.complete_multipart(path, args).await,
             None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
                 Operation::CompleteMultipart,
                 path,
             )),
@@ -259,6 +290,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         match self.inner() {
             Some(inner) => inner.abort_multipart(path, args).await,
             None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
                 Operation::AbortMultipart,
                 path,
             )),
@@ -276,6 +308,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         match self.inner() {
             Some(inner) => inner.blocking_create(path, args),
             None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
                 Operation::BlockingCreate,
                 path,
             )),
@@ -292,7 +325,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         match self.inner() {
             Some(inner) => inner.blocking_read(path, args),
-            None => Err(new_unsupported_object_error(Operation::BlockingRead, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::BlockingRead,
+                path,
+            )),
         }
     }
 
@@ -306,7 +343,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
         match self.inner() {
             Some(inner) => inner.blocking_write(path, args, r),
-            None => Err(new_unsupported_object_error(Operation::BlockingWrite, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::BlockingWrite,
+                path,
+            )),
         }
     }
 
@@ -320,7 +361,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         match self.inner() {
             Some(inner) => inner.blocking_stat(path, args),
-            None => Err(new_unsupported_object_error(Operation::BlockingStat, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::BlockingStat,
+                path,
+            )),
         }
     }
 
@@ -335,6 +380,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         match self.inner() {
             Some(inner) => inner.blocking_delete(path, args),
             None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
                 Operation::BlockingDelete,
                 path,
             )),
@@ -352,7 +398,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         match self.inner() {
             Some(inner) => inner.blocking_list(path, args),
-            None => Err(new_unsupported_object_error(Operation::BlockingList, path)),
+            None => Err(new_unsupported_object_error(
+                self.metadata().scheme(),
+                Operation::BlockingList,
+                path,
+            )),
         }
     }
 }

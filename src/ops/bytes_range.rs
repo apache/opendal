@@ -15,13 +15,13 @@
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::ops::Bound;
 use std::ops::RangeBounds;
 use std::str::FromStr;
 
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 use anyhow::anyhow;
 
 /// BytesRange(offset, size) carries a range of content.
@@ -124,34 +124,43 @@ impl Display for BytesRange {
 impl FromStr for BytesRange {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self> {
-        let s = s.strip_prefix("bytes=").ok_or_else(|| {
+    fn from_str(value: &str) -> Result<Self> {
+        let s = value.strip_prefix("bytes=").ok_or_else(|| {
             Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range is invalid: {s}"),
+                ErrorKind::Unexpected,
+                "parse_range",
+                "header range is invalid",
             )
+            .with_context("value", value)
         })?;
 
         if s.contains(',') {
             return Err(Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range should not contain multiple ranges: {s}"),
-            ));
+                ErrorKind::Unexpected,
+                "parse_range",
+                "header range is invalid",
+            )
+            .with_context("value", value));
         }
 
         let v = s.split('-').collect::<Vec<_>>();
         if v.len() != 2 {
             return Err(Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range should not contain multiple ranges: {s}"),
-            ));
+                ErrorKind::Unexpected,
+                "parse_range",
+                "header range is invalid",
+            )
+            .with_context("value", value));
         }
 
         let parse_int_error = |e: std::num::ParseIntError| {
             Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range must contain valid integer: {e}"),
+                ErrorKind::Unexpected,
+                "parse_range",
+                "header range is invalid",
             )
+            .with_context("value", value)
+            .with_source(anyhow!(e))
         };
 
         if v[1].is_empty() {

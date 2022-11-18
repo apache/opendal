@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -23,6 +22,7 @@ use moka::sync::SegmentedCache;
 use crate::adapters::kv;
 use crate::Accessor;
 use crate::AccessorCapability;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for moka backend

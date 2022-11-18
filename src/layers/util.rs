@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -24,6 +23,7 @@ use crate::Accessor;
 use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// set_accessor_for_object_steamer will fix the accessor for object entry.
 pub fn set_accessor_for_object_steamer(

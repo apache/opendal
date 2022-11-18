@@ -16,12 +16,12 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::ErrorKind;
-use std::io::Result;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::AsyncReadExt;

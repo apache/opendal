@@ -14,10 +14,10 @@
 
 use std::fmt;
 use std::fmt::Write;
-use std::io::Result;
 use std::str;
 use std::sync::Arc;
 
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::Request;
@@ -107,10 +107,9 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
+                resp.into_body().consume().await.map_err(|err| {
+                    new_response_consume_error(Scheme::Ipmfs, Operation::Create, path, err)
+                })?;
                 Ok(())
             }
             _ => {
@@ -250,12 +249,12 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Stat, path, err))?;
+            .map_err(|err| new_request_build_error(Scheme::Ipmfs, Operation::Stat, path, err))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Ipmfs, Operation::Stat, path, e))
     }
 
     async fn ipmfs_read(
@@ -281,12 +280,12 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Read, path, err))?;
+            .map_err(|err| new_request_build_error(Scheme::Ipmfs, Operation::Read, path, err))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Ipmfs, Operation::Read, path, e))
     }
 
     async fn ipmfs_rm(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -301,12 +300,12 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
+            .map_err(|err| new_request_build_error(Scheme::Ipmfs, Operation::Delete, path, err))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Ipmfs, Operation::Delete, path, e))
     }
 
     pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -321,12 +320,12 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::List, path, err))?;
+            .map_err(|err| new_request_build_error(Scheme::Ipmfs, Operation::List, path, err))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::List, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Ipmfs, Operation::List, path, e))
     }
 
     async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -341,12 +340,12 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Create, path, err))?;
+            .map_err(|err| new_request_build_error(Scheme::Ipmfs, Operation::Create, path, err))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Create, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Ipmfs, Operation::Create, path, e))
     }
 
     /// Support write from reader.
@@ -367,13 +366,13 @@ impl Backend {
 
         let req = req
             .body(body)
-            .map_err(|err| new_request_build_error(Operation::Write, path, err))?;
+            .map_err(|err| new_request_build_error(Scheme::Ipmfs, Operation::Write, path, err))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_send_error(Scheme::Ipmfs, Operation::Write, path, e))?;
 
         Ok(resp)
     }

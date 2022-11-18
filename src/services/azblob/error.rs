@@ -12,15 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-
 use anyhow::anyhow;
 use http::StatusCode;
 
-use crate::error::ObjectError;
 use crate::http_util::ErrorResponse;
 use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
 
 /// Parse error response into io::Error.
 ///
@@ -28,15 +26,15 @@ use crate::ops::Operation;
 ///
 /// In the future, we may have our own error struct.
 pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
-    let kind = match er.status_code() {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+    let (kind, retryable) = match er.status_code() {
+        StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
     };
 
-    Error::new(kind, ObjectError::new(op, path, anyhow!("{er}")))
+    Error::new(kind, op, &er.to_string()).with_retryable(retryable)
 }

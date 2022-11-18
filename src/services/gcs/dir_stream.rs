@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::sync::Arc;
 
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use serde::Deserialize;

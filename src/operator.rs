@@ -14,8 +14,6 @@
 
 use std::collections::HashMap;
 use std::env;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -23,16 +21,18 @@ use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
 
-use crate::error::new_other_backend_error;
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::services;
 use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::Error;
+use crate::ErrorKind;
 use crate::Layer;
 use crate::Object;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// User-facing APIs for object and object streams.
@@ -149,10 +149,12 @@ impl Operator {
             Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
             Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
             Scheme::Custom(v) => {
-                return Err(new_other_backend_error(
-                    HashMap::default(),
-                    anyhow!("custom service {v} is not supported"),
-                ))
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "Operator::from_iter",
+                    "custom service  is not supported",
+                )
+                .with_context("service", v))
             }
         };
 
@@ -299,7 +301,7 @@ impl Operator {
         let mut ds = self.object("/").list().await?;
 
         match ds.next().await {
-            Some(Err(e)) if e.kind() != ErrorKind::NotFound => Err(e),
+            Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
             _ => Ok(()),
         }
     }

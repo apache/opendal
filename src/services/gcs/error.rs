@@ -18,9 +18,9 @@ use std::io::ErrorKind;
 use anyhow::anyhow;
 use http::StatusCode;
 
-use crate::error::ObjectError;
 use crate::http_util::ErrorResponse;
 use crate::ops::Operation;
+use crate::Result;
 
 /// Parse error response into io::Error.
 ///

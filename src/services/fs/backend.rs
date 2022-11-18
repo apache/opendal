@@ -13,9 +13,8 @@
 // limitations under the License.
 
 use std::cmp::min;
-use std::io::ErrorKind;
+use std::io;
 use std::io::Read;
-use std::io::Result;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -33,7 +32,6 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
-use crate::error::new_other_object_error;
 use crate::object::EmptyObjectIterator;
 use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
@@ -49,12 +47,15 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectEntry;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for fs backend.
@@ -98,12 +99,11 @@ impl Builder {
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
-            if e.kind() == ErrorKind::NotFound {
+            if e.kind() == io::ErrorKind::NotFound {
                 std::fs::create_dir_all(&root).map_err(|e| {
-                    std::io::Error::new(
-                        ErrorKind::Other,
-                        anyhow!("create dir in {} error {:?}", &root, e),
-                    )
+                    Error::new(ErrorKind::Unexpected, "build", "create root dir failed")
+                        .with_context("root", &root)
+                        .with_source(anyhow!(e))
                 })?;
             }
         }

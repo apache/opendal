@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -46,6 +45,7 @@ use crate::ObjectMetadata;
 use crate::ObjectPart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// SubdirLayer to switch to subdir for existing operator.
 ///

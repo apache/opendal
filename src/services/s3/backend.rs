@@ -19,6 +19,7 @@ use std::fmt::Write;
 use std::io::Result;
 use std::sync::Arc;
 
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Buf;
@@ -853,22 +854,21 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Create, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Create, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Create, path, e))?;
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Create, path, e))?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
+                resp.into_body().consume().await.map_err(|err| {
+                    new_response_consume_error(Scheme::S3, Operation::Create, path, err)
+                })?;
                 Ok(())
             }
             _ => {
@@ -907,22 +907,21 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Write, path, e))?;
 
         let resp = self
             .client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Write, path, e))?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                resp.into_body().consume().await.map_err(|err| {
+                    new_response_consume_error(Scheme::S3, Operation::Write, path, err)
+                })?;
                 Ok(args.size())
             }
             _ => {
@@ -997,7 +996,7 @@ impl Accessor for Backend {
 
         self.signer
             .sign_query(&mut req, args.expire())
-            .map_err(|e| new_request_sign_error(Operation::Presign, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Presign, path, e))?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -1016,10 +1015,9 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let bs =
-                    resp.into_body().bytes().await.map_err(|e| {
-                        new_response_consume_error(Operation::CreateMultipart, path, e)
-                    })?;
+                let bs = resp.into_body().bytes().await.map_err(|e| {
+                    new_response_consume_error(Scheme::S3, Operation::CreateMultipart, path, e)
+                })?;
 
                 let result: InitiateMultipartUploadResult = quick_xml::de::from_reader(bs.reader())
                     .map_err(|err| {
@@ -1056,13 +1054,12 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::WriteMultipart, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::WriteMultipart, path, e))?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::WriteMultipart, path, e))?;
+        let resp =
+            self.client.send_async(req).await.map_err(|e| {
+                new_request_send_error(Scheme::S3, Operation::WriteMultipart, path, e)
+            })?;
 
         let status = resp.status();
 
@@ -1080,7 +1077,7 @@ impl Accessor for Backend {
                     .to_string();
 
                 resp.into_body().consume().await.map_err(|err| {
-                    new_response_consume_error(Operation::WriteMultipart, path, err)
+                    new_response_consume_error(Scheme::S3, Operation::WriteMultipart, path, err)
                 })?;
 
                 Ok(ObjectPart::new(args.part_number(), &etag))
@@ -1103,7 +1100,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await.map_err(|e| {
-                    new_response_consume_error(Operation::CompleteMultipart, path, e)
+                    new_response_consume_error(Scheme::S3, Operation::CompleteMultipart, path, e)
                 })?;
 
                 Ok(())
@@ -1125,10 +1122,9 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::NO_CONTENT => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|e| new_response_consume_error(Operation::AbortMultipart, path, e))?;
+                resp.into_body().consume().await.map_err(|e| {
+                    new_response_consume_error(Scheme::S3, Operation::AbortMultipart, path, e)
+                })?;
 
                 Ok(())
             }
@@ -1159,7 +1155,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Read, path, e))?;
 
         Ok(req)
     }
@@ -1173,12 +1169,12 @@ impl Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Read, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Read, path, e))
     }
 
     fn put_object_request(
@@ -1208,7 +1204,7 @@ impl Backend {
         // Set body
         let req = req
             .body(body)
-            .map_err(|e| new_request_build_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Write, path, e))?;
 
         Ok(req)
     }
@@ -1225,16 +1221,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Stat, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Stat, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Stat, path, e))
     }
 
     async fn delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -1244,16 +1240,16 @@ impl Backend {
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Delete, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Delete, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Delete, path, e))
     }
 
     /// Make this functions as `pub(suber)` because `DirStream` depends
@@ -1285,16 +1281,16 @@ impl Backend {
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::S3, Operation::List, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::List, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::List, path, e))
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::List, path, e))
     }
 
     async fn s3_initiate_multipart_upload(
@@ -1310,18 +1306,18 @@ impl Backend {
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
-        let mut req = req
-            .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::CreateMultipart, path, e))?;
+        let mut req = req.body(AsyncBody::Empty).map_err(|e| {
+            new_request_build_error(Scheme::S3, Operation::CreateMultipart, path, e)
+        })?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::CreateMultipart, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::CreateMultipart, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::CreateMultipart, path, e))
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::CreateMultipart, path, e))
     }
 
     fn s3_upload_part_request(
@@ -1354,7 +1350,7 @@ impl Backend {
         // Set body
         let req = req
             .body(body)
-            .map_err(|e| new_request_build_error(Operation::WriteMultipart, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::S3, Operation::WriteMultipart, path, e))?;
 
         Ok(req)
     }
@@ -1402,16 +1398,18 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(|e| new_request_build_error(Operation::CompleteMultipart, path, e))?;
+            .map_err(|e| {
+                new_request_build_error(Scheme::S3, Operation::CompleteMultipart, path, e)
+            })?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::CompleteMultipart, path, e))?;
+        self.signer.sign(&mut req).map_err(|e| {
+            new_request_sign_error(Scheme::S3, Operation::CompleteMultipart, path, e)
+        })?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::CompleteMultipart, path, e))
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::CompleteMultipart, path, e))
     }
 
     async fn s3_abort_multipart_upload(
@@ -1430,16 +1428,16 @@ impl Backend {
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::AbortMultipart, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::S3, Operation::AbortMultipart, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::AbortMultipart, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::AbortMultipart, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::AbortMultipart, path, e))
+            .map_err(|e| new_request_send_error(Scheme::S3, Operation::AbortMultipart, path, e))
     }
 }
 

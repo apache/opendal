@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -25,6 +24,7 @@ use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 pub struct DirStream {
     backend: Arc<Backend>,

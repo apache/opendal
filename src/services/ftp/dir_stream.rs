@@ -32,6 +32,7 @@ use crate::ops::Operation;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 pub struct ReadDir {
     files: Vec<String>,

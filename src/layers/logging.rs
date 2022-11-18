@@ -13,9 +13,8 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
+use std::io;
 use std::io::Read;
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -46,6 +45,7 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::ErrorKind;
 use crate::Layer;
 use crate::ObjectEntry;
 use crate::ObjectIterator;
@@ -53,6 +53,7 @@ use crate::ObjectMetadata;
 use crate::ObjectPart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// LoggingLayer will add logging for OpenDAL.
@@ -144,7 +145,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -189,7 +190,7 @@ impl Accessor for LoggingAccessor {
                 })
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} range={} -> failed: {err:?}",
@@ -226,7 +227,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} size={:?} -> failed: {err:?}",
@@ -262,7 +263,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -297,7 +298,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -332,7 +333,7 @@ impl Accessor for LoggingAccessor {
                 Box::new(streamer) as ObjectStreamer
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -367,7 +368,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -402,7 +403,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -454,7 +455,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> failed: {err:?}",
@@ -502,7 +503,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} upload_id={} -> failed: {err:?}",
@@ -537,7 +538,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} upload_id={} -> failed: {err:?}",self.scheme, Operation::AbortMultipart, path, args.upload_id());
@@ -572,7 +573,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -624,7 +625,7 @@ impl Accessor for LoggingAccessor {
                 Box::new(r) as BlockingBytesReader
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} range={} -> failed: {err:?}",
@@ -672,7 +673,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} size={:?} -> failed: {err:?}",
@@ -717,7 +718,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -757,7 +758,7 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -795,7 +796,7 @@ impl Accessor for LoggingAccessor {
                 Box::new(li) as ObjectIterator
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Other {
+                if err.kind() == ErrorKind::Unexpected {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} -> failed: {err:?}",
@@ -875,7 +876,7 @@ impl AsyncRead for LoggingReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         match Pin::new(&mut (*self.inner)).poll_read(cx, buf) {
             Poll::Ready(res) => match res {
                 Ok(n) => {
@@ -887,7 +888,7 @@ impl AsyncRead for LoggingReader {
                     Poll::Ready(Ok(n))
                 }
                 Err(e) => {
-                    if e.kind() == ErrorKind::Other {
+                    if e.kind() == io::ErrorKind::Other {
                         error!(
                             target: "opendal::services",
                             "service={} operation={} path={} has_read={} -> failed: {:?}",
@@ -965,7 +966,7 @@ impl Drop for BlockingLoggingReader {
 }
 
 impl Read for BlockingLoggingReader {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.inner.read(buf) {
             Ok(n) => {
                 self.has_read += n as u64;
@@ -976,7 +977,7 @@ impl Read for BlockingLoggingReader {
                 Ok(n)
             }
             Err(e) => {
-                if e.kind() == ErrorKind::Other {
+                if e.kind() == io::ErrorKind::Other {
                     error!(
                         target: "opendal::services",
                         "service={} operation={} path={} has_read={} -> failed: {:?}",
@@ -1049,7 +1050,7 @@ impl Stream for LoggingStreamer {
                         Poll::Ready(Some(Ok(de)))
                     }
                     Err(e) => {
-                        if e.kind() == ErrorKind::Other {
+                        if e.kind() == ErrorKind::Unexpected {
                             error!(
                                 target: "opendal::service",
                                 "service={} operation={} path={} -> failed: {:?}",
@@ -1153,7 +1154,7 @@ impl Iterator for LoggingIterator {
                     Some(Ok(de))
                 }
                 Err(e) => {
-                    if e.kind() == ErrorKind::Other {
+                    if e.kind() == ErrorKind::Unexpected {
                         error!(
                             target: "opendal::service",
                             "service={} operation={} path={} -> failed: {:?}",

@@ -15,9 +15,9 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
-use std::io::Result;
 use std::sync::Arc;
 
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
@@ -281,7 +281,7 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Create, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Create, path, e))?;
 
         let resp = self
             .client
@@ -427,16 +427,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Read, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Read, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::Read, path, e))
     }
 
     fn obs_put_object_request(
@@ -462,7 +462,7 @@ impl Backend {
 
         let req = req
             .body(body)
-            .map_err(|e| new_request_build_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Write, path, e))?;
 
         Ok(req)
     }
@@ -479,16 +479,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Stat, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Stat, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::Stat, path, e))
     }
 
     async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -500,16 +500,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Delete, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Delete, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::Delete, path, e))
     }
 
     pub(crate) async fn obs_list_objects(
@@ -530,15 +530,15 @@ impl Backend {
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::List, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::List, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::List, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::List, path, e))
     }
 }

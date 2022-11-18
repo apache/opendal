@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use std::future::Future;
-use std::io::Result;
+use std::io;
 use std::io::SeekFrom;
 use std::ops::RangeBounds;
 use std::pin::Pin;
@@ -34,6 +34,7 @@ use crate::BytesReader;
 use crate::Object;
 use crate::ObjectMetadata;
 use crate::ObjectReader;
+use crate::Result;
 
 /// Add seek support for object via internal lazy operation.
 ///
@@ -105,7 +106,7 @@ impl AsyncRead for SeekableReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         match &mut self.state {
             State::Idle => {
                 let acc = self.acc.clone();
@@ -125,7 +126,7 @@ impl AsyncRead for SeekableReader {
                     self.state = State::Reading(Box::new(r));
                     self.poll_read(cx, buf)
                 }
-                Err(e) => Poll::Ready(Err(e)),
+                Err(e) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
             },
             State::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
                 Ok(n) => {
@@ -144,9 +145,10 @@ impl AsyncSeek for SeekableReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         pos: SeekFrom,
-    ) -> Poll<Result<u64>> {
+    ) -> Poll<io::Result<u64>> {
         if let State::Seeking(future) = &mut self.state {
-            let meta = ready!(Pin::new(future).poll(cx))?;
+            let meta = ready!(Pin::new(future).poll(cx))
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
             self.size = Some(meta.content_length() - self.offset.unwrap_or_default())
         }
 

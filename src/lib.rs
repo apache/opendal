@@ -181,6 +181,11 @@ pub use object::ObjectStreamer;
 mod scheme;
 pub use scheme::Scheme;
 
+mod error;
+pub use error::Error;
+pub use error::ErrorKind;
+pub use error::Result;
+
 // Public modules, they will be accessed via `opendal::io_util::Xxxx`
 pub mod http_util;
 pub mod io_util;
@@ -193,7 +198,6 @@ pub mod services;
 // Private modules, internal use only.
 //
 // Please don't export any type from this module.
-mod error;
 mod path;
 
 #[cfg(test)]

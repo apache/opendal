@@ -16,9 +16,10 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::io::Result;
 use std::sync::Arc;
 
+use crate::http_util::new_request_send_async_error;
+use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
@@ -246,19 +247,17 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Create, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Create, path, e))?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Create, path, e))?;
+        let resp =
+            self.client.send_async(req).await.map_err(|e| {
+                new_request_send_async_error(Scheme::Gcs, Operation::Create, path, e)
+            })?;
 
         if resp.status().is_success() {
-            resp.into_body()
-                .consume()
-                .await
-                .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
+            resp.into_body().consume().await.map_err(|err| {
+                new_response_consume_error(Scheme::Gcs, Operation::Create, path, err)
+            })?;
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
@@ -271,7 +270,8 @@ impl Accessor for Backend {
         let resp = self.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
-            let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+            let meta =
+                parse_into_object_metadata(Scheme::Gcs, Operation::Read, path, resp.headers())?;
             Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
         } else {
             let er = parse_error_response(resp).await?;
@@ -290,7 +290,7 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Write, path, e))?;
 
         let resp = self
             .client
@@ -412,7 +412,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Read, path, e))?;
 
         Ok(req)
     }
@@ -426,12 +426,12 @@ impl Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Read, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Read, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::Read, path, e))
     }
 
     fn gcs_insert_object_request(
@@ -463,7 +463,7 @@ impl Backend {
         // Set body
         let req = req
             .body(body)
-            .map_err(|e| new_request_build_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Write, path, e))?;
 
         Ok(req)
     }
@@ -482,16 +482,16 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Stat, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Stat, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::Stat, path, e))
     }
 
     async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -506,16 +506,16 @@ impl Backend {
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Delete, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Delete, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::Delete, path, e))
     }
 
     pub(crate) async fn gcs_list_objects(
@@ -544,16 +544,16 @@ impl Backend {
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::List, path, e))?;
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::List, path, e))?;
 
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::List, path, e))
+            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::List, path, e))
     }
 }
 

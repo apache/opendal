@@ -15,9 +15,9 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Result;
 use std::sync::Arc;
 
+use crate::Result;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -442,7 +442,7 @@ impl Backend {
 
         let req = req
             .body(body)
-            .map_err(|e| new_request_build_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::Write, path, e))?;
         Ok(req)
     }
 
@@ -477,7 +477,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::Delete, path, e))?;
 
         Ok(req)
     }
@@ -492,7 +492,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::Stat, path, e))?;
 
         Ok(req)
     }
@@ -516,7 +516,7 @@ impl Backend {
         let req = Request::get(&url)
             .header(HOST, &self.host)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::List, path, e))?;
         Ok(req)
     }
 
@@ -533,7 +533,7 @@ impl Backend {
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Read, path, e))
     }
 
     async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -541,11 +541,11 @@ impl Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Stat, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::Stat, path, e))?;
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Stat, path, e))
     }
 
     async fn oss_put_object(
@@ -559,11 +559,11 @@ impl Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::Write, path, e))?;
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Write, path, e))
     }
 
     pub(super) async fn oss_list_object(
@@ -575,21 +575,21 @@ impl Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::List, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::List, path, e))?;
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::List, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::List, path, e))
     }
 
     async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_delete_object_request(path)?;
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Delete, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::Delete, path, e))?;
         self.client
             .send_async(req)
             .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Delete, path, e))
     }
 }

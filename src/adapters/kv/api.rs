@@ -13,17 +13,16 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 
 use async_trait::async_trait;
 use flagset::FlagSet;
 
-use crate::error::ObjectError;
 use crate::ops::Operation;
 use crate::AccessorCapability;
 use crate::AccessorMetadata;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 use crate::Scheme;
 
 /// KvAdapter is the adapter to underlying kv services.
@@ -41,13 +40,10 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
 
     /// The blocking version of get.
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            ObjectError::new(
-                Operation::BlockingRead,
-                path,
-                anyhow::anyhow!("operation is not supported by underlying services"),
-            ),
+        Err(new_unsupported_kv_error(
+            "blocking_get",
+            self.metadata().scheme(),
+            path,
         ))
     }
 
@@ -58,13 +54,10 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
         let _ = value;
 
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            ObjectError::new(
-                Operation::BlockingWrite,
-                path,
-                anyhow::anyhow!("operation is not supported by underlying services"),
-            ),
+        Err(new_unsupported_kv_error(
+            "blocking_set",
+            self.metadata().scheme(),
+            path,
         ))
     }
 
@@ -77,13 +70,10 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     ///
     /// - return `Ok(())` even if this key is not exist.
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            ObjectError::new(
-                Operation::BlockingDelete,
-                path,
-                anyhow::anyhow!("operation is not supported by underlying services"),
-            ),
+        Err(new_unsupported_kv_error(
+            "blocking_delete",
+            self.metadata().scheme(),
+            path,
         ))
     }
 }
@@ -134,4 +124,14 @@ impl From<Metadata> for AccessorMetadata {
 
         am
     }
+}
+
+fn new_unsupported_kv_error(op: &'static str, service: Scheme, path: &str) -> Error {
+    Error::new(
+        ErrorKind::Unsupported,
+        op,
+        "operation is unsupported for kv adapter",
+    )
+    .with_context("service", service.into_static())
+    .with_context("path", path)
 }

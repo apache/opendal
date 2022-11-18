@@ -13,8 +13,7 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -39,11 +38,13 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
+use crate::ErrorKind;
 use crate::Layer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// ContentCacheLayer will add content data cache support for OpenDAL.
 ///
@@ -162,7 +163,7 @@ impl ContentCacheAccessor {
     async fn new_whole_cache_reader(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.cache.read(path, args.clone()).await {
             Ok(r) => Ok(r),
-            Err(err) if err.kind() == ErrorKind::NotFound => {
+            Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
                 let r = self.inner.read(path, OpRead::new()).await?;
 
                 let length = r.content_length();
@@ -314,7 +315,7 @@ impl AsyncRead for FixedCacheReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let cache = self.cache.clone();
         let inner = self.inner.clone();
         let path = self.path.clone();

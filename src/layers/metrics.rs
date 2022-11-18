@@ -14,9 +14,8 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::ErrorKind;
+use std::io;
 use std::io::Read;
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -49,12 +48,14 @@ use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::ErrorKind;
 use crate::Layer;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";
 static METRIC_REQUESTS_DURATION_SECONDS: &str = "opendal_requests_duration_seconds";
@@ -654,7 +655,7 @@ impl Accessor for MetricsAccessor {
         self.handle.requests_duration_seconds_create.record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_create.increment(1);
             } else {
                 self.handle.errors_total_create.increment(1);
@@ -682,7 +683,7 @@ impl Accessor for MetricsAccessor {
         });
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_read.increment(1);
             } else {
                 self.handle.errors_total_read.increment(1);
@@ -710,7 +711,7 @@ impl Accessor for MetricsAccessor {
         self.handle.requests_duration_seconds_write.record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_write.increment(1);
             } else {
                 self.handle.errors_total_write.increment(1);
@@ -729,7 +730,7 @@ impl Accessor for MetricsAccessor {
         self.handle.requests_duration_seconds_stat.record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_stat.increment(1);
             } else {
                 self.handle.errors_total_stat.increment(1);
@@ -748,7 +749,7 @@ impl Accessor for MetricsAccessor {
         self.handle.requests_duration_seconds_delete.record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_delete.increment(1);
             } else {
                 self.handle.errors_total_delete.increment(1);
@@ -768,7 +769,7 @@ impl Accessor for MetricsAccessor {
 
         result
             .map_err(|e| {
-                if e.kind() == ErrorKind::Other {
+                if e.kind() == ErrorKind::Unexpected {
                     self.handle.failures_total_list.increment(1);
                 } else {
                     self.handle.errors_total_list.increment(1);
@@ -788,7 +789,7 @@ impl Accessor for MetricsAccessor {
         self.handle.requests_duration_seconds_presign.record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_presign.increment(1);
             } else {
                 self.handle.errors_total_presign.increment(1);
@@ -809,7 +810,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_create_multipart.increment(1);
             } else {
                 self.handle.errors_total_create_multipart.increment(1);
@@ -846,7 +847,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_write_multipart.increment(1);
             } else {
                 self.handle.errors_total_write_multipart.increment(1);
@@ -867,7 +868,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_complete_multipart.increment(1);
             } else {
                 self.handle.errors_total_complete_multipart.increment(1);
@@ -888,7 +889,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_abort_multipart.increment(1);
             } else {
                 self.handle.errors_total_abort_multipart.increment(1);
@@ -909,7 +910,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_blocking_create.increment(1);
             } else {
                 self.handle.errors_total_blocking_create.increment(1);
@@ -934,7 +935,7 @@ impl Accessor for MetricsAccessor {
         });
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_blocking_read.increment(1);
             } else {
                 self.handle.errors_total_blocking_read.increment(1);
@@ -964,7 +965,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_blocking_write.increment(1);
             } else {
                 self.handle.errors_total_blocking_write.increment(1);
@@ -985,7 +986,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_blocking_stat.increment(1);
             } else {
                 self.handle.errors_total_blocking_stat.increment(1);
@@ -1006,7 +1007,7 @@ impl Accessor for MetricsAccessor {
             .record(dur);
 
         result.map_err(|e| {
-            if e.kind() == ErrorKind::Other {
+            if e.kind() == ErrorKind::Unexpected {
                 self.handle.failures_total_blocking_delete.increment(1);
             } else {
                 self.handle.errors_total_blocking_delete.increment(1);
@@ -1028,7 +1029,7 @@ impl Accessor for MetricsAccessor {
 
         result
             .map_err(|e| {
-                if e.kind() == ErrorKind::Other {
+                if e.kind() == ErrorKind::Unexpected {
                     self.handle.failures_total_blocking_list.increment(1);
                 } else {
                     self.handle.errors_total_blocking_list.increment(1);
@@ -1078,7 +1079,7 @@ impl AsyncRead for MetricReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         Pin::new(&mut (*self.inner))
             .poll_read(cx, buf)
             .map(|res| match res {
@@ -1087,11 +1088,7 @@ impl AsyncRead for MetricReader {
                     Ok(bytes)
                 }
                 Err(e) => {
-                    if e.kind() == ErrorKind::Other {
-                        self.failures_counter.increment(1);
-                    } else {
-                        self.errors_counter.increment(1);
-                    }
+                    self.failures_counter.increment(1);
                     Err(e)
                 }
             })
@@ -1143,7 +1140,7 @@ impl BlockingMetricReader {
 }
 
 impl Read for BlockingMetricReader {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner
             .read(buf)
             .map(|n| {
@@ -1151,11 +1148,7 @@ impl Read for BlockingMetricReader {
                 n
             })
             .map_err(|e| {
-                if e.kind() == ErrorKind::Other {
-                    self.failures_counter.increment(1);
-                } else {
-                    self.errors_counter.increment(1);
-                }
+                self.failures_counter.increment(1);
                 e
             })
     }

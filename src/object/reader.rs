@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
+use std::io;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -127,7 +127,7 @@ impl AsyncRead for ObjectReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 }

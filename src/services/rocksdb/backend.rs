@@ -115,16 +115,28 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        self.db.get(key).map_err(new_rocksdb_error)
+    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        self.blocking_get(path)
     }
 
-    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        self.db.put(key, value).map_err(new_rocksdb_error)
+    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        self.db.get(path).map_err(new_rocksdb_error)
     }
 
-    async fn delete(&self, key: &[u8]) -> Result<()> {
-        self.db.delete(key).map_err(new_rocksdb_error)
+    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+        self.blocking_set(path, value)
+    }
+
+    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+        self.db.put(path, value).map_err(new_rocksdb_error)
+    }
+
+    async fn delete(&self, path: &str) -> Result<()> {
+        self.blocking_delete(path)
+    }
+
+    fn blocking_delete(&self, path: &str) -> Result<()> {
+        self.db.delete(path).map_err(new_rocksdb_error)
     }
 }
 

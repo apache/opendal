@@ -13,11 +13,15 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
 
 use async_trait::async_trait;
 use flagset::FlagSet;
 
+use crate::error::ObjectError;
+use crate::ops::Operation;
 use crate::AccessorCapability;
 use crate::AccessorMetadata;
 use crate::Scheme;
@@ -33,15 +37,55 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     /// Get a key from service.
     ///
     /// - return `Ok(None)` if this key is not exist.
-    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
+    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>>;
+
+    /// The blocking version of get.
+    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            ObjectError::new(
+                Operation::BlockingRead,
+                path,
+                anyhow::anyhow!("operation is not supported by underlying services"),
+            ),
+        ))
+    }
 
     /// Set a key into service.
-    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()>;
+    async fn set(&self, path: &str, value: &[u8]) -> Result<()>;
+
+    /// The blocking version of set.
+    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+        let _ = value;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            ObjectError::new(
+                Operation::BlockingWrite,
+                path,
+                anyhow::anyhow!("operation is not supported by underlying services"),
+            ),
+        ))
+    }
 
     /// Delete a key from service.
     ///
     /// - return `Ok(())` even if this key is not exist.
-    async fn delete(&self, key: &[u8]) -> Result<()>;
+    async fn delete(&self, path: &str) -> Result<()>;
+
+    /// Delete a key from service in blocking way.
+    ///
+    /// - return `Ok(())` even if this key is not exist.
+    fn blocking_delete(&self, path: &str) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            ObjectError::new(
+                Operation::BlockingDelete,
+                path,
+                anyhow::anyhow!("operation is not supported by underlying services"),
+            ),
+        ))
+    }
 }
 
 /// Metadata for this key value accessor.

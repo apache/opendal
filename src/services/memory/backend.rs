@@ -44,7 +44,7 @@ pub type Backend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
-    inner: Arc<Mutex<BTreeMap<Vec<u8>, Vec<u8>>>>,
+    inner: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
 }
 
 #[async_trait]
@@ -57,21 +57,33 @@ impl kv::Adapter for Adapter {
         )
     }
 
-    async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        match self.inner.lock().get(key) {
+    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        self.blocking_get(path)
+    }
+
+    fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        match self.inner.lock().get(path) {
             None => Ok(None),
             Some(bs) => Ok(Some(bs.to_vec())),
         }
     }
 
-    async fn set(&self, key: &[u8], value: &[u8]) -> Result<()> {
-        self.inner.lock().insert(key.to_vec(), value.to_vec());
+    async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
+        self.blocking_set(path, value)
+    }
+
+    fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
+        self.inner.lock().insert(path.to_string(), value.to_vec());
 
         Ok(())
     }
 
-    async fn delete(&self, key: &[u8]) -> Result<()> {
-        self.inner.lock().remove(key);
+    async fn delete(&self, path: &str) -> Result<()> {
+        self.blocking_delete(path)
+    }
+
+    fn blocking_delete(&self, path: &str) -> Result<()> {
+        self.inner.lock().remove(path);
 
         Ok(())
     }

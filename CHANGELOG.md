@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.20.1] - 2022-11-18
+
+### Added
+
+- feat: Implement blocking operations for cache services (#970)
+
+### Fixed
+
+- fix: Use std Duration as args instead (#966)
+- build: Make opendal buildable on 1.60 (#968)
+- fix: Avoid cache missing after write (#971)
+
 ## [v0.20.0] - 2022-11-17
 
 ### Added
@@ -969,6 +981,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.20.1]: https://github.com/datafuselabs/opendal/compare/v0.20.0...v0.20.1
 [v0.20.0]: https://github.com/datafuselabs/opendal/compare/v0.19.8...v0.20.0
 [v0.19.8]: https://github.com/datafuselabs/opendal/compare/v0.19.7...v0.19.8
 [v0.19.7]: https://github.com/datafuselabs/opendal/compare/v0.19.6...v0.19.7

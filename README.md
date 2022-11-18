@@ -1,10 +1,10 @@
 # OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io]
 
-[Build Status]: https://img.shields.io/github/workflow/status/datafuselabs/opendal/CI/main
+[build status]: https://img.shields.io/github/workflow/status/datafuselabs/opendal/CI/main
 [actions]: https://github.com/datafuselabs/opendal/actions?query=branch%3Amain
-[Latest Version]: https://img.shields.io/crates/v/opendal.svg
+[latest version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal
-[Crate Downloads]: https://img.shields.io/crates/d/opendal.svg
+[crate downloads]: https://img.shields.io/crates/d/opendal.svg
 
 **Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
 
@@ -116,7 +116,9 @@ More examples could be found at [Documentation](https://opendal.databend.rs).
 
 ## Projects
 
-- [databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
+- [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
+- [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
+- [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
 
 ## Contributing
 

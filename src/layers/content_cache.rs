@@ -22,11 +22,12 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::io::copy;
+use futures::io::Cursor;
 use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
 
-use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
 use crate::ops::BytesContentRange;
 use crate::ops::BytesRange;
@@ -37,10 +38,8 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
-use crate::BlockingBytesReader;
 use crate::BytesReader;
 use crate::Layer;
-use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
@@ -338,12 +337,39 @@ impl AsyncRead for FixedCacheReader {
                                         .read(&path, OpRead::new().with_range(total_range))
                                         .await?;
                                     let size = r.content_length();
+                                    let mut bs = Vec::with_capacity(size as usize);
+                                    copy(r, &mut bs).await?;
+
                                     cache
-                                        .write(&cache_path, OpWrite::new(size), r.into_reader())
+                                        .write(
+                                            &cache_path,
+                                            OpWrite::new(size),
+                                            Box::new(Cursor::new(bs.clone())),
+                                        )
                                         .await?;
-                                    cache
-                                        .read(&cache_path, OpRead::new().with_range(cache_range))
-                                        .await
+
+                                    // TODO: Extract this as a new function.
+                                    let br = cache_range;
+                                    let bs = match (br.offset(), br.size()) {
+                                        (Some(offset), Some(size)) => {
+                                            let mut bs = bs.split_off(offset as usize);
+                                            if (size as usize) < bs.len() {
+                                                let _ = bs.split_off(size as usize);
+                                            }
+                                            bs
+                                        }
+                                        (Some(offset), None) => bs.split_off(offset as usize),
+                                        (None, Some(size)) => {
+                                            bs.split_off(bs.len() - size as usize)
+                                        }
+                                        (None, None) => bs,
+                                    };
+                                    let length = bs.len();
+
+                                    Ok(ObjectReader::new(Box::new(Cursor::new(bs))).with_meta(
+                                        ObjectMetadata::new(ObjectMode::FILE)
+                                            .with_content_length(length as u64),
+                                    ))
                                 }
                                 Err(err) => Err(err),
                             }

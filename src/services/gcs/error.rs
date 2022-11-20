@@ -12,22 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::ErrorKind;
-
-use anyhow::anyhow;
 use http::StatusCode;
 
 use crate::http_util::ErrorResponse;
-use crate::ops::Operation;
 use crate::Error;
-use crate::Result;
+use crate::ErrorKind;
 
-/// Parse error response into io::Error.
-///
-/// # TODO
-///
-/// Make our own error type :)
-pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
+pub fn parse_error(er: ErrorResponse) -> Error {
     let (kind, retryable) = match er.status_code() {
         StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
@@ -38,4 +29,15 @@ pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-       Error::new(kind, op.into_static(), &er.to_string()).with_retryable(retryable)
+    let mut err = Error::new(kind, &er.to_string());
+
+    if retryable {
+        err.set_temporary();
+    }
+
+    err
+}
+
+pub fn parse_json_deserialize_error(e: serde_json::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "deserialize json").with_source(e)
+}

@@ -14,22 +14,23 @@
 
 use std::io;
 
-use crate::ops::Operation;
 use crate::Error;
 use crate::ErrorKind;
-use anyhow::anyhow;
 
 /// Parse all path related errors.
 ///
 /// ## Notes
 ///
 /// Skip utf-8 check to allow invalid path input.
-pub fn parse_io_error(err: io::Error, op: Operation, path: &str) -> Error {
-    Error::new(err.kind(), ObjectError::new(op, path, err))
-}
+pub fn parse_io_error(err: io::Error) -> Error {
+    use io::ErrorKind::*;
 
-pub fn new_unexpected_io_error(op: Operation, path: &str, message: &str, err: io::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, op.into_static(), message)
-        .with_context("path", path)
-        .with_source(anyhow!(err))
+    let (kind, retryable) = match err.kind() {
+        NotFound => (ErrorKind::ObjectNotFound, false),
+        PermissionDenied => (ErrorKind::ObjectPermissionDenied, false),
+        Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, true),
+    };
+
+    Error::new(kind, "system io error").with_source(err)
 }

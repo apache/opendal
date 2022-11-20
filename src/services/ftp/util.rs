@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
+use std::io;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
 use crate::Result;
-use anyhow::anyhow;
 use bb8::PooledConnection;
 use futures::future::BoxFuture;
 use futures::ready;
@@ -27,8 +26,6 @@ use futures::FutureExt;
 use suppaftp::Status;
 
 use super::backend::Manager;
-use crate::error::new_other_object_error;
-use crate::ops::Operation;
 use crate::BytesReader;
 
 /// Wrapper for ftp data stream and command stream.
@@ -59,7 +56,7 @@ impl AsyncRead for FtpReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let data = Pin::new(&mut self.reader).poll_read(cx, buf);
         let path = self.path.clone();
 
@@ -77,14 +74,7 @@ impl AsyncRead for FtpReader {
                                     Status::ClosingDataConnection,
                                     Status::RequestedFileActionOk,
                                 ])
-                                .await
-                                .map_err(|e| {
-                                    new_other_object_error(
-                                        Operation::Read,
-                                        path.as_str(),
-                                        anyhow!("unexpected response: {e:?}"),
-                                    )
-                                })?;
+                                .await?;
 
                                 Ok(())
                             };
@@ -104,7 +94,7 @@ impl AsyncRead for FtpReader {
             // Finalize state, wait for finalization of stream.
             State::Finalize(fut) => match ready!(Pin::new(fut).poll_unpin(cx)) {
                 Ok(_) => Poll::Ready(Ok(0)),
-                Err(e) => Poll::Ready(Err(Error::new(e.kind(), e.to_string()))),
+                Err(e) => Poll::Ready(Err(e.into())),
             },
         }
     }

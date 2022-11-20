@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
 
-use crate::error::new_unexpected_backend_error;
-use crate::http_util::new_request_send_async_error;
+use crate::http_util::new_request_build_error;
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -37,11 +37,10 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::error::parse_json_deserialize_error;
 use super::uri::percent_encode_path;
 use crate::accessor::AccessorCapability;
-use crate::http_util::new_request_send_async_error;
 use crate::http_util::new_request_sign_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
 use crate::http_util::AsyncBody;
@@ -144,11 +143,11 @@ impl Builder {
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(new_unexpected_backend_error(
-                Scheme::Gcs,
-                "build",
-                "bucked is empty",
-            )),
+            true => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::Gcs),
+            ),
         }?;
 
         // TODO: server side encryption
@@ -170,10 +169,12 @@ impl Builder {
             signer_builder.credential_from_content(cred);
         }
         let signer = signer_builder.build().map_err(|e| {
-            new_unexpected_backend_error(Scheme::Gcs, "build", "build signer failed")
-                .with_context("bucket", &bucket)
+            Error::new(ErrorKind::BackendConfigInvalid, "build GoogleSigner")
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Gcs)
+                .with_context("bucket", bucket)
                 .with_context("endpoint", &endpoint)
-                .with_source(anyhow!(e))
+                .with_source(e)
         })?;
         let signer = Arc::new(signer);
 
@@ -243,25 +244,16 @@ impl Accessor for Backend {
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
         let mut req = self.gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Create, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp =
-            self.client.send_async(req).await.map_err(|e| {
-                new_request_send_async_error(Scheme::Gcs, Operation::Create, path, e)
-            })?;
+        let resp = self.client.send_async(req).await?;
 
         if resp.status().is_success() {
-            resp.into_body().consume().await.map_err(|err| {
-                new_response_consume_error(Scheme::Gcs, Operation::Create, path, err)
-            })?;
+            resp.into_body().consume().await?;
             Ok(())
         } else {
-            let er = parse_error_response(resp).await.map_err(|err| {
-                new_response_consume_error(Scheme::Gcs, Operation::Create, path, err)
-            })?;
-            let e = parse_error(Operation::Create, path, er);
+            let er = parse_error_response(resp).await?;
+            let e = parse_error(er);
             Err(e)
         }
     }
@@ -270,12 +262,11 @@ impl Accessor for Backend {
         let resp = self.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
-            let meta =
-                parse_into_object_metadata(Scheme::Gcs, Operation::Read, path, resp.headers())?;
+            let meta = parse_into_object_metadata(path, resp.headers())?;
             Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error(Operation::Read, path, er);
+            let e = parse_error(er);
             Err(e)
         }
     }
@@ -288,25 +279,16 @@ impl Accessor for Backend {
             AsyncBody::Reader(r),
         )?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Write, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
+        let resp = self.client.send_async(req).await?;
 
         if (200..300).contains(&resp.status().as_u16()) {
-            resp.into_body()
-                .consume()
-                .await
-                .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+            resp.into_body().consume().await?;
             Ok(args.size())
         } else {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::Write, path, er);
+            let err = parse_error(er);
             Err(err)
         }
     }
@@ -321,16 +303,9 @@ impl Accessor for Backend {
 
         if resp.status().is_success() {
             // read http response body
-            let slc = resp.into_body().bytes().await.map_err(|e| {
-                new_other_object_error(Operation::Stat, path, anyhow!("read response body: {e:?}"))
-            })?;
-            let meta: GetObjectJsonResponse = serde_json::from_slice(&slc).map_err(|e| {
-                new_other_object_error(
-                    Operation::Stat,
-                    path,
-                    anyhow!("parse response body into JSON: {e:?}"),
-                )
-            })?;
+            let slc = resp.into_body().bytes().await?;
+            let meta: GetObjectJsonResponse =
+                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
 
             let mode = if path.ends_with('/') {
                 ObjectMode::DIR
@@ -342,20 +317,17 @@ impl Accessor for Backend {
             m.set_etag(&meta.etag);
             m.set_content_md5(&meta.md5_hash);
 
-            let size = meta.size.parse::<u64>().map_err(|e| {
-                new_other_object_error(Operation::Stat, path, anyhow!("parse object size: {e:?}"))
-            })?;
+            let size = meta
+                .size
+                .parse::<u64>()
+                .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").with_source(e))?;
             m.set_content_length(size);
             if !meta.content_type.is_empty() {
                 m.set_content_type(&meta.content_type);
             }
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                new_other_object_error(
-                    Operation::Stat,
-                    path,
-                    anyhow!("parse object updated: {e:?}"),
-                )
+                Error::new(ErrorKind::Unexpected, "parse date time with rfc 3339").with_source(e)
             })?;
             m.set_last_modified(datetime);
 
@@ -364,7 +336,7 @@ impl Accessor for Backend {
             Ok(ObjectMetadata::new(ObjectMode::DIR))
         } else {
             let er = parse_error_response(resp).await?;
-            let e = parse_error(Operation::Stat, path, er);
+            let e = parse_error(er);
             Err(e)
         }
     }
@@ -377,7 +349,7 @@ impl Accessor for Backend {
             Ok(())
         } else {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::Delete, path, er);
+            let err = parse_error(er);
             Err(err)
         }
     }
@@ -412,7 +384,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Read, path, e))?;
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -424,14 +396,9 @@ impl Backend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.gcs_get_object_request(path, range)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Read, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::Read, path, e))
+        self.client.send_async(req).await
     }
 
     fn gcs_insert_object_request(
@@ -461,9 +428,7 @@ impl Backend {
         }
 
         // Set body
-        let req = req
-            .body(body)
-            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Write, path, e))?;
+        let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -482,16 +447,11 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Stat, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Stat, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::Stat, path, e))
+        self.client.send_async(req).await
     }
 
     async fn gcs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -506,16 +466,11 @@ impl Backend {
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::Delete, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::Delete, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::Delete, path, e))
+        self.client.send_async(req).await
     }
 
     pub(crate) async fn gcs_list_objects(
@@ -544,16 +499,11 @@ impl Backend {
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Gcs, Operation::List, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Gcs, Operation::List, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_async_error(Scheme::Gcs, Operation::List, path, e))
+        self.client.send_async(req).await
     }
 }
 

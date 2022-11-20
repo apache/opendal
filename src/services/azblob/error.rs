@@ -15,15 +15,9 @@
 use http::StatusCode;
 
 use crate::http_util::ErrorResponse;
-use crate::ops::Operation;
 use crate::Error;
 use crate::ErrorKind;
 
-/// Parse error response into io::Error.
-///
-/// # TODO
-///
-/// In the future, we may have our own error struct.
 pub fn parse_error(er: ErrorResponse) -> Error {
     let (kind, retryable) = match er.status_code() {
         StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),

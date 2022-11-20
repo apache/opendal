@@ -12,48 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-
-use anyhow::anyhow;
 use suppaftp::FtpError;
 use suppaftp::Status;
 
-use crate::error::new_other_object_error;
-use crate::error::ObjectError;
-use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
 
-/// Parse error response into io::Error.
-///
-/// # TODO
-///
-/// In the future, we may have our own error struct.
-pub fn new_ftp_error(e: FtpError, op: Operation, path: &str) -> Error {
-    match e {
-        // Allow retry for error
-        //
-        // `{ status: NotAvailable, body: "421 There are too many connections from your internet address." }`
-        FtpError::UnexpectedResponse(ref resp) if resp.status == Status::NotAvailable => {
-            Error::new(
-                ErrorKind::Interrupted,
-                ObjectError::new(op, path, anyhow!("ftp error: {e:?}")),
-            )
+impl From<FtpError> for Error {
+    fn from(e: FtpError) -> Self {
+        let (kind, retryable) = match e {
+            // Allow retry for error
+            //
+            // `{ status: NotAvailable, body: "421 There are too many connections from your internet address." }`
+            FtpError::UnexpectedResponse(ref resp) if resp.status == Status::NotAvailable => {
+                (ErrorKind::Unexpected, true)
+            }
+            FtpError::UnexpectedResponse(ref resp) if resp.status == Status::FileUnavailable => {
+                (ErrorKind::ObjectNotFound, false)
+            }
+            // Allow retry bad response.
+            FtpError::BadResponse => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let mut err = Error::new(kind, "got ftp error").with_source(e);
+
+        if retryable {
+            err.set_temporary();
         }
-        FtpError::UnexpectedResponse(ref resp) if resp.status == Status::FileUnavailable => {
-            Error::new(
-                ErrorKind::NotFound,
-                ObjectError::new(op, path, anyhow!("file not found: {e:?}")),
-            )
-        }
-        // Allow retry bad response.
-        FtpError::BadResponse => Error::new(
-            ErrorKind::Interrupted,
-            ObjectError::new(op, path, anyhow!("ftp error: {e:?}")),
-        ),
-        _ => new_other_object_error(op, path, anyhow!("ftp error: {e:?}")),
+
+        err
     }
-}
-
-pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {
-    Error::new(err.kind(), ObjectError::new(op, path, err))
 }

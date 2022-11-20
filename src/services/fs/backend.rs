@@ -19,7 +19,6 @@ use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use async_compat::Compat;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
@@ -40,7 +39,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
@@ -101,9 +99,10 @@ impl Builder {
         if let Err(e) = std::fs::metadata(&root) {
             if e.kind() == io::ErrorKind::NotFound {
                 std::fs::create_dir_all(&root).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "build", "create root dir failed")
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
                         .with_context("root", &root)
-                        .with_source(anyhow!(e))
+                        .with_source(e)
                 })?;
             }
         }
@@ -126,13 +125,16 @@ impl Backend {
         match fs::metadata(&path).await {
             Ok(meta) => {
                 if meta.is_dir() != path.ends_with('/') {
-                    Err(ErrorKind::NotFound.into())
+                    Err(Error::new(
+                        ErrorKind::ObjectNotFound,
+                        "filemode is not match with its path",
+                    ))
                 } else {
                     Ok(meta)
                 }
             }
 
-            Err(e) => Err(e),
+            Err(e) => Err(parse_io_error(e)),
         }
     }
 
@@ -142,13 +144,16 @@ impl Backend {
         match std::fs::metadata(path) {
             Ok(meta) => {
                 if meta.is_dir() != path.ends_with('/') {
-                    Err(ErrorKind::NotFound.into())
+                    Err(Error::new(
+                        ErrorKind::ObjectNotFound,
+                        "filemode is not match with its path",
+                    ))
                 } else {
                     Ok(meta)
                 }
             }
 
-            Err(e) => Err(e),
+            Err(e) => Err(parse_io_error(e)),
         }
     }
 }
@@ -176,32 +181,28 @@ impl Accessor for Backend {
             let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
-                    new_other_object_error(
-                        Operation::Create,
-                        path,
-                        anyhow!("malformed path: {:?}", path),
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "path shoud have parent but not, it must be malformed",
                     )
+                    .with_context("input", p)
                 })?
                 .to_path_buf();
 
-            fs::create_dir_all(&parent)
-                .await
-                .map_err(|e| parse_io_error(e, Operation::Create, &parent.to_string_lossy()))?;
+            fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
 
             fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(&p)
                 .await
-                .map_err(|e| parse_io_error(e, Operation::Create, path))?;
+                .map_err(parse_io_error)?;
 
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
-            fs::create_dir_all(&p)
-                .await
-                .map_err(|e| parse_io_error(e, Operation::Create, path))?;
+            fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
             return Ok(());
         }
@@ -213,14 +214,11 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
-        let meta = Self::fs_metadata(&p)
-            .await
-            .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+        let meta = Self::fs_metadata(&p).await?;
         if meta.is_dir() {
-            return Err(new_other_object_error(
-                Operation::Read,
-                path,
-                anyhow!("Is a directory"),
+            return Err(Error::new(
+                ErrorKind::ObjectIsADirectory,
+                "given path is a directoty",
             ));
         }
 
@@ -228,7 +226,7 @@ impl Accessor for Backend {
             .read(true)
             .open(&p)
             .await
-            .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+            .map_err(parse_io_error)?;
 
         let mut f = Compat::new(f);
 
@@ -238,21 +236,21 @@ impl Accessor for Backend {
             (Some(offset), Some(size)) => {
                 f.seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                    .map_err(parse_io_error)?;
                 (Box::new(f.take(size)), min(size, meta.len() - offset))
             }
             // Read from offset.
             (Some(offset), None) => {
                 f.seek(SeekFrom::Start(offset))
                     .await
-                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                    .map_err(parse_io_error)?;
                 (Box::new(f), meta.len() - offset)
             }
             // Read the last size bytes.
             (None, Some(size)) => {
                 f.seek(SeekFrom::End(-(size as i64)))
                     .await
-                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                    .map_err(parse_io_error)?;
                 (Box::new(f), size)
             }
             // Read the whole file.
@@ -275,28 +273,26 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                new_other_object_error(
-                    Operation::Write,
-                    path,
-                    anyhow!("malformed path: {:?}", path),
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path shoud have parent but not, it must be malformed",
                 )
+                .with_context("input", p)
             })?
             .to_path_buf();
 
-        fs::create_dir_all(&parent)
-            .await
-            .map_err(|e| parse_io_error(e, Operation::Write, &parent.to_string_lossy()))?;
+        fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
 
         let f = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(&p)
             .await
-            .map_err(|e| parse_io_error(e, Operation::Write, path))?;
+            .map_err(parse_io_error)?;
 
         let mut f = Compat::new(f);
 
-        let size = futures::io::copy(r, &mut f).await?;
+        let size = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
 
         Ok(size)
     }
@@ -304,9 +300,7 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = Self::fs_metadata(&p)
-            .await
-            .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
+        let meta = Self::fs_metadata(&p).await?;
 
         let mode = if meta.is_dir() {
             ObjectMode::DIR
@@ -320,7 +314,7 @@ impl Accessor for Backend {
             .with_last_modified(
                 meta.modified()
                     .map(OffsetDateTime::from)
-                    .map_err(|e| parse_io_error(e, Operation::Stat, path))?,
+                    .map_err(parse_io_error)?,
             );
 
         Ok(m)
@@ -333,10 +327,10 @@ impl Accessor for Backend {
         let meta = Self::fs_metadata(&p).await;
 
         if let Err(err) = meta {
-            return if err.kind() == ErrorKind::NotFound {
+            return if err.kind() == ErrorKind::ObjectNotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, Operation::Delete, path))
+                Err(err)
             };
         }
 
@@ -349,7 +343,7 @@ impl Accessor for Backend {
             fs::remove_file(&p).await
         };
 
-        f.map_err(|e| parse_io_error(e, Operation::Delete, path))?;
+        f.map_err(parse_io_error)?;
 
         Ok(())
     }
@@ -360,10 +354,10 @@ impl Accessor for Backend {
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == ErrorKind::NotFound {
+                return if e.kind() == io::ErrorKind::NotFound {
                     Ok(Box::new(EmptyObjectStreamer))
                 } else {
-                    Err(parse_io_error(e, Operation::List, path))
+                    Err(parse_io_error(e))
                 }
             }
         };
@@ -380,30 +374,27 @@ impl Accessor for Backend {
             let parent = PathBuf::from(&p)
                 .parent()
                 .ok_or_else(|| {
-                    new_other_object_error(
-                        Operation::BlockingCreate,
-                        path,
-                        anyhow!("malformed path: {:?}", path),
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "path shoud have parent but not, it must be malformed",
                     )
+                    .with_context("input", p)
                 })?
                 .to_path_buf();
 
-            std::fs::create_dir_all(&parent).map_err(|e| {
-                parse_io_error(e, Operation::BlockingCreate, &parent.to_string_lossy())
-            })?;
+            std::fs::create_dir_all(&parent).map_err(parse_io_error)?;
 
             std::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(&p)
-                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, path))?;
+                .map_err(parse_io_error)?;
 
             return Ok(());
         }
 
         if args.mode() == ObjectMode::DIR {
-            std::fs::create_dir_all(&p)
-                .map_err(|e| parse_io_error(e, Operation::BlockingCreate, path))?;
+            std::fs::create_dir_all(&p).map_err(parse_io_error)?;
 
             return Ok(());
         }
@@ -417,25 +408,16 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
-        let meta = Self::blocking_fs_metadata(&p)
-            .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
-        if meta.is_dir() {
-            return Err(new_other_object_error(
-                Operation::BlockingRead,
-                path,
-                anyhow!("Is a directory"),
-            ));
-        }
+        let meta = Self::blocking_fs_metadata(&p)?;
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
             .open(&p)
-            .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
+            .map_err(parse_io_error)?;
 
         let br = args.range();
         if let Some(offset) = br.offset() {
-            f.seek(SeekFrom::Start(offset))
-                .map_err(|e| parse_io_error(e, Operation::BlockingRead, path))?;
+            f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
         };
 
         let f: BlockingBytesReader = match br.size() {
@@ -458,24 +440,23 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                new_other_object_error(
-                    Operation::BlockingWrite,
-                    path,
-                    anyhow!("malformed path: {:?}", path),
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path shoud have parent but not, it must be malformed",
                 )
+                .with_context("input", p)
             })?
             .to_path_buf();
 
-        std::fs::create_dir_all(&parent)
-            .map_err(|e| parse_io_error(e, Operation::BlockingWrite, &parent.to_string_lossy()))?;
+        std::fs::create_dir_all(&parent).map_err(parse_io_error)?;
 
         let mut f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(&p)
-            .map_err(|e| parse_io_error(e, Operation::BlockingWrite, path))?;
+            .map_err(parse_io_error)?;
 
-        let size = std::io::copy(&mut r, &mut f)?;
+        let size = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
 
         Ok(size)
     }
@@ -483,8 +464,7 @@ impl Accessor for Backend {
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = Self::blocking_fs_metadata(&p)
-            .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?;
+        let meta = Self::blocking_fs_metadata(&p)?;
 
         let mode = if meta.is_dir() {
             ObjectMode::DIR
@@ -498,7 +478,7 @@ impl Accessor for Backend {
             .with_last_modified(
                 meta.modified()
                     .map(OffsetDateTime::from)
-                    .map_err(|e| parse_io_error(e, Operation::BlockingStat, path))?,
+                    .map_err(parse_io_error)?,
             );
 
         Ok(m)
@@ -511,10 +491,10 @@ impl Accessor for Backend {
         let meta = Self::blocking_fs_metadata(&p);
 
         if let Err(err) = meta {
-            return if err.kind() == ErrorKind::NotFound {
+            return if err.kind() == ErrorKind::ObjectNotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, Operation::BlockingDelete, path))
+                Err(err)
             };
         }
 
@@ -527,7 +507,7 @@ impl Accessor for Backend {
             std::fs::remove_file(&p)
         };
 
-        f.map_err(|e| parse_io_error(e, Operation::BlockingDelete, path))?;
+        f.map_err(parse_io_error)?;
 
         Ok(())
     }
@@ -538,10 +518,10 @@ impl Accessor for Backend {
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
-                return if e.kind() == ErrorKind::NotFound {
+                return if e.kind() == io::ErrorKind::NotFound {
                     Ok(Box::new(EmptyObjectIterator))
                 } else {
-                    Err(parse_io_error(e, Operation::BlockingList, path))
+                    Err(parse_io_error(e))
                 }
             }
         };
@@ -559,7 +539,7 @@ impl Accessor for Backend {
                 // (no extra system calls needed), but some Unix platforms may
                 // require the equivalent call to symlink_metadata to learn about
                 // the target file type.
-                let file_type = de.file_type()?;
+                let file_type = de.file_type().map_err(parse_io_error)?;
 
                 let d = if file_type.is_file() {
                     ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::FILE))
@@ -578,7 +558,7 @@ impl Accessor for Backend {
                 Ok(d)
             }
 
-            Err(err) => Err(parse_io_error(err, Operation::BlockingList, &path)),
+            Err(err) => Err(parse_io_error(err)),
         });
 
         Ok(Box::new(f))

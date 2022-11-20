@@ -53,7 +53,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
@@ -254,9 +253,7 @@ impl Accessor for Backend {
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
         let mut req = self.azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "signing request").with_source(e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
         let resp = self.client.send_async(req).await?;
 

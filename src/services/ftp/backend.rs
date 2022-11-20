@@ -13,17 +13,14 @@
 // limitations under the License.
 
 use std::cmp::min;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::path::normalize_root;
 use crate::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -43,12 +40,8 @@ use tokio::sync::OnceCell;
 
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
-use super::err::new_ftp_error;
 use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
-use crate::error::ObjectError;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpList;
@@ -61,6 +54,8 @@ use crate::path::get_parent;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
@@ -152,9 +147,9 @@ impl Builder {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
             None => {
-                return Err(new_other_backend_error(
-                    HashMap::new(),
-                    anyhow!("endpoint must be specified"),
+                return Err(Error::new(
+                    ErrorKind::BackendConfigInvalid,
+                    "endpoint is empty",
                 ))
             }
             Some(v) => v,
@@ -162,10 +157,11 @@ impl Builder {
 
         let endpoint_uri = match endpoint.parse::<Uri>() {
             Err(e) => {
-                return Err(new_other_backend_error(
-                    HashMap::new(),
-                    anyhow!("endpoint must be valid uri: {:?}", e),
-                ));
+                return Err(
+                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+                        .with_context("endpoint", endpoint)
+                        .with_source(e),
+                );
             }
             Ok(uri) => uri,
         };
@@ -182,31 +178,15 @@ impl Builder {
             Some("ftps") | None => true,
 
             Some(s) => {
-                return Err(new_other_backend_error(
-                    HashMap::new(),
-                    anyhow!("endpoint scheme unsupported or invalid: {:?}", s),
-                ));
+                return Err(Error::new(
+                    ErrorKind::BackendConfigInvalid,
+                    "endpoint is unsupported or invalid",
+                )
+                .with_context("endpoint", s));
             }
         };
 
-        let root = match &self.root {
-            // set default path to '/'
-            None => "/".to_string(),
-            Some(v) => {
-                debug_assert!(!v.is_empty());
-                let mut v = v.clone();
-                if !v.starts_with('/') {
-                    return Err(new_other_backend_error(
-                        HashMap::from([("root".to_string(), v.clone())]),
-                        anyhow!("root must start with /"),
-                    ));
-                }
-                if !v.ends_with('/') {
-                    v.push('/');
-                }
-                v
-            }
-        };
+        let root = normalize_root(&self.root.take().unwrap_or_default());
 
         let user = match &self.user {
             None => "".to_string(),
@@ -338,25 +318,12 @@ impl Accessor for Backend {
                     }))
                     | Ok(()) => (),
                     Err(e) => {
-                        return Err(new_other_object_error(
-                            Operation::Create,
-                            path,
-                            anyhow!("mkdir request: {e:?}"),
-                        ));
+                        return Err(e.into());
                     }
                 }
             } else {
                 // else, create file
-                ftp_stream
-                    .put_file(&curr_path, &mut "".as_bytes())
-                    .await
-                    .map_err(|e| {
-                        new_other_object_error(
-                            Operation::Create,
-                            path,
-                            anyhow!("put request: {e:?}"),
-                        )
-                    })?;
+                ftp_stream.put_file(&curr_path, &mut "".as_bytes()).await?;
             }
         }
 
@@ -371,44 +338,24 @@ impl Accessor for Backend {
         let br = args.range();
         let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
-                ftp_stream
-                    .resume_transfer(offset as usize)
-                    .await
-                    .map_err(|e| new_ftp_error(e, Operation::Read, path))?;
-                let ds = ftp_stream
-                    .retr_as_stream(path)
-                    .await
-                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?
-                    .take(size);
+                ftp_stream.resume_transfer(offset as usize).await?;
+                let ds = ftp_stream.retr_as_stream(path).await?.take(size);
                 (Box::new(ds), min(size, meta.size() as u64 - offset))
             }
             (Some(offset), None) => {
-                ftp_stream
-                    .resume_transfer(offset as usize)
-                    .await
-                    .map_err(|e| new_ftp_error(e, Operation::Read, path))?;
-                let ds = ftp_stream
-                    .retr_as_stream(path)
-                    .await
-                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?;
+                ftp_stream.resume_transfer(offset as usize).await?;
+                let ds = ftp_stream.retr_as_stream(path).await?;
                 (Box::new(ds), meta.size() as u64 - offset)
             }
             (None, Some(size)) => {
                 ftp_stream
                     .resume_transfer((meta.size() as u64 - size) as usize)
-                    .await
-                    .map_err(|e| new_ftp_error(e, Operation::Read, path))?;
-                let ds = ftp_stream
-                    .retr_as_stream(path)
-                    .await
-                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?;
+                    .await?;
+                let ds = ftp_stream.retr_as_stream(path).await?;
                 (Box::new(ds), size)
             }
             (None, None) => {
-                let ds = ftp_stream
-                    .retr_as_stream(path)
-                    .await
-                    .map_err(|err| new_ftp_error(err, Operation::Read, path))?;
+                let ds = ftp_stream.retr_as_stream(path).await?;
                 (Box::new(ds), meta.size() as u64)
             }
         };
@@ -422,22 +369,13 @@ impl Accessor for Backend {
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
 
-        let mut data_stream = ftp_stream.append_with_stream(path).await.map_err(|e| {
-            new_other_object_error(Operation::Write, path, anyhow!("append request: {e:?}"))
+        let mut data_stream = ftp_stream.append_with_stream(path).await?;
+
+        let bytes = copy(r, &mut data_stream).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "copy from ftp stream").with_source(err)
         })?;
 
-        let bytes = copy(r, &mut data_stream).await?;
-
-        ftp_stream
-            .finalize_put_stream(data_stream)
-            .await
-            .map_err(|e| {
-                new_other_object_error(
-                    Operation::Write,
-                    path,
-                    anyhow!("finalize put request: {e:?}"),
-                )
-            })?;
+        ftp_stream.finalize_put_stream(data_stream).await?;
 
         Ok(bytes)
     }
@@ -480,11 +418,7 @@ impl Accessor for Backend {
             }))
             | Ok(_) => (),
             Err(e) => {
-                return Err(new_other_object_error(
-                    Operation::Delete,
-                    path,
-                    anyhow!("remove request: {e:?}"),
-                ));
+                return Err(e.into());
             }
         }
 
@@ -495,9 +429,7 @@ impl Accessor for Backend {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
-        let files = ftp_stream.list(pathname).await.map_err(|e| {
-            new_other_object_error(Operation::List, path, anyhow!("list request: {e:?}"))
-        })?;
+        let files = ftp_stream.list(pathname).await?;
 
         let rd = ReadDir::new(files);
 
@@ -511,7 +443,7 @@ impl Accessor for Backend {
 
 impl Backend {
     async fn ftp_connect(&self, op: Operation) -> Result<PooledConnection<'static, Manager>> {
-        let pool = match self
+        let pool = self
             .pool
             .get_or_try_init(|| async {
                 bb8::Pool::builder()
@@ -525,18 +457,13 @@ impl Backend {
                     })
                     .await
             })
-            .await
-        {
-            Ok(v) => Ok(v),
-            Err(err) => Err(new_ftp_error(err, op, "")),
-        }?;
+            .await?;
 
         pool.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => new_ftp_error(err, op, ""),
-            RunError::TimedOut => Error::new(
-                ErrorKind::Interrupted,
-                ObjectError::new(op, "", anyhow!("connection request: timeout")),
-            ),
+            RunError::User(err) => err.into(),
+            RunError::TimedOut => {
+                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
+            }
         })
     }
 
@@ -547,9 +474,7 @@ impl Backend {
 
         let pathname = if parent == "/" { None } else { Some(parent) };
 
-        let resp = ftp_stream.list(pathname).await.map_err(|e| {
-            new_other_object_error(Operation::Stat, path, anyhow!("list request: {e:?}"))
-        })?;
+        let resp = ftp_stream.list(pathname).await?;
 
         // Get stat of file.
         let mut files = resp
@@ -560,8 +485,8 @@ impl Backend {
 
         if files.is_empty() {
             Err(Error::new(
-                ErrorKind::NotFound,
-                ObjectError::new(Operation::Stat, path, anyhow!("file not found")),
+                ErrorKind::ObjectNotFound,
+                "file is not found during list",
             ))
         } else {
             Ok(files.remove(0))

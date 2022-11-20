@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use anyhow::anyhow;
-use anyhow::Context;
 use async_trait::async_trait;
 use futures::io::Cursor;
 use futures::AsyncReadExt;
@@ -94,13 +93,13 @@ where
         let bs = match self.kv.get(path).await? {
             Some(bs) => bs,
             None => {
-                return Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    Operation::Read.into_static(),
-                    "kv doesn't have this path",
+                return Err(
+                    Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
+                        .with_target("Backend")
+                        .with_operation(Operation::Read.into_static())
+                        .with_context("service", self.metadata().scheme().into_static())
+                        .with_context("path", path),
                 )
-                .with_context("service", self.metadata().scheme().into_static())
-                .with_context("path", path))
             }
         };
 
@@ -115,13 +114,13 @@ where
         let bs = match self.kv.blocking_get(path)? {
             Some(bs) => bs,
             None => {
-                return Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    Operation::BlockingRead.into_static(),
-                    "kv doesn't have this path",
+                return Err(
+                    Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
+                        .with_target("Backend")
+                        .with_operation(Operation::BlockingRead.into_static())
+                        .with_context("service", self.metadata().scheme().into_static())
+                        .with_context("path", path),
                 )
-                .with_context("service", self.metadata().scheme().into_static())
-                .with_context("path", path))
             }
         };
 
@@ -132,14 +131,12 @@ where
     async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs).await.map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                Operation::Write.into_static(),
-                "read from source failed",
-            )
-            .with_context("service", self.metadata().scheme().into_static())
-            .with_context("path", path)
-            .with_source(anyhow!(err))
+            Error::new(ErrorKind::Unexpected, "read from source")
+                .with_target("Backend")
+                .with_operation(Operation::Write.into_static())
+                .with_context("service", self.metadata().scheme().into_static())
+                .with_context("path", path)
+                .with_source(err)
         })?;
 
         self.kv.set(path, &bs).await?;
@@ -150,14 +147,12 @@ where
     fn blocking_write(&self, path: &str, args: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs).map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                Operation::BlockingWrite.into_static(),
-                "read from source failed",
-            )
-            .with_context("service", self.metadata().scheme().into_static())
-            .with_context("path", path)
-            .with_source(anyhow!(err))
+            Error::new(ErrorKind::Unexpected, "read from source")
+                .with_target("Backend")
+                .with_operation(Operation::BlockingWrite.into_static())
+                .with_context("service", self.metadata().scheme().into_static())
+                .with_context("path", path)
+                .with_source(err)
         })?;
 
         self.kv.blocking_set(path, &bs)?;
@@ -174,13 +169,13 @@ where
                 Some(bs) => {
                     Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
                 }
-                None => Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    Operation::Stat.into_static(),
-                    "kv doesn't have this path",
-                )
-                .with_context("service", self.metadata().scheme().into_static())
-                .with_context("path", path)),
+                None => Err(
+                    Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
+                        .with_target("Backend")
+                        .with_operation(Operation::Stat.into_static())
+                        .with_context("service", self.metadata().scheme().into_static())
+                        .with_context("path", path),
+                ),
             }
         }
     }
@@ -194,13 +189,13 @@ where
                 Some(bs) => {
                     Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
                 }
-                None => Err(Error::new(
-                    ErrorKind::ObjectNotFound,
-                    Operation::BlockingStat.into_static(),
-                    "kv doesn't have this path",
-                )
-                .with_context("service", self.metadata().scheme().into_static())
-                .with_context("path", path)),
+                None => Err(
+                    Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
+                        .with_target("Backend")
+                        .with_operation(Operation::BlockingStat.into_static())
+                        .with_context("service", self.metadata().scheme().into_static())
+                        .with_context("path", path),
+                ),
             }
         }
     }

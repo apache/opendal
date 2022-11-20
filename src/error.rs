@@ -35,12 +35,9 @@
 //! # }
 //! ```
 
-use std::fmt;
 use std::fmt::Debug;
 use std::fmt::{Display, Formatter};
-
-use crate::ops::Operation;
-use crate::Scheme;
+use std::{fmt, io};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -53,6 +50,9 @@ pub enum ErrorKind {
     /// returning it back. For example, s3 returns an internal servie error.
     Unexpected,
     Unsupported,
+
+    BackendConfigInvalid,
+
     /// object is not found.
     ObjectNotFound,
     ObjectPermissionDenied,
@@ -65,6 +65,7 @@ impl Display for ErrorKind {
         match self {
             ErrorKind::Unexpected => write!(f, "Unexpected"),
             ErrorKind::Unsupported => write!(f, "Unsupported"),
+            ErrorKind::BackendConfigInvalid => write!(f, "BackendConfigInvalid"),
             ErrorKind::ObjectNotFound => write!(f, "ObjectNotFound"),
             ErrorKind::ObjectPermissionDenied => write!(f, "ObjectPermissionDenied"),
             ErrorKind::ObjectIsADirectory => write!(f, "ObjectIsADirectory"),
@@ -73,22 +74,43 @@ impl Display for ErrorKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ErrorStatus {
+    Permenent,
+    Temporary,
+    Persistent,
+}
+
+impl Display for ErrorStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ErrorStatus::Permenent => write!(f, "permenent"),
+            ErrorStatus::Temporary => write!(f, "temporary"),
+            ErrorStatus::Persistent => write!(f, "persistent"),
+        }
+    }
+}
+
 pub struct Error {
     kind: ErrorKind,
-
-    operation: &'static str,
     message: String,
+
+    status: ErrorStatus,
+    target: &'static str,
+    operation: &'static str,
     context: Vec<(&'static str, String)>,
     source: Option<anyhow::Error>,
-
-    retryable: bool,
-    /// TODO: print retry related info.
-    retried: bool,
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "kind: {}, op: {}", self.kind, self.operation)?;
+        write!(
+            f,
+            "{} ({}) at {}",
+            self.kind,
+            self.status,
+            [self.target, self.operation].join("::"),
+        )?;
 
         if !self.context.is_empty() {
             write!(f, ", context: {{ ")?;
@@ -112,8 +134,11 @@ impl Debug for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "kind: {}, op: {} => {}",
-            self.kind, self.operation, self.message
+            "{} ({}) at {} => {}",
+            self.kind,
+            self.status,
+            [self.target, self.operation].join("::"),
+            self.message
         )?;
         if !self.context.is_empty() {
             writeln!(f)?;
@@ -138,37 +163,49 @@ impl std::error::Error for Error {
 }
 
 impl Error {
-    pub fn new(kind: ErrorKind, operation: &'static str, message: &str) -> Self {
+    pub fn new(kind: ErrorKind, message: &str) -> Self {
         Self {
             kind,
-
-            operation,
             message: message.to_string(),
+
+            status: ErrorStatus::Permenent,
+            target: "",
+            operation: "",
             context: Vec::default(),
             source: None,
-
-            retryable: false,
-            retried: false,
         }
     }
 
-    pub fn with_context(mut self, key: &'static str, value: &str) -> Self {
-        self.context.push((key, value.to_string()));
+    pub fn with_target(mut self, target: &'static str) -> Self {
+        self.target = target;
         self
     }
 
-    pub fn with_source(mut self, src: anyhow::Error) -> Self {
-        self.source = Some(src);
+    pub fn with_operation(mut self, operation: &'static str) -> Self {
+        self.operation = operation;
         self
     }
 
-    pub fn with_retryable(mut self, retryable: bool) -> Self {
-        self.retryable = retryable;
+    pub fn with_context(mut self, key: &'static str, value: impl Into<String>) -> Self {
+        self.context.push((key, value.into()));
         self
     }
 
-    pub fn with_retried(mut self) -> Self {
-        self.retried = true;
+    pub fn with_source(mut self, src: impl Into<anyhow::Error>) -> Self {
+        self.source = Some(src.into());
+        self
+    }
+
+    pub fn set_permenent(mut self) -> Self {
+        self.status = ErrorStatus::Permenent;
+        self
+    }
+    pub fn set_temporary(mut self) -> Self {
+        self.status = ErrorStatus::Temporary;
+        self
+    }
+    pub fn set_persistent(mut self) -> Self {
+        self.status = ErrorStatus::Persistent;
         self
     }
 
@@ -176,33 +213,19 @@ impl Error {
         self.kind
     }
 
-    pub fn retryable(&self) -> bool {
-        self.retryable
+    pub fn is_temporary(&self) -> bool {
+        self.status == ErrorStatus::Temporary
     }
 }
 
-pub fn new_unsupported_object_error(service: Scheme, op: Operation, path: &str) -> Error {
-    Error::new(
-        ErrorKind::Unsupported,
-        op.into_static(),
-        "operation is unsupported for service",
-    )
-    .with_context("service", service.into_static())
-    .with_context("path", path)
-}
+impl From<Error> for io::Error {
+    fn from(err: Error) -> Self {
+        let kind = match err.kind() {
+            ErrorKind::ObjectNotFound => io::ErrorKind::NotFound,
+            ErrorKind::ObjectPermissionDenied => io::ErrorKind::PermissionDenied,
+            _ => io::ErrorKind::Other,
+        };
 
-pub fn new_unexpected_object_error(
-    service: Scheme,
-    op: Operation,
-    path: &str,
-    message: &str,
-) -> Error {
-    Error::new(ErrorKind::Unexpected, op.into_static(), message)
-        .with_context("service", service.into_static())
-        .with_context("path", path)
-}
-
-pub fn new_unexpected_backend_error(service: Scheme, op: &'static str, message: &str) -> Error {
-    Error::new(ErrorKind::Unexpected, op.into_static(), message)
-        .with_context("service", service.into_static())
+        io::Error::new(kind, err)
+    }
 }

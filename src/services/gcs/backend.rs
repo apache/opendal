@@ -18,6 +18,7 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
 
+use crate::error::new_unexpected_backend_error;
 use crate::http_util::new_request_send_async_error;
 use crate::Result;
 use anyhow::anyhow;
@@ -38,10 +39,7 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::uri::percent_encode_path;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
-use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
+use crate::http_util::new_request_send_async_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
@@ -146,14 +144,12 @@ impl Builder {
         // Handle endpoint and bucket name
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(new_other_backend_error(
-                HashMap::from([("bucket".to_string(), "".to_string())]),
-                anyhow!("bucket name is empty"),
+            true => Err(new_unexpected_backend_error(
+                Scheme::Gcs,
+                "build",
+                "bucked is empty",
             )),
         }?;
-
-        // setup error context
-        let mut ctx = HashMap::from([("bucket".to_string(), bucket.to_string())]);
 
         // TODO: server side encryption
 
@@ -163,7 +159,6 @@ impl Builder {
             .endpoint
             .clone()
             .unwrap_or_else(|| DEFAULT_GCS_ENDPOINT.to_string());
-        ctx.insert("endpoint".to_string(), endpoint.clone());
 
         debug!("backend use endpoint: {endpoint}");
 
@@ -174,9 +169,12 @@ impl Builder {
         if let Some(cred) = &self.credential {
             signer_builder.credential_from_content(cred);
         }
-        let signer = signer_builder
-            .build()
-            .map_err(|e| new_other_backend_error(ctx, e))?;
+        let signer = signer_builder.build().map_err(|e| {
+            new_unexpected_backend_error(Scheme::Gcs, "build", "build signer failed")
+                .with_context("bucket", &bucket)
+                .with_context("endpoint", &endpoint)
+                .with_source(anyhow!(e))
+        })?;
         let signer = Arc::new(signer);
 
         let backend = Backend {
@@ -260,7 +258,9 @@ impl Accessor for Backend {
             })?;
             Ok(())
         } else {
-            let er = parse_error_response(resp).await?;
+            let er = parse_error_response(resp).await.map_err(|err| {
+                new_response_consume_error(Scheme::Gcs, Operation::Create, path, err)
+            })?;
             let e = parse_error(Operation::Create, path, er);
             Err(e)
         }

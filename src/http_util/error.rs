@@ -14,7 +14,6 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io;
 
 use anyhow::anyhow;
 use http::response::Parts;
@@ -23,96 +22,10 @@ use http::HeaderValue;
 use http::Response;
 use http::StatusCode;
 
-use crate::error::new_unexpected_object_error;
 use crate::http_util::IncomingAsyncBody;
-use crate::ops::Operation;
 use crate::Error;
-use crate::Scheme;
-
-/// Create error happened during building http request.
-pub fn new_request_build_error(
-    scheme: Scheme,
-    op: Operation,
-    path: &str,
-    err: http::Error,
-) -> Error {
-    new_unexpected_object_error(scheme, op, path, "building request").with_source(anyhow!(err))
-}
-
-/// Create error happened during signing http request.
-pub fn new_request_sign_error(
-    scheme: Scheme,
-    op: Operation,
-    path: &str,
-    err: anyhow::Error,
-) -> Error {
-    new_unexpected_object_error(scheme, op, path, "signing request").with_source(err)
-}
-
-/// Create error happened during sending http request.
-pub fn new_request_send_error(
-    scheme: Scheme,
-    op: Operation,
-    path: &str,
-    err: ureq::Error,
-) -> Error {
-    let retryable = {
-        match err {
-            ureq::Error::Transport(transport) => match transport.kind() {
-                ureq::ErrorKind::Dns | ureq::ErrorKind::ConnectionFailed | ureq::ErrorKind::Io => {
-                    true
-                }
-                _ => false,
-            },
-            _ => false,
-        }
-    };
-
-    new_unexpected_object_error(scheme, op, path, "sending request")
-        .with_source(anyhow!(err))
-        .with_retryable(retryable)
-}
-
-/// Create error happened during sending http request.
-pub fn new_request_send_async_error(
-    scheme: Scheme,
-    op: Operation,
-    path: &str,
-    err: reqwest::Error,
-) -> Error {
-    let retryable = {
-        if err.is_builder() {
-            // Builder related error should not be retried.
-            false
-        } else if err.is_redirect() {
-            // Error returned by RedirectPolicy.
-            //
-            // We don't set this by hand, just don't allow retry.
-            false
-        } else if err.is_status() {
-            // We never use `Response::error_for_status`, just don't allow retry.
-            //
-            // Status should be checked by our services.
-            false
-        } else {
-            true
-        }
-    };
-
-    new_unexpected_object_error(scheme, op, path, "sending request")
-        .with_source(anyhow!(err))
-        .with_retryable(retryable)
-}
-
-/// Create error happened during consuming http response.
-pub fn new_response_consume_error(
-    scheme: Scheme,
-    op: Operation,
-    path: &str,
-    err: io::Error,
-) -> Error {
-    new_unexpected_object_error(scheme, op, path, "consuming response").with_source(anyhow!(err))
-}
+use crate::ErrorKind;
+use crate::Result;
 
 /// ErrorResponse carries HTTP status code, headers and body.
 ///
@@ -157,9 +70,14 @@ impl Display for ErrorResponse {
 ///
 /// Please only use this for parsing error response hence it will read the
 /// entire body into memory.
-pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> io::Result<ErrorResponse> {
+pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<ErrorResponse> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+    let bs = body.bytes().await.map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "reading error response")
+            .with_target("http_util")
+            .with_operation("parse_error_response")
+            .with_source(anyhow!(err))
+    })?;
 
     Ok(ErrorResponse {
         parts,

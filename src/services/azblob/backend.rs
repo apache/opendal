@@ -18,13 +18,9 @@ use std::fmt::Write;
 use std::mem;
 use std::sync::Arc;
 
-use crate::error::new_unexpected_backend_error;
-use crate::error::new_unsupported_object_error;
-use crate::http_util::new_request_send_async_error;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
@@ -39,10 +35,6 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
-use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
-use crate::http_util::new_request_sign_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
@@ -185,21 +177,23 @@ impl Builder {
         // Handle endpoint, region and container name.
         let container = match self.container.is_empty() {
             false => Ok(&self.container),
-            true => Err(new_unexpected_backend_error(
-                Scheme::Azblob,
-                "build",
-                "container is empty",
-            )),
+            true => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "container is empty")
+                    .with_target("Builder")
+                    .with_operation("build")
+                    .with_context("service", Scheme::Azblob),
+            ),
         }?;
         debug!("backend use container {}", &container);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(new_unexpected_backend_error(
-                Scheme::Azblob,
-                "build",
-                "endpoint is empty",
-            )),
+            None => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
+                    .with_target("Builder")
+                    .with_operation("build")
+                    .with_context("service", Scheme::Azblob),
+            ),
         }?;
         debug!("backend use endpoint {}", &container);
 
@@ -211,10 +205,13 @@ impl Builder {
         }
 
         let signer = signer_builder.build().map_err(|e| {
-            new_unexpected_backend_error(Scheme::Azblob, "build", "build signer failed")
-                .with_context("container", container)
+            Error::new(ErrorKind::BackendConfigInvalid, "build AzureStorageSigner")
+                .with_target("Builder")
+                .with_operation("build")
+                .with_context("service", Scheme::Azblob)
                 .with_context("endpoint", &endpoint)
-                .with_source(anyhow!(e))
+                .with_context("container", container.as_str())
+                .with_source(e)
         })?;
 
         debug!("backend build finished: {:?}", &self);
@@ -261,11 +258,9 @@ impl Accessor for Backend {
             .sign(&mut req)
             .map_err(|e| new_request_sign_error(Scheme::Azblob, Operation::Create, path, e))?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Create, path, e))?;
+        let resp = self.client.send_async(req).await.map_err(|e| {
+            new_request_send_async_error(Scheme::Azblob, Operation::Create, path, e)
+        })?;
 
         let status = resp.status();
 
@@ -277,7 +272,9 @@ impl Accessor for Backend {
                 Ok(())
             }
             _ => {
-                let er = parse_error_response(resp).await?;
+                let er = parse_error_response(resp).await.map_err(|err| {
+                    new_response_consume_error(Scheme::Azblob, Operation::Create, path, err)
+                })?;
                 let err = parse_error(Operation::Create, path, er);
                 Err(err)
             }
@@ -291,11 +288,18 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                let meta = parse_into_object_metadata(
+                    Scheme::Azblob,
+                    Operation::Read,
+                    path,
+                    resp.headers(),
+                )?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
-                let er = parse_error_response(resp).await?;
+                let er = parse_error_response(resp).await.map_err(|err| {
+                    new_response_consume_error(Scheme::Azblob, Operation::Create, path, err)
+                })?;
                 let err = parse_error(Operation::Read, path, er);
                 Err(err)
             }
@@ -312,26 +316,26 @@ impl Accessor for Backend {
 
         self.signer
             .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
+            .map_err(|e| new_request_sign_error(Scheme::Azblob, Operation::Write, path, e))?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
+        let resp =
+            self.client.send_async(req).await.map_err(|e| {
+                new_request_send_async_error(Scheme::Azblob, Operation::Write, path, e)
+            })?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                resp.into_body().consume().await.map_err(|err| {
+                    new_response_consume_error(Scheme::Azblob, Operation::Write, path, err)
+                })?;
                 Ok(args.size())
             }
             _ => {
-                let er = parse_error_response(resp).await?;
+                let er = parse_error_response(resp).await.map_err(|err| {
+                    new_response_consume_error(Scheme::Azblob, Operation::Create, path, err)
+                })?;
                 let err = parse_error(Operation::Write, path, er);
                 Err(err)
             }
@@ -349,12 +353,16 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(Operation::Stat, path, resp.headers()),
+            StatusCode::OK => {
+                parse_into_object_metadata(Scheme::Azblob, Operation::Stat, path, resp.headers())
+            }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
             _ => {
-                let er = parse_error_response(resp).await?;
+                let er = parse_error_response(resp).await.map_err(|err| {
+                    new_response_consume_error(Scheme::Azblob, Operation::Stat, path, err)
+                })?;
                 let err = parse_error(Operation::Stat, path, er);
                 Err(err)
             }
@@ -369,7 +377,9 @@ impl Accessor for Backend {
         match status {
             StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
             _ => {
-                let er = parse_error_response(resp).await?;
+                let er = parse_error_response(resp).await.map_err(|err| {
+                    new_response_consume_error(Scheme::Azblob, Operation::Delete, path, err)
+                })?;
                 let err = parse_error(Operation::Delete, path, er);
                 Err(err)
             }

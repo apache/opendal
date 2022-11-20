@@ -31,6 +31,10 @@ use super::AsyncBody;
 use super::Body;
 use crate::http_util::body::IncomingAsyncBody;
 use crate::io_util::into_reader;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
+use anyhow::anyhow;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -100,7 +104,7 @@ impl HttpClient {
     }
 
     /// Send a request in blocking way.
-    pub fn send(&self, req: Request<Body>) -> Result<Response<Body>, ureq::Error> {
+    pub fn send(&self, req: Request<Body>) -> Result<Response<Body>> {
         let (parts, body) = req.into_parts();
 
         let mut ur = self
@@ -115,7 +119,22 @@ impl HttpClient {
             Err(err_resp) => match err_resp {
                 ureq::Error::Status(_code, resp) => resp,
                 ureq::Error::Transport(transport) => {
-                    return Err(err_resp);
+                    let is_temperary = match transport.kind() {
+                        ureq::ErrorKind::Dns
+                        | ureq::ErrorKind::ConnectionFailed
+                        | ureq::ErrorKind::Io => true,
+                        _ => false,
+                    };
+
+                    let mut err = Error::new(ErrorKind::Unexpected, "send blocking request")
+                        .with_target("http_util::client")
+                        .with_operation("send")
+                        .with_source(err_resp);
+                    if is_temperary {
+                        err = err.set_temporary();
+                    }
+
+                    return Err(err);
                 }
             },
         };
@@ -135,10 +154,7 @@ impl HttpClient {
     }
 
     /// Send a request in async way.
-    pub async fn send_async(
-        &self,
-        req: Request<AsyncBody>,
-    ) -> Result<Response<IncomingAsyncBody>, reqwest::Error> {
+    pub async fn send_async(&self, req: Request<AsyncBody>) -> Result<Response<IncomingAsyncBody>> {
         let is_head = req.method() == http::Method::HEAD;
         let (parts, body) = req.into_parts();
 
@@ -161,7 +177,34 @@ impl HttpClient {
             req_builder.body(body)
         };
 
-        let resp = req_builder.send().await?;
+        let resp = req_builder.send().await.map_err(|err| {
+            let is_temperary = if err.is_builder() {
+                // Builder related error should not be retried.
+                false
+            } else if err.is_redirect() {
+                // Error returned by RedirectPolicy.
+                //
+                // We don't set this by hand, just don't allow retry.
+                false
+            } else if err.is_status() {
+                // We never use `Response::error_for_status`, just don't allow retry.
+                //
+                // Status should be checked by our services.
+                false
+            } else {
+                true
+            };
+
+            let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
+                .with_target("http_util::client")
+                .with_operation("send_async")
+                .with_source(err);
+            if is_temperary {
+                oerr = oerr.set_temporary();
+            }
+
+            oerr
+        })?;
 
         // Get content length from header so that we can check it.
         // If the request method is HEAD, we will ignore this.

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
-use anyhow::Result;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
@@ -24,12 +22,12 @@ use http::HeaderMap;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use crate::error::new_unexpected_object_error;
 use crate::ops::BytesContentRange;
-use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::Scheme;
+use crate::Result;
 
 /// Parse content length from header map.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
@@ -37,9 +35,22 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
         None => Ok(None),
         Some(v) => Ok(Some(
             v.to_str()
-                .map_err(|e| anyhow!("parse {} header: {:?}", CONTENT_LENGTH, e))?
+                .map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "header value is not valid utf-8 string",
+                    )
+                    .with_target("http_util")
+                    .with_operation("parse_content_length")
+                    .with_source(e)
+                })?
                 .parse::<u64>()
-                .map_err(|e| anyhow!("parse {} header: {:?}", CONTENT_LENGTH, e))?,
+                .map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "header value is not valid integer")
+                        .with_target("http_util")
+                        .with_operation("parse_content_length")
+                        .with_source(e)
+                })?,
         )),
     }
 }
@@ -48,11 +59,15 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
 pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
     match headers.get(HeaderName::from_static("content-md5")) {
         None => Ok(None),
-        Some(v) => {
-            Ok(Some(v.to_str().map_err(|e| {
-                anyhow!("parse content-md5 header: {:?}", e)
-            })?))
-        }
+        Some(v) => Ok(Some(v.to_str().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "header value is not valid utf-8 string",
+            )
+            .with_target("http_util")
+            .with_operation("parse_content_md5")
+            .with_source(e)
+        })?)),
     }
 }
 
@@ -60,11 +75,15 @@ pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
 pub fn parse_content_type(headers: &HeaderMap) -> Result<Option<&str>> {
     match headers.get(CONTENT_TYPE) {
         None => Ok(None),
-        Some(v) => {
-            Ok(Some(v.to_str().map_err(|e| {
-                anyhow!("parse content-type header: {:?}", e)
-            })?))
-        }
+        Some(v) => Ok(Some(v.to_str().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "header value is not valid utf-8 string",
+            )
+            .with_target("http_util")
+            .with_operation("parse_content_type")
+            .with_source(e)
+        })?)),
     }
 }
 
@@ -74,7 +93,15 @@ pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRan
         None => Ok(None),
         Some(v) => Ok(Some(
             v.to_str()
-                .map_err(|e| anyhow!("parse content-range header: {:?}", e))?
+                .map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "header value is not valid utf-8 string",
+                    )
+                    .with_target("http_util")
+                    .with_operation("parse_content_range")
+                    .with_source(e)
+                })?
                 .parse()?,
         )),
     }
@@ -85,11 +112,24 @@ pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>
     match headers.get(LAST_MODIFIED) {
         None => Ok(None),
         Some(v) => {
-            let v = v
-                .to_str()
-                .map_err(|e| anyhow!("parse {} header: {:?}", LAST_MODIFIED, e))?;
-            let t = OffsetDateTime::parse(v, &Rfc2822)
-                .map_err(|e| anyhow!("parse {} header: {:?}", LAST_MODIFIED, e))?;
+            let v = v.to_str().map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "header value is not valid utf-8 string",
+                )
+                .with_target("http_util")
+                .with_operation("parse_last_modified")
+                .with_source(e)
+            })?;
+            let t = OffsetDateTime::parse(v, &Rfc2822).map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "header value is not valid rfc2822 time",
+                )
+                .with_target("http_util")
+                .with_operation("parse_last_modified")
+                .with_source(e)
+            })?;
 
             Ok(Some(t))
         }
@@ -100,10 +140,15 @@ pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>
 pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
     match headers.get(ETAG) {
         None => Ok(None),
-        Some(v) => Ok(Some(
-            v.to_str()
-                .map_err(|e| anyhow!("parse etag header: {:?}", e))?,
-        )),
+        Some(v) => Ok(Some(v.to_str().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "header value is not valid utf-8 string",
+            )
+            .with_target("http_util")
+            .with_operation("parse_etag")
+            .with_source(e)
+        })?)),
     }
 }
 
@@ -114,12 +159,7 @@ pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
 /// parse_into_object_metadata only handles the standard behavior of http
 /// headers. If services have their own logic, they should update the parsed
 /// metadata on demand.
-pub fn parse_into_object_metadata(
-    service: Scheme,
-    op: Operation,
-    path: &str,
-    headers: &HeaderMap,
-) -> crate::Result<ObjectMetadata> {
+pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<ObjectMetadata> {
     let mode = if path.ends_with('/') {
         ObjectMode::DIR
     } else {
@@ -127,39 +167,27 @@ pub fn parse_into_object_metadata(
     };
     let mut m = ObjectMetadata::new(mode);
 
-    if let Some(v) = parse_content_length(headers).map_err(|e| {
-        new_unexpected_object_error(service, op, path, "parse header content length").with_source(e)
-    })? {
+    if let Some(v) = parse_content_length(headers)? {
         m.set_content_length(v);
     }
 
-    if let Some(v) = parse_content_type(headers).map_err(|e| {
-        new_unexpected_object_error(service, op, path, "parse header content type").with_source(e)
-    })? {
+    if let Some(v) = parse_content_type(headers)? {
         m.set_content_type(v);
     }
 
-    if let Some(v) = parse_content_range(headers).map_err(|e| {
-        new_unexpected_object_error(service, op, path, "parse header content range").with_source(e)
-    })? {
+    if let Some(v) = parse_content_range(headers)? {
         m.set_content_range(v);
     }
 
-    if let Some(v) = parse_etag(headers).map_err(|e| {
-        new_unexpected_object_error(service, op, path, "parse header etag").with_source(e)
-    })? {
+    if let Some(v) = parse_etag(headers)? {
         m.set_etag(v);
     }
 
-    if let Some(v) = parse_content_md5(headers).map_err(|e| {
-        new_unexpected_object_error(service, op, path, "parse header content md5").with_source(e)
-    })? {
+    if let Some(v) = parse_content_md5(headers)? {
         m.set_content_md5(v);
     }
 
-    if let Some(v) = parse_last_modified(headers).map_err(|e| {
-        new_unexpected_object_error(service, op, path, "parse header last modified").with_source(e)
-    })? {
+    if let Some(v) = parse_last_modified(headers)? {
         m.set_last_modified(v);
     }
 

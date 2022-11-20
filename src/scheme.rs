@@ -175,3 +175,9 @@ impl From<Scheme> for &'static str {
         }
     }
 }
+
+impl From<Scheme> for String {
+    fn from(v: Scheme) -> Self {
+        v.into_static().to_string()
+    }
+}

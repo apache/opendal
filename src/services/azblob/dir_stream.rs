@@ -72,7 +72,9 @@ impl ObjectPageStream for DirStream {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            let er = parse_error_response(resp).await?;
+            let er = parse_error_response(resp).await.map_err(|err| {
+                new_response_consume_error(Scheme::Azblob, Operation::List, &self.path, err)
+            })?;
             let err = parse_error(Operation::List, &self.path, er);
             return Err(err);
         }

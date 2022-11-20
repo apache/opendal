@@ -126,41 +126,33 @@ impl FromStr for BytesRange {
 
     fn from_str(value: &str) -> Result<Self> {
         let s = value.strip_prefix("bytes=").ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "parse_range",
-                "header range is invalid",
-            )
-            .with_context("value", value)
+            Error::new(ErrorKind::Unexpected, "header range is invalid")
+                .with_target("BytesRange")
+                .with_operation("from_str")
+                .with_context("value", value)
         })?;
 
         if s.contains(',') {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "parse_range",
-                "header range is invalid",
-            )
-            .with_context("value", value));
+            return Err(Error::new(ErrorKind::Unexpected, "header range is invalid")
+                .with_target("BytesRange")
+                .with_operation("from_str")
+                .with_context("value", value));
         }
 
         let v = s.split('-').collect::<Vec<_>>();
         if v.len() != 2 {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "parse_range",
-                "header range is invalid",
-            )
-            .with_context("value", value));
+            return Err(Error::new(ErrorKind::Unexpected, "header range is invalid")
+                .with_target("BytesRange")
+                .with_operation("from_str")
+                .with_context("value", value));
         }
 
         let parse_int_error = |e: std::num::ParseIntError| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "parse_range",
-                "header range is invalid",
-            )
-            .with_context("value", value)
-            .with_source(anyhow!(e))
+            Error::new(ErrorKind::Unexpected, "header range is invalid")
+                .with_target("BytesRange")
+                .with_operation("from_str")
+                .with_context("value", value)
+                .with_source(e)
         };
 
         if v[1].is_empty() {

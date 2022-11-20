@@ -16,10 +16,8 @@ use std::fmt::Debug;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use futures::io;
 use futures::io::Cursor;
-use opentelemetry::trace::FutureExt;
 use time::Duration;
 
 use crate::io::BytesRead;
@@ -353,13 +351,13 @@ impl Object {
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::Read.into_static(),
-                "read path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_target("Object")
+                    .with_operation("range_read")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let br = BytesRange::from(range);
@@ -373,14 +371,12 @@ impl Object {
         let mut bs = Cursor::new(buffer);
 
         io::copy(s, &mut bs).await.map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                Operation::Read.into_static(),
-                "range read failed",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path())
-            .with_context("range", &br.to_string())
+            Error::new(ErrorKind::Unexpected, "read from storage")
+                .with_target("Object")
+                .with_operation("range_read")
+                .with_context("service", self.accessor().metadata().scheme().into_static())
+                .with_context("path", self.path())
+                .with_context("range", &br.to_string())
         })?;
 
         Ok(bs.into_inner())
@@ -409,13 +405,13 @@ impl Object {
     /// ```
     pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::BlockingRead.into_static(),
-                "read path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_target("Object")
+                    .with_operation("blocking_range_read")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let br = BytesRange::from(range);
@@ -430,14 +426,12 @@ impl Object {
         };
 
         std::io::copy(&mut s, &mut buffer).map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                Operation::BlockingRead.into_static(),
-                "blocking range read failed",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path())
-            .with_context("range", &br.to_string())
+            Error::new(ErrorKind::Unexpected, "blocking range read failed")
+                .with_target("Object")
+                .with_operation("blocking_range_read")
+                .with_context("service", self.accessor().metadata().scheme().into_static())
+                .with_context("path", self.path())
+                .with_context("range", &br.to_string())
         });
 
         Ok(buffer)
@@ -513,13 +507,13 @@ impl Object {
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<ObjectReader> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::Read.into_static(),
-                "read path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_target("Object")
+                    .with_operation("range_reader")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         self.acc
@@ -550,13 +544,13 @@ impl Object {
         range: impl RangeBounds<u64>,
     ) -> Result<impl BlockingBytesRead> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::BlockingRead.into_static(),
-                "read path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_target("Object")
+                    .with_operation("blocking_range_reader")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         self.acc
@@ -698,13 +692,11 @@ impl Object {
         let mut bs = Cursor::new(Vec::new());
 
         io::copy(r, &mut bs).await.map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                Operation::Read.into_static(),
-                "decompress read with failed",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path())
+            Error::new(ErrorKind::Unexpected, "decompress read with failed")
+                .with_target("Object")
+                .with_operation("decompress_read_with")
+                .with_context("service", self.accessor().metadata().scheme().into_static())
+                .with_context("path", self.path())
         })?;
 
         Ok(bs.into_inner())
@@ -802,13 +794,13 @@ impl Object {
     /// ```
     pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::Write.into_static(),
-                "write path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_target("Object")
+                    .with_operation("write_with")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let bs = bs.into();
@@ -876,13 +868,13 @@ impl Object {
     /// ```
     pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::BlockingStat.into_static(),
-                "write path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_target("Object")
+                    .with_operation("blocking_write_with")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let bs = bs.into();
@@ -920,13 +912,13 @@ impl Object {
     /// ```
     pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::Write.into_static(),
-                "write path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_target("Object")
+                    .with_operation("write_from")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let _ = self
@@ -969,13 +961,13 @@ impl Object {
         br: impl BlockingBytesRead + 'static,
     ) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(Error::new(
-                ErrorKind::ObjectIsADirectory,
-                Operation::BlockingWrite.into_static(),
-                "write path is a directory",
-            )
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_target("Object")
+                    .with_operation("blocking_write_from")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let _ = self
@@ -1073,9 +1065,10 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
-                Operation::List.into_static(),
                 "the path trying to list is not a directory",
             )
+            .with_target("Object")
+            .with_operation("list")
             .with_context("service", self.accessor().metadata().scheme().into_static())
             .with_context("path", self.path()));
         }
@@ -1122,9 +1115,10 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
-                Operation::BlockingList.into_static(),
                 "the path trying to list is not a directory",
             )
+            .with_target("Object")
+            .with_operation("blocking_list")
             .with_context("service", self.accessor().metadata().scheme().into_static())
             .with_context("path", self.path()));
         }

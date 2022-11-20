@@ -125,7 +125,7 @@ where
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         { || self.inner.create(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -133,13 +133,13 @@ where
                     Operation::Create, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let r = { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -147,7 +147,7 @@ where
                     Operation::Read, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())?;
+            .map_err(|e| e.set_persistent())?;
 
         Ok(r.map_reader(|r| Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone()))))
     }
@@ -161,7 +161,7 @@ where
 
         { || self.inner.write(path, args.clone(), r.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -174,7 +174,7 @@ where
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         { || self.inner.stat(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -182,13 +182,13 @@ where
                     Operation::Stat, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         { || self.inner.delete(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -196,13 +196,13 @@ where
                     Operation::Delete, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -210,14 +210,14 @@ where
                     Operation::List, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
         { || self.inner.create_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -225,7 +225,7 @@ where
                     Operation::CreateMultipart, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
     }
 
     async fn write_multipart(
@@ -238,13 +238,13 @@ where
         self.inner
             .write_multipart(path, args.clone(), r)
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
     }
 
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         { || self.inner.complete_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -252,13 +252,13 @@ where
                     Operation::CompleteMultipart, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
     }
 
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         { || self.inner.abort_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.retryable())
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -266,7 +266,7 @@ where
                     Operation::AbortMultipart, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(|e| e.with_retried())
+            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -280,7 +280,7 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let retryable = err.retryable();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {
@@ -311,7 +311,7 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let retryable = err.retryable();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {
@@ -346,7 +346,7 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let retryable = err.retryable();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {
@@ -377,7 +377,7 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let retryable = err.retryable();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {
@@ -408,7 +408,7 @@ where
             match res {
                 Ok(v) => return Ok(set_accessor_for_object_iterator(v, self.clone())),
                 Err(err) => {
-                    let retryable = err.retryable();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {

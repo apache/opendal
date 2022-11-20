@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::io::copy;
@@ -38,6 +39,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::Accessor;
 use crate::BytesReader;
+use crate::Error;
 use crate::ErrorKind;
 use crate::Layer;
 use crate::ObjectMetadata;
@@ -333,13 +335,19 @@ impl AsyncRead for FixedCacheReader {
                                 .await
                             {
                                 Ok(r) => Ok(r),
-                                Err(err) if err.kind() == ErrorKind::NotFound => {
+                                Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
                                     let r = inner
                                         .read(&path, OpRead::new().with_range(total_range))
                                         .await?;
                                     let size = r.content_length();
                                     let mut bs = Vec::with_capacity(size as usize);
-                                    copy(r, &mut bs).await?;
+                                    copy(r, &mut bs).await.map_err(|err| {
+                                        Error::new(ErrorKind::Unexpected, "read from inner storage")
+                                            .with_target("FixedCacheReader")
+                                            .with_operation("read")
+                                            .with_context("path", &cache_path)
+                                            .with_source(anyhow!(err))
+                                    })?;
 
                                     cache
                                         .write(
@@ -381,7 +389,8 @@ impl AsyncRead for FixedCacheReader {
                 }
             }
             FixedCacheState::Fetching((it, fut)) => {
-                let r = ready!(fut.poll_unpin(cx))?;
+                let r = ready!(fut.poll_unpin(cx))
+                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
                 self.state = FixedCacheState::Reading((*it, r));
                 self.poll_read(cx, buf)
             }

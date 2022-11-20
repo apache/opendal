@@ -123,3 +123,9 @@ impl From<Operation> for &'static str {
         }
     }
 }
+
+impl From<Operation> for String {
+    fn from(v: Operation) -> Self {
+        v.into_static().to_string()
+    }
+}

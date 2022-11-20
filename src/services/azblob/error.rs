@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::anyhow;
 use http::StatusCode;
 
 use crate::http_util::ErrorResponse;
@@ -36,5 +35,5 @@ pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    Error::new(kind, op, &er.to_string()).with_retryable(retryable)
+    Error::new(kind, op.into_static(), &er.to_string()).with_retryable(retryable)
 }

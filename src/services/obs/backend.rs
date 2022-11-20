@@ -17,8 +17,9 @@ use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
 
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -31,11 +32,8 @@ use reqsign::HuaweicloudObsSigner;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
 use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
@@ -172,24 +170,23 @@ impl Builder {
 
         let bucket = match &self.bucket {
             Some(bucket) => Ok(bucket.to_string()),
-            None => Err(new_other_backend_error(
-                HashMap::from([("bucket".to_string(), "".to_string())]),
-                anyhow!("bucket is empty"),
-            )),
+            None => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
+                    .with_context("service", Scheme::Obs),
+            ),
         }?;
         debug!("backend use bucket {}", &bucket);
 
         let uri = match &self.endpoint {
-            Some(endpoint) => endpoint.parse::<Uri>().map_err(|_| {
-                new_other_backend_error(
-                    HashMap::from([("endpoint".to_string(), "".to_string())]),
-                    anyhow!("endpoint is invalid"),
-                )
+            Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
+                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+                    .with_context("service", Scheme::Obs)
+                    .with_source(err)
             }),
-            None => Err(new_other_backend_error(
-                HashMap::from([("endpoint".to_string(), "".to_string())]),
-                anyhow!("endpoint is empty"),
-            )),
+            None => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
+                    .with_context("service", Scheme::Obs),
+            ),
         }?;
 
         let scheme = match uri.scheme_str() {
@@ -237,9 +234,11 @@ impl Builder {
             signer_builder.bucket(&endpoint);
         }
 
-        let signer = signer_builder
-            .build()
-            .map_err(|e| new_other_backend_error(context, e))?;
+        let signer = signer_builder.build().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "build HuaweicloudObsSigner")
+                .with_context("service", Scheme::Obs)
+                .with_source(e)
+        })?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(Backend {
@@ -279,29 +278,20 @@ impl Accessor for Backend {
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
         let mut req = self.obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Create, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
+        let resp = self.client.send_async(req).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -314,12 +304,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -333,29 +323,20 @@ impl Accessor for Backend {
             AsyncBody::Reader(r),
         )?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Write, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
+        let resp = self.client.send_async(req).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(args.size())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -373,13 +354,13 @@ impl Accessor for Backend {
 
         // The response is very similar to azblob.
         match status {
-            StatusCode::OK => parse_into_object_metadata(Operation::Stat, path, resp.headers()),
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -394,7 +375,7 @@ impl Accessor for Backend {
             StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -427,16 +408,11 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Read, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Read, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::Read, path, e))
+        self.client.send_async(req).await
     }
 
     fn obs_put_object_request(
@@ -460,9 +436,7 @@ impl Backend {
             req = req.header(CONTENT_TYPE, mime)
         }
 
-        let req = req
-            .body(body)
-            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Write, path, e))?;
+        let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -479,16 +453,11 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Stat, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Stat, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::Stat, path, e))
+        self.client.send_async(req).await
     }
 
     async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -500,16 +469,11 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::Delete, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::Delete, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::Delete, path, e))
+        self.client.send_async(req).await
     }
 
     pub(crate) async fn obs_list_objects(
@@ -530,15 +494,10 @@ impl Backend {
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Obs, Operation::List, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Obs, Operation::List, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Obs, Operation::List, path, e))
+        self.client.send_async(req).await
     }
 }

@@ -12,33 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-
-use anyhow::anyhow;
 use http::StatusCode;
 
-use crate::error::ObjectError;
 use crate::http_util::ErrorResponse;
-use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
 
 /// Parse error response into io::Error.
 ///
 /// # TODO
 ///
 /// In the future, we may have our own error struct.
-pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
-    let kind = match er.status_code() {
-        StatusCode::NOT_FOUND => ErrorKind::NotFound,
-        StatusCode::FORBIDDEN => ErrorKind::PermissionDenied,
+pub fn parse_error(er: ErrorResponse) -> Error {
+    let (kind, retryable) = match er.status_code() {
+        StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
-        | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Interrupted,
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
         // OBS could return `520 Origin Error` errors which should be retried.
-        v if v.as_u16() == 520 => ErrorKind::Interrupted,
-        _ => ErrorKind::Other,
+        v if v.as_u16() == 520 => (ErrorKind::Unexpected, true),
+
+        _ => (ErrorKind::Unexpected, false),
     };
 
-    Error::new(kind, ObjectError::new(op, path, anyhow!("{er}")))
+    let mut err = Error::new(kind, &er.to_string());
+
+    if retryable {
+        err.set_temporary();
+    }
+
+    err
 }

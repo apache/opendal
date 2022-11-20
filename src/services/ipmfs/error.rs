@@ -12,16 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-
-use anyhow::anyhow;
 use http::StatusCode;
 use serde::Deserialize;
 
-use crate::error::ObjectError;
 use crate::http_util::ErrorResponse;
-use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
 
 #[derive(Deserialize, Default, Debug)]
@@ -44,28 +40,34 @@ struct IpfsError {
 /// > (if no error, check the daemon logs).
 ///
 /// ref: https://docs.ipfs.tech/reference/kubo/rpc/#http-status-codes
-pub fn parse_error(op: Operation, path: &str, er: ErrorResponse) -> Error {
-    let kind = match er.status_code() {
+pub fn parse_error(er: ErrorResponse) -> Error {
+    let (kind, retryable) = match er.status_code() {
         StatusCode::INTERNAL_SERVER_ERROR => {
-            let ie: Result<IpfsError> = serde_json::from_slice(er.body()).map_err(|err| {
-                Error::new(
-                    ErrorKind::Other,
-                    ObjectError::new(op, path, anyhow!("deserialize error content: {err:?}")),
-                )
-            });
+            let ie: Result<IpfsError> =
+                serde_json::from_slice(er.body()).map_err(parse_json_deserialize_error);
             match ie {
                 Ok(ie) => match ie.message.as_str() {
-                    "file does not exist" => ErrorKind::NotFound,
-                    _ => ErrorKind::Other,
+                    "file does not exist" => (ErrorKind::ObjectNotFound, false),
+                    _ => (ErrorKind::Unexpected, false),
                 },
                 Err(e) => return e,
             }
         }
         StatusCode::BAD_GATEWAY | StatusCode::SERVICE_UNAVAILABLE | StatusCode::GATEWAY_TIMEOUT => {
-            ErrorKind::Interrupted
+            (ErrorKind::Unexpected, true)
         }
-        _ => ErrorKind::Other,
+        _ => (ErrorKind::Unexpected, false),
     };
 
-    Error::new(kind, ObjectError::new(op, path, anyhow!("{er}")))
+    let mut err = Error::new(kind, &er.to_string());
+
+    if retryable {
+        err.set_temporary();
+    }
+
+    err
+}
+
+pub fn parse_json_deserialize_error(e: serde_json::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "deserialize json").with_source(e)
 }

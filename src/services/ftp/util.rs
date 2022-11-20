@@ -58,7 +58,6 @@ impl AsyncRead for FtpReader {
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
         let data = Pin::new(&mut self.reader).poll_read(cx, buf);
-        let path = self.path.clone();
 
         match &mut self.state {
             // Reading state, try to poll some data.

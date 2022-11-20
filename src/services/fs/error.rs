@@ -25,7 +25,7 @@ use crate::ErrorKind;
 pub fn parse_io_error(err: io::Error) -> Error {
     use io::ErrorKind::*;
 
-    let (kind, retryable) = match err.kind() {
+    let (kind, _) = match err.kind() {
         NotFound => (ErrorKind::ObjectNotFound, false),
         PermissionDenied => (ErrorKind::ObjectPermissionDenied, false),
         Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),

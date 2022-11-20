@@ -36,7 +36,6 @@ use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
@@ -375,6 +374,7 @@ impl Object {
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
                 .with_context("range", &br.to_string())
+                .with_source(err)
         })?;
 
         Ok(bs.into_inner())
@@ -428,7 +428,8 @@ impl Object {
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
                 .with_context("range", &br.to_string())
-        });
+                .with_source(err)
+        })?;
 
         Ok(buffer)
     }
@@ -690,6 +691,7 @@ impl Object {
                 .with_operation("Object::decompress_read_with")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
+                .with_source(err)
         })?;
 
         Ok(bs.into_inner())

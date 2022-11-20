@@ -28,17 +28,15 @@ use crate::Result;
 pub struct DirStream {
     backend: Arc<Backend>,
     root: String,
-    path: String,
 
     rd: std::fs::ReadDir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str, rd: std::fs::ReadDir) -> Self {
+    pub fn new(backend: Arc<Backend>, root: &str, rd: std::fs::ReadDir) -> Self {
         Self {
             backend,
             root: root.to_string(),
-            path: path.to_string(),
             rd,
         }
     }

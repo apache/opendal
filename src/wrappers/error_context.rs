@@ -130,12 +130,12 @@ where
 {
     type Item = Result<ObjectEntry>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(ready!(self.inner.poll_next_unpin(cx)).map(|v| {
             v.map_err(|err| {
                 err.with_operation(Operation::List.into_static())
                     .with_context("service", self.scheme)
-                    .with_context("path", self.path)
+                    .with_context("path", &self.path)
             })
         }))
     }

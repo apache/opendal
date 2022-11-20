@@ -23,11 +23,9 @@ use http::Response;
 use http::StatusCode;
 
 use crate::http_util::IncomingAsyncBody;
-use crate::ops::Operation;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
-use crate::Scheme;
 
 /// ErrorResponse carries HTTP status code, headers and body.
 ///
@@ -86,10 +84,12 @@ pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<E
     })
 }
 
+/// Create a new error happened during building request.
 pub fn new_request_build_error(err: http::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "building request").with_source(err)
 }
 
+/// Create a new error happened during signing request.
 pub fn new_request_sign_error(err: anyhow::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "signing request").with_source(err)
 }

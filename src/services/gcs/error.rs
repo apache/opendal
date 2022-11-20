@@ -32,7 +32,7 @@ pub fn parse_error(er: ErrorResponse) -> Error {
     let mut err = Error::new(kind, &er.to_string());
 
     if retryable {
-        err.set_temporary();
+        err = err.set_temporary();
     }
 
     err

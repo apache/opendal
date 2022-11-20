@@ -675,7 +675,6 @@ impl Accessor for MetricsAccessor {
                     r,
                     self.handle.bytes_total_read.clone(),
                     self.handle.failures_total_read.clone(),
-                    self.handle.errors_total_read.clone(),
                     self.handle.requests_duration_seconds_read.clone(),
                     Some(start),
                 ))
@@ -699,7 +698,6 @@ impl Accessor for MetricsAccessor {
             r,
             self.handle.bytes_total_write.clone(),
             self.handle.failures_total_write.clone(),
-            self.handle.errors_total_write.clone(),
             self.handle.requests_duration_seconds_write.clone(),
             None,
         ));
@@ -831,7 +829,6 @@ impl Accessor for MetricsAccessor {
             r,
             self.handle.bytes_total_write_multipart.clone(),
             self.handle.failures_total_write_multipart.clone(),
-            self.handle.errors_total_write_multipart.clone(),
             self.handle
                 .requests_duration_seconds_write_multipart
                 .clone(),
@@ -928,7 +925,6 @@ impl Accessor for MetricsAccessor {
                 reader,
                 self.handle.bytes_total_blocking_read.clone(),
                 self.handle.failures_total_blocking_read.clone(),
-                self.handle.errors_total_blocking_read.clone(),
                 self.handle.requests_duration_seconds_blocking_read.clone(),
                 Some(start),
             )) as BlockingBytesReader
@@ -951,7 +947,6 @@ impl Accessor for MetricsAccessor {
             r,
             self.handle.bytes_total_blocking_write.clone(),
             self.handle.failures_total_blocking_write.clone(),
-            self.handle.errors_total_blocking_write.clone(),
             self.handle.requests_duration_seconds_blocking_write.clone(),
             None,
         ));
@@ -1045,7 +1040,6 @@ struct MetricReader {
 
     bytes_counter: Counter,
     failures_counter: Counter,
-    errors_counter: Counter,
     requests_duration_seconds: Histogram,
 
     start: Option<Instant>,
@@ -1057,7 +1051,6 @@ impl MetricReader {
         inner: BytesReader,
         bytes_counter: Counter,
         failures_counter: Counter,
-        errors_counter: Counter,
         requests_duration_seconds: Histogram,
         start: Option<Instant>,
     ) -> Self {
@@ -1065,7 +1058,6 @@ impl MetricReader {
             inner,
             bytes_counter,
             failures_counter,
-            errors_counter,
             requests_duration_seconds,
 
             start,
@@ -1110,7 +1102,6 @@ struct BlockingMetricReader {
 
     bytes_counter: Counter,
     failures_counter: Counter,
-    errors_counter: Counter,
     requests_duration_seconds: Histogram,
 
     start: Option<Instant>,
@@ -1122,7 +1113,6 @@ impl BlockingMetricReader {
         inner: BlockingBytesReader,
         bytes_counter: Counter,
         failures_counter: Counter,
-        errors_counter: Counter,
         requests_duration_seconds: Histogram,
         start: Option<Instant>,
     ) -> Self {
@@ -1130,7 +1120,6 @@ impl BlockingMetricReader {
             inner,
             bytes_counter,
             failures_counter,
-            errors_counter,
             requests_duration_seconds,
 
             start,

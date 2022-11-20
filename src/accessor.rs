@@ -30,7 +30,6 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::ops::OpWriteMultipart;
-use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::BlockingBytesReader;
 use crate::BytesReader;

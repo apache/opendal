@@ -185,7 +185,7 @@ impl Accessor for Backend {
                         ErrorKind::Unexpected,
                         "path shoud have parent but not, it must be malformed",
                     )
-                    .with_context("input", p)
+                    .with_context("input", &p)
                 })?
                 .to_path_buf();
 
@@ -277,7 +277,7 @@ impl Accessor for Backend {
                     ErrorKind::Unexpected,
                     "path shoud have parent but not, it must be malformed",
                 )
-                .with_context("input", p)
+                .with_context("input", &p)
             })?
             .to_path_buf();
 
@@ -362,7 +362,7 @@ impl Accessor for Backend {
             }
         };
 
-        let rd = DirStream::new(Arc::new(self.clone()), &self.root, path, f);
+        let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
 
         Ok(Box::new(rd))
     }
@@ -378,7 +378,7 @@ impl Accessor for Backend {
                         ErrorKind::Unexpected,
                         "path shoud have parent but not, it must be malformed",
                     )
-                    .with_context("input", p)
+                    .with_context("input", &p)
                 })?
                 .to_path_buf();
 
@@ -408,7 +408,7 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
-        let meta = Self::blocking_fs_metadata(&p)?;
+        let _ = Self::blocking_fs_metadata(&p)?;
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
@@ -444,7 +444,7 @@ impl Accessor for Backend {
                     ErrorKind::Unexpected,
                     "path shoud have parent but not, it must be malformed",
                 )
-                .with_context("input", p)
+                .with_context("input", &p)
             })?
             .to_path_buf();
 
@@ -529,7 +529,6 @@ impl Accessor for Backend {
         let acc = Arc::new(self.clone());
 
         let root = self.root.clone();
-        let path = path.to_string();
 
         let f = f.map(move |v| match v {
             Ok(de) => {

@@ -442,7 +442,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    async fn ftp_connect(&self, op: Operation) -> Result<PooledConnection<'static, Manager>> {
+    async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
         let pool = self
             .pool
             .get_or_try_init(|| async {

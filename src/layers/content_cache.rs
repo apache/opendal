@@ -19,7 +19,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::io::copy;

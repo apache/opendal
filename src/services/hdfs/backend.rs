@@ -172,7 +172,7 @@ impl Accessor for Backend {
                             ErrorKind::Unexpected,
                             "path shoud have parent but not, it must be malformed",
                         )
-                        .with_context("input", p)
+                        .with_context("input", &p)
                     })?
                     .to_path_buf();
 
@@ -246,7 +246,7 @@ impl Accessor for Backend {
                     ErrorKind::Unexpected,
                     "path shoud have parent but not, it must be malformed",
                 )
-                .with_context("input", p)
+                .with_context("input", &p)
             })?
             .to_path_buf();
 

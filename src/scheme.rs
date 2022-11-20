@@ -15,7 +15,6 @@
 use crate::Error;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io;
 use std::str::FromStr;
 
 /// Services that OpenDAL supports

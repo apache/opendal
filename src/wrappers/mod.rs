@@ -12,5 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Wrapper is used for providing wrapper at backend level
+
 mod error_context;
 pub use error_context::BackendErrorContextWrapper;

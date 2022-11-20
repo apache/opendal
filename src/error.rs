@@ -39,24 +39,29 @@ use std::fmt::Debug;
 use std::fmt::{Display, Formatter};
 use std::{fmt, io};
 
+/// Result that is a wrapper of `Reustl<T, opendal::Error>`
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// ErrorKind is all kinds of opendal's Error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// unexpected.
-    ///
     /// OpenDAL don't know what happened here, and no actions other than just
     /// returning it back. For example, s3 returns an internal servie error.
     Unexpected,
+    /// Underlying service doesn't support this operation.
     Unsupported,
 
+    /// The config for backend is invalid.
     BackendConfigInvalid,
 
-    /// object is not found.
+    /// Object is not found.
     ObjectNotFound,
+    /// Object doesn't have enough permission for this operation
     ObjectPermissionDenied,
+    /// Object is a directory.
     ObjectIsADirectory,
+    /// Object is not a directory.
     ObjectNotADirectory,
 }
 
@@ -91,6 +96,7 @@ impl Display for ErrorStatus {
     }
 }
 
+/// Error is the error struct returned by all opendal functions.
 pub struct Error {
     kind: ErrorKind,
     message: String,
@@ -153,6 +159,7 @@ impl std::error::Error for Error {
 }
 
 impl Error {
+    /// Create a new Error with error kind and message.
     pub fn new(kind: ErrorKind, message: &str) -> Self {
         Self {
             kind,
@@ -165,6 +172,7 @@ impl Error {
         }
     }
 
+    /// Update error's operation.
     pub fn with_operation(mut self, operation: &'static str) -> Self {
         if !self.operation.is_empty() {
             self.context.push(("called", self.operation.to_string()));
@@ -174,11 +182,13 @@ impl Error {
         self
     }
 
+    /// Add more context in error.
     pub fn with_context(mut self, key: &'static str, value: impl Into<String>) -> Self {
         self.context.push((key, value.into()));
         self
     }
 
+    /// Set source for error.
     pub fn with_source(mut self, src: impl Into<anyhow::Error>) -> Self {
         debug_assert!(self.source.is_none());
 
@@ -186,23 +196,30 @@ impl Error {
         self
     }
 
+    /// Set permenent status for error.
     pub fn set_permenent(mut self) -> Self {
         self.status = ErrorStatus::Permenent;
         self
     }
+
+    /// Set temporary status for error.
     pub fn set_temporary(mut self) -> Self {
         self.status = ErrorStatus::Temporary;
         self
     }
+
+    /// Set perisistent status for error.
     pub fn set_persistent(mut self) -> Self {
         self.status = ErrorStatus::Persistent;
         self
     }
 
+    /// Return error's kind.
     pub fn kind(&self) -> ErrorKind {
         self.kind
     }
 
+    /// Check if this error is temporary.
     pub fn is_temporary(&self) -> bool {
         self.status == ErrorStatus::Temporary
     }

@@ -22,7 +22,6 @@ use std::str::FromStr;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
-use anyhow::anyhow;
 
 /// BytesRange(offset, size) carries a range of content.
 ///

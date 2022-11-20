@@ -23,7 +23,6 @@ use super::backend::Backend;
 use super::error::parse_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::Error;
 use crate::ErrorKind;

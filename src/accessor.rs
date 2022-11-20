@@ -19,7 +19,6 @@ use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
 
-use crate::error::new_unsupported_object_error;
 use crate::ops::OpAbortMultipart;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
@@ -35,6 +34,8 @@ use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectPart;
@@ -115,10 +116,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.create(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::Create,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -133,10 +133,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::Read,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -150,10 +149,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
         match self.inner() {
             Some(inner) => inner.write(path, args, r).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::Write,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -168,10 +166,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         match self.inner() {
             Some(inner) => inner.stat(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::Stat,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -185,10 +182,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.delete(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::Delete,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -202,10 +198,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         match self.inner() {
             Some(inner) => inner.list(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::List,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -219,10 +214,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
         match self.inner() {
             Some(inner) => inner.presign(path, args),
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::Presign,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -236,10 +230,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
         match self.inner() {
             Some(inner) => inner.create_multipart(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::CreateMultipart,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -257,10 +250,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ) -> Result<ObjectPart> {
         match self.inner() {
             Some(inner) => inner.write_multipart(path, args, r).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::WriteMultipart,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -273,10 +265,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.complete_multipart(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::CompleteMultipart,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -289,10 +280,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.abort_multipart(path, args).await,
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::AbortMultipart,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -307,10 +297,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.blocking_create(path, args),
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::BlockingCreate,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -325,10 +314,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
         match self.inner() {
             Some(inner) => inner.blocking_read(path, args),
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::BlockingRead,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -343,10 +331,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
         match self.inner() {
             Some(inner) => inner.blocking_write(path, args, r),
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::BlockingWrite,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -361,10 +348,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         match self.inner() {
             Some(inner) => inner.blocking_stat(path, args),
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::BlockingStat,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -379,10 +365,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
         match self.inner() {
             Some(inner) => inner.blocking_delete(path, args),
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::BlockingDelete,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }
@@ -398,10 +383,9 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
         match self.inner() {
             Some(inner) => inner.blocking_list(path, args),
-            None => Err(new_unsupported_object_error(
-                self.metadata().scheme(),
-                Operation::BlockingList,
-                path,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
             )),
         }
     }

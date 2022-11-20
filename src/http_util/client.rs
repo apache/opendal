@@ -127,7 +127,7 @@ impl HttpClient {
 
                     let mut err = Error::new(ErrorKind::Unexpected, "send blocking request")
                         .with_operation("http_util::Client::send")
-                        .with_source(err_resp);
+                        .with_source(transport);
                     if is_temperary {
                         err = err.set_temporary();
                     }

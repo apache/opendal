@@ -149,12 +149,10 @@ impl Operator {
             Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
             Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
             Scheme::Custom(v) => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "Operator::from_iter",
-                    "custom service  is not supported",
+                return Err(
+                    Error::new(ErrorKind::Unsupported, "custom service  is not supported")
+                        .with_context("service", v),
                 )
-                .with_context("service", v))
             }
         };
 

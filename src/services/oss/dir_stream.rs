@@ -14,8 +14,9 @@
 
 use std::sync::Arc;
 
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
@@ -26,10 +27,8 @@ use time::OffsetDateTime;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
@@ -73,21 +72,14 @@ impl ObjectPageStream for DirStream {
 
         if resp.status() != http::StatusCode::OK {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::List, &self.path, er);
+            let err = parse_error(er);
             return Err(err);
         }
 
-        let bs = resp.into_body().bytes().await.map_err(|e| {
-            new_other_object_error(Operation::List, &self.path, anyhow!("read body: {:?}", e))
-        })?;
+        let bs = resp.into_body().bytes().await?;
 
-        let output: ListBucketOutput = de::from_reader(bs.reader()).map_err(|e| {
-            new_other_object_error(
-                Operation::List,
-                &self.path,
-                anyhow!("deserialize list_bucket output: {:?}", e),
-            )
-        })?;
+        let output: ListBucketOutput = de::from_reader(bs.reader())
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").with_source(e))?;
 
         self.done = !output.is_truncated;
         self.token = output.next_continuation_token.clone();
@@ -118,17 +110,14 @@ impl ObjectPageStream for DirStream {
                         .expect("replace nanosecond of last modified must succeed")
                 })
                 .map_err(|e| {
-                    new_other_object_error(
-                        Operation::List,
-                        &self.path,
-                        anyhow!("parse last modified RFC3339 datetime: {e:?}"),
-                    )
+                    Error::new(ErrorKind::Unexpected, "parse str into rfc 3339 datetime")
+                        .with_source(e)
                 })?;
             meta.set_last_modified(dt);
 
             let rel = build_rel_path(&self.root, &object.key);
             let path = unescape(&rel)
-                .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
+                .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").with_source(e))?;
             let de = ObjectEntry::new(self.backend.clone(), &path, meta);
             entries.push(de);
         }

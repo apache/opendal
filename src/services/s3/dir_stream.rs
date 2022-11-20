@@ -14,6 +14,8 @@
 
 use std::sync::Arc;
 
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -25,7 +27,7 @@ use time::OffsetDateTime;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::error::new_other_object_error;
+use super::error::parse_xml_deserialize_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
 use crate::ops::Operation;
@@ -67,21 +69,13 @@ impl ObjectPageStream for DirStream {
 
         if resp.status() != http::StatusCode::OK {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::List, &self.path, er);
+            let err = parse_error(er);
             return Err(err);
         }
 
-        let bs = resp.into_body().bytes().await.map_err(|e| {
-            new_other_object_error(Operation::List, &self.path, anyhow!("read body: {:?}", e))
-        })?;
+        let bs = resp.into_body().bytes().await?;
 
-        let output: Output = de::from_reader(bs.reader()).map_err(|e| {
-            new_other_object_error(
-                Operation::List,
-                &self.path,
-                anyhow!("deserialize list_bucket output: {:?}", e),
-            )
-        })?;
+        let output: Output = de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
 
         // Try our best to check whether this list is done.
         //
@@ -131,11 +125,11 @@ impl ObjectPageStream for DirStream {
                         .expect("replace nanosecond of last modified must succeed")
                 })
                 .map_err(|e| {
-                    new_other_object_error(
-                        Operation::List,
-                        &self.path,
-                        anyhow!("parse last modified RFC3339 datetime: {e:?}"),
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "parse last modified RFC3339 datetime",
                     )
+                    .with_source(e)
                 })?;
             meta.set_last_modified(dt);
 

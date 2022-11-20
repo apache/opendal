@@ -17,6 +17,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
@@ -35,11 +37,8 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::uri::percent_encode_path_hard;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
 use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
@@ -190,10 +189,10 @@ impl Builder {
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(new_other_backend_error(
-                HashMap::from([("bucket".to_string(), "".to_string())]),
-                anyhow::anyhow!("bucket is empty"),
-            )),
+            true => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
+                    .with_context("service", Scheme::Oss),
+            ),
         }?;
         debug!("backend use bucket {}", &bucket);
 
@@ -204,30 +203,27 @@ impl Builder {
         let (endpoint, host) = match self.endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
-                    new_other_backend_error(
-                        context.clone(),
-                        anyhow::anyhow!("invalid endpoint uri: {:?}", err),
-                    )
+                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+                        .with_context("service", Scheme::Oss)
+                        .with_context("endpoint", &ep)
+                        .with_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
-                    new_other_backend_error(
-                        context.clone(),
-                        anyhow::anyhow!("host should be valid"),
-                    )
+                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint host is empty")
+                        .with_context("service", Scheme::Oss)
+                        .with_context("endpoint", &ep)
                 })?;
                 let full_host = format!("{}.{}", bucket, host);
                 let endpoint = format!("https://{}", full_host);
                 (endpoint, full_host)
             }
             None => {
-                let err = new_other_backend_error(
-                    context.clone(),
-                    anyhow::anyhow!("endpoint or region could not be empty!"),
+                return Err(
+                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
+                        .with_context("service", Scheme::Oss),
                 );
-                return Err(err);
             }
         };
-        context.insert("endpoint".to_string(), endpoint.clone());
 
         let mut signer_builder = AliyunOssBuilder::default();
 
@@ -242,9 +238,13 @@ impl Builder {
             signer_builder.access_key_secret(sk);
         }
 
-        let signer = signer_builder
-            .build()
-            .map_err(|e| new_other_backend_error(context, e))?;
+        let signer = signer_builder.build().map_err(|e| {
+            Error::new(ErrorKind::BackendConfigInvalid, "build AliyunOssSigner")
+                .with_context("service", Scheme::Oss)
+                .with_context("endpoint", &endpoint)
+                .with_context("bucket", bucket)
+                .with_source(e)
+        })?;
 
         debug!("Backend build finished: {:?}", &self);
 
@@ -306,15 +306,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -327,12 +324,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -351,15 +348,12 @@ impl Accessor for Backend {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(args.size())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -376,7 +370,7 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(Operation::Stat, path, resp.headers()),
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 let m = ObjectMetadata::new(ObjectMode::DIR);
                 Ok(m)
@@ -384,7 +378,7 @@ impl Accessor for Backend {
 
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -395,15 +389,12 @@ impl Accessor for Backend {
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Delete, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -440,9 +431,7 @@ impl Backend {
             req = req.header(CONTENT_TYPE, mime);
         }
 
-        let req = req
-            .body(body)
-            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::Write, path, e))?;
+        let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
     }
 
@@ -462,7 +451,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -477,7 +466,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::Delete, path, e))?;
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -492,7 +481,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::Stat, path, e))?;
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -516,7 +505,7 @@ impl Backend {
         let req = Request::get(&url)
             .header(HOST, &self.host)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Oss, Operation::List, path, e))?;
+            .map_err(new_request_build_error)?;
         Ok(req)
     }
 
@@ -527,25 +516,15 @@ impl Backend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_get_object_request(path, range)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Operation::Read, path, e))?;
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Read, path, e))
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
     }
 
     async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_head_object_request(path)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::Stat, path, e))?;
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Stat, path, e))
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
     }
 
     async fn oss_put_object(
@@ -557,13 +536,8 @@ impl Backend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_put_object_request(path, size, content_type, body)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::Write, path, e))?;
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Write, path, e))
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
     }
 
     pub(super) async fn oss_list_object(
@@ -573,23 +547,13 @@ impl Backend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_list_object_request(path, token)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::List, path, e))?;
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::List, path, e))
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
     }
 
     async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_delete_object_request(path)?;
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::Oss, Operation::Delete, path, e))?;
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::Oss, Operation::Delete, path, e))
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.client.send_async(req).await
     }
 }

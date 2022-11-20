@@ -16,9 +16,10 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
-use std::io::Result;
 use std::sync::Arc;
 
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -42,13 +43,11 @@ use serde::Serialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::error::parse_xml_deserialize_error;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
+
 use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
 use crate::http_util::new_request_sign_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_etag;
 use crate::http_util::parse_into_object_metadata;
@@ -502,12 +501,7 @@ impl Builder {
     /// Returning endpoint will trim bucket name:
     ///
     /// - `https://bucket_name.s3.amazonaws.com` => `https://s3.amazonaws.com`
-    fn detect_region(
-        &self,
-        client: &HttpClient,
-        bucket: &str,
-        context: &HashMap<String, String>,
-    ) -> Result<(String, String)> {
+    fn detect_region(&self, client: &HttpClient, bucket: &str) -> Result<(String, String)> {
         let mut endpoint = match &self.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
@@ -538,16 +532,13 @@ impl Builder {
 
         let req = http::Request::head(&url).body(Body::Empty).map_err(|e| {
             error!("backend detect_region {}: {:?}", url, e);
-            new_other_backend_error(context.clone(), anyhow!("build request {}: {:?}", url, e))
+            Error::new(ErrorKind::Unexpected, "build request for head")
+                .with_context("service", Scheme::S3)
+                .with_context("url", &url)
+                .with_source(e)
         })?;
 
-        let res = client.send(req).map_err(|e| {
-            error!("backend detect_region: {}: {:?}", url, e);
-            new_other_backend_error(
-                context.clone(),
-                anyhow!("sending request: {}: {:?}", url, e),
-            )
-        })?;
+        let res = client.send(req)?;
 
         debug!(
             "auto detect region got response: status {:?}, header: {:?}",
@@ -563,7 +554,10 @@ impl Builder {
                     .get(constants::X_AMZ_BUCKET_REGION)
                     .unwrap_or(&HeaderValue::from_static("us-east-1"))
                     .to_str()
-                    .map_err(|e| new_other_backend_error(context.clone(), e))?
+                    .map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "header value is not valid utf-8")
+                            .with_source(e)
+                    })?
                     .to_string();
                 Ok((endpoint, region))
             }
@@ -572,21 +566,17 @@ impl Builder {
                 let region = res
                     .headers()
                     .get(constants::X_AMZ_BUCKET_REGION)
-                    .ok_or_else(|| {
-                        new_other_backend_error(
-                            context.clone(),
-                            anyhow!("can't detect region automatically, region is empty"),
-                        )
-                    })?
+                    .ok_or_else(|| Error::new(ErrorKind::Unexpected, "region is empty"))?
                     .to_str()
-                    .map_err(|e| new_other_backend_error(context.clone(), e))?
+                    .map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "header value is not valid utf-8")
+                            .with_source(e)
+                    })?
                     .to_string();
                 let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
-                    new_other_backend_error(
-                        context.clone(),
-                        anyhow!(
-                            "can't detect region automatically, no valid endpoint template for {endpoint}",
-                        ),
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "can't detect region automatically, no valid endpoint template",
                     )
                 })?;
 
@@ -595,12 +585,11 @@ impl Builder {
                 Ok((endpoint, region))
             }
             // Unexpected status code
-            code => Err(new_other_backend_error(
-                context.clone(),
-                anyhow!(
-                    "can't detect region automatically, unexpected response: status code {code}",
-                ),
-            )),
+            code => Err(Error::new(
+                ErrorKind::Unexpected,
+                "can't detect region automatically, unexpect status code got",
+            )
+            .with_context("status", code.as_str())),
         }
     }
 
@@ -614,24 +603,22 @@ impl Builder {
         // Handle endpoint, region and bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
-            true => Err(new_other_backend_error(
-                HashMap::from([("bucket".to_string(), "".to_string())]),
-                anyhow!("bucket is empty"),
+            true => Err(Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "bucket is empty",
             )),
         }?;
         debug!("backend use bucket {}", &bucket);
 
-        // Setup error context so that we don't need to construct many times.
-        let mut context: HashMap<String, String> =
-            HashMap::from([("bucket".to_string(), bucket.to_string())]);
-
         let server_side_encryption = match &self.server_side_encryption {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
-                new_other_backend_error(
-                    context.clone(),
-                    anyhow!("server_side_encryption value {} invalid: {}", v, e),
+                Error::new(
+                    ErrorKind::BackendConfigInvalid,
+                    "server_side_encryption value is invalid",
                 )
+                .with_context("value", v)
+                .with_source(e)
             })?),
         };
 
@@ -639,14 +626,12 @@ impl Builder {
             match &self.server_side_encryption_aws_kms_key_id {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    new_other_backend_error(
-                        context.clone(),
-                        anyhow!(
-                            "server_side_encryption_aws_kms_key_id value {} invalid: {}",
-                            v,
-                            e
-                        ),
+                    Error::new(
+                        ErrorKind::BackendConfigInvalid,
+                        "server_side_encryption_aws_kms_key_id value is invalid",
                     )
+                    .with_context("value", v)
+                    .with_source(e)
                 })?),
             };
 
@@ -654,56 +639,48 @@ impl Builder {
             match &self.server_side_encryption_customer_algorithm {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    new_other_backend_error(
-                        context.clone(),
-                        anyhow!(
-                            "server_side_encryption_customer_algorithm value {} invalid: {}",
-                            v,
-                            e
-                        ),
+                    Error::new(
+                        ErrorKind::BackendConfigInvalid,
+                        "server_side_encryption_customer_algorithm value is invalid",
                     )
+                    .with_context("value", v)
+                    .with_source(e)
                 })?),
             };
 
         let server_side_encryption_customer_key = match &self.server_side_encryption_customer_key {
             None => None,
             Some(v) => Some(v.parse().map_err(|e| {
-                new_other_backend_error(
-                    context.clone(),
-                    anyhow!(
-                        "server_side_encryption_customer_key value {} invalid: {}",
-                        v,
-                        e
-                    ),
+                Error::new(
+                    ErrorKind::BackendConfigInvalid,
+                    "server_side_encryption_customer_key value is invalid",
                 )
+                .with_context("value", v)
+                .with_source(e)
             })?),
         };
         let server_side_encryption_customer_key_md5 =
             match &self.server_side_encryption_customer_key_md5 {
                 None => None,
                 Some(v) => Some(v.parse().map_err(|e| {
-                    new_other_backend_error(
-                        context.clone(),
-                        anyhow!(
-                            "server_side_encryption_customer_key_md5 value {} invalid: {}",
-                            v,
-                            e
-                        ),
+                    Error::new(
+                        ErrorKind::BackendConfigInvalid,
+                        "server_side_encryption_customer_key_md5 value is invalid",
                     )
+                    .with_context("value", v)
+                    .with_source(e)
                 })?),
             };
 
         let client = HttpClient::new();
 
-        let (mut endpoint, region) = self.detect_region(&client, bucket, &context)?;
+        let (mut endpoint, region) = self.detect_region(&client, bucket)?;
         // Construct endpoint which contains bucket name.
         if self.enable_virtual_host_style {
             endpoint = endpoint.replace("//", &format!("//{bucket}."))
         } else {
             write!(endpoint, "/{bucket}").expect("write into string must succeed");
         }
-        context.insert("endpoint".to_string(), endpoint.clone());
-        context.insert("region".to_string(), region.clone());
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
         let mut signer_builder = AwsV4Signer::builder();
@@ -732,7 +709,7 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .map_err(|e| new_other_backend_error(context, e))?;
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").with_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(Backend {
@@ -852,28 +829,20 @@ impl Accessor for Backend {
     async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
         let mut req = self.put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Create, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Create, path, e))?;
+        let resp = self.client.send_async(req).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await.map_err(|err| {
-                    new_response_consume_error(Scheme::S3, Operation::Create, path, err)
-                })?;
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -886,12 +855,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -905,28 +874,20 @@ impl Accessor for Backend {
             AsyncBody::Reader(r),
         )?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Write, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Write, path, e))?;
+        let resp = self.client.send_async(req).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await.map_err(|err| {
-                    new_response_consume_error(Scheme::S3, Operation::Write, path, err)
-                })?;
+                resp.into_body().consume().await?;
                 Ok(args.size())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -943,13 +904,13 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(Operation::Stat, path, resp.headers()),
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 Ok(ObjectMetadata::new(ObjectMode::DIR))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -964,7 +925,7 @@ impl Accessor for Backend {
             StatusCode::NO_CONTENT => Ok(()),
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -996,7 +957,7 @@ impl Accessor for Backend {
 
         self.signer
             .sign_query(&mut req, args.expire())
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Presign, path, e))?;
+            .map_err(new_request_sign_error)?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -1015,24 +976,16 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body().bytes().await.map_err(|e| {
-                    new_response_consume_error(Scheme::S3, Operation::CreateMultipart, path, e)
-                })?;
+                let bs = resp.into_body().bytes().await?;
 
-                let result: InitiateMultipartUploadResult = quick_xml::de::from_reader(bs.reader())
-                    .map_err(|err| {
-                        new_other_object_error(
-                            Operation::CreateMultipart,
-                            path,
-                            anyhow!("parse xml: {err:?}"),
-                        )
-                    })?;
+                let result: InitiateMultipartUploadResult =
+                    quick_xml::de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
 
                 Ok(result.upload_id)
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::CreateMultipart, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -1052,39 +1005,30 @@ impl Accessor for Backend {
             AsyncBody::Reader(r),
         )?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::WriteMultipart, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp =
-            self.client.send_async(req).await.map_err(|e| {
-                new_request_send_error(Scheme::S3, Operation::WriteMultipart, path, e)
-            })?;
+        let resp = self.client.send_async(req).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => {
-                let etag = parse_etag(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::WriteMultipart, path, e))?
+                let etag = parse_etag(resp.headers())?
                     .ok_or_else(|| {
-                        new_other_object_error(
-                            Operation::WriteMultipart,
-                            path,
-                            anyhow!("ETag not present in returning response"),
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in returning response",
                         )
                     })?
                     .to_string();
 
-                resp.into_body().consume().await.map_err(|err| {
-                    new_response_consume_error(Scheme::S3, Operation::WriteMultipart, path, err)
-                })?;
+                resp.into_body().consume().await?;
 
                 Ok(ObjectPart::new(args.part_number(), &etag))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::WriteMultipart, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -1099,15 +1043,13 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                resp.into_body().consume().await.map_err(|e| {
-                    new_response_consume_error(Scheme::S3, Operation::CompleteMultipart, path, e)
-                })?;
+                resp.into_body().consume().await?;
 
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::CompleteMultipart, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -1122,15 +1064,13 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await.map_err(|e| {
-                    new_response_consume_error(Scheme::S3, Operation::AbortMultipart, path, e)
-                })?;
+                resp.into_body().consume().await?;
 
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::AbortMultipart, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -1155,7 +1095,7 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Read, path, e))?;
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -1167,14 +1107,9 @@ impl Backend {
     ) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.get_object_request(path, range)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Read, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Read, path, e))
+        self.client.send_async(req).await
     }
 
     fn put_object_request(
@@ -1202,9 +1137,7 @@ impl Backend {
         req = self.insert_sse_headers(req, true);
 
         // Set body
-        let req = req
-            .body(body)
-            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Write, path, e))?;
+        let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -1221,16 +1154,11 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Stat, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Stat, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Stat, path, e))
+        self.client.send_async(req).await
     }
 
     async fn delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -1240,16 +1168,11 @@ impl Backend {
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::S3, Operation::Delete, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::Delete, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::Delete, path, e))
+        self.client.send_async(req).await
     }
 
     /// Make this functions as `pub(suber)` because `DirStream` depends
@@ -1281,16 +1204,11 @@ impl Backend {
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::S3, Operation::List, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::List, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::List, path, e))
+        self.client.send_async(req).await
     }
 
     async fn s3_initiate_multipart_upload(
@@ -1306,18 +1224,13 @@ impl Backend {
         // Set SSE headers.
         let req = self.insert_sse_headers(req, true);
 
-        let mut req = req.body(AsyncBody::Empty).map_err(|e| {
-            new_request_build_error(Scheme::S3, Operation::CreateMultipart, path, e)
-        })?;
+        let mut req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::CreateMultipart, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::CreateMultipart, path, e))
+        self.client.send_async(req).await
     }
 
     fn s3_upload_part_request(
@@ -1348,9 +1261,7 @@ impl Backend {
         req = self.insert_sse_headers(req, true);
 
         // Set body
-        let req = req
-            .body(body)
-            .map_err(|e| new_request_build_error(Scheme::S3, Operation::WriteMultipart, path, e))?;
+        let req = req.body(body).map_err(new_request_build_error)?;
 
         Ok(req)
     }
@@ -1384,13 +1295,7 @@ impl Backend {
                 })
                 .collect(),
         })
-        .map_err(|err| {
-            new_other_object_error(
-                Operation::CompleteMultipart,
-                path,
-                anyhow!("build xml: {err:?}"),
-            )
-        })?;
+        .map_err(parse_xml_deserialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
@@ -1398,18 +1303,11 @@ impl Backend {
 
         let mut req = req
             .body(AsyncBody::Bytes(Bytes::from(content)))
-            .map_err(|e| {
-                new_request_build_error(Scheme::S3, Operation::CompleteMultipart, path, e)
-            })?;
+            .map_err(new_request_build_error)?;
 
-        self.signer.sign(&mut req).map_err(|e| {
-            new_request_sign_error(Scheme::S3, Operation::CompleteMultipart, path, e)
-        })?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::CompleteMultipart, path, e))
+        self.client.send_async(req).await
     }
 
     async fn s3_abort_multipart_upload(
@@ -1428,16 +1326,11 @@ impl Backend {
 
         let mut req = Request::delete(&url)
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::S3, Operation::AbortMultipart, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.signer
-            .sign(&mut req)
-            .map_err(|e| new_request_sign_error(Scheme::S3, Operation::AbortMultipart, path, e))?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Scheme::S3, Operation::AbortMultipart, path, e))
+        self.client.send_async(req).await
     }
 }
 
@@ -1525,7 +1418,7 @@ mod tests {
             }
 
             let (endpoint, region) = b
-                .detect_region(&client, "test", &HashMap::new())
+                .detect_region(&client, "test")
                 .expect("detect region must success");
             assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
             assert_eq!(region, "us-east-2");

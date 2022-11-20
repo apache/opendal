@@ -38,7 +38,7 @@ impl From<FtpError> for Error {
         let mut err = Error::new(kind, "got ftp error").with_source(e);
 
         if retryable {
-            err.set_temporary();
+            err = err.set_temporary();
         }
 
         err

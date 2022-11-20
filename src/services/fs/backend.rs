@@ -127,7 +127,7 @@ impl Backend {
                 if meta.is_dir() != path.ends_with('/') {
                     Err(Error::new(
                         ErrorKind::ObjectNotFound,
-                        "filemode is not match with its path",
+                        "file mode is not match with its path",
                     ))
                 } else {
                     Ok(meta)

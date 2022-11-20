@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use crate::http_util::new_request_send_async_error;
+use crate::http_util::parse_error_response;
+use crate::Error;
+use crate::ErrorKind;
 use crate::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use http::Request;
 use http::Response;
@@ -28,8 +28,6 @@ use log::debug;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
-use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
@@ -38,7 +36,6 @@ use crate::http_util::IncomingAsyncBody;
 use crate::ops::BytesRange;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
-use crate::ops::Operation;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
@@ -110,13 +107,13 @@ impl Builder {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
-            None => {
-                return Err(new_other_backend_error(
-                    HashMap::new(),
-                    anyhow!("endpoint must be specified"),
-                ))
-            }
             Some(v) => v,
+            None => {
+                return Err(
+                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
+                        .with_context("service", Scheme::Http),
+                )
+            }
         };
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -169,12 +166,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -191,7 +188,7 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(Operation::Stat, path, resp.headers()),
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()),
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
@@ -199,7 +196,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -220,12 +217,9 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Http, Operation::Read, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_async_error(Scheme::Http, Operation::Read, path, e))
+        self.client.send_async(req).await
     }
 
     async fn http_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -237,12 +231,9 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Scheme::Http, Operation::Stat, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_async_error(Scheme::Http, Operation::Stat, path, e))
+        self.client.send_async(req).await
     }
 }
 

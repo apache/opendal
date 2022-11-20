@@ -37,6 +37,7 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::Error;
@@ -343,10 +344,9 @@ impl AsyncRead for FixedCacheReader {
                                     let mut bs = Vec::with_capacity(size as usize);
                                     copy(r, &mut bs).await.map_err(|err| {
                                         Error::new(ErrorKind::Unexpected, "read from inner storage")
-                                            .with_target("FixedCacheReader")
-                                            .with_operation("read")
+                                            .with_operation(Operation::Read.into_static())
                                             .with_context("path", &cache_path)
-                                            .with_source(anyhow!(err))
+                                            .with_source(err)
                                     })?;
 
                                     cache

@@ -132,15 +132,13 @@ impl FromStr for BytesContentRange {
     fn from_str(value: &str) -> Result<Self> {
         let s = value.strip_prefix("bytes ").ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "header content range is invalid")
-                .with_target("BytesContentRange")
-                .with_operation("from_str")
+                .with_operation("BytesContentRange::from_str")
                 .with_context("value", value)
         })?;
 
         let parse_int_error = |e: std::num::ParseIntError| {
             Error::new(ErrorKind::Unexpected, "header content range is invalid")
-                .with_target("BytesContentRange")
-                .with_operation("from_str")
+                .with_operation("BytesContentRange::from_str")
                 .with_context("value", value)
                 .with_source(e)
         };
@@ -155,8 +153,7 @@ impl FromStr for BytesContentRange {
         if s.len() != 2 {
             return Err(
                 Error::new(ErrorKind::Unexpected, "header content range is invalid")
-                    .with_target("BytesContentRange")
-                    .with_operation("from_str")
+                    .with_operation("BytesContentRange::from_str")
                     .with_context("value", value),
             );
         }
@@ -165,8 +162,7 @@ impl FromStr for BytesContentRange {
         if v.len() != 2 {
             return Err(
                 Error::new(ErrorKind::Unexpected, "header content range is invalid")
-                    .with_target("BytesContentRange")
-                    .with_operation("from_str")
+                    .with_operation("BytesContentRange::from_str")
                     .with_context("value", value),
             );
         }

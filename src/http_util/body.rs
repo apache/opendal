@@ -49,8 +49,7 @@ impl Body {
         if let Body::Reader(mut r) = self {
             std::io::copy(&mut r, &mut std::io::sink()).map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "consuming response")
-                    .with_target("http_util::Body")
-                    .with_operation("consume")
+                    .with_operation("http_util::Body::consume")
                     .with_source(err)
             })?;
         }
@@ -129,8 +128,7 @@ impl IncomingAsyncBody {
 
         io::copy(self.0, &mut io::sink()).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "consuming response")
-                .with_target("http_util::IncomingAsyncBody")
-                .with_operation("consume")
+                .with_operation("http_util::IncomingAsyncBody::consume")
                 .with_source(err)
         })?;
 
@@ -143,9 +141,8 @@ impl IncomingAsyncBody {
 
         let mut w = io::Cursor::new(Vec::with_capacity(1024));
         io::copy(self.0, &mut w).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "reading response")
-                .with_target("http_util::IncomingAsyncBody")
-                .with_operation("bytes")
+            Error::new(ErrorKind::Unexpected, "copy from resposne")
+                .with_operation("http_util::IncomingAsyncBody::bytes")
                 .with_source(err)
         })?;
         Ok(Bytes::from(w.into_inner()))

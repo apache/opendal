@@ -96,7 +96,6 @@ pub struct Error {
     message: String,
 
     status: ErrorStatus,
-    target: &'static str,
     operation: &'static str,
     context: Vec<(&'static str, String)>,
     source: Option<anyhow::Error>,
@@ -104,13 +103,7 @@ pub struct Error {
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} ({}) at {}",
-            self.kind,
-            self.status,
-            [self.target, self.operation].join("::"),
-        )?;
+        write!(f, "{} ({}) at {}", self.kind, self.status, self.operation)?;
 
         if !self.context.is_empty() {
             write!(f, ", context: {{ ")?;
@@ -135,10 +128,7 @@ impl Debug for Error {
         writeln!(
             f,
             "{} ({}) at {} => {}",
-            self.kind,
-            self.status,
-            [self.target, self.operation].join("::"),
-            self.message
+            self.kind, self.status, self.operation, self.message
         )?;
         if !self.context.is_empty() {
             writeln!(f)?;
@@ -169,19 +159,17 @@ impl Error {
             message: message.to_string(),
 
             status: ErrorStatus::Permenent,
-            target: "",
             operation: "",
             context: Vec::default(),
             source: None,
         }
     }
 
-    pub fn with_target(mut self, target: &'static str) -> Self {
-        self.target = target;
-        self
-    }
-
     pub fn with_operation(mut self, operation: &'static str) -> Self {
+        if !self.operation.is_empty() {
+            self.context.push(("called", self.operation.to_string()));
+        }
+
         self.operation = operation;
         self
     }
@@ -192,6 +180,8 @@ impl Error {
     }
 
     pub fn with_source(mut self, src: impl Into<anyhow::Error>) -> Self {
+        debug_assert!(self.source.is_none());
+
         self.source = Some(src.into());
         self
     }

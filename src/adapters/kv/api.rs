@@ -43,8 +43,7 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_target("kv::Adapter")
-        .with_operation("blocking_get")
+        .with_operation("kv::Adapter::blocking_get")
         .with_context("path", path)
         .with_context("service", self.metadata().scheme()))
     }
@@ -60,8 +59,7 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_target("kv::Adapter")
-        .with_operation("blocking_set")
+        .with_operation("kv::Adapter::blocking_set")
         .with_context("path", path)
         .with_context("service", self.metadata().scheme()))
     }
@@ -79,8 +77,7 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_target("kv::Adapter")
-        .with_operation("blocking_delete")
+        .with_operation("kv::Adapter::blocking_delete")
         .with_context("path", path)
         .with_context("service", self.metadata().scheme()))
     }

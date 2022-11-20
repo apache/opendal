@@ -194,6 +194,7 @@ pub use layers::Layer;
 pub mod adapters;
 pub mod ops;
 pub mod services;
+pub mod wrappers;
 
 // Private modules, internal use only.
 //

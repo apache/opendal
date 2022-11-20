@@ -124,7 +124,6 @@ impl Accessor for MetadataCacheAccessor {
                 let mut bs = Cursor::new(buffer);
                 io::copy(r, &mut bs).await.map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "read object metadata from cache")
-                        .with_target("MetadataCacheLayer")
                         .with_operation(Operation::Stat.into_static())
                         .with_context("path", path)
                         .with_source(err)
@@ -136,7 +135,6 @@ impl Accessor for MetadataCacheAccessor {
                 )
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "decode object metadata from cache")
-                        .with_target("MetadataCacheLayer")
                         .with_operation(Operation::Stat.into_static())
                         .with_context("path", path)
                         .with_source(err)
@@ -148,7 +146,6 @@ impl Accessor for MetadataCacheAccessor {
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
-                            .with_target("MetadataCacheLayer")
                             .with_operation(Operation::Stat.into_static())
                             .with_context("path", path)
                             .with_source(err)
@@ -199,7 +196,6 @@ impl Accessor for MetadataCacheAccessor {
                 let mut bs = Vec::with_capacity(1024);
                 r.read_to_end(&mut bs).map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "read object metadata from cache")
-                        .with_target("MetadataCacheLayer")
                         .with_operation(Operation::BlockingStat.into_static())
                         .with_context("path", path)
                         .with_source(err)
@@ -207,7 +203,6 @@ impl Accessor for MetadataCacheAccessor {
                 let (meta, _) = bincode::serde::decode_from_slice(&bs, bincode::config::standard())
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
-                            .with_target("MetadataCacheLayer")
                             .with_operation(Operation::BlockingStat.into_static())
                             .with_context("path", path)
                             .with_source(err)
@@ -219,7 +214,6 @@ impl Accessor for MetadataCacheAccessor {
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
-                            .with_target("MetadataCacheLayer")
                             .with_operation(Operation::BlockingStat.into_static())
                             .with_context("path", path)
                             .with_source(err)

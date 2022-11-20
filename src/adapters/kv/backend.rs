@@ -95,7 +95,6 @@ where
             None => {
                 return Err(
                     Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
-                        .with_target("Backend")
                         .with_operation(Operation::Read.into_static())
                         .with_context("service", self.metadata().scheme().into_static())
                         .with_context("path", path),
@@ -116,7 +115,6 @@ where
             None => {
                 return Err(
                     Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
-                        .with_target("Backend")
                         .with_operation(Operation::BlockingRead.into_static())
                         .with_context("service", self.metadata().scheme().into_static())
                         .with_context("path", path),
@@ -132,7 +130,6 @@ where
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read from source")
-                .with_target("Backend")
                 .with_operation(Operation::Write.into_static())
                 .with_context("service", self.metadata().scheme().into_static())
                 .with_context("path", path)
@@ -148,7 +145,6 @@ where
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read from source")
-                .with_target("Backend")
                 .with_operation(Operation::BlockingWrite.into_static())
                 .with_context("service", self.metadata().scheme().into_static())
                 .with_context("path", path)
@@ -171,7 +167,6 @@ where
                 }
                 None => Err(
                     Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
-                        .with_target("Backend")
                         .with_operation(Operation::Stat.into_static())
                         .with_context("service", self.metadata().scheme().into_static())
                         .with_context("path", path),
@@ -191,7 +186,6 @@ where
                 }
                 None => Err(
                     Error::new(ErrorKind::ObjectNotFound, "kv doesn't have this path")
-                        .with_target("Backend")
                         .with_operation(Operation::BlockingStat.into_static())
                         .with_context("service", self.metadata().scheme().into_static())
                         .with_context("path", path),

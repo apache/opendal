@@ -353,8 +353,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_target("Object")
-                    .with_operation("range_read")
+                    .with_operation("Object:range_read")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -372,8 +371,7 @@ impl Object {
 
         io::copy(s, &mut bs).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read from storage")
-                .with_target("Object")
-                .with_operation("range_read")
+                .with_operation("Object:range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
                 .with_context("range", &br.to_string())
@@ -407,8 +405,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_target("Object")
-                    .with_operation("blocking_range_read")
+                    .with_operation("Object::blocking_range_read")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -427,8 +424,7 @@ impl Object {
 
         std::io::copy(&mut s, &mut buffer).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "blocking range read failed")
-                .with_target("Object")
-                .with_operation("blocking_range_read")
+                .with_operation("Object::blocking_range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
                 .with_context("range", &br.to_string())
@@ -509,8 +505,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_target("Object")
-                    .with_operation("range_reader")
+                    .with_operation("Object::range_reader")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -546,8 +541,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_target("Object")
-                    .with_operation("blocking_range_reader")
+                    .with_operation("Object::blocking_range_reader")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -693,8 +687,7 @@ impl Object {
 
         io::copy(r, &mut bs).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "decompress read with failed")
-                .with_target("Object")
-                .with_operation("decompress_read_with")
+                .with_operation("Object::decompress_read_with")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
         })?;
@@ -796,8 +789,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_target("Object")
-                    .with_operation("write_with")
+                    .with_operation("Object::write_with")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -870,8 +862,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_target("Object")
-                    .with_operation("blocking_write_with")
+                    .with_operation("Object::blocking_write_with")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -914,8 +905,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_target("Object")
-                    .with_operation("write_from")
+                    .with_operation("Object::write_from")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -963,8 +953,7 @@ impl Object {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_target("Object")
-                    .with_operation("blocking_write_from")
+                    .with_operation("Object::blocking_write_from")
                     .with_context("service", self.accessor().metadata().scheme().into_static())
                     .with_context("path", self.path()),
             );
@@ -1067,8 +1056,7 @@ impl Object {
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
             )
-            .with_target("Object")
-            .with_operation("list")
+            .with_operation("Object::list")
             .with_context("service", self.accessor().metadata().scheme().into_static())
             .with_context("path", self.path()));
         }
@@ -1117,8 +1105,7 @@ impl Object {
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
             )
-            .with_target("Object")
-            .with_operation("blocking_list")
+            .with_operation("Object::blocking_list")
             .with_context("service", self.accessor().metadata().scheme().into_static())
             .with_context("path", self.path()));
         }

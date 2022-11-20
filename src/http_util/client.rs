@@ -34,7 +34,6 @@ use crate::io_util::into_reader;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
-use anyhow::anyhow;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -127,8 +126,7 @@ impl HttpClient {
                     };
 
                     let mut err = Error::new(ErrorKind::Unexpected, "send blocking request")
-                        .with_target("http_util::client")
-                        .with_operation("send")
+                        .with_operation("http_util::Client::send")
                         .with_source(err_resp);
                     if is_temperary {
                         err = err.set_temporary();
@@ -196,8 +194,7 @@ impl HttpClient {
             };
 
             let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
-                .with_target("http_util::client")
-                .with_operation("send_async")
+                .with_operation("http_util::Client::send_async")
                 .with_source(err);
             if is_temperary {
                 oerr = oerr.set_temporary();

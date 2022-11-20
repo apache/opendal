@@ -13,7 +13,6 @@
 // limitations under the License.
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
@@ -23,11 +22,8 @@ use time::OffsetDateTime;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::error::new_unexpected_object_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::Error;
 use crate::ErrorKind;
@@ -35,7 +31,6 @@ use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
-use crate::Scheme;
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -72,25 +67,15 @@ impl ObjectPageStream for DirStream {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            let er = parse_error_response(resp).await.map_err(|err| {
-                new_response_consume_error(Scheme::Azblob, Operation::List, &self.path, err)
-            })?;
-            let err = parse_error(Operation::List, &self.path, er);
+            let er = parse_error_response(resp).await?;
+            let err = parse_error(er);
             return Err(err);
         }
 
-        let bs = resp.into_body().bytes().await.map_err(|e| {
-            new_response_consume_error(Scheme::Azblob, Operation::List, &self.path, e)
-        })?;
+        let bs = resp.into_body().bytes().await?;
 
         let output: Output = de::from_reader(bs.reader()).map_err(|e| {
-            new_unexpected_object_error(
-                Scheme::Azblob,
-                Operation::List,
-                &self.path,
-                "deserialize xml",
-            )
-            .with_source(anyhow!(e))
+            Error::new(ErrorKind::Unexpected, "deserialize xml from response").with_source(e)
         })?;
 
         // Try our best to check whether this list is done.
@@ -132,13 +117,11 @@ impl ObjectPageStream for DirStream {
                 .with_last_modified(
                     OffsetDateTime::parse(object.properties.last_modified.as_str(), &Rfc2822)
                         .map_err(|e| {
-                            new_unexpected_object_error(
-                                Scheme::Azblob,
-                                Operation::List,
-                                &self.path,
+                            Error::new(
+                                ErrorKind::Unexpected,
                                 "parse last modified RFC2822 datetime",
                             )
-                            .with_source(anyhow!(e))
+                            .with_source(e)
                         })?,
                 );
 

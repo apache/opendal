@@ -23,9 +23,11 @@ use http::Response;
 use http::StatusCode;
 
 use crate::http_util::IncomingAsyncBody;
+use crate::ops::Operation;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
+use crate::Scheme;
 
 /// ErrorResponse carries HTTP status code, headers and body.
 ///
@@ -74,8 +76,7 @@ pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<E
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await.map_err(|err| {
         Error::new(ErrorKind::Unexpected, "reading error response")
-            .with_target("http_util")
-            .with_operation("parse_error_response")
+            .with_operation("http_util::parse_error_response")
             .with_source(anyhow!(err))
     })?;
 
@@ -83,4 +84,12 @@ pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<E
         parts,
         body: bs.to_vec(),
     })
+}
+
+pub fn new_request_build_error(err: http::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "building request").with_source(err)
+}
+
+pub fn new_request_sign_error(err: anyhow::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "signing request").with_source(err)
 }

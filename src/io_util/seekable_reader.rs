@@ -121,13 +121,11 @@ impl AsyncRead for SeekableReader {
                 self.state = State::Sending(Box::pin(future));
                 self.poll_read(cx, buf)
             }
-            State::Sending(future) => match ready!(Pin::new(future).poll(cx)) {
-                Ok(r) => {
-                    self.state = State::Reading(Box::new(r));
-                    self.poll_read(cx, buf)
-                }
-                Err(e) => Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, e))),
-            },
+            State::Sending(future) => {
+                let r = ready!(Pin::new(future).poll(cx))?;
+                self.state = State::Reading(Box::new(r));
+                self.poll_read(cx, buf)
+            }
             State::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
                 Ok(n) => {
                     self.pos += n as u64;
@@ -147,8 +145,7 @@ impl AsyncSeek for SeekableReader {
         pos: SeekFrom,
     ) -> Poll<io::Result<u64>> {
         if let State::Seeking(future) = &mut self.state {
-            let meta = ready!(Pin::new(future).poll(cx))
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+            let meta = ready!(Pin::new(future).poll(cx))?;
             self.size = Some(meta.content_length() - self.offset.unwrap_or_default())
         }
 

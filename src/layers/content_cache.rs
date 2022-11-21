@@ -388,8 +388,7 @@ impl AsyncRead for FixedCacheReader {
                 }
             }
             FixedCacheState::Fetching((it, fut)) => {
-                let r = ready!(fut.poll_unpin(cx))
-                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+                let r = ready!(fut.poll_unpin(cx))?;
                 self.state = FixedCacheState::Reading((*it, r));
                 self.poll_read(cx, buf)
             }

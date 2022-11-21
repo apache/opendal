@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io;
-use std::io::Result;
-
+use anyhow::Result;
+use opendal::ErrorKind;
 use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
@@ -34,7 +33,7 @@ macro_rules! behavior_blocking_read_test {
                     $(
                         #[$meta]
                     )*
-                    fn [< $test >]() -> std::io::Result<()> {
+                    fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
                             Some(op) if op.metadata().can_read()
@@ -108,7 +107,7 @@ pub fn test_stat_not_exist(op: Operator) -> Result<()> {
 
     let meta = op.object(&path).blocking_metadata();
     assert!(meta.is_err());
-    assert_eq!(meta.unwrap_err().kind(), io::ErrorKind::NotFound);
+    assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
     Ok(())
 }
@@ -145,7 +144,7 @@ pub fn test_read_not_exist(op: Operator) -> Result<()> {
 
     let bs = op.object(&path).blocking_read();
     assert!(bs.is_err());
-    assert_eq!(bs.unwrap_err().kind(), io::ErrorKind::NotFound);
+    assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
     Ok(())
 }

@@ -274,7 +274,7 @@ mod tests {
 
         // Stat not exist object.
         let meta = cached_op.object("test_not_exist").metadata().await;
-        assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+        assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())
     }

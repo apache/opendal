@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::io::Result;
 
+use anyhow::Result;
 use log::debug;
 use opendal::ObjectMode;
 use opendal::Operator;
@@ -36,7 +36,7 @@ macro_rules! behavior_blocking_list_test {
                     $(
                         #[$meta]
                     )*
-                    fn [< $test >]() -> std::io::Result<()> {
+                    fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
                             Some(op) if op.metadata().can_read()

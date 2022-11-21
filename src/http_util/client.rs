@@ -118,12 +118,12 @@ impl HttpClient {
             Err(err_resp) => match err_resp {
                 ureq::Error::Status(_code, resp) => resp,
                 ureq::Error::Transport(transport) => {
-                    let is_temperary = match transport.kind() {
+                    let is_temperary = matches!(
+                        transport.kind(),
                         ureq::ErrorKind::Dns
-                        | ureq::ErrorKind::ConnectionFailed
-                        | ureq::ErrorKind::Io => true,
-                        _ => false,
-                    };
+                            | ureq::ErrorKind::ConnectionFailed
+                            | ureq::ErrorKind::Io
+                    );
 
                     let mut err = Error::new(ErrorKind::Unexpected, "send blocking request")
                         .with_operation("http_util::Client::send")
@@ -176,22 +176,18 @@ impl HttpClient {
         };
 
         let resp = req_builder.send().await.map_err(|err| {
-            let is_temperary = if err.is_builder() {
+            let is_temperary = !(
                 // Builder related error should not be retried.
-                false
-            } else if err.is_redirect() {
+                err.is_builder() ||
                 // Error returned by RedirectPolicy.
                 //
                 // We don't set this by hand, just don't allow retry.
-                false
-            } else if err.is_status() {
-                // We never use `Response::error_for_status`, just don't allow retry.
+                err.is_redirect() ||
+                 // We never use `Response::error_for_status`, just don't allow retry.
                 //
                 // Status should be checked by our services.
-                false
-            } else {
-                true
-            };
+                err.is_status()
+            );
 
             let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
                 .with_operation("http_util::Client::send_async")

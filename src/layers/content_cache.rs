@@ -449,7 +449,7 @@ mod tests {
 
         // Read not exist object.
         let data = cached_op.object("test_not_exist").read().await;
-        assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);
+        assert_eq!(data.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())
     }
@@ -502,7 +502,7 @@ mod tests {
 
         // Read not exist object.
         let data = cached_op.object("test_not_exist").read().await;
-        assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);
+        assert_eq!(data.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())
     }

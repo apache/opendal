@@ -494,7 +494,7 @@ impl Backend {
 
 #[cfg(test)]
 mod build_test {
-    use std::io::ErrorKind;
+    use crate::ErrorKind;
 
     use super::Builder;
 
@@ -524,6 +524,6 @@ mod build_test {
         let b = builder.build();
         assert!(b.is_err());
         let e = b.unwrap_err();
-        assert_eq!(e.kind(), ErrorKind::Other);
+        assert_eq!(e.kind(), ErrorKind::BackendConfigInvalid);
     }
 }

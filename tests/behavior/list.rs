@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use anyhow::Result;
 use std::collections::HashMap;
-use std::io::Result;
 
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
@@ -38,7 +38,7 @@ macro_rules! behavior_list_test {
                     $(
                         #[$meta]
                     )*
-                    async fn [< $test >]() -> std::io::Result<()> {
+                    async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
                             Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_list() => $crate::list::$test(op).await,

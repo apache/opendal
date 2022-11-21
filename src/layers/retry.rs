@@ -573,8 +573,11 @@ mod tests {
     use crate::ops::OpWrite;
     use crate::Accessor;
     use crate::BytesReader;
+    use crate::Error;
+    use crate::ErrorKind;
     use crate::ObjectReader;
     use crate::Operator;
+    use crate::Result;
 
     #[derive(Debug, Clone, Default)]
     struct MockService {
@@ -583,35 +586,27 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, path: &str, _: OpRead) -> io::Result<ObjectReader> {
+        async fn read(&self, path: &str, _: OpRead) -> Result<ObjectReader> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
             match path {
-                "retryable_error" => Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error"),
-                )),
-                _ => Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("not_retryable_error"),
-                )),
+                "retryable_error" => {
+                    Err(Error::new(ErrorKind::Unexpected, "retryable_error").set_temporary())
+                }
+                _ => Err(Error::new(ErrorKind::Unexpected, "not_retryable_error")),
             }
         }
 
-        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> io::Result<u64> {
+        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> Result<u64> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
             match path {
-                "retryable_error" => Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error"),
-                )),
-                _ => Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("not_retryable_error"),
-                )),
+                "retryable_error" => {
+                    Err(Error::new(ErrorKind::Unexpected, "retryable_error").set_temporary())
+                }
+                _ => Err(Error::new(ErrorKind::Unexpected, "not_retryable_error")),
             }
         }
     }
@@ -683,26 +678,27 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, _: OpRead) -> io::Result<ObjectReader> {
+        async fn read(&self, _: &str, _: OpRead) -> Result<ObjectReader> {
             Ok(ObjectReader::new(Box::new(MockReader {
                 attempt: self.attempt.clone(),
             })))
         }
 
-        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> io::Result<u64> {
+        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
             {
                 let mut attempt = self.attempt.lock().unwrap();
                 *attempt += 1;
 
                 if *attempt < 2 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Interrupted,
-                        anyhow!("retryable_error from Accessor"),
-                    ));
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, "retryable_error").set_temporary()
+                    );
                 }
             }
 
-            let size = futures::io::copy(&mut r, &mut futures::io::sink()).await?;
+            let size = futures::io::copy(&mut r, &mut futures::io::sink())
+                .await
+                .map_err(|err| Error::new(ErrorKind::Unexpected, "copy failed").with_source(err))?;
             assert_eq!(size, args.size());
             Ok(args.size())
         }

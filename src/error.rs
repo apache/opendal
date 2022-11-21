@@ -21,13 +21,13 @@
 //! # use opendal::ObjectMode;
 //! # use opendal::Operator;
 //! # use opendal::Scheme;
-//! use std::io::ErrorKind;
+//! use opendal::ErrorKind;
 //! # use opendal::services::fs;
 //! # #[tokio::main]
 //! # async fn main() -> Result<()> {
 //! let op = Operator::from_env(Scheme::Fs)?;
 //! if let Err(e) = op.object("test_file").metadata().await {
-//!     if e.kind() == ErrorKind::NotFound {
+//!     if e.kind() == ErrorKind::ObjectNotFound {
 //!         println!("object not exist")
 //!     }
 //! }

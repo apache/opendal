@@ -1125,13 +1125,13 @@ impl Object {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
-    /// use std::io::ErrorKind;
+    /// use opendal::ErrorKind;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// if let Err(e) = op.object("test").metadata().await {
-    ///     if e.kind() == ErrorKind::NotFound {
+    ///     if e.kind() == ErrorKind::ObjectNotFound {
     ///         println!("object not exist")
     ///     }
     /// }
@@ -1152,12 +1152,12 @@ impl Object {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
-    /// use std::io::ErrorKind;
+    /// use opendal::ErrorKind;
     /// #
     /// # fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// if let Err(e) = op.object("test").blocking_metadata() {
-    ///     if e.kind() == ErrorKind::NotFound {
+    ///     if e.kind() == ErrorKind::ObjectNotFound {
     ///         println!("object not exist")
     ///     }
     /// }

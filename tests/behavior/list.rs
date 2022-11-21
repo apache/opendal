@@ -19,6 +19,7 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
+use opendal::ErrorKind;
 use opendal::ObjectMode;
 use opendal::Operator;
 
@@ -307,7 +308,7 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 
     let obs = op.object(&parent).list().await.map(|_| ());
     assert!(obs.is_err());
-    assert!(obs.unwrap_err().to_string().contains("Not a directory"));
+    assert_eq!(obs.unwrap_err().kind(), ErrorKind::ObjectNotADirectory);
 
     Ok(())
 }

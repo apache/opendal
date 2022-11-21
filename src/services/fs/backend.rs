@@ -103,7 +103,7 @@ impl Builder {
                     Error::new(ErrorKind::Unexpected, "create root dir failed")
                         .with_operation("Builder::build")
                         .with_context("root", &root)
-                        .with_source(e)
+                        .set_source(e)
                 })?;
             }
         }

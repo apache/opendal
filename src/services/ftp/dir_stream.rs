@@ -47,7 +47,7 @@ impl Iterator for ReadDir {
         let result = match File::from_str(self.files[self.index - 1].as_str()) {
             Ok(f) => Ok(f),
             Err(e) => {
-                Err(Error::new(ErrorKind::Unexpected, "parse file from response").with_source(e))
+                Err(Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e))
             }
         };
 

@@ -73,7 +73,7 @@ impl ObjectPageStream for DirStream {
         let bs = resp.into_body().bytes().await?;
 
         let output: Output = de::from_reader(bs.reader())
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").with_source(e))?;
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
 
         // Try our best to check whether this list is done.
         //

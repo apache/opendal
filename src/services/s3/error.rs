@@ -39,5 +39,5 @@ pub fn parse_error(er: ErrorResponse) -> Error {
 }
 
 pub fn parse_xml_deserialize_error(e: quick_xml::DeError) -> Error {
-    Error::new(ErrorKind::Unexpected, "deserialize xml").with_source(e)
+    Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e)
 }

@@ -127,7 +127,7 @@ impl ObjectPageStream for DirStream {
                         ErrorKind::Unexpected,
                         "parse last modified RFC3339 datetime",
                     )
-                    .with_source(e)
+                    .set_source(e)
                 })?;
             meta.set_last_modified(dt);
 

@@ -111,7 +111,7 @@ impl ObjectPageStream for DirStream {
             meta.set_etag(object.etag.as_str());
 
             let size = object.size.parse().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse u64 from list response").with_source(e)
+                Error::new(ErrorKind::Unexpected, "parse u64 from list response").set_source(e)
             })?;
             meta.set_content_length(size);
             if !object.content_type.is_empty() {
@@ -119,7 +119,7 @@ impl ObjectPageStream for DirStream {
             }
 
             let dt = OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified as rfc3339").with_source(e)
+                Error::new(ErrorKind::Unexpected, "parse last modified as rfc3339").set_source(e)
             })?;
             meta.set_last_modified(dt);
 

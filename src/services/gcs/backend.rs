@@ -173,7 +173,7 @@ impl Builder {
                 .with_context("service", Scheme::Gcs)
                 .with_context("bucket", bucket)
                 .with_context("endpoint", &endpoint)
-                .with_source(e)
+                .set_source(e)
         })?;
         let signer = Arc::new(signer);
 
@@ -319,14 +319,14 @@ impl Accessor for Backend {
             let size = meta
                 .size
                 .parse::<u64>()
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").with_source(e))?;
+                .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
             m.set_content_length(size);
             if !meta.content_type.is_empty() {
                 m.set_content_type(&meta.content_type);
             }
 
             let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse date time with rfc 3339").with_source(e)
+                Error::new(ErrorKind::Unexpected, "parse date time with rfc 3339").set_source(e)
             })?;
             m.set_last_modified(datetime);
 

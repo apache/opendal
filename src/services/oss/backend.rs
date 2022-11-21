@@ -201,7 +201,7 @@ impl Builder {
                     Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
-                        .with_source(err)
+                        .set_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
                     Error::new(ErrorKind::BackendConfigInvalid, "endpoint host is empty")
@@ -238,7 +238,7 @@ impl Builder {
                 .with_context("service", Scheme::Oss)
                 .with_context("endpoint", &endpoint)
                 .with_context("bucket", bucket)
-                .with_source(e)
+                .set_source(e)
         })?;
 
         debug!("Backend build finished: {:?}", &self);

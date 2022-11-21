@@ -75,7 +75,7 @@ pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<E
     let bs = body.bytes().await.map_err(|err| {
         Error::new(ErrorKind::Unexpected, "reading error response")
             .with_operation("http_util::parse_error_response")
-            .with_source(anyhow!(err))
+            .set_source(anyhow!(err))
     })?;
 
     Ok(ErrorResponse {
@@ -86,10 +86,10 @@ pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<E
 
 /// Create a new error happened during building request.
 pub fn new_request_build_error(err: http::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "building request").with_source(err)
+    Error::new(ErrorKind::Unexpected, "building request").set_source(err)
 }
 
 /// Create a new error happened during signing request.
 pub fn new_request_sign_error(err: anyhow::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "signing request").with_source(err)
+    Error::new(ErrorKind::Unexpected, "signing request").set_source(err)
 }

@@ -79,7 +79,7 @@ impl ObjectPageStream for DirStream {
         let bs = resp.into_body().bytes().await?;
 
         let output: ListBucketOutput = de::from_reader(bs.reader())
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").with_source(e))?;
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
 
         self.done = !output.is_truncated;
         self.token = output.next_continuation_token.clone();
@@ -111,13 +111,13 @@ impl ObjectPageStream for DirStream {
                 })
                 .map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "parse str into rfc 3339 datetime")
-                        .with_source(e)
+                        .set_source(e)
                 })?;
             meta.set_last_modified(dt);
 
             let rel = build_rel_path(&self.root, &object.key);
             let path = unescape(&rel)
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").with_source(e))?;
+                .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
             let de = ObjectEntry::new(self.backend.clone(), &path, meta);
             entries.push(de);
         }

@@ -83,15 +83,30 @@ impl Display for ErrorKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ErrorStatus {
-    Permenent,
+    /// Permenent means without external changes, the error never changes.
+    ///
+    /// For example, underlying services returns a not found error.
+    ///
+    /// Users SHOULD never retry this operation.
+    Permanent,
+    /// Temporary means this error is returned for temporary.
+    ///
+    /// For example, underlying services is rate limited or unailable for temporary.
+    ///
+    /// Users CAN retry the operation to resolve it.
     Temporary,
+    /// Persistent means this error used to be temporary but still failed after retry.
+    ///
+    /// For example, underlying services kept returning network errors.
+    ///
+    /// Users MAY retry this opration but it's highly possible to error again.
     Persistent,
 }
 
 impl Display for ErrorStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorStatus::Permenent => write!(f, "permenent"),
+            ErrorStatus::Permanent => write!(f, "permanent"),
             ErrorStatus::Temporary => write!(f, "temporary"),
             ErrorStatus::Persistent => write!(f, "persistent"),
         }
@@ -167,7 +182,7 @@ impl Error {
             kind,
             message: message.to_string(),
 
-            status: ErrorStatus::Permenent,
+            status: ErrorStatus::Permanent,
             operation: "",
             context: Vec::default(),
             source: None,
@@ -175,6 +190,11 @@ impl Error {
     }
 
     /// Update error's operation.
+    ///
+    /// # Notes
+    ///
+    /// If the error already carries an operation, we will push a new context
+    /// `(called, operation)`.
     pub fn with_operation(mut self, operation: &'static str) -> Self {
         if !self.operation.is_empty() {
             self.context.push(("called", self.operation.to_string()));
@@ -191,26 +211,34 @@ impl Error {
     }
 
     /// Set source for error.
-    pub fn with_source(mut self, src: impl Into<anyhow::Error>) -> Self {
-        debug_assert!(self.source.is_none());
+    ///
+    /// # Notes
+    ///
+    /// If the source has been set, we will raise a panic here.
+    pub fn set_source(mut self, src: impl Into<anyhow::Error>) -> Self {
+        debug_assert!(self.source.is_none(), "the source error has been set");
 
         self.source = Some(src.into());
         self
     }
 
     /// Set permenent status for error.
-    pub fn set_permenent(mut self) -> Self {
-        self.status = ErrorStatus::Permenent;
+    pub fn set_permanent(mut self) -> Self {
+        self.status = ErrorStatus::Permanent;
         self
     }
 
     /// Set temporary status for error.
+    ///
+    /// By set temporary, we indicate this error is retryable.
     pub fn set_temporary(mut self) -> Self {
         self.status = ErrorStatus::Temporary;
         self
     }
 
     /// Set perisistent status for error.
+    ///
+    /// By setting persistent, we indicate the retry should be stopped.
     pub fn set_persistent(mut self) -> Self {
         self.status = ErrorStatus::Persistent;
         self

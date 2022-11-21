@@ -122,9 +122,9 @@ where
 
     async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
         let mut bs = Vec::with_capacity(args.size() as usize);
-        r.read_to_end(&mut bs).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read from source").with_source(err)
-        })?;
+        r.read_to_end(&mut bs)
+            .await
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
 
         self.kv.set(path, &bs).await?;
 
@@ -133,9 +133,8 @@ where
 
     fn blocking_write(&self, path: &str, args: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
         let mut bs = Vec::with_capacity(args.size() as usize);
-        r.read_to_end(&mut bs).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read from source").with_source(err)
-        })?;
+        r.read_to_end(&mut bs)
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
 
         self.kv.blocking_set(path, &bs)?;
 

@@ -147,7 +147,7 @@ impl FromStr for BytesRange {
             Error::new(ErrorKind::Unexpected, "header range is invalid")
                 .with_operation("BytesRange::from_str")
                 .with_context("value", value)
-                .with_source(e)
+                .set_source(e)
         };
 
         if v[1].is_empty() {

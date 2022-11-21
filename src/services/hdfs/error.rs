@@ -32,5 +32,5 @@ pub fn parse_io_error(err: io::Error) -> Error {
         _ => (ErrorKind::Unexpected, true),
     };
 
-    Error::new(kind, "hdfs backend io error").with_source(err)
+    Error::new(kind, "hdfs backend io error").set_source(err)
 }

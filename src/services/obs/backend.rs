@@ -180,7 +180,7 @@ impl Builder {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
                 Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
                     .with_context("service", Scheme::Obs)
-                    .with_source(err)
+                    .set_source(err)
             }),
             None => Err(
                 Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
@@ -231,7 +231,7 @@ impl Builder {
         let signer = signer_builder.build().map_err(|e| {
             Error::new(ErrorKind::Unexpected, "build HuaweicloudObsSigner")
                 .with_context("service", Scheme::Obs)
-                .with_source(e)
+                .set_source(e)
         })?;
 
         debug!("backend build finished: {:?}", &self);

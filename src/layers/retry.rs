@@ -698,7 +698,7 @@ mod tests {
 
             let size = futures::io::copy(&mut r, &mut futures::io::sink())
                 .await
-                .map_err(|err| Error::new(ErrorKind::Unexpected, "copy failed").with_source(err))?;
+                .map_err(|err| Error::new(ErrorKind::Unexpected, "copy failed").set_source(err))?;
             assert_eq!(size, args.size());
             Ok(args.size())
         }

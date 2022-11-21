@@ -41,13 +41,13 @@ pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
                         "header value is not valid utf-8 string",
                     )
                     .with_operation("http_util::parse_content_length")
-                    .with_source(e)
+                    .set_source(e)
                 })?
                 .parse::<u64>()
                 .map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "header value is not valid integer")
                         .with_operation("http_util::parse_content_length")
-                        .with_source(e)
+                        .set_source(e)
                 })?,
         )),
     }
@@ -63,7 +63,7 @@ pub fn parse_content_md5(headers: &HeaderMap) -> Result<Option<&str>> {
                 "header value is not valid utf-8 string",
             )
             .with_operation("http_util::parse_content_md5")
-            .with_source(e)
+            .set_source(e)
         })?)),
     }
 }
@@ -78,7 +78,7 @@ pub fn parse_content_type(headers: &HeaderMap) -> Result<Option<&str>> {
                 "header value is not valid utf-8 string",
             )
             .with_operation("http_util::parse_content_type")
-            .with_source(e)
+            .set_source(e)
         })?)),
     }
 }
@@ -95,7 +95,7 @@ pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRan
                         "header value is not valid utf-8 string",
                     )
                     .with_operation("http_util::parse_content_range")
-                    .with_source(e)
+                    .set_source(e)
                 })?
                 .parse()?,
         )),
@@ -113,7 +113,7 @@ pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>
                     "header value is not valid utf-8 string",
                 )
                 .with_operation("http_util::parse_last_modified")
-                .with_source(e)
+                .set_source(e)
             })?;
             let t = OffsetDateTime::parse(v, &Rfc2822).map_err(|e| {
                 Error::new(
@@ -121,7 +121,7 @@ pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<OffsetDateTime>
                     "header value is not valid rfc2822 time",
                 )
                 .with_operation("http_util::parse_last_modified")
-                .with_source(e)
+                .set_source(e)
             })?;
 
             Ok(Some(t))
@@ -139,7 +139,7 @@ pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
                 "header value is not valid utf-8 string",
             )
             .with_operation("http_util::parse_etag")
-            .with_source(e)
+            .set_source(e)
         })?)),
     }
 }

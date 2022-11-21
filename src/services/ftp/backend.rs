@@ -161,7 +161,7 @@ impl Builder {
                 return Err(
                     Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
                         .with_context("endpoint", endpoint)
-                        .with_source(e),
+                        .set_source(e),
                 );
             }
             Ok(uri) => uri,
@@ -371,7 +371,7 @@ impl Accessor for Backend {
         let mut data_stream = ftp_stream.append_with_stream(path).await?;
 
         let bytes = copy(r, &mut data_stream).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy from ftp stream").with_source(err)
+            Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
         })?;
 
         ftp_stream.finalize_put_stream(data_stream).await?;

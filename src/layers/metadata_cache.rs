@@ -125,7 +125,7 @@ impl Accessor for MetadataCacheAccessor {
                     Error::new(ErrorKind::Unexpected, "read object metadata from cache")
                         .with_operation(Operation::Stat.into_static())
                         .with_context("path", path)
-                        .with_source(err)
+                        .set_source(err)
                 })?;
 
                 let (meta, _) = bincode::serde::decode_from_slice(
@@ -136,7 +136,7 @@ impl Accessor for MetadataCacheAccessor {
                     Error::new(ErrorKind::Unexpected, "decode object metadata from cache")
                         .with_operation(Operation::Stat.into_static())
                         .with_context("path", path)
-                        .with_source(err)
+                        .set_source(err)
                 })?;
                 Ok(meta)
             }
@@ -147,7 +147,7 @@ impl Accessor for MetadataCacheAccessor {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
                             .with_operation(Operation::Stat.into_static())
                             .with_context("path", path)
-                            .with_source(err)
+                            .set_source(err)
                     })?;
                 self.cache
                     .write(
@@ -197,14 +197,14 @@ impl Accessor for MetadataCacheAccessor {
                     Error::new(ErrorKind::Unexpected, "read object metadata from cache")
                         .with_operation(Operation::BlockingStat.into_static())
                         .with_context("path", path)
-                        .with_source(err)
+                        .set_source(err)
                 })?;
                 let (meta, _) = bincode::serde::decode_from_slice(&bs, bincode::config::standard())
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
                             .with_operation(Operation::BlockingStat.into_static())
                             .with_context("path", path)
-                            .with_source(err)
+                            .set_source(err)
                     })?;
                 Ok(meta)
             }
@@ -215,7 +215,7 @@ impl Accessor for MetadataCacheAccessor {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
                             .with_operation(Operation::BlockingStat.into_static())
                             .with_context("path", path)
-                            .with_source(err)
+                            .set_source(err)
                     })?;
                 self.cache.blocking_write(
                     path,

@@ -80,7 +80,7 @@ impl Builder {
             )
             .with_context("service", Scheme::Rocksdb)
             .with_context("datadir", path)
-            .with_source(e)
+            .set_source(e)
         })?;
 
         Ok(wrapper(Backend::new(Adapter { db: Arc::new(db) })))
@@ -140,6 +140,6 @@ impl kv::Adapter for Adapter {
 
 impl From<rocksdb::Error> for Error {
     fn from(e: rocksdb::Error) -> Self {
-        Error::new(ErrorKind::Unexpected, "got rocksdb error").with_source(e)
+        Error::new(ErrorKind::Unexpected, "got rocksdb error").set_source(e)
     }
 }

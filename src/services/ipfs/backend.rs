@@ -473,7 +473,7 @@ impl Stream for DirStream {
 
                 let pb_node = PBNode::decode(bs).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "deserialize protobuf from response")
-                        .with_source(e)
+                        .set_source(e)
                 })?;
 
                 let names = pb_node

@@ -533,7 +533,7 @@ impl Builder {
             Error::new(ErrorKind::Unexpected, "build request for head")
                 .with_context("service", Scheme::S3)
                 .with_context("url", &url)
-                .with_source(e)
+                .set_source(e)
         })?;
 
         let res = client.send(req)?;
@@ -554,7 +554,7 @@ impl Builder {
                     .to_str()
                     .map_err(|e| {
                         Error::new(ErrorKind::Unexpected, "header value is not valid utf-8")
-                            .with_source(e)
+                            .set_source(e)
                     })?
                     .to_string();
                 Ok((endpoint, region))
@@ -568,7 +568,7 @@ impl Builder {
                     .to_str()
                     .map_err(|e| {
                         Error::new(ErrorKind::Unexpected, "header value is not valid utf-8")
-                            .with_source(e)
+                            .set_source(e)
                     })?
                     .to_string();
                 let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
@@ -616,7 +616,7 @@ impl Builder {
                     "server_side_encryption value is invalid",
                 )
                 .with_context("value", v)
-                .with_source(e)
+                .set_source(e)
             })?),
         };
 
@@ -629,7 +629,7 @@ impl Builder {
                         "server_side_encryption_aws_kms_key_id value is invalid",
                     )
                     .with_context("value", v)
-                    .with_source(e)
+                    .set_source(e)
                 })?),
             };
 
@@ -642,7 +642,7 @@ impl Builder {
                         "server_side_encryption_customer_algorithm value is invalid",
                     )
                     .with_context("value", v)
-                    .with_source(e)
+                    .set_source(e)
                 })?),
             };
 
@@ -654,7 +654,7 @@ impl Builder {
                     "server_side_encryption_customer_key value is invalid",
                 )
                 .with_context("value", v)
-                .with_source(e)
+                .set_source(e)
             })?),
         };
         let server_side_encryption_customer_key_md5 =
@@ -666,7 +666,7 @@ impl Builder {
                         "server_side_encryption_customer_key_md5 value is invalid",
                     )
                     .with_context("value", v)
-                    .with_source(e)
+                    .set_source(e)
                 })?),
             };
 
@@ -707,7 +707,7 @@ impl Builder {
 
         let signer = signer_builder
             .build()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").with_source(e))?;
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(wrapper(Backend {

@@ -75,7 +75,7 @@ impl ObjectPageStream for DirStream {
         let bs = resp.into_body().bytes().await?;
 
         let output: Output = de::from_reader(bs.reader()).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "deserialize xml from response").with_source(e)
+            Error::new(ErrorKind::Unexpected, "deserialize xml from response").set_source(e)
         })?;
 
         // Try our best to check whether this list is done.
@@ -121,7 +121,7 @@ impl ObjectPageStream for DirStream {
                                 ErrorKind::Unexpected,
                                 "parse last modified RFC2822 datetime",
                             )
-                            .with_source(e)
+                            .set_source(e)
                         })?,
                 );
 

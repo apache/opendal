@@ -158,7 +158,7 @@ impl Builder {
             Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
                 .with_context("service", Scheme::Redis)
                 .with_context("endpoint", endpoint)
-                .with_source(e)
+                .set_source(e)
         })?;
 
         let con_addr = match ep_url.scheme_str() {
@@ -204,7 +204,7 @@ impl Builder {
             .with_context("service", Scheme::Redis)
             .with_context("endpoint", self.endpoint.as_ref().unwrap())
             .with_context("db", self.db.to_string())
-            .with_source(e)
+            .set_source(e)
         })?;
 
         let root = normalize_root(
@@ -312,6 +312,6 @@ impl kv::Adapter for Adapter {
 
 impl From<RedisError> for Error {
     fn from(e: RedisError) -> Self {
-        Error::new(ErrorKind::Unexpected, "got redis error").with_source(e)
+        Error::new(ErrorKind::Unexpected, "got redis error").set_source(e)
     }
 }

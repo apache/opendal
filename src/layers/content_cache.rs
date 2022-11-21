@@ -345,7 +345,7 @@ impl AsyncRead for FixedCacheReader {
                                         Error::new(ErrorKind::Unexpected, "read from inner storage")
                                             .with_operation(Operation::Read.into_static())
                                             .with_context("path", &cache_path)
-                                            .with_source(err)
+                                            .set_source(err)
                                     })?;
 
                                     cache

@@ -39,5 +39,5 @@ pub fn parse_error(er: ErrorResponse) -> Error {
 }
 
 pub fn parse_json_deserialize_error(e: serde_json::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "deserialize json").with_source(e)
+    Error::new(ErrorKind::Unexpected, "deserialize json").set_source(e)
 }

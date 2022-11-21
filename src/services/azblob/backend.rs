@@ -210,7 +210,7 @@ impl Builder {
                 .with_context("service", Scheme::Azblob)
                 .with_context("endpoint", &endpoint)
                 .with_context("container", container.as_str())
-                .with_source(e)
+                .set_source(e)
         })?;
 
         debug!("backend build finished: {:?}", &self);

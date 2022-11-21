@@ -138,7 +138,7 @@ impl FromStr for BytesContentRange {
             Error::new(ErrorKind::Unexpected, "header content range is invalid")
                 .with_operation("BytesContentRange::from_str")
                 .with_context("value", value)
-                .with_source(e)
+                .set_source(e)
         };
 
         if let Some(size) = s.strip_prefix("*/") {

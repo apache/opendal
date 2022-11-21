@@ -24,6 +24,7 @@ use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+/// Provide a zero cost error context wrapper for backend.
 #[derive(Clone)]
 pub struct BackendErrorContextWrapper<T: Accessor + 'static> {
     meta: AccessorMetadata,
@@ -37,6 +38,7 @@ impl<T: Accessor + 'static> Debug for BackendErrorContextWrapper<T> {
 }
 
 impl<T: Accessor + 'static> BackendErrorContextWrapper<T> {
+    /// Create a new error context wrapper
     pub fn new(inner: T) -> Self {
         let meta = inner.metadata();
         Self { meta, inner }

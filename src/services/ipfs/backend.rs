@@ -54,7 +54,6 @@ use crate::ops::BytesRange;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
-use crate::ops::Operation;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;

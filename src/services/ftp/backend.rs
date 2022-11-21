@@ -360,10 +360,8 @@ impl Accessor for Backend {
             }
         };
 
-        Ok(
-            ObjectReader::new(Box::new(FtpReader::new(r, ftp_stream, path)))
-                .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)),
-        )
+        Ok(ObjectReader::new(Box::new(FtpReader::new(r, ftp_stream)))
+            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

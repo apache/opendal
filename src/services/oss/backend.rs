@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -53,7 +52,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
@@ -195,10 +193,6 @@ impl Builder {
             ),
         }?;
         debug!("backend use bucket {}", &bucket);
-
-        // Setup error context so that we don't need to construct many times.
-        let mut context: HashMap<String, String> =
-            HashMap::from([("bucket".to_string(), bucket.to_string())]);
 
         let (endpoint, host) = match self.endpoint.clone() {
             Some(ep) => {

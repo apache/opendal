@@ -18,7 +18,6 @@ use std::str;
 use std::sync::Arc;
 
 use crate::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use http::Request;
 use http::Response;
@@ -43,7 +42,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::build_rooted_abs_path;
 use crate::Accessor;
 use crate::AccessorMetadata;

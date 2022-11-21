@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
@@ -48,7 +47,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::services::obs::dir_stream::DirStream;
@@ -204,11 +202,6 @@ impl Builder {
         };
 
         debug!("backend use endpoint {}", &endpoint);
-
-        let context = HashMap::from([
-            ("bucket".to_string(), bucket.to_string()),
-            ("endpoint".to_string(), endpoint.to_string()),
-        ]);
 
         let client = HttpClient::new();
 

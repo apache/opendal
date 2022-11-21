@@ -128,7 +128,9 @@ pub struct Error {
 
 # Drawbacks
 
-None.
+## Breaking changes
+
+This RFC will lead to a breaking at user side.
 
 # Rationale and alternatives
 

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -28,6 +27,7 @@ use futures::Stream;
 use pin_project::pin_project;
 
 use crate::ObjectEntry;
+use crate::Result;
 
 /// ObjectStream represents a stream of Object.
 pub trait ObjectStream: Stream<Item = Result<ObjectEntry>> + Unpin + Send {}

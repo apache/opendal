@@ -14,8 +14,9 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io;
 use std::str::FromStr;
+
+use crate::Error;
 
 /// Services that OpenDAL supports
 ///
@@ -115,7 +116,7 @@ impl Display for Scheme {
 }
 
 impl FromStr for Scheme {
-    type Err = io::Error;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
@@ -172,5 +173,11 @@ impl From<Scheme> for &'static str {
             Scheme::Oss => "oss",
             Scheme::Custom(v) => v,
         }
+    }
+}
+
+impl From<Scheme> for String {
+    fn from(v: Scheme) -> Self {
+        v.into_static().to_string()
     }
 }

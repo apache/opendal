@@ -14,11 +14,9 @@
 
 use std::fmt;
 use std::fmt::Write;
-use std::io::Result;
 use std::str;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use http::Request;
 use http::Response;
@@ -27,11 +25,9 @@ use serde::Deserialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::error::parse_json_deserialize_error;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
-use crate::http_util::new_response_consume_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
@@ -45,7 +41,6 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::build_rooted_abs_path;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -54,6 +49,7 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Backend for IPFS service
@@ -107,15 +103,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Create, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Create, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -128,12 +121,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -148,15 +141,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Write, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(args.size())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Write, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -174,19 +164,10 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                let bs = resp
-                    .into_body()
-                    .bytes()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Stat, path, err))?;
+                let bs = resp.into_body().bytes().await?;
 
-                let res: IpfsStatResponse = serde_json::from_slice(&bs).map_err(|err| {
-                    new_other_object_error(
-                        Operation::Stat,
-                        path,
-                        anyhow!("deserialize json: {err:?}"),
-                    )
-                })?;
+                let res: IpfsStatResponse =
+                    serde_json::from_slice(&bs).map_err(parse_json_deserialize_error)?;
 
                 let mode = match res.file_type.as_str() {
                     "file" => ObjectMode::FILE,
@@ -201,7 +182,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -214,15 +195,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK => {
-                resp.into_body()
-                    .consume()
-                    .await
-                    .map_err(|err| new_response_consume_error(Operation::Delete, path, err))?;
+                resp.into_body().consume().await?;
                 Ok(())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Delete, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -250,12 +228,9 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Stat, path, err))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+        self.client.send_async(req).await
     }
 
     async fn ipmfs_read(
@@ -281,12 +256,9 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Read, path, err))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+        self.client.send_async(req).await
     }
 
     async fn ipmfs_rm(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -301,12 +273,9 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Delete, path, err))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Delete, path, e))
+        self.client.send_async(req).await
     }
 
     pub(crate) async fn ipmfs_ls(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -321,12 +290,9 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::List, path, err))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::List, path, e))
+        self.client.send_async(req).await
     }
 
     async fn ipmfs_mkdir(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -341,12 +307,9 @@ impl Backend {
         let req = Request::post(url);
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|err| new_request_build_error(Operation::Create, path, err))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Create, path, e))
+        self.client.send_async(req).await
     }
 
     /// Support write from reader.
@@ -365,17 +328,9 @@ impl Backend {
 
         let req = Request::post(url);
 
-        let req = req
-            .body(body)
-            .map_err(|err| new_request_build_error(Operation::Write, path, err))?;
+        let req = req.body(body).map_err(new_request_build_error)?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Write, path, e))?;
-
-        Ok(resp)
+        self.client.send_async(req).await
     }
 }
 

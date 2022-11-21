@@ -13,17 +13,15 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 
 use async_trait::async_trait;
 use flagset::FlagSet;
 
-use crate::error::ObjectError;
-use crate::ops::Operation;
 use crate::AccessorCapability;
 use crate::AccessorMetadata;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 use crate::Scheme;
 
 /// KvAdapter is the adapter to underlying kv services.
@@ -41,14 +39,13 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
 
     /// The blocking version of get.
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        let _ = path;
+
         Err(Error::new(
             ErrorKind::Unsupported,
-            ObjectError::new(
-                Operation::BlockingRead,
-                path,
-                anyhow::anyhow!("operation is not supported by underlying services"),
-            ),
-        ))
+            "kv adapter doesn't support this operation",
+        )
+        .with_operation("kv::Adapter::blocking_get"))
     }
 
     /// Set a key into service.
@@ -56,16 +53,13 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
 
     /// The blocking version of set.
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let _ = value;
+        let _ = (path, value);
 
         Err(Error::new(
             ErrorKind::Unsupported,
-            ObjectError::new(
-                Operation::BlockingWrite,
-                path,
-                anyhow::anyhow!("operation is not supported by underlying services"),
-            ),
-        ))
+            "kv adapter doesn't support this operation",
+        )
+        .with_operation("kv::Adapter::blocking_set"))
     }
 
     /// Delete a key from service.
@@ -77,14 +71,13 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     ///
     /// - return `Ok(())` even if this key is not exist.
     fn blocking_delete(&self, path: &str) -> Result<()> {
+        let _ = path;
+
         Err(Error::new(
             ErrorKind::Unsupported,
-            ObjectError::new(
-                Operation::BlockingDelete,
-                path,
-                anyhow::anyhow!("operation is not supported by underlying services"),
-            ),
-        ))
+            "kv adapter doesn't support this operation",
+        )
+        .with_operation("kv::Adapter::blocking_delete"))
     }
 }
 

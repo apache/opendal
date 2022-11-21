@@ -14,8 +14,6 @@
 
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::io;
-use std::io::Error;
 
 use anyhow::anyhow;
 use http::response::Parts;
@@ -24,36 +22,10 @@ use http::HeaderValue;
 use http::Response;
 use http::StatusCode;
 
-use crate::error::new_other_object_error;
-use crate::error::ObjectError;
 use crate::http_util::IncomingAsyncBody;
-use crate::ops::Operation;
-
-/// Create error happened during building http request.
-pub fn new_request_build_error(op: Operation, path: &str, err: http::Error) -> Error {
-    new_other_object_error(op, path, anyhow!("building request: {err:?}"))
-}
-
-/// Create error happened during signing http request.
-pub fn new_request_sign_error(op: Operation, path: &str, err: anyhow::Error) -> Error {
-    new_other_object_error(op, path, anyhow!("signing request: {err:?}"))
-}
-
-/// Create error happened during sending http request.
-pub fn new_request_send_error(op: Operation, path: &str, err: Error) -> Error {
-    Error::new(
-        err.kind(),
-        ObjectError::new(op, path, anyhow!("sending request:  {err:?}")),
-    )
-}
-
-/// Create error happened during consuming http response.
-pub fn new_response_consume_error(op: Operation, path: &str, err: Error) -> Error {
-    Error::new(
-        err.kind(),
-        ObjectError::new(op, path, anyhow!("consuming response: {err:?}")),
-    )
-}
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 /// ErrorResponse carries HTTP status code, headers and body.
 ///
@@ -98,12 +70,26 @@ impl Display for ErrorResponse {
 ///
 /// Please only use this for parsing error response hence it will read the
 /// entire body into memory.
-pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> io::Result<ErrorResponse> {
+pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<ErrorResponse> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
+    let bs = body.bytes().await.map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "reading error response")
+            .with_operation("http_util::parse_error_response")
+            .set_source(anyhow!(err))
+    })?;
 
     Ok(ErrorResponse {
         parts,
         body: bs.to_vec(),
     })
+}
+
+/// Create a new error happened during building request.
+pub fn new_request_build_error(err: http::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "building request").set_source(err)
+}
+
+/// Create a new error happened during signing request.
+pub fn new_request_sign_error(err: anyhow::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "signing request").set_source(err)
 }

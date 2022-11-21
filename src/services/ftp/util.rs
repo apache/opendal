@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::Result;
+use std::io;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bb8::PooledConnection;
 use futures::future::BoxFuture;
 use futures::ready;
@@ -27,14 +25,12 @@ use futures::FutureExt;
 use suppaftp::Status;
 
 use super::backend::Manager;
-use crate::error::new_other_object_error;
-use crate::ops::Operation;
 use crate::BytesReader;
+use crate::Result;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {
     reader: BytesReader,
-    path: String,
     state: State,
 }
 
@@ -45,10 +41,9 @@ pub enum State {
 
 impl FtpReader {
     /// Create an instance of FtpReader.
-    pub fn new(r: BytesReader, c: PooledConnection<'static, Manager>, path: &str) -> Self {
+    pub fn new(r: BytesReader, c: PooledConnection<'static, Manager>) -> Self {
         Self {
             reader: r,
-            path: path.to_string(),
             state: State::Reading(Some(c)),
         }
     }
@@ -59,9 +54,8 @@ impl AsyncRead for FtpReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let data = Pin::new(&mut self.reader).poll_read(cx, buf);
-        let path = self.path.clone();
 
         match &mut self.state {
             // Reading state, try to poll some data.
@@ -77,14 +71,7 @@ impl AsyncRead for FtpReader {
                                     Status::ClosingDataConnection,
                                     Status::RequestedFileActionOk,
                                 ])
-                                .await
-                                .map_err(|e| {
-                                    new_other_object_error(
-                                        Operation::Read,
-                                        path.as_str(),
-                                        anyhow!("unexpected response: {e:?}"),
-                                    )
-                                })?;
+                                .await?;
 
                                 Ok(())
                             };
@@ -104,7 +91,7 @@ impl AsyncRead for FtpReader {
             // Finalize state, wait for finalization of stream.
             State::Finalize(fut) => match ready!(Pin::new(fut).poll_unpin(cx)) {
                 Ok(_) => Poll::Ready(Ok(0)),
-                Err(e) => Poll::Ready(Err(Error::new(e.kind(), e.to_string()))),
+                Err(e) => Poll::Ready(Err(e.into())),
             },
         }
     }

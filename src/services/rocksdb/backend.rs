@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use rocksdb::TransactionDB;
 
 use crate::adapters::kv;
-use crate::error::new_other_backend_error;
-use crate::Accessor;
-use crate::AccessorCapability;
-use crate::Scheme;
+use crate::wrappers::wrapper;
+use crate::Result;
+use crate::*;
 
 /// Rocksdb backend builder
 #[derive(Clone, Default, Debug)]
@@ -73,19 +67,23 @@ impl Builder {
     /// Consumes the builder and returns a `Rocksdb` instance.
     pub fn build(&mut self) -> Result<impl Accessor> {
         let path = self.datadir.take().ok_or_else(|| {
-            new_other_backend_error(
-                HashMap::from([("datadir".into(), "".into())]),
-                anyhow!("datadir is required but not set"),
+            Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "datadir is required but not set",
             )
+            .with_context("service", Scheme::Rocksdb)
         })?;
         let db = TransactionDB::open_default(&path).map_err(|e| {
-            new_other_backend_error(
-                HashMap::from([("datadir".into(), path)]),
-                anyhow!("failed to open the database: {:?}", e),
+            Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "open default transaction db",
             )
+            .with_context("service", Scheme::Rocksdb)
+            .with_context("datadir", path)
+            .set_source(e)
         })?;
 
-        Ok(Backend::new(Adapter { db: Arc::new(db) }))
+        Ok(wrapper(Backend::new(Adapter { db: Arc::new(db) })))
     }
 }
 
@@ -120,7 +118,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        self.db.get(path).map_err(new_rocksdb_error)
+        Ok(self.db.get(path)?)
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -128,7 +126,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        self.db.put(path, value).map_err(new_rocksdb_error)
+        Ok(self.db.put(path, value)?)
     }
 
     async fn delete(&self, path: &str) -> Result<()> {
@@ -136,10 +134,12 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        self.db.delete(path).map_err(new_rocksdb_error)
+        Ok(self.db.delete(path)?)
     }
 }
 
-fn new_rocksdb_error(err: impl Debug) -> Error {
-    Error::new(ErrorKind::Other, anyhow!("rocksdb: {err:?}"))
+impl From<rocksdb::Error> for Error {
+    fn from(e: rocksdb::Error) -> Self {
+        Error::new(ErrorKind::Unexpected, "got rocksdb error").set_source(e)
+    }
 }

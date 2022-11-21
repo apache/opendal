@@ -12,22 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
+use std::io;
 
-use crate::error::ObjectError;
-use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
 
 /// Parse all path related errors.
 ///
 /// ## Notes
 ///
 /// Skip utf-8 check to allow invalid path input.
-pub fn parse_io_error(err: Error, op: Operation, path: &str) -> Error {
-    let kind = match err.kind() {
-        // Always retry would block error.
-        ErrorKind::WouldBlock => ErrorKind::Interrupted,
-        v => v,
+pub fn parse_io_error(err: io::Error) -> Error {
+    use io::ErrorKind::*;
+
+    let (kind, _) = match err.kind() {
+        NotFound => (ErrorKind::ObjectNotFound, false),
+        PermissionDenied => (ErrorKind::ObjectPermissionDenied, false),
+        Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, true),
     };
-    Error::new(kind, ObjectError::new(op, path, err))
+
+    Error::new(kind, "hdfs backend io error").set_source(err)
 }

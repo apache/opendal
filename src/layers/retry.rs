@@ -15,9 +15,7 @@
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::future::Future;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -55,6 +53,7 @@ use crate::ObjectMetadata;
 use crate::ObjectPart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// RetryLayer will add retry for OpenDAL.
 ///
@@ -126,7 +125,7 @@ where
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
         { || self.inner.create(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -134,13 +133,13 @@ where
                     Operation::Create, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         let r = { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -148,7 +147,7 @@ where
                     Operation::Read, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)?;
+            .map_err(|e| e.set_persistent())?;
 
         Ok(r.map_reader(|r| Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone()))))
     }
@@ -162,7 +161,7 @@ where
 
         { || self.inner.write(path, args.clone(), r.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -175,7 +174,7 @@ where
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         { || self.inner.stat(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -183,13 +182,13 @@ where
                     Operation::Stat, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
         { || self.inner.delete(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -197,13 +196,13 @@ where
                     Operation::Delete, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
         { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -211,14 +210,14 @@ where
                     Operation::List, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
         { || self.inner.create_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -226,7 +225,7 @@ where
                     Operation::CreateMultipart, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
     }
 
     async fn write_multipart(
@@ -239,13 +238,13 @@ where
         self.inner
             .write_multipart(path, args.clone(), r)
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
     }
 
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
         { || self.inner.complete_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -253,13 +252,13 @@ where
                     Operation::CompleteMultipart, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
     }
 
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
         { || self.inner.abort_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
-            .when(|e| e.kind() == ErrorKind::Interrupted)
+            .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
                     target: "opendal::service",
@@ -267,7 +266,7 @@ where
                     Operation::AbortMultipart, dur.as_secs_f64(), err)
             })
             .await
-            .map_err(convert_interrupted_error)
+            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -281,10 +280,10 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let kind = err.kind();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
-                    if kind == ErrorKind::Interrupted {
+                    if retryable {
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
@@ -312,10 +311,10 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let kind = err.kind();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
-                    if kind == ErrorKind::Interrupted {
+                    if retryable {
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
@@ -347,10 +346,10 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let kind = err.kind();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
-                    if kind == ErrorKind::Interrupted {
+                    if retryable {
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
@@ -378,10 +377,10 @@ where
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let kind = err.kind();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
-                    if kind == ErrorKind::Interrupted {
+                    if retryable {
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
@@ -409,10 +408,10 @@ where
             match res {
                 Ok(v) => return Ok(set_accessor_for_object_iterator(v, self.clone())),
                 Err(err) => {
-                    let kind = err.kind();
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
-                    if kind == ErrorKind::Interrupted {
+                    if retryable {
                         sleep(dur);
                         warn!(
                             target: "opendal::service",
@@ -460,7 +459,7 @@ where
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let this = self.project();
 
         loop {
@@ -481,7 +480,7 @@ where
                 Err(err) => {
                     let kind = err.kind();
 
-                    if kind == ErrorKind::Interrupted {
+                    if kind == io::ErrorKind::Interrupted {
                         let retry = if let Some(retry) = this.retry {
                             retry
                         } else {
@@ -546,24 +545,9 @@ impl AsyncRead for CloneableReader {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let mut r = (*self.inner).borrow_mut();
         Pin::new(r.as_mut()).poll_read(cx, buf)
-    }
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("permanent error: still failing after retry, source: {source}")]
-struct PermanentError {
-    source: Error,
-}
-
-/// Convert all interrupted error into permanent error.
-fn convert_interrupted_error(source: Error) -> Error {
-    if source.kind() == ErrorKind::Interrupted {
-        Error::new(ErrorKind::Other, PermanentError { source })
-    } else {
-        source
     }
 }
 
@@ -589,8 +573,11 @@ mod tests {
     use crate::ops::OpWrite;
     use crate::Accessor;
     use crate::BytesReader;
+    use crate::Error;
+    use crate::ErrorKind;
     use crate::ObjectReader;
     use crate::Operator;
+    use crate::Result;
 
     #[derive(Debug, Clone, Default)]
     struct MockService {
@@ -599,35 +586,27 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, path: &str, _: OpRead) -> io::Result<ObjectReader> {
+        async fn read(&self, path: &str, _: OpRead) -> Result<ObjectReader> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
             match path {
-                "retryable_error" => Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error"),
-                )),
-                _ => Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("not_retryable_error"),
-                )),
+                "retryable_error" => {
+                    Err(Error::new(ErrorKind::Unexpected, "retryable_error").set_temporary())
+                }
+                _ => Err(Error::new(ErrorKind::Unexpected, "not_retryable_error")),
             }
         }
 
-        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> io::Result<u64> {
+        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> Result<u64> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
             match path {
-                "retryable_error" => Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error"),
-                )),
-                _ => Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    anyhow!("not_retryable_error"),
-                )),
+                "retryable_error" => {
+                    Err(Error::new(ErrorKind::Unexpected, "retryable_error").set_temporary())
+                }
+                _ => Err(Error::new(ErrorKind::Unexpected, "not_retryable_error")),
             }
         }
     }
@@ -699,26 +678,27 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, _: OpRead) -> io::Result<ObjectReader> {
+        async fn read(&self, _: &str, _: OpRead) -> Result<ObjectReader> {
             Ok(ObjectReader::new(Box::new(MockReader {
                 attempt: self.attempt.clone(),
             })))
         }
 
-        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> io::Result<u64> {
+        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
             {
                 let mut attempt = self.attempt.lock().unwrap();
                 *attempt += 1;
 
                 if *attempt < 2 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Interrupted,
-                        anyhow!("retryable_error from Accessor"),
-                    ));
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, "retryable_error").set_temporary()
+                    );
                 }
             }
 
-            let size = futures::io::copy(&mut r, &mut futures::io::sink()).await?;
+            let size = futures::io::copy(&mut r, &mut futures::io::sink())
+                .await
+                .map_err(|err| Error::new(ErrorKind::Unexpected, "copy failed").set_source(err))?;
             assert_eq!(size, args.size());
             Ok(args.size())
         }

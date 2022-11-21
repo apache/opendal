@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::io;
 use std::io::Read;
-use std::io::Result;
 use std::io::Write;
 
 use bytes::Buf;
@@ -23,6 +23,9 @@ use bytes::Bytes;
 use crate::io_util::into_stream;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 /// Body used in blocking HTTP requests.
 pub enum Body {
@@ -44,7 +47,11 @@ impl Body {
     /// Consume the entire body.
     pub fn consume(self) -> Result<()> {
         if let Body::Reader(mut r) = self {
-            std::io::copy(&mut r, &mut std::io::sink())?;
+            std::io::copy(&mut r, &mut std::io::sink()).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "consuming response")
+                    .with_operation("http_util::Body::consume")
+                    .set_source(err)
+            })?;
         }
 
         Ok(())
@@ -52,7 +59,7 @@ impl Body {
 }
 
 impl Read for Body {
-    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         match self {
             Body::Empty => Ok(0),
             Body::Bytes(bs) => {
@@ -119,7 +126,11 @@ impl IncomingAsyncBody {
     pub async fn consume(self) -> Result<()> {
         use futures::io;
 
-        io::copy(self.0, &mut io::sink()).await?;
+        io::copy(self.0, &mut io::sink()).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "consuming response")
+                .with_operation("http_util::IncomingAsyncBody::consume")
+                .set_source(err)
+        })?;
 
         Ok(())
     }
@@ -129,7 +140,11 @@ impl IncomingAsyncBody {
         use futures::io;
 
         let mut w = io::Cursor::new(Vec::with_capacity(1024));
-        io::copy(self.0, &mut w).await?;
+        io::copy(self.0, &mut w).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "copy from resposne")
+                .with_operation("http_util::IncomingAsyncBody::bytes")
+                .set_source(err)
+        })?;
         Ok(Bytes::from(w.into_inner()))
     }
 

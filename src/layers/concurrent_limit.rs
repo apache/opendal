@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io;
 use std::io::Read;
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -50,6 +50,7 @@ use crate::ObjectMetadata;
 use crate::ObjectPart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// ConcurrentLimitLayer will add concurrent limit for OpenDAL.
 ///
@@ -302,7 +303,7 @@ impl AsyncRead for ConcurrentLimitReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         Pin::new(&mut (*self.inner)).poll_read(cx, buf)
     }
 }
@@ -324,7 +325,7 @@ impl BlockingConcurrentLimitReader {
 }
 
 impl Read for BlockingConcurrentLimitReader {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
     }
 }

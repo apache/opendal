@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -22,14 +21,15 @@ use serde::Deserialize;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::error::new_other_object_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -66,18 +66,14 @@ impl ObjectPageStream for DirStream {
 
         if resp.status() != http::StatusCode::OK {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::List, &self.path, er);
+            let err = parse_error(er);
             return Err(err);
         }
 
-        let bs = resp
-            .into_body()
-            .bytes()
-            .await
-            .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
+        let bs = resp.into_body().bytes().await?;
 
         let output: Output = de::from_reader(bs.reader())
-            .map_err(|e| new_other_object_error(Operation::List, &self.path, e))?;
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e))?;
 
         // Try our best to check whether this list is done.
         //

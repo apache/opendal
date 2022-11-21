@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -20,26 +19,24 @@ use std::task::Poll;
 
 use super::backend::Backend;
 use super::error::parse_io_error;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 pub struct DirStream {
     backend: Arc<Backend>,
     root: String,
-    path: String,
 
     rd: std::fs::ReadDir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str, rd: std::fs::ReadDir) -> Self {
+    pub fn new(backend: Arc<Backend>, root: &str, rd: std::fs::ReadDir) -> Self {
         Self {
             backend,
             root: root.to_string(),
-            path: path.to_string(),
             rd,
         }
     }
@@ -51,7 +48,7 @@ impl futures::Stream for DirStream {
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.rd.next() {
             None => Poll::Ready(None),
-            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path)))),
+            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e)))),
             Some(Ok(de)) => {
                 let path = build_rel_path(&self.root, &de.path().to_string_lossy());
 
@@ -59,7 +56,7 @@ impl futures::Stream for DirStream {
                 // (no extra system calls needed), but some Unix platforms may
                 // require the equivalent call to symlink_metadata to learn about
                 // the target file type.
-                let file_type = de.file_type()?;
+                let file_type = de.file_type().map_err(parse_io_error)?;
 
                 let d = if file_type.is_file() {
                     ObjectEntry::new(

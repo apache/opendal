@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use anyhow::anyhow;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
@@ -28,13 +26,13 @@ use serde::Deserialize;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::error::new_other_object_error;
+use super::error::parse_json_deserialize_error;
 use crate::http_util::parse_error_response;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 pub struct DirStream {
     backend: Arc<Backend>,
@@ -45,7 +43,7 @@ pub struct DirStream {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, io::Result<Bytes>>),
+    Sending(BoxFuture<'static, Result<Bytes>>),
     Listing((Vec<IpfsLsResponseEntry>, usize)),
 }
 
@@ -61,7 +59,7 @@ impl DirStream {
 }
 
 impl futures::Stream for DirStream {
-    type Item = io::Result<ObjectEntry>;
+    type Item = Result<ObjectEntry>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let backend = self.backend.clone();
@@ -75,17 +73,11 @@ impl futures::Stream for DirStream {
 
                     if resp.status() != StatusCode::OK {
                         let er = parse_error_response(resp).await?;
-                        let err = parse_error(Operation::List, &path, er);
+                        let err = parse_error(er);
                         return Err(err);
                     }
 
-                    let bs = resp.into_body().bytes().await.map_err(|e| {
-                        new_other_object_error(
-                            Operation::List,
-                            &path,
-                            anyhow!("read body: {:?}", e),
-                        )
-                    })?;
+                    let bs = resp.into_body().bytes().await?;
 
                     Ok(bs)
                 };
@@ -96,16 +88,7 @@ impl futures::Stream for DirStream {
                 let contents = ready!(Pin::new(fut).poll(cx))?;
 
                 let entries_body: IpfsLsResponse =
-                    serde_json::from_slice(&contents).map_err(|err| {
-                        new_other_object_error(
-                            Operation::List,
-                            &path,
-                            anyhow!(
-                                "deserialize {} list response: {err:?}",
-                                String::from_utf8_lossy(&contents)
-                            ),
-                        )
-                    })?;
+                    serde_json::from_slice(&contents).map_err(parse_json_deserialize_error)?;
 
                 self.state = State::Listing((entries_body.entries.unwrap_or_default(), 0));
                 self.poll_next(cx)

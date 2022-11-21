@@ -13,8 +13,7 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -37,13 +36,17 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
+use crate::ops::Operation;
 use crate::Accessor;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::Layer;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// ContentCacheLayer will add content data cache support for OpenDAL.
 ///
@@ -162,7 +165,7 @@ impl ContentCacheAccessor {
     async fn new_whole_cache_reader(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
         match self.cache.read(path, args.clone()).await {
             Ok(r) => Ok(r),
-            Err(err) if err.kind() == ErrorKind::NotFound => {
+            Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
                 let r = self.inner.read(path, OpRead::new()).await?;
 
                 let length = r.content_length();
@@ -314,7 +317,7 @@ impl AsyncRead for FixedCacheReader {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let cache = self.cache.clone();
         let inner = self.inner.clone();
         let path = self.path.clone();
@@ -332,13 +335,18 @@ impl AsyncRead for FixedCacheReader {
                                 .await
                             {
                                 Ok(r) => Ok(r),
-                                Err(err) if err.kind() == ErrorKind::NotFound => {
+                                Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
                                     let r = inner
                                         .read(&path, OpRead::new().with_range(total_range))
                                         .await?;
                                     let size = r.content_length();
                                     let mut bs = Vec::with_capacity(size as usize);
-                                    copy(r, &mut bs).await?;
+                                    copy(r, &mut bs).await.map_err(|err| {
+                                        Error::new(ErrorKind::Unexpected, "read from inner storage")
+                                            .with_operation(Operation::Read.into_static())
+                                            .with_context("path", &cache_path)
+                                            .set_source(err)
+                                    })?;
 
                                     cache
                                         .write(
@@ -440,7 +448,7 @@ mod tests {
 
         // Read not exist object.
         let data = cached_op.object("test_not_exist").read().await;
-        assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);
+        assert_eq!(data.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())
     }
@@ -493,7 +501,7 @@ mod tests {
 
         // Read not exist object.
         let data = cached_op.object("test_not_exist").read().await;
-        assert_eq!(data.unwrap_err().kind(), ErrorKind::NotFound);
+        assert_eq!(data.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())
     }

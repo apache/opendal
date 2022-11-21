@@ -15,7 +15,6 @@
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::io::Result;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -34,6 +33,7 @@ use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for
 /// underlying storage services.

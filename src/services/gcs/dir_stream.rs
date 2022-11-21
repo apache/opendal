@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json;
@@ -24,14 +22,16 @@ use time::OffsetDateTime;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::error::new_other_object_error;
+use super::error::parse_json_deserialize_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
-use crate::ops::Operation;
 use crate::path::build_rel_path;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 /// DirStream takes over task of listing objects and
 /// helps walking directory
@@ -72,20 +72,13 @@ impl ObjectPageStream for DirStream {
 
         if !resp.status().is_success() {
             let er = parse_error_response(resp).await?;
-            let err = parse_error(Operation::List, &self.path, er);
+            let err = parse_error(er);
             return Err(err);
         }
-        let bytes = resp.into_body().bytes().await.map_err(|e| {
-            new_other_object_error(Operation::List, &self.path, anyhow!("read body: {:?}", e))
-        })?;
+        let bytes = resp.into_body().bytes().await?;
 
-        let output: ListResponse = serde_json::from_slice(&bytes).map_err(|e| {
-            new_other_object_error(
-                Operation::List,
-                &self.path,
-                anyhow!("deserialize list_bucket output: {:?}", e),
-            )
-        })?;
+        let output: ListResponse =
+            serde_json::from_slice(&bytes).map_err(parse_json_deserialize_error)?;
 
         if let Some(token) = &output.next_page_token {
             self.page_token = token.clone();
@@ -118,11 +111,7 @@ impl ObjectPageStream for DirStream {
             meta.set_etag(object.etag.as_str());
 
             let size = object.size.parse().map_err(|e| {
-                new_other_object_error(
-                    Operation::List,
-                    &self.path,
-                    anyhow!("parse object size: {e:?}"),
-                )
+                Error::new(ErrorKind::Unexpected, "parse u64 from list response").set_source(e)
             })?;
             meta.set_content_length(size);
             if !object.content_type.is_empty() {
@@ -130,11 +119,7 @@ impl ObjectPageStream for DirStream {
             }
 
             let dt = OffsetDateTime::parse(object.updated.as_str(), &Rfc3339).map_err(|e| {
-                new_other_object_error(
-                    Operation::List,
-                    &self.path,
-                    anyhow!("parse last modified RFC3339 datetime: {e:?}"),
-                )
+                Error::new(ErrorKind::Unexpected, "parse last modified as rfc3339").set_source(e)
             })?;
             meta.set_last_modified(dt);
 

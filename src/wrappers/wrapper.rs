@@ -12,23 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::ObjectEntry;
-use crate::Result;
+use crate::Accessor;
 
-/// ObjectIterate represents an iterator of Dir.
-pub trait ObjectIterate: Iterator<Item = Result<ObjectEntry>> {}
-impl<T> ObjectIterate for T where T: Iterator<Item = Result<ObjectEntry>> {}
+use super::ErrorContextWrapper;
 
-/// ObjectIterator is a boxed dyn `ObjectIterate`
-pub type ObjectIterator = Box<dyn ObjectIterate>;
-
-/// EmptyObjectIterator that always return None.
-pub struct EmptyObjectIterator;
-
-impl Iterator for EmptyObjectIterator {
-    type Item = Result<ObjectEntry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        None
-    }
+/// Wrapper given backend.
+pub fn wrapper(inner: impl Accessor) -> impl Accessor {
+    ErrorContextWrapper::new(inner)
 }

@@ -12,32 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
-
-use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::io::Cursor;
 use futures::AsyncReadExt;
 
 use super::Adapter;
-use crate::error::ObjectError;
 use crate::ops::BytesRange;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
+use crate::Result;
 
 /// Backend of kv service.
 #[derive(Debug, Clone)]
@@ -96,8 +92,8 @@ where
             Some(bs) => bs,
             None => {
                 return Err(Error::new(
-                    ErrorKind::NotFound,
-                    ObjectError::new(Operation::Read, path, anyhow!("key {path} is not found")),
+                    ErrorKind::ObjectNotFound,
+                    "kv doesn't have this path",
                 ))
             }
         };
@@ -114,8 +110,8 @@ where
             Some(bs) => bs,
             None => {
                 return Err(Error::new(
-                    ErrorKind::NotFound,
-                    ObjectError::new(Operation::Read, path, anyhow!("key {path} is not found")),
+                    ErrorKind::ObjectNotFound,
+                    "kv doesn't have this path",
                 ))
             }
         };
@@ -126,7 +122,9 @@ where
 
     async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
         let mut bs = Vec::with_capacity(args.size() as usize);
-        r.read_to_end(&mut bs).await?;
+        r.read_to_end(&mut bs)
+            .await
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
 
         self.kv.set(path, &bs).await?;
 
@@ -135,7 +133,8 @@ where
 
     fn blocking_write(&self, path: &str, args: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
         let mut bs = Vec::with_capacity(args.size() as usize);
-        r.read_to_end(&mut bs)?;
+        r.read_to_end(&mut bs)
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
 
         self.kv.blocking_set(path, &bs)?;
 
@@ -152,8 +151,8 @@ where
                     Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
                 }
                 None => Err(Error::new(
-                    ErrorKind::NotFound,
-                    ObjectError::new(Operation::Stat, path, anyhow!("key {path} is not found")),
+                    ErrorKind::ObjectNotFound,
+                    "kv doesn't have this path",
                 )),
             }
         }
@@ -169,8 +168,8 @@ where
                     Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
                 }
                 None => Err(Error::new(
-                    ErrorKind::NotFound,
-                    ObjectError::new(Operation::Stat, path, anyhow!("key {path} is not found")),
+                    ErrorKind::ObjectNotFound,
+                    "kv doesn't have this path",
                 )),
             }
         }

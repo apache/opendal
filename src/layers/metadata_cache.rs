@@ -13,9 +13,7 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
 use std::io::Read;
-use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,7 +22,6 @@ use futures::io::Cursor;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
-use crate::error::new_other_object_error;
 use crate::ops::OpCompleteMultipart;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -36,10 +33,13 @@ use crate::ops::Operation;
 use crate::Accessor;
 use crate::BlockingBytesReader;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::Layer;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// MetadataCacheLayer will add metadata cache support for OpenDAL.
 ///
@@ -121,19 +121,34 @@ impl Accessor for MetadataCacheAccessor {
             Ok(r) => {
                 let buffer = Vec::with_capacity(1024);
                 let mut bs = Cursor::new(buffer);
-                io::copy(r, &mut bs).await?;
+                io::copy(r, &mut bs).await.map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "read object metadata from cache")
+                        .with_operation(Operation::Stat.into_static())
+                        .with_context("path", path)
+                        .set_source(err)
+                })?;
 
                 let (meta, _) = bincode::serde::decode_from_slice(
                     &bs.into_inner(),
                     bincode::config::standard(),
                 )
-                .map_err(|err| new_other_object_error(Operation::Stat, path, err))?;
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "decode object metadata from cache")
+                        .with_operation(Operation::Stat.into_static())
+                        .with_context("path", path)
+                        .set_source(err)
+                })?;
                 Ok(meta)
             }
-            Err(err) if err.kind() == ErrorKind::NotFound => {
+            Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
                 let meta = self.inner.stat(path, args).await?;
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
-                    .map_err(|err| new_other_object_error(Operation::Stat, path, err))?;
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
+                            .with_operation(Operation::Stat.into_static())
+                            .with_context("path", path)
+                            .set_source(err)
+                    })?;
                 self.cache
                     .write(
                         path,
@@ -178,15 +193,30 @@ impl Accessor for MetadataCacheAccessor {
         match self.cache.blocking_read(path, OpRead::new()) {
             Ok(mut r) => {
                 let mut bs = Vec::with_capacity(1024);
-                r.read_to_end(&mut bs)?;
+                r.read_to_end(&mut bs).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "read object metadata from cache")
+                        .with_operation(Operation::BlockingStat.into_static())
+                        .with_context("path", path)
+                        .set_source(err)
+                })?;
                 let (meta, _) = bincode::serde::decode_from_slice(&bs, bincode::config::standard())
-                    .map_err(|err| new_other_object_error(Operation::BlockingStat, path, err))?;
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
+                            .with_operation(Operation::BlockingStat.into_static())
+                            .with_context("path", path)
+                            .set_source(err)
+                    })?;
                 Ok(meta)
             }
-            Err(err) if err.kind() == ErrorKind::NotFound => {
+            Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
                 let meta = self.inner.blocking_stat(path, args)?;
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
-                    .map_err(|err| new_other_object_error(Operation::BlockingStat, path, err))?;
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
+                            .with_operation(Operation::BlockingStat.into_static())
+                            .with_context("path", path)
+                            .set_source(err)
+                    })?;
                 self.cache.blocking_write(
                     path,
                     OpWrite::new(bs.len() as u64),
@@ -244,7 +274,7 @@ mod tests {
 
         // Stat not exist object.
         let meta = cached_op.object("test_not_exist").metadata().await;
-        assert_eq!(meta.unwrap_err().kind(), ErrorKind::NotFound);
+        assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())
     }

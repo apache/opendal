@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-use anyhow::anyhow;
-
 use crate::ops::BytesRange;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 /// BytesContentRange is the content range of bytes.
 ///
@@ -131,17 +129,16 @@ impl FromStr for BytesContentRange {
 
     fn from_str(value: &str) -> Result<Self> {
         let s = value.strip_prefix("bytes ").ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header content range is invalid: {value}"),
-            )
+            Error::new(ErrorKind::Unexpected, "header content range is invalid")
+                .with_operation("BytesContentRange::from_str")
+                .with_context("value", value)
         })?;
 
         let parse_int_error = |e: std::num::ParseIntError| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range must contain valid integer: {e}"),
-            )
+            Error::new(ErrorKind::Unexpected, "header content range is invalid")
+                .with_operation("BytesContentRange::from_str")
+                .with_context("value", value)
+                .set_source(e)
         };
 
         if let Some(size) = s.strip_prefix("*/") {
@@ -152,18 +149,20 @@ impl FromStr for BytesContentRange {
 
         let s: Vec<_> = s.split('/').collect();
         if s.len() != 2 {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range is invalid: {value}"),
-            ));
+            return Err(
+                Error::new(ErrorKind::Unexpected, "header content range is invalid")
+                    .with_operation("BytesContentRange::from_str")
+                    .with_context("value", value),
+            );
         }
 
         let v: Vec<_> = s[0].split('-').collect();
         if v.len() != 2 {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                anyhow!("header range is invalid: {value}"),
-            ));
+            return Err(
+                Error::new(ErrorKind::Unexpected, "header content range is invalid")
+                    .with_operation("BytesContentRange::from_str")
+                    .with_context("value", value),
+            );
         }
         let start: u64 = v[0].parse().map_err(parse_int_error)?;
         let end: u64 = v[1].parse().map_err(parse_int_error)?;

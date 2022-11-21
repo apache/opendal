@@ -89,7 +89,6 @@ pub trait Layer {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Result;
     use std::sync::Arc;
 
     use futures::lock::Mutex;
@@ -98,6 +97,7 @@ mod tests {
     use crate::ops::OpDelete;
     use crate::Accessor;
     use crate::Operator;
+    use crate::Result;
     use crate::Scheme;
 
     #[derive(Debug)]

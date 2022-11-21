@@ -15,9 +15,7 @@
 use std::env;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io;
 use std::str::FromStr;
 
 use futures::TryStreamExt;
@@ -33,6 +31,9 @@ use super::AsyncBody;
 use super::Body;
 use crate::http_util::body::IncomingAsyncBody;
 use crate::io_util::into_reader;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 /// HttpClient that used across opendal.
 #[derive(Clone)]
@@ -117,14 +118,21 @@ impl HttpClient {
             Err(err_resp) => match err_resp {
                 ureq::Error::Status(_code, resp) => resp,
                 ureq::Error::Transport(transport) => {
-                    let kind = match transport.kind() {
+                    let is_temperary = matches!(
+                        transport.kind(),
                         ureq::ErrorKind::Dns
-                        | ureq::ErrorKind::ConnectionFailed
-                        | ureq::ErrorKind::Io => ErrorKind::Interrupted,
-                        _ => ErrorKind::Other,
-                    };
+                            | ureq::ErrorKind::ConnectionFailed
+                            | ureq::ErrorKind::Io
+                    );
 
-                    return Err(Error::new(kind, transport));
+                    let mut err = Error::new(ErrorKind::Unexpected, "send blocking request")
+                        .with_operation("http_util::Client::send")
+                        .set_source(transport);
+                    if is_temperary {
+                        err = err.set_temporary();
+                    }
+
+                    return Err(err);
                 }
             },
         };
@@ -168,9 +176,27 @@ impl HttpClient {
         };
 
         let resp = req_builder.send().await.map_err(|err| {
-            let kind = error_kind_from_reqwest_error(&err);
+            let is_temperary = !(
+                // Builder related error should not be retried.
+                err.is_builder() ||
+                // Error returned by RedirectPolicy.
+                //
+                // We don't set this by hand, just don't allow retry.
+                err.is_redirect() ||
+                 // We never use `Response::error_for_status`, just don't allow retry.
+                //
+                // Status should be checked by our services.
+                err.is_status()
+            );
 
-            Error::new(kind, err)
+            let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
+                .with_operation("http_util::Client::send_async")
+                .set_source(err);
+            if is_temperary {
+                oerr = oerr.set_temporary();
+            }
+
+            oerr
         })?;
 
         // Get content length from header so that we can check it.
@@ -188,36 +214,13 @@ impl HttpClient {
             hr = hr.header(k, v);
         }
 
-        let stream = resp.bytes_stream().map_err(|err| {
-            let kind = error_kind_from_reqwest_error(&err);
-
-            Error::new(kind, err)
-        });
+        let stream = resp
+            .bytes_stream()
+            .map_err(|err| io::Error::new(io::ErrorKind::Other, err));
         let body = IncomingAsyncBody::new(Box::new(into_reader(stream, content_length)));
 
         let resp = hr.body(body).expect("response must build succeed");
 
         Ok(resp)
     }
-}
-
-fn error_kind_from_reqwest_error(err: &reqwest::Error) -> ErrorKind {
-    // Builder related error should not be retried.
-    if err.is_builder() {
-        return ErrorKind::Other;
-    }
-    // Error returned by RedirectPolicy.
-    //
-    // We don't set this by hand, just don't allow retry.
-    if err.is_redirect() {
-        return ErrorKind::Other;
-    }
-    // We never use `Response::error_for_status`, just don't allow retry.
-    //
-    // Status should be checked by our services.
-    if err.is_status() {
-        return ErrorKind::Other;
-    }
-
-    ErrorKind::Interrupted
 }

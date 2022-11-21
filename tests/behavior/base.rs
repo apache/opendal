@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
-
+use anyhow::Result;
 use opendal::Operator;
 
 /// All services should pass this test.
@@ -26,7 +25,7 @@ macro_rules! behavior_base_test {
                     $(
                         #[$meta]
                     )*
-                    fn [< $test >]() -> std::io::Result<()> {
+                    fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
                             Some(op)  => $crate::base::$test(op),

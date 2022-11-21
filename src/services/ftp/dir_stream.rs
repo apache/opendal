@@ -13,9 +13,6 @@
 // limitations under the License.
 
 use std::clone::Clone;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::pin::Pin;
 use std::str;
 use std::str::FromStr;
@@ -27,11 +24,12 @@ use suppaftp::list::File;
 use time::OffsetDateTime;
 
 use super::backend::Backend;
-use super::err::parse_io_error;
-use crate::ops::Operation;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 pub struct ReadDir {
     files: Vec<String>,
@@ -48,7 +46,9 @@ impl Iterator for ReadDir {
         self.index += 1;
         let result = match File::from_str(self.files[self.index - 1].as_str()) {
             Ok(f) => Ok(f),
-            Err(e) => Err(Error::new(ErrorKind::InvalidData, e)),
+            Err(e) => {
+                Err(Error::new(ErrorKind::Unexpected, "parse file from response").set_source(e))
+            }
         };
 
         Some(result)
@@ -82,7 +82,7 @@ impl futures::Stream for DirStream {
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.rd.by_ref().next() {
             None => Poll::Ready(None),
-            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e, Operation::List, &self.path)))),
+            Some(Err(e)) => Poll::Ready(Some(Err(e))),
             Some(Ok(de)) => {
                 let path = self.path.to_string() + de.name();
 

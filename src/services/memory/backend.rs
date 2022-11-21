@@ -13,15 +13,16 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
-use std::io::Result;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use crate::adapters::kv;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorCapability;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for memory backend
@@ -35,7 +36,7 @@ impl Builder {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(Backend::new(adapter))
+        Ok(wrapper(Backend::new(adapter)))
     }
 }
 

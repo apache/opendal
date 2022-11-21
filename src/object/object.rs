@@ -13,17 +13,13 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use futures::io;
 use futures::io::Cursor;
 use time::Duration;
 
-use crate::error::new_other_object_error;
 use crate::io::BytesRead;
 use crate::io_util::seekable_read;
 #[cfg(feature = "compress")]
@@ -40,19 +36,21 @@ use crate::ops::OpPresign;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::ops::PresignedRequest;
 use crate::path::get_basename;
 use crate::path::normalize_path;
 use crate::path::validate_path;
 use crate::Accessor;
 use crate::BlockingBytesRead;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectMultipart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -352,11 +350,12 @@ impl Object {
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Read,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("Object:range_read")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let br = BytesRange::from(range);
@@ -369,7 +368,14 @@ impl Object {
         let buffer = Vec::with_capacity(s.content_length() as usize);
         let mut bs = Cursor::new(buffer);
 
-        io::copy(s, &mut bs).await?;
+        io::copy(s, &mut bs).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "read from storage")
+                .with_operation("Object:range_read")
+                .with_context("service", self.accessor().metadata().scheme().into_static())
+                .with_context("path", self.path())
+                .with_context("range", &br.to_string())
+                .set_source(err)
+        })?;
 
         Ok(bs.into_inner())
     }
@@ -397,11 +403,12 @@ impl Object {
     /// ```
     pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Read,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("Object::blocking_range_read")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let br = BytesRange::from(range);
@@ -415,7 +422,14 @@ impl Object {
             Vec::with_capacity(4 * 1024 * 1024)
         };
 
-        std::io::copy(&mut s, &mut buffer)?;
+        std::io::copy(&mut s, &mut buffer).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "blocking range read failed")
+                .with_operation("Object::blocking_range_read")
+                .with_context("service", self.accessor().metadata().scheme().into_static())
+                .with_context("path", self.path())
+                .with_context("range", &br.to_string())
+                .set_source(err)
+        })?;
 
         Ok(buffer)
     }
@@ -490,11 +504,12 @@ impl Object {
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<ObjectReader> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Read,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("Object::range_reader")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         self.acc
@@ -525,11 +540,12 @@ impl Object {
         range: impl RangeBounds<u64>,
     ) -> Result<impl BlockingBytesRead> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Read,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("Object::blocking_range_reader")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         self.acc
@@ -670,7 +686,13 @@ impl Object {
         let r = self.decompress_reader_with(algo).await?;
         let mut bs = Cursor::new(Vec::new());
 
-        io::copy(r, &mut bs).await?;
+        io::copy(r, &mut bs).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "decompress read with failed")
+                .with_operation("Object::decompress_read_with")
+                .with_context("service", self.accessor().metadata().scheme().into_static())
+                .with_context("path", self.path())
+                .set_source(err)
+        })?;
 
         Ok(bs.into_inner())
     }
@@ -767,11 +789,12 @@ impl Object {
     /// ```
     pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Write,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::write_with")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let bs = bs.into();
@@ -839,11 +862,12 @@ impl Object {
     /// ```
     pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Write,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::blocking_write_with")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let bs = bs.into();
@@ -881,11 +905,12 @@ impl Object {
     /// ```
     pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Write,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::write_from")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let _ = self
@@ -928,11 +953,12 @@ impl Object {
         br: impl BlockingBytesRead + 'static,
     ) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(new_other_object_error(
-                Operation::Write,
-                self.path(),
-                anyhow!("Is a directory"),
-            ));
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::blocking_write_from")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
         }
 
         let _ = self
@@ -1028,11 +1054,13 @@ impl Object {
     /// ```
     pub async fn list(&self) -> Result<ObjectStreamer> {
         if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(new_other_object_error(
-                Operation::List,
-                self.path(),
-                anyhow!("Not a directory"),
-            ));
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::list")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
         }
 
         self.acc.list(self.path(), OpList::new()).await
@@ -1075,11 +1103,13 @@ impl Object {
     /// ```
     pub fn blocking_list(&self) -> Result<ObjectIterator> {
         if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(new_other_object_error(
-                Operation::List,
-                self.path(),
-                anyhow!("Not a directory"),
-            ));
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::blocking_list")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
         }
 
         self.acc.blocking_list(self.path(), OpList::new())
@@ -1095,13 +1125,13 @@ impl Object {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
-    /// use std::io::ErrorKind;
+    /// use opendal::ErrorKind;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// if let Err(e) = op.object("test").metadata().await {
-    ///     if e.kind() == ErrorKind::NotFound {
+    ///     if e.kind() == ErrorKind::ObjectNotFound {
     ///         println!("object not exist")
     ///     }
     /// }
@@ -1122,12 +1152,12 @@ impl Object {
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
-    /// use std::io::ErrorKind;
+    /// use opendal::ErrorKind;
     /// #
     /// # fn main() -> Result<()> {
     /// # let op = Operator::from_env(Scheme::Memory)?;
     /// if let Err(e) = op.object("test").blocking_metadata() {
-    ///     if e.kind() == ErrorKind::NotFound {
+    ///     if e.kind() == ErrorKind::ObjectNotFound {
     ///         println!("object not exist")
     ///     }
     /// }
@@ -1162,7 +1192,7 @@ impl Object {
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Ok(false),
+                ErrorKind::ObjectNotFound => Ok(false),
                 _ => Err(err),
             },
         }
@@ -1189,7 +1219,7 @@ impl Object {
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
-                ErrorKind::NotFound => Ok(false),
+                ErrorKind::ObjectNotFound => Ok(false),
                 _ => Err(err),
             },
         }

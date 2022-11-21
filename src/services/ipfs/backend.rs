@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Result;
 use std::iter::Peekable;
 use std::mem;
 use std::pin::Pin;
@@ -24,7 +22,6 @@ use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::future::BoxFuture;
@@ -40,10 +37,7 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
 use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_send_error;
 use crate::http_util::parse_content_length;
 use crate::http_util::parse_content_type;
 use crate::http_util::parse_error_response;
@@ -57,16 +51,19 @@ use crate::ops::BytesRange;
 use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
-use crate::ops::Operation;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for ipfs backend.
@@ -133,28 +130,31 @@ impl Builder {
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
         if !root.starts_with("/ipfs/") && !root.starts_with("/ipns/") {
-            return Err(new_other_backend_error(
-                HashMap::from([("root".to_string(), root)]),
-                anyhow!("root must start with /ipfs/ or /ipns/"),
-            ));
+            return Err(Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "root must start with /ipfs/ or /ipns/",
+            )
+            .with_context("service", Scheme::Ipfs)
+            .with_context("root", &root));
         }
         debug!("backend use root {}", root);
 
         let endpoint = match &self.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(new_other_backend_error(
-                HashMap::from([("endpoint".to_string(), "".to_string())]),
-                anyhow!("endpoint is empty"),
-            )),
+            None => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
+                    .with_context("service", Scheme::Ipfs)
+                    .with_context("root", &root),
+            ),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(wrapper(Backend {
             root,
             endpoint,
             client: HttpClient::new(),
-        })
+        }))
     }
 }
 
@@ -194,12 +194,12 @@ impl Accessor for Backend {
 
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(Operation::Read, path, resp.headers())?;
+                let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Read, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -321,21 +321,15 @@ impl Accessor for Backend {
             StatusCode::OK => {
                 let mut m = ObjectMetadata::new(ObjectMode::Unknown);
 
-                if let Some(v) = parse_content_length(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
+                if let Some(v) = parse_content_length(resp.headers())? {
                     m.set_content_length(v);
                 }
 
-                if let Some(v) = parse_content_type(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
+                if let Some(v) = parse_content_type(resp.headers())? {
                     m.set_content_type(v);
                 }
 
-                if let Some(v) = parse_etag(resp.headers())
-                    .map_err(|e| new_other_object_error(Operation::Stat, path, e))?
-                {
+                if let Some(v) = parse_etag(resp.headers())? {
                     m.set_etag(v);
 
                     if v.starts_with("\"DirIndex") {
@@ -356,7 +350,7 @@ impl Accessor for Backend {
             }
             _ => {
                 let er = parse_error_response(resp).await?;
-                let err = parse_error(Operation::Stat, path, er);
+                let err = parse_error(er);
                 Err(err)
             }
         }
@@ -381,12 +375,9 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+        self.client.send_async(req).await
     }
 
     async fn ipfs_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -398,12 +389,9 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Stat, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Stat, path, e))
+        self.client.send_async(req).await
     }
 
     async fn ipfs_list(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
@@ -421,12 +409,9 @@ impl Backend {
 
         let req = req
             .body(AsyncBody::Empty)
-            .map_err(|e| new_request_build_error(Operation::Read, path, e))?;
+            .map_err(new_request_build_error)?;
 
-        self.client
-            .send_async(req)
-            .await
-            .map_err(|e| new_request_send_error(Operation::Read, path, e))
+        self.client.send_async(req).await
     }
 }
 
@@ -471,15 +456,11 @@ impl Stream for DirStream {
 
                     if resp.status() != StatusCode::OK {
                         let er = parse_error_response(resp).await?;
-                        let err = parse_error(Operation::List, &path, er);
+                        let err = parse_error(er);
                         return Err(err);
                     }
 
-                    let bs = resp
-                        .into_body()
-                        .bytes()
-                        .await
-                        .map_err(|e| new_other_object_error(Operation::List, &path, e))?;
+                    let bs = resp.into_body().bytes().await?;
 
                     Ok(bs)
                 };
@@ -491,11 +472,8 @@ impl Stream for DirStream {
                 let bs = ready!(Pin::new(fut).poll(cx))?;
 
                 let pb_node = PBNode::decode(bs).map_err(|e| {
-                    new_other_object_error(
-                        Operation::List,
-                        &self.path,
-                        anyhow!("deserialize protobuf: {e:?}"),
-                    )
+                    Error::new(ErrorKind::Unexpected, "deserialize protobuf from response")
+                        .set_source(e)
                 })?;
 
                 let names = pb_node

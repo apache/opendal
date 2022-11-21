@@ -13,16 +13,13 @@
 // limitations under the License.
 
 use std::cmp::min;
-use std::collections::HashMap;
 use std::fmt::Debug;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use futures::AsyncReadExt;
 use log::debug;
@@ -31,8 +28,6 @@ use time::OffsetDateTime;
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
-use crate::error::new_other_backend_error;
-use crate::error::new_other_object_error;
 use crate::object::EmptyObjectStreamer;
 use crate::ops::OpCreate;
 use crate::ops::OpDelete;
@@ -40,16 +35,19 @@ use crate::ops::OpList;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::ops::OpWrite;
-use crate::ops::Operation;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for hdfs services
@@ -108,50 +106,34 @@ impl Builder {
         debug!("backend build started: {:?}", &self);
 
         let name_node = match &self.name_node {
-            None => {
-                return Err(new_other_backend_error(
-                    HashMap::new(),
-                    anyhow!("endpoint must be specified"),
-                ))
-            }
             Some(v) => v,
+            None => {
+                return Err(
+                    Error::new(ErrorKind::BackendConfigInvalid, "name node is empty")
+                        .with_context("service", Scheme::Hdfs),
+                )
+            }
         };
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = hdrs::Client::connect(name_node).map_err(|e| {
-            new_other_backend_error(
-                HashMap::from([
-                    ("root".to_string(), root.clone()),
-                    ("endpoint".to_string(), name_node.clone()),
-                ]),
-                anyhow!("connect hdfs name node: {}", e),
-            )
-        })?;
+        let client = hdrs::Client::connect(name_node).map_err(parse_io_error)?;
 
         // Create root dir if not exist.
         if let Err(e) = client.metadata(&root) {
-            if e.kind() == ErrorKind::NotFound {
+            if e.kind() == io::ErrorKind::NotFound {
                 debug!("root {} is not exist, creating now", root);
 
-                client.create_dir(&root).map_err(|e| {
-                    new_other_backend_error(
-                        HashMap::from([
-                            ("root".to_string(), root.clone()),
-                            ("endpoint".to_string(), name_node.clone()),
-                        ]),
-                        anyhow!("create root dir: {}", e),
-                    )
-                })?
+                client.create_dir(&root).map_err(parse_io_error)?
             }
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(wrapper(Backend {
             root,
             client: Arc::new(client),
-        })
+        }))
     }
 }
 
@@ -187,17 +169,17 @@ impl Accessor for Backend {
                 let parent = PathBuf::from(&p)
                     .parent()
                     .ok_or_else(|| {
-                        new_other_object_error(
-                            Operation::Create,
-                            path,
-                            anyhow!("malformed path: {:?}", path),
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path shoud have parent but not, it must be malformed",
                         )
+                        .with_context("input", &p)
                     })?
                     .to_path_buf();
 
                 self.client
                     .create_dir(&parent.to_string_lossy())
-                    .map_err(|e| parse_io_error(e, Operation::Create, &parent.to_string_lossy()))?;
+                    .map_err(parse_io_error)?;
 
                 self.client
                     .open_file()
@@ -205,14 +187,12 @@ impl Accessor for Backend {
                     .write(true)
                     .truncate(true)
                     .open(&p)
-                    .map_err(|e| parse_io_error(e, Operation::Create, path))?;
+                    .map_err(parse_io_error)?;
 
                 Ok(())
             }
             ObjectMode::DIR => {
-                self.client
-                    .create_dir(&p)
-                    .map_err(|e| parse_io_error(e, Operation::Create, path))?;
+                self.client.create_dir(&p).map_err(parse_io_error)?;
 
                 Ok(())
             }
@@ -224,30 +204,30 @@ impl Accessor for Backend {
         let p = build_rooted_abs_path(&self.root, path);
 
         // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
-        let meta = self
-            .client
-            .metadata(&p)
-            .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
+        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
-        let mut f = self.client.open_file().read(true).open(&p)?;
+        let mut f = self
+            .client
+            .open_file()
+            .read(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
 
         let br = args.range();
 
         let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
-                f.seek(SeekFrom::Start(offset))
-                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
                 (Box::new(f.take(size)), min(size, meta.len() - offset))
             }
             (Some(offset), None) => {
-                f.seek(SeekFrom::Start(offset))
-                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
                 (Box::new(f), meta.len() - offset)
             }
             (None, Some(size)) => {
                 // hdfs doesn't support seed from end.
                 f.seek(SeekFrom::Start(meta.len() - size))
-                    .map_err(|e| parse_io_error(e, Operation::Read, path))?;
+                    .map_err(parse_io_error)?;
                 (Box::new(f), size)
             }
             (None, None) => (Box::new(f), meta.len()),
@@ -263,21 +243,27 @@ impl Accessor for Backend {
         let parent = PathBuf::from(&p)
             .parent()
             .ok_or_else(|| {
-                new_other_object_error(
-                    Operation::Write,
-                    path,
-                    anyhow!("malformed path: {:?}", path),
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path shoud have parent but not, it must be malformed",
                 )
+                .with_context("input", &p)
             })?
             .to_path_buf();
 
         self.client
             .create_dir(&parent.to_string_lossy())
-            .map_err(|e| parse_io_error(e, Operation::Write, &parent.to_string_lossy()))?;
+            .map_err(parse_io_error)?;
 
-        let mut f = self.client.open_file().create(true).write(true).open(&p)?;
+        let mut f = self
+            .client
+            .open_file()
+            .create(true)
+            .write(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
 
-        let n = futures::io::copy(r, &mut f).await?;
+        let n = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
 
         Ok(n)
     }
@@ -285,10 +271,7 @@ impl Accessor for Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let meta = self
-            .client
-            .metadata(&p)
-            .map_err(|e| parse_io_error(e, Operation::Stat, path))?;
+        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
         let mode = if meta.is_dir() {
             ObjectMode::DIR
@@ -310,10 +293,10 @@ impl Accessor for Backend {
         let meta = self.client.metadata(&p);
 
         if let Err(err) = meta {
-            return if err.kind() == ErrorKind::NotFound {
+            return if err.kind() == io::ErrorKind::NotFound {
                 Ok(())
             } else {
-                Err(parse_io_error(err, Operation::Delete, path))
+                Err(parse_io_error(err))
             };
         }
 
@@ -326,7 +309,7 @@ impl Accessor for Backend {
             self.client.remove_file(&p)
         };
 
-        result.map_err(|e| parse_io_error(e, Operation::Delete, path))?;
+        result.map_err(parse_io_error)?;
 
         Ok(())
     }
@@ -337,10 +320,10 @@ impl Accessor for Backend {
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
-                return if e.kind() == ErrorKind::NotFound {
+                return if e.kind() == io::ErrorKind::NotFound {
                     Ok(Box::new(EmptyObjectStreamer))
                 } else {
-                    Err(parse_io_error(e, Operation::List, path))
+                    Err(parse_io_error(e))
                 }
             }
         };

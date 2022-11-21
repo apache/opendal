@@ -13,12 +13,13 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::io::Result;
 
+use anyhow::Result;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
+use opendal::ErrorKind;
 use opendal::ObjectMode;
 use opendal::Operator;
 
@@ -38,7 +39,7 @@ macro_rules! behavior_list_test {
                     $(
                         #[$meta]
                     )*
-                    async fn [< $test >]() -> std::io::Result<()> {
+                    async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
                             Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_list() => $crate::list::$test(op).await,
@@ -307,7 +308,7 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 
     let obs = op.object(&parent).list().await.map(|_| ());
     assert!(obs.is_err());
-    assert!(obs.unwrap_err().to_string().contains("Not a directory"));
+    assert_eq!(obs.unwrap_err().kind(), ErrorKind::ObjectNotADirectory);
 
     Ok(())
 }

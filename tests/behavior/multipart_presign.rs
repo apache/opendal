@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::str::FromStr;
 
+use anyhow::Result;
 use http::header;
 use http::header::ETAG;
 use log::debug;
@@ -40,7 +40,7 @@ macro_rules! behavior_multipart_presign_test {
                     $(
                         #[$meta]
                     )*
-                    async fn [< $test >]() -> std::io::Result<()> {
+                    async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
                             Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_multipart() && op.metadata().can_presign() => $crate::multipart_presign::$test(op).await,

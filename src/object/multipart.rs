@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::sync::Arc;
 
 use futures::io::Cursor;
@@ -26,6 +25,7 @@ use crate::ops::PresignedRequest;
 use crate::path::normalize_path;
 use crate::Accessor;
 use crate::Object;
+use crate::Result;
 
 /// ObjectMultipart represent an ongoing multipart upload.
 ///

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::io::Result;
 
+use anyhow::Result;
 use futures::TryStreamExt;
 use opendal::ObjectMode;
 use opendal::Operator;
@@ -32,7 +32,7 @@ macro_rules! behavior_list_only_test {
                     $(
                         #[$meta]
                     )*
-                    async fn [< $test >]() -> std::io::Result<()> {
+                    async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, false);
                         match op {
                             Some(op) if op.metadata().can_list() && !op.metadata().can_write() => $crate::list_only::$test(op).await,

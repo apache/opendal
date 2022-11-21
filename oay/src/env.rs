@@ -26,9 +26,9 @@ pub fn get_oay_addr() -> String {
 }
 
 pub fn get_oay_backend_type() -> Result<Scheme> {
-    env::var(OAY_BACKEND_TYPE)
+    Ok(env::var(OAY_BACKEND_TYPE)
         .unwrap_or_else(|_| "fs".to_string())
-        .parse()
+        .parse()?)
 }
 
 pub async fn get_oay_operator() -> Result<Operator> {

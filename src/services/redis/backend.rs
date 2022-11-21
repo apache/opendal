@@ -12,16 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use http::Uri;
 use redis::aio::ConnectionManager;
@@ -34,10 +29,13 @@ use redis::RedisError;
 use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
-use crate::error::new_other_backend_error;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorCapability;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 use crate::Scheme;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
@@ -157,10 +155,10 @@ impl Builder {
             .unwrap_or_else(|| DEFAULT_REDIS_ENDPOINT.to_string());
 
         let ep_url = endpoint.parse::<Uri>().map_err(|e| {
-            new_other_backend_error(
-                HashMap::from([("endpoint".to_string(), endpoint.clone())]),
-                anyhow!("endpoint is invalid: {:?}", e),
-            )
+            Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+                .with_context("service", Scheme::Redis)
+                .with_context("endpoint", endpoint)
+                .set_source(e)
         })?;
 
         let con_addr = match ep_url.scheme_str() {
@@ -178,10 +176,12 @@ impl Builder {
                 ConnectionAddr::Unix(path)
             }
             Some(s) => {
-                return Err(new_other_backend_error(
-                    HashMap::from([("endpoint".to_string(), endpoint)]),
-                    anyhow!("invalid or unsupported URL scheme: {}", s),
-                ))
+                return Err(Error::new(
+                    ErrorKind::BackendConfigInvalid,
+                    "invalid or unsupported scheme",
+                )
+                .with_context("service", Scheme::Redis)
+                .with_context("scheme", s))
             }
         };
 
@@ -197,19 +197,14 @@ impl Builder {
         };
 
         let client = Client::open(con_info).map_err(|e| {
-            new_other_backend_error(
-                HashMap::from([
-                    ("endpoint".to_string(), endpoint),
-                    ("db".to_string(), self.db.to_string()),
-                    (
-                        "username".to_string(),
-                        self.username
-                            .clone()
-                            .unwrap_or_else(|| "<None>".to_string()),
-                    ),
-                ]),
-                anyhow!("establish redis client error: {:?}", e),
+            Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "invalid or unsupported scheme",
             )
+            .with_context("service", Scheme::Redis)
+            .with_context("endpoint", self.endpoint.as_ref().unwrap())
+            .with_context("db", self.db.to_string())
+            .set_source(e)
         })?;
 
         let root = normalize_root(
@@ -220,12 +215,14 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(Backend::new(Adapter {
-            client,
-            conn,
-            default_ttl: self.default_ttl,
-        })
-        .with_root(&root))
+        Ok(wrapper(
+            Backend::new(Adapter {
+                client,
+                conn,
+                default_ttl: self.default_ttl,
+            })
+            .with_root(&root),
+        ))
     }
 }
 
@@ -273,14 +270,11 @@ impl Debug for Adapter {
 
 impl Adapter {
     async fn conn(&self) -> Result<ConnectionManager> {
-        match self
+        Ok(self
             .conn
             .get_or_try_init(|| async { ConnectionManager::new(self.client.clone()).await })
-            .await
-        {
-            Ok(v) => Ok(v.clone()),
-            Err(err) => Err(new_redis_error(err)),
-        }
+            .await?
+            .clone())
     }
 }
 
@@ -296,29 +290,28 @@ impl kv::Adapter for Adapter {
 
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let mut conn = self.conn().await?;
-        let bs: Option<Vec<u8>> = conn.get(key).await.map_err(new_redis_error)?;
+        let bs: Option<Vec<u8>> = conn.get(key).await?;
         Ok(bs)
     }
 
     async fn set(&self, key: &str, value: &[u8]) -> Result<()> {
         let mut conn = self.conn().await?;
         match self.default_ttl {
-            Some(ttl) => conn
-                .set_ex(key, value, ttl.as_secs() as usize)
-                .await
-                .map_err(new_redis_error)?,
-            None => conn.set(key, value).await.map_err(new_redis_error)?,
+            Some(ttl) => conn.set_ex(key, value, ttl.as_secs() as usize).await?,
+            None => conn.set(key, value).await?,
         }
         Ok(())
     }
 
     async fn delete(&self, key: &str) -> Result<()> {
         let mut conn = self.conn().await?;
-        let _: () = conn.del(key).await.map_err(new_redis_error)?;
+        let _: () = conn.del(key).await?;
         Ok(())
     }
 }
 
-fn new_redis_error(err: RedisError) -> Error {
-    Error::new(ErrorKind::Other, anyhow!("redis: {err:?}"))
+impl From<RedisError> for Error {
+    fn from(e: RedisError) -> Self {
+        Error::new(ErrorKind::Unexpected, "got redis error").set_source(e)
+    }
 }

@@ -33,3 +33,7 @@ impl OpCreate {
         self.mode
     }
 }
+
+/// Reply fro `create` operation
+#[derive(Debug, Clone, Default)]
+pub struct ReplyCreate {}

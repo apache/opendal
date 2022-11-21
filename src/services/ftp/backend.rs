@@ -40,28 +40,12 @@ use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::Operation;
+use crate::ops::*;
 use crate::path::get_basename;
 use crate::path::get_parent;
 use crate::path::normalize_root;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for ftp backend.
 #[derive(Default)]
@@ -300,7 +284,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, _: OpCreate) -> Result<ReplyCreate> {
         let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
@@ -328,7 +312,7 @@ impl Accessor for Backend {
             }
         }
 
-        return Ok(());
+        return Ok(ReplyCreate::default());
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {

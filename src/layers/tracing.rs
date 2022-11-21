@@ -26,30 +26,8 @@ use tracing::Span;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpCreate;
-use crate::ops::OpCreateMultipart;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpPresign;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
-use crate::ops::PresignedRequest;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
-use crate::Layer;
-use crate::ObjectEntry;
-use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectPart;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
+use crate::ops::*;
+use crate::*;
 
 /// TracingLayer will add tracing for OpenDAL.
 ///
@@ -90,7 +68,7 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
         self.inner.create(path, args).await
     }
 

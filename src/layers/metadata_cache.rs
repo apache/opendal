@@ -22,24 +22,8 @@ use futures::io::Cursor;
 
 use super::util::set_accessor_for_object_iterator;
 use super::util::set_accessor_for_object_steamer;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::Operation;
-use crate::Accessor;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Layer;
-use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectStreamer;
-use crate::Result;
+use crate::ops::*;
+use crate::*;
 
 /// MetadataCacheLayer will add metadata cache support for OpenDAL.
 ///
@@ -106,7 +90,7 @@ impl Accessor for MetadataCacheAccessor {
         Some(self.inner.clone())
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.create(path, args).await
     }

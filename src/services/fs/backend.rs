@@ -33,29 +33,10 @@ use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::object::EmptyObjectIterator;
 use crate::object::EmptyObjectStreamer;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::path::build_rel_path;
-use crate::path::build_rooted_abs_path;
-use crate::path::normalize_root;
+use crate::ops::*;
+use crate::path::*;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectEntry;
-use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]
@@ -175,7 +156,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
@@ -199,13 +180,13 @@ impl Accessor for Backend {
                 .await
                 .map_err(parse_io_error)?;
 
-            return Ok(());
+            return Ok(ReplyCreate::default());
         }
 
         if args.mode() == ObjectMode::DIR {
             fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
-            return Ok(());
+            return Ok(ReplyCreate::default());
         }
 
         unreachable!()

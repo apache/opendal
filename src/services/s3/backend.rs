@@ -41,46 +41,13 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_xml_deserialize_error;
 use crate::accessor::AccessorCapability;
-use crate::http_util::new_request_build_error;
-use crate::http_util::new_request_sign_error;
-use crate::http_util::parse_error_response;
-use crate::http_util::parse_etag;
-use crate::http_util::parse_into_object_metadata;
-use crate::http_util::percent_encode_path;
-use crate::http_util::AsyncBody;
-use crate::http_util::Body;
-use crate::http_util::HttpClient;
-use crate::http_util::IncomingAsyncBody;
+use crate::http_util::*;
 use crate::object::ObjectPageStreamer;
-use crate::ops::BytesRange;
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpCreate;
-use crate::ops::OpCreateMultipart;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpPresign;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
-use crate::ops::PresignOperation;
-use crate::ops::PresignedRequest;
+use crate::ops::*;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectPart;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
@@ -824,7 +791,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, _: OpCreate) -> Result<ReplyCreate> {
         let mut req = self.put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
@@ -836,7 +803,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(())
+                Ok(ReplyCreate::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;

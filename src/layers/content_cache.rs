@@ -28,25 +28,8 @@ use futures::AsyncRead;
 use futures::FutureExt;
 
 use super::util::set_accessor_for_object_steamer;
-use crate::ops::BytesContentRange;
-use crate::ops::BytesRange;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::Operation;
-use crate::Accessor;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Layer;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
+use crate::ops::*;
+use crate::*;
 
 /// ContentCacheLayer will add content data cache support for OpenDAL.
 ///
@@ -128,7 +111,7 @@ impl Accessor for ContentCacheAccessor {
         Some(self.inner.clone())
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.create(path, args).await
     }

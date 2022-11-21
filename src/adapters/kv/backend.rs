@@ -17,23 +17,9 @@ use futures::io::Cursor;
 use futures::AsyncReadExt;
 
 use super::Adapter;
-use crate::ops::BytesRange;
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
+use crate::ops::*;
 use crate::path::normalize_root;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectReader;
-use crate::Result;
+use crate::*;
 
 /// Backend of kv service.
 #[derive(Debug, Clone)]
@@ -73,11 +59,12 @@ where
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
-        match args.mode() {
-            ObjectMode::FILE => self.kv.set(path, &[]).await,
-            _ => Ok(()),
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+        if args.mode() == ObjectMode::FILE {
+            self.kv.set(path, &[]).await?;
         }
+
+        Ok(ReplyCreate::default())
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {

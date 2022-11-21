@@ -206,7 +206,7 @@ pub fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
     let result = op.object(&path).blocking_write(content);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Is a directory"));
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
 
     Ok(())
 }

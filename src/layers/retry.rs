@@ -14,6 +14,7 @@
 
 use std::cell::RefCell;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -107,10 +108,18 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
     inner: Arc<dyn Accessor>,
     backoff: B,
+}
+
+impl<B: Backoff + Debug + Send + Sync> Debug for RetryAccessor<B> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RetryAccessor")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
 }
 
 #[async_trait]

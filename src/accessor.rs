@@ -19,29 +19,8 @@ use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
 
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpCreate;
-use crate::ops::OpCreateMultipart;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpPresign;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
-use crate::ops::PresignedRequest;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectPart;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
-use crate::Scheme;
+use crate::ops::*;
+use crate::*;
 
 /// Underlying trait of all backends for implementors.
 ///
@@ -112,7 +91,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - Input path MUST match with ObjectMode, DON'T NEED to check object mode.
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
         match self.inner() {
             Some(inner) => inner.create(path, args).await,
             None => Err(Error::new(
@@ -398,7 +377,7 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().metadata()
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
         self.as_ref().create(path, args).await
     }
     async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {

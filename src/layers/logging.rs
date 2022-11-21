@@ -28,33 +28,8 @@ use log::error;
 use log::trace;
 use log::warn;
 
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpCreate;
-use crate::ops::OpCreateMultipart;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpPresign;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
-use crate::ops::Operation;
-use crate::ops::PresignedRequest;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
-use crate::ErrorKind;
-use crate::Layer;
-use crate::ObjectEntry;
-use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectPart;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
-use crate::Scheme;
+use crate::ops::*;
+use crate::*;
 
 /// LoggingLayer will add logging for OpenDAL.
 ///
@@ -126,7 +101,7 @@ impl Accessor for LoggingAccessor {
         result
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<()> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",

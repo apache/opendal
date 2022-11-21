@@ -21,36 +21,10 @@ use futures::io::Cursor;
 use time::Duration;
 
 use crate::io::BytesRead;
-use crate::io_util::seekable_read;
-#[cfg(feature = "compress")]
-use crate::io_util::CompressAlgorithm;
-#[cfg(feature = "compress")]
-use crate::io_util::DecompressReader;
-use crate::io_util::SeekableReader;
-use crate::ops::BytesRange;
-use crate::ops::OpCreate;
-use crate::ops::OpCreateMultipart;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpPresign;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::PresignedRequest;
-use crate::path::get_basename;
-use crate::path::normalize_path;
-use crate::path::validate_path;
-use crate::Accessor;
-use crate::BlockingBytesRead;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectMultipart;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
+use crate::io_util::*;
+use crate::ops::*;
+use crate::path::*;
+use crate::*;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
@@ -207,15 +181,17 @@ impl Object {
     /// # }
     /// ```
     pub async fn create(&self) -> Result<()> {
-        if self.path.ends_with('/') {
+        let _ = if self.path.ends_with('/') {
             self.acc
                 .create(self.path(), OpCreate::new(ObjectMode::DIR))
-                .await
+                .await?
         } else {
             self.acc
                 .create(self.path(), OpCreate::new(ObjectMode::FILE))
-                .await
-        }
+                .await?
+        };
+
+        Ok(())
     }
 
     /// Create an empty object, like using the following linux commands:

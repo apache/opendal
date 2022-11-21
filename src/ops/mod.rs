@@ -26,6 +26,7 @@ pub use operation::Operation;
 
 mod op_create;
 pub use op_create::OpCreate;
+pub use op_create::ReplyCreate;
 mod op_delete;
 pub use op_delete::OpDelete;
 mod op_list;

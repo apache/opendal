@@ -19,8 +19,6 @@ use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::path::normalize_root;
-use crate::Result;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -51,6 +49,7 @@ use crate::ops::OpWrite;
 use crate::ops::Operation;
 use crate::path::get_basename;
 use crate::path::get_parent;
+use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -60,6 +59,7 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for ftp backend.
@@ -494,9 +494,8 @@ impl Backend {
 
 #[cfg(test)]
 mod build_test {
-    use crate::ErrorKind;
-
     use super::Builder;
+    use crate::ErrorKind;
 
     #[test]
     fn test_build() {

@@ -18,7 +18,6 @@ use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
-use crate::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::lock::Mutex;
@@ -28,6 +27,7 @@ use futures::Stream;
 use pin_project::pin_project;
 
 use crate::ObjectEntry;
+use crate::Result;
 
 /// ObjectStream represents a stream of Object.
 pub trait ObjectStream: Stream<Item = Result<ObjectEntry>> + Unpin + Send {}

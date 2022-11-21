@@ -16,9 +16,6 @@ use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -53,10 +50,13 @@ use crate::services::obs::dir_stream::DirStream;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for Huaweicloud OBS services

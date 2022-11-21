@@ -12,17 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use async_trait::async_trait;
-use futures::{ready, Stream, StreamExt};
-
-use crate::ops::{OpDelete, OpList, OpRead, OpStat, OpWrite, Operation};
-use crate::{ops::OpCreate, Accessor, AccessorMetadata};
-use crate::{
-    BytesReader, ObjectEntry, ObjectMetadata, ObjectReader, ObjectStreamer, Result, Scheme,
-};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
+
+use async_trait::async_trait;
+use futures::ready;
+use futures::Stream;
+use futures::StreamExt;
+
+use crate::ops::OpCreate;
+use crate::ops::OpDelete;
+use crate::ops::OpList;
+use crate::ops::OpRead;
+use crate::ops::OpStat;
+use crate::ops::OpWrite;
+use crate::ops::Operation;
+use crate::Accessor;
+use crate::AccessorMetadata;
+use crate::BytesReader;
+use crate::ObjectEntry;
+use crate::ObjectMetadata;
+use crate::ObjectReader;
+use crate::ObjectStreamer;
+use crate::Result;
+use crate::Scheme;
 
 /// Provide a zero cost error context wrapper for backend.
 #[derive(Clone)]

@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::Result;
-
 use crate::ObjectEntry;
+use crate::Result;
 
 /// ObjectIterate represents an iterator of Dir.
 pub trait ObjectIterate: Iterator<Item = Result<ObjectEntry>> {}

@@ -17,7 +17,6 @@ use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::Result;
 use async_trait::async_trait;
 use http::Uri;
 use redis::aio::ConnectionManager;
@@ -35,6 +34,7 @@ use crate::Accessor;
 use crate::AccessorCapability;
 use crate::Error;
 use crate::ErrorKind;
+use crate::Result;
 use crate::Scheme;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";

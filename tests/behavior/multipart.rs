@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use anyhow::Result;
-
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;

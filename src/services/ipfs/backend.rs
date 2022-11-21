@@ -22,9 +22,6 @@ use std::task::Context;
 use std::task::Poll;
 use std::vec::IntoIter;
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::future::BoxFuture;
@@ -58,11 +55,14 @@ use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for ipfs backend.

@@ -15,10 +15,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use crate::http_util::parse_error_response;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
 use async_trait::async_trait;
 use http::Request;
 use http::Response;
@@ -28,6 +24,7 @@ use log::debug;
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
 use crate::http_util::new_request_build_error;
+use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
 use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
@@ -40,9 +37,12 @@ use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
+use crate::Result;
 use crate::Scheme;
 
 /// Builder for http backend.

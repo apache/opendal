@@ -17,7 +17,6 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::Result;
 use bb8::PooledConnection;
 use futures::future::BoxFuture;
 use futures::ready;
@@ -27,6 +26,7 @@ use suppaftp::Status;
 
 use super::backend::Manager;
 use crate::BytesReader;
+use crate::Result;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {

@@ -16,11 +16,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::Result;
 use async_trait::async_trait;
 use rocksdb::TransactionDB;
 
 use crate::adapters::kv;
+use crate::Result;
 use crate::*;
 
 /// Rocksdb backend builder

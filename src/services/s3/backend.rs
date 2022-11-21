@@ -18,9 +18,6 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
 use async_trait::async_trait;
 use bytes::Buf;
 use bytes::Bytes;
@@ -44,7 +41,6 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_xml_deserialize_error;
 use crate::accessor::AccessorCapability;
-
 use crate::http_util::new_request_build_error;
 use crate::http_util::new_request_sign_error;
 use crate::http_util::parse_error_response;
@@ -75,11 +71,14 @@ use crate::path::normalize_root;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectPart;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.

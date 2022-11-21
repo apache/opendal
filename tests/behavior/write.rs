@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use opendal::ErrorKind;
-
 use anyhow::Result;
 use futures::io::Cursor;
 use log::debug;
 use log::warn;
+use opendal::ErrorKind;
 use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;

@@ -14,9 +14,6 @@
 
 use std::sync::Arc;
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
 use async_trait::async_trait;
 use bytes::Buf;
 use quick_xml::de;
@@ -30,9 +27,12 @@ use super::error::parse_error;
 use crate::http_util::parse_error_response;
 use crate::object::ObjectPageStream;
 use crate::path::build_rel_path;
+use crate::Error;
+use crate::ErrorKind;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Result;
 
 pub struct DirStream {
     backend: Arc<Backend>,

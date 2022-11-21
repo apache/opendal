@@ -35,9 +35,11 @@
 //! # }
 //! ```
 
+use std::fmt;
 use std::fmt::Debug;
-use std::fmt::{Display, Formatter};
-use std::{fmt, io};
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::io;
 
 /// Result that is a wrapper of `Reustl<T, opendal::Error>`
 pub type Result<T> = std::result::Result<T, Error>;

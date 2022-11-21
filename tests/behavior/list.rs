@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::Result;
 use std::collections::HashMap;
 
+use anyhow::Result;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;

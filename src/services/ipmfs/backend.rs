@@ -17,7 +17,6 @@ use std::fmt::Write;
 use std::str;
 use std::sync::Arc;
 
-use crate::Result;
 use async_trait::async_trait;
 use http::Request;
 use http::Response;
@@ -50,6 +49,7 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::ObjectReader;
 use crate::ObjectStreamer;
+use crate::Result;
 use crate::Scheme;
 
 /// Backend for IPFS service

@@ -50,7 +50,7 @@ impl<T: Accessor + 'static> ErrorContextWrapper<T> {
 #[async_trait]
 impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
     fn metadata(&self) -> AccessorMetadata {
-        self.meta.clone()
+        self.inner.metadata()
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<()> {

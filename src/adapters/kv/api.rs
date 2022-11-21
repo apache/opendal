@@ -39,13 +39,13 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
 
     /// The blocking version of get.
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        let _ = path;
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_operation("kv::Adapter::blocking_get")
-        .with_context("path", path)
-        .with_context("service", self.metadata().scheme()))
+        .with_operation("kv::Adapter::blocking_get"))
     }
 
     /// Set a key into service.
@@ -53,15 +53,13 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
 
     /// The blocking version of set.
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let _ = value;
+        let _ = (path, value);
 
         Err(Error::new(
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_operation("kv::Adapter::blocking_set")
-        .with_context("path", path)
-        .with_context("service", self.metadata().scheme()))
+        .with_operation("kv::Adapter::blocking_set"))
     }
 
     /// Delete a key from service.
@@ -73,13 +71,13 @@ pub trait Adapter: Send + Sync + Debug + Clone + 'static {
     ///
     /// - return `Ok(())` even if this key is not exist.
     fn blocking_delete(&self, path: &str) -> Result<()> {
+        let _ = path;
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "kv adapter doesn't support this operation",
         )
-        .with_operation("kv::Adapter::blocking_delete")
-        .with_context("path", path)
-        .with_context("service", self.metadata().scheme()))
+        .with_operation("kv::Adapter::blocking_delete"))
     }
 }
 

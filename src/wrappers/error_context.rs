@@ -23,22 +23,8 @@ use futures::ready;
 use futures::Stream;
 use futures::StreamExt;
 
-use crate::ops::OpCreate;
-use crate::ops::OpDelete;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::OpWrite;
-use crate::ops::Operation;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BytesReader;
-use crate::ObjectEntry;
-use crate::ObjectMetadata;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
-use crate::Scheme;
+use crate::ops::*;
+use crate::*;
 
 /// Provide a zero cost error context wrapper for backend.
 #[derive(Clone)]
@@ -131,6 +117,108 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
+    }
+
+    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+        self.inner.presign(path, args).map_err(|err| {
+            err.with_operation(Operation::Presign.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+        self.inner
+            .create_multipart(path, args)
+            .await
+            .map_err(|err| {
+                err.with_operation(Operation::CreateMultipart.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+    }
+
+    async fn write_multipart(
+        &self,
+        path: &str,
+        args: OpWriteMultipart,
+        r: BytesReader,
+    ) -> Result<ObjectPart> {
+        self.inner
+            .write_multipart(path, args, r)
+            .await
+            .map_err(|err| {
+                err.with_operation(Operation::WriteMultipart.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+    }
+
+    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+        self.inner
+            .complete_multipart(path, args)
+            .await
+            .map_err(|err| {
+                err.with_operation(Operation::CompleteMultipart.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+    }
+
+    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+        self.inner.abort_multipart(path, args).await.map_err(|err| {
+            err.with_operation(Operation::AbortMultipart.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+        self.inner.blocking_create(path, args).map_err(|err| {
+            err.with_operation(Operation::BlockingCreate.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+        self.inner.blocking_read(path, args).map_err(|err| {
+            err.with_operation(Operation::BlockingRead.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+        self.inner.blocking_write(path, args, r).map_err(|err| {
+            err.with_operation(Operation::BlockingWrite.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+        self.inner.blocking_stat(path, args).map_err(|err| {
+            err.with_operation(Operation::BlockingStat.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.blocking_delete(path, args).map_err(|err| {
+            err.with_operation(Operation::BlockingDelete.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+        self.inner.blocking_list(path, args).map_err(|err| {
+            err.with_operation(Operation::BlockingList.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
     }
 }
 

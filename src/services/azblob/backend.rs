@@ -51,7 +51,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
-use crate::wrappers::BackendErrorContextWrapper;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::BytesReader;
 use crate::Error;
@@ -214,7 +214,7 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(BackendErrorContextWrapper::new(Backend {
+        Ok(wrapper(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),

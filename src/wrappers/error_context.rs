@@ -42,18 +42,18 @@ use crate::Scheme;
 
 /// Provide a zero cost error context wrapper for backend.
 #[derive(Clone)]
-pub struct BackendErrorContextWrapper<T: Accessor + 'static> {
+pub struct ErrorContextWrapper<T: Accessor + 'static> {
     meta: AccessorMetadata,
     inner: T,
 }
 
-impl<T: Accessor + 'static> Debug for BackendErrorContextWrapper<T> {
+impl<T: Accessor + 'static> Debug for ErrorContextWrapper<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<T: Accessor + 'static> BackendErrorContextWrapper<T> {
+impl<T: Accessor + 'static> ErrorContextWrapper<T> {
     /// Create a new error context wrapper
     pub fn new(inner: T) -> Self {
         let meta = inner.metadata();
@@ -62,7 +62,7 @@ impl<T: Accessor + 'static> BackendErrorContextWrapper<T> {
 }
 
 #[async_trait]
-impl<T: Accessor + 'static> Accessor for BackendErrorContextWrapper<T> {
+impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
     fn metadata(&self) -> AccessorMetadata {
         self.meta.clone()
     }
@@ -114,7 +114,7 @@ impl<T: Accessor + 'static> Accessor for BackendErrorContextWrapper<T> {
             .list(path, args)
             .await
             .map(|os| {
-                Box::new(ObjectPageStreamErrorContextWrapper {
+                Box::new(ObjectStreamErrorContextWrapper {
                     scheme: self.meta.scheme(),
                     path: path.to_string(),
                     // TODO
@@ -134,7 +134,7 @@ impl<T: Accessor + 'static> Accessor for BackendErrorContextWrapper<T> {
     }
 }
 
-struct ObjectPageStreamErrorContextWrapper<
+struct ObjectStreamErrorContextWrapper<
     T: Stream<Item = Result<ObjectEntry>> + Unpin + Send + 'static,
 > {
     scheme: Scheme,
@@ -142,7 +142,7 @@ struct ObjectPageStreamErrorContextWrapper<
     inner: T,
 }
 
-impl<T> Stream for ObjectPageStreamErrorContextWrapper<T>
+impl<T> Stream for ObjectStreamErrorContextWrapper<T>
 where
     T: Stream<Item = Result<ObjectEntry>> + Unpin + Send + 'static,
 {

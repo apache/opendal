@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Wrapper is used for providing wrapper at backend level
+use crate::Accessor;
 
-mod wrapper;
-pub use wrapper::wrapper;
+use super::ErrorContextWrapper;
 
-mod error_context;
-use error_context::ErrorContextWrapper;
+/// Wrapper given backend.
+pub fn wrapper(inner: impl Accessor) -> impl Accessor {
+    ErrorContextWrapper::new(inner)
+}

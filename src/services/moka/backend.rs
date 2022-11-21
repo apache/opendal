@@ -20,6 +20,7 @@ use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
 
 use crate::adapters::kv;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorCapability;
 use crate::Result;
@@ -163,9 +164,9 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend::new(Adapter {
+        Ok(wrapper(Backend::new(Adapter {
             inner: builder.build(),
-        }))
+        })))
     }
 }
 

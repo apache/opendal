@@ -52,6 +52,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -184,7 +185,7 @@ impl Builder {
             client,
         };
 
-        Ok(backend)
+        Ok(wrapper(backend))
     }
 }
 

@@ -19,6 +19,7 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use crate::adapters::kv;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorCapability;
 use crate::Result;
@@ -35,7 +36,7 @@ impl Builder {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(Backend::new(adapter))
+        Ok(wrapper(Backend::new(adapter)))
     }
 }
 

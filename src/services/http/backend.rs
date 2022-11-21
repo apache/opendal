@@ -35,6 +35,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::Error;
@@ -122,11 +123,11 @@ impl Builder {
         let client = HttpClient::new();
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(wrapper(Backend {
             endpoint: endpoint.to_string(),
             root,
             client,
-        })
+        }))
     }
 }
 

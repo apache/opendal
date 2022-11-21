@@ -50,6 +50,7 @@ use crate::ops::Operation;
 use crate::path::get_basename;
 use crate::path::get_parent;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -200,14 +201,14 @@ impl Builder {
 
         debug!("ftp backend finished: {:?}", &self);
 
-        Ok(Backend {
+        Ok(wrapper(Backend {
             endpoint,
             root,
             user,
             password,
             enable_secure,
             pool: OnceCell::new(),
-        })
+        }))
     }
 }
 

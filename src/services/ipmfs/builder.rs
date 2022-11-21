@@ -17,6 +17,7 @@ use log::debug;
 use super::backend::Backend;
 use crate::http_util::HttpClient;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::Result;
 
@@ -79,6 +80,6 @@ impl Builder {
         let client = HttpClient::new();
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend::new(root, client, endpoint))
+        Ok(wrapper(Backend::new(root, client, endpoint)))
     }
 }

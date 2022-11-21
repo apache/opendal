@@ -53,6 +53,7 @@ use crate::ops::OpRead;
 use crate::ops::OpStat;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::Error;
@@ -149,11 +150,11 @@ impl Builder {
         debug!("backend use endpoint {}", &endpoint);
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(wrapper(Backend {
             root,
             endpoint,
             client: HttpClient::new(),
-        })
+        }))
     }
 }
 

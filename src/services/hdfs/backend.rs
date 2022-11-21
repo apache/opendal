@@ -37,6 +37,7 @@ use crate::ops::OpStat;
 use crate::ops::OpWrite;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -129,10 +130,10 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(wrapper(Backend {
             root,
             client: Arc::new(client),
-        })
+        }))
     }
 }
 

@@ -47,6 +47,7 @@ use crate::ops::OpWrite;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
 use crate::services::obs::dir_stream::DirStream;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -234,13 +235,13 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(wrapper(Backend {
             client,
             root,
             endpoint: format!("{}://{}", &scheme, &endpoint),
             signer: Arc::new(signer),
             bucket,
-        })
+        }))
     }
 }
 

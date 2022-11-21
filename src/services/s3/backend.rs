@@ -68,6 +68,7 @@ use crate::ops::PresignOperation;
 use crate::ops::PresignedRequest;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::BytesReader;
@@ -709,7 +710,7 @@ impl Builder {
             .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").with_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(wrapper(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
@@ -721,7 +722,7 @@ impl Builder {
             server_side_encryption_customer_algorithm,
             server_side_encryption_customer_key,
             server_side_encryption_customer_key_md5,
-        })
+        }))
     }
 }
 

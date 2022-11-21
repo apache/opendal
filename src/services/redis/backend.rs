@@ -30,6 +30,7 @@ use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
 use crate::path::normalize_root;
+use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorCapability;
 use crate::Error;
@@ -214,12 +215,14 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(Backend::new(Adapter {
-            client,
-            conn,
-            default_ttl: self.default_ttl,
-        })
-        .with_root(&root))
+        Ok(wrapper(
+            Backend::new(Adapter {
+                client,
+                conn,
+                default_ttl: self.default_ttl,
+            })
+            .with_root(&root),
+        ))
     }
 }
 

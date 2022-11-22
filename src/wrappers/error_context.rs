@@ -158,7 +158,11 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
             })
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.inner
             .complete_multipart(path, args)
             .await

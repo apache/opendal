@@ -238,7 +238,11 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         { || self.inner.complete_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())

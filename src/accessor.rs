@@ -244,7 +244,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         match self.inner() {
             Some(inner) => inner.complete_multipart(path, args).await,
             None => Err(Error::new(
@@ -419,7 +423,11 @@ impl<T: Accessor> Accessor for Arc<T> {
     ) -> Result<RpWriteMultipart> {
         self.as_ref().write_multipart(path, args, r).await
     }
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.as_ref().complete_multipart(path, args).await
     }
     async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {

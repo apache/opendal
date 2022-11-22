@@ -835,7 +835,11 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.handle.requests_total_complete_multipartt.increment(1);
 
         let start = Instant::now();

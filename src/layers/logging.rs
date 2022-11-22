@@ -462,7 +462,11 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} -> started",

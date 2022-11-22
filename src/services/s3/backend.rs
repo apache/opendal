@@ -1003,7 +1003,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         let resp = self
             .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
             .await?;
@@ -1014,7 +1018,7 @@ impl Accessor for Backend {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
 
-                Ok(())
+                Ok(RpCompleteMultipart::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;

@@ -135,6 +135,10 @@ impl OpCompleteMultipart {
     }
 }
 
+/// Reply for `complete_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCompleteMultipart {}
+
 /// Args for `abort_multipart` operation.
 ///
 /// The path must be normalized.

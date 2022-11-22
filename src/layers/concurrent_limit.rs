@@ -184,7 +184,11 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.write_multipart(path, args, r).await
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         let _permit = self
             .semaphore
             .acquire()

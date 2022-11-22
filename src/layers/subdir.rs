@@ -161,7 +161,11 @@ impl Accessor for SubdirAccessor {
         self.inner.write_multipart(&path, args, r).await
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.complete_multipart(&path, args).await

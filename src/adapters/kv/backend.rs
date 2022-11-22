@@ -67,11 +67,12 @@ where
         Ok(RpCreate::default())
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
-        match args.mode() {
-            ObjectMode::FILE => self.kv.blocking_set(path, &[]),
-            _ => Ok(()),
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        if args.mode() == ObjectMode::FILE {
+            self.kv.blocking_set(path, &[])?;
         }
+
+        Ok(RpCreate::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {

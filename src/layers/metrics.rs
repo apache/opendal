@@ -885,7 +885,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.handle.requests_total_blocking_create.increment(1);
 
         let start = Instant::now();

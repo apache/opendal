@@ -185,7 +185,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.blocking_create(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingCreate.into_static())
                 .with_context("service", self.meta.scheme())

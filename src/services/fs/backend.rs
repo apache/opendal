@@ -348,7 +348,7 @@ impl Accessor for Backend {
         Ok(Box::new(rd))
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
@@ -371,13 +371,13 @@ impl Accessor for Backend {
                 .open(&p)
                 .map_err(parse_io_error)?;
 
-            return Ok(());
+            return Ok(RpCreate::default());
         }
 
         if args.mode() == ObjectMode::DIR {
             std::fs::create_dir_all(&p).map_err(parse_io_error)?;
 
-            return Ok(());
+            return Ok(RpCreate::default());
         }
 
         unreachable!()

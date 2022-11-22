@@ -539,7 +539,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",

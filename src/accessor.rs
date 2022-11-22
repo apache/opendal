@@ -284,7 +284,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         match self.inner() {
             Some(inner) => inner.blocking_create(path, args),
             None => Err(Error::new(
@@ -442,7 +442,7 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().abort_multipart(path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.as_ref().blocking_create(path, args)
     }
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {

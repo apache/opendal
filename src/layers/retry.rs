@@ -274,7 +274,7 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let retry = self.backoff.clone();
 
         let mut e = None;

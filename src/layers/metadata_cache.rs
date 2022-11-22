@@ -167,7 +167,7 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.complete_multipart(path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.cache.blocking_delete(path, OpDelete::new())?;
         self.inner.blocking_create(path, args)
     }

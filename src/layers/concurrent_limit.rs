@@ -212,7 +212,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.abort_multipart(path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let _permit = self
             .semaphore
             .try_acquire()

@@ -240,11 +240,13 @@ impl Object {
     pub fn blocking_create(&self) -> Result<()> {
         if self.path.ends_with('/') {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
         } else {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))
-        }
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))?;
+        };
+
+        Ok(())
     }
 
     /// Read the whole object into a bytes.

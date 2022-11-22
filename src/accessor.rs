@@ -189,7 +189,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         match self.inner() {
             Some(inner) => inner.presign(path, args),
             None => Err(Error::new(
@@ -396,7 +396,7 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().list(path, args).await
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.as_ref().presign(path, args)
     }
 

@@ -904,7 +904,7 @@ impl Accessor for Backend {
         ))))
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
             PresignOperation::Read(v) => self.get_object_request(path, v.range())?,
@@ -927,11 +927,11 @@ impl Accessor for Backend {
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
 
-        Ok(PresignedRequest::new(
+        Ok(RpPresign::new(PresignedRequest::new(
             parts.method,
             parts.uri,
             parts.headers,
-        ))
+        )))
     }
 
     async fn create_multipart(&self, path: &str, _: OpCreateMultipart) -> Result<String> {

@@ -326,7 +326,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",

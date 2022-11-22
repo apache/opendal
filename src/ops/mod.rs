@@ -51,6 +51,7 @@ pub use op_multipart::OpAbortMultipart;
 pub use op_multipart::OpCompleteMultipart;
 pub use op_multipart::OpCreateMultipart;
 pub use op_multipart::OpWriteMultipart;
+pub use op_multipart::RpCreateMultipart;
 
 mod bytes_range;
 pub use bytes_range::BytesRange;

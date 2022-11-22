@@ -205,7 +205,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         match self.inner() {
             Some(inner) => inner.create_multipart(path, args).await,
             None => Err(Error::new(
@@ -400,7 +404,11 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().presign(path, args)
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         self.as_ref().create_multipart(path, args).await
     }
     async fn write_multipart(

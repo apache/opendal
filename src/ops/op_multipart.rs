@@ -25,6 +25,26 @@ impl OpCreateMultipart {
     }
 }
 
+/// Reply for `create_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCreateMultipart {
+    upload_id: String,
+}
+
+impl RpCreateMultipart {
+    /// Create a new reply for create_multipart.
+    pub fn new(upload_id: &str) -> Self {
+        Self {
+            upload_id: upload_id.to_string(),
+        }
+    }
+
+    /// Get the upload_id.
+    pub fn upload_id(&self) -> &str {
+        &self.upload_id
+    }
+}
+
 /// Args for `write_multipart` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWriteMultipart {

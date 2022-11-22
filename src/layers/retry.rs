@@ -207,7 +207,11 @@ where
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         { || self.inner.create_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())

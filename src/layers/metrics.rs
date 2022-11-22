@@ -774,7 +774,11 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         self.handle.requests_total_create_multipart.increment(1);
 
         let start = Instant::now();

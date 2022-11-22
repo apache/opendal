@@ -140,7 +140,11 @@ impl Accessor for SubdirAccessor {
         self.inner.presign(&path, args)
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.create_multipart(&path, args).await

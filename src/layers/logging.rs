@@ -361,7 +361,11 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",

@@ -1278,10 +1278,10 @@ impl Object {
 
     /// Create a new multipart for current path.
     pub async fn create_multipart(&self) -> Result<ObjectMultipart> {
-        let upload_id = self
+        let rp = self
             .acc
             .create_multipart(self.path(), OpCreateMultipart::new())
             .await?;
-        Ok(self.to_multipart(&upload_id))
+        Ok(self.to_multipart(rp.upload_id()))
     }
 }

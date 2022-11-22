@@ -934,7 +934,11 @@ impl Accessor for Backend {
         )))
     }
 
-    async fn create_multipart(&self, path: &str, _: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        _: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         let resp = self.s3_initiate_multipart_upload(path).await?;
 
         let status = resp.status();
@@ -946,7 +950,7 @@ impl Accessor for Backend {
                 let result: InitiateMultipartUploadResult =
                     quick_xml::de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
 
-                Ok(result.upload_id)
+                Ok(RpCreateMultipart::new(&result.upload_id))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

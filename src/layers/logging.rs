@@ -628,7 +628,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} size={:?} -> started",

@@ -336,7 +336,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
         self.inner.blocking_write(path, args, r)
     }
 

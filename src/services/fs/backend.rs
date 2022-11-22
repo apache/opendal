@@ -421,7 +421,12 @@ impl Accessor for Backend {
         Ok((RpRead::new(size), Box::new(r) as BlockingBytesReader))
     }
 
-    fn blocking_write(&self, path: &str, _: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        _: OpWrite,
+        mut r: BlockingBytesReader,
+    ) -> Result<OpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Create dir before write path.
@@ -451,7 +456,7 @@ impl Accessor for Backend {
 
         let size = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
 
-        Ok(size)
+        Ok(OpWrite::new(size))
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {

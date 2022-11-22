@@ -172,7 +172,7 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.blocking_create(path, args)
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
         self.cache.blocking_delete(path, OpDelete::new())?;
         self.inner.blocking_write(path, args, r)
     }

@@ -236,7 +236,7 @@ impl Accessor for ConcurrentLimitAccessor {
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
         let _permit = self
             .semaphore
             .try_acquire()

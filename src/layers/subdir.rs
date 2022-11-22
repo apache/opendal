@@ -193,7 +193,7 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_read(&path, args)
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_write(&path, args, r)

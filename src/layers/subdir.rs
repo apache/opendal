@@ -187,7 +187,7 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_create(&path, args)
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_read(&path, args)

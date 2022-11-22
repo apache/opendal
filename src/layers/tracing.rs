@@ -156,9 +156,12 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
-        self.inner.blocking_read(path, args).map(|r| {
-            Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+        self.inner.blocking_read(path, args).map(|(rp, r)| {
+            (
+                rp,
+                Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader,
+            )
         })
     }
 

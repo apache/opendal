@@ -906,18 +906,21 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         self.handle.requests_total_blocking_read.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.blocking_read(path, args).map(|reader| {
-            Box::new(BlockingMetricReader::new(
-                reader,
-                self.handle.bytes_total_blocking_read.clone(),
-                self.handle.failures_total_blocking_read.clone(),
-                self.handle.requests_duration_seconds_blocking_read.clone(),
-                Some(start),
-            )) as BlockingBytesReader
+        let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
+            (
+                rp,
+                Box::new(BlockingMetricReader::new(
+                    r,
+                    self.handle.bytes_total_blocking_read.clone(),
+                    self.handle.failures_total_blocking_read.clone(),
+                    self.handle.requests_duration_seconds_blocking_read.clone(),
+                    Some(start),
+                )) as BlockingBytesReader,
+            )
         });
 
         result.map_err(|e| {

@@ -221,16 +221,19 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.blocking_create(path, args)
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         let permit = self
             .semaphore
             .clone()
             .try_acquire_owned()
             .expect("semaphore must be valid");
 
-        self.inner
-            .blocking_read(path, args)
-            .map(|r| Box::new(BlockingConcurrentLimitReader::new(r, permit)) as BlockingBytesReader)
+        self.inner.blocking_read(path, args).map(|(rp, r)| {
+            (
+                rp,
+                Box::new(BlockingConcurrentLimitReader::new(r, permit)) as BlockingBytesReader,
+            )
+        })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {

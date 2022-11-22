@@ -390,7 +390,7 @@ impl Object {
         }
 
         let br = BytesRange::from(range);
-        let mut s = self
+        let (_, mut s) = self
             .acc
             .blocking_read(self.path(), OpRead::new().with_range(br))?;
 
@@ -529,8 +529,11 @@ impl Object {
             );
         }
 
-        self.acc
-            .blocking_read(self.path(), OpRead::new().with_range(range.into()))
+        let (_, r) = self
+            .acc
+            .blocking_read(self.path(), OpRead::new().with_range(range.into()))?;
+
+        Ok(r)
     }
 
     /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.

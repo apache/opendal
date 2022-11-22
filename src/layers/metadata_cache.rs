@@ -179,7 +179,7 @@ impl Accessor for MetadataCacheAccessor {
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         match self.cache.blocking_read(path, OpRead::new()) {
-            Ok(mut r) => {
+            Ok((_, mut r)) => {
                 let mut bs = Vec::with_capacity(1024);
                 r.read_to_end(&mut bs).map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "read object metadata from cache")

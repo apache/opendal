@@ -92,7 +92,7 @@ where
         Ok((RpRead::new(length as u64), Box::new(Cursor::new(bs))))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         let bs = match self.kv.blocking_get(path)? {
             Some(bs) => bs,
             None => {
@@ -104,7 +104,10 @@ where
         };
 
         let bs = self.apply_range(bs, args.range());
-        Ok(Box::new(std::io::Cursor::new(bs)))
+        Ok((
+            RpRead::new(bs.len() as u64),
+            Box::new(std::io::Cursor::new(bs)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {

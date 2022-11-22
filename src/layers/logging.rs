@@ -582,7 +582,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} range={} -> started",
@@ -594,7 +594,7 @@ impl Accessor for LoggingAccessor {
 
         self.inner
             .blocking_read(path, args.clone())
-            .map(|v| {
+            .map(|(rp, r)| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} range={} -> got reader",
@@ -608,9 +608,9 @@ impl Accessor for LoggingAccessor {
                     Operation::BlockingRead,
                     path,
                     args.range().size(),
-                    v,
+                    r,
                 );
-                Box::new(r) as BlockingBytesReader
+                (rp, Box::new(r) as BlockingBytesReader)
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Unexpected {

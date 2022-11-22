@@ -125,7 +125,7 @@ impl Accessor for ContentCacheAccessor {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.write(path, args, r).await
     }

@@ -148,7 +148,7 @@ where
     /// Return `Interrupted` Error even after retry.
     ///
     /// Allowing users to retry the write request from upper logic.
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let r = Box::new(RetryReader::new(r, Operation::Write, self.backoff.clone()));
         let r = Box::new(CloneableReader::new(r));
 
@@ -562,9 +562,7 @@ mod tests {
     use futures::AsyncReadExt;
 
     use crate::layers::RetryLayer;
-    use crate::ops::OpRead;
-    use crate::ops::OpWrite;
-    use crate::ops::RpRead;
+    use crate::ops::*;
     use crate::Accessor;
     use crate::BytesReader;
     use crate::Error;
@@ -591,7 +589,7 @@ mod tests {
             }
         }
 
-        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> Result<u64> {
+        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> Result<RpWrite> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -680,7 +678,7 @@ mod tests {
             ))
         }
 
-        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
+        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {
             {
                 let mut attempt = self.attempt.lock().unwrap();
                 *attempt += 1;
@@ -696,7 +694,7 @@ mod tests {
                 .await
                 .map_err(|err| Error::new(ErrorKind::Unexpected, "copy failed").set_source(err))?;
             assert_eq!(size, args.size());
-            Ok(args.size())
+            Ok(RpWrite::new(args.size()))
         }
     }
 

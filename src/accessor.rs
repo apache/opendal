@@ -124,7 +124,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         match self.inner() {
             Some(inner) => inner.write(path, args, r).await,
             None => Err(Error::new(
@@ -383,7 +383,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         self.as_ref().read(path, args).await
     }
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         self.as_ref().write(path, args, r).await
     }
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {

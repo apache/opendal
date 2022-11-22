@@ -221,7 +221,7 @@ impl Accessor for Backend {
         Ok((RpRead::new(size), r))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let parent = PathBuf::from(&p)
@@ -249,7 +249,7 @@ impl Accessor for Backend {
 
         let n = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
 
-        Ok(n)
+        Ok(RpWrite::new(n))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {

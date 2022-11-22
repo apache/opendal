@@ -181,7 +181,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} size={:?} -> started",

@@ -42,6 +42,7 @@ mod op_stat;
 pub use op_stat::OpStat;
 mod op_write;
 pub use op_write::OpWrite;
+pub use op_write::RpWrite;
 mod op_multipart;
 pub use op_multipart::OpAbortMultipart;
 pub use op_multipart::OpCompleteMultipart;

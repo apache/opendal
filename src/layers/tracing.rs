@@ -83,7 +83,7 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write(path, args, r).await
     }

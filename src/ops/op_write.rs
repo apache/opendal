@@ -37,9 +37,7 @@ impl OpWrite {
             content_type: Some(content_type.to_string()),
         }
     }
-}
 
-impl OpWrite {
     /// Get size from option.
     pub fn size(&self) -> u64 {
         self.size
@@ -47,5 +45,23 @@ impl OpWrite {
     /// Get the content type from option
     pub fn content_type(&self) -> Option<&str> {
         self.content_type.as_deref()
+    }
+}
+
+/// Reply for `write` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpWrite {
+    written: u64,
+}
+
+impl RpWrite {
+    /// Create a new reply for write.
+    pub fn new(written: u64) -> Self {
+        Self { written }
+    }
+
+    /// Get the written size (in bytes) of write operation.
+    pub fn written(&self) -> u64 {
+        self.written
     }
 }

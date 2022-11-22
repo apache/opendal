@@ -107,7 +107,8 @@ impl ObjectMultipart {
             expire,
         );
 
-        self.acc.presign(&self.path, op)
+        let rp = self.acc.presign(&self.path, op)?;
+        Ok(rp.into_presigned_request())
     }
 }
 

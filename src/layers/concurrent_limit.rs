@@ -151,7 +151,7 @@ impl Accessor for ConcurrentLimitAccessor {
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args)
     }
 

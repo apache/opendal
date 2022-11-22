@@ -134,7 +134,7 @@ impl Accessor for SubdirAccessor {
         )))
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let path = self.prepend_subdir(path);
 
         self.inner.presign(&path, args)

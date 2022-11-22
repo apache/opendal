@@ -119,7 +119,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
             })
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).map_err(|err| {
             err.with_operation(Operation::Presign.into_static())
                 .with_context("service", self.meta.scheme())

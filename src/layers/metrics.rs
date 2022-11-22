@@ -755,7 +755,7 @@ impl Accessor for MetricsAccessor {
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.handle.requests_total_presign.increment(1);
 
         let start = Instant::now();

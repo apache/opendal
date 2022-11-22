@@ -108,7 +108,7 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn presign(&self, path: &str, args: OpPresign) -> Result<PresignedRequest> {
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args)
     }
 

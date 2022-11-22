@@ -1236,7 +1236,8 @@ impl Object {
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(OpRead::new().into(), expire);
 
-        self.acc.presign(self.path(), op)
+        let rp = self.acc.presign(self.path(), op)?;
+        Ok(rp.into_presigned_request())
     }
 
     /// Presign an operation for write.
@@ -1266,7 +1267,8 @@ impl Object {
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(OpWrite::new(0).into(), expire);
 
-        self.acc.presign(self.path(), op)
+        let rp = self.acc.presign(self.path(), op)?;
+        Ok(rp.into_presigned_request())
     }
 
     /// Construct a multipart with existing upload id.

@@ -76,6 +76,24 @@ impl From<OpWriteMultipart> for PresignOperation {
     }
 }
 
+/// Reply for `presign` operation.
+#[derive(Debug, Clone)]
+pub struct RpPresign {
+    req: PresignedRequest,
+}
+
+impl RpPresign {
+    /// Create a new reply for presign.
+    pub fn new(req: PresignedRequest) -> Self {
+        RpPresign { req }
+    }
+
+    /// Consume reply to build a presigned request.
+    pub fn into_presigned_request(self) -> PresignedRequest {
+        self.req
+    }
+}
+
 /// PresignedRequest is a presigned request return by `presign`.
 #[derive(Debug, Clone)]
 pub struct PresignedRequest {

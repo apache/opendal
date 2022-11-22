@@ -36,6 +36,7 @@ mod op_presign;
 pub use op_presign::OpPresign;
 pub use op_presign::PresignOperation;
 pub use op_presign::PresignedRequest;
+pub use op_presign::RpPresign;
 mod op_read;
 pub use op_read::OpRead;
 pub use op_read::RpRead;

@@ -318,7 +318,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         match self.inner() {
             Some(inner) => inner.blocking_write(path, args, r),
             None => Err(Error::new(
@@ -448,7 +448,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         self.as_ref().blocking_read(path, args)
     }
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         self.as_ref().blocking_write(path, args, r)
     }
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {

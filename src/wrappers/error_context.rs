@@ -201,7 +201,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r).map_err(|err| {
             err.with_operation(Operation::BlockingWrite.into_static())
                 .with_context("service", self.meta.scheme())

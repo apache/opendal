@@ -126,14 +126,14 @@ where
         path: &str,
         args: OpWrite,
         mut r: BlockingBytesReader,
-    ) -> Result<OpWrite> {
+    ) -> Result<RpWrite> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs)
             .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
 
         self.kv.blocking_set(path, &bs)?;
 
-        Ok(OpWrite::new(args.size()))
+        Ok(RpWrite::new(args.size()))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

@@ -933,7 +933,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<OpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         self.handle.requests_total_blocking_write.increment(1);
 
         let r = Box::new(BlockingMetricReader::new(

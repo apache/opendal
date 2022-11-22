@@ -1028,7 +1028,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         let resp = self
             .s3_abort_multipart_upload(path, args.upload_id())
             .await?;
@@ -1039,7 +1043,7 @@ impl Accessor for Backend {
             StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
 
-                Ok(())
+                Ok(RpAbortMultipart::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;

@@ -93,7 +93,9 @@ impl ObjectMultipart {
     /// - This operation will return `succeeded` even when object or upload_id not exist.
     pub async fn abort(&self) -> Result<()> {
         let op = OpAbortMultipart::new(self.upload_id.clone());
-        self.acc.abort_multipart(&self.path, op).await
+        let _ = self.acc.abort_multipart(&self.path, op).await?;
+
+        Ok(())
     }
 
     /// Presign an operation for write multipart.

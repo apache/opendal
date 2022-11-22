@@ -502,7 +502,11 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} -> started",

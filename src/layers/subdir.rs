@@ -171,7 +171,11 @@ impl Accessor for SubdirAccessor {
         self.inner.complete_multipart(&path, args).await
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.abort_multipart(&path, args).await

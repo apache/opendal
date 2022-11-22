@@ -160,3 +160,7 @@ impl OpAbortMultipart {
         &self.upload_id
     }
 }
+
+/// Reply for `abort_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpAbortMultipart {}

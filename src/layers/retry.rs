@@ -256,7 +256,11 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         { || self.inner.abort_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())

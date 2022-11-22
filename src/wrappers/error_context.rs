@@ -173,7 +173,11 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
             })
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         self.inner.abort_multipart(path, args).await.map_err(|err| {
             err.with_operation(Operation::AbortMultipart.into_static())
                 .with_context("service", self.meta.scheme())

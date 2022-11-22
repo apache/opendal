@@ -860,7 +860,11 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         self.handle.requests_total_abort_multipart.increment(1);
 
         let start = Instant::now();

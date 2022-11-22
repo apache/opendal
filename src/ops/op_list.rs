@@ -22,3 +22,7 @@ impl OpList {
         Self {}
     }
 }
+
+/// Reply for `list` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpList {}

@@ -17,8 +17,11 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use async_trait::async_trait;
+
 use super::backend::Backend;
 use super::error::parse_io_error;
+use crate::object::ObjectPage;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
@@ -42,6 +45,13 @@ impl DirStream {
     }
 }
 
+#[async_trait]
+impl ObjectPage for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
+    }
+}
+
 impl futures::Stream for DirStream {
     type Item = Result<ObjectEntry>;
 
@@ -59,25 +69,15 @@ impl futures::Stream for DirStream {
                 let file_type = de.file_type().map_err(parse_io_error)?;
 
                 let d = if file_type.is_file() {
-                    ObjectEntry::new(
-                        self.backend.clone(),
-                        &path,
-                        ObjectMetadata::new(ObjectMode::FILE),
-                    )
+                    ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
                 } else if file_type.is_dir() {
                     // Make sure we are returning the correct path.
                     ObjectEntry::new(
-                        self.backend.clone(),
                         &format!("{}/", &path),
-                        ObjectMetadata::new(ObjectMode::DIR),
+                        ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                     )
-                    .with_complete()
                 } else {
-                    ObjectEntry::new(
-                        self.backend.clone(),
-                        &path,
-                        ObjectMetadata::new(ObjectMode::Unknown),
-                    )
+                    ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
                 };
 
                 Poll::Ready(Some(Ok(d)))

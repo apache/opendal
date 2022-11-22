@@ -17,10 +17,8 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use futures::TryStreamExt;
-use log::debug;
 
-use crate::io_util::BottomUpWalker;
-use crate::io_util::TopDownWalker;
+use crate::object::ObjectLister;
 use crate::services;
 use crate::Accessor;
 use crate::AccessorMetadata;
@@ -29,7 +27,6 @@ use crate::ErrorKind;
 use crate::Layer;
 use crate::Object;
 use crate::ObjectMode;
-use crate::ObjectStreamer;
 use crate::Result;
 use crate::Scheme;
 
@@ -323,7 +320,7 @@ impl BatchOperator {
     ///
     /// The returning order could be differ for different underlying storage.
     /// And could be changed at any time. Users MUST NOT relay on the order.
-    pub fn walk(&self, path: &str) -> Result<ObjectStreamer> {
+    pub fn walk(&self, path: &str) -> Result<ObjectLister> {
         // # TODO
         //
         // After https://github.com/datafuselabs/opendal/issues/353, we can
@@ -334,21 +331,15 @@ impl BatchOperator {
     /// Walk a dir in top down way: list current dir first and then list nested dir.
     ///
     /// Refer to [`TopDownWalker`] for more about the behavior details.
-    pub fn walk_top_down(&self, path: &str) -> Result<ObjectStreamer> {
-        Ok(Box::new(TopDownWalker::new(Object::new(
-            self.src.inner(),
-            path,
-        ))))
+    pub fn walk_top_down(&self, path: &str) -> Result<ObjectLister> {
+        todo!()
     }
 
     /// Walk a dir in bottom up way: list nested dir first and then current dir.
     ///
     /// Refer to [`BottomUpWalker`] for more about the behavior details.
-    pub fn walk_bottom_up(&self, path: &str) -> Result<ObjectStreamer> {
-        Ok(Box::new(BottomUpWalker::new(Object::new(
-            self.src.inner(),
-            path,
-        ))))
+    pub fn walk_bottom_up(&self, path: &str) -> Result<ObjectLister> {
+        todo!()
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -356,17 +347,13 @@ impl BatchOperator {
     /// **Use this function in cautions to avoid unexpected data loss.**
     pub async fn remove_all(&self, path: &str) -> Result<()> {
         let parent = self.src.object(path);
-        let meta = parent.metadata().await?;
+        let meta = parent.stat().await?;
 
         if meta.mode() != ObjectMode::DIR {
             return parent.delete().await;
         }
 
         let obs = self.walk_bottom_up(path)?;
-        obs.try_for_each(|v| async move {
-            debug!("deleting {}", v.path());
-            v.into_object().delete().await
-        })
-        .await
+        obs.try_for_each(|v| async move { v.delete().await }).await
     }
 }

@@ -170,13 +170,11 @@ pub use operator::Operator;
 mod object;
 pub use object::Object;
 pub use object::ObjectEntry;
-pub use object::ObjectIterator;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
 pub use object::ObjectMultipart;
 pub use object::ObjectPart;
 pub use object::ObjectReader;
-pub use object::ObjectStreamer;
 
 mod scheme;
 pub use scheme::Scheme;

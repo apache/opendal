@@ -62,7 +62,7 @@ Available Environment Values:
     );
 
     info!("try to get file metadata: {}", &path);
-    let meta = op.object(&path).metadata().await?;
+    let meta = op.object(&path).stat().await?;
     info!(
         "get file metadata successful, size: {}B",
         meta.content_length()

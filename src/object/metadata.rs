@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::{Arc, Mutex};
+
 use time::OffsetDateTime;
 
-use crate::ops::BytesContentRange;
-use crate::ObjectMode;
+use crate::ops::{BytesContentRange, OpStat};
+use crate::path::get_basename;
+use crate::*;
 
 /// Metadata carries all object metadata.
 ///
@@ -26,6 +29,9 @@ use crate::ObjectMode;
 /// a.k.a., `ObjectEntry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectMetadata {
+    /// Mark if this metadata is complete or not.
+    complete: bool,
+
     /// Mode of this object.
     mode: ObjectMode,
 
@@ -44,11 +50,6 @@ pub struct ObjectMetadata {
     /// Content Range of this object.
     content_range: Option<BytesContentRange>,
     /// Last Modified of this object.
-    ///
-    /// # NOTE
-    ///
-    /// bincode::{Encode, Decode} is not implemented on OffsetDateTime.
-    /// We will convert it to (SystemTime, (h,m,s)) instead.
     last_modified: Option<OffsetDateTime>,
     /// ETag of this object.
     etag: Option<String>,
@@ -58,6 +59,8 @@ impl ObjectMetadata {
     /// Create a new object metadata
     pub fn new(mode: ObjectMode) -> Self {
         Self {
+            complete: false,
+
             mode,
 
             content_length: None,
@@ -67,6 +70,23 @@ impl ObjectMetadata {
             last_modified: None,
             etag: None,
         }
+    }
+
+    /// If this object metadata if complete
+    pub fn is_complete(&self) -> bool {
+        self.complete
+    }
+
+    /// Make this object metadata if complete.
+    pub fn set_complete(&mut self) -> &mut Self {
+        self.complete = true;
+        self
+    }
+
+    /// Make this object metadata if complete.
+    pub fn with_complete(mut self) -> Self {
+        self.complete = true;
+        self
     }
 
     /// Object mode represent this object's mode.
@@ -258,5 +278,157 @@ impl ObjectMetadata {
     pub fn with_etag(mut self, etag: &str) -> Self {
         self.etag = Some(etag.to_string());
         self
+    }
+}
+
+#[derive(Clone)]
+pub struct ObjectMetadatar {
+    acc: Arc<dyn Accessor>,
+    path: String,
+
+    meta: Arc<Mutex<ObjectMetadata>>,
+}
+
+impl ObjectMetadatar {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str, meta: ObjectMetadata) -> ObjectMetadatar {
+        debug_assert!(
+            meta.mode().is_dir() == path.ends_with('/'),
+            "mode {:?} not match with path {}",
+            meta.mode(),
+            path
+        );
+
+        ObjectMetadatar {
+            acc,
+            path: path.to_string(),
+            meta: Arc::new(Mutex::new(meta)),
+        }
+    }
+
+    /// Return this object entry's object mode.
+    pub fn mode(&self) -> ObjectMode {
+        self.meta.lock().expect("lock must succeed").mode()
+    }
+
+    /// Return this object entry's id.
+    ///
+    /// The same with [`Object::id()`]
+    pub fn id(&self) -> String {
+        format!("{}{}", self.acc.metadata().root(), self.path)
+    }
+
+    /// Return this object entry's path.
+    ///
+    /// The same with [`Object::path()`]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// Set path for this entry.
+    pub fn set_path(&mut self, path: &str) {
+        #[cfg(debug_assertions)]
+        {
+            let mode = self.meta.lock().expect("lock must succeed").mode();
+            assert_eq!(
+                mode.is_dir(),
+                path.ends_with('/'),
+                "mode {mode:?} not match with path {path}",
+            );
+        }
+
+        self.path = path.to_string();
+    }
+
+    /// Return this object entry's name.
+    ///
+    /// The same with [`Object::name()`]
+    pub fn name(&self) -> &str {
+        get_basename(&self.path)
+    }
+
+    /// Fetch metadata about this object entry.
+    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+        let mut guard = self.meta.lock().expect("lock must succeed");
+        if !guard.is_complete() {
+            let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+            *guard = rp.into_metadata();
+        }
+
+        Ok((*guard).clone())
+    }
+
+    /// Fetch metadata about this object entry.
+    ///
+    /// The same with [`Object::blocking_metadata()`]
+    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+        let mut guard = self.meta.lock().expect("lock must succeed");
+        if !guard.is_complete() {
+            let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
+            *guard = rp.into_metadata();
+        }
+
+        Ok((*guard).clone())
+    }
+
+    /// The size of `ObjectEntry`'s corresponding object
+    ///
+    /// `content_length` is a prefetched metadata field in `ObjectEntry`.
+    pub async fn content_length(&self) -> Result<u64> {
+        if let Some(v) = self
+            .meta
+            .lock()
+            .expect("lock must succeed")
+            .content_length_raw()
+        {
+            return Ok(v);
+        }
+
+        let meta = self.metadata().await?;
+        Ok(meta.content_length())
+    }
+
+    /// The MD5 message digest of `ObjectEntry`'s corresponding object
+    ///
+    /// `content_md5` is a prefetched metadata field in `ObjectEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn content_md5(&self) -> Result<Option<String>> {
+        if let Some(v) = self.meta.lock().expect("lock must succeed").content_md5() {
+            return Ok(Some(v.to_string()));
+        }
+
+        let meta = self.metadata().await?;
+        Ok(meta.content_md5().map(|v| v.to_string()))
+    }
+
+    /// The last modified UTC datetime of `ObjectEntry`'s corresponding object
+    ///
+    /// `last_modified` is a prefetched metadata field in `ObjectEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
+        if let Some(v) = self.meta.lock().expect("lock must succeed").last_modified() {
+            return Ok(Some(v));
+        }
+
+        let meta = self.metadata().await?;
+        Ok(meta.last_modified())
+    }
+
+    /// The ETag string of `ObjectEntry`'s corresponding object
+    ///
+    /// `etag` is a prefetched metadata field in `ObjectEntry`.
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn etag(&self) -> Result<Option<String>> {
+        if let Some(v) = self.meta.lock().expect("lock must succeed").etag() {
+            return Ok(Some(v.to_string()));
+        }
+
+        let meta = self.metadata().await?;
+        Ok(meta.etag().map(|v| v.to_string()))
     }
 }

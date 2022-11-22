@@ -27,7 +27,7 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
 
-use super::util::set_accessor_for_object_steamer;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -135,11 +135,8 @@ impl Accessor for ContentCacheAccessor {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
-        self.inner
-            .list(path, args)
-            .await
-            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        self.inner.list(path, args).await
     }
 }
 

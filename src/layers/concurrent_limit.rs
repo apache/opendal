@@ -25,8 +25,10 @@ use futures::AsyncRead;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
-use super::util::set_accessor_for_object_iterator;
-use super::util::set_accessor_for_object_steamer;
+use crate::object::BlockingObjectPage;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -136,7 +138,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         let permit = self
             .semaphore
             .clone()
@@ -144,11 +146,12 @@ impl Accessor for ConcurrentLimitAccessor {
             .await
             .expect("semaphore must be valid");
 
-        self.inner
-            .list(path, args)
-            .await
-            .map(|s| Box::new(ConcurrentLimitStreamer::new(s, permit)) as ObjectStreamer)
-            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
+        self.inner.list(path, args).await.map(|(rp, s)| {
+            (
+                rp,
+                Box::new(ConcurrentLimitStreamer::new(s, permit)) as ObjectPager,
+            )
+        })
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -263,17 +266,19 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let permit = self
             .semaphore
             .clone()
             .try_acquire_owned()
             .expect("semaphore must be valid");
 
-        self.inner
-            .blocking_list(path, args)
-            .map(|it| Box::new(ConcurrentLimitInterator::new(it, permit)) as ObjectIterator)
-            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
+        self.inner.blocking_list(path, args).map(|(rp, it)| {
+            (
+                rp,
+                Box::new(ConcurrentLimitInterator::new(it, permit)) as BlockingObjectPager,
+            )
+        })
     }
 }
 
@@ -326,14 +331,14 @@ impl Read for BlockingConcurrentLimitReader {
 }
 
 struct ConcurrentLimitStreamer {
-    inner: ObjectStreamer,
+    inner: ObjectPager,
 
     // Hold on this permit until this streamer has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
 impl ConcurrentLimitStreamer {
-    fn new(inner: ObjectStreamer, permit: OwnedSemaphorePermit) -> Self {
+    fn new(inner: ObjectPager, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
             _permit: permit,
@@ -341,23 +346,22 @@ impl ConcurrentLimitStreamer {
     }
 }
 
-impl futures::Stream for ConcurrentLimitStreamer {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut (*self.inner)).poll_next(cx)
+#[async_trait]
+impl ObjectPage for ConcurrentLimitStreamer {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        self.inner.next_page().await
     }
 }
 
 struct ConcurrentLimitInterator {
-    inner: ObjectIterator,
+    inner: BlockingObjectPager,
 
     // Hold on this permit until this iterator has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
 impl ConcurrentLimitInterator {
-    fn new(inner: ObjectIterator, permit: OwnedSemaphorePermit) -> Self {
+    fn new(inner: BlockingObjectPager, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
             _permit: permit,
@@ -365,10 +369,8 @@ impl ConcurrentLimitInterator {
     }
 }
 
-impl Iterator for ConcurrentLimitInterator {
-    type Item = Result<ObjectEntry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+impl BlockingObjectPage for ConcurrentLimitInterator {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        self.inner.next_page()
     }
 }

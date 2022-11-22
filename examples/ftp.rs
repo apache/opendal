@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
         r#"OpenDAL ftp Example.
 
 Available Environment Values:
-    - OPENDAL_FTP_ENDPOINT=endpoint     # required  
+    - OPENDAL_FTP_ENDPOINT=endpoint     # required
     - OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/"
     - OPENDAL_FTP_USER=user    # default with empty string ""
     - OPENDAL_FTP_PASSWORD=password    # default with empty string ""
@@ -84,7 +84,7 @@ Available Environment Values:
     );
 
     info!("try to get file metadata: {}", &path);
-    let meta = op.object(&path).metadata().await?;
+    let meta = op.object(&path).stat().await?;
     info!(
         "get file metadata successful, size: {}B",
         meta.content_length()

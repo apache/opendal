@@ -29,8 +29,8 @@ use metrics::register_histogram;
 use metrics::Counter;
 use metrics::Histogram;
 
-use super::util::set_accessor_for_object_iterator;
-use super::util::set_accessor_for_object_steamer;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -734,7 +734,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         self.handle.requests_total_list.increment(1);
 
         let start = Instant::now();
@@ -743,16 +743,14 @@ impl Accessor for MetricsAccessor {
 
         self.handle.requests_duration_seconds_list.record(dur);
 
-        result
-            .map_err(|e| {
-                if e.kind() == ErrorKind::Unexpected {
-                    self.handle.failures_total_list.increment(1);
-                } else {
-                    self.handle.errors_total_list.increment(1);
-                }
-                e
-            })
-            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Unexpected {
+                self.handle.failures_total_list.increment(1);
+            } else {
+                self.handle.errors_total_list.increment(1);
+            }
+            e
+        })
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -1004,7 +1002,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         self.handle.requests_total_blocking_list.increment(1);
 
         let start = Instant::now();
@@ -1015,16 +1013,14 @@ impl Accessor for MetricsAccessor {
             .requests_duration_seconds_blocking_list
             .record(dur);
 
-        result
-            .map_err(|e| {
-                if e.kind() == ErrorKind::Unexpected {
-                    self.handle.failures_total_blocking_list.increment(1);
-                } else {
-                    self.handle.errors_total_blocking_list.increment(1);
-                }
-                e
-            })
-            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
+        result.map_err(|e| {
+            if e.kind() == ErrorKind::Unexpected {
+                self.handle.failures_total_blocking_list.increment(1);
+            } else {
+                self.handle.errors_total_blocking_list.increment(1);
+            }
+            e
+        })
     }
 }
 

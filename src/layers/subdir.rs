@@ -13,14 +13,14 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::Stream;
 
+use crate::object::BlockingObjectPage;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::normalize_root;
 use crate::*;
@@ -124,14 +124,18 @@ impl Accessor for SubdirAccessor {
         self.inner.delete(&path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         let path = self.prepend_subdir(path);
+        let (rp, pager) = self.inner.list(&path, args).await?;
 
-        Ok(Box::new(SubdirStreamer::new(
-            Arc::new(self.clone()),
-            &self.subdir,
-            self.inner.list(&path, args).await?,
-        )))
+        Ok((
+            rp,
+            Box::new(SubdirStreamer::new(
+                Arc::new(self.clone()),
+                &self.subdir,
+                pager,
+            )),
+        ))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -211,14 +215,18 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_delete(&path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let path = self.prepend_subdir(path);
+        let (rp, pager) = self.inner.blocking_list(&path, args)?;
 
-        Ok(Box::new(SubdirIterator::new(
-            Arc::new(self.clone()),
-            &self.subdir,
-            self.inner.blocking_list(&path, args)?,
-        )))
+        Ok((
+            rp,
+            Box::new(SubdirIterator::new(
+                Arc::new(self.clone()),
+                &self.subdir,
+                pager,
+            )),
+        ))
     }
 }
 
@@ -231,11 +239,11 @@ fn strip_subdir(subdir: &str, path: &str) -> String {
 struct SubdirStreamer {
     acc: Arc<dyn Accessor>,
     subdir: String,
-    inner: ObjectStreamer,
+    inner: ObjectPager,
 }
 
 impl SubdirStreamer {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectStreamer) -> Self {
+    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectPager) -> Self {
         Self {
             acc,
             subdir: subdir.to_string(),
@@ -244,29 +252,26 @@ impl SubdirStreamer {
     }
 }
 
-impl Stream for SubdirStreamer {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut (*self.inner)).poll_next(cx) {
-            Poll::Ready(Some(Ok(mut de))) => {
-                de.set_accessor(self.acc.clone());
-                de.set_path(&strip_subdir(&self.subdir, de.path()));
-                Poll::Ready(Some(Ok(de)))
-            }
-            v => v,
-        }
+#[async_trait]
+impl ObjectPage for SubdirStreamer {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        //  Poll::Ready(Some(Ok(mut de))) => {
+        // de.set_accessor(self.acc.clone());
+        // de.set_path(&strip_subdir(&self.subdir, de.path()));
+        // Poll::Ready(Some(Ok(de)))
+        // }
+        todo!()
     }
 }
 
 struct SubdirIterator {
     acc: Arc<dyn Accessor>,
     subdir: String,
-    inner: ObjectIterator,
+    inner: BlockingObjectPager,
 }
 
 impl SubdirIterator {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectIterator) -> Self {
+    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: BlockingObjectPager) -> Self {
         Self {
             acc,
             subdir: subdir.to_string(),
@@ -275,17 +280,8 @@ impl SubdirIterator {
     }
 }
 
-impl Iterator for SubdirIterator {
-    type Item = Result<ObjectEntry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.next() {
-            Some(Ok(mut de)) => {
-                de.set_accessor(self.acc.clone());
-                de.set_path(&strip_subdir(&self.subdir, de.path()));
-                Some(Ok(de))
-            }
-            v => v,
-        }
+impl BlockingObjectPage for SubdirIterator {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
     }
 }

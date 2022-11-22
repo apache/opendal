@@ -272,7 +272,7 @@ mod tests {
         builder.root("/");
         let op = Operator::new(builder.build()?);
 
-        let bs = op.object("hello").metadata().await?;
+        let bs = op.object("hello").stat().await?;
 
         assert_eq!(bs.mode(), ObjectMode::FILE);
         assert_eq!(bs.content_length(), 128);

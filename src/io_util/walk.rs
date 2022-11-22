@@ -22,6 +22,9 @@ use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
 
+use crate::object::ObjectLister;
+use crate::object::ObjectPager;
+use crate::ops::RpList;
 use crate::Accessor;
 use crate::Object;
 use crate::ObjectEntry;
@@ -81,8 +84,8 @@ impl TopDownWalker {
 
 enum WalkTopDownState {
     Idle,
-    Sending(BoxFuture<'static, Result<ObjectStreamer>>),
-    Listing(ObjectStreamer),
+    Sending(BoxFuture<'static, Result<ObjectLister>>),
+    Listing(ObjectLister),
 }
 
 impl futures::Stream for TopDownWalker {
@@ -96,11 +99,7 @@ impl futures::Stream for TopDownWalker {
                     None => return Poll::Ready(None),
                 };
 
-                let de = ObjectEntry::new(
-                    self.acc.clone(),
-                    object.path(),
-                    ObjectMetadata::new(ObjectMode::DIR),
-                );
+                let de = ObjectEntry::new(object.path(), ObjectMetadata::new(ObjectMode::DIR));
                 let future = async move { object.list().await };
 
                 self.state = WalkTopDownState::Sending(Box::pin(future));
@@ -115,11 +114,8 @@ impl futures::Stream for TopDownWalker {
             },
             WalkTopDownState::Listing(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
                 Some(Ok(mut de)) => {
-                    // Make returning entry uses the same accessor.
-                    de.set_accessor(self.acc.clone());
-
-                    if de.mode().is_dir() {
-                        self.dirs.push_back(de.into());
+                    if de.to_metadata().mode().is_dir() {
+                        self.dirs.push_back(de);
                         self.poll_next(cx)
                     } else {
                         Poll::Ready(Some(Ok(de)))
@@ -192,7 +188,7 @@ impl BottomUpWalker {
 
 enum WalkBottomUpState {
     Starting(Option<Object>),
-    Sending(BoxFuture<'static, Result<ObjectStreamer>>),
+    Sending(BoxFuture<'static, Result<(RpList, ObjectPager)>>),
     Listing,
 }
 
@@ -222,9 +218,6 @@ impl futures::Stream for BottomUpWalker {
             WalkBottomUpState::Listing => match self.ds.last_mut() {
                 Some(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
                     Some(Ok(mut de)) => {
-                        // Make returning entry uses the same accessor.
-                        de.set_accessor(self.acc.clone());
-
                         if de.mode().is_dir() {
                             self.state = WalkBottomUpState::Starting(Some(de.into()));
                             self.poll_next(cx)

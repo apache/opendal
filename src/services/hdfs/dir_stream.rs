@@ -17,7 +17,10 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use async_trait::async_trait;
+
 use super::backend::Backend;
+use crate::object::ObjectPage;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
@@ -40,6 +43,13 @@ impl DirStream {
     }
 }
 
+#[async_trait]
+impl ObjectPage for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
+    }
+}
+
 impl futures::Stream for DirStream {
     type Item = Result<ObjectEntry>;
 
@@ -53,21 +63,15 @@ impl futures::Stream for DirStream {
                     let meta = ObjectMetadata::new(ObjectMode::FILE)
                         .with_content_length(de.len())
                         .with_last_modified(time::OffsetDateTime::from(de.modified()));
-                    ObjectEntry::new(self.backend.clone(), &path, meta)
+                    ObjectEntry::new(&path, meta)
                 } else if de.is_dir() {
                     // Make sure we are returning the correct path.
                     ObjectEntry::new(
-                        self.backend.clone(),
                         &format!("{}/", path),
-                        ObjectMetadata::new(ObjectMode::DIR),
+                        ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                     )
-                    .with_complete()
                 } else {
-                    ObjectEntry::new(
-                        self.backend.clone(),
-                        &path,
-                        ObjectMetadata::new(ObjectMode::Unknown),
-                    )
+                    ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
                 };
 
                 Poll::Ready(Some(Ok(d)))

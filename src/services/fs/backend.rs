@@ -31,8 +31,7 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
-use crate::object::EmptyObjectIterator;
-use crate::object::EmptyObjectStreamer;
+use crate::object::*;
 use crate::ops::*;
 use crate::path::*;
 use crate::wrappers::wrapper;
@@ -329,14 +328,14 @@ impl Accessor for Backend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok(Box::new(EmptyObjectStreamer))
+                    Ok((RpList::default(), Box::new(EmptyObjectPager)))
                 } else {
                     Err(parse_io_error(e))
                 }
@@ -345,7 +344,7 @@ impl Accessor for Backend {
 
         let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
 
-        Ok(Box::new(rd))
+        Ok((RpList::default(), Box::new(rd)))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -510,54 +509,56 @@ impl Accessor for Backend {
         Ok(RpDelete::default())
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match std::fs::read_dir(&p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok(Box::new(EmptyObjectIterator))
+                    Ok((
+                        RpList::default(),
+                        Box::new(EmptyBlockingObjectPager) as BlockingObjectPager,
+                    ))
                 } else {
                     Err(parse_io_error(e))
                 }
             }
         };
 
-        let acc = Arc::new(self.clone());
+        todo!()
+        // let acc = Arc::new(self.clone());
 
-        let root = self.root.clone();
+        // let root = self.root.clone();
 
-        let f = f.map(move |v| match v {
-            Ok(de) => {
-                let path = build_rel_path(&root, &de.path().to_string_lossy());
+        // let f = f.map(move |v| match v {
+        //     Ok(de) => {
+        //         let path = build_rel_path(&root, &de.path().to_string_lossy());
 
-                // On Windows and most Unix platforms this function is free
-                // (no extra system calls needed), but some Unix platforms may
-                // require the equivalent call to symlink_metadata to learn about
-                // the target file type.
-                let file_type = de.file_type().map_err(parse_io_error)?;
+        //         // On Windows and most Unix platforms this function is free
+        //         // (no extra system calls needed), but some Unix platforms may
+        //         // require the equivalent call to symlink_metadata to learn about
+        //         // the target file type.
+        //         let file_type = de.file_type().map_err(parse_io_error)?;
 
-                let d = if file_type.is_file() {
-                    ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::FILE))
-                } else if file_type.is_dir() {
-                    // Make sure we are returning the correct path.
-                    ObjectEntry::new(
-                        acc.clone(),
-                        &format!("{}/", &path),
-                        ObjectMetadata::new(ObjectMode::DIR),
-                    )
-                    .with_complete()
-                } else {
-                    ObjectEntry::new(acc.clone(), &path, ObjectMetadata::new(ObjectMode::Unknown))
-                };
+        //         let d = if file_type.is_file() {
+        //             ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+        //         } else if file_type.is_dir() {
+        //             // Make sure we are returning the correct path.
+        //             ObjectEntry::new(
+        //                 &format!("{}/", &path),
+        //                 ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+        //             )
+        //         } else {
+        //             ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+        //         };
 
-                Ok(d)
-            }
+        //         Ok(d)
+        //     }
 
-            Err(err) => Err(parse_io_error(err)),
-        });
+        //     Err(err) => Err(parse_io_error(err)),
+        // });
 
-        Ok(Box::new(f))
+        // Ok(Box::new(f))
     }
 }

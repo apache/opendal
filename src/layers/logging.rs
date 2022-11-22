@@ -22,12 +22,15 @@ use std::task::Poll;
 
 use async_trait::async_trait;
 use futures::AsyncRead;
-use futures::Stream;
 use log::debug;
 use log::error;
 use log::trace;
 use log::warn;
 
+use crate::object::BlockingObjectPage;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -289,7 +292,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
@@ -299,14 +302,14 @@ impl Accessor for LoggingAccessor {
         self.inner
             .list(path, args)
             .await
-            .map(|v| {
+            .map(|(rp, v)| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> got dir streamer",
                     self.scheme, Operation::List, path
                 );
-                let streamer = LoggingStreamer::new(Arc::new(self.clone()), self.scheme, path, v);
-                Box::new(streamer) as ObjectStreamer
+                let streamer = LoggingStreamer::new(self.scheme, path, v);
+                (rp, Box::new(streamer) as ObjectPager)
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Unexpected {
@@ -761,7 +764,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
@@ -772,7 +775,7 @@ impl Accessor for LoggingAccessor {
 
         self.inner
             .blocking_list(path, args)
-            .map(|v| {
+            .map(|(rp, v)| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} -> got dir streamer",
@@ -780,8 +783,8 @@ impl Accessor for LoggingAccessor {
                     Operation::BlockingList,
                     path
                 );
-                let li = LoggingIterator::new(Arc::new(self.clone()), self.scheme, path, v);
-                Box::new(li) as ObjectIterator
+                let li = LoggingIterator::new(self.scheme, path, v);
+                (rp, Box::new(li) as BlockingObjectPager)
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Unexpected {
@@ -983,17 +986,15 @@ impl Read for BlockingLoggingReader {
 }
 
 struct LoggingStreamer {
-    acc: Arc<LoggingAccessor>,
     scheme: Scheme,
     path: String,
     finished: bool,
-    inner: ObjectStreamer,
+    inner: ObjectPager,
 }
 
 impl LoggingStreamer {
-    fn new(acc: Arc<LoggingAccessor>, scheme: Scheme, path: &str, inner: ObjectStreamer) -> Self {
+    fn new(scheme: Scheme, path: &str, inner: ObjectPager) -> Self {
         Self {
-            acc,
             scheme,
             path: path.to_string(),
             finished: false,
@@ -1018,86 +1019,69 @@ impl Drop for LoggingStreamer {
     }
 }
 
-impl Stream for LoggingStreamer {
-    type Item = Result<ObjectEntry>;
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut (*self.inner)).poll_next(cx) {
-            Poll::Ready(opt) => match opt {
-                Some(res) => match res {
-                    Ok(mut de) => {
-                        debug!(
-                            target: "opendal::service",
-                            "service={} operation={} path={} -> got entry: mode={} path={}",
-                            self.scheme,
-                            Operation::List,
-                            self.path,
-                            de.mode(),
-                            de.path(),
-                        );
-                        de.set_accessor(self.acc.clone());
-                        Poll::Ready(Some(Ok(de)))
-                    }
-                    Err(e) => {
-                        if e.kind() == ErrorKind::Unexpected {
-                            error!(
-                                target: "opendal::service",
-                                "service={} operation={} path={} -> failed: {:?}",
-                                self.scheme,
-                                Operation::List,
-                                self.path,
-                                e
-                            );
-                        } else {
-                            warn!(
-                                target: "opendal::service",
-                                "service={} operation={} path={} -> errored: {:?}",
-                                self.scheme,
-                                Operation::List,
-                                self.path,
-                                e
-                            );
-                        }
-                        Poll::Ready(Some(Err(e)))
-                    }
-                },
-                None => {
-                    debug!(
-                        target: "opendal::service",
-                        "service={} operation={} path={} -> finished",
-                        self.scheme,
-                        Operation::List,
-                        self.path
-                    );
-                    self.finished = true;
-                    Poll::Ready(None)
-                }
-            },
-            Poll::Pending => {
-                trace!(
+#[async_trait]
+impl ObjectPage for LoggingStreamer {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        let res = self.inner.next_page().await;
+
+        match &res {
+            Ok(Some(des)) => {
+                debug!(
                     target: "opendal::service",
-                    "service={} operation={} path={} -> pending",
+                    "service={} operation={} path={} -> got {} entries",
+                    self.scheme,
+                    Operation::List,
+                    self.path,
+                    des.len(),
+                );
+            }
+            Ok(None) => {
+                debug!(
+                    target: "opendal::service",
+                    "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::List,
                     self.path
                 );
-                Poll::Pending
+                self.finished = true;
             }
-        }
+            Err(e) => {
+                if e.kind() == ErrorKind::Unexpected {
+                    error!(
+                        target: "opendal::service",
+                        "service={} operation={} path={} -> failed: {:?}",
+                        self.scheme,
+                        Operation::List,
+                        self.path,
+                        e
+                    );
+                } else {
+                    warn!(
+                        target: "opendal::service",
+                        "service={} operation={} path={} -> errored: {:?}",
+                        self.scheme,
+                        Operation::List,
+                        self.path,
+                        e
+                    );
+                };
+            }
+        };
+
+        res
     }
 }
 
 struct LoggingIterator {
-    acc: Arc<LoggingAccessor>,
     scheme: Scheme,
     path: String,
     finished: bool,
-    inner: ObjectIterator,
+    inner: BlockingObjectPager,
 }
 
 impl LoggingIterator {
-    fn new(acc: Arc<LoggingAccessor>, scheme: Scheme, path: &str, inner: ObjectIterator) -> Self {
+    fn new(scheme: Scheme, path: &str, inner: BlockingObjectPager) -> Self {
         Self {
-            acc,
             scheme,
             path: path.to_string(),
             finished: false,
@@ -1122,49 +1106,22 @@ impl Drop for LoggingIterator {
     }
 }
 
-impl Iterator for LoggingIterator {
-    type Item = Result<ObjectEntry>;
+impl BlockingObjectPage for LoggingIterator {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        let res = self.inner.next_page();
 
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.next() {
-            Some(res) => match res {
-                Ok(mut de) => {
-                    debug!(
-                        target: "opendal::service",
-                        "service={} operation={} path={} -> got entry: mode={} path={}",
-                        self.scheme,
-                        Operation::BlockingList,
-                        self.path,
-                        de.mode(),
-                        de.path(),
-                    );
-                    de.set_accessor(self.acc.clone());
-                    Some(Ok(de))
-                }
-                Err(e) => {
-                    if e.kind() == ErrorKind::Unexpected {
-                        error!(
-                            target: "opendal::service",
-                            "service={} operation={} path={} -> failed: {:?}",
-                            self.scheme,
-                            Operation::BlockingList,
-                            self.path,
-                            e
-                        );
-                    } else {
-                        warn!(
-                            target: "opendal::service",
-                            "service={} operation={} path={} -> errored: {:?}",
-                            self.scheme,
-                            Operation::BlockingList,
-                            self.path,
-                            e
-                        );
-                    }
-                    Some(Err(e))
-                }
-            },
-            None => {
+        match &res {
+            Ok(Some(des)) => {
+                debug!(
+                    target: "opendal::service",
+                    "service={} operation={} path={} -> got {} entries",
+                    self.scheme,
+                    Operation::BlockingList,
+                    self.path,
+                    des.len(),
+                );
+            }
+            Ok(None) => {
                 debug!(
                     target: "opendal::service",
                     "service={} operation={} path={} -> finished",
@@ -1173,8 +1130,30 @@ impl Iterator for LoggingIterator {
                     self.path
                 );
                 self.finished = true;
-                None
             }
-        }
+            Err(e) => {
+                if e.kind() == ErrorKind::Unexpected {
+                    error!(
+                        target: "opendal::service",
+                        "service={} operation={} path={} -> failed: {:?}",
+                        self.scheme,
+                        Operation::BlockingList,
+                        self.path,
+                        e
+                    );
+                } else {
+                    warn!(
+                        target: "opendal::service",
+                        "service={} operation={} path={} -> errored: {:?}",
+                        self.scheme,
+                        Operation::BlockingList,
+                        self.path,
+                        e
+                    );
+                };
+            }
+        };
+
+        res
     }
 }

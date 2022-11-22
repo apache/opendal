@@ -15,24 +15,24 @@
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::pin::Pin;
+
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 use std::vec::IntoIter;
 
 use async_trait::async_trait;
 
 use crate::accessor::AccessorCapability;
-use crate::ops::OpList;
+use crate::object::BlockingObjectPage;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
+use crate::ops::*;
 use crate::Accessor;
 use crate::AccessorMetadata;
 use crate::Layer;
 use crate::ObjectEntry;
-use crate::ObjectIterator;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::ObjectStreamer;
 use crate::Result;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for
@@ -145,40 +145,38 @@ impl Accessor for ImmutableIndexAccessor {
         meta
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok(Box::new(ImmutableDir::new(
-            Arc::new(self.clone()),
-            self.children(path),
-        )))
+        Ok((
+            RpList::default(),
+            Box::new(ImmutableDir::new(self.children(path))),
+        ))
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok(Box::new(ImmutableDir::new(
-            Arc::new(self.clone()),
-            self.children(path),
-        )))
+        Ok((
+            RpList::default(),
+            Box::new(ImmutableDir::new(self.children(path))) as BlockingObjectPager,
+        ))
     }
 }
 
 struct ImmutableDir {
-    backend: Arc<ImmutableIndexAccessor>,
     idx: IntoIter<String>,
 }
 
 impl ImmutableDir {
-    fn new(backend: Arc<ImmutableIndexAccessor>, idx: Vec<String>) -> Self {
+    fn new(idx: Vec<String>) -> Self {
         Self {
-            backend,
             idx: idx.into_iter(),
         }
     }
@@ -197,36 +195,22 @@ impl Iterator for ImmutableDir {
                     ObjectMode::FILE
                 };
 
-                Some(Ok(ObjectEntry::new(
-                    self.backend.clone(),
-                    &path,
-                    ObjectMetadata::new(mode),
-                )))
+                Some(Ok(ObjectEntry::new(&path, ObjectMetadata::new(mode))))
             }
         }
     }
 }
 
-impl futures::Stream for ImmutableDir {
-    type Item = Result<ObjectEntry>;
+#[async_trait]
+impl ObjectPage for ImmutableDir {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
+    }
+}
 
-    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.idx.next() {
-            None => Poll::Ready(None),
-            Some(path) => {
-                let mode = if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                };
-
-                Poll::Ready(Some(Ok(ObjectEntry::new(
-                    self.backend.clone(),
-                    &path,
-                    ObjectMetadata::new(mode),
-                ))))
-            }
-        }
+impl BlockingObjectPage for ImmutableDir {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
     }
 }
 

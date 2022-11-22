@@ -26,11 +26,17 @@ use crate::ops::*;
 use crate::path::*;
 use crate::*;
 
+use super::BlockingObjectLister;
+use super::ObjectLister;
+use super::ObjectMetadatar;
+
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
     path: String,
+
+    meta: Option<ObjectMetadata>,
 }
 
 impl Object {
@@ -43,11 +49,17 @@ impl Object {
         Self {
             acc,
             path: normalize_path(path),
+            meta: None,
         }
     }
 
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
         self.acc.clone()
+    }
+
+    pub(crate) fn with_metadata(mut self, meta: ObjectMetadata) -> Self {
+        self.meta = Some(meta);
+        self
     }
 
     /// ID of object.
@@ -1040,7 +1052,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<ObjectStreamer> {
+    pub async fn list(&self) -> Result<ObjectLister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -1051,7 +1063,9 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        self.acc.list(self.path(), OpList::new()).await
+        let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
+
+        Ok(ObjectLister::new(self.acc.clone(), pager))
     }
 
     /// List current dir object.
@@ -1089,7 +1103,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_list(&self) -> Result<ObjectIterator> {
+    pub fn blocking_list(&self) -> Result<BlockingObjectLister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -1100,7 +1114,8 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        self.acc.blocking_list(self.path(), OpList::new())
+        let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
+        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
     /// Get current object's metadata.
@@ -1126,7 +1141,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+    pub async fn stat(&self) -> Result<ObjectMetadata> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         Ok(rp.into_metadata())
     }
@@ -1153,7 +1168,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
         let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
         Ok(rp.into_metadata())
     }
@@ -1178,7 +1193,7 @@ impl Object {
     /// }
     /// ```
     pub async fn is_exist(&self) -> Result<bool> {
-        let r = self.metadata().await;
+        let r = self.stat().await;
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
@@ -1205,7 +1220,7 @@ impl Object {
     /// }
     /// ```
     pub fn blocking_is_exist(&self) -> Result<bool> {
-        let r = self.blocking_metadata();
+        let r = self.blocking_stat();
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
@@ -1275,6 +1290,20 @@ impl Object {
 
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())
+    }
+
+    /// Construct a metadatar with existing metadata.
+    pub fn to_metadata(&self) -> ObjectMetadatar {
+        if let Some(meta) = &self.meta {
+            ObjectMetadatar::new(self.acc.clone(), &self.path, meta.clone())
+        } else {
+            let meta = ObjectMetadata::new(if self.path.ends_with('/') {
+                ObjectMode::DIR
+            } else {
+                ObjectMode::FILE
+            });
+            ObjectMetadatar::new(self.acc.clone(), &self.path, meta)
+        }
     }
 
     /// Construct a multipart with existing upload id.

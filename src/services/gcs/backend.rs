@@ -36,7 +36,7 @@ use super::error::parse_json_deserialize_error;
 use super::uri::percent_encode_path;
 use crate::accessor::AccessorCapability;
 use crate::http_util::*;
-use crate::object::ObjectPageStreamer;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
@@ -331,15 +331,12 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
-            Arc::new(self.clone()),
-            &self.root,
-            path,
-        ))))
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        Ok((
+            RpList::default(),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+        ))
     }
-
-    // inherits the default implementation of Accessor.
 }
 
 impl Backend {

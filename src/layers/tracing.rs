@@ -24,8 +24,10 @@ use async_trait::async_trait;
 use futures::AsyncRead;
 use tracing::Span;
 
-use super::util::set_accessor_for_object_iterator;
-use super::util::set_accessor_for_object_steamer;
+use crate::object::BlockingObjectPage;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -99,12 +101,13 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
-        self.inner
-            .list(path, args)
-            .await
-            .map(|s| Box::new(TracingStreamer::new(Span::current(), s)) as ObjectStreamer)
-            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        self.inner.list(path, args).await.map(|(rp, s)| {
+            (
+                rp,
+                Box::new(TracingStreamer::new(Span::current(), s)) as ObjectPager,
+            )
+        })
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -181,11 +184,13 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
-        self.inner
-            .blocking_list(path, args)
-            .map(|it| Box::new(TracingInterator::new(Span::current(), it)) as ObjectIterator)
-            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+        self.inner.blocking_list(path, args).map(|(rp, it)| {
+            (
+                rp,
+                Box::new(TracingInterator::new(Span::current(), it)) as BlockingObjectPager,
+            )
+        })
     }
 }
 
@@ -239,11 +244,11 @@ impl Read for BlockingTracingReader {
 
 struct TracingStreamer {
     span: Span,
-    inner: ObjectStreamer,
+    inner: ObjectPager,
 }
 
 impl TracingStreamer {
-    fn new(span: Span, streamer: ObjectStreamer) -> Self {
+    fn new(span: Span, streamer: ObjectPager) -> Self {
         Self {
             span,
             inner: streamer,
@@ -251,31 +256,28 @@ impl TracingStreamer {
     }
 }
 
-impl futures::Stream for TracingStreamer {
-    type Item = Result<ObjectEntry>;
-
+#[async_trait]
+impl ObjectPage for TracingStreamer {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut (*self.inner)).poll_next(cx)
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        self.inner.next_page().await
     }
 }
 
 struct TracingInterator {
     span: Span,
-    inner: ObjectIterator,
+    inner: BlockingObjectPager,
 }
 
 impl TracingInterator {
-    fn new(span: Span, inner: ObjectIterator) -> Self {
+    fn new(span: Span, inner: BlockingObjectPager) -> Self {
         Self { span, inner }
     }
 }
 
-impl Iterator for TracingInterator {
-    type Item = Result<ObjectEntry>;
-
+impl BlockingObjectPage for TracingInterator {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        self.inner.next_page()
     }
 }

@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::clone::Clone;
 use std::pin::Pin;
 use std::str;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use async_trait::async_trait;
 use suppaftp::list::File;
 use time::OffsetDateTime;
 
-use super::backend::Backend;
+use crate::object::ObjectPage;
 use crate::Error;
 use crate::ErrorKind;
 use crate::ObjectEntry;
@@ -62,18 +61,23 @@ impl ReadDir {
 }
 
 pub struct DirStream {
-    backend: Arc<Backend>,
     path: String,
     rd: ReadDir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, path: &str, rd: ReadDir) -> Self {
+    pub fn new(path: &str, rd: ReadDir) -> Self {
         Self {
-            backend,
             path: path.to_string(),
             rd,
         }
+    }
+}
+
+#[async_trait]
+impl ObjectPage for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
     }
 }
 
@@ -88,7 +92,6 @@ impl futures::Stream for DirStream {
 
                 let d = if de.is_file() {
                     ObjectEntry::new(
-                        self.backend.clone(),
                         &path,
                         ObjectMetadata::new(ObjectMode::FILE)
                             .with_content_length(de.size() as u64)
@@ -96,17 +99,11 @@ impl futures::Stream for DirStream {
                     )
                 } else if de.is_directory() {
                     ObjectEntry::new(
-                        self.backend.clone(),
                         &format!("{}/", &path),
-                        ObjectMetadata::new(ObjectMode::DIR),
+                        ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                     )
-                    .with_complete()
                 } else {
-                    ObjectEntry::new(
-                        self.backend.clone(),
-                        &path,
-                        ObjectMetadata::new(ObjectMode::Unknown),
-                    )
+                    ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
                 };
 
                 Poll::Ready(Some(Ok(d)))

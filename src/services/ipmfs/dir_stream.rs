@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use async_trait::async_trait;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::ready;
@@ -28,6 +29,7 @@ use super::backend::Backend;
 use super::error::parse_error;
 use super::error::parse_json_deserialize_error;
 use crate::http_util::parse_error_response;
+use crate::object::ObjectPage;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
@@ -55,6 +57,13 @@ impl DirStream {
             root: root.to_string(),
             path: path.to_string(),
         }
+    }
+}
+
+#[async_trait]
+impl ObjectPage for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
     }
 }
 
@@ -110,11 +119,11 @@ impl futures::Stream for DirStream {
 
                     let path = build_rel_path(&root, &path);
                     let de = ObjectEntry::new(
-                        backend,
                         &path,
-                        ObjectMetadata::new(object.mode()).with_content_length(object.size),
-                    )
-                    .with_complete();
+                        ObjectMetadata::new(object.mode())
+                            .with_content_length(object.size)
+                            .with_complete(),
+                    );
                     return Poll::Ready(Some(Ok(de)));
                 }
 

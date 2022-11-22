@@ -34,7 +34,7 @@ use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
 use crate::http_util::*;
 use crate::object::ObjectMetadata;
-use crate::object::ObjectPageStreamer;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::build_abs_path;
 use crate::path::normalize_root;
@@ -334,12 +334,14 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        Ok(Box::new(ObjectPageStreamer::new(DirStream::new(
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        let op = Box::new(DirStream::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
-        ))))
+        ));
+
+        Ok((RpList::default(), op))
     }
 }
 

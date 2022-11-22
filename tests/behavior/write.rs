@@ -107,7 +107,7 @@ pub async fn test_create_file(op: Operator) -> Result<()> {
 
     o.create().await?;
 
-    let meta = o.metadata().await?;
+    let meta = o.stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -128,7 +128,7 @@ pub async fn test_create_file_existing(op: Operator) -> Result<()> {
 
     o.create().await?;
 
-    let meta = o.metadata().await?;
+    let meta = o.stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -147,7 +147,7 @@ pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
 
     o.create().await?;
 
-    let meta = o.metadata().await?;
+    let meta = o.stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -166,7 +166,7 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
 
     o.create().await?;
 
-    let meta = o.metadata().await?;
+    let meta = o.stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -186,7 +186,7 @@ pub async fn test_create_dir_exising(op: Operator) -> Result<()> {
 
     o.create().await?;
 
-    let meta = o.metadata().await?;
+    let meta = o.stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -203,11 +203,7 @@ pub async fn test_write(op: Operator) -> Result<()> {
 
     op.object(&path).write(content).await?;
 
-    let meta = op
-        .object(&path)
-        .metadata()
-        .await
-        .expect("stat must succeed");
+    let meta = op.object(&path).stat().await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -236,11 +232,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
 
     op.object(&path).write(content).await?;
 
-    let meta = op
-        .object(&path)
-        .metadata()
-        .await
-        .expect("stat must succeed");
+    let meta = op.object(&path).stat().await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -260,7 +252,7 @@ pub async fn test_stat(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let meta = op.object(&path).metadata().await?;
+    let meta = op.object(&path).stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
@@ -277,7 +269,7 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
 
     op.object(&path).create().await.expect("write must succeed");
 
-    let meta = op.object(&path).metadata().await?;
+    let meta = op.object(&path).stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -297,7 +289,7 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let meta = op.object(&path).metadata().await?;
+    let meta = op.object(&path).stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
@@ -319,7 +311,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let meta = op.object(&format!("//{}", &path)).metadata().await?;
+    let meta = op.object(&format!("//{}", &path)).stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
@@ -334,7 +326,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).metadata().await;
+    let meta = op.object(&path).stat().await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
@@ -343,10 +335,10 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Root should be able to stat and returns DIR.
 pub async fn test_stat_root(op: Operator) -> Result<()> {
-    let meta = op.object("").metadata().await?;
+    let meta = op.object("").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
-    let meta = op.object("/").metadata().await?;
+    let meta = op.object("/").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     Ok(())

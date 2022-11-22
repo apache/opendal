@@ -38,6 +38,8 @@ use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::accessor::AccessorCapability;
 use crate::http_util::*;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
@@ -334,8 +336,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        Ok(Box::new(DirStream::new(Arc::new(self.clone()), path)))
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        Ok((
+            RpList::default(),
+            Box::new(DirStream::new(Arc::new(self.clone()), path)),
+        ))
     }
 }
 
@@ -420,6 +425,13 @@ impl DirStream {
     }
 }
 
+#[async_trait]
+impl ObjectPage for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
+    }
+}
+
 impl Stream for DirStream {
     type Item = Result<ObjectEntry>;
 
@@ -475,7 +487,7 @@ impl Stream for DirStream {
                         name += "/";
                     }
 
-                    let de = ObjectEntry::new(backend, &name, meta).with_complete();
+                    let de = ObjectEntry::new(&name, meta.with_complete());
 
                     let names = mem::replace(names, vec![].into_iter().peekable());
                     self.state = State::Walking((names, None));

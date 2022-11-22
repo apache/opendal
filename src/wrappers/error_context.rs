@@ -14,15 +14,12 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::ready;
-use futures::Stream;
-use futures::StreamExt;
 
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -95,22 +92,25 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         self.inner
             .list(path, args)
             .await
-            .map(|os| {
-                Box::new(ObjectStreamErrorContextWrapper {
-                    scheme: self.meta.scheme(),
-                    path: path.to_string(),
-                    // TODO
-                    //
-                    // after `box_into_inner` has been stablized, we can use
-                    // `Box::into_inner` to avoid extra boxing.
-                    //
-                    // ref: https://github.com/rust-lang/rust/issues/80437
-                    inner: os,
-                }) as ObjectStreamer
+            .map(|(rp, os)| {
+                (
+                    rp,
+                    Box::new(ObjectStreamErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        // TODO
+                        //
+                        // after `box_into_inner` has been stablized, we can use
+                        // `Box::into_inner` to avoid extra boxing.
+                        //
+                        // ref: https://github.com/rust-lang/rust/issues/80437
+                        inner: os,
+                    }) as ObjectPager,
+                )
             })
             .map_err(|err| {
                 err.with_operation(Operation::List.into_static())
@@ -225,7 +225,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         self.inner.blocking_list(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingList.into_static())
                 .with_context("service", self.meta.scheme())
@@ -234,27 +234,19 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
     }
 }
 
-struct ObjectStreamErrorContextWrapper<
-    T: Stream<Item = Result<ObjectEntry>> + Unpin + Send + 'static,
-> {
+struct ObjectStreamErrorContextWrapper<T: ObjectPage> {
     scheme: Scheme,
     path: String,
     inner: T,
 }
 
-impl<T> Stream for ObjectStreamErrorContextWrapper<T>
-where
-    T: Stream<Item = Result<ObjectEntry>> + Unpin + Send + 'static,
-{
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Poll::Ready(ready!(self.inner.poll_next_unpin(cx)).map(|v| {
-            v.map_err(|err| {
-                err.with_operation(Operation::List.into_static())
-                    .with_context("service", self.scheme)
-                    .with_context("path", &self.path)
-            })
-        }))
+#[async_trait]
+impl<T: ObjectPage> ObjectPage for ObjectStreamErrorContextWrapper<T> {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        self.inner.next_page().await.map_err(|err| {
+            err.with_operation("ObjectPage::next_page")
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
     }
 }

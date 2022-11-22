@@ -20,8 +20,7 @@ use async_trait::async_trait;
 use futures::io;
 use futures::io::Cursor;
 
-use super::util::set_accessor_for_object_iterator;
-use super::util::set_accessor_for_object_steamer;
+use crate::object::{BlockingObjectPager, ObjectPager};
 use crate::ops::*;
 use crate::*;
 
@@ -151,11 +150,8 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
-        self.inner
-            .list(path, args)
-            .await
-            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        self.inner.list(path, args).await
     }
 
     async fn complete_multipart(
@@ -221,10 +217,8 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
-        self.inner
-            .blocking_list(path, args)
-            .map(|s| set_accessor_for_object_iterator(s, self.clone()))
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+        self.inner.blocking_list(path, args)
     }
 }
 
@@ -246,7 +240,7 @@ mod tests {
             .write("Hello, World!".as_bytes())
             .await?;
         // Stat from cached op.
-        let meta = cached_op.object("test_exist").metadata().await?;
+        let meta = cached_op.object("test_exist").stat().await?;
         assert_eq!(meta.content_length(), 13);
 
         // Write into cache op.
@@ -255,13 +249,13 @@ mod tests {
             .write("Hello, Xuanwo!".as_bytes())
             .await?;
         // op and cached op should have same data.
-        let meta = op.object("test_exist").metadata().await?;
+        let meta = op.object("test_exist").stat().await?;
         assert_eq!(meta.content_length(), 14);
-        let meta = cached_op.object("test_exist").metadata().await?;
+        let meta = cached_op.object("test_exist").stat().await?;
         assert_eq!(meta.content_length(), 14);
 
         // Stat not exist object.
-        let meta = cached_op.object("test_not_exist").metadata().await;
+        let meta = cached_op.object("test_not_exist").stat().await;
         assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())

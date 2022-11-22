@@ -34,6 +34,7 @@ use crate::http_util::percent_encode_path;
 use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::build_rooted_abs_path;
 use crate::*;
@@ -192,12 +193,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
-        Ok(Box::new(DirStream::new(
-            Arc::new(self.clone()),
-            &self.root,
-            path,
-        )))
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        Ok((
+            RpList::default(),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+        ))
     }
 }
 

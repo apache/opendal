@@ -26,15 +26,8 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 
-use crate::ops::BytesRange;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::Accessor;
-use crate::BytesReader;
-use crate::Object;
-use crate::ObjectMetadata;
-use crate::ObjectReader;
-use crate::Result;
+use crate::ops::*;
+use crate::*;
 
 /// Add seek support for object via internal lazy operation.
 ///
@@ -86,7 +79,7 @@ pub struct SeekableReader {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<ObjectReader>>),
+    Sending(BoxFuture<'static, Result<(RpRead, BytesReader)>>),
     Seeking(BoxFuture<'static, Result<ObjectMetadata>>),
     Reading(BytesReader),
 }
@@ -122,7 +115,7 @@ impl AsyncRead for SeekableReader {
                 self.poll_read(cx, buf)
             }
             State::Sending(future) => {
-                let r = ready!(Pin::new(future).poll(cx))?;
+                let (_, r) = ready!(Pin::new(future).poll(cx))?;
                 self.state = State::Reading(Box::new(r));
                 self.poll_read(cx, buf)
             }

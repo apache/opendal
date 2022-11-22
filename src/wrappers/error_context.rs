@@ -53,7 +53,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         self.inner.metadata()
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.create(path, args).await.map_err(|err| {
             err.with_operation(Operation::Create.into_static())
                 .with_context("service", self.meta.scheme())
@@ -61,7 +61,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let br = args.range();
         self.inner.read(path, args).await.map_err(|err| {
             err.with_operation(Operation::Read.into_static())

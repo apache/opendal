@@ -246,7 +246,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut req = self.obs_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
@@ -258,7 +258,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(ReplyCreate::default())
+                Ok(RpCreate::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -268,7 +268,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let resp = self.obs_get_object(path, args.range()).await?;
 
         let status = resp.status();
@@ -276,7 +276,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
+                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

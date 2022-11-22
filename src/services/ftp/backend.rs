@@ -284,7 +284,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
 
         let paths: Vec<&str> = path.split_inclusive('/').collect();
@@ -312,10 +312,10 @@ impl Accessor for Backend {
             }
         }
 
-        return Ok(ReplyCreate::default());
+        return Ok(RpCreate::default());
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         let meta = self.ftp_stat(path).await?;
@@ -345,8 +345,10 @@ impl Accessor for Backend {
             }
         };
 
-        Ok(ObjectReader::new(Box::new(FtpReader::new(r, ftp_stream)))
-            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)))
+        Ok((
+            RpRead::new(size),
+            Box::new(FtpReader::new(r, ftp_stream)) as BytesReader,
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

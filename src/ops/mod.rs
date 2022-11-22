@@ -26,7 +26,7 @@ pub use operation::Operation;
 
 mod op_create;
 pub use op_create::OpCreate;
-pub use op_create::ReplyCreate;
+pub use op_create::RpCreate;
 mod op_delete;
 pub use op_delete::OpDelete;
 mod op_list;
@@ -37,6 +37,7 @@ pub use op_presign::PresignOperation;
 pub use op_presign::PresignedRequest;
 mod op_read;
 pub use op_read::OpRead;
+pub use op_read::RpRead;
 mod op_stat;
 pub use op_stat::OpStat;
 mod op_write;

@@ -59,12 +59,12 @@ where
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         if args.mode() == ObjectMode::FILE {
             self.kv.set(path, &[]).await?;
         }
 
-        Ok(ReplyCreate::default())
+        Ok(RpCreate::default())
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
@@ -74,7 +74,7 @@ where
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let bs = match self.kv.get(path).await? {
             Some(bs) => bs,
             None => {
@@ -88,8 +88,7 @@ where
         let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
-        Ok(ObjectReader::new(Box::new(Cursor::new(bs)))
-            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(length as u64)))
+        Ok((RpRead::new(length as u64), Box::new(Cursor::new(bs))))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {

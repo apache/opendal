@@ -91,7 +91,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - Input path MUST match with ObjectMode, DON'T NEED to check object mode.
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         match self.inner() {
             Some(inner) => inner.create(path, args).await,
             None => Err(Error::new(
@@ -108,7 +108,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     /// - The returning contnet length may be smaller than the range specifed.
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,
             None => Err(Error::new(
@@ -377,10 +377,10 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().metadata()
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.as_ref().create(path, args).await
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         self.as_ref().read(path, args).await
     }
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {

@@ -101,7 +101,7 @@ impl Accessor for LoggingAccessor {
         result
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
@@ -137,7 +137,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} range={} -> started",
@@ -147,22 +147,23 @@ impl Accessor for LoggingAccessor {
         self.inner
             .read(path, args.clone())
             .await
-            .map(|v| {
+            .map(|(rp, r)| {
                 debug!(
                     target: "opendal::services",
                     "service={} operation={} path={} range={} -> got reader",
                     self.scheme, Operation::Read, path,
                     args.range()
                 );
-                v.map_reader(|r| {
+                (
+                    rp,
                     Box::new(LoggingReader::new(
                         self.scheme,
                         Operation::Read,
                         path,
                         args.range().size(),
                         r,
-                    ))
-                })
+                    )) as BytesReader,
+                )
             })
             .map_err(|err| {
                 if err.kind() == ErrorKind::Unexpected {

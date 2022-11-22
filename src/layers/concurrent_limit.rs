@@ -80,7 +80,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.metadata()
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let _permit = self
             .semaphore
             .acquire()
@@ -90,7 +90,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.create(path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let permit = self
             .semaphore
             .clone()
@@ -98,10 +98,12 @@ impl Accessor for ConcurrentLimitAccessor {
             .await
             .expect("semaphore must be valid");
 
-        self.inner
-            .read(path, args)
-            .await
-            .map(|r| r.map_reader(|r| Box::new(ConcurrentLimitReader::new(r, permit))))
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                Box::new(ConcurrentLimitReader::new(r, permit)) as BytesReader,
+            )
+        })
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {

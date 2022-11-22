@@ -22,7 +22,6 @@ use time::OffsetDateTime;
 
 use crate::BytesReader;
 use crate::ObjectMetadata;
-use crate::ObjectMode;
 
 /// ObjectReader is a bytes reader that carries it's related metadata.
 /// Users could fetch part of metadata that carried by read response.
@@ -33,18 +32,8 @@ pub struct ObjectReader {
 
 impl ObjectReader {
     /// Create a new object reader.
-    pub fn new(inner: BytesReader) -> Self {
-        ObjectReader {
-            // the object meta must be file.
-            meta: ObjectMetadata::new(ObjectMode::FILE),
-            inner,
-        }
-    }
-
-    /// Update object reader's meta with given one.
-    pub fn with_meta(mut self, meta: ObjectMetadata) -> Self {
-        self.meta = meta;
-        self
+    pub fn new(meta: ObjectMetadata, inner: BytesReader) -> Self {
+        ObjectReader { meta, inner }
     }
 
     /// Replace the bytes reader with new one.

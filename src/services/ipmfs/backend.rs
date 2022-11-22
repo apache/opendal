@@ -78,7 +78,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let resp = match args.mode() {
             ObjectMode::DIR => self.ipmfs_mkdir(path).await?,
             ObjectMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
@@ -90,7 +90,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(ReplyCreate::default())
+                Ok(RpCreate::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -100,7 +100,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let resp = self.ipmfs_read(path, args.range()).await?;
 
         let status = resp.status();
@@ -108,7 +108,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
+                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

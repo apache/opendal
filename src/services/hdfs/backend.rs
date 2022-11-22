@@ -146,7 +146,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
         match args.mode() {
@@ -174,18 +174,18 @@ impl Accessor for Backend {
                     .open(&p)
                     .map_err(parse_io_error)?;
 
-                Ok(ReplyCreate::default())
+                Ok(RpCreate::default())
             }
             ObjectMode::DIR => {
                 self.client.create_dir(&p).map_err(parse_io_error)?;
 
-                Ok(ReplyCreate::default())
+                Ok(RpCreate::default())
             }
             ObjectMode::Unknown => unreachable!(),
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
@@ -218,8 +218,7 @@ impl Accessor for Backend {
             (None, None) => (Box::new(f), meta.len()),
         };
 
-        Ok(ObjectReader::new(r)
-            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)))
+        Ok((RpRead::new(size), r))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

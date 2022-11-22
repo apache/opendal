@@ -37,34 +37,12 @@ use prost::Message;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::accessor::AccessorCapability;
-use crate::http_util::new_request_build_error;
-use crate::http_util::parse_content_length;
-use crate::http_util::parse_content_type;
-use crate::http_util::parse_error_response;
-use crate::http_util::parse_etag;
-use crate::http_util::parse_into_object_metadata;
-use crate::http_util::percent_encode_path;
-use crate::http_util::AsyncBody;
-use crate::http_util::HttpClient;
-use crate::http_util::IncomingAsyncBody;
-use crate::ops::BytesRange;
-use crate::ops::OpList;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
+use crate::http_util::*;
+use crate::ops::*;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectEntry;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectReader;
-use crate::ObjectStreamer;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for ipfs backend.
 #[derive(Default, Clone, Debug)]
@@ -187,7 +165,7 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let resp = self.ipfs_get(path, args.range()).await?;
 
         let status = resp.status();
@@ -195,7 +173,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
+                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

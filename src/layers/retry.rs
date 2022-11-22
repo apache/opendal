@@ -112,7 +112,7 @@ where
         Some(self.inner.clone())
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         { || self.inner.create(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
@@ -126,8 +126,8 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        let r = { || self.inner.read(path, args.clone()) }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+        let (rp, r) = { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -139,7 +139,10 @@ where
             .await
             .map_err(|e| e.set_persistent())?;
 
-        Ok(r.map_reader(|r| Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone()))))
+        Ok((
+            rp,
+            Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone())) as BytesReader,
+        ))
     }
 
     /// Return `Interrupted` Error even after retry.
@@ -561,11 +564,11 @@ mod tests {
     use crate::layers::RetryLayer;
     use crate::ops::OpRead;
     use crate::ops::OpWrite;
+    use crate::ops::RpRead;
     use crate::Accessor;
     use crate::BytesReader;
     use crate::Error;
     use crate::ErrorKind;
-    use crate::ObjectReader;
     use crate::Operator;
     use crate::Result;
 
@@ -576,7 +579,7 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, path: &str, _: OpRead) -> Result<ObjectReader> {
+        async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, BytesReader)> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -668,10 +671,13 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, _: OpRead) -> Result<ObjectReader> {
-            Ok(ObjectReader::new(Box::new(MockReader {
-                attempt: self.attempt.clone(),
-            })))
+        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, BytesReader)> {
+            Ok((
+                RpRead::new(0),
+                Box::new(MockReader {
+                    attempt: self.attempt.clone(),
+                }) as BytesReader,
+            ))
         }
 
         async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {

@@ -146,7 +146,7 @@ impl Accessor for MetadataCacheAccessor {
         }
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.delete(path, args).await
     }
@@ -212,7 +212,7 @@ impl Accessor for MetadataCacheAccessor {
         }
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.cache.blocking_delete(path, OpDelete::new())?;
         self.inner.blocking_delete(path, args)
     }

@@ -387,7 +387,7 @@ impl Accessor for Backend {
         Ok(RpStat::new(meta))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
 
         let result = if path.ends_with('/') {
@@ -407,7 +407,7 @@ impl Accessor for Backend {
             }
         }
 
-        Ok(())
+        Ok(RpDelete::default())
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {

@@ -174,7 +174,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.ipmfs_rm(path).await?;
 
         let status = resp.status();
@@ -182,7 +182,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(())
+                Ok(RpDelete::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;

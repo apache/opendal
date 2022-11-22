@@ -157,7 +157,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
     /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         match self.inner() {
             Some(inner) => inner.delete(path, args).await,
             None => Err(Error::new(
@@ -340,7 +340,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         match self.inner() {
             Some(inner) => inner.blocking_delete(path, args),
             None => Err(Error::new(
@@ -389,7 +389,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().stat(path, args).await
     }
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().delete(path, args).await
     }
     async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
@@ -430,7 +430,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         self.as_ref().blocking_stat(path, args)
     }
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().blocking_delete(path, args)
     }
     fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {

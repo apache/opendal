@@ -24,3 +24,7 @@ impl OpDelete {
         Self {}
     }
 }
+
+/// Reply fro `delete` operation
+#[derive(Debug, Clone, Default)]
+pub struct RpDelete {}

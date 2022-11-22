@@ -256,7 +256,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
@@ -715,7 +715,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",

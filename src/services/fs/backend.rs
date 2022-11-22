@@ -301,7 +301,7 @@ impl Accessor for Backend {
         Ok(RpStat::new(m))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
@@ -309,7 +309,7 @@ impl Accessor for Backend {
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::ObjectNotFound {
-                Ok(())
+                Ok(RpDelete::default())
             } else {
                 Err(err)
             };
@@ -326,7 +326,7 @@ impl Accessor for Backend {
 
         f.map_err(parse_io_error)?;
 
-        Ok(())
+        Ok(RpDelete::default())
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
@@ -465,7 +465,7 @@ impl Accessor for Backend {
         Ok(m)
     }
 
-    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // PathBuf.is_dir() is not free, call metadata directly instead.
@@ -473,7 +473,7 @@ impl Accessor for Backend {
 
         if let Err(err) = meta {
             return if err.kind() == ErrorKind::ObjectNotFound {
-                Ok(())
+                Ok(RpDelete::default())
             } else {
                 Err(err)
             };
@@ -490,7 +490,7 @@ impl Accessor for Backend {
 
         f.map_err(parse_io_error)?;
 
-        Ok(())
+        Ok(RpDelete::default())
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {

@@ -968,7 +968,9 @@ impl Object {
     /// # }
     /// ```
     pub async fn delete(&self) -> Result<()> {
-        self.acc.delete(self.path(), OpDelete::new()).await
+        let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
+
+        Ok(())
     }
 
     /// Delete object.
@@ -992,7 +994,9 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_delete(&self) -> Result<()> {
-        self.acc.blocking_delete(self.path(), OpDelete::new())
+        let _ = self.acc.blocking_delete(self.path(), OpDelete::new())?;
+
+        Ok(())
     }
 
     /// List current dir object.

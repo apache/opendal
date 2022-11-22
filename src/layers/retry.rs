@@ -178,7 +178,7 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         { || self.inner.delete(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
@@ -359,7 +359,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let retry = self.backoff.clone();
 
         let mut e = None;

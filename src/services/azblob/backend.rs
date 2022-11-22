@@ -319,13 +319,13 @@ impl Accessor for Backend {
         }
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.azblob_delete_blob(path).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(er);

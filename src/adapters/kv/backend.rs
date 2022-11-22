@@ -161,14 +161,14 @@ where
         }
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         self.kv.delete(path).await?;
-        Ok(())
+        Ok(RpDelete::default())
     }
 
-    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         self.kv.blocking_delete(path)?;
-        Ok(())
+        Ok(RpDelete::default())
     }
 }
 

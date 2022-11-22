@@ -126,7 +126,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.stat(path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let _permit = self
             .semaphore
             .acquire()
@@ -239,7 +239,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.blocking_stat(path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let _permit = self
             .semaphore
             .try_acquire()

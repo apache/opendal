@@ -90,7 +90,7 @@ impl Accessor for MetadataCacheAccessor {
         Some(self.inner.clone())
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.create(path, args).await
     }
@@ -102,7 +102,7 @@ impl Accessor for MetadataCacheAccessor {
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
         match self.cache.read(path, OpRead::new()).await {
-            Ok(r) => {
+            Ok((_, r)) => {
                 let buffer = Vec::with_capacity(1024);
                 let mut bs = Cursor::new(buffer);
                 io::copy(r, &mut bs).await.map_err(|err| {

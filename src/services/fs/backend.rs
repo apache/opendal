@@ -156,7 +156,7 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
@@ -180,19 +180,19 @@ impl Accessor for Backend {
                 .await
                 .map_err(parse_io_error)?;
 
-            return Ok(ReplyCreate::default());
+            return Ok(RpCreate::default());
         }
 
         if args.mode() == ObjectMode::DIR {
             fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
-            return Ok(ReplyCreate::default());
+            return Ok(RpCreate::default());
         }
 
         unreachable!()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
@@ -239,8 +239,7 @@ impl Accessor for Backend {
             (None, None) => (Box::new(f), meta.len()),
         };
 
-        Ok(ObjectReader::new(Box::new(r))
-            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(size)))
+        Ok((RpRead::new(size), Box::new(r) as BytesReader))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {

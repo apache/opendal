@@ -68,16 +68,18 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.create(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
-        self.inner
-            .read(path, args)
-            .await
-            .map(|r| r.map_reader(|r| Box::new(TracingReader::new(Span::current(), r))))
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                Box::new(TracingReader::new(Span::current(), r)) as BytesReader,
+            )
+        })
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]

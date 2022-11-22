@@ -622,7 +622,7 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.handle.requests_total_create.increment(1);
 
         let start = Instant::now();
@@ -641,21 +641,22 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
 
-        let result = self.inner.read(path, args).await.map(|reader| {
-            reader.map_reader(|r| {
+        let result = self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
                 Box::new(MetricReader::new(
                     r,
                     self.handle.bytes_total_read.clone(),
                     self.handle.failures_total_read.clone(),
                     self.handle.requests_duration_seconds_read.clone(),
                     Some(start),
-                ))
-            })
+                )) as BytesReader,
+            )
         });
 
         result.map_err(|e| {

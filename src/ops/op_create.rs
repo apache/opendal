@@ -36,4 +36,4 @@ impl OpCreate {
 
 /// Reply fro `create` operation
 #[derive(Debug, Clone, Default)]
-pub struct ReplyCreate {}
+pub struct RpCreate {}

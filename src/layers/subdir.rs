@@ -94,13 +94,13 @@ impl Accessor for SubdirAccessor {
         meta
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let path = self.prepend_subdir(path);
 
         self.inner.create(&path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.read(&path, args).await

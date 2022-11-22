@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::*;
+
 use super::BytesRange;
 
 /// Args for `read` operation.
@@ -35,5 +37,30 @@ impl OpRead {
     /// Get range from OpRead.
     pub fn range(&self) -> BytesRange {
         self.br
+    }
+}
+
+/// Reply for `read` operation.
+#[derive(Debug, Clone)]
+pub struct RpRead {
+    meta: ObjectMetadata,
+}
+
+impl RpRead {
+    /// Create a new reply.
+    pub fn new(content_length: u64) -> Self {
+        RpRead {
+            meta: ObjectMetadata::new(ObjectMode::FILE).with_content_length(content_length),
+        }
+    }
+
+    /// Create reply read with existing object metadata.
+    pub fn with_metadata(meta: ObjectMetadata) -> Self {
+        RpRead { meta }
+    }
+
+    /// Consume reply to get the object meta.
+    pub fn into_metadata(self) -> ObjectMetadata {
+        self.meta
     }
 }

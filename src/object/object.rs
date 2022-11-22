@@ -336,12 +336,12 @@ impl Object {
 
         let br = BytesRange::from(range);
 
-        let s = self
+        let (rp, s) = self
             .acc
             .read(self.path(), OpRead::new().with_range(br))
             .await?;
 
-        let buffer = Vec::with_capacity(s.content_length() as usize);
+        let buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
         let mut bs = Cursor::new(buffer);
 
         io::copy(s, &mut bs).await.map_err(|err| {
@@ -488,9 +488,12 @@ impl Object {
             );
         }
 
-        self.acc
+        let (rp, r) = self
+            .acc
             .read(self.path(), OpRead::new().with_range(range.into()))
-            .await
+            .await?;
+
+        Ok(ObjectReader::new(rp.into_metadata(), r))
     }
 
     /// Create a new reader which can read the specified range.

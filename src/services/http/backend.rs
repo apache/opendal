@@ -33,16 +33,17 @@ use crate::http_util::IncomingAsyncBody;
 use crate::ops::BytesRange;
 use crate::ops::OpRead;
 use crate::ops::OpStat;
+use crate::ops::RpRead;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::wrappers::wrapper;
 use crate::Accessor;
 use crate::AccessorMetadata;
+use crate::BytesReader;
 use crate::Error;
 use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::ObjectReader;
 use crate::Result;
 use crate::Scheme;
 
@@ -160,7 +161,7 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let resp = self.http_get(path, args.range()).await?;
 
         let status = resp.status();
@@ -168,7 +169,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok(ObjectReader::new(resp.into_body().reader()).with_meta(meta))
+                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

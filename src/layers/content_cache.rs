@@ -111,12 +111,12 @@ impl Accessor for ContentCacheAccessor {
         Some(self.inner.clone())
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<ReplyCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.create(path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         match self.strategy {
             ContentCacheStrategy::Whole => self.new_whole_cache_reader(path, args).await,
             ContentCacheStrategy::Fixed(step) => {
@@ -145,16 +145,18 @@ impl Accessor for ContentCacheAccessor {
 
 impl ContentCacheAccessor {
     /// Create a new whole cache reader.
-    async fn new_whole_cache_reader(&self, path: &str, args: OpRead) -> Result<ObjectReader> {
+    async fn new_whole_cache_reader(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BytesReader)> {
         match self.cache.read(path, args.clone()).await {
             Ok(r) => Ok(r),
             Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
-                let r = self.inner.read(path, OpRead::new()).await?;
+                let (rp, r) = self.inner.read(path, OpRead::new()).await?;
 
-                let length = r.content_length();
-                self.cache
-                    .write(path, OpWrite::new(length), r.into_reader())
-                    .await?;
+                let length = rp.into_metadata().content_length();
+                self.cache.write(path, OpWrite::new(length), r).await?;
                 self.cache.read(path, args).await
             }
             Err(err) => Err(err),
@@ -166,7 +168,7 @@ impl ContentCacheAccessor {
         path: &str,
         args: OpRead,
         step: u64,
-    ) -> Result<ObjectReader> {
+    ) -> Result<(RpRead, BytesReader)> {
         let range = args.range();
         let it = match (range.offset(), range.size()) {
             (Some(offset), Some(size)) => FixedCacheRangeIterator::new(offset, size, step),
@@ -184,8 +186,7 @@ impl ContentCacheAccessor {
 
         let length = it.size();
         let r = FixedCacheReader::new(self.inner.clone(), self.cache.clone(), path, it);
-        Ok(ObjectReader::new(Box::new(r))
-            .with_meta(ObjectMetadata::new(ObjectMode::FILE).with_content_length(length)))
+        Ok((RpRead::new(length), Box::new(r)))
     }
 }
 
@@ -261,10 +262,10 @@ enum FixedCacheState {
     Fetching(
         (
             FixedCacheRangeIterator,
-            BoxFuture<'static, Result<ObjectReader>>,
+            BoxFuture<'static, Result<(RpRead, BytesReader)>>,
         ),
     ),
-    Reading((FixedCacheRangeIterator, ObjectReader)),
+    Reading((FixedCacheRangeIterator, (RpRead, BytesReader))),
 }
 
 fn format_cache_path(path: &str, idx: u64) -> String {
@@ -319,10 +320,10 @@ impl AsyncRead for FixedCacheReader {
                             {
                                 Ok(r) => Ok(r),
                                 Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
-                                    let r = inner
+                                    let (rp, r) = inner
                                         .read(&path, OpRead::new().with_range(total_range))
                                         .await?;
-                                    let size = r.content_length();
+                                    let size = rp.into_metadata().content_length();
                                     let mut bs = Vec::with_capacity(size as usize);
                                     copy(r, &mut bs).await.map_err(|err| {
                                         Error::new(ErrorKind::Unexpected, "read from inner storage")
@@ -357,9 +358,9 @@ impl AsyncRead for FixedCacheReader {
                                     };
                                     let length = bs.len();
 
-                                    Ok(ObjectReader::new(Box::new(Cursor::new(bs))).with_meta(
-                                        ObjectMetadata::new(ObjectMode::FILE)
-                                            .with_content_length(length as u64),
+                                    Ok((
+                                        RpRead::new(length as u64),
+                                        Box::new(Cursor::new(bs)) as BytesReader,
                                     ))
                                 }
                                 Err(err) => Err(err),
@@ -375,7 +376,7 @@ impl AsyncRead for FixedCacheReader {
                 self.state = FixedCacheState::Reading((*it, r));
                 self.poll_read(cx, buf)
             }
-            FixedCacheState::Reading((it, r)) => {
+            FixedCacheState::Reading((it, (_, r))) => {
                 let n = match ready!(Pin::new(r).poll_read(cx, buf)) {
                     Ok(n) => n,
                     Err(err) => return Poll::Ready(Err(err)),

@@ -245,7 +245,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.blocking_write(path, args, r)
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let _permit = self
             .semaphore
             .try_acquire()

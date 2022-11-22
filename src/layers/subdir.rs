@@ -199,7 +199,7 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_write(&path, args, r)
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_stat(&path, args)

@@ -459,7 +459,7 @@ impl Accessor for Backend {
         Ok(RpWrite::new(size))
     }
 
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let meta = Self::blocking_fs_metadata(&p)?;
@@ -479,7 +479,7 @@ impl Accessor for Backend {
                     .map_err(parse_io_error)?,
             );
 
-        Ok(m)
+        Ok(RpStat::new(m))
     }
 
     fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

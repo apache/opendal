@@ -209,7 +209,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingStat.into_static())
                 .with_context("service", self.meta.scheme())

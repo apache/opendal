@@ -962,7 +962,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.handle.requests_total_blocking_stat.increment(1);
 
         let start = Instant::now();

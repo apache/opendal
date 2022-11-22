@@ -340,7 +340,7 @@ where
         self.inner.blocking_write(path, args, r)
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let retry = self.backoff.clone();
 
         let mut e = None;

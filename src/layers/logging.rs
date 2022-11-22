@@ -684,7 +684,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",

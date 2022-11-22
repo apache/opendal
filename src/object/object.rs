@@ -1154,7 +1154,8 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
-        self.acc.blocking_stat(self.path(), OpStat::new())
+        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
+        Ok(rp.into_metadata())
     }
 
     /// Check if this object exists or not.

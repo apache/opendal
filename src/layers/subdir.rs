@@ -140,7 +140,11 @@ impl Accessor for SubdirAccessor {
         self.inner.presign(&path, args)
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.create_multipart(&path, args).await
@@ -151,19 +155,27 @@ impl Accessor for SubdirAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.write_multipart(&path, args, r).await
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.complete_multipart(&path, args).await
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.abort_multipart(&path, args).await

@@ -774,7 +774,11 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         self.handle.requests_total_create_multipart.increment(1);
 
         let start = Instant::now();
@@ -800,7 +804,7 @@ impl Accessor for MetricsAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         self.handle.requests_total_write_multipart.increment(1);
 
         let r = Box::new(MetricReader::new(
@@ -831,7 +835,11 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.handle.requests_total_complete_multipartt.increment(1);
 
         let start = Instant::now();
@@ -852,7 +860,11 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         self.handle.requests_total_abort_multipart.increment(1);
 
         let start = Instant::now();

@@ -127,7 +127,11 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         self.inner
             .create_multipart(path, args)
             .await
@@ -143,7 +147,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         self.inner
             .write_multipart(path, args, r)
             .await
@@ -154,7 +158,11 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
             })
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.inner
             .complete_multipart(path, args)
             .await
@@ -165,7 +173,11 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
             })
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         self.inner.abort_multipart(path, args).await.map_err(|err| {
             err.with_operation(Operation::AbortMultipart.into_static())
                 .with_context("service", self.meta.scheme())

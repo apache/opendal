@@ -207,7 +207,11 @@ where
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         { || self.inner.create_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
@@ -226,7 +230,7 @@ where
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         // Write can't retry, until can reset this reader.
         self.inner
             .write_multipart(path, args.clone(), r)
@@ -234,7 +238,11 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         { || self.inner.complete_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
@@ -248,7 +256,11 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         { || self.inner.abort_multipart(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())

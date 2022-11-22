@@ -158,7 +158,11 @@ impl Accessor for MetadataCacheAccessor {
             .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.complete_multipart(path, args).await
     }

@@ -113,7 +113,11 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         self.inner.create_multipart(path, args).await
     }
 
@@ -123,18 +127,26 @@ impl Accessor for TracingAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write_multipart(path, args, r).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.inner.complete_multipart(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         self.inner.abort_multipart(path, args).await
     }
 

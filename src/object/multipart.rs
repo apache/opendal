@@ -63,11 +63,11 @@ impl ObjectMultipart {
 
         let op = OpWriteMultipart::new(self.upload_id.clone(), part_number, bs.len() as u64);
         let r = Cursor::new(bs);
-        let part = self
+        let rp = self
             .acc
             .write_multipart(&self.path, op, Box::new(r))
             .await?;
-        Ok(part)
+        Ok(rp.into_object_part())
     }
 
     /// Complete multipart uploads with specified parts.
@@ -93,7 +93,9 @@ impl ObjectMultipart {
     /// - This operation will return `succeeded` even when object or upload_id not exist.
     pub async fn abort(&self) -> Result<()> {
         let op = OpAbortMultipart::new(self.upload_id.clone());
-        self.acc.abort_multipart(&self.path, op).await
+        let _ = self.acc.abort_multipart(&self.path, op).await?;
+
+        Ok(())
     }
 
     /// Presign an operation for write multipart.

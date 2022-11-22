@@ -361,7 +361,11 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",
@@ -399,7 +403,7 @@ impl Accessor for LoggingAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",
@@ -458,7 +462,11 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} -> started",
@@ -494,7 +502,11 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} -> started",

@@ -155,7 +155,11 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.presign(path, args)
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         let _permit = self
             .semaphore
             .acquire()
@@ -170,7 +174,7 @@ impl Accessor for ConcurrentLimitAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let _permit = self
             .semaphore
             .acquire()
@@ -180,7 +184,11 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.write_multipart(path, args, r).await
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         let _permit = self
             .semaphore
             .acquire()
@@ -190,7 +198,11 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.complete_multipart(path, args).await
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         let _permit = self
             .semaphore
             .acquire()

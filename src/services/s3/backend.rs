@@ -934,7 +934,11 @@ impl Accessor for Backend {
         )))
     }
 
-    async fn create_multipart(&self, path: &str, _: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        _: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         let resp = self.s3_initiate_multipart_upload(path).await?;
 
         let status = resp.status();
@@ -946,7 +950,7 @@ impl Accessor for Backend {
                 let result: InitiateMultipartUploadResult =
                     quick_xml::de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
 
-                Ok(result.upload_id)
+                Ok(RpCreateMultipart::new(&result.upload_id))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -961,7 +965,7 @@ impl Accessor for Backend {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let mut req = self.s3_upload_part_request(
             path,
             args.upload_id(),
@@ -989,7 +993,7 @@ impl Accessor for Backend {
 
                 resp.into_body().consume().await?;
 
-                Ok(ObjectPart::new(args.part_number(), &etag))
+                Ok(RpWriteMultipart::new(args.part_number(), &etag))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -999,7 +1003,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         let resp = self
             .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
             .await?;
@@ -1010,7 +1018,7 @@ impl Accessor for Backend {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
 
-                Ok(())
+                Ok(RpCompleteMultipart::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -1020,7 +1028,11 @@ impl Accessor for Backend {
         }
     }
 
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         let resp = self
             .s3_abort_multipart_upload(path, args.upload_id())
             .await?;
@@ -1031,7 +1043,7 @@ impl Accessor for Backend {
             StatusCode::NO_CONTENT => {
                 resp.into_body().consume().await?;
 
-                Ok(())
+                Ok(RpAbortMultipart::default())
             }
             _ => {
                 let er = parse_error_response(resp).await?;

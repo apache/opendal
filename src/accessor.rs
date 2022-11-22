@@ -205,7 +205,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         match self.inner() {
             Some(inner) => inner.create_multipart(path, args).await,
             None => Err(Error::new(
@@ -225,7 +229,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         match self.inner() {
             Some(inner) => inner.write_multipart(path, args, r).await,
             None => Err(Error::new(
@@ -240,7 +244,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         match self.inner() {
             Some(inner) => inner.complete_multipart(path, args).await,
             None => Err(Error::new(
@@ -255,7 +263,11 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         match self.inner() {
             Some(inner) => inner.abort_multipart(path, args).await,
             None => Err(Error::new(
@@ -400,7 +412,11 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().presign(path, args)
     }
 
-    async fn create_multipart(&self, path: &str, args: OpCreateMultipart) -> Result<String> {
+    async fn create_multipart(
+        &self,
+        path: &str,
+        args: OpCreateMultipart,
+    ) -> Result<RpCreateMultipart> {
         self.as_ref().create_multipart(path, args).await
     }
     async fn write_multipart(
@@ -408,13 +424,21 @@ impl<T: Accessor> Accessor for Arc<T> {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         self.as_ref().write_multipart(path, args, r).await
     }
-    async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {
+    async fn complete_multipart(
+        &self,
+        path: &str,
+        args: OpCompleteMultipart,
+    ) -> Result<RpCompleteMultipart> {
         self.as_ref().complete_multipart(path, args).await
     }
-    async fn abort_multipart(&self, path: &str, args: OpAbortMultipart) -> Result<()> {
+    async fn abort_multipart(
+        &self,
+        path: &str,
+        args: OpAbortMultipart,
+    ) -> Result<RpAbortMultipart> {
         self.as_ref().abort_multipart(path, args).await
     }
 

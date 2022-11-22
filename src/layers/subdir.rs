@@ -106,7 +106,7 @@ impl Accessor for SubdirAccessor {
         self.inner.read(&path, args).await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let path = self.prepend_subdir(path);
 
         self.inner.write(&path, args, r).await

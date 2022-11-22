@@ -248,7 +248,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let mut req = self.gcs_insert_object_request(
             path,
             Some(args.size()),
@@ -262,7 +262,7 @@ impl Accessor for Backend {
 
         if (200..300).contains(&resp.status().as_u16()) {
             resp.into_body().consume().await?;
-            Ok(args.size())
+            Ok(RpWrite::new(args.size()))
         } else {
             let er = parse_error_response(resp).await?;
             let err = parse_error(er);

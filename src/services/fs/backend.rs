@@ -242,7 +242,7 @@ impl Accessor for Backend {
         Ok((RpRead::new(size), Box::new(r) as BytesReader))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Create dir before write path.
@@ -275,7 +275,7 @@ impl Accessor for Backend {
 
         let size = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
 
-        Ok(size)
+        Ok(RpWrite::new(size))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {

@@ -106,7 +106,7 @@ where
         Ok(Box::new(std::io::Cursor::new(bs)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs)
             .await
@@ -114,7 +114,7 @@ where
 
         self.kv.set(path, &bs).await?;
 
-        Ok(args.size())
+        Ok(RpWrite::new(args.size()))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {

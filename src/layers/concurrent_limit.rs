@@ -106,7 +106,7 @@ impl Accessor for ConcurrentLimitAccessor {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let _permit = self
             .semaphore
             .acquire()

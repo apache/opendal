@@ -669,7 +669,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         self.handle.requests_total_write.increment(1);
 
         let r = Box::new(MetricReader::new(

@@ -71,7 +71,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         self.inner.write(path, args, r).await.map_err(|err| {
             err.with_operation(Operation::Write.into_static())
                 .with_context("service", self.meta.scheme())

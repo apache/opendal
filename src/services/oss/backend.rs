@@ -307,7 +307,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let resp = self
             .oss_put_object(
                 path,
@@ -321,7 +321,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::CREATED | StatusCode::OK => {
                 resp.into_body().consume().await?;
-                Ok(args.size())
+                Ok(RpWrite::new(args.size()))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

@@ -351,7 +351,7 @@ impl Accessor for Backend {
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<u64> {
+    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
 
         let mut data_stream = ftp_stream.append_with_stream(path).await?;
@@ -362,7 +362,7 @@ impl Accessor for Backend {
 
         ftp_stream.finalize_put_stream(data_stream).await?;
 
-        Ok(bytes)
+        Ok(RpWrite::new(bytes))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {

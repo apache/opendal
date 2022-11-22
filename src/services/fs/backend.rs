@@ -278,7 +278,7 @@ impl Accessor for Backend {
         Ok(RpWrite::new(size))
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let meta = Self::fs_metadata(&p).await?;
@@ -298,7 +298,7 @@ impl Accessor for Backend {
                     .map_err(parse_io_error)?,
             );
 
-        Ok(m)
+        Ok(RpStat::new(m))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {

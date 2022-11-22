@@ -270,10 +270,10 @@ impl Accessor for Backend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(ObjectMetadata::new(ObjectMode::DIR));
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.gcs_get_object_metadata(path).await?;
@@ -308,9 +308,9 @@ impl Accessor for Backend {
             })?;
             m.set_last_modified(datetime);
 
-            Ok(m)
+            Ok(RpStat::new(m))
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
-            Ok(ObjectMetadata::new(ObjectMode::DIR))
+            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
         } else {
             let er = parse_error_response(resp).await?;
             let e = parse_error(er);

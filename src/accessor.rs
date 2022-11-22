@@ -141,7 +141,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
     /// - `mode` and `content_length` must be set.
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         match self.inner() {
             Some(inner) => inner.stat(path, args).await,
             None => Err(Error::new(
@@ -386,7 +386,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         self.as_ref().write(path, args, r).await
     }
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().stat(path, args).await
     }
     async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {

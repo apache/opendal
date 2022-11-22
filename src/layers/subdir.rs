@@ -112,7 +112,7 @@ impl Accessor for SubdirAccessor {
         self.inner.write(&path, args, r).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let path = self.prepend_subdir(path);
 
         self.inner.stat(&path, args).await

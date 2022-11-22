@@ -252,7 +252,7 @@ impl Accessor for Backend {
         Ok(RpWrite::new(n))
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let meta = self.client.metadata(&p).map_err(parse_io_error)?;
@@ -268,7 +268,7 @@ impl Accessor for Backend {
         m.set_content_length(meta.len());
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
 
-        Ok(m)
+        Ok(RpStat::new(m))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {

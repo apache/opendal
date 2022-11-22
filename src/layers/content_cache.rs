@@ -173,7 +173,7 @@ impl ContentCacheAccessor {
         let it = match (range.offset(), range.size()) {
             (Some(offset), Some(size)) => FixedCacheRangeIterator::new(offset, size, step),
             _ => {
-                let meta = self.inner.stat(path, OpStat::new()).await?;
+                let meta = self.inner.stat(path, OpStat::new()).await?.into_metadata();
                 let bcr = BytesContentRange::from_bytes_range(meta.content_length(), range);
                 let br = bcr.to_bytes_range().expect("bytes range must be valid");
                 FixedCacheRangeIterator::new(

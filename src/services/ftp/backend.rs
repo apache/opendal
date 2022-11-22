@@ -365,10 +365,10 @@ impl Accessor for Backend {
         Ok(RpWrite::new(bytes))
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // root dir, return default ObjectMetadata with Dir ObjectMode.
         if path == "/" {
-            return Ok(ObjectMetadata::new(ObjectMode::DIR));
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let file = self.ftp_stat(path).await?;
@@ -384,7 +384,7 @@ impl Accessor for Backend {
         meta.set_content_length(file.size() as u64);
         meta.set_last_modified(OffsetDateTime::from(file.modified()));
 
-        Ok(meta)
+        Ok(RpStat::new(meta))
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {

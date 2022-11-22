@@ -23,29 +23,12 @@ use log::debug;
 
 use super::error::parse_error;
 use crate::accessor::AccessorCapability;
-use crate::http_util::new_request_build_error;
-use crate::http_util::parse_error_response;
-use crate::http_util::parse_into_object_metadata;
-use crate::http_util::percent_encode_path;
-use crate::http_util::AsyncBody;
-use crate::http_util::HttpClient;
-use crate::http_util::IncomingAsyncBody;
-use crate::ops::BytesRange;
-use crate::ops::OpRead;
-use crate::ops::OpStat;
-use crate::ops::RpRead;
+use crate::http_util::*;
+use crate::ops::*;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::BytesReader;
-use crate::Error;
-use crate::ErrorKind;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for http backend.
 #[derive(Default)]
@@ -179,10 +162,10 @@ impl Accessor for Backend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(ObjectMetadata::new(ObjectMode::DIR));
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.http_head(path).await?;
@@ -190,11 +173,11 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()),
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                Ok(ObjectMetadata::new(ObjectMode::DIR))
+                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

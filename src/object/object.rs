@@ -1118,7 +1118,8 @@ impl Object {
     /// # }
     /// ```
     pub async fn metadata(&self) -> Result<ObjectMetadata> {
-        self.acc.stat(self.path(), OpStat::new()).await
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        Ok(rp.into_metadata())
     }
 
     /// Get current object's metadata.

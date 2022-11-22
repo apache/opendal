@@ -100,7 +100,7 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.write(path, args, r).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         match self.cache.read(path, OpRead::new()).await {
             Ok((_, r)) => {
                 let buffer = Vec::with_capacity(1024);
@@ -122,10 +122,10 @@ impl Accessor for MetadataCacheAccessor {
                         .with_context("path", path)
                         .set_source(err)
                 })?;
-                Ok(meta)
+                Ok(RpStat::new(meta))
             }
             Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
-                let meta = self.inner.stat(path, args).await?;
+                let meta = self.inner.stat(path, args).await?.into_metadata();
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
@@ -140,7 +140,7 @@ impl Accessor for MetadataCacheAccessor {
                         Box::new(Cursor::new(bs)),
                     )
                     .await?;
-                Ok(meta)
+                Ok(RpStat::new(meta))
             }
             Err(err) => Err(err),
         }

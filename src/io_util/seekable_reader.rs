@@ -80,7 +80,7 @@ pub struct SeekableReader {
 enum State {
     Idle,
     Sending(BoxFuture<'static, Result<(RpRead, BytesReader)>>),
-    Seeking(BoxFuture<'static, Result<ObjectMetadata>>),
+    Seeking(BoxFuture<'static, Result<RpStat>>),
     Reading(BytesReader),
 }
 
@@ -138,7 +138,7 @@ impl AsyncSeek for SeekableReader {
         pos: SeekFrom,
     ) -> Poll<io::Result<u64>> {
         if let State::Seeking(future) = &mut self.state {
-            let meta = ready!(Pin::new(future).poll(cx))?;
+            let meta = ready!(Pin::new(future).poll(cx))?.into_metadata();
             self.size = Some(meta.content_length() - self.offset.unwrap_or_default())
         }
 

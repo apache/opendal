@@ -285,10 +285,10 @@ impl Accessor for Backend {
     /// - HTTP Status Code == 302 => directory
     /// - HTTP Status Code == 200 && ETag starts with `"DirIndex` => directory
     /// - HTTP Status Code == 200 && ETag not starts with `"DirIndex` => file
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(ObjectMetadata::new(ObjectMode::DIR));
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.ipfs_head(path).await?;
@@ -321,10 +321,10 @@ impl Accessor for Backend {
                     m.set_mode(ObjectMode::DIR);
                 }
 
-                Ok(m)
+                Ok(RpStat::new(m))
             }
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
-                Ok(ObjectMetadata::new(ObjectMode::DIR))
+                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
             }
             _ => {
                 let er = parse_error_response(resp).await?;
@@ -405,7 +405,7 @@ enum State {
     Walking(
         (
             Peekable<IntoIter<String>>,
-            Option<BoxFuture<'static, Result<ObjectMetadata>>>,
+            Option<BoxFuture<'static, Result<RpStat>>>,
         ),
     ),
 }
@@ -467,7 +467,7 @@ impl Stream for DirStream {
             }
             State::Walking((names, fut)) => {
                 if let Some(fut) = fut {
-                    let meta = ready!(Pin::new(fut).poll(cx))?;
+                    let meta = ready!(Pin::new(fut).poll(cx))?.into_metadata();
 
                     let mut name = names.next().expect("iterator must have next");
 

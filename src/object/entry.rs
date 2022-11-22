@@ -158,8 +158,8 @@ impl ObjectEntry {
     pub async fn metadata(&self) -> ObjectMetadata {
         if !self.complete.load(Ordering::Relaxed) {
             // We will ignore all errors happened during inner metadata.
-            if let Ok(meta) = self.acc.stat(self.path(), OpStat::new()).await {
-                self.set_metadata(meta);
+            if let Ok(rp) = self.acc.stat(self.path(), OpStat::new()).await {
+                self.set_metadata(rp.into_metadata());
                 self.complete.store(true, Ordering::Relaxed);
             }
         }

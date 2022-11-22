@@ -89,7 +89,7 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await
     }
 

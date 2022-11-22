@@ -331,10 +331,10 @@ impl Accessor for Backend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         if path == "/" {
             let m = ObjectMetadata::new(ObjectMode::DIR);
-            return Ok(m);
+            return Ok(RpStat::new(m));
         }
 
         let resp = self.oss_head_object(path).await?;
@@ -342,10 +342,10 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()),
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
                 let m = ObjectMetadata::new(ObjectMode::DIR);
-                Ok(m)
+                Ok(RpStat::new(m))
             }
 
             _ => {

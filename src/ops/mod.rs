@@ -40,6 +40,7 @@ pub use op_read::OpRead;
 pub use op_read::RpRead;
 mod op_stat;
 pub use op_stat::OpStat;
+pub use op_stat::RpStat;
 mod op_write;
 pub use op_write::OpWrite;
 pub use op_write::RpWrite;

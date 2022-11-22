@@ -138,10 +138,10 @@ impl Accessor for Backend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(ObjectMetadata::new(ObjectMode::DIR));
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.ipmfs_stat(path).await?;
@@ -164,7 +164,7 @@ impl Accessor for Backend {
                 let mut meta = ObjectMetadata::new(mode);
                 meta.set_content_length(res.size);
 
-                Ok(meta)
+                Ok(RpStat::new(meta))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

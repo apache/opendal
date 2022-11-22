@@ -696,7 +696,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.handle.requests_total_stat.increment(1);
 
         let start = Instant::now();

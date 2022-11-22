@@ -79,7 +79,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.stat(path, args).await.map_err(|err| {
             err.with_operation(Operation::Stat.into_static())
                 .with_context("service", self.meta.scheme())

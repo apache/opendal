@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::ObjectMetadata;
+
 /// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpStat {}
@@ -20,5 +22,23 @@ impl OpStat {
     /// Create a new `OpStat`.
     pub fn new() -> Self {
         Self {}
+    }
+}
+
+/// Reply for `stat` operation.
+#[derive(Debug, Clone)]
+pub struct RpStat {
+    meta: ObjectMetadata,
+}
+
+impl RpStat {
+    /// Create a new reply for stat.
+    pub fn new(meta: ObjectMetadata) -> Self {
+        RpStat { meta }
+    }
+
+    /// Consume RpStat to get the inner metadata.
+    pub fn into_metadata(self) -> ObjectMetadata {
+        self.meta
     }
 }

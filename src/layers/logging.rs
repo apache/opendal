@@ -220,7 +220,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} -> started",

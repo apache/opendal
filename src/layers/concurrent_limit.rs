@@ -116,7 +116,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.write(path, args, r).await
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let _permit = self
             .semaphore
             .acquire()

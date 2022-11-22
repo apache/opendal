@@ -127,15 +127,15 @@ where
         Ok(args.size())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         if path.ends_with('/') {
-            Ok(ObjectMetadata::new(ObjectMode::DIR))
+            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
         } else {
             let bs = self.kv.get(path).await?;
             match bs {
-                Some(bs) => {
-                    Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
-                }
+                Some(bs) => Ok(RpStat::new(
+                    ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
+                )),
                 None => Err(Error::new(
                     ErrorKind::ObjectNotFound,
                     "kv doesn't have this path",

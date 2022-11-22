@@ -296,10 +296,10 @@ impl Accessor for Backend {
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(ObjectMetadata::new(ObjectMode::DIR));
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.azblob_get_blob_properties(path).await?;
@@ -307,9 +307,9 @@ impl Accessor for Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()),
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(ObjectMetadata::new(ObjectMode::DIR))
+                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

@@ -155,7 +155,7 @@ impl Accessor for SubdirAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let path = self.prepend_subdir(path);
 
         self.inner.write_multipart(&path, args, r).await

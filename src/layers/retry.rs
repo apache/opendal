@@ -230,7 +230,7 @@ where
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         // Write can't retry, until can reset this reader.
         self.inner
             .write_multipart(path, args.clone(), r)

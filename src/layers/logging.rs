@@ -403,7 +403,7 @@ impl Accessor for LoggingAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         debug!(
             target: "opendal::services",
             "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",

@@ -174,7 +174,7 @@ impl Accessor for ConcurrentLimitAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let _permit = self
             .semaphore
             .acquire()

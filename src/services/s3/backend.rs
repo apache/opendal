@@ -965,7 +965,7 @@ impl Accessor for Backend {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let mut req = self.s3_upload_part_request(
             path,
             args.upload_id(),
@@ -993,7 +993,7 @@ impl Accessor for Backend {
 
                 resp.into_body().consume().await?;
 
-                Ok(ObjectPart::new(args.part_number(), &etag))
+                Ok(RpWriteMultipart::new(args.part_number(), &etag))
             }
             _ => {
                 let er = parse_error_response(resp).await?;

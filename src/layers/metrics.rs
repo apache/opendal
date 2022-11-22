@@ -804,7 +804,7 @@ impl Accessor for MetricsAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         self.handle.requests_total_write_multipart.increment(1);
 
         let r = Box::new(MetricReader::new(

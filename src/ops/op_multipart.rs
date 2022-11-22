@@ -79,6 +79,38 @@ impl OpWriteMultipart {
     }
 }
 
+/// Reply for `write_multipart` operation.
+#[derive(Debug, Clone)]
+pub struct RpWriteMultipart {
+    part_number: usize,
+    etag: String,
+}
+
+impl RpWriteMultipart {
+    /// Create a new reply for `write_multipart`.
+    pub fn new(part_number: usize, etag: &str) -> Self {
+        Self {
+            part_number,
+            etag: etag.to_string(),
+        }
+    }
+
+    /// Get the part_number from reply.
+    pub fn part_number(&self) -> usize {
+        self.part_number
+    }
+
+    /// Get the etag from reply.
+    pub fn etag(&self) -> &str {
+        &self.etag
+    }
+
+    /// Consume reply to build a object part.
+    pub fn into_object_part(self) -> ObjectPart {
+        ObjectPart::new(self.part_number, &self.etag)
+    }
+}
+
 /// Args for `complete_multipart` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCompleteMultipart {

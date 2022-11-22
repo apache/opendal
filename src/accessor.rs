@@ -229,7 +229,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         match self.inner() {
             Some(inner) => inner.write_multipart(path, args, r).await,
             None => Err(Error::new(
@@ -416,7 +416,7 @@ impl<T: Accessor> Accessor for Arc<T> {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         self.as_ref().write_multipart(path, args, r).await
     }
     async fn complete_multipart(&self, path: &str, args: OpCompleteMultipart) -> Result<()> {

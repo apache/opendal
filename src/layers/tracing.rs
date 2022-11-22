@@ -127,7 +127,7 @@ impl Accessor for TracingAccessor {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write_multipart(path, args, r).await
     }

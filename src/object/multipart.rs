@@ -63,11 +63,11 @@ impl ObjectMultipart {
 
         let op = OpWriteMultipart::new(self.upload_id.clone(), part_number, bs.len() as u64);
         let r = Cursor::new(bs);
-        let part = self
+        let rp = self
             .acc
             .write_multipart(&self.path, op, Box::new(r))
             .await?;
-        Ok(part)
+        Ok(rp.into_object_part())
     }
 
     /// Complete multipart uploads with specified parts.

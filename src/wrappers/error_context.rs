@@ -147,7 +147,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         path: &str,
         args: OpWriteMultipart,
         r: BytesReader,
-    ) -> Result<ObjectPart> {
+    ) -> Result<RpWriteMultipart> {
         self.inner
             .write_multipart(path, args, r)
             .await

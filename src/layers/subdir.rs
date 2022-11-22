@@ -118,7 +118,7 @@ impl Accessor for SubdirAccessor {
         self.inner.stat(&path, args).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let path = self.prepend_subdir(path);
 
         self.inner.delete(&path, args).await
@@ -193,7 +193,7 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_stat(&path, args)
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_delete(&path, args)

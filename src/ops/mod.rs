@@ -29,6 +29,7 @@ pub use op_create::OpCreate;
 pub use op_create::RpCreate;
 mod op_delete;
 pub use op_delete::OpDelete;
+pub use op_delete::RpDelete;
 mod op_list;
 pub use op_list::OpList;
 mod op_presign;

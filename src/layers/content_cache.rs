@@ -130,7 +130,7 @@ impl Accessor for ContentCacheAccessor {
         self.inner.write(path, args, r).await
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.delete(path, args).await
     }

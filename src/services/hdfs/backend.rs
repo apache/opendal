@@ -271,14 +271,14 @@ impl Accessor for Backend {
         Ok(RpStat::new(m))
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let meta = self.client.metadata(&p);
 
         if let Err(err) = meta {
             return if err.kind() == io::ErrorKind::NotFound {
-                Ok(())
+                Ok(RpDelete::default())
             } else {
                 Err(parse_io_error(err))
             };
@@ -295,7 +295,7 @@ impl Accessor for Backend {
 
         result.map_err(parse_io_error)?;
 
-        Ok(())
+        Ok(RpDelete::default())
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {

@@ -87,7 +87,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.delete(path, args).await.map_err(|err| {
             err.with_operation(Operation::Delete.into_static())
                 .with_context("service", self.meta.scheme())
@@ -205,7 +205,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.blocking_delete(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingDelete.into_static())
                 .with_context("service", self.meta.scheme())

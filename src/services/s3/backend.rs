@@ -881,13 +881,13 @@ impl Accessor for Backend {
         }
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.delete_object(path).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::NO_CONTENT => Ok(()),
+            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
             _ => {
                 let er = parse_error_response(resp).await?;
                 let err = parse_error(er);

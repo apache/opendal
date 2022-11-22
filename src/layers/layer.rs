@@ -94,7 +94,7 @@ mod tests {
     use futures::lock::Mutex;
 
     use super::*;
-    use crate::ops::OpDelete;
+    use crate::ops::*;
     use crate::Accessor;
     use crate::Operator;
     use crate::Result;
@@ -118,14 +118,14 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Accessor for Test {
-        async fn delete(&self, _: &str, _: OpDelete) -> Result<()> {
+        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
             let mut x = self.deleted.lock().await;
             *x = true;
 
             assert!(self.inner.is_some());
 
             // We will not call anything here to test the layer.
-            Ok(())
+            Ok(RpDelete::default())
         }
     }
 

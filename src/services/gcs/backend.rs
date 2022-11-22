@@ -318,12 +318,12 @@ impl Accessor for Backend {
         }
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.gcs_delete_object(path).await?;
 
         // deleting not existing objects is ok
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(())
+            Ok(RpDelete::default())
         } else {
             let er = parse_error_response(resp).await?;
             let err = parse_error(er);

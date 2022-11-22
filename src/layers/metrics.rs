@@ -715,7 +715,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.handle.requests_total_delete.increment(1);
 
         let start = Instant::now();
@@ -968,7 +968,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<()> {
+    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.handle.requests_total_blocking_delete.increment(1);
 
         let start = Instant::now();

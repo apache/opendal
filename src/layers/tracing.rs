@@ -151,24 +151,27 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.blocking_create(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
-        self.inner.blocking_read(path, args).map(|r| {
-            Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+        self.inner.blocking_read(path, args).map(|(rp, r)| {
+            (
+                rp,
+                Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader,
+            )
         })
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args)
     }
 

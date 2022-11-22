@@ -185,7 +185,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.blocking_create(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingCreate.into_static())
                 .with_context("service", self.meta.scheme())
@@ -193,7 +193,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         self.inner.blocking_read(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingRead.into_static())
                 .with_context("service", self.meta.scheme())
@@ -201,7 +201,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r).map_err(|err| {
             err.with_operation(Operation::BlockingWrite.into_static())
                 .with_context("service", self.meta.scheme())
@@ -209,7 +209,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingStat.into_static())
                 .with_context("service", self.meta.scheme())

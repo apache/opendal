@@ -174,7 +174,7 @@ impl ObjectEntry {
         if !self.complete.load(Ordering::Relaxed) {
             // We will ignore all errors happened during inner metadata.
             if let Ok(meta) = self.acc.blocking_stat(self.path(), OpStat::new()) {
-                self.set_metadata(meta);
+                self.set_metadata(meta.into_metadata());
                 self.complete.store(true, Ordering::Relaxed);
             }
         }

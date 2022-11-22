@@ -240,11 +240,13 @@ impl Object {
     pub fn blocking_create(&self) -> Result<()> {
         if self.path.ends_with('/') {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
         } else {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))
-        }
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))?;
+        };
+
+        Ok(())
     }
 
     /// Read the whole object into a bytes.
@@ -388,7 +390,7 @@ impl Object {
         }
 
         let br = BytesRange::from(range);
-        let mut s = self
+        let (_, mut s) = self
             .acc
             .blocking_read(self.path(), OpRead::new().with_range(br))?;
 
@@ -527,8 +529,11 @@ impl Object {
             );
         }
 
-        self.acc
-            .blocking_read(self.path(), OpRead::new().with_range(range.into()))
+        let (_, r) = self
+            .acc
+            .blocking_read(self.path(), OpRead::new().with_range(range.into()))?;
+
+        Ok(r)
     }
 
     /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.
@@ -1149,7 +1154,8 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
-        self.acc.blocking_stat(self.path(), OpStat::new())
+        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
+        Ok(rp.into_metadata())
     }
 
     /// Check if this object exists or not.

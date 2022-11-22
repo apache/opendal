@@ -181,25 +181,25 @@ impl Accessor for SubdirAccessor {
         self.inner.abort_multipart(&path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_create(&path, args)
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_read(&path, args)
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_write(&path, args, r)
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_stat(&path, args)

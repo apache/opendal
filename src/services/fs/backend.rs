@@ -348,7 +348,7 @@ impl Accessor for Backend {
         Ok(Box::new(rd))
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
         if args.mode() == ObjectMode::FILE {
@@ -371,25 +371,25 @@ impl Accessor for Backend {
                 .open(&p)
                 .map_err(parse_io_error)?;
 
-            return Ok(());
+            return Ok(RpCreate::default());
         }
 
         if args.mode() == ObjectMode::DIR {
             std::fs::create_dir_all(&p).map_err(parse_io_error)?;
 
-            return Ok(());
+            return Ok(RpCreate::default());
         }
 
         unreachable!()
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         use std::io::Seek;
 
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
-        let _ = Self::blocking_fs_metadata(&p)?;
+        let meta = Self::blocking_fs_metadata(&p)?;
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
@@ -397,19 +397,36 @@ impl Accessor for Backend {
             .map_err(parse_io_error)?;
 
         let br = args.range();
-        if let Some(offset) = br.offset() {
-            f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+        let (r, size): (BlockingBytesReader, _) = match (br.offset(), br.size()) {
+            // Read a specific range.
+            (Some(offset), Some(size)) => {
+                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (Box::new(f.take(size)), min(size, meta.len() - offset))
+            }
+            // Read from offset.
+            (Some(offset), None) => {
+                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (Box::new(f), meta.len() - offset)
+            }
+            // Read the last size bytes.
+            (None, Some(size)) => {
+                f.seek(SeekFrom::End(-(size as i64)))
+                    .map_err(parse_io_error)?;
+                (Box::new(f), size)
+            }
+            // Read the whole file.
+            (None, None) => (Box::new(f), meta.len()),
         };
 
-        let f: BlockingBytesReader = match br.size() {
-            Some(size) => Box::new(f.take(size)),
-            None => Box::new(f),
-        };
-
-        Ok(f)
+        Ok((RpRead::new(size), Box::new(r) as BlockingBytesReader))
     }
 
-    fn blocking_write(&self, path: &str, _: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        _: OpWrite,
+        mut r: BlockingBytesReader,
+    ) -> Result<RpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Create dir before write path.
@@ -439,10 +456,10 @@ impl Accessor for Backend {
 
         let size = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
 
-        Ok(size)
+        Ok(RpWrite::new(size))
     }
 
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let meta = Self::blocking_fs_metadata(&p)?;
@@ -462,7 +479,7 @@ impl Accessor for Backend {
                     .map_err(parse_io_error)?,
             );
 
-        Ok(m)
+        Ok(RpStat::new(m))
     }
 
     fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

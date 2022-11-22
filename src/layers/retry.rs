@@ -274,7 +274,7 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let retry = self.backoff.clone();
 
         let mut e = None;
@@ -305,7 +305,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         let retry = self.backoff.clone();
 
         let mut e = None;
@@ -336,11 +336,11 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r)
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let retry = self.backoff.clone();
 
         let mut e = None;

@@ -67,11 +67,12 @@ where
         Ok(RpCreate::default())
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
-        match args.mode() {
-            ObjectMode::FILE => self.kv.blocking_set(path, &[]),
-            _ => Ok(()),
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        if args.mode() == ObjectMode::FILE {
+            self.kv.blocking_set(path, &[])?;
         }
+
+        Ok(RpCreate::default())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
@@ -91,7 +92,7 @@ where
         Ok((RpRead::new(length as u64), Box::new(Cursor::new(bs))))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<BlockingBytesReader> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         let bs = match self.kv.blocking_get(path)? {
             Some(bs) => bs,
             None => {
@@ -103,7 +104,10 @@ where
         };
 
         let bs = self.apply_range(bs, args.range());
-        Ok(Box::new(std::io::Cursor::new(bs)))
+        Ok((
+            RpRead::new(bs.len() as u64),
+            Box::new(std::io::Cursor::new(bs)),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {
@@ -117,14 +121,19 @@ where
         Ok(RpWrite::new(args.size()))
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, mut r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        mut r: BlockingBytesReader,
+    ) -> Result<RpWrite> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs)
             .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
 
         self.kv.blocking_set(path, &bs)?;
 
-        Ok(args.size())
+        Ok(RpWrite::new(args.size()))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -144,15 +153,15 @@ where
         }
     }
 
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         if path.ends_with('/') {
-            Ok(ObjectMetadata::new(ObjectMode::DIR))
+            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
         } else {
             let bs = self.kv.blocking_get(path)?;
             match bs {
-                Some(bs) => {
-                    Ok(ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64))
-                }
+                Some(bs) => Ok(RpStat::new(
+                    ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
+                )),
                 None => Err(Error::new(
                     ErrorKind::ObjectNotFound,
                     "kv doesn't have this path",

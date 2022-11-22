@@ -167,19 +167,19 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.complete_multipart(path, args).await
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<()> {
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.cache.blocking_delete(path, OpDelete::new())?;
         self.inner.blocking_create(path, args)
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<u64> {
+    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         self.cache.blocking_delete(path, OpDelete::new())?;
         self.inner.blocking_write(path, args, r)
     }
 
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<ObjectMetadata> {
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         match self.cache.blocking_read(path, OpRead::new()) {
-            Ok(mut r) => {
+            Ok((_, mut r)) => {
                 let mut bs = Vec::with_capacity(1024);
                 r.read_to_end(&mut bs).map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "read object metadata from cache")
@@ -194,10 +194,10 @@ impl Accessor for MetadataCacheAccessor {
                             .with_context("path", path)
                             .set_source(err)
                     })?;
-                Ok(meta)
+                Ok(RpStat::new(meta))
             }
             Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
-                let meta = self.inner.blocking_stat(path, args)?;
+                let meta = self.inner.blocking_stat(path, args)?.into_metadata();
                 let bs = bincode::serde::encode_to_vec(&meta, bincode::config::standard())
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
@@ -210,7 +210,7 @@ impl Accessor for MetadataCacheAccessor {
                     OpWrite::new(bs.len() as u64),
                     Box::new(std::io::Cursor::new(bs)),
                 )?;
-                Ok(meta)
+                Ok(RpStat::new(meta))
             }
             Err(err) => Err(err),
         }

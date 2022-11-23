@@ -14,8 +14,10 @@
 
 use crate::*;
 use async_trait::async_trait;
-use futures::Stream;
+use futures::{future::BoxFuture, ready, FutureExt, Stream};
 use std::{
+    collections::VecDeque,
+    mem,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -26,7 +28,7 @@ use std::{
 /// `list` will return a boxed `ObjectPage` which allow users to call `next_page`
 /// to fecth a new page of [`ObjectEntry`].
 #[async_trait]
-pub trait ObjectPage: Send + 'static {
+pub trait ObjectPage: Send + Sync + 'static {
     /// Fetch a new page of [`ObjectEntry`]
     ///
     /// `Ok(None)` means all object pages have been returned. Any following call
@@ -56,27 +58,107 @@ impl ObjectPage for EmptyObjectPager {
 
 pub struct ObjectLister {
     acc: Arc<dyn Accessor>,
-    pager: ObjectPager,
+    pager: Option<ObjectPager>,
+
+    buf: VecDeque<ObjectEntry>,
+    /// We will move `pager` inside future and return it back while future is ready.
+    /// Thus, we should not allow calling other function while we already have
+    /// a future.
+    fut: Option<BoxFuture<'static, (ObjectPager, Result<Option<Vec<ObjectEntry>>>)>>,
 }
 
 impl ObjectLister {
+    /// Create a new object lister.
     pub fn new(acc: Arc<dyn Accessor>, pager: ObjectPager) -> Self {
-        Self { acc, pager }
+        Self {
+            acc,
+            pager: Some(pager),
+            buf: VecDeque::default(),
+            fut: None,
+        }
+    }
+
+    /// next_page can be used to fetch a new object page.
+    ///
+    /// # Notes
+    ///
+    /// Don't mix the usage of `next_page` and `Stream<Item = Result<Object>>`.
+    /// Always using the same calling style.
+    pub async fn next_page(&mut self) -> Result<Option<Vec<Object>>> {
+        debug_assert!(
+            self.fut.is_none(),
+            "there are ongoing futures for next page"
+        );
+
+        let entries = if !self.buf.is_empty() {
+            mem::take(&mut self.buf)
+        } else {
+            match self
+                .pager
+                .as_mut()
+                .expect("pager must be valid")
+                .next_page()
+                .await?
+            {
+                // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
+                //
+                // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
+                Some(entries) => entries.into(),
+                None => return Ok(None),
+            }
+        };
+
+        Ok(Some(
+            entries
+                .into_iter()
+                .map(|v| v.into_object(self.acc.clone()))
+                .collect(),
+        ))
     }
 }
 
 impl Stream for ObjectLister {
     type Item = Result<Object>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        todo!()
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if let Some(oe) = self.buf.pop_front() {
+            return Poll::Ready(Some(Ok(oe.into_object(self.acc.clone()))));
+        }
+
+        if let Some(fut) = self.fut.as_mut() {
+            let (op, res) = ready!(fut.poll_unpin(cx));
+            self.pager = Some(op);
+
+            match res? {
+                Some(oes) => {
+                    self.fut = None;
+                    self.buf = oes.into();
+                    return self.poll_next(cx);
+                }
+                None => {
+                    self.fut = None;
+                    return Poll::Ready(None);
+                }
+            }
+        }
+
+        let mut pager = self.pager.take().expect("pager must be valid");
+        let fut = async move {
+            let res = pager.next_page().await;
+
+            (pager, res)
+        };
+        self.fut = Some(Box::pin(fut));
+        return self.poll_next(cx);
     }
 }
 
+/// BlockingObjectPage is the blocking version of [`ObjectPage`].
 pub trait BlockingObjectPage: 'static {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
 }
 
+/// BlockingObjectPager is a boxed [`BlockingObjectPage`]
 pub type BlockingObjectPager = Box<dyn BlockingObjectPage>;
 
 impl BlockingObjectPage for BlockingObjectPager {
@@ -88,11 +170,61 @@ impl BlockingObjectPage for BlockingObjectPager {
 pub struct BlockingObjectLister {
     acc: Arc<dyn Accessor>,
     pager: BlockingObjectPager,
+    buf: VecDeque<ObjectEntry>,
 }
 
 impl BlockingObjectLister {
+    /// Create a new object lister.
     pub fn new(acc: Arc<dyn Accessor>, pager: BlockingObjectPager) -> Self {
-        Self { acc, pager }
+        Self {
+            acc,
+            pager,
+            buf: VecDeque::default(),
+        }
+    }
+
+    /// next_page can be used to fetch a new object page.
+    pub fn next_page(&mut self) -> Result<Option<Vec<Object>>> {
+        let entries = if !self.buf.is_empty() {
+            mem::take(&mut self.buf)
+        } else {
+            match self.pager.next_page()? {
+                // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
+                //
+                // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
+                Some(entries) => entries.into(),
+                None => return Ok(None),
+            }
+        };
+
+        Ok(Some(
+            entries
+                .into_iter()
+                .map(|v| v.into_object(self.acc.clone()))
+                .collect(),
+        ))
+    }
+}
+
+/// TODO: we can implement next_chunk.
+impl Iterator for BlockingObjectLister {
+    type Item = Result<Object>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(oe) = self.buf.pop_front() {
+            return Some(Ok(oe.into_object(self.acc.clone())));
+        }
+
+        self.buf = match self.pager.next_page() {
+            // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
+            //
+            // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
+            Ok(Some(entries)) => entries.into(),
+            Ok(None) => return None,
+            Err(err) => return Some(Err(err)),
+        };
+
+        self.next()
     }
 }
 

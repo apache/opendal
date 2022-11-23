@@ -13,25 +13,30 @@
 // limitations under the License.
 
 use std::collections::VecDeque;
+use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::Future;
 
 use crate::object::ObjectLister;
+use crate::object::ObjectPage;
 use crate::object::ObjectPager;
+use crate::ops::OpList;
 use crate::ops::RpList;
 use crate::Accessor;
 use crate::Object;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::ObjectStreamer;
 use crate::Result;
+
+const WALK_BUFFER_SIZE: usize = 256;
 
 /// TopDownWalker will walk dir in top down way:
 ///
@@ -67,67 +72,27 @@ use crate::Result;
 /// We only make sure the parent dirs will show up before nest dirs.
 pub struct TopDownWalker {
     acc: Arc<dyn Accessor>,
-    dirs: VecDeque<Object>,
-    state: WalkTopDownState,
+    dirs: VecDeque<ObjectEntry>,
+    pagers: Vec<(ObjectPager, Vec<ObjectEntry>)>,
+    res: Vec<ObjectEntry>,
 }
 
 impl TopDownWalker {
     /// Create a new [`TopDownWalker`]
-    pub fn new(parent: Object) -> Self {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         TopDownWalker {
-            acc: parent.accessor(),
-            dirs: VecDeque::from([parent]),
-            state: WalkTopDownState::Idle,
+            acc,
+            dirs: VecDeque::from([ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),
+            pagers: vec![],
+            res: Vec::with_capacity(WALK_BUFFER_SIZE),
         }
     }
 }
 
-enum WalkTopDownState {
-    Idle,
-    Sending(BoxFuture<'static, Result<ObjectLister>>),
-    Listing(ObjectLister),
-}
-
-impl futures::Stream for TopDownWalker {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match &mut self.state {
-            WalkTopDownState::Idle => {
-                let object = match self.dirs.pop_front() {
-                    Some(o) => o,
-                    None => return Poll::Ready(None),
-                };
-
-                let de = ObjectEntry::new(object.path(), ObjectMetadata::new(ObjectMode::DIR));
-                let future = async move { object.list().await };
-
-                self.state = WalkTopDownState::Sending(Box::pin(future));
-                Poll::Ready(Some(Ok(de)))
-            }
-            WalkTopDownState::Sending(fut) => match ready!(Pin::new(fut).poll(cx)) {
-                Ok(ds) => {
-                    self.state = WalkTopDownState::Listing(ds);
-                    self.poll_next(cx)
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            WalkTopDownState::Listing(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
-                Some(Ok(mut de)) => {
-                    if de.to_metadata().mode().is_dir() {
-                        self.dirs.push_back(de);
-                        self.poll_next(cx)
-                    } else {
-                        Poll::Ready(Some(Ok(de)))
-                    }
-                }
-                Some(Err(e)) => Poll::Ready(Some(Err(e))),
-                None => {
-                    self.state = WalkTopDownState::Idle;
-                    self.poll_next(cx)
-                }
-            },
-        }
+#[async_trait]
+impl ObjectPage for TopDownWalker {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
     }
 }
 
@@ -169,232 +134,179 @@ impl futures::Stream for TopDownWalker {
 /// always output directly while listing.
 pub struct BottomUpWalker {
     acc: Arc<dyn Accessor>,
-    dirs: Vec<Object>,
-    ds: Vec<ObjectStreamer>,
-    state: WalkBottomUpState,
+    dirs: Vec<ObjectEntry>,
+    ds: Vec<ObjectPager>,
+    res: Vec<ObjectEntry>,
 }
 
 impl BottomUpWalker {
     /// Create a new [`BottomUpWalker`]
-    pub fn new(parent: Object) -> Self {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         BottomUpWalker {
-            acc: parent.accessor(),
-            dirs: Vec::new(),
+            acc,
+            dirs: vec![ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))],
             ds: Vec::new(),
-            state: WalkBottomUpState::Starting(Some(parent)),
+            res: Vec::with_capacity(WALK_BUFFER_SIZE),
         }
     }
 }
 
-enum WalkBottomUpState {
-    Starting(Option<Object>),
-    Sending(BoxFuture<'static, Result<(RpList, ObjectPager)>>),
-    Listing,
-}
-
-impl futures::Stream for BottomUpWalker {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match &mut self.state {
-            WalkBottomUpState::Starting(o) => {
-                let o = o.take().expect("object must be valid");
-
-                self.dirs.push(o.clone());
-
-                let future = async move { o.list().await };
-
-                self.state = WalkBottomUpState::Sending(Box::pin(future));
-                self.poll_next(cx)
-            }
-            WalkBottomUpState::Sending(fut) => match ready!(Pin::new(fut).poll(cx)) {
-                Ok(ds) => {
-                    self.ds.push(ds);
-                    self.state = WalkBottomUpState::Listing;
-                    self.poll_next(cx)
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            WalkBottomUpState::Listing => match self.ds.last_mut() {
-                Some(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
-                    Some(Ok(mut de)) => {
-                        if de.mode().is_dir() {
-                            self.state = WalkBottomUpState::Starting(Some(de.into()));
-                            self.poll_next(cx)
-                        } else {
-                            Poll::Ready(Some(Ok(de)))
-                        }
-                    }
-                    Some(Err(e)) => Poll::Ready(Some(Err(e))),
-                    None => {
-                        let _ = self.ds.pop();
-                        let dob = self
-                            .dirs
-                            .pop()
-                            .expect("dis streamer corresponding object must exist");
-                        let de = ObjectEntry::new(
-                            self.acc.clone(),
-                            dob.path(),
-                            ObjectMetadata::new(ObjectMode::DIR),
-                        );
-                        Poll::Ready(Some(Ok(de)))
-                    }
-                },
-                None => Poll::Ready(None),
-            },
-        }
+#[async_trait]
+impl ObjectPage for BottomUpWalker {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        todo!()
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::collections::HashSet;
-    use std::env;
+// #[cfg(test)]
+// mod tests {
+// use std::collections::HashSet;
+// use std::env;
 
-    use futures::TryStreamExt;
-    use log::debug;
+// use futures::TryStreamExt;
+// use log::debug;
 
-    use super::*;
-    use crate::services::fs::Builder;
-    use crate::Operator;
+// use super::*;
+// use crate::services::fs::Builder;
+// use crate::Operator;
 
-    fn get_position(vs: &[String], s: &str) -> usize {
-        vs.iter()
-            .position(|v| v == s)
-            .expect("{s} is not found in {vs}")
-    }
+// fn get_position(vs: &[String], s: &str) -> usize {
+//     vs.iter()
+//         .position(|v| v == s)
+//         .expect("{s} is not found in {vs}")
+// }
 
-    #[tokio::test]
-    async fn test_walk_top_down() -> Result<()> {
-        let _ = env_logger::try_init();
+// #[tokio::test]
+// async fn test_walk_top_down() -> Result<()> {
+//     let _ = env_logger::try_init();
 
-        let mut builder = Builder::default();
-        builder.root(&format!(
-            "{}/{}",
-            env::temp_dir().display(),
-            uuid::Uuid::new_v4()
-        ));
-        let op = Operator::new(builder.build()?);
-        let mut expected = vec![
-            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-        ];
-        for path in expected.iter() {
-            op.object(path).create().await?;
-        }
+//     let mut builder = Builder::default();
+//     builder.root(&format!(
+//         "{}/{}",
+//         env::temp_dir().display(),
+//         uuid::Uuid::new_v4()
+//     ));
+//     let op = Operator::new(builder.build()?);
+//     let mut expected = vec![
+//         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+//     ];
+//     for path in expected.iter() {
+//         op.object(path).create().await?;
+//     }
 
-        let mut set = HashSet::new();
-        let w = TopDownWalker::new(op.object("x/"));
-        let mut actual = w
-            .try_collect::<Vec<_>>()
-            .await?
-            .into_iter()
-            .map(|v| {
-                assert!(
-                    set.insert(v.path().to_string()),
-                    "duplicated value: {}",
-                    v.path()
-                );
-                v.path().to_string()
-            })
-            .collect::<Vec<_>>();
+//     let mut set = HashSet::new();
+//     let w = TopDownWalker::new(op.object("x/"));
+//     let mut actual = w
+//         .try_collect::<Vec<_>>()
+//         .await?
+//         .into_iter()
+//         .map(|v| {
+//             assert!(
+//                 set.insert(v.path().to_string()),
+//                 "duplicated value: {}",
+//                 v.path()
+//             );
+//             v.path().to_string()
+//         })
+//         .collect::<Vec<_>>();
 
-        debug!("walk top down: {:?}", actual);
+//     debug!("walk top down: {:?}", actual);
 
-        assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
-        assert!(get_position(&actual, "x/x/x/") > get_position(&actual, "x/x/"));
-        assert!(get_position(&actual, "x/x/") > get_position(&actual, "x/"));
+//     assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
+//     assert!(get_position(&actual, "x/x/x/") > get_position(&actual, "x/x/"));
+//     assert!(get_position(&actual, "x/x/") > get_position(&actual, "x/"));
 
-        expected.sort_unstable();
-        actual.sort_unstable();
-        assert_eq!(actual, expected);
-        Ok(())
-    }
+//     expected.sort_unstable();
+//     actual.sort_unstable();
+//     assert_eq!(actual, expected);
+//     Ok(())
+// }
 
-    #[tokio::test]
-    async fn test_walk_top_down_same_level() -> Result<()> {
-        let _ = env_logger::try_init();
+// #[tokio::test]
+// async fn test_walk_top_down_same_level() -> Result<()> {
+//     let _ = env_logger::try_init();
 
-        let mut builder = Builder::default();
-        builder.root(&format!(
-            "{}/{}",
-            env::temp_dir().display(),
-            uuid::Uuid::new_v4()
-        ));
-        let op = Operator::new(builder.build()?);
-        for path in ["x/x/a", "x/x/b", "x/x/c"] {
-            op.object(path).create().await?;
-        }
+//     let mut builder = Builder::default();
+//     builder.root(&format!(
+//         "{}/{}",
+//         env::temp_dir().display(),
+//         uuid::Uuid::new_v4()
+//     ));
+//     let op = Operator::new(builder.build()?);
+//     for path in ["x/x/a", "x/x/b", "x/x/c"] {
+//         op.object(path).create().await?;
+//     }
 
-        let mut set = HashSet::new();
-        let w = TopDownWalker::new(op.object(""));
-        let mut actual = w
-            .try_collect::<Vec<_>>()
-            .await?
-            .into_iter()
-            .map(|v| {
-                assert!(
-                    set.insert(v.path().to_string()),
-                    "duplicated value: {}",
-                    v.path()
-                );
-                v.path().to_string()
-            })
-            .collect::<Vec<_>>();
+//     let mut set = HashSet::new();
+//     let w = TopDownWalker::new(op.object(""));
+//     let mut actual = w
+//         .try_collect::<Vec<_>>()
+//         .await?
+//         .into_iter()
+//         .map(|v| {
+//             assert!(
+//                 set.insert(v.path().to_string()),
+//                 "duplicated value: {}",
+//                 v.path()
+//             );
+//             v.path().to_string()
+//         })
+//         .collect::<Vec<_>>();
 
-        debug!("walk top down: {:?}", actual);
+//     debug!("walk top down: {:?}", actual);
 
-        actual.sort_unstable();
-        assert_eq!(actual, {
-            let mut x = vec!["/", "x/", "x/x/", "x/x/a", "x/x/b", "x/x/c"];
-            x.sort_unstable();
-            x
-        });
-        Ok(())
-    }
+//     actual.sort_unstable();
+//     assert_eq!(actual, {
+//         let mut x = vec!["/", "x/", "x/x/", "x/x/a", "x/x/b", "x/x/c"];
+//         x.sort_unstable();
+//         x
+//     });
+//     Ok(())
+// }
 
-    #[tokio::test]
-    async fn test_walk_bottom_up() -> Result<()> {
-        let _ = env_logger::try_init();
+// #[tokio::test]
+// async fn test_walk_bottom_up() -> Result<()> {
+//     let _ = env_logger::try_init();
 
-        let mut builder = Builder::default();
-        builder.root(&format!(
-            "{}/{}",
-            env::temp_dir().display(),
-            uuid::Uuid::new_v4()
-        ));
-        let op = Operator::new(builder.build()?);
-        let mut expected = vec![
-            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-        ];
-        for path in expected.iter() {
-            op.object(path).create().await?;
-        }
+//     let mut builder = Builder::default();
+//     builder.root(&format!(
+//         "{}/{}",
+//         env::temp_dir().display(),
+//         uuid::Uuid::new_v4()
+//     ));
+//     let op = Operator::new(builder.build()?);
+//     let mut expected = vec![
+//         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+//     ];
+//     for path in expected.iter() {
+//         op.object(path).create().await?;
+//     }
 
-        let mut set = HashSet::new();
-        let w = BottomUpWalker::new(op.object("x/"));
-        let mut actual = w
-            .try_collect::<Vec<_>>()
-            .await?
-            .into_iter()
-            .map(|v| {
-                assert!(
-                    set.insert(v.path().to_string()),
-                    "duplicated value: {}",
-                    v.path()
-                );
-                v.path().to_string()
-            })
-            .collect::<Vec<_>>();
+//     let mut set = HashSet::new();
+//     let w = BottomUpWalker::new(op.object("x/"));
+//     let mut actual = w
+//         .try_collect::<Vec<_>>()
+//         .await?
+//         .into_iter()
+//         .map(|v| {
+//             assert!(
+//                 set.insert(v.path().to_string()),
+//                 "duplicated value: {}",
+//                 v.path()
+//             );
+//             v.path().to_string()
+//         })
+//         .collect::<Vec<_>>();
 
-        debug!("walk bottom up: {:?}", actual);
+//     debug!("walk bottom up: {:?}", actual);
 
-        assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));
-        assert!(get_position(&actual, "x/x/x/") < get_position(&actual, "x/x/"));
-        assert!(get_position(&actual, "x/x/") < get_position(&actual, "x/"));
+//     assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));
+//     assert!(get_position(&actual, "x/x/x/") < get_position(&actual, "x/x/"));
+//     assert!(get_position(&actual, "x/x/") < get_position(&actual, "x/"));
 
-        expected.sort_unstable();
-        actual.sort_unstable();
-        assert_eq!(actual, expected);
-        Ok(())
-    }
-}
+//     expected.sort_unstable();
+//     actual.sort_unstable();
+//     assert_eq!(actual, expected);
+//     Ok(())
+// }
+// }

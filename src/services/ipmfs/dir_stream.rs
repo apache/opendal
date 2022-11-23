@@ -12,16 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
+
 use http::StatusCode;
 use serde::Deserialize;
 
@@ -38,24 +32,18 @@ use crate::Result;
 
 pub struct DirStream {
     backend: Arc<Backend>,
-    state: State,
     root: String,
     path: String,
-}
-
-enum State {
-    Idle,
-    Sending(BoxFuture<'static, Result<Bytes>>),
-    Listing((Vec<IpfsLsResponseEntry>, usize)),
+    consumed: bool,
 }
 
 impl DirStream {
     pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
         Self {
             backend,
-            state: State::Idle,
             root: root.to_string(),
             path: path.to_string(),
+            consumed: false,
         }
     }
 }
@@ -63,73 +51,52 @@ impl DirStream {
 #[async_trait]
 impl ObjectPage for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
-    }
-}
+        if self.consumed {
+            return Ok(None);
+        }
 
-impl futures::Stream for DirStream {
-    type Item = Result<ObjectEntry>;
+        let resp = self.backend.ipmfs_ls(&self.path).await?;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let backend = self.backend.clone();
-        let root = self.root.clone();
-        let path = self.path.clone();
+        if resp.status() != StatusCode::OK {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error(er);
+            return Err(err);
+        }
 
-        match &mut self.state {
-            State::Idle => {
-                let fut = async move {
-                    let resp = backend.ipmfs_ls(&path).await?;
+        let bs = resp.into_body().bytes().await?;
+        let entries_body: IpfsLsResponse =
+            serde_json::from_slice(&bs).map_err(parse_json_deserialize_error)?;
 
-                    if resp.status() != StatusCode::OK {
-                        let er = parse_error_response(resp).await?;
-                        let err = parse_error(er);
-                        return Err(err);
-                    }
+        // Mark dir stream has been consumed.
+        self.consumed = true;
 
-                    let bs = resp.into_body().bytes().await?;
-
-                    Ok(bs)
-                };
-                self.state = State::Sending(Box::pin(fut));
-                self.poll_next(cx)
-            }
-            State::Sending(fut) => {
-                let contents = ready!(Pin::new(fut).poll(cx))?;
-
-                let entries_body: IpfsLsResponse =
-                    serde_json::from_slice(&contents).map_err(parse_json_deserialize_error)?;
-
-                self.state = State::Listing((entries_body.entries.unwrap_or_default(), 0));
-                self.poll_next(cx)
-            }
-            State::Listing((entries, idx)) => {
-                if *idx < entries.len() {
-                    let object = &entries[*idx];
-                    *idx += 1;
-
+        Ok(Some(
+            entries_body
+                .entries
+                .unwrap_or_default()
+                .into_iter()
+                .map(|object| {
                     let path = match object.mode() {
                         ObjectMode::FILE => {
-                            format!("{}{}", &path, object.name)
+                            format!("{}{}", &self.path, object.name)
                         }
                         ObjectMode::DIR => {
-                            format!("{}{}/", &path, object.name)
+                            format!("{}{}/", &self.path, object.name)
                         }
                         ObjectMode::Unknown => unreachable!(),
                     };
 
-                    let path = build_rel_path(&root, &path);
-                    let de = ObjectEntry::new(
+                    let path = build_rel_path(&self.root, &path);
+
+                    ObjectEntry::new(
                         &path,
                         ObjectMetadata::new(object.mode())
                             .with_content_length(object.size)
                             .with_complete(),
-                    );
-                    return Poll::Ready(Some(Ok(de)));
-                }
-
-                Poll::Ready(None)
-            }
-        }
+                    )
+                })
+                .collect(),
+        ))
     }
 }
 

@@ -14,20 +14,9 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::iter::Peekable;
-use std::mem;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
-use std::vec::IntoIter;
 
 use async_trait::async_trait;
-use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
-use futures::Stream;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -401,18 +390,7 @@ impl Backend {
 struct DirStream {
     backend: Arc<Backend>,
     path: String,
-    state: State,
-}
-
-enum State {
-    Idle,
-    Listing(BoxFuture<'static, Result<Bytes>>),
-    Walking(
-        (
-            Peekable<IntoIter<String>>,
-            Option<BoxFuture<'static, Result<RpStat>>>,
-        ),
-    ),
+    consumed: bool,
 }
 
 impl DirStream {
@@ -420,7 +398,7 @@ impl DirStream {
         Self {
             backend,
             path: path.to_string(),
-            state: State::Idle,
+            consumed: false,
         }
     }
 }
@@ -428,84 +406,46 @@ impl DirStream {
 #[async_trait]
 impl ObjectPage for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
-    }
-}
-
-impl Stream for DirStream {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let backend = self.backend.clone();
-        let path = self.path.clone();
-
-        match &mut self.state {
-            State::Idle => {
-                let fut = async move {
-                    let resp = backend.ipfs_list(&path).await?;
-
-                    if resp.status() != StatusCode::OK {
-                        let er = parse_error_response(resp).await?;
-                        let err = parse_error(er);
-                        return Err(err);
-                    }
-
-                    let bs = resp.into_body().bytes().await?;
-
-                    Ok(bs)
-                };
-
-                self.state = State::Listing(Box::pin(fut));
-                self.poll_next(cx)
-            }
-            State::Listing(fut) => {
-                let bs = ready!(Pin::new(fut).poll(cx))?;
-
-                let pb_node = PBNode::decode(bs).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "deserialize protobuf from response")
-                        .set_source(e)
-                })?;
-
-                let names = pb_node
-                    .links
-                    .into_iter()
-                    .map(|v| v.name.unwrap())
-                    .collect::<Vec<String>>()
-                    .into_iter()
-                    .peekable();
-
-                self.state = State::Walking((names, None));
-                self.poll_next(cx)
-            }
-            State::Walking((names, fut)) => {
-                if let Some(fut) = fut {
-                    let meta = ready!(Pin::new(fut).poll(cx))?.into_metadata();
-
-                    let mut name = names.next().expect("iterator must have next");
-
-                    if meta.mode().is_dir() {
-                        name += "/";
-                    }
-
-                    let de = ObjectEntry::new(&name, meta.with_complete());
-
-                    let names = mem::replace(names, vec![].into_iter().peekable());
-                    self.state = State::Walking((names, None));
-                    return Poll::Ready(Some(Ok(de)));
-                }
-
-                let name = if let Some(name) = names.peek() {
-                    name.clone()
-                } else {
-                    return Poll::Ready(None);
-                };
-
-                let fut = async move { backend.stat(&name, OpStat::new()).await };
-                let names = mem::replace(names, vec![].into_iter().peekable());
-
-                self.state = State::Walking((names, Some(Box::pin(fut))));
-                self.poll_next(cx)
-            }
+        if self.consumed {
+            return Ok(None);
         }
+
+        let resp = self.backend.ipfs_list(&self.path).await?;
+
+        if resp.status() != StatusCode::OK {
+            let er = parse_error_response(resp).await?;
+            let err = parse_error(er);
+            return Err(err);
+        }
+
+        let bs = resp.into_body().bytes().await?;
+        let pb_node = PBNode::decode(bs).map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "deserialize protobuf from response").set_source(e)
+        })?;
+
+        let names = pb_node
+            .links
+            .into_iter()
+            .map(|v| v.name.unwrap())
+            .collect::<Vec<String>>();
+
+        let mut oes = Vec::with_capacity(names.len());
+
+        for mut name in names {
+            let meta = self
+                .backend
+                .stat(&name, OpStat::new())
+                .await?
+                .into_metadata();
+
+            if meta.mode().is_dir() {
+                name += "/";
+            }
+
+            oes.push(ObjectEntry::new(&name, meta.with_complete()))
+        }
+
+        self.consumed = true;
+        Ok(Some(oes))
     }
 }

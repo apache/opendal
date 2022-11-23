@@ -41,6 +41,7 @@ use crate::*;
 #[derive(Default, Debug)]
 pub struct Builder {
     root: Option<String>,
+    atomic_write_dir: Option<String>,
 }
 
 impl Builder {
@@ -51,6 +52,7 @@ impl Builder {
             let v = v.as_str();
             match k.as_ref() {
                 "root" => builder.root(v),
+                "atomic_write_dir" => builder.atomic_write_dir(v),
                 _ => continue,
             };
         }
@@ -69,12 +71,24 @@ impl Builder {
         self
     }
 
+    /// Set temp dir for atomic write.
+    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+        self.atomic_write_dir = if dir.is_empty() {
+            None
+        } else {
+            Some(dir.to_string())
+        };
+
+        self
+    }
+
     /// Consume current builder to build a fs backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.clone().unwrap_or_default());
-        debug!("backend use root {}", root);
+
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let atomic_write_dir = self.atomic_write_dir.as_deref().map(normalize_root);
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
@@ -88,8 +102,25 @@ impl Builder {
             }
         }
 
+        // If atomic write dir is not exist, we must create it.
+        if let Some(d) = &atomic_write_dir {
+            if let Err(e) = std::fs::metadata(d) {
+                if e.kind() == io::ErrorKind::NotFound {
+                    std::fs::create_dir_all(d).map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
+                            .with_operation("Builder::build")
+                            .with_context("atomic_write_dir", d)
+                            .set_source(e)
+                    })?;
+                }
+            }
+        }
+
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend { root }))
+        Ok(wrapper(Backend {
+            root,
+            atomic_write_dir,
+        }))
     }
 }
 
@@ -97,6 +128,7 @@ impl Builder {
 #[derive(Debug, Clone)]
 pub struct Backend {
     root: String,
+    atomic_write_dir: Option<String>,
 }
 
 impl Backend {
@@ -136,6 +168,58 @@ impl Backend {
 
             Err(e) => Err(parse_io_error(e)),
         }
+    }
+
+    // Synchronously build write path and ensure the parent dirs created
+    fn blocking_ensure_write_abs_path(parent: &str, path: &str) -> Result<String> {
+        let p = build_rooted_abs_path(parent, path);
+
+        // Create dir before write path.
+        //
+        // TODO(xuanwo): There are many works to do here:
+        //   - Is it safe to create dir concurrently?
+        //   - Do we need to extract this logic as new util functions?
+        //   - Is it better to check the parent dir exists before call mkdir?
+        let parent = PathBuf::from(&p)
+            .parent()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path shoud have parent but not, it must be malformed",
+                )
+                .with_context("input", &p)
+            })?
+            .to_path_buf();
+
+        std::fs::create_dir_all(&parent).map_err(parse_io_error)?;
+
+        Ok(p)
+    }
+
+    // Build write path and ensure the parent dirs created
+    async fn ensure_write_abs_path(parent: &str, path: &str) -> Result<String> {
+        let p = build_rooted_abs_path(parent, path);
+
+        // Create dir before write path.
+        //
+        // TODO(xuanwo): There are many works to do here:
+        //   - Is it safe to create dir concurrently?
+        //   - Do we need to extract this logic as new util functions?
+        //   - Is it better to check the parent dir exists before call mkdir?
+        let parent = PathBuf::from(&p)
+            .parent()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path shoud have parent but not, it must be malformed",
+                )
+                .with_context("input", &p)
+            })?
+            .to_path_buf();
+
+        fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
+
+        Ok(p)
     }
 }
 
@@ -242,39 +326,42 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
-        let p = build_rooted_abs_path(&self.root, path);
+        if let Some(atomic_write_dir) = &self.atomic_write_dir {
+            let temp_path = Self::ensure_write_abs_path(atomic_write_dir, path).await?;
+            let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
+            let f = fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(&temp_path)
+                .await
+                .map_err(parse_io_error)?;
 
-        // Create dir before write path.
-        //
-        // TODO(xuanwo): There are many works to do here:
-        //   - Is it safe to create dir concurrently?
-        //   - Do we need to extract this logic as new util functions?
-        //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
-                )
-                .with_context("input", &p)
-            })?
-            .to_path_buf();
+            let size = {
+                // Implicitly flush and close temp file
+                let mut f = Compat::new(f);
+                futures::io::copy(r, &mut f).await.map_err(parse_io_error)?
+            };
+            fs::rename(&temp_path, &target_path)
+                .await
+                .map_err(parse_io_error)?;
 
-        fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
+            Ok(RpWrite::new(size))
+        } else {
+            let p = Self::ensure_write_abs_path(&self.root, path).await?;
 
-        let f = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&p)
-            .await
-            .map_err(parse_io_error)?;
+            let f = fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(&p)
+                .await
+                .map_err(parse_io_error)?;
 
-        let mut f = Compat::new(f);
+            let mut f = Compat::new(f);
 
-        let size = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
+            let size = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
 
-        Ok(RpWrite::new(size))
+            Ok(RpWrite::new(size))
+        }
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -426,36 +513,36 @@ impl Accessor for Backend {
         _: OpWrite,
         mut r: BlockingBytesReader,
     ) -> Result<RpWrite> {
-        let p = build_rooted_abs_path(&self.root, path);
+        if let Some(atomic_write_dir) = &self.atomic_write_dir {
+            let temp_path = Self::blocking_ensure_write_abs_path(atomic_write_dir, path)?;
+            let target_path = Self::blocking_ensure_write_abs_path(&self.root, path)?;
 
-        // Create dir before write path.
-        //
-        // TODO(xuanwo): There are many works to do here:
-        //   - Is it safe to create dir concurrently?
-        //   - Do we need to extract this logic as new util functions?
-        //   - Is it better to check the parent dir exists before call mkdir?
-        let parent = PathBuf::from(&p)
-            .parent()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
-                )
-                .with_context("input", &p)
-            })?
-            .to_path_buf();
+            let size = {
+                // Implicitly flush and close temp file
+                let mut f = std::fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .open(&temp_path)
+                    .map_err(parse_io_error)?;
 
-        std::fs::create_dir_all(&parent).map_err(parse_io_error)?;
+                std::io::copy(&mut r, &mut f).map_err(parse_io_error)?
+            };
+            std::fs::rename(&temp_path, &target_path).map_err(parse_io_error)?;
 
-        let mut f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(&p)
-            .map_err(parse_io_error)?;
+            Ok(RpWrite::new(size))
+        } else {
+            let p = Self::blocking_ensure_write_abs_path(&self.root, path)?;
 
-        let size = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
+            let mut f = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(&p)
+                .map_err(parse_io_error)?;
 
-        Ok(RpWrite::new(size))
+            let size = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
+
+            Ok(RpWrite::new(size))
+        }
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

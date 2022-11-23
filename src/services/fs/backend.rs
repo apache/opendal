@@ -86,7 +86,6 @@ impl Builder {
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
 
-
         let root = normalize_root(&self.root.take().unwrap_or_default());
         let atomic_write_dir = self.atomic_write_dir.as_deref().map(normalize_root);
 

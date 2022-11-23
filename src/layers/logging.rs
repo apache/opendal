@@ -302,7 +302,7 @@ impl Accessor for LoggingAccessor {
             .map(|(rp, v)| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} -> got dir streamer",
+                    "service={} operation={} path={} -> got dir",
                     self.scheme, Operation::List, path
                 );
                 let streamer = LoggingPager::new(self.scheme, path, v);
@@ -775,7 +775,7 @@ impl Accessor for LoggingAccessor {
             .map(|(rp, v)| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} -> got dir streamer",
+                    "service={} operation={} path={} -> got dir",
                     self.scheme,
                     Operation::BlockingList,
                     path
@@ -1005,12 +1005,12 @@ impl Drop for LoggingPager {
         if self.finished {
             debug!(
                 target: "opendal::services",
-                "service={} operation={} path={} -> consumed streamer fully",
+                "service={} operation={} path={} -> consumed dir fully",
                 self.scheme, Operation::List, self.path);
         } else {
             debug!(
                 target: "opendal::services",
-                "service={} operation={} path={} -> dropped streamer",
+                "service={} operation={} path={} -> dropped dir",
                 self.scheme, Operation::List, self.path);
         }
     }
@@ -1024,7 +1024,7 @@ impl ObjectPage for LoggingPager {
         match &res {
             Ok(Some(des)) => {
                 debug!(
-                    target: "opendal::service",
+                    target: "opendal::services",
                     "service={} operation={} path={} -> got {} entries",
                     self.scheme,
                     Operation::List,
@@ -1034,7 +1034,7 @@ impl ObjectPage for LoggingPager {
             }
             Ok(None) => {
                 debug!(
-                    target: "opendal::service",
+                    target: "opendal::services",
                     "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::List,
@@ -1045,7 +1045,7 @@ impl ObjectPage for LoggingPager {
             Err(e) => {
                 if e.kind() == ErrorKind::Unexpected {
                     error!(
-                        target: "opendal::service",
+                        target: "opendal::services",
                         "service={} operation={} path={} -> failed: {:?}",
                         self.scheme,
                         Operation::List,
@@ -1054,7 +1054,7 @@ impl ObjectPage for LoggingPager {
                     );
                 } else {
                     warn!(
-                        target: "opendal::service",
+                        target: "opendal::services",
                         "service={} operation={} path={} -> errored: {:?}",
                         self.scheme,
                         Operation::List,
@@ -1092,12 +1092,12 @@ impl Drop for BlockingLoggingPager {
         if self.finished {
             debug!(
                 target: "opendal::services",
-                "service={} operation={} path={} -> consumed iterator fully",
+                "service={} operation={} path={} -> consumed dir fully",
                 self.scheme, Operation::BlockingList, self.path);
         } else {
             debug!(
                 target: "opendal::services",
-                "service={} operation={} path={} -> dropped iterator",
+                "service={} operation={} path={} -> dropped dir",
                 self.scheme, Operation::BlockingList, self.path);
         }
     }
@@ -1110,7 +1110,7 @@ impl BlockingObjectPage for BlockingLoggingPager {
         match &res {
             Ok(Some(des)) => {
                 debug!(
-                    target: "opendal::service",
+                    target: "opendal::services",
                     "service={} operation={} path={} -> got {} entries",
                     self.scheme,
                     Operation::BlockingList,
@@ -1120,7 +1120,7 @@ impl BlockingObjectPage for BlockingLoggingPager {
             }
             Ok(None) => {
                 debug!(
-                    target: "opendal::service",
+                    target: "opendal::services",
                     "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::BlockingList,
@@ -1131,7 +1131,7 @@ impl BlockingObjectPage for BlockingLoggingPager {
             Err(e) => {
                 if e.kind() == ErrorKind::Unexpected {
                     error!(
-                        target: "opendal::service",
+                        target: "opendal::services",
                         "service={} operation={} path={} -> failed: {:?}",
                         self.scheme,
                         Operation::BlockingList,
@@ -1140,7 +1140,7 @@ impl BlockingObjectPage for BlockingLoggingPager {
                     );
                 } else {
                     warn!(
-                        target: "opendal::service",
+                        target: "opendal::services",
                         "service={} operation={} path={} -> errored: {:?}",
                         self.scheme,
                         Operation::BlockingList,

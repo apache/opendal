@@ -17,7 +17,6 @@ use std::io;
 use std::io::Read;
 use std::io::SeekFrom;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use async_compat::Compat;
 use async_trait::async_trait;
@@ -27,7 +26,8 @@ use log::debug;
 use time::OffsetDateTime;
 use tokio::fs;
 
-use super::dir_stream::DirStream;
+use super::dir_stream::BlockingDirPager;
+use super::dir_stream::DirPager;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
 use crate::accessor::AccessorMetadata;
@@ -331,7 +331,7 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = match std::fs::read_dir(&p) {
+        let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
@@ -342,7 +342,7 @@ impl Accessor for Backend {
             }
         };
 
-        let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
+        let rd = DirPager::new(&self.root, f);
 
         Ok((RpList::default(), Box::new(rd)))
     }
@@ -526,39 +526,8 @@ impl Accessor for Backend {
             }
         };
 
-        todo!()
-        // let acc = Arc::new(self.clone());
+        let rd = BlockingDirPager::new(&self.root, f);
 
-        // let root = self.root.clone();
-
-        // let f = f.map(move |v| match v {
-        //     Ok(de) => {
-        //         let path = build_rel_path(&root, &de.path().to_string_lossy());
-
-        //         // On Windows and most Unix platforms this function is free
-        //         // (no extra system calls needed), but some Unix platforms may
-        //         // require the equivalent call to symlink_metadata to learn about
-        //         // the target file type.
-        //         let file_type = de.file_type().map_err(parse_io_error)?;
-
-        //         let d = if file_type.is_file() {
-        //             ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
-        //         } else if file_type.is_dir() {
-        //             // Make sure we are returning the correct path.
-        //             ObjectEntry::new(
-        //                 &format!("{}/", &path),
-        //                 ObjectMetadata::new(ObjectMode::DIR).with_complete(),
-        //             )
-        //         } else {
-        //             ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
-        //         };
-
-        //         Ok(d)
-        //     }
-
-        //     Err(err) => Err(parse_io_error(err)),
-        // });
-
-        // Ok(Box::new(f))
+        Ok((RpList::default(), Box::new(rd)))
     }
 }

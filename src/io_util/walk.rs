@@ -92,7 +92,53 @@ impl TopDownWalker {
 #[async_trait]
 impl ObjectPage for TopDownWalker {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
+        loop {
+            if let Some(de) = self.dirs.pop_front() {
+                let (_, op) = self.acc.list(de.path(), OpList::default()).await?;
+                self.res.push(de);
+                self.pagers.push((op, vec![]))
+            }
+
+            let (mut pager, mut buf) = match self.pagers.pop() {
+                Some((pager, buf)) => (pager, buf),
+                None => {
+                    if !self.res.is_empty() {
+                        return Ok(Some(mem::take(&mut self.res)));
+                    }
+                    return Ok(None);
+                }
+            };
+
+            if buf.is_empty() {
+                match pager.next_page().await? {
+                    Some(v) => {
+                        buf = v;
+                    }
+                    None => {
+                        continue;
+                    }
+                }
+            }
+
+            let mut buf = VecDeque::from(buf);
+            loop {
+                if let Some(oe) = buf.pop_front() {
+                    if oe.mode().is_dir() {
+                        self.dirs.push_back(oe);
+                        self.pagers.push((pager, buf.into()));
+                        break;
+                    } else {
+                        self.res.push(oe)
+                    }
+                }
+
+                break;
+            }
+
+            if self.res.len() >= WALK_BUFFER_SIZE {
+                return Ok(Some(mem::take(&mut self.res)));
+            }
+        }
     }
 }
 
@@ -134,8 +180,8 @@ impl ObjectPage for TopDownWalker {
 /// always output directly while listing.
 pub struct BottomUpWalker {
     acc: Arc<dyn Accessor>,
-    dirs: Vec<ObjectEntry>,
-    ds: Vec<ObjectPager>,
+    dirs: VecDeque<ObjectEntry>,
+    pagers: Vec<(ObjectPager, Vec<ObjectEntry>)>,
     res: Vec<ObjectEntry>,
 }
 
@@ -144,8 +190,8 @@ impl BottomUpWalker {
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         BottomUpWalker {
             acc,
-            dirs: vec![ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))],
-            ds: Vec::new(),
+            dirs: VecDeque::from([ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),
+            pagers: vec![],
             res: Vec::with_capacity(WALK_BUFFER_SIZE),
         }
     }
@@ -154,159 +200,209 @@ impl BottomUpWalker {
 #[async_trait]
 impl ObjectPage for BottomUpWalker {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
+        loop {
+            if let Some(de) = self.dirs.pop_front() {
+                let (_, op) = self.acc.list(de.path(), OpList::default()).await?;
+                self.res.push(de);
+                self.pagers.push((op, vec![]))
+            }
+
+            let (mut pager, mut buf) = match self.pagers.pop() {
+                Some((pager, buf)) => (pager, buf),
+                None => {
+                    if !self.res.is_empty() {
+                        return Ok(Some(mem::take(&mut self.res)));
+                    }
+                    return Ok(None);
+                }
+            };
+
+            if buf.is_empty() {
+                match pager.next_page().await? {
+                    Some(v) => {
+                        buf = v;
+                    }
+                    None => {
+                        continue;
+                    }
+                }
+            }
+
+            let mut buf = VecDeque::from(buf);
+            loop {
+                if let Some(oe) = buf.pop_front() {
+                    if oe.mode().is_dir() {
+                        self.dirs.push_back(oe);
+                        self.pagers.push((pager, buf.into()));
+                        break;
+                    } else {
+                        self.res.push(oe)
+                    }
+                }
+
+                break;
+            }
+
+            if self.res.len() >= WALK_BUFFER_SIZE {
+                return Ok(Some(mem::take(&mut self.res)));
+            }
+        }
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-// use std::collections::HashSet;
-// use std::env;
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::env;
 
-// use futures::TryStreamExt;
-// use log::debug;
+    use futures::TryStreamExt;
+    use log::debug;
 
-// use super::*;
-// use crate::services::fs::Builder;
-// use crate::Operator;
+    use super::*;
+    use crate::layers::LoggingLayer;
+    use crate::services::fs::Builder;
+    use crate::Operator;
 
-// fn get_position(vs: &[String], s: &str) -> usize {
-//     vs.iter()
-//         .position(|v| v == s)
-//         .expect("{s} is not found in {vs}")
-// }
+    fn get_position(vs: &[String], s: &str) -> usize {
+        vs.iter()
+            .position(|v| v == s)
+            .expect("{s} is not found in {vs}")
+    }
 
-// #[tokio::test]
-// async fn test_walk_top_down() -> Result<()> {
-//     let _ = env_logger::try_init();
+    #[tokio::test]
+    async fn test_walk_top_down() -> Result<()> {
+        let _ = env_logger::try_init();
 
-//     let mut builder = Builder::default();
-//     builder.root(&format!(
-//         "{}/{}",
-//         env::temp_dir().display(),
-//         uuid::Uuid::new_v4()
-//     ));
-//     let op = Operator::new(builder.build()?);
-//     let mut expected = vec![
-//         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-//     ];
-//     for path in expected.iter() {
-//         op.object(path).create().await?;
-//     }
+        let mut builder = Builder::default();
+        builder.root(&format!(
+            "{}/{}",
+            env::temp_dir().display(),
+            uuid::Uuid::new_v4()
+        ));
+        let op = Operator::new(builder.build()?);
+        let mut expected = vec![
+            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+        ];
+        for path in expected.iter() {
+            op.object(path).create().await?;
+        }
 
-//     let mut set = HashSet::new();
-//     let w = TopDownWalker::new(op.object("x/"));
-//     let mut actual = w
-//         .try_collect::<Vec<_>>()
-//         .await?
-//         .into_iter()
-//         .map(|v| {
-//             assert!(
-//                 set.insert(v.path().to_string()),
-//                 "duplicated value: {}",
-//                 v.path()
-//             );
-//             v.path().to_string()
-//         })
-//         .collect::<Vec<_>>();
+        let mut set = HashSet::new();
+        let w = TopDownWalker::new(op.inner(), "x/");
+        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let mut actual = ol
+            .try_collect::<Vec<_>>()
+            .await?
+            .into_iter()
+            .map(|v| {
+                assert!(
+                    set.insert(v.path().to_string()),
+                    "duplicated value: {}",
+                    v.path()
+                );
+                v.path().to_string()
+            })
+            .collect::<Vec<_>>();
 
-//     debug!("walk top down: {:?}", actual);
+        debug!("walk top down: {:?}", actual);
 
-//     assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
-//     assert!(get_position(&actual, "x/x/x/") > get_position(&actual, "x/x/"));
-//     assert!(get_position(&actual, "x/x/") > get_position(&actual, "x/"));
+        assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
+        assert!(get_position(&actual, "x/x/x/") > get_position(&actual, "x/x/"));
+        assert!(get_position(&actual, "x/x/") > get_position(&actual, "x/"));
 
-//     expected.sort_unstable();
-//     actual.sort_unstable();
-//     assert_eq!(actual, expected);
-//     Ok(())
-// }
+        expected.sort_unstable();
+        actual.sort_unstable();
+        assert_eq!(actual, expected);
+        Ok(())
+    }
 
-// #[tokio::test]
-// async fn test_walk_top_down_same_level() -> Result<()> {
-//     let _ = env_logger::try_init();
+    #[tokio::test]
+    async fn test_walk_top_down_same_level() -> Result<()> {
+        let _ = env_logger::try_init();
 
-//     let mut builder = Builder::default();
-//     builder.root(&format!(
-//         "{}/{}",
-//         env::temp_dir().display(),
-//         uuid::Uuid::new_v4()
-//     ));
-//     let op = Operator::new(builder.build()?);
-//     for path in ["x/x/a", "x/x/b", "x/x/c"] {
-//         op.object(path).create().await?;
-//     }
+        let mut builder = Builder::default();
+        builder.root(&format!(
+            "{}/{}",
+            env::temp_dir().display(),
+            uuid::Uuid::new_v4()
+        ));
+        let op = Operator::new(builder.build()?);
+        for path in ["x/x/a", "x/x/b", "x/x/c"] {
+            op.object(path).create().await?;
+        }
 
-//     let mut set = HashSet::new();
-//     let w = TopDownWalker::new(op.object(""));
-//     let mut actual = w
-//         .try_collect::<Vec<_>>()
-//         .await?
-//         .into_iter()
-//         .map(|v| {
-//             assert!(
-//                 set.insert(v.path().to_string()),
-//                 "duplicated value: {}",
-//                 v.path()
-//             );
-//             v.path().to_string()
-//         })
-//         .collect::<Vec<_>>();
+        let mut set = HashSet::new();
+        let w = TopDownWalker::new(op.inner(), "");
+        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let mut actual = ol
+            .try_collect::<Vec<_>>()
+            .await?
+            .into_iter()
+            .map(|v| {
+                assert!(
+                    set.insert(v.path().to_string()),
+                    "duplicated value: {}",
+                    v.path()
+                );
+                v.path().to_string()
+            })
+            .collect::<Vec<_>>();
 
-//     debug!("walk top down: {:?}", actual);
+        debug!("walk top down: {:?}", actual);
 
-//     actual.sort_unstable();
-//     assert_eq!(actual, {
-//         let mut x = vec!["/", "x/", "x/x/", "x/x/a", "x/x/b", "x/x/c"];
-//         x.sort_unstable();
-//         x
-//     });
-//     Ok(())
-// }
+        actual.sort_unstable();
+        assert_eq!(actual, {
+            let mut x = vec!["/", "x/", "x/x/", "x/x/a", "x/x/b", "x/x/c"];
+            x.sort_unstable();
+            x
+        });
+        Ok(())
+    }
 
-// #[tokio::test]
-// async fn test_walk_bottom_up() -> Result<()> {
-//     let _ = env_logger::try_init();
+    #[tokio::test]
+    async fn test_walk_bottom_up() -> Result<()> {
+        let _ = env_logger::try_init();
 
-//     let mut builder = Builder::default();
-//     builder.root(&format!(
-//         "{}/{}",
-//         env::temp_dir().display(),
-//         uuid::Uuid::new_v4()
-//     ));
-//     let op = Operator::new(builder.build()?);
-//     let mut expected = vec![
-//         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-//     ];
-//     for path in expected.iter() {
-//         op.object(path).create().await?;
-//     }
+        let mut builder = Builder::default();
+        builder.root(&format!(
+            "{}/{}",
+            env::temp_dir().display(),
+            uuid::Uuid::new_v4()
+        ));
+        let op = Operator::new(builder.build()?).layer(LoggingLayer);
+        let mut expected = vec![
+            "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+        ];
+        for path in expected.iter() {
+            op.object(path).create().await?;
+        }
 
-//     let mut set = HashSet::new();
-//     let w = BottomUpWalker::new(op.object("x/"));
-//     let mut actual = w
-//         .try_collect::<Vec<_>>()
-//         .await?
-//         .into_iter()
-//         .map(|v| {
-//             assert!(
-//                 set.insert(v.path().to_string()),
-//                 "duplicated value: {}",
-//                 v.path()
-//             );
-//             v.path().to_string()
-//         })
-//         .collect::<Vec<_>>();
+        let mut set = HashSet::new();
+        let w = BottomUpWalker::new(op.inner(), "x/");
+        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let mut actual = ol
+            .try_collect::<Vec<_>>()
+            .await?
+            .into_iter()
+            .map(|v| {
+                assert!(
+                    set.insert(v.path().to_string()),
+                    "duplicated value: {}",
+                    v.path()
+                );
+                v.path().to_string()
+            })
+            .collect::<Vec<_>>();
 
-//     debug!("walk bottom up: {:?}", actual);
+        debug!("walk bottom up: {:?}", actual);
 
-//     assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));
-//     assert!(get_position(&actual, "x/x/x/") < get_position(&actual, "x/x/"));
-//     assert!(get_position(&actual, "x/x/") < get_position(&actual, "x/"));
+        assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));
+        assert!(get_position(&actual, "x/x/x/") < get_position(&actual, "x/x/"));
+        assert!(get_position(&actual, "x/x/") < get_position(&actual, "x/"));
 
-//     expected.sort_unstable();
-//     actual.sort_unstable();
-//     assert_eq!(actual, expected);
-//     Ok(())
-// }
-// }
+        expected.sort_unstable();
+        actual.sort_unstable();
+        assert_eq!(actual, expected);
+        Ok(())
+    }
+}

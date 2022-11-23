@@ -20,15 +20,14 @@ use futures::io;
 use futures::io::Cursor;
 use time::Duration;
 
+use super::BlockingObjectLister;
+use super::ObjectLister;
+use super::ObjectMetadatar;
 use crate::io::BytesRead;
 use crate::io_util::*;
 use crate::ops::*;
 use crate::path::*;
 use crate::*;
-
-use super::BlockingObjectLister;
-use super::ObjectLister;
-use super::ObjectMetadatar;
 
 /// Handler for all object related operations.
 #[derive(Clone, Debug)]

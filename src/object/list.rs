@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::*;
+use std::collections::VecDeque;
+use std::mem;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
+
 use async_trait::async_trait;
-use futures::{future::BoxFuture, ready, FutureExt, Stream};
-use std::{
-    collections::VecDeque,
-    mem,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-};
+use futures::future::BoxFuture;
+use futures::ready;
+use futures::FutureExt;
+use futures::Stream;
+
+use crate::*;
 
 /// ObjectPage trait is used by [`Accessor`] to implement `list` operation.
 ///

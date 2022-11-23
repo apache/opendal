@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use time::OffsetDateTime;
 
-use crate::ops::{BytesContentRange, OpStat};
+use crate::ops::BytesContentRange;
+use crate::ops::OpStat;
 use crate::path::get_basename;
 use crate::*;
 

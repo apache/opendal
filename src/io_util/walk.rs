@@ -14,28 +14,14 @@
 
 use std::collections::VecDeque;
 use std::mem;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
 
-use crate::object::ObjectLister;
-use crate::object::ObjectPage;
-use crate::object::ObjectPager;
+use crate::object::*;
 use crate::ops::OpList;
-use crate::ops::RpList;
 use crate::path::normalize_path;
-use crate::Accessor;
-use crate::Object;
-use crate::ObjectEntry;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::Result;
+use crate::*;
 
 const WALK_BUFFER_SIZE: usize = 256;
 
@@ -136,6 +122,7 @@ impl ObjectPage for TopDownWalker {
                         self.res.push(oe)
                     }
                 } else {
+                    self.pagers.push((pager, vec![]));
                     break;
                 }
             }
@@ -186,7 +173,7 @@ impl ObjectPage for TopDownWalker {
 pub struct BottomUpWalker {
     acc: Arc<dyn Accessor>,
     dirs: VecDeque<ObjectEntry>,
-    pagers: Vec<(ObjectPager, Vec<ObjectEntry>)>,
+    pagers: Vec<(ObjectPager, ObjectEntry, Vec<ObjectEntry>)>,
     res: Vec<ObjectEntry>,
 }
 
@@ -206,14 +193,13 @@ impl BottomUpWalker {
 impl ObjectPage for BottomUpWalker {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         loop {
-            if let Some(de) = self.dirs.pop_front() {
+            if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.list(de.path(), OpList::default()).await?;
-                self.res.push(de);
-                self.pagers.push((op, vec![]))
+                self.pagers.push((op, de, vec![]))
             }
 
-            let (mut pager, mut buf) = match self.pagers.pop() {
-                Some((pager, buf)) => (pager, buf),
+            let (mut pager, de, mut buf) = match self.pagers.pop() {
+                Some((pager, de, buf)) => (pager, de, buf),
                 None => {
                     if !self.res.is_empty() {
                         return Ok(Some(mem::take(&mut self.res)));
@@ -228,6 +214,7 @@ impl ObjectPage for BottomUpWalker {
                         buf = v;
                     }
                     None => {
+                        self.res.push(de);
                         continue;
                     }
                 }
@@ -238,14 +225,15 @@ impl ObjectPage for BottomUpWalker {
                 if let Some(oe) = buf.pop_front() {
                     if oe.mode().is_dir() {
                         self.dirs.push_back(oe);
-                        self.pagers.push((pager, buf.into()));
+                        self.pagers.push((pager, de, buf.into()));
                         break;
                     } else {
                         self.res.push(oe)
                     }
+                } else {
+                    self.pagers.push((pager, de, vec![]));
+                    break;
                 }
-
-                break;
             }
 
             if self.res.len() >= WALK_BUFFER_SIZE {
@@ -271,7 +259,7 @@ mod tests {
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
-            .expect("{s} is not found in {vs}")
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
     }
 
     #[tokio::test]

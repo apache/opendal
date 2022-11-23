@@ -240,19 +240,14 @@ impl SubdirPager {
 impl ObjectPage for SubdirPager {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         let res = self.inner.next_page().await?;
-
-        let res = if let Some(res) = res {
-            Some(
-                res.into_iter()
-                    .map(|mut v| {
-                        v.set_path(&strip_subdir(&self.subdir, v.path()));
-                        v
-                    })
-                    .collect(),
-            )
-        } else {
-            None
-        };
+        let res = res.map(|res| {
+            res.into_iter()
+                .map(|mut v| {
+                    v.set_path(&strip_subdir(&self.subdir, v.path()));
+                    v
+                })
+                .collect()
+        });
 
         Ok(res)
     }
@@ -276,18 +271,14 @@ impl BlockingObjectPage for BlockingSubdirPager {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         let res = self.inner.next_page()?;
 
-        let res = if let Some(res) = res {
-            Some(
-                res.into_iter()
-                    .map(|mut v| {
-                        v.set_path(&strip_subdir(&self.subdir, v.path()));
-                        v
-                    })
-                    .collect(),
-            )
-        } else {
-            None
-        };
+        let res = res.map(|res| {
+            res.into_iter()
+                .map(|mut v| {
+                    v.set_path(&strip_subdir(&self.subdir, v.path()));
+                    v
+                })
+                .collect()
+        });
 
         Ok(res)
     }

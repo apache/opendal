@@ -18,6 +18,8 @@ use std::sync::Arc;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
+use crate::io_util::BottomUpWalker;
+use crate::io_util::TopDownWalker;
 use crate::object::ObjectLister;
 use crate::services;
 use crate::Accessor;
@@ -332,14 +334,20 @@ impl BatchOperator {
     ///
     /// Refer to [`TopDownWalker`] for more about the behavior details.
     pub fn walk_top_down(&self, path: &str) -> Result<ObjectLister> {
-        todo!()
+        Ok(ObjectLister::new(
+            self.src.inner(),
+            Box::new(TopDownWalker::new(self.src.inner(), path)),
+        ))
     }
 
     /// Walk a dir in bottom up way: list nested dir first and then current dir.
     ///
     /// Refer to [`BottomUpWalker`] for more about the behavior details.
     pub fn walk_bottom_up(&self, path: &str) -> Result<ObjectLister> {
-        todo!()
+        Ok(ObjectLister::new(
+            self.src.inner(),
+            Box::new(BottomUpWalker::new(self.src.inner(), path)),
+        ))
     }
 
     /// Remove the path and all nested dirs and files recursively.

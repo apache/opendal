@@ -313,7 +313,7 @@ impl Accessor for Backend {
             }
         };
 
-        let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
+        let rd = DirStream::new(&self.root, f);
 
         Ok((RpList::default(), Box::new(rd)))
     }

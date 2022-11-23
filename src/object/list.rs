@@ -64,6 +64,7 @@ pub struct ObjectLister {
     /// We will move `pager` inside future and return it back while future is ready.
     /// Thus, we should not allow calling other function while we already have
     /// a future.
+    #[allow(clippy::type_complexity)]
     fut: Option<BoxFuture<'static, (ObjectPager, Result<Option<Vec<ObjectEntry>>>)>>,
 }
 
@@ -149,7 +150,7 @@ impl Stream for ObjectLister {
             (pager, res)
         };
         self.fut = Some(Box::pin(fut));
-        return self.poll_next(cx);
+        self.poll_next(cx)
     }
 }
 

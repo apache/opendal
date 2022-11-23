@@ -12,14 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
-
 use async_trait::async_trait;
 
-use super::backend::Backend;
 use crate::object::ObjectPage;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
@@ -28,16 +22,19 @@ use crate::ObjectMode;
 use crate::Result;
 
 pub struct DirStream {
-    backend: Arc<Backend>,
     root: String,
+
+    size: usize,
     rd: hdrs::Readdir,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, rd: hdrs::Readdir) -> Self {
+    pub fn new(root: &str, rd: hdrs::Readdir) -> Self {
         Self {
-            backend,
             root: root.to_string(),
+
+            // TODO: make this a configurable value.
+            size: 256,
             rd,
         }
     }
@@ -46,36 +43,34 @@ impl DirStream {
 #[async_trait]
 impl ObjectPage for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
-    }
-}
+        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
 
-impl futures::Stream for DirStream {
-    type Item = Result<ObjectEntry>;
+        for _ in 0..self.size {
+            let de = match self.rd.next() {
+                Some(de) => de,
+                None => break,
+            };
 
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.rd.next() {
-            None => Poll::Ready(None),
-            Some(de) => {
-                let path = build_rel_path(&self.root, de.path());
+            let path = build_rel_path(&self.root, de.path());
 
-                let d = if de.is_file() {
-                    let meta = ObjectMetadata::new(ObjectMode::FILE)
-                        .with_content_length(de.len())
-                        .with_last_modified(time::OffsetDateTime::from(de.modified()));
-                    ObjectEntry::new(&path, meta)
-                } else if de.is_dir() {
-                    // Make sure we are returning the correct path.
-                    ObjectEntry::new(
-                        &format!("{}/", path),
-                        ObjectMetadata::new(ObjectMode::DIR).with_complete(),
-                    )
-                } else {
-                    ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
-                };
+            let d = if de.is_file() {
+                let meta = ObjectMetadata::new(ObjectMode::FILE)
+                    .with_content_length(de.len())
+                    .with_last_modified(time::OffsetDateTime::from(de.modified()));
+                ObjectEntry::new(&path, meta)
+            } else if de.is_dir() {
+                // Make sure we are returning the correct path.
+                ObjectEntry::new(
+                    &format!("{}/", path),
+                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                )
+            } else {
+                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+            };
 
-                Poll::Ready(Some(Ok(d)))
-            }
+            oes.push(d)
         }
+
+        Ok(if oes.is_empty() { None } else { Some(oes) })
     }
 }

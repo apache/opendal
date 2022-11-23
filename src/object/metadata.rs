@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use time::OffsetDateTime;
@@ -281,12 +282,34 @@ impl ObjectMetadata {
     }
 }
 
-#[derive(Clone)]
 pub struct ObjectMetadatar {
     acc: Arc<dyn Accessor>,
     path: String,
 
     meta: Arc<Mutex<ObjectMetadata>>,
+    /// Complete means this object entry already carries all metadata
+    /// that it could have. Don't call metadata anymore.
+    ///
+    /// # Safety
+    ///
+    /// It's safe to clone this value. Because complete will only transform
+    /// into `true` and never change back.
+    ///
+    /// For the worse case, we cloned a `false` to new ObjectEntry. The cost
+    /// is an extra stat.
+    complete: AtomicBool,
+}
+
+impl Clone for ObjectMetadatar {
+    fn clone(&self) -> Self {
+        Self {
+            acc: self.acc.clone(),
+            path: self.path.clone(),
+            meta: self.meta.clone(),
+            // Read comments on this field.
+            complete: self.complete.load(Ordering::Relaxed).into(),
+        }
+    }
 }
 
 impl ObjectMetadatar {
@@ -298,10 +321,13 @@ impl ObjectMetadatar {
             path
         );
 
+        let complete = AtomicBool::from(meta.is_complete());
+
         ObjectMetadatar {
             acc,
             path: path.to_string(),
             meta: Arc::new(Mutex::new(meta)),
+            complete,
         }
     }
 
@@ -348,13 +374,16 @@ impl ObjectMetadatar {
 
     /// Fetch metadata about this object entry.
     pub async fn metadata(&self) -> Result<ObjectMetadata> {
-        let mut guard = self.meta.lock().expect("lock must succeed");
-        if !guard.is_complete() {
-            let rp = self.acc.stat(self.path(), OpStat::new()).await?;
-            *guard = rp.into_metadata();
+        if self.complete.load(Ordering::Relaxed) {
+            let meta = self.meta.lock().expect("lock must succeed").clone();
+            return Ok(meta);
         }
 
-        Ok((*guard).clone())
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        let meta = rp.into_metadata();
+        *self.meta.lock().expect("lock must succeed") = meta.clone();
+        self.complete.store(true, Ordering::Relaxed);
+        Ok(meta)
     }
 
     /// Fetch metadata about this object entry.

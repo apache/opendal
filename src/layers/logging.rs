@@ -302,7 +302,7 @@ impl Accessor for LoggingAccessor {
             .map(|(rp, v)| {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} -> got dir",
+                    "service={} operation={} path={} -> start listing dir",
                     self.scheme, Operation::List, path
                 );
                 let streamer = LoggingPager::new(self.scheme, path, v);
@@ -1025,7 +1025,7 @@ impl ObjectPage for LoggingPager {
             Ok(Some(des)) => {
                 debug!(
                     target: "opendal::services",
-                    "service={} operation={} path={} -> got {} entries",
+                    "service={} operation={} path={} -> listed {} entries",
                     self.scheme,
                     Operation::List,
                     self.path,

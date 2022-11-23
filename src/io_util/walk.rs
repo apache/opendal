@@ -29,6 +29,7 @@ use crate::object::ObjectPage;
 use crate::object::ObjectPager;
 use crate::ops::OpList;
 use crate::ops::RpList;
+use crate::path::normalize_path;
 use crate::Accessor;
 use crate::Object;
 use crate::ObjectEntry;
@@ -80,9 +81,13 @@ pub struct TopDownWalker {
 impl TopDownWalker {
     /// Create a new [`TopDownWalker`]
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        let path = normalize_path(path);
         TopDownWalker {
             acc,
-            dirs: VecDeque::from([ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),
+            dirs: VecDeque::from([ObjectEntry::with(
+                path,
+                ObjectMetadata::new(ObjectMode::DIR),
+            )]),
             pagers: vec![],
             res: Vec::with_capacity(WALK_BUFFER_SIZE),
         }
@@ -130,9 +135,9 @@ impl ObjectPage for TopDownWalker {
                     } else {
                         self.res.push(oe)
                     }
+                } else {
+                    break;
                 }
-
-                break;
             }
 
             if self.res.len() >= WALK_BUFFER_SIZE {
@@ -326,7 +331,7 @@ mod tests {
             env::temp_dir().display(),
             uuid::Uuid::new_v4()
         ));
-        let op = Operator::new(builder.build()?);
+        let op = Operator::new(builder.build()?).layer(LoggingLayer);
         for path in ["x/x/a", "x/x/b", "x/x/c"] {
             op.object(path).create().await?;
         }

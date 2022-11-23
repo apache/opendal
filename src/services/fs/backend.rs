@@ -73,7 +73,7 @@ impl Builder {
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let root = normalize_root(&self.root.clone().unwrap_or_default());
         debug!("backend use root {}", root);
 
         // If root dir is not exist, we must create it.

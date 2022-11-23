@@ -25,10 +25,7 @@ use futures::AsyncRead;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
-use crate::object::BlockingObjectPage;
-use crate::object::BlockingObjectPager;
-use crate::object::ObjectPage;
-use crate::object::ObjectPager;
+use crate::object::*;
 use crate::ops::*;
 use crate::*;
 
@@ -149,7 +146,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.list(path, args).await.map(|(rp, s)| {
             (
                 rp,
-                Box::new(ConcurrentLimitStreamer::new(s, permit)) as ObjectPager,
+                Box::new(ConcurrentLimitPager::new(s, permit)) as ObjectPager,
             )
         })
     }
@@ -276,7 +273,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.blocking_list(path, args).map(|(rp, it)| {
             (
                 rp,
-                Box::new(ConcurrentLimitInterator::new(it, permit)) as BlockingObjectPager,
+                Box::new(BlockingConcurrentLimitPager::new(it, permit)) as BlockingObjectPager,
             )
         })
     }
@@ -330,14 +327,14 @@ impl Read for BlockingConcurrentLimitReader {
     }
 }
 
-struct ConcurrentLimitStreamer {
+struct ConcurrentLimitPager {
     inner: ObjectPager,
 
     // Hold on this permit until this streamer has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
-impl ConcurrentLimitStreamer {
+impl ConcurrentLimitPager {
     fn new(inner: ObjectPager, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
@@ -347,20 +344,20 @@ impl ConcurrentLimitStreamer {
 }
 
 #[async_trait]
-impl ObjectPage for ConcurrentLimitStreamer {
+impl ObjectPage for ConcurrentLimitPager {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         self.inner.next_page().await
     }
 }
 
-struct ConcurrentLimitInterator {
+struct BlockingConcurrentLimitPager {
     inner: BlockingObjectPager,
 
     // Hold on this permit until this iterator has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
-impl ConcurrentLimitInterator {
+impl BlockingConcurrentLimitPager {
     fn new(inner: BlockingObjectPager, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
@@ -369,7 +366,7 @@ impl ConcurrentLimitInterator {
     }
 }
 
-impl BlockingObjectPage for ConcurrentLimitInterator {
+impl BlockingObjectPage for BlockingConcurrentLimitPager {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         self.inner.next_page()
     }

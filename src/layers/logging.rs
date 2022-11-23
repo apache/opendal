@@ -27,10 +27,7 @@ use log::error;
 use log::trace;
 use log::warn;
 
-use crate::object::BlockingObjectPage;
-use crate::object::BlockingObjectPager;
-use crate::object::ObjectPage;
-use crate::object::ObjectPager;
+use crate::object::*;
 use crate::ops::*;
 use crate::*;
 
@@ -308,7 +305,7 @@ impl Accessor for LoggingAccessor {
                     "service={} operation={} path={} -> got dir streamer",
                     self.scheme, Operation::List, path
                 );
-                let streamer = LoggingStreamer::new(self.scheme, path, v);
+                let streamer = LoggingPager::new(self.scheme, path, v);
                 (rp, Box::new(streamer) as ObjectPager)
             })
             .map_err(|err| {
@@ -783,7 +780,7 @@ impl Accessor for LoggingAccessor {
                     Operation::BlockingList,
                     path
                 );
-                let li = LoggingIterator::new(self.scheme, path, v);
+                let li = BlockingLoggingPager::new(self.scheme, path, v);
                 (rp, Box::new(li) as BlockingObjectPager)
             })
             .map_err(|err| {
@@ -985,14 +982,14 @@ impl Read for BlockingLoggingReader {
     }
 }
 
-struct LoggingStreamer {
+struct LoggingPager {
     scheme: Scheme,
     path: String,
     finished: bool,
     inner: ObjectPager,
 }
 
-impl LoggingStreamer {
+impl LoggingPager {
     fn new(scheme: Scheme, path: &str, inner: ObjectPager) -> Self {
         Self {
             scheme,
@@ -1003,7 +1000,7 @@ impl LoggingStreamer {
     }
 }
 
-impl Drop for LoggingStreamer {
+impl Drop for LoggingPager {
     fn drop(&mut self) {
         if self.finished {
             debug!(
@@ -1020,7 +1017,7 @@ impl Drop for LoggingStreamer {
 }
 
 #[async_trait]
-impl ObjectPage for LoggingStreamer {
+impl ObjectPage for LoggingPager {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         let res = self.inner.next_page().await;
 
@@ -1072,14 +1069,14 @@ impl ObjectPage for LoggingStreamer {
     }
 }
 
-struct LoggingIterator {
+struct BlockingLoggingPager {
     scheme: Scheme,
     path: String,
     finished: bool,
     inner: BlockingObjectPager,
 }
 
-impl LoggingIterator {
+impl BlockingLoggingPager {
     fn new(scheme: Scheme, path: &str, inner: BlockingObjectPager) -> Self {
         Self {
             scheme,
@@ -1090,7 +1087,7 @@ impl LoggingIterator {
     }
 }
 
-impl Drop for LoggingIterator {
+impl Drop for BlockingLoggingPager {
     fn drop(&mut self) {
         if self.finished {
             debug!(
@@ -1106,7 +1103,7 @@ impl Drop for LoggingIterator {
     }
 }
 
-impl BlockingObjectPage for LoggingIterator {
+impl BlockingObjectPage for BlockingLoggingPager {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         let res = self.inner.next_page();
 

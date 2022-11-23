@@ -20,7 +20,6 @@ use async_trait::async_trait;
 use futures::io;
 use futures::io::Cursor;
 
-use crate::object::{BlockingObjectPager, ObjectPager};
 use crate::ops::*;
 use crate::*;
 
@@ -150,10 +149,6 @@ impl Accessor for MetadataCacheAccessor {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-        self.inner.list(path, args).await
-    }
-
     async fn complete_multipart(
         &self,
         path: &str,
@@ -215,10 +210,6 @@ impl Accessor for MetadataCacheAccessor {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.cache.blocking_delete(path, OpDelete::new())?;
         self.inner.blocking_delete(path, args)
-    }
-
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        self.inner.blocking_list(path, args)
     }
 }
 

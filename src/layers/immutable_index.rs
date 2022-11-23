@@ -16,24 +16,15 @@ use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fmt::Debug;
 
+use std::mem;
 use std::sync::Arc;
-use std::vec::IntoIter;
 
 use async_trait::async_trait;
 
 use crate::accessor::AccessorCapability;
-use crate::object::BlockingObjectPage;
-use crate::object::BlockingObjectPager;
-use crate::object::ObjectPage;
-use crate::object::ObjectPager;
+use crate::object::*;
 use crate::ops::*;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::Layer;
-use crate::ObjectEntry;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::Result;
+use crate::*;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for
 /// underlying storage services.
@@ -171,46 +162,47 @@ impl Accessor for ImmutableIndexAccessor {
 }
 
 struct ImmutableDir {
-    idx: IntoIter<String>,
+    idx: Vec<String>,
 }
 
 impl ImmutableDir {
     fn new(idx: Vec<String>) -> Self {
-        Self {
-            idx: idx.into_iter(),
-        }
+        Self { idx }
     }
-}
 
-impl Iterator for ImmutableDir {
-    type Item = Result<ObjectEntry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.idx.next() {
-            None => None,
-            Some(path) => {
-                let mode = if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                };
-
-                Some(Ok(ObjectEntry::new(&path, ObjectMetadata::new(mode))))
-            }
+    fn inner_next_page(&mut self) -> Option<Vec<ObjectEntry>> {
+        if self.idx.is_empty() {
+            return None;
         }
+
+        let vs = mem::take(&mut self.idx);
+
+        Some(
+            vs.into_iter()
+                .map(|v| {
+                    let mode = if v.ends_with('/') {
+                        ObjectMode::DIR
+                    } else {
+                        ObjectMode::FILE
+                    };
+                    let meta = ObjectMetadata::new(mode);
+                    ObjectEntry::with(v, meta)
+                })
+                .collect(),
+        )
     }
 }
 
 #[async_trait]
 impl ObjectPage for ImmutableDir {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
+        Ok(self.inner_next_page())
     }
 }
 
 impl BlockingObjectPage for ImmutableDir {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
+        Ok(self.inner_next_page())
     }
 }
 

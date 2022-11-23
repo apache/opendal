@@ -105,7 +105,7 @@ impl Accessor for TracingAccessor {
         self.inner.list(path, args).await.map(|(rp, s)| {
             (
                 rp,
-                Box::new(TracingStreamer::new(Span::current(), s)) as ObjectPager,
+                Box::new(TracingPager::new(Span::current(), s)) as ObjectPager,
             )
         })
     }
@@ -188,7 +188,7 @@ impl Accessor for TracingAccessor {
         self.inner.blocking_list(path, args).map(|(rp, it)| {
             (
                 rp,
-                Box::new(TracingInterator::new(Span::current(), it)) as BlockingObjectPager,
+                Box::new(BlockingTracingPager::new(Span::current(), it)) as BlockingObjectPager,
             )
         })
     }
@@ -242,12 +242,12 @@ impl Read for BlockingTracingReader {
     }
 }
 
-struct TracingStreamer {
+struct TracingPager {
     span: Span,
     inner: ObjectPager,
 }
 
-impl TracingStreamer {
+impl TracingPager {
     fn new(span: Span, streamer: ObjectPager) -> Self {
         Self {
             span,
@@ -257,25 +257,25 @@ impl TracingStreamer {
 }
 
 #[async_trait]
-impl ObjectPage for TracingStreamer {
+impl ObjectPage for TracingPager {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         self.inner.next_page().await
     }
 }
 
-struct TracingInterator {
+struct BlockingTracingPager {
     span: Span,
     inner: BlockingObjectPager,
 }
 
-impl TracingInterator {
+impl BlockingTracingPager {
     fn new(span: Span, inner: BlockingObjectPager) -> Self {
         Self { span, inner }
     }
 }
 
-impl BlockingObjectPage for TracingInterator {
+impl BlockingObjectPage for BlockingTracingPager {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         self.inner.next_page()

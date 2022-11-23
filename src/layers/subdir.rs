@@ -128,14 +128,7 @@ impl Accessor for SubdirAccessor {
         let path = self.prepend_subdir(path);
         let (rp, pager) = self.inner.list(&path, args).await?;
 
-        Ok((
-            rp,
-            Box::new(SubdirStreamer::new(
-                Arc::new(self.clone()),
-                &self.subdir,
-                pager,
-            )),
-        ))
+        Ok((rp, Box::new(SubdirPager::new(&self.subdir, pager))))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -219,14 +212,7 @@ impl Accessor for SubdirAccessor {
         let path = self.prepend_subdir(path);
         let (rp, pager) = self.inner.blocking_list(&path, args)?;
 
-        Ok((
-            rp,
-            Box::new(SubdirIterator::new(
-                Arc::new(self.clone()),
-                &self.subdir,
-                pager,
-            )),
-        ))
+        Ok((rp, Box::new(BlockingSubdirPager::new(&self.subdir, pager))))
     }
 }
 
@@ -236,16 +222,14 @@ fn strip_subdir(subdir: &str, path: &str) -> String {
         .to_string()
 }
 
-struct SubdirStreamer {
-    acc: Arc<dyn Accessor>,
+struct SubdirPager {
     subdir: String,
     inner: ObjectPager,
 }
 
-impl SubdirStreamer {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectPager) -> Self {
+impl SubdirPager {
+    fn new(subdir: &str, inner: ObjectPager) -> Self {
         Self {
-            acc,
             subdir: subdir.to_string(),
             inner,
         }
@@ -253,35 +237,58 @@ impl SubdirStreamer {
 }
 
 #[async_trait]
-impl ObjectPage for SubdirStreamer {
+impl ObjectPage for SubdirPager {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        //  Poll::Ready(Some(Ok(mut de))) => {
-        // de.set_accessor(self.acc.clone());
-        // de.set_path(&strip_subdir(&self.subdir, de.path()));
-        // Poll::Ready(Some(Ok(de)))
-        // }
-        todo!()
+        let res = self.inner.next_page().await?;
+
+        let res = if let Some(res) = res {
+            Some(
+                res.into_iter()
+                    .map(|mut v| {
+                        v.set_path(&strip_subdir(&self.subdir, v.path()));
+                        v
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        };
+
+        Ok(res)
     }
 }
 
-struct SubdirIterator {
-    acc: Arc<dyn Accessor>,
+struct BlockingSubdirPager {
     subdir: String,
     inner: BlockingObjectPager,
 }
 
-impl SubdirIterator {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: BlockingObjectPager) -> Self {
+impl BlockingSubdirPager {
+    fn new(subdir: &str, inner: BlockingObjectPager) -> Self {
         Self {
-            acc,
             subdir: subdir.to_string(),
             inner,
         }
     }
 }
 
-impl BlockingObjectPage for SubdirIterator {
+impl BlockingObjectPage for BlockingSubdirPager {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        todo!()
+        let res = self.inner.next_page()?;
+
+        let res = if let Some(res) = res {
+            Some(
+                res.into_iter()
+                    .map(|mut v| {
+                        v.set_path(&strip_subdir(&self.subdir, v.path()));
+                        v
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        };
+
+        Ok(res)
     }
 }

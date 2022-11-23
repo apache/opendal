@@ -27,7 +27,6 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
 
-use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -133,10 +132,6 @@ impl Accessor for ContentCacheAccessor {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.cache.delete(path, OpDelete::new()).await?;
         self.inner.delete(path, args).await
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-        self.inner.list(path, args).await
     }
 }
 

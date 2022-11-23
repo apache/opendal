@@ -31,6 +31,11 @@ pub struct ObjectEntry {
 impl ObjectEntry {
     /// Create a new object entry by its corresponding underlying storage.
     pub fn new(path: &str, meta: ObjectMetadata) -> ObjectEntry {
+        Self::with(path.to_string(), meta)
+    }
+
+    /// Create a new object entry with given value.
+    pub fn with(path: String, meta: ObjectMetadata) -> ObjectEntry {
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",
@@ -38,25 +43,26 @@ impl ObjectEntry {
             path
         );
 
-        ObjectEntry {
-            path: path.to_string(),
-            meta,
-        }
+        ObjectEntry { path, meta }
     }
 
+    /// Set path for object entry.
     pub fn set_path(&mut self, path: &str) -> &mut Self {
         self.path = path.to_string();
         self
     }
 
+    /// Get the path of object entry.
     pub fn path(&self) -> &str {
         &self.path
     }
 
+    /// Get entry's object mode.
     pub fn mode(&self) -> ObjectMode {
         self.meta.mode()
     }
 
+    /// Consume to convert into an object.
     pub fn into_object(self, acc: Arc<dyn Accessor>) -> Object {
         Object::new(acc, &self.path).with_metadata(self.meta)
     }

@@ -12,76 +12,124 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
+use async_trait::async_trait;
 
-use super::backend::Backend;
 use super::error::parse_io_error;
+use crate::object::BlockingObjectPage;
+use crate::object::ObjectPage;
 use crate::path::build_rel_path;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirStream {
-    backend: Arc<Backend>,
+pub struct DirPager {
     root: String,
 
-    rd: std::fs::ReadDir,
+    size: usize,
+    rd: tokio::fs::ReadDir,
 }
 
-impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, rd: std::fs::ReadDir) -> Self {
+impl DirPager {
+    pub fn new(root: &str, rd: tokio::fs::ReadDir) -> Self {
         Self {
-            backend,
             root: root.to_string(),
+            // TODO: make this a configurable value.
+            size: 256,
             rd,
         }
     }
 }
 
-impl futures::Stream for DirStream {
-    type Item = Result<ObjectEntry>;
+#[async_trait]
+impl ObjectPage for DirPager {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
 
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.rd.next() {
-            None => Poll::Ready(None),
-            Some(Err(e)) => Poll::Ready(Some(Err(parse_io_error(e)))),
-            Some(Ok(de)) => {
-                let path = build_rel_path(&self.root, &de.path().to_string_lossy());
+        for _ in 0..self.size {
+            let de = match self.rd.next_entry().await.map_err(parse_io_error)? {
+                Some(de) => de,
+                None => break,
+            };
 
-                // On Windows and most Unix platforms this function is free
-                // (no extra system calls needed), but some Unix platforms may
-                // require the equivalent call to symlink_metadata to learn about
-                // the target file type.
-                let file_type = de.file_type().map_err(parse_io_error)?;
+            let path = build_rel_path(&self.root, &de.path().to_string_lossy());
 
-                let d = if file_type.is_file() {
-                    ObjectEntry::new(
-                        self.backend.clone(),
-                        &path,
-                        ObjectMetadata::new(ObjectMode::FILE),
-                    )
-                } else if file_type.is_dir() {
-                    // Make sure we are returning the correct path.
-                    ObjectEntry::new(
-                        self.backend.clone(),
-                        &format!("{}/", &path),
-                        ObjectMetadata::new(ObjectMode::DIR),
-                    )
-                    .with_complete()
-                } else {
-                    ObjectEntry::new(
-                        self.backend.clone(),
-                        &path,
-                        ObjectMetadata::new(ObjectMode::Unknown),
-                    )
-                };
+            // On Windows and most Unix platforms this function is free
+            // (no extra system calls needed), but some Unix platforms may
+            // require the equivalent call to symlink_metadata to learn about
+            // the target file type.
+            let file_type = de.file_type().await.map_err(parse_io_error)?;
 
-                Poll::Ready(Some(Ok(d)))
-            }
+            let d = if file_type.is_file() {
+                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+            } else if file_type.is_dir() {
+                // Make sure we are returning the correct path.
+                ObjectEntry::new(
+                    &format!("{}/", &path),
+                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                )
+            } else {
+                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+            };
+
+            oes.push(d)
         }
+
+        Ok(if oes.is_empty() { None } else { Some(oes) })
+    }
+}
+
+pub struct BlockingDirPager {
+    root: String,
+
+    size: usize,
+    rd: std::fs::ReadDir,
+}
+
+impl BlockingDirPager {
+    pub fn new(root: &str, rd: std::fs::ReadDir) -> Self {
+        Self {
+            root: root.to_string(),
+            // TODO: make this a configurable value.
+            size: 256,
+            rd,
+        }
+    }
+}
+
+impl BlockingObjectPage for BlockingDirPager {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+
+        for _ in 0..self.size {
+            let de = match self.rd.next() {
+                Some(de) => de.map_err(parse_io_error)?,
+                None => break,
+            };
+
+            let path = build_rel_path(&self.root, &de.path().to_string_lossy());
+
+            // On Windows and most Unix platforms this function is free
+            // (no extra system calls needed), but some Unix platforms may
+            // require the equivalent call to symlink_metadata to learn about
+            // the target file type.
+            let file_type = de.file_type().map_err(parse_io_error)?;
+
+            let d = if file_type.is_file() {
+                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+            } else if file_type.is_dir() {
+                // Make sure we are returning the correct path.
+                ObjectEntry::new(
+                    &format!("{}/", &path),
+                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                )
+            } else {
+                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+            };
+
+            oes.push(d)
+        }
+
+        Ok(if oes.is_empty() { None } else { Some(oes) })
     }
 }

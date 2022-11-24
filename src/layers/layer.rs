@@ -32,29 +32,6 @@ use crate::Accessor;
 ///
 /// By implement this method, all API calls will be forwarded to inner accessor instead.
 ///
-/// ## List Operations
-///
-/// `list` and `blocking_list` operations will set `Arc<dyn Accessor>` for
-/// `ObjectEntry`.
-///
-/// All layers must make sure the `accessor` is set correctly, for example:
-///
-/// ```no_build
-/// impl Stream for ExampleStreamer {
-///     type Item = Result<ObjectEntry>;
-///
-///     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-///         match Pin::new(&mut (*self.inner)).poll_next(cx) {
-///             Poll::Ready(Some(Ok(mut de))) => {
-///                 de.set_accessor(self.acc.clone());
-///                 Poll::Ready(Some(Ok(de)))
-///             }
-///             v => v,
-///         }
-///     }
-/// }
-/// ```
-///
 /// # Examples
 ///
 /// ```

@@ -22,7 +22,7 @@ use serde::Deserialize;
 use super::backend::Backend;
 use super::error::parse_error;
 use crate::http_util::parse_error_response;
-use crate::object::ObjectPageStream;
+use crate::object::ObjectPage;
 use crate::path::build_rel_path;
 use crate::Error;
 use crate::ErrorKind;
@@ -53,7 +53,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPageStream for DirStream {
+impl ObjectPage for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         if self.done {
             return Ok(None);
@@ -89,11 +89,9 @@ impl ObjectPageStream for DirStream {
 
         for prefix in common_prefixes {
             let de = ObjectEntry::new(
-                self.backend.clone(),
                 &build_rel_path(&self.root, &prefix.prefix),
-                ObjectMetadata::new(ObjectMode::DIR),
-            )
-            .with_complete();
+                ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+            );
 
             entries.push(de);
         }
@@ -105,11 +103,7 @@ impl ObjectPageStream for DirStream {
 
             let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
 
-            let de = ObjectEntry::new(
-                self.backend.clone(),
-                &build_rel_path(&self.root, &object.key),
-                meta,
-            );
+            let de = ObjectEntry::new(&build_rel_path(&self.root, &object.key), meta);
 
             entries.push(de);
         }

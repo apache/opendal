@@ -32,6 +32,7 @@ pub use op_delete::OpDelete;
 pub use op_delete::RpDelete;
 mod op_list;
 pub use op_list::OpList;
+pub use op_list::RpList;
 mod op_presign;
 pub use op_presign::OpPresign;
 pub use op_presign::PresignOperation;

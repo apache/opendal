@@ -19,10 +19,6 @@ pub use entry::ObjectEntry;
 mod mode;
 pub use mode::ObjectMode;
 
-mod iterate;
-pub use iterate::EmptyObjectIterator;
-pub use iterate::ObjectIterator;
-
 mod metadata;
 pub use metadata::ObjectMetadata;
 
@@ -37,8 +33,12 @@ pub use object::Object;
 mod reader;
 pub use reader::ObjectReader;
 
-mod stream;
-pub use stream::EmptyObjectStreamer;
-pub use stream::ObjectPageStream;
-pub use stream::ObjectPageStreamer;
-pub use stream::ObjectStreamer;
+mod list;
+pub use list::BlockingObjectLister;
+pub use list::BlockingObjectPage;
+pub use list::BlockingObjectPager;
+pub use list::EmptyBlockingObjectPager;
+pub use list::EmptyObjectPager;
+pub use list::ObjectLister;
+pub use list::ObjectPage;
+pub use list::ObjectPager;

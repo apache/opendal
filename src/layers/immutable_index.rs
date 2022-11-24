@@ -15,25 +15,15 @@
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fmt::Debug;
-use std::pin::Pin;
+use std::mem;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
-use std::vec::IntoIter;
 
 use async_trait::async_trait;
 
 use crate::accessor::AccessorCapability;
-use crate::ops::OpList;
-use crate::Accessor;
-use crate::AccessorMetadata;
-use crate::Layer;
-use crate::ObjectEntry;
-use crate::ObjectIterator;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectStreamer;
-use crate::Result;
+use crate::object::*;
+use crate::ops::*;
+use crate::*;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for
 /// underlying storage services.
@@ -145,88 +135,73 @@ impl Accessor for ImmutableIndexAccessor {
         meta
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok(Box::new(ImmutableDir::new(
-            Arc::new(self.clone()),
-            self.children(path),
-        )))
+        Ok((
+            RpList::default(),
+            Box::new(ImmutableDir::new(self.children(path))),
+        ))
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok(Box::new(ImmutableDir::new(
-            Arc::new(self.clone()),
-            self.children(path),
-        )))
+        Ok((
+            RpList::default(),
+            Box::new(ImmutableDir::new(self.children(path))) as BlockingObjectPager,
+        ))
     }
 }
 
 struct ImmutableDir {
-    backend: Arc<ImmutableIndexAccessor>,
-    idx: IntoIter<String>,
+    idx: Vec<String>,
 }
 
 impl ImmutableDir {
-    fn new(backend: Arc<ImmutableIndexAccessor>, idx: Vec<String>) -> Self {
-        Self {
-            backend,
-            idx: idx.into_iter(),
+    fn new(idx: Vec<String>) -> Self {
+        Self { idx }
+    }
+
+    fn inner_next_page(&mut self) -> Option<Vec<ObjectEntry>> {
+        if self.idx.is_empty() {
+            return None;
         }
+
+        let vs = mem::take(&mut self.idx);
+
+        Some(
+            vs.into_iter()
+                .map(|v| {
+                    let mode = if v.ends_with('/') {
+                        ObjectMode::DIR
+                    } else {
+                        ObjectMode::FILE
+                    };
+                    let meta = ObjectMetadata::new(mode);
+                    ObjectEntry::with(v, meta)
+                })
+                .collect(),
+        )
     }
 }
 
-impl Iterator for ImmutableDir {
-    type Item = Result<ObjectEntry>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.idx.next() {
-            None => None,
-            Some(path) => {
-                let mode = if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                };
-
-                Some(Ok(ObjectEntry::new(
-                    self.backend.clone(),
-                    &path,
-                    ObjectMetadata::new(mode),
-                )))
-            }
-        }
+#[async_trait]
+impl ObjectPage for ImmutableDir {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        Ok(self.inner_next_page())
     }
 }
 
-impl futures::Stream for ImmutableDir {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.idx.next() {
-            None => Poll::Ready(None),
-            Some(path) => {
-                let mode = if path.ends_with('/') {
-                    ObjectMode::DIR
-                } else {
-                    ObjectMode::FILE
-                };
-
-                Poll::Ready(Some(Ok(ObjectEntry::new(
-                    self.backend.clone(),
-                    &path,
-                    ObjectMetadata::new(mode),
-                ))))
-            }
-        }
+impl BlockingObjectPage for ImmutableDir {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        Ok(self.inner_next_page())
     }
 }
 
@@ -244,41 +219,6 @@ mod tests {
     use crate::ObjectMode;
     use crate::Operator;
     use crate::Scheme;
-
-    #[test]
-    fn test_blocking_list() -> Result<()> {
-        let _ = env_logger::try_init();
-
-        let mut iil = ImmutableIndexLayer::default();
-        for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
-            iil.insert(i.to_string())
-        }
-
-        let op = Operator::from_iter(
-            Scheme::Http,
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
-        .layer(LoggingLayer)
-        .layer(iil);
-
-        let mut map = HashMap::new();
-        let mut set = HashSet::new();
-        for entry in op.object("").blocking_list()? {
-            let entry = entry?;
-            debug!("current path: {}", entry.path());
-            assert!(
-                set.insert(entry.path().to_string()),
-                "duplicated value: {}",
-                entry.path()
-            );
-            map.insert(entry.path().to_string(), entry.mode());
-        }
-
-        assert_eq!(map["file"], ObjectMode::FILE);
-        assert_eq!(map["dir/"], ObjectMode::DIR);
-        assert_eq!(map["dir_without_prefix/"], ObjectMode::DIR);
-        Ok(())
-    }
 
     #[tokio::test]
     async fn test_list() -> Result<()> {
@@ -305,7 +245,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode());
+            map.insert(entry.path().to_string(), entry.mode().await?);
         }
 
         assert_eq!(map["file"], ObjectMode::FILE);
@@ -339,7 +279,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode());
+            map.insert(entry.path().to_string(), entry.mode().await?);
         }
 
         debug!("current files: {:?}", map);
@@ -381,7 +321,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode());
+            map.insert(entry.path().to_string(), entry.mode().await?);
         }
 
         assert_eq!(map.len(), 1);
@@ -397,7 +337,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode());
+            map.insert(entry.path().to_string(), entry.mode().await?);
         }
 
         assert_eq!(map.len(), 3);
@@ -446,7 +386,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode());
+            map.insert(entry.path().to_string(), entry.mode().await?);
         }
 
         debug!("current files: {:?}", map);

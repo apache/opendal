@@ -17,7 +17,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use bb8::PooledConnection;
@@ -40,6 +39,7 @@ use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
 use crate::accessor::AccessorCapability;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::get_basename;
 use crate::path::get_parent;
@@ -410,7 +410,7 @@ impl Accessor for Backend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
@@ -418,11 +418,10 @@ impl Accessor for Backend {
 
         let rd = ReadDir::new(files);
 
-        Ok(Box::new(DirStream::new(
-            Arc::new(self.clone()),
-            if path == "/" { "" } else { path },
-            rd,
-        )))
+        Ok((
+            RpList::default(),
+            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)),
+        ))
     }
 }
 

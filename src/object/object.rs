@@ -15,22 +15,34 @@
 use std::fmt::Debug;
 use std::ops::RangeBounds;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::MutexGuard;
 
 use futures::io;
 use futures::io::Cursor;
 use time::Duration;
+use time::OffsetDateTime;
 
+use super::BlockingObjectLister;
+use super::ObjectLister;
 use crate::io::BytesRead;
 use crate::io_util::*;
 use crate::ops::*;
 use crate::path::*;
 use crate::*;
 
-/// Handler for all object related operations.
+/// Object is the handler for all object related operations.
+///
+/// # Notes
+///
+/// Object will cache part of object metadata that pre-fetch by list or stat
+/// operations. It's better to reuse the same object whenever possible.
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: Arc<dyn Accessor>,
     path: String,
+
+    meta: Arc<Mutex<ObjectMetadata>>,
 }
 
 impl Object {
@@ -40,9 +52,14 @@ impl Object {
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        Self::with(acc, path, ObjectMetadata::new(ObjectMode::Unknown))
+    }
+
+    pub(crate) fn with(acc: Arc<dyn Accessor>, path: &str, meta: ObjectMetadata) -> Self {
         Self {
             acc,
             path: normalize_path(path),
+            meta: Arc::new(Mutex::new(meta)),
         }
     }
 
@@ -133,6 +150,44 @@ impl Object {
     /// ```
     pub fn name(&self) -> &str {
         get_basename(&self.path)
+    }
+
+    /// Return this object entry's object mode.
+    pub async fn mode(&self) -> Result<ObjectMode> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            // Object mode other than unknown is OK to be returned.
+            if guard.mode() != ObjectMode::Unknown {
+                return Ok(guard.mode());
+            }
+            // Object mode is unknown, but the object metadata is marked
+            // as complete.
+            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
+                return Ok(guard.mode());
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.mode())
+    }
+
+    /// Return this object entry's object mode in blocking way.
+    pub fn blocking_mode(&self) -> Result<ObjectMode> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            // Object mode other than unknown is OK to be returned.
+            if guard.mode() != ObjectMode::Unknown {
+                return Ok(guard.mode());
+            }
+            // Object mode is unknown, but the object metadata is marked
+            // as complete.
+            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
+                return Ok(guard.mode());
+            }
+        }
+
+        let guard = self.blocking_metadata_ref()?;
+        Ok(guard.mode())
     }
 
     /// Create an empty object, like using the following linux commands:
@@ -783,7 +838,14 @@ impl Object {
 
         let bs = bs.into();
         let r = Cursor::new(bs);
-        let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
+        let rp = self.acc.write(self.path(), args, Box::new(r)).await?;
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+        }
+
         Ok(())
     }
 
@@ -856,7 +918,13 @@ impl Object {
 
         let bs = bs.into();
         let r = std::io::Cursor::new(bs);
-        let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
+        let rp = self.acc.blocking_write(self.path(), args, Box::new(r))?;
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+        }
         Ok(())
     }
 
@@ -975,6 +1043,11 @@ impl Object {
     pub async fn delete(&self) -> Result<()> {
         let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
 
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::Unknown);
+        }
         Ok(())
     }
 
@@ -1001,12 +1074,17 @@ impl Object {
     pub fn blocking_delete(&self) -> Result<()> {
         let _ = self.acc.blocking_delete(self.path(), OpDelete::new())?;
 
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::Unknown);
+        }
         Ok(())
     }
 
     /// List current dir object.
     ///
-    /// This function will create a new [`ObjectStreamer`] handle to list objects.
+    /// This function will create a new handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///
@@ -1027,7 +1105,7 @@ impl Object {
     /// let mut ds = o.list().await?;
     /// // ObjectStreamer implements `futures::Stream`
     /// while let Some(de) = ds.try_next().await? {
-    ///     match de.mode() {
+    ///     match de.mode().await? {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1040,7 +1118,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<ObjectStreamer> {
+    pub async fn list(&self) -> Result<ObjectLister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -1051,12 +1129,14 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        self.acc.list(self.path(), OpList::new()).await
+        let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
+
+        Ok(ObjectLister::new(self.acc.clone(), pager))
     }
 
     /// List current dir object.
     ///
-    /// This function will create a new [`ObjectIterator`] handle to list objects.
+    /// This function will create a new handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///
@@ -1076,7 +1156,7 @@ impl Object {
     /// let mut ds = o.blocking_list()?;
     /// while let Some(de) = ds.next() {
     ///     let de = de?;
-    ///     match de.mode() {
+    ///     match de.blocking_mode()? {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1089,7 +1169,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_list(&self) -> Result<ObjectIterator> {
+    pub fn blocking_list(&self) -> Result<BlockingObjectLister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -1100,10 +1180,78 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        self.acc.blocking_list(self.path(), OpList::new())
+        let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
+        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
-    /// Get current object's metadata.
+    /// metadata_ref is used to get object metadata with mutex guard.
+    ///
+    /// Called can decide to access or clone the content of object metadata.
+    /// But they can't pass the guard outside or across the await boundary.
+    async fn metadata_ref(&self) -> Result<MutexGuard<ObjectMetadata>> {
+        // Make sure the mutex guard has been dropped.
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if guard.is_complete() {
+                return Ok(guard);
+            }
+        }
+
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        let meta = rp.into_metadata();
+
+        let mut guard = self.meta.lock().expect("lock must succeed");
+        *guard = meta;
+
+        Ok(guard)
+    }
+
+    fn blocking_metadata_ref(&self) -> Result<MutexGuard<ObjectMetadata>> {
+        // Make sure the mutex guard has been dropped.
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if guard.is_complete() {
+                return Ok(guard);
+            }
+        }
+
+        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
+        let meta = rp.into_metadata();
+
+        let mut guard = self.meta.lock().expect("lock must succeed");
+        *guard = meta;
+
+        Ok(guard)
+    }
+
+    /// Get current object's metadata **without cache**.
+    ///
+    /// # Notes
+    ///
+    /// This function works exactly the same with `Object::metadata`.The
+    /// only difference is it will not try to load data from cached metadata.
+    ///
+    /// Use this function to detect the outside changes of object.
+    pub async fn stat(&self) -> Result<ObjectMetadata> {
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        let meta = rp.into_metadata();
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = meta.clone();
+        }
+
+        Ok(meta)
+    }
+
+    /// Get current object's metadata with cache.
+    ///
+    /// # Notes
+    ///
+    /// This function will try access the local metadata cache first.
+    /// If there are outside changes of the object, `metadata` could return
+    /// out-of-date metadata. To overcome this, please use [`Object::stat`].
     ///
     /// # Examples
     ///
@@ -1127,8 +1275,93 @@ impl Object {
     /// # }
     /// ```
     pub async fn metadata(&self) -> Result<ObjectMetadata> {
-        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
-        Ok(rp.into_metadata())
+        let guard = self.metadata_ref().await?;
+
+        Ok(guard.clone())
+    }
+
+    /// The size of `ObjectEntry`'s corresponding object
+    ///
+    /// `content_length` is a prefetched metadata field in `ObjectEntry`.
+    pub async fn content_length(&self) -> Result<u64> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if let Some(v) = guard.content_length_raw() {
+                return Ok(v);
+            }
+            if guard.is_complete() {
+                return Ok(0);
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.content_length())
+    }
+
+    /// The MD5 message digest of `ObjectEntry`'s corresponding object
+    ///
+    /// `content_md5` is a prefetched metadata field in `ObjectEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn content_md5(&self) -> Result<Option<String>> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+
+            if let Some(v) = guard.content_md5() {
+                return Ok(Some(v.to_string()));
+            }
+            if guard.is_complete() {
+                return Ok(None);
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.content_md5().map(|v| v.to_string()))
+    }
+
+    /// The last modified UTC datetime of `ObjectEntry`'s corresponding object
+    ///
+    /// `last_modified` is a prefetched metadata field in `ObjectEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+
+            if let Some(v) = guard.last_modified() {
+                return Ok(Some(v));
+            }
+            if guard.is_complete() {
+                return Ok(None);
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.last_modified())
+    }
+
+    /// The ETag string of `ObjectEntry`'s corresponding object
+    ///
+    /// `etag` is a prefetched metadata field in `ObjectEntry`.
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn etag(&self) -> Result<Option<String>> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+
+            if let Some(v) = guard.etag() {
+                return Ok(Some(v.to_string()));
+            }
+            if guard.is_complete() {
+                return Ok(None);
+            }
+        }
+
+        let meta = self.metadata().await?;
+        Ok(meta.etag().map(|v| v.to_string()))
     }
 
     /// Get current object's metadata.
@@ -1154,8 +1387,23 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+        // Make sure the mutex guard has been dropped.
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if guard.is_complete() {
+                return Ok(guard.clone());
+            }
+        }
+
         let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
-        Ok(rp.into_metadata())
+        let meta = rp.into_metadata();
+
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = meta.clone();
+        }
+
+        Ok(meta)
     }
 
     /// Check if this object exists or not.
@@ -1178,7 +1426,7 @@ impl Object {
     /// }
     /// ```
     pub async fn is_exist(&self) -> Result<bool> {
-        let r = self.metadata().await;
+        let r = self.metadata_ref().await;
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {

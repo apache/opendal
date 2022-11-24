@@ -28,7 +28,8 @@ use time::OffsetDateTime;
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::accessor::AccessorCapability;
-use crate::object::EmptyObjectStreamer;
+use crate::object::EmptyObjectPager;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::build_rooted_abs_path;
 use crate::path::normalize_root;
@@ -298,22 +299,22 @@ impl Accessor for Backend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok(Box::new(EmptyObjectStreamer))
+                    Ok((RpList::default(), Box::new(EmptyObjectPager)))
                 } else {
                     Err(parse_io_error(e))
                 }
             }
         };
 
-        let rd = DirStream::new(Arc::new(self.clone()), &self.root, f);
+        let rd = DirStream::new(&self.root, f);
 
-        Ok(Box::new(rd))
+        Ok((RpList::default(), Box::new(rd)))
     }
 }

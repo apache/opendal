@@ -13,14 +13,14 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::Stream;
 
+use crate::object::BlockingObjectPage;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPage;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::normalize_root;
 use crate::*;
@@ -124,14 +124,11 @@ impl Accessor for SubdirAccessor {
         self.inner.delete(&path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         let path = self.prepend_subdir(path);
+        let (rp, pager) = self.inner.list(&path, args).await?;
 
-        Ok(Box::new(SubdirStreamer::new(
-            Arc::new(self.clone()),
-            &self.subdir,
-            self.inner.list(&path, args).await?,
-        )))
+        Ok((rp, Box::new(SubdirPager::new(&self.subdir, pager))))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -211,14 +208,11 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_delete(&path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let path = self.prepend_subdir(path);
+        let (rp, pager) = self.inner.blocking_list(&path, args)?;
 
-        Ok(Box::new(SubdirIterator::new(
-            Arc::new(self.clone()),
-            &self.subdir,
-            self.inner.blocking_list(&path, args)?,
-        )))
+        Ok((rp, Box::new(BlockingSubdirPager::new(&self.subdir, pager))))
     }
 }
 
@@ -228,64 +222,64 @@ fn strip_subdir(subdir: &str, path: &str) -> String {
         .to_string()
 }
 
-struct SubdirStreamer {
-    acc: Arc<dyn Accessor>,
+struct SubdirPager {
     subdir: String,
-    inner: ObjectStreamer,
+    inner: ObjectPager,
 }
 
-impl SubdirStreamer {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectStreamer) -> Self {
+impl SubdirPager {
+    fn new(subdir: &str, inner: ObjectPager) -> Self {
         Self {
-            acc,
             subdir: subdir.to_string(),
             inner,
         }
     }
 }
 
-impl Stream for SubdirStreamer {
-    type Item = Result<ObjectEntry>;
+#[async_trait]
+impl ObjectPage for SubdirPager {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        let res = self.inner.next_page().await?;
+        let res = res.map(|res| {
+            res.into_iter()
+                .map(|mut v| {
+                    v.set_path(&strip_subdir(&self.subdir, v.path()));
+                    v
+                })
+                .collect()
+        });
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut (*self.inner)).poll_next(cx) {
-            Poll::Ready(Some(Ok(mut de))) => {
-                de.set_accessor(self.acc.clone());
-                de.set_path(&strip_subdir(&self.subdir, de.path()));
-                Poll::Ready(Some(Ok(de)))
-            }
-            v => v,
-        }
+        Ok(res)
     }
 }
 
-struct SubdirIterator {
-    acc: Arc<dyn Accessor>,
+struct BlockingSubdirPager {
     subdir: String,
-    inner: ObjectIterator,
+    inner: BlockingObjectPager,
 }
 
-impl SubdirIterator {
-    fn new(acc: Arc<dyn Accessor>, subdir: &str, inner: ObjectIterator) -> Self {
+impl BlockingSubdirPager {
+    fn new(subdir: &str, inner: BlockingObjectPager) -> Self {
         Self {
-            acc,
             subdir: subdir.to_string(),
             inner,
         }
     }
 }
 
-impl Iterator for SubdirIterator {
-    type Item = Result<ObjectEntry>;
+impl BlockingObjectPage for BlockingSubdirPager {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        let res = self.inner.next_page()?;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.next() {
-            Some(Ok(mut de)) => {
-                de.set_accessor(self.acc.clone());
-                de.set_path(&strip_subdir(&self.subdir, de.path()));
-                Some(Ok(de))
-            }
-            v => v,
-        }
+        let res = res.map(|res| {
+            res.into_iter()
+                .map(|mut v| {
+                    v.set_path(&strip_subdir(&self.subdir, v.path()));
+                    v
+                })
+                .collect()
+        });
+
+        Ok(res)
     }
 }

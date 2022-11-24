@@ -15,7 +15,7 @@
 use time::OffsetDateTime;
 
 use crate::ops::BytesContentRange;
-use crate::ObjectMode;
+use crate::*;
 
 /// Metadata carries all object metadata.
 ///
@@ -26,6 +26,9 @@ use crate::ObjectMode;
 /// a.k.a., `ObjectEntry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectMetadata {
+    /// Mark if this metadata is complete or not.
+    complete: bool,
+
     /// Mode of this object.
     mode: ObjectMode,
 
@@ -44,11 +47,6 @@ pub struct ObjectMetadata {
     /// Content Range of this object.
     content_range: Option<BytesContentRange>,
     /// Last Modified of this object.
-    ///
-    /// # NOTE
-    ///
-    /// bincode::{Encode, Decode} is not implemented on OffsetDateTime.
-    /// We will convert it to (SystemTime, (h,m,s)) instead.
     last_modified: Option<OffsetDateTime>,
     /// ETag of this object.
     etag: Option<String>,
@@ -58,6 +56,8 @@ impl ObjectMetadata {
     /// Create a new object metadata
     pub fn new(mode: ObjectMode) -> Self {
         Self {
+            complete: false,
+
             mode,
 
             content_length: None,
@@ -67,6 +67,23 @@ impl ObjectMetadata {
             last_modified: None,
             etag: None,
         }
+    }
+
+    /// If this object metadata if complete
+    pub fn is_complete(&self) -> bool {
+        self.complete
+    }
+
+    /// Make this object metadata if complete.
+    pub fn set_complete(&mut self) -> &mut Self {
+        self.complete = true;
+        self
+    }
+
+    /// Make this object metadata if complete.
+    pub fn with_complete(mut self) -> Self {
+        self.complete = true;
+        self
     }
 
     /// Object mode represent this object's mode.

@@ -32,8 +32,8 @@ use log::warn;
 use pin_project::pin_project;
 use tokio::time::Sleep;
 
-use super::util::set_accessor_for_object_iterator;
-use super::util::set_accessor_for_object_steamer;
+use crate::object::BlockingObjectPager;
+use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::*;
 
@@ -192,7 +192,7 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         { || self.inner.list(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
@@ -204,7 +204,6 @@ where
             })
             .await
             .map_err(|e| e.set_persistent())
-            .map(|s| set_accessor_for_object_steamer(s, self.clone()))
     }
 
     async fn create_multipart(
@@ -402,7 +401,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<ObjectIterator> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let retry = self.backoff.clone();
 
         let mut e = None;
@@ -411,7 +410,7 @@ where
             let res = self.inner.blocking_list(path, args.clone());
 
             match res {
-                Ok(v) => return Ok(set_accessor_for_object_iterator(v, self.clone())),
+                Ok(v) => return Ok(v),
                 Err(err) => {
                     let retryable = err.is_temporary();
                     e = Some(err);

@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::Accessor;
-
 use super::ErrorContextWrapper;
+use crate::Accessor;
 
 /// Wrapper given backend.
 pub fn wrapper(inner: impl Accessor) -> impl Accessor {

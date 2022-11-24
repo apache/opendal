@@ -13,22 +13,17 @@
 // limitations under the License.
 
 use std::collections::VecDeque;
-use std::pin::Pin;
+use std::mem;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
-use futures::future::BoxFuture;
-use futures::ready;
-use futures::Future;
+use async_trait::async_trait;
 
-use crate::Accessor;
-use crate::Object;
-use crate::ObjectEntry;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
-use crate::ObjectStreamer;
-use crate::Result;
+use crate::object::*;
+use crate::ops::OpList;
+use crate::path::normalize_path;
+use crate::*;
+
+const WALK_BUFFER_SIZE: usize = 256;
 
 /// TopDownWalker will walk dir in top down way:
 ///
@@ -64,73 +59,77 @@ use crate::Result;
 /// We only make sure the parent dirs will show up before nest dirs.
 pub struct TopDownWalker {
     acc: Arc<dyn Accessor>,
-    dirs: VecDeque<Object>,
-    state: WalkTopDownState,
+    dirs: VecDeque<ObjectEntry>,
+    pagers: Vec<(ObjectPager, Vec<ObjectEntry>)>,
+    res: Vec<ObjectEntry>,
 }
 
 impl TopDownWalker {
     /// Create a new [`TopDownWalker`]
-    pub fn new(parent: Object) -> Self {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        let path = normalize_path(path);
         TopDownWalker {
-            acc: parent.accessor(),
-            dirs: VecDeque::from([parent]),
-            state: WalkTopDownState::Idle,
+            acc,
+            dirs: VecDeque::from([ObjectEntry::with(
+                path,
+                ObjectMetadata::new(ObjectMode::DIR),
+            )]),
+            pagers: vec![],
+            res: Vec::with_capacity(WALK_BUFFER_SIZE),
         }
     }
 }
 
-enum WalkTopDownState {
-    Idle,
-    Sending(BoxFuture<'static, Result<ObjectStreamer>>),
-    Listing(ObjectStreamer),
-}
-
-impl futures::Stream for TopDownWalker {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match &mut self.state {
-            WalkTopDownState::Idle => {
-                let object = match self.dirs.pop_front() {
-                    Some(o) => o,
-                    None => return Poll::Ready(None),
-                };
-
-                let de = ObjectEntry::new(
-                    self.acc.clone(),
-                    object.path(),
-                    ObjectMetadata::new(ObjectMode::DIR),
-                );
-                let future = async move { object.list().await };
-
-                self.state = WalkTopDownState::Sending(Box::pin(future));
-                Poll::Ready(Some(Ok(de)))
+#[async_trait]
+impl ObjectPage for TopDownWalker {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        loop {
+            if let Some(de) = self.dirs.pop_front() {
+                let (_, op) = self.acc.list(de.path(), OpList::default()).await?;
+                self.res.push(de);
+                self.pagers.push((op, vec![]))
             }
-            WalkTopDownState::Sending(fut) => match ready!(Pin::new(fut).poll(cx)) {
-                Ok(ds) => {
-                    self.state = WalkTopDownState::Listing(ds);
-                    self.poll_next(cx)
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            WalkTopDownState::Listing(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
-                Some(Ok(mut de)) => {
-                    // Make returning entry uses the same accessor.
-                    de.set_accessor(self.acc.clone());
 
-                    if de.mode().is_dir() {
-                        self.dirs.push_back(de.into());
-                        self.poll_next(cx)
-                    } else {
-                        Poll::Ready(Some(Ok(de)))
+            let (mut pager, mut buf) = match self.pagers.pop() {
+                Some((pager, buf)) => (pager, buf),
+                None => {
+                    if !self.res.is_empty() {
+                        return Ok(Some(mem::take(&mut self.res)));
+                    }
+                    return Ok(None);
+                }
+            };
+
+            if buf.is_empty() {
+                match pager.next_page().await? {
+                    Some(v) => {
+                        buf = v;
+                    }
+                    None => {
+                        continue;
                     }
                 }
-                Some(Err(e)) => Poll::Ready(Some(Err(e))),
-                None => {
-                    self.state = WalkTopDownState::Idle;
-                    self.poll_next(cx)
+            }
+
+            let mut buf = VecDeque::from(buf);
+            loop {
+                if let Some(oe) = buf.pop_front() {
+                    if oe.mode().is_dir() {
+                        self.dirs.push_back(oe);
+                        self.pagers.push((pager, buf.into()));
+                        break;
+                    } else {
+                        self.res.push(oe)
+                    }
+                } else {
+                    self.pagers.push((pager, vec![]));
+                    break;
                 }
-            },
+            }
+
+            if self.res.len() >= WALK_BUFFER_SIZE {
+                return Ok(Some(mem::take(&mut self.res)));
+            }
         }
     }
 }
@@ -173,82 +172,73 @@ impl futures::Stream for TopDownWalker {
 /// always output directly while listing.
 pub struct BottomUpWalker {
     acc: Arc<dyn Accessor>,
-    dirs: Vec<Object>,
-    ds: Vec<ObjectStreamer>,
-    state: WalkBottomUpState,
+    dirs: VecDeque<ObjectEntry>,
+    pagers: Vec<(ObjectPager, ObjectEntry, Vec<ObjectEntry>)>,
+    res: Vec<ObjectEntry>,
 }
 
 impl BottomUpWalker {
     /// Create a new [`BottomUpWalker`]
-    pub fn new(parent: Object) -> Self {
+    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
         BottomUpWalker {
-            acc: parent.accessor(),
-            dirs: Vec::new(),
-            ds: Vec::new(),
-            state: WalkBottomUpState::Starting(Some(parent)),
+            acc,
+            dirs: VecDeque::from([ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),
+            pagers: vec![],
+            res: Vec::with_capacity(WALK_BUFFER_SIZE),
         }
     }
 }
 
-enum WalkBottomUpState {
-    Starting(Option<Object>),
-    Sending(BoxFuture<'static, Result<ObjectStreamer>>),
-    Listing,
-}
-
-impl futures::Stream for BottomUpWalker {
-    type Item = Result<ObjectEntry>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match &mut self.state {
-            WalkBottomUpState::Starting(o) => {
-                let o = o.take().expect("object must be valid");
-
-                self.dirs.push(o.clone());
-
-                let future = async move { o.list().await };
-
-                self.state = WalkBottomUpState::Sending(Box::pin(future));
-                self.poll_next(cx)
+#[async_trait]
+impl ObjectPage for BottomUpWalker {
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        loop {
+            if let Some(de) = self.dirs.pop_back() {
+                let (_, op) = self.acc.list(de.path(), OpList::default()).await?;
+                self.pagers.push((op, de, vec![]))
             }
-            WalkBottomUpState::Sending(fut) => match ready!(Pin::new(fut).poll(cx)) {
-                Ok(ds) => {
-                    self.ds.push(ds);
-                    self.state = WalkBottomUpState::Listing;
-                    self.poll_next(cx)
-                }
-                Err(e) => Poll::Ready(Some(Err(e))),
-            },
-            WalkBottomUpState::Listing => match self.ds.last_mut() {
-                Some(ds) => match ready!(Pin::new(ds).poll_next(cx)) {
-                    Some(Ok(mut de)) => {
-                        // Make returning entry uses the same accessor.
-                        de.set_accessor(self.acc.clone());
 
-                        if de.mode().is_dir() {
-                            self.state = WalkBottomUpState::Starting(Some(de.into()));
-                            self.poll_next(cx)
-                        } else {
-                            Poll::Ready(Some(Ok(de)))
-                        }
+            let (mut pager, de, mut buf) = match self.pagers.pop() {
+                Some((pager, de, buf)) => (pager, de, buf),
+                None => {
+                    if !self.res.is_empty() {
+                        return Ok(Some(mem::take(&mut self.res)));
                     }
-                    Some(Err(e)) => Poll::Ready(Some(Err(e))),
+                    return Ok(None);
+                }
+            };
+
+            if buf.is_empty() {
+                match pager.next_page().await? {
+                    Some(v) => {
+                        buf = v;
+                    }
                     None => {
-                        let _ = self.ds.pop();
-                        let dob = self
-                            .dirs
-                            .pop()
-                            .expect("dis streamer corresponding object must exist");
-                        let de = ObjectEntry::new(
-                            self.acc.clone(),
-                            dob.path(),
-                            ObjectMetadata::new(ObjectMode::DIR),
-                        );
-                        Poll::Ready(Some(Ok(de)))
+                        self.res.push(de);
+                        continue;
                     }
-                },
-                None => Poll::Ready(None),
-            },
+                }
+            }
+
+            let mut buf = VecDeque::from(buf);
+            loop {
+                if let Some(oe) = buf.pop_front() {
+                    if oe.mode().is_dir() {
+                        self.dirs.push_back(oe);
+                        self.pagers.push((pager, de, buf.into()));
+                        break;
+                    } else {
+                        self.res.push(oe)
+                    }
+                } else {
+                    self.pagers.push((pager, de, vec![]));
+                    break;
+                }
+            }
+
+            if self.res.len() >= WALK_BUFFER_SIZE {
+                return Ok(Some(mem::take(&mut self.res)));
+            }
         }
     }
 }
@@ -262,13 +252,14 @@ mod tests {
     use log::debug;
 
     use super::*;
+    use crate::layers::LoggingLayer;
     use crate::services::fs::Builder;
     use crate::Operator;
 
     fn get_position(vs: &[String], s: &str) -> usize {
         vs.iter()
             .position(|v| v == s)
-            .expect("{s} is not found in {vs}")
+            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
     }
 
     #[tokio::test]
@@ -290,8 +281,9 @@ mod tests {
         }
 
         let mut set = HashSet::new();
-        let w = TopDownWalker::new(op.object("x/"));
-        let mut actual = w
+        let w = TopDownWalker::new(op.inner(), "x/");
+        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let mut actual = ol
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
@@ -327,14 +319,15 @@ mod tests {
             env::temp_dir().display(),
             uuid::Uuid::new_v4()
         ));
-        let op = Operator::new(builder.build()?);
+        let op = Operator::new(builder.build()?).layer(LoggingLayer);
         for path in ["x/x/a", "x/x/b", "x/x/c"] {
             op.object(path).create().await?;
         }
 
         let mut set = HashSet::new();
-        let w = TopDownWalker::new(op.object(""));
-        let mut actual = w
+        let w = TopDownWalker::new(op.inner(), "");
+        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let mut actual = ol
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()
@@ -369,7 +362,7 @@ mod tests {
             env::temp_dir().display(),
             uuid::Uuid::new_v4()
         ));
-        let op = Operator::new(builder.build()?);
+        let op = Operator::new(builder.build()?).layer(LoggingLayer);
         let mut expected = vec![
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         ];
@@ -378,8 +371,9 @@ mod tests {
         }
 
         let mut set = HashSet::new();
-        let w = BottomUpWalker::new(op.object("x/"));
-        let mut actual = w
+        let w = BottomUpWalker::new(op.inner(), "x/");
+        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let mut actual = ol
             .try_collect::<Vec<_>>()
             .await?
             .into_iter()

@@ -21,7 +21,7 @@ use std::task::Poll;
 use futures::AsyncWrite;
 use pin_project::pin_project;
 
-use crate::BytesWriter;
+use crate::raw::*;
 
 /// Create an observer over [`crate::BytesWrite`].
 ///

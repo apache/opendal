@@ -20,7 +20,7 @@ use std::task::Poll;
 use futures::AsyncRead;
 use time::OffsetDateTime;
 
-use crate::BytesReader;
+use crate::raw::*;
 use crate::ObjectMetadata;
 
 /// ObjectReader is a bytes reader that carries it's related metadata.

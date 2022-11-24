@@ -147,16 +147,6 @@
 // Add options below to allow/deny Clippy lints.
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
-mod io;
-pub use io::BlockingBytesRead;
-pub use io::BlockingBytesReader;
-pub use io::BytesRead;
-pub use io::BytesReader;
-pub use io::BytesSink;
-pub use io::BytesStream;
-pub use io::BytesWrite;
-pub use io::BytesWriter;
-
 mod operator;
 pub use operator::BatchOperator;
 pub use operator::Operator;

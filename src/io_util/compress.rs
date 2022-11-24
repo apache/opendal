@@ -40,7 +40,7 @@ use pin_project::pin_project;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::BytesRead;
+use crate::raw::*;
 
 /// CompressAlgorithm represents all compress algorithm that OpenDAL supports.
 #[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]

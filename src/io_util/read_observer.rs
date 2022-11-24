@@ -20,7 +20,7 @@ use std::task::Poll;
 use futures::AsyncRead;
 use pin_project::pin_project;
 
-use crate::BytesReader;
+use crate::raw::*;
 
 /// Create an observer over BytesReader.
 ///

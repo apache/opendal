@@ -21,7 +21,7 @@ use futures::io;
 use futures::ready;
 use futures::AsyncWrite;
 
-use crate::BytesSink;
+use crate::raw::*;
 
 /// Convert [`BytesSink`][crate::BytesSink] into [`BytesWrite`][crate::BytesWrite].
 ///

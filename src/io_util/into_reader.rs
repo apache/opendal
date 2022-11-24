@@ -28,7 +28,7 @@ use futures::AsyncBufRead;
 use futures::AsyncRead;
 use pin_project::pin_project;
 
-use crate::BytesStream;
+use crate::raw::*;
 
 /// Convert [`BytesStream`][crate::BytesStream] into [`BytesRead`][crate::BytesRead].
 ///

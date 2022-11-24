@@ -1158,7 +1158,15 @@ impl Object {
     /// Raw stat operation.
     pub async fn stat(&self) -> Result<ObjectMetadata> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
-        Ok(rp.into_metadata())
+        let meta = rp.into_metadata();
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = meta.clone();
+        }
+
+        Ok(meta)
     }
 
     /// Get current object's metadata.

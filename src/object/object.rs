@@ -31,7 +31,12 @@ use crate::ops::*;
 use crate::path::*;
 use crate::*;
 
-/// Handler for all object related operations.
+/// Object is the handler for all object related operations.
+///
+/// # Notes
+///
+/// Object will cache part of object metadata that pre-fetch by list or stat
+/// operations. It's better to reuse the same object whenever possible.
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: Arc<dyn Accessor>,

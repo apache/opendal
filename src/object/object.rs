@@ -814,7 +814,14 @@ impl Object {
 
         let bs = bs.into();
         let r = Cursor::new(bs);
-        let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
+        let rp = self.acc.write(self.path(), args, Box::new(r)).await?;
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+        }
+
         Ok(())
     }
 
@@ -887,7 +894,13 @@ impl Object {
 
         let bs = bs.into();
         let r = std::io::Cursor::new(bs);
-        let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
+        let rp = self.acc.blocking_write(self.path(), args, Box::new(r))?;
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+        }
         Ok(())
     }
 
@@ -1006,6 +1019,11 @@ impl Object {
     pub async fn delete(&self) -> Result<()> {
         let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
 
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::Unknown);
+        }
         Ok(())
     }
 
@@ -1032,6 +1050,11 @@ impl Object {
     pub fn blocking_delete(&self) -> Result<()> {
         let _ = self.acc.blocking_delete(self.path(), OpDelete::new())?;
 
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = ObjectMetadata::new(ObjectMode::Unknown);
+        }
         Ok(())
     }
 
@@ -1137,6 +1160,10 @@ impl Object {
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
+    /// metadata_ref is used to get object metadata with mutex guard.
+    ///
+    /// Called can decide to access or clone the content of object metadata.
+    /// But they can't pass the guard outside or across the await boundary.
     async fn metadata_ref(&self) -> Result<MutexGuard<ObjectMetadata>> {
         // Make sure the mutex guard has been dropped.
         {
@@ -1155,7 +1182,14 @@ impl Object {
         Ok(guard)
     }
 
-    /// Raw stat operation.
+    /// Get current object's metadata **without cache**.
+    ///
+    /// # Notes
+    ///
+    /// This function works exactly the same with `Object::metadata`.The
+    /// only difference is it will not try to load data from cached metadata.
+    ///
+    /// Use this function to detect the outside changes of object.
     pub async fn stat(&self) -> Result<ObjectMetadata> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
@@ -1169,7 +1203,13 @@ impl Object {
         Ok(meta)
     }
 
-    /// Get current object's metadata.
+    /// Get current object's metadata with cache.
+    ///
+    /// # Notes
+    ///
+    /// This function will try access the local metadata cache first.
+    /// If there are outside changes of the object, `metadata` could return
+    /// out-of-date metadata. To overcome this, please use [`Object::stat`].
     ///
     /// # Examples
     ///

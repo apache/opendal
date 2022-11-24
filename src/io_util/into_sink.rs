@@ -26,7 +26,7 @@ use pin_project::pin_project;
 
 use crate::raw::*;
 
-/// Convert [`BytesWrite`][crate::BytesWrite] into [`BytesSink`][crate::BytesSink].
+/// Convert [`BytesWrite`][crate::raw::BytesWrite] into [`BytesSink`][crate::raw::BytesSink].
 ///
 /// # Note
 ///

@@ -30,7 +30,7 @@ use pin_project::pin_project;
 
 use crate::raw::*;
 
-/// Convert [`BytesStream`][crate::BytesStream] into [`BytesRead`][crate::BytesRead].
+/// Convert [`BytesStream`][crate::raw::BytesStream] into [`BytesRead`][crate::raw::BytesRead].
 ///
 /// # Note
 ///

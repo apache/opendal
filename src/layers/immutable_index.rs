@@ -220,41 +220,6 @@ mod tests {
     use crate::Operator;
     use crate::Scheme;
 
-    #[test]
-    fn test_blocking_list() -> Result<()> {
-        let _ = env_logger::try_init();
-
-        let mut iil = ImmutableIndexLayer::default();
-        for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
-            iil.insert(i.to_string())
-        }
-
-        let op = Operator::from_iter(
-            Scheme::Http,
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
-        .layer(LoggingLayer)
-        .layer(iil);
-
-        let mut map = HashMap::new();
-        let mut set = HashSet::new();
-        for entry in op.object("").blocking_list()? {
-            let entry = entry?;
-            debug!("current path: {}", entry.path());
-            assert!(
-                set.insert(entry.path().to_string()),
-                "duplicated value: {}",
-                entry.path()
-            );
-            map.insert(entry.path().to_string(), entry.blocking_metadata()?.mode());
-        }
-
-        assert_eq!(map["file"], ObjectMode::FILE);
-        assert_eq!(map["dir/"], ObjectMode::DIR);
-        assert_eq!(map["dir_without_prefix/"], ObjectMode::DIR);
-        Ok(())
-    }
-
     #[tokio::test]
     async fn test_list() -> Result<()> {
         let _ = env_logger::try_init();
@@ -421,7 +386,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.metadata().await?.mode());
+            map.insert(entry.path().to_string(), entry.mode().await?);
         }
 
         debug!("current files: {:?}", map);

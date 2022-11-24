@@ -171,6 +171,25 @@ impl Object {
         Ok(guard.mode())
     }
 
+    /// Return this object entry's object mode in blocking way.
+    pub fn blocking_mode(&self) -> Result<ObjectMode> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            // Object mode other than unknown is OK to be returned.
+            if guard.mode() != ObjectMode::Unknown {
+                return Ok(guard.mode());
+            }
+            // Object mode is unknown, but the object metadata is marked
+            // as complete.
+            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
+                return Ok(guard.mode());
+            }
+        }
+
+        let guard = self.blocking_metadata_ref()?;
+        Ok(guard.mode())
+    }
+
     /// Create an empty object, like using the following linux commands:
     ///
     /// - `touch path/to/file`
@@ -1086,7 +1105,7 @@ impl Object {
     /// let mut ds = o.list().await?;
     /// // ObjectStreamer implements `futures::Stream`
     /// while let Some(de) = ds.try_next().await? {
-    ///     match de.mode() {
+    ///     match de.mode().await? {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1137,7 +1156,7 @@ impl Object {
     /// let mut ds = o.blocking_list()?;
     /// while let Some(de) = ds.next() {
     ///     let de = de?;
-    ///     match de.mode() {
+    ///     match de.blocking_mode()? {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1179,6 +1198,24 @@ impl Object {
         }
 
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        let meta = rp.into_metadata();
+
+        let mut guard = self.meta.lock().expect("lock must succeed");
+        *guard = meta;
+
+        Ok(guard)
+    }
+
+    fn blocking_metadata_ref(&self) -> Result<MutexGuard<ObjectMetadata>> {
+        // Make sure the mutex guard has been dropped.
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if guard.is_complete() {
+                return Ok(guard);
+            }
+        }
+
+        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
         let meta = rp.into_metadata();
 
         let mut guard = self.meta.lock().expect("lock must succeed");

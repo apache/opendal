@@ -17,7 +17,7 @@
 //! In order to implement a service, we need the following things:
 //!
 //! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::Accessor] trait.
+//! - Backend: the service backend which implements the [`Accessor`][crate::raw::Accessor] trait.
 
 pub mod azblob;
 pub mod fs;

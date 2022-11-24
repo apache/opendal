@@ -37,7 +37,7 @@ use crate::raw::*;
 /// ```
 /// use std::sync::Arc;
 ///
-/// use opendal::Accessor;
+/// use opendal::raw::Accessor;
 /// use opendal::Layer;
 ///
 /// /// Implement the real accessor logic here.

@@ -19,41 +19,41 @@ use std::fmt::Formatter;
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Operation {
-    /// Operation for [`crate::Accessor::metadata`]
+    /// Operation for [`crate::raw::Accessor::metadata`]
     Metadata,
-    /// Operation for [`crate::Accessor::create`]
+    /// Operation for [`crate::raw::Accessor::create`]
     Create,
-    /// Operation for [`crate::Accessor::read`]
+    /// Operation for [`crate::raw::Accessor::read`]
     Read,
-    /// Operation for [`crate::Accessor::write`]
+    /// Operation for [`crate::raw::Accessor::write`]
     Write,
-    /// Operation for [`crate::Accessor::stat`]
+    /// Operation for [`crate::raw::Accessor::stat`]
     Stat,
-    /// Operation for [`crate::Accessor::delete`]
+    /// Operation for [`crate::raw::Accessor::delete`]
     Delete,
-    /// Operation for [`crate::Accessor::list`]
+    /// Operation for [`crate::raw::Accessor::list`]
     List,
-    /// Operation for [`crate::Accessor::presign`]
+    /// Operation for [`crate::raw::Accessor::presign`]
     Presign,
-    /// Operation for [`crate::Accessor::create_multipart`]
+    /// Operation for [`crate::raw::Accessor::create_multipart`]
     CreateMultipart,
-    /// Operation for [`crate::Accessor::write_multipart`]
+    /// Operation for [`crate::raw::Accessor::write_multipart`]
     WriteMultipart,
-    /// Operation for [`crate::Accessor::complete_multipart`]
+    /// Operation for [`crate::raw::Accessor::complete_multipart`]
     CompleteMultipart,
-    /// Operation for [`crate::Accessor::abort_multipart`]
+    /// Operation for [`crate::raw::Accessor::abort_multipart`]
     AbortMultipart,
-    /// Operation for [`crate::Accessor::blocking_create`]
+    /// Operation for [`crate::raw::Accessor::blocking_create`]
     BlockingCreate,
-    /// Operation for [`crate::Accessor::blocking_read`]
+    /// Operation for [`crate::raw::Accessor::blocking_read`]
     BlockingRead,
-    /// Operation for [`crate::Accessor::blocking_write`]
+    /// Operation for [`crate::raw::Accessor::blocking_write`]
     BlockingWrite,
-    /// Operation for [`crate::Accessor::blocking_stat`]
+    /// Operation for [`crate::raw::Accessor::blocking_stat`]
     BlockingStat,
-    /// Operation for [`crate::Accessor::blocking_delete`]
+    /// Operation for [`crate::raw::Accessor::blocking_delete`]
     BlockingDelete,
-    /// Operation for [`crate::Accessor::blocking_list`]
+    /// Operation for [`crate::raw::Accessor::blocking_list`]
     BlockingList,
 }
 

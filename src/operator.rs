@@ -63,7 +63,6 @@ impl Operator {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// # use opendal::services::fs;
-    /// # use opendal::Accessor;
     /// # use opendal::Object;
     /// # use opendal::Operator;
     /// #[tokio::main]
@@ -75,7 +74,7 @@ impl Operator {
     ///     // NOTE: the root must be absolute path.
     ///     builder.root("/tmp");
     ///
-    ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
+    ///     // Build an `Operator` to start operating the storage.
     ///     let op: Operator = Operator::new(builder.build()?);
     ///
     ///     // Create an object handle to start operation on object.
@@ -107,7 +106,6 @@ impl Operator {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// # use opendal::services::fs;
-    /// # use opendal::Accessor;
     /// # use opendal::Object;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
@@ -183,13 +181,12 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use opendal::Accessor;
     /// # use opendal::Object;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
-    ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
+    ///     // Build an Operator to start operating the storage
     ///     let op: Operator = Operator::from_env(Scheme::Fs)?;
     ///
     ///     // Create an object handle to start operation on object.

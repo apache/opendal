@@ -35,22 +35,22 @@ use crate::*;
 ///
 /// | Name | Capability |
 /// | ---- | ---------- |
-/// | [`metadata`][crate::Accessor::metadata] | - |
-/// | [`create`][crate::Accessor::create] | - |
-/// | [`read`][crate::Accessor::read] | - |
-/// | [`write`][crate::Accessor::write] | - |
-/// | [`delete`][crate::Accessor::delete] | - |
-/// | [`list`][crate::Accessor::list] | - |
-/// | [`presign`][crate::Accessor::presign] | `Presign` |
-/// | [`create_multipart`][crate::Accessor::create_multipart] | `Multipart` |
-/// | [`write_multipart`][crate::Accessor::write_multipart] | `Multipart` |
-/// | [`complete_multipart`][crate::Accessor::complete_multipart] | `Multipart` |
-/// | [`abort_multipart`][crate::Accessor::abort_multipart] | `Multipart` |
-/// | [`blocking_create`][crate::Accessor::blocking_create] | `Blocking` |
-/// | [`blocking_read`][crate::Accessor::blocking_read] | `Blocking` |
-/// | [`blocking_write`][crate::Accessor::blocking_write] | `Blocking` |
-/// | [`blocking_delete`][crate::Accessor::blocking_delete] | `Blocking` |
-/// | [`blocking_list`][crate::Accessor::blocking_list] | `Blocking` |
+/// | [`metadata`][Accessor::metadata] | - |
+/// | [`create`][Accessor::create] | - |
+/// | [`read`][Accessor::read] | - |
+/// | [`write`][Accessor::write] | - |
+/// | [`delete`][Accessor::delete] | - |
+/// | [`list`][Accessor::list] | - |
+/// | [`presign`][Accessor::presign] | `Presign` |
+/// | [`create_multipart`][Accessor::create_multipart] | `Multipart` |
+/// | [`write_multipart`][Accessor::write_multipart] | `Multipart` |
+/// | [`complete_multipart`][Accessor::complete_multipart] | `Multipart` |
+/// | [`abort_multipart`][Accessor::abort_multipart] | `Multipart` |
+/// | [`blocking_create`][Accessor::blocking_create] | `Blocking` |
+/// | [`blocking_read`][Accessor::blocking_read] | `Blocking` |
+/// | [`blocking_write`][Accessor::blocking_write] | `Blocking` |
+/// | [`blocking_delete`][Accessor::blocking_delete] | `Blocking` |
+/// | [`blocking_list`][Accessor::blocking_list] | `Blocking` |
 ///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.

@@ -83,7 +83,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::azblob;
-//! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!

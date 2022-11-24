@@ -75,11 +75,11 @@ macro_rules! behavior_blocking_read_tests {
 
 /// Stat normal file and dir should return metadata
 pub fn test_stat(op: Operator) -> Result<()> {
-    let meta = op.object("normal_file").blocking_stat()?;
+    let meta = op.object("normal_file").blocking_metadata()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
-    let meta = op.object("normal_dir/").blocking_stat()?;
+    let meta = op.object("normal_dir/").blocking_metadata()?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     Ok(())
@@ -89,13 +89,13 @@ pub fn test_stat(op: Operator) -> Result<()> {
 pub fn test_stat_special_chars(op: Operator) -> Result<()> {
     let meta = op
         .object("special_file  !@#$%^&*()_+-=;'><,?")
-        .blocking_stat()?;
+        .blocking_metadata()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     let meta = op
         .object("special_dir  !@#$%^&*()_+-=;'><,?/")
-        .blocking_stat()?;
+        .blocking_metadata()?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     Ok(())
@@ -105,7 +105,7 @@ pub fn test_stat_special_chars(op: Operator) -> Result<()> {
 pub fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).blocking_stat();
+    let meta = op.object(&path).blocking_metadata();
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 

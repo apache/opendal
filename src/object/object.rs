@@ -15,14 +15,16 @@
 use std::fmt::Debug;
 use std::ops::RangeBounds;
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::MutexGuard;
 
 use futures::io;
 use futures::io::Cursor;
 use time::Duration;
+use time::OffsetDateTime;
 
 use super::BlockingObjectLister;
 use super::ObjectLister;
-use super::ObjectMetadatar;
 use crate::io::BytesRead;
 use crate::io_util::*;
 use crate::ops::*;
@@ -35,7 +37,7 @@ pub struct Object {
     acc: Arc<dyn Accessor>,
     path: String,
 
-    meta: Option<ObjectMetadata>,
+    meta: Arc<Mutex<ObjectMetadata>>,
 }
 
 impl Object {
@@ -45,20 +47,19 @@ impl Object {
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
     pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+        Self::with(acc, path, ObjectMetadata::new(ObjectMode::Unknown))
+    }
+
+    pub(crate) fn with(acc: Arc<dyn Accessor>, path: &str, meta: ObjectMetadata) -> Self {
         Self {
             acc,
             path: normalize_path(path),
-            meta: None,
+            meta: Arc::new(Mutex::new(meta)),
         }
     }
 
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
         self.acc.clone()
-    }
-
-    pub(crate) fn with_metadata(mut self, meta: ObjectMetadata) -> Self {
-        self.meta = Some(meta);
-        self
     }
 
     /// ID of object.
@@ -144,6 +145,25 @@ impl Object {
     /// ```
     pub fn name(&self) -> &str {
         get_basename(&self.path)
+    }
+
+    /// Return this object entry's object mode.
+    pub async fn mode(&self) -> Result<ObjectMode> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            // Object mode other than unknown is OK to be returned.
+            if guard.mode() != ObjectMode::Unknown {
+                return Ok(guard.mode());
+            }
+            // Object mode is unknown, but the object metadata is marked
+            // as complete.
+            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
+                return Ok(guard.mode());
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.mode())
     }
 
     /// Create an empty object, like using the following linux commands:
@@ -1117,6 +1137,30 @@ impl Object {
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
+    async fn metadata_ref(&self) -> Result<MutexGuard<ObjectMetadata>> {
+        // Make sure the mutex guard has been dropped.
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if guard.is_complete() {
+                return Ok(guard);
+            }
+        }
+
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        let meta = rp.into_metadata();
+
+        let mut guard = self.meta.lock().expect("lock must succeed");
+        *guard = meta;
+
+        Ok(guard)
+    }
+
+    /// Raw stat operation.
+    pub async fn stat(&self) -> Result<ObjectMetadata> {
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        Ok(rp.into_metadata())
+    }
+
     /// Get current object's metadata.
     ///
     /// # Examples
@@ -1140,9 +1184,94 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn stat(&self) -> Result<ObjectMetadata> {
-        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
-        Ok(rp.into_metadata())
+    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+        let guard = self.metadata_ref().await?;
+
+        Ok(guard.clone())
+    }
+
+    /// The size of `ObjectEntry`'s corresponding object
+    ///
+    /// `content_length` is a prefetched metadata field in `ObjectEntry`.
+    pub async fn content_length(&self) -> Result<u64> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if let Some(v) = guard.content_length_raw() {
+                return Ok(v);
+            }
+            if guard.is_complete() {
+                return Ok(0);
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.content_length())
+    }
+
+    /// The MD5 message digest of `ObjectEntry`'s corresponding object
+    ///
+    /// `content_md5` is a prefetched metadata field in `ObjectEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn content_md5(&self) -> Result<Option<String>> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+
+            if let Some(v) = guard.content_md5() {
+                return Ok(Some(v.to_string()));
+            }
+            if guard.is_complete() {
+                return Ok(None);
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.content_md5().map(|v| v.to_string()))
+    }
+
+    /// The last modified UTC datetime of `ObjectEntry`'s corresponding object
+    ///
+    /// `last_modified` is a prefetched metadata field in `ObjectEntry`
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+
+            if let Some(v) = guard.last_modified() {
+                return Ok(Some(v));
+            }
+            if guard.is_complete() {
+                return Ok(None);
+            }
+        }
+
+        let guard = self.metadata_ref().await?;
+        Ok(guard.last_modified())
+    }
+
+    /// The ETag string of `ObjectEntry`'s corresponding object
+    ///
+    /// `etag` is a prefetched metadata field in `ObjectEntry`.
+    ///
+    /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
+    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    pub async fn etag(&self) -> Result<Option<String>> {
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+
+            if let Some(v) = guard.etag() {
+                return Ok(Some(v.to_string()));
+            }
+            if guard.is_complete() {
+                return Ok(None);
+            }
+        }
+
+        let meta = self.metadata().await?;
+        Ok(meta.etag().map(|v| v.to_string()))
     }
 
     /// Get current object's metadata.
@@ -1167,9 +1296,24 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
+    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+        // Make sure the mutex guard has been dropped.
+        {
+            let guard = self.meta.lock().expect("lock must succeed");
+            if guard.is_complete() {
+                return Ok(guard.clone());
+            }
+        }
+
         let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
-        Ok(rp.into_metadata())
+        let meta = rp.into_metadata();
+
+        {
+            let mut guard = self.meta.lock().expect("lock must succeed");
+            *guard = meta.clone();
+        }
+
+        Ok(meta)
     }
 
     /// Check if this object exists or not.
@@ -1192,7 +1336,7 @@ impl Object {
     /// }
     /// ```
     pub async fn is_exist(&self) -> Result<bool> {
-        let r = self.stat().await;
+        let r = self.metadata_ref().await;
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
@@ -1219,7 +1363,7 @@ impl Object {
     /// }
     /// ```
     pub fn blocking_is_exist(&self) -> Result<bool> {
-        let r = self.blocking_stat();
+        let r = self.blocking_metadata();
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
@@ -1289,20 +1433,6 @@ impl Object {
 
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())
-    }
-
-    /// Construct a metadatar with existing metadata.
-    pub fn to_metadata(&self) -> ObjectMetadatar {
-        if let Some(meta) = &self.meta {
-            ObjectMetadatar::new(self.acc.clone(), &self.path, meta.clone())
-        } else {
-            let meta = ObjectMetadata::new(if self.path.ends_with('/') {
-                ObjectMode::DIR
-            } else {
-                ObjectMode::FILE
-            });
-            ObjectMetadatar::new(self.acc.clone(), &self.path, meta)
-        }
     }
 
     /// Construct a multipart with existing upload id.

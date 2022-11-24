@@ -22,7 +22,7 @@ pub enum ObjectMode {
     FILE,
     /// DIR means the object can be listed.
     DIR,
-    /// Unknown means we don't know what we can do on thi object.
+    /// Unknown means we don't know what we can do on this object.
     Unknown,
 }
 

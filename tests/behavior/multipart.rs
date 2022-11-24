@@ -85,7 +85,7 @@ pub async fn test_multipart_complete(op: Operator) -> Result<()> {
     // Complete
     let o = mp.complete(vec![p1, p2]).await?;
 
-    let meta = o.stat().await?;
+    let meta = o.metadata().await?;
 
     assert_eq!(10 * 1024 * 1024, meta.content_length(), "complete size");
     assert_eq!(

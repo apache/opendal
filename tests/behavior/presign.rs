@@ -99,7 +99,11 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
         resp.text().await.expect("read response must succeed")
     );
 
-    let meta = op.object(&path).stat().await.expect("stat must succeed");
+    let meta = op
+        .object(&path)
+        .metadata()
+        .await
+        .expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)

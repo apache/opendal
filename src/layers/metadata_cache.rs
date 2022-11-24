@@ -231,7 +231,7 @@ mod tests {
             .write("Hello, World!".as_bytes())
             .await?;
         // Stat from cached op.
-        let meta = cached_op.object("test_exist").stat().await?;
+        let meta = cached_op.object("test_exist").metadata().await?;
         assert_eq!(meta.content_length(), 13);
 
         // Write into cache op.
@@ -240,13 +240,13 @@ mod tests {
             .write("Hello, Xuanwo!".as_bytes())
             .await?;
         // op and cached op should have same data.
-        let meta = op.object("test_exist").stat().await?;
+        let meta = op.object("test_exist").metadata().await?;
         assert_eq!(meta.content_length(), 14);
-        let meta = cached_op.object("test_exist").stat().await?;
+        let meta = cached_op.object("test_exist").metadata().await?;
         assert_eq!(meta.content_length(), 14);
 
         // Stat not exist object.
-        let meta = cached_op.object("test_not_exist").stat().await;
+        let meta = cached_op.object("test_not_exist").metadata().await;
         assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())

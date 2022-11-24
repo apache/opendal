@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     );
 
     info!("try to get file metadata: {}", &path);
-    let meta = op.object(&path).stat().await?;
+    let meta = op.object(&path).metadata().await?;
     info!(
         "get file metadata successful, size: {}B",
         meta.content_length()

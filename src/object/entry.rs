@@ -64,6 +64,6 @@ impl ObjectEntry {
 
     /// Consume to convert into an object.
     pub fn into_object(self, acc: Arc<dyn Accessor>) -> Object {
-        Object::new(acc, &self.path).with_metadata(self.meta)
+        Object::with(acc, &self.path, self.meta)
     }
 }

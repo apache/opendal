@@ -23,6 +23,7 @@ use crate::object::ObjectPage;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::normalize_root;
+use crate::raw::*;
 use crate::*;
 
 /// SubdirLayer to switch to subdir for existing operator.

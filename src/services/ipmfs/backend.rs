@@ -26,7 +26,6 @@ use serde::Deserialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_json_deserialize_error;
-use crate::accessor::AccessorCapability;
 use crate::http_util::new_request_build_error;
 use crate::http_util::parse_error_response;
 use crate::http_util::parse_into_object_metadata;
@@ -37,6 +36,7 @@ use crate::http_util::IncomingAsyncBody;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::build_rooted_abs_path;
+use crate::raw::*;
 use crate::*;
 
 /// Backend for IPFS service

@@ -21,9 +21,8 @@ use futures::TryStreamExt;
 use crate::io_util::BottomUpWalker;
 use crate::io_util::TopDownWalker;
 use crate::object::ObjectLister;
+use crate::raw::*;
 use crate::services;
-use crate::Accessor;
-use crate::AccessorMetadata;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Layer;
@@ -40,10 +39,16 @@ pub struct Operator {
 
 impl<A> From<A> for Operator
 where
-    A: Accessor + 'static,
+    A: Accessor,
 {
     fn from(accessor: A) -> Self {
         Operator::new(accessor)
+    }
+}
+
+impl From<Arc<dyn Accessor>> for Operator {
+    fn from(accessor: Arc<dyn Accessor>) -> Self {
+        Operator { accessor }
     }
 }
 
@@ -58,7 +63,6 @@ impl Operator {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// # use opendal::services::fs;
-    /// # use opendal::Accessor;
     /// # use opendal::Object;
     /// # use opendal::Operator;
     /// #[tokio::main]
@@ -70,7 +74,7 @@ impl Operator {
     ///     // NOTE: the root must be absolute path.
     ///     builder.root("/tmp");
     ///
-    ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
+    ///     // Build an `Operator` to start operating the storage.
     ///     let op: Operator = Operator::new(builder.build()?);
     ///
     ///     // Create an object handle to start operation on object.
@@ -102,7 +106,6 @@ impl Operator {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// # use opendal::services::fs;
-    /// # use opendal::Accessor;
     /// # use opendal::Object;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
@@ -178,13 +181,12 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use opendal::Accessor;
     /// # use opendal::Object;
     /// # use opendal::Operator;
     /// # use opendal::Scheme;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
-    ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
+    ///     // Build an Operator to start operating the storage
     ///     let op: Operator = Operator::from_env(Scheme::Fs)?;
     ///
     ///     // Create an object handle to start operation on object.
@@ -235,7 +237,7 @@ impl Operator {
     }
 
     /// Get inner accessor.
-    pub fn inner(&self) -> Arc<dyn Accessor> {
+    pub(crate) fn inner(&self) -> Arc<dyn Accessor> {
         self.accessor.clone()
     }
 
@@ -270,7 +272,7 @@ impl Operator {
 
     /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
-        Object::new(self.inner(), path)
+        Object::new(self.clone(), path)
     }
 
     /// Check if this operator can work correctly.
@@ -335,7 +337,7 @@ impl BatchOperator {
     /// Refer to [`TopDownWalker`] for more about the behavior details.
     pub fn walk_top_down(&self, path: &str) -> Result<ObjectLister> {
         Ok(ObjectLister::new(
-            self.src.inner(),
+            self.src.clone(),
             Box::new(TopDownWalker::new(self.src.inner(), path)),
         ))
     }
@@ -345,7 +347,7 @@ impl BatchOperator {
     /// Refer to [`BottomUpWalker`] for more about the behavior details.
     pub fn walk_bottom_up(&self, path: &str) -> Result<ObjectLister> {
         Ok(ObjectLister::new(
-            self.src.inner(),
+            self.src.clone(),
             Box::new(BottomUpWalker::new(self.src.inner(), path)),
         ))
     }

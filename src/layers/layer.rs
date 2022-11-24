@@ -13,7 +13,7 @@
 // limitations under the License.
 use std::sync::Arc;
 
-use crate::Accessor;
+use crate::raw::*;
 
 /// Layer is used to intercept the operations on the underlying storage.
 ///
@@ -37,7 +37,7 @@ use crate::Accessor;
 /// ```
 /// use std::sync::Arc;
 ///
-/// use opendal::Accessor;
+/// use opendal::raw::Accessor;
 /// use opendal::Layer;
 ///
 /// /// Implement the real accessor logic here.
@@ -72,7 +72,6 @@ mod tests {
 
     use super::*;
     use crate::ops::*;
-    use crate::Accessor;
     use crate::Operator;
     use crate::Result;
     use crate::Scheme;

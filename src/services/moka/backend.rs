@@ -20,9 +20,8 @@ use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
 
 use crate::adapters::kv;
+use crate::raw::*;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::AccessorCapability;
 use crate::Result;
 use crate::Scheme;
 

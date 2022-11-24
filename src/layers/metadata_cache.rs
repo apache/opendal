@@ -21,6 +21,7 @@ use futures::io;
 use futures::io::Cursor;
 
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// MetadataCacheLayer will add metadata cache support for OpenDAL.

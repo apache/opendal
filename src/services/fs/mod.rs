@@ -60,7 +60,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::fs;
-//! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!

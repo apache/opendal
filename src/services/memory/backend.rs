@@ -19,9 +19,8 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 
 use crate::adapters::kv;
+use crate::raw::*;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::AccessorCapability;
 use crate::Result;
 use crate::Scheme;
 
@@ -93,7 +92,6 @@ impl kv::Adapter for Adapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Accessor;
 
     #[test]
     fn test_accessor_metadata_name() {

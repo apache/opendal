@@ -78,7 +78,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::oss;
-//! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!

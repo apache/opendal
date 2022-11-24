@@ -21,6 +21,7 @@ use crate::object::BlockingObjectPager;
 use crate::object::ObjectPage;
 use crate::object::ObjectPager;
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// Provide a zero cost error context wrapper for backend.

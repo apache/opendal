@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::Arc;
-
-use crate::Accessor;
 use crate::Object;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
+use crate::Operator;
 
 /// ObjectEntry is returned by `ObjectStream` or `ObjectIterate` during object list.
 ///
@@ -63,7 +61,7 @@ impl ObjectEntry {
     }
 
     /// Consume to convert into an object.
-    pub fn into_object(self, acc: Arc<dyn Accessor>) -> Object {
-        Object::with(acc, &self.path, self.meta)
+    pub fn into_object(self, op: Operator) -> Object {
+        Object::with(op, &self.path, self.meta)
     }
 }

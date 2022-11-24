@@ -25,6 +25,7 @@ use futures::ready;
 use futures::FutureExt;
 use futures::Stream;
 
+use crate::raw::*;
 use crate::*;
 
 /// ObjectPage trait is used by [`Accessor`] to implement `list` operation.
@@ -74,13 +75,18 @@ pub struct ObjectLister {
 
 impl ObjectLister {
     /// Create a new object lister.
-    pub fn new(acc: Arc<dyn Accessor>, pager: ObjectPager) -> Self {
+    pub fn new(op: Operator, pager: ObjectPager) -> Self {
         Self {
-            acc,
+            acc: op.inner(),
             pager: Some(pager),
             buf: VecDeque::default(),
             fut: None,
         }
+    }
+
+    /// Fetch the operator that used by this object.
+    pub fn operator(&self) -> Operator {
+        self.acc.clone().into()
     }
 
     /// next_page can be used to fetch a new object page.
@@ -116,7 +122,7 @@ impl ObjectLister {
         Ok(Some(
             entries
                 .into_iter()
-                .map(|v| v.into_object(self.acc.clone()))
+                .map(|v| v.into_object(self.operator()))
                 .collect(),
         ))
     }
@@ -127,7 +133,7 @@ impl Stream for ObjectLister {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(oe) = self.buf.pop_front() {
-            return Poll::Ready(Some(Ok(oe.into_object(self.acc.clone()))));
+            return Poll::Ready(Some(Ok(oe.into_object(self.operator()))));
         }
 
         if let Some(fut) = self.fut.as_mut() {
@@ -188,6 +194,11 @@ impl BlockingObjectLister {
         }
     }
 
+    /// Fetch the operator that used by this object.
+    pub fn operator(&self) -> Operator {
+        self.acc.clone().into()
+    }
+
     /// next_page can be used to fetch a new object page.
     pub fn next_page(&mut self) -> Result<Option<Vec<Object>>> {
         let entries = if !self.buf.is_empty() {
@@ -205,7 +216,7 @@ impl BlockingObjectLister {
         Ok(Some(
             entries
                 .into_iter()
-                .map(|v| v.into_object(self.acc.clone()))
+                .map(|v| v.into_object(self.operator()))
                 .collect(),
         ))
     }
@@ -217,7 +228,7 @@ impl Iterator for BlockingObjectLister {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(oe) = self.buf.pop_front() {
-            return Some(Ok(oe.into_object(self.acc.clone())));
+            return Some(Ok(oe.into_object(self.operator())));
         }
 
         self.buf = match self.pager.next_page() {

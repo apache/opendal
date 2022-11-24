@@ -126,7 +126,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::s3;
-//! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!

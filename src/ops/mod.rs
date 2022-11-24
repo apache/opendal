@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Operations and help utils used by [`Accessor`][crate::Accessor].
+//! Operations and help utils used by [`Accessor`][crate::raw::Accessor].
 //!
 //! # Notes
 //!

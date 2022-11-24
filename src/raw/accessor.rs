@@ -22,6 +22,7 @@ use flagset::FlagSet;
 use crate::object::BlockingObjectPager;
 use crate::object::ObjectPager;
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// Underlying trait of all backends for implementors.

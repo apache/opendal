@@ -23,9 +23,9 @@ use futures::ready;
 use futures::Stream;
 use pin_project::pin_project;
 
-use crate::BytesRead;
+use crate::raw::*;
 
-/// Convert [`BytesRead`][crate::BytesRead] into [`BytesStream`][crate::BytesStream].
+/// Convert [`BytesRead`][crate::raw::BytesRead] into [`BytesStream`][crate::raw::BytesStream].
 ///
 /// # Note
 ///

@@ -576,7 +576,6 @@ mod tests {
     use crate::layers::RetryLayer;
     use crate::ops::*;
     use crate::raw::*;
-    use crate::BytesReader;
     use crate::Error;
     use crate::ErrorKind;
     use crate::Operator;

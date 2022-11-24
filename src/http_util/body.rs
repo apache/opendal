@@ -21,8 +21,7 @@ use bytes::Buf;
 use bytes::Bytes;
 
 use crate::io_util::into_stream;
-use crate::BlockingBytesReader;
-use crate::BytesReader;
+use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

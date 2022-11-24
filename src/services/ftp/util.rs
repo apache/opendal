@@ -25,7 +25,7 @@ use futures::FutureExt;
 use suppaftp::Status;
 
 use super::backend::Manager;
-use crate::BytesReader;
+use crate::raw::*;
 use crate::Result;
 
 /// Wrapper for ftp data stream and command stream.

@@ -24,9 +24,9 @@ use futures::ready;
 use futures::Sink;
 use pin_project::pin_project;
 
-use crate::BytesWrite;
+use crate::raw::*;
 
-/// Convert [`BytesWrite`][crate::BytesWrite] into [`BytesSink`][crate::BytesSink].
+/// Convert [`BytesWrite`][crate::raw::BytesWrite] into [`BytesSink`][crate::raw::BytesSink].
 ///
 /// # Note
 ///

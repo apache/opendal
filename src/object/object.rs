@@ -1084,7 +1084,7 @@ impl Object {
 
     /// List current dir object.
     ///
-    /// This function will create a new [`ObjectStreamer`] handle to list objects.
+    /// This function will create a new handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///
@@ -1136,7 +1136,7 @@ impl Object {
 
     /// List current dir object.
     ///
-    /// This function will create a new [`ObjectIterator`] handle to list objects.
+    /// This function will create a new handle to list objects.
     ///
     /// An error will be returned if object path doesn't end with `/`.
     ///

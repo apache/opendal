@@ -283,7 +283,7 @@ mod tests {
 
         let mut set = HashSet::new();
         let w = TopDownWalker::new(op.inner(), "x/");
-        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let ol = ObjectLister::new(op, Box::new(w));
         let mut actual = ol
             .try_collect::<Vec<_>>()
             .await?
@@ -327,7 +327,7 @@ mod tests {
 
         let mut set = HashSet::new();
         let w = TopDownWalker::new(op.inner(), "");
-        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let ol = ObjectLister::new(op, Box::new(w));
         let mut actual = ol
             .try_collect::<Vec<_>>()
             .await?
@@ -373,7 +373,7 @@ mod tests {
 
         let mut set = HashSet::new();
         let w = BottomUpWalker::new(op.inner(), "x/");
-        let ol = ObjectLister::new(op.inner(), Box::new(w));
+        let ol = ObjectLister::new(op, Box::new(w));
         let mut actual = ol
             .try_collect::<Vec<_>>()
             .await?

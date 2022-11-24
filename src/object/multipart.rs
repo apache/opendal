@@ -48,12 +48,17 @@ pub struct ObjectMultipart {
 
 impl ObjectMultipart {
     /// Build a new MultipartObject.
-    pub fn new(acc: Arc<dyn Accessor>, path: &str, upload_id: &str) -> Self {
+    pub fn new(op: Operator, path: &str, upload_id: &str) -> Self {
         Self {
-            acc,
+            acc: op.inner(),
             path: normalize_path(path),
             upload_id: upload_id.to_string(),
         }
+    }
+
+    /// Fetch the operator that used by this object.
+    pub fn operatoer(&self) -> Operator {
+        self.acc.clone().into()
     }
 
     /// Write a new [`ObjectPart`] with specified part number.
@@ -80,7 +85,7 @@ impl ObjectMultipart {
         let op = OpCompleteMultipart::new(self.upload_id.clone(), parts);
         self.acc.complete_multipart(&self.path, op).await?;
 
-        Ok(Object::new(self.acc.clone(), &self.path))
+        Ok(Object::new(self.acc.clone().into(), &self.path))
     }
 
     /// Abort multipart uploads.

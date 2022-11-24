@@ -52,16 +52,21 @@ impl Object {
     /// - All path will be converted into relative path (without any leading `/`)
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
-    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
-        Self::with(acc, path, ObjectMetadata::new(ObjectMode::Unknown))
+    pub fn new(op: Operator, path: &str) -> Self {
+        Self::with(op, path, ObjectMetadata::new(ObjectMode::Unknown))
     }
 
-    pub(crate) fn with(acc: Arc<dyn Accessor>, path: &str, meta: ObjectMetadata) -> Self {
+    pub(crate) fn with(op: Operator, path: &str, meta: ObjectMetadata) -> Self {
         Self {
-            acc,
+            acc: op.inner(),
             path: normalize_path(path),
             meta: Arc::new(Mutex::new(meta)),
         }
+    }
+
+    /// Fetch the operator that used by this object.
+    pub fn operator(&self) -> Operator {
+        self.acc.clone().into()
     }
 
     pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
@@ -1132,7 +1137,7 @@ impl Object {
 
         let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
 
-        Ok(ObjectLister::new(self.acc.clone(), pager))
+        Ok(ObjectLister::new(self.operator(), pager))
     }
 
     /// List current dir object.
@@ -1528,7 +1533,7 @@ impl Object {
 
     /// Construct a multipart with existing upload id.
     pub fn to_multipart(&self, upload_id: &str) -> ObjectMultipart {
-        ObjectMultipart::new(self.acc.clone(), &self.path, upload_id)
+        ObjectMultipart::new(self.operator(), &self.path, upload_id)
     }
 
     /// Create a new multipart for current path.

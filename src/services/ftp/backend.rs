@@ -38,12 +38,12 @@ use tokio::sync::OnceCell;
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
-use crate::accessor::AccessorCapability;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::path::get_basename;
 use crate::path::get_parent;
 use crate::path::normalize_root;
+use crate::raw::*;
 use crate::wrappers::wrapper;
 use crate::*;
 

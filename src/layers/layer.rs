@@ -13,7 +13,7 @@
 // limitations under the License.
 use std::sync::Arc;
 
-use crate::Accessor;
+use crate::raw::*;
 
 /// Layer is used to intercept the operations on the underlying storage.
 ///
@@ -72,7 +72,6 @@ mod tests {
 
     use super::*;
     use crate::ops::*;
-    use crate::Accessor;
     use crate::Operator;
     use crate::Result;
     use crate::Scheme;

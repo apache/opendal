@@ -25,6 +25,7 @@ use futures::ready;
 use futures::FutureExt;
 use futures::Stream;
 
+use crate::raw::*;
 use crate::*;
 
 /// ObjectPage trait is used by [`Accessor`] to implement `list` operation.

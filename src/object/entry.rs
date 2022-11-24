@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use crate::Accessor;
+use crate::raw::*;
 use crate::Object;
 use crate::ObjectMetadata;
 use crate::ObjectMode;

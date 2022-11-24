@@ -20,9 +20,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::accessor::AccessorCapability;
 use crate::object::*;
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// ImmutableIndexLayer is used to add an immutable in-memory index for

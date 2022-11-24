@@ -27,6 +27,7 @@ use futures::AsyncRead;
 use futures::AsyncSeek;
 
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// Add seek support for object via internal lazy operation.

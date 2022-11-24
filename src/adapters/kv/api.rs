@@ -17,8 +17,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use flagset::FlagSet;
 
-use crate::AccessorCapability;
-use crate::AccessorMetadata;
+use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

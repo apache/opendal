@@ -147,11 +147,6 @@
 // Add options below to allow/deny Clippy lints.
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
-mod accessor;
-pub use accessor::Accessor;
-pub use accessor::AccessorCapability;
-pub use accessor::AccessorMetadata;
-
 mod io;
 pub use io::BlockingBytesRead;
 pub use io::BlockingBytesReader;
@@ -190,6 +185,7 @@ pub mod layers;
 pub use layers::Layer;
 pub mod adapters;
 pub mod ops;
+pub mod raw;
 pub mod services;
 pub mod wrappers;
 
@@ -203,6 +199,7 @@ mod tests {
     use std::mem::size_of;
 
     use super::*;
+    use crate::raw::*;
 
     /// This is not a real test case.
     ///

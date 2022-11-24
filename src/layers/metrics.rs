@@ -32,6 +32,7 @@ use metrics::Histogram;
 use crate::object::BlockingObjectPager;
 use crate::object::ObjectPager;
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 static METRIC_REQUESTS_TOTAL: &str = "opendal_requests_total";

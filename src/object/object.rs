@@ -29,6 +29,7 @@ use crate::io::BytesRead;
 use crate::io_util::*;
 use crate::ops::*;
 use crate::path::*;
+use crate::raw::*;
 use crate::*;
 
 /// Object is the handler for all object related operations.

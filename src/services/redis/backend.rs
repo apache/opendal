@@ -30,9 +30,8 @@ use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
 use crate::path::normalize_root;
+use crate::raw::*;
 use crate::wrappers::wrapper;
-use crate::Accessor;
-use crate::AccessorCapability;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

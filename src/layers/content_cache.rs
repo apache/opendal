@@ -28,6 +28,7 @@ use futures::AsyncRead;
 use futures::FutureExt;
 
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// ContentCacheLayer will add content data cache support for OpenDAL.

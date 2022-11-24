@@ -20,6 +20,7 @@ use async_trait::async_trait;
 use rocksdb::TransactionDB;
 
 use crate::adapters::kv;
+use crate::raw::*;
 use crate::wrappers::wrapper;
 use crate::Result;
 use crate::*;

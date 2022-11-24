@@ -35,6 +35,7 @@ use tokio::time::Sleep;
 use crate::object::BlockingObjectPager;
 use crate::object::ObjectPager;
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// RetryLayer will add retry for OpenDAL.
@@ -574,7 +575,7 @@ mod tests {
 
     use crate::layers::RetryLayer;
     use crate::ops::*;
-    use crate::Accessor;
+    use crate::raw::*;
     use crate::BytesReader;
     use crate::Error;
     use crate::ErrorKind;

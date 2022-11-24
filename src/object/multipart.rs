@@ -23,9 +23,8 @@ use crate::ops::OpPresign;
 use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
 use crate::path::normalize_path;
-use crate::Accessor;
-use crate::Object;
-use crate::Result;
+use crate::raw::*;
+use crate::*;
 
 /// ObjectMultipart represent an ongoing multipart upload.
 ///

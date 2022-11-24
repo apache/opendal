@@ -29,6 +29,7 @@ use log::warn;
 
 use crate::object::*;
 use crate::ops::*;
+use crate::raw::*;
 use crate::*;
 
 /// LoggingLayer will add logging for OpenDAL.

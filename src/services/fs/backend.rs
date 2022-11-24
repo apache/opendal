@@ -29,11 +29,10 @@ use tokio::fs;
 use super::dir_stream::BlockingDirPager;
 use super::dir_stream::DirPager;
 use super::error::parse_io_error;
-use crate::accessor::AccessorCapability;
-use crate::accessor::AccessorMetadata;
 use crate::object::*;
 use crate::ops::*;
 use crate::path::*;
+use crate::raw::*;
 use crate::wrappers::wrapper;
 use crate::*;
 

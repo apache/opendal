@@ -12,10 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::ErrorContextWrapper;
-use crate::raw::*;
+//! Raw modules provide raw APIs that used by underlying services
+//!
+//! ## Notes
+//!
+//! - Only developers who want to develop new services or layers need to
+//!   access raw APIs.
+//! - Raw APIs should only be accessed via `opendal::raw::Xxxx`, any public
+//!   API should never expose raw API directly.
+//! - Raw APIs are far more less stable than public API, please don't rely on
+//!   them whenever possible.
 
-/// Wrapper given backend.
-pub fn wrapper(inner: impl Accessor) -> impl Accessor {
-    ErrorContextWrapper::new(inner)
-}
+mod accessor;
+pub use accessor::Accessor;
+pub use accessor::AccessorCapability;
+pub use accessor::AccessorMetadata;

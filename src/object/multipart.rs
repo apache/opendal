@@ -22,7 +22,6 @@ use crate::ops::OpCompleteMultipart;
 use crate::ops::OpPresign;
 use crate::ops::OpWriteMultipart;
 use crate::ops::PresignedRequest;
-use crate::path::normalize_path;
 use crate::raw::*;
 use crate::*;
 

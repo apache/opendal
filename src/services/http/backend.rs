@@ -24,8 +24,6 @@ use log::debug;
 use super::error::parse_error;
 use crate::http_util::*;
 use crate::ops::*;
-use crate::path::build_rooted_abs_path;
-use crate::path::normalize_root;
 use crate::raw::*;
 use crate::wrappers::wrapper;
 use crate::*;

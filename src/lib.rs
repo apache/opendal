@@ -180,11 +180,6 @@ pub mod raw;
 pub mod services;
 pub mod wrappers;
 
-// Private modules, internal use only.
-//
-// Please don't export any type from this module.
-mod path;
-
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;

@@ -29,7 +29,6 @@ use redis::RedisError;
 use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
-use crate::path::normalize_root;
 use crate::raw::*;
 use crate::wrappers::wrapper;
 use crate::Error;

@@ -30,8 +30,6 @@ use super::error::parse_error;
 use crate::http_util::*;
 use crate::object::ObjectPager;
 use crate::ops::*;
-use crate::path::build_abs_path;
-use crate::path::normalize_root;
 use crate::raw::*;
 use crate::services::obs::dir_stream::DirStream;
 use crate::wrappers::wrapper;

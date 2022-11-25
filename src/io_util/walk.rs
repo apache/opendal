@@ -20,7 +20,6 @@ use async_trait::async_trait;
 
 use crate::object::*;
 use crate::ops::OpList;
-use crate::path::normalize_path;
 use crate::raw::*;
 use crate::*;
 

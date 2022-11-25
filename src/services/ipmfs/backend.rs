@@ -35,7 +35,6 @@ use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
 use crate::object::ObjectPager;
 use crate::ops::*;
-use crate::path::build_rooted_abs_path;
 use crate::raw::*;
 use crate::*;
 

@@ -18,7 +18,6 @@ use futures::AsyncReadExt;
 
 use super::Adapter;
 use crate::ops::*;
-use crate::path::normalize_root;
 use crate::raw::*;
 use crate::*;
 

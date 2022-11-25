@@ -260,8 +260,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn metadata(&self) -> AccessorMetadata {
-        self.accessor.metadata()
+    pub fn metadata(&self) -> OperatorMetadata {
+        OperatorMetadata {
+            acc: self.accessor.metadata(),
+        }
     }
 
     /// Create a new batch operator handle to take batch operations
@@ -365,5 +367,69 @@ impl BatchOperator {
 
         let obs = self.walk_bottom_up(path)?;
         obs.try_for_each(|v| async move { v.delete().await }).await
+    }
+}
+
+/// Metadata for operator, users can use this metadata to get information of operator.
+#[derive(Clone, Debug, Default)]
+pub struct OperatorMetadata {
+    acc: AccessorMetadata,
+}
+
+impl OperatorMetadata {
+    /// [`Scheme`] of operator.
+    pub fn scheme(&self) -> Scheme {
+        self.acc.scheme()
+    }
+
+    /// Root of operator, will be in format like `/path/to/dir/`
+    pub fn root(&self) -> &str {
+        self.acc.root()
+    }
+
+    /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
+    ///
+    /// For example:
+    ///
+    /// - name for `s3` => bucket name
+    /// - name for `azblob` => container name
+    pub fn name(&self) -> &str {
+        self.acc.name()
+    }
+
+    /// Check if current backend supports [`Accessor::read`] or not.
+    pub fn can_read(&self) -> bool {
+        self.acc.capabilities().contains(AccessorCapability::Read)
+    }
+
+    /// Check if current backend supports [`Accessor::write`] or not.
+    pub fn can_write(&self) -> bool {
+        self.acc.capabilities().contains(AccessorCapability::Write)
+    }
+
+    /// Check if current backend supports [`Accessor::list`] or not.
+    pub fn can_list(&self) -> bool {
+        self.acc.capabilities().contains(AccessorCapability::List)
+    }
+
+    /// Check if current backend supports [`Accessor::presign`] or not.
+    pub fn can_presign(&self) -> bool {
+        self.acc
+            .capabilities()
+            .contains(AccessorCapability::Presign)
+    }
+
+    /// Check if current backend supports multipart operations or not.
+    pub fn can_multipart(&self) -> bool {
+        self.acc
+            .capabilities()
+            .contains(AccessorCapability::Multipart)
+    }
+
+    /// Check if current backend supports blocking operations or not.
+    pub fn can_blocking(&self) -> bool {
+        self.acc
+            .capabilities()
+            .contains(AccessorCapability::Blocking)
     }
 }

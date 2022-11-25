@@ -40,7 +40,7 @@ use log::warn;
 use opendal::io_util::into_stream;
 use opendal::ops::BytesContentRange;
 use opendal::ops::BytesRange;
-use opendal::BytesReader;
+use opendal::raw::BytesReader;
 use opendal::Operator;
 use percent_encoding::percent_decode;
 

@@ -515,36 +515,6 @@ impl AccessorMetadata {
         self
     }
 
-    /// Check if current backend supports [`Accessor::read`] or not.
-    pub fn can_read(&self) -> bool {
-        self.capabilities.contains(AccessorCapability::Read)
-    }
-
-    /// Check if current backend supports [`Accessor::write`] or not.
-    pub fn can_write(&self) -> bool {
-        self.capabilities.contains(AccessorCapability::Write)
-    }
-
-    /// Check if current backend supports [`Accessor::list`] or not.
-    pub fn can_list(&self) -> bool {
-        self.capabilities.contains(AccessorCapability::List)
-    }
-
-    /// Check if current backend supports [`Accessor::presign`] or not.
-    pub fn can_presign(&self) -> bool {
-        self.capabilities.contains(AccessorCapability::Presign)
-    }
-
-    /// Check if current backend supports multipart operations or not.
-    pub fn can_multipart(&self) -> bool {
-        self.capabilities.contains(AccessorCapability::Multipart)
-    }
-
-    /// Check if current backend supports blocking operations or not.
-    pub fn can_blocking(&self) -> bool {
-        self.capabilities.contains(AccessorCapability::Blocking)
-    }
-
     /// Get backend's capabilities.
     pub fn capabilities(&self) -> FlagSet<AccessorCapability> {
         self.capabilities

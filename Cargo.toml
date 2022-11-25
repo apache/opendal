@@ -137,7 +137,6 @@ rocksdb = { version = "0.19", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 suppaftp = { version = "=4.4", features = ["async-secure"], optional = true }
-thiserror = "1"
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
@@ -149,7 +148,6 @@ criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenv = "0.15"
 env_logger = "0.9"
 itertools = "0.10"
-num-traits = "0.2"
 opentelemetry = { version = "0.17", default-features = false, features = [
   "trace",
 ] }

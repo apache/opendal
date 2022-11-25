@@ -71,10 +71,7 @@ mod tests {
     use futures::lock::Mutex;
 
     use super::*;
-    use crate::ops::*;
-    use crate::Operator;
-    use crate::Result;
-    use crate::Scheme;
+    use crate::*;
 
     #[derive(Debug)]
     struct Test {

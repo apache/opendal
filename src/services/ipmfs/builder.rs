@@ -15,10 +15,7 @@
 use log::debug;
 
 use super::backend::Backend;
-use crate::http_util::HttpClient;
-use crate::path::normalize_root;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::Result;
 
 /// Builder for service ipfs.
@@ -80,6 +77,6 @@ impl Builder {
         let client = HttpClient::new();
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend::new(root, client, endpoint)))
+        Ok(apply_wrapper(Backend::new(root, client, endpoint)))
     }
 }

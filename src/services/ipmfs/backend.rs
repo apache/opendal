@@ -26,16 +26,7 @@ use serde::Deserialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_json_deserialize_error;
-use crate::http_util::new_request_build_error;
-use crate::http_util::parse_error_response;
-use crate::http_util::parse_into_object_metadata;
-use crate::http_util::percent_encode_path;
-use crate::http_util::AsyncBody;
-use crate::http_util::HttpClient;
-use crate::http_util::IncomingAsyncBody;
 use crate::object::ObjectPager;
-use crate::ops::*;
-use crate::path::build_rooted_abs_path;
 use crate::raw::*;
 use crate::*;
 

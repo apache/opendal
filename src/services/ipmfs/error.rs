@@ -15,7 +15,7 @@
 use http::StatusCode;
 use serde::Deserialize;
 
-use crate::http_util::ErrorResponse;
+use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

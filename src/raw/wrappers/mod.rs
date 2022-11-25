@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Args for `list` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpList {}
+//! Wrapper is used for providing wrapper at backend level
 
-impl OpList {
-    /// Create a new `OpList`.
-    pub fn new() -> Self {
-        Self {}
-    }
+mod error_context;
+use error_context::ErrorContextWrapper;
+
+use crate::raw::*;
+
+/// Wrapper given backend.
+///
+/// Every backend should apply wrapper once and only once.
+pub fn apply_wrapper(inner: impl Accessor) -> impl Accessor {
+    ErrorContextWrapper::new(inner)
 }
-
-/// Reply for `list` operation.
-#[derive(Debug, Clone, Default)]
-pub struct RpList {}

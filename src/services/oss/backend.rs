@@ -32,13 +32,8 @@ use reqsign::AliyunOssSigner;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::uri::percent_encode_path_hard;
-use crate::http_util::*;
 use crate::object::ObjectPager;
-use crate::ops::*;
-use crate::path::build_abs_path;
-use crate::path::normalize_root;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::*;
 
 /// Builder for Aliyun Object Storage Service
@@ -220,7 +215,7 @@ impl Builder {
 
         debug!("Backend build finished: {:?}", &self);
 
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             root,
             endpoint,
             host,

@@ -25,14 +25,9 @@ use prost::Message;
 
 use super::error::parse_error;
 use super::ipld::PBNode;
-use crate::http_util::*;
 use crate::object::ObjectPage;
 use crate::object::ObjectPager;
-use crate::ops::*;
-use crate::path::build_rooted_abs_path;
-use crate::path::normalize_root;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::*;
 
 /// Builder for ipfs backend.
@@ -119,7 +114,7 @@ impl Builder {
         debug!("backend use endpoint {}", &endpoint);
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             root,
             endpoint,
             client: HttpClient::new(),

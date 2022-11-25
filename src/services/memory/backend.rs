@@ -18,9 +18,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 
-use crate::adapters::kv;
+use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::Result;
 use crate::Scheme;
 
@@ -35,7 +34,7 @@ impl Builder {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(wrapper(Backend::new(adapter)))
+        Ok(apply_wrapper(Backend::new(adapter)))
     }
 }
 

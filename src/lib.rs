@@ -169,21 +169,25 @@ pub use error::Error;
 pub use error::ErrorKind;
 pub use error::Result;
 
-// Public modules, they will be accessed via `opendal::io_util::Xxxx`
-pub mod http_util;
-pub mod io_util;
+mod ops;
+pub use ops::OpAbortMultipart;
+pub use ops::OpCompleteMultipart;
+pub use ops::OpCreate;
+pub use ops::OpCreateMultipart;
+pub use ops::OpDelete;
+pub use ops::OpList;
+pub use ops::OpPresign;
+pub use ops::OpRead;
+pub use ops::OpStat;
+pub use ops::OpWrite;
+pub use ops::OpWriteMultipart;
+pub use ops::PresignOperation;
+
+// Public modules, they will be accessed via `opendal::layers::Xxxx`
 pub mod layers;
 pub use layers::Layer;
-pub mod adapters;
-pub mod ops;
 pub mod raw;
 pub mod services;
-pub mod wrappers;
-
-// Private modules, internal use only.
-//
-// Please don't export any type from this module.
-mod path;
 
 #[cfg(test)]
 mod tests {

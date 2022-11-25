@@ -30,9 +30,9 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::io_util::observe_read;
-/// use opendal::io_util::ReadEvent;
-/// # use opendal::io_util::into_stream;
+/// use opendal::raw::observe_read;
+/// use opendal::raw::ReadEvent;
+/// # use opendal::raw::into_stream;
 /// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;

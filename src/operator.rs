@@ -18,8 +18,6 @@ use std::sync::Arc;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
-use crate::io_util::BottomUpWalker;
-use crate::io_util::TopDownWalker;
 use crate::object::ObjectLister;
 use crate::raw::*;
 use crate::services;

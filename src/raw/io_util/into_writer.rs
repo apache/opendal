@@ -32,8 +32,8 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::io_util::into_writer;
-/// # use opendal::io_util::into_sink;
+/// use opendal::raw::into_writer;
+/// # use opendal::raw::into_sink;
 /// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
@@ -98,7 +98,6 @@ mod tests {
     use rand::RngCore;
 
     use super::*;
-    use crate::io_util::into_sink;
 
     #[tokio::test]
     async fn test_into_writer() {

@@ -12,69 +12,80 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::*;
 use http::Request;
-use time::Duration;
 
-use crate::ops::OpRead;
-use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
+/// Reply fro `create` operation
+#[derive(Debug, Clone, Default)]
+pub struct RpCreate {}
 
-/// Args for `presign` operation.
-///
-/// The path must be normalized.
+/// Reply fro `delete` operation
+#[derive(Debug, Clone, Default)]
+pub struct RpDelete {}
+
+/// Reply for `list` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpList {}
+
+/// Reply for `create_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCreateMultipart {
+    upload_id: String,
+}
+
+impl RpCreateMultipart {
+    /// Create a new reply for create_multipart.
+    pub fn new(upload_id: &str) -> Self {
+        Self {
+            upload_id: upload_id.to_string(),
+        }
+    }
+
+    /// Get the upload_id.
+    pub fn upload_id(&self) -> &str {
+        &self.upload_id
+    }
+}
+
+/// Reply for `write_multipart` operation.
 #[derive(Debug, Clone)]
-pub struct OpPresign {
-    expire: Duration,
-
-    op: PresignOperation,
+pub struct RpWriteMultipart {
+    part_number: usize,
+    etag: String,
 }
 
-impl OpPresign {
-    /// Create a new `OpPresign`.
-    pub fn new(op: PresignOperation, expire: Duration) -> Self {
-        Self { op, expire }
+impl RpWriteMultipart {
+    /// Create a new reply for `write_multipart`.
+    pub fn new(part_number: usize, etag: &str) -> Self {
+        Self {
+            part_number,
+            etag: etag.to_string(),
+        }
     }
 
-    /// Get operation from op.
-    pub fn operation(&self) -> &PresignOperation {
-        &self.op
+    /// Get the part_number from reply.
+    pub fn part_number(&self) -> usize {
+        self.part_number
     }
 
-    /// Get expire from op.
-    pub fn expire(&self) -> Duration {
-        self.expire
+    /// Get the etag from reply.
+    pub fn etag(&self) -> &str {
+        &self.etag
     }
-}
 
-/// Presign operation used for presign.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum PresignOperation {
-    /// Presign a read operation.
-    Read(OpRead),
-    /// Presign a write operation.
-    Write(OpWrite),
-    /// Presign a write multipart operation.
-    WriteMultipart(OpWriteMultipart),
-}
-
-impl From<OpRead> for PresignOperation {
-    fn from(v: OpRead) -> Self {
-        Self::Read(v)
+    /// Consume reply to build a object part.
+    pub fn into_object_part(self) -> ObjectPart {
+        ObjectPart::new(self.part_number, &self.etag)
     }
 }
 
-impl From<OpWrite> for PresignOperation {
-    fn from(v: OpWrite) -> Self {
-        Self::Write(v)
-    }
-}
+/// Reply for `complete_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCompleteMultipart {}
 
-impl From<OpWriteMultipart> for PresignOperation {
-    fn from(v: OpWriteMultipart) -> Self {
-        Self::WriteMultipart(v)
-    }
-}
+/// Reply for `abort_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpAbortMultipart {}
 
 /// Reply for `presign` operation.
 #[derive(Debug, Clone)]
@@ -141,6 +152,67 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
     }
 }
 
+/// Reply for `read` operation.
+#[derive(Debug, Clone)]
+pub struct RpRead {
+    meta: ObjectMetadata,
+}
+
+impl RpRead {
+    /// Create a new reply.
+    pub fn new(content_length: u64) -> Self {
+        RpRead {
+            meta: ObjectMetadata::new(ObjectMode::FILE).with_content_length(content_length),
+        }
+    }
+
+    /// Create reply read with existing object metadata.
+    pub fn with_metadata(meta: ObjectMetadata) -> Self {
+        RpRead { meta }
+    }
+
+    /// Consume reply to get the object meta.
+    pub fn into_metadata(self) -> ObjectMetadata {
+        self.meta
+    }
+}
+
+/// Reply for `stat` operation.
+#[derive(Debug, Clone)]
+pub struct RpStat {
+    meta: ObjectMetadata,
+}
+
+impl RpStat {
+    /// Create a new reply for stat.
+    pub fn new(meta: ObjectMetadata) -> Self {
+        RpStat { meta }
+    }
+
+    /// Consume RpStat to get the inner metadata.
+    pub fn into_metadata(self) -> ObjectMetadata {
+        self.meta
+    }
+}
+
+/// Reply for `write` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpWrite {
+    written: u64,
+}
+
+impl RpWrite {
+    /// Create a new reply for write.
+    pub fn new(written: u64) -> Self {
+        Self { written }
+    }
+
+    /// Get the written size (in bytes) of write operation.
+    pub fn written(&self) -> u64 {
+        self.written
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
@@ -151,8 +223,7 @@ mod tests {
     use http::Uri;
 
     use super::*;
-    use crate::http_util::AsyncBody;
-    use crate::http_util::Body;
+    use crate::raw::*;
 
     #[test]
     fn test_presigned_request_convert() -> Result<()> {

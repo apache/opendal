@@ -40,13 +40,8 @@ use serde::Serialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_xml_deserialize_error;
-use crate::http_util::*;
 use crate::object::ObjectPager;
-use crate::ops::*;
-use crate::path::build_abs_path;
-use crate::path::normalize_root;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -677,7 +672,7 @@ impl Builder {
             .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),

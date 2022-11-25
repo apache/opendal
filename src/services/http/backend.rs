@@ -22,12 +22,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
-use crate::http_util::*;
-use crate::ops::*;
-use crate::path::build_rooted_abs_path;
-use crate::path::normalize_root;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::*;
 
 /// Builder for http backend.
@@ -107,7 +102,7 @@ impl Builder {
         let client = HttpClient::new();
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             endpoint: endpoint.to_string(),
             root,
             client,

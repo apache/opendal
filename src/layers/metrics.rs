@@ -31,7 +31,6 @@ use metrics::Histogram;
 
 use crate::object::BlockingObjectPager;
 use crate::object::ObjectPager;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

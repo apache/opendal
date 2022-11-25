@@ -31,9 +31,9 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::io_util::observe_write;
-/// use opendal::io_util::WriteEvent;
-/// # use opendal::io_util::into_sink;
+/// use opendal::raw::observe_write;
+/// use opendal::raw::WriteEvent;
+/// # use opendal::raw::into_sink;
 /// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;

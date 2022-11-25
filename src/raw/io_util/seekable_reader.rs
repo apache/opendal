@@ -26,7 +26,6 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -41,7 +40,7 @@ use crate::*;
 /// # use futures::{AsyncReadExt, AsyncSeekExt};
 /// use std::io::SeekFrom;
 ///
-/// use opendal::io_util::seekable_read;
+/// use opendal::raw::seekable_read;
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let op = Operator::from_env(Scheme::Memory)?;

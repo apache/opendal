@@ -39,12 +39,7 @@ use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
 use crate::object::ObjectPager;
-use crate::ops::*;
-use crate::path::get_basename;
-use crate::path::get_parent;
-use crate::path::normalize_root;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::*;
 
 /// Builder for ftp backend.
@@ -185,7 +180,7 @@ impl Builder {
 
         debug!("ftp backend finished: {:?}", &self);
 
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             endpoint,
             root,
             user,

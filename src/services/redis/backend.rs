@@ -28,10 +28,8 @@ use redis::RedisConnectionInfo;
 use redis::RedisError;
 use tokio::sync::OnceCell;
 
-use crate::adapters::kv;
-use crate::path::normalize_root;
+use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -214,7 +212,7 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(wrapper(
+        Ok(apply_wrapper(
             Backend::new(Adapter {
                 client,
                 conn,

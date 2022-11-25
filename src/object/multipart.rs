@@ -17,12 +17,6 @@ use std::sync::Arc;
 use futures::io::Cursor;
 use time::Duration;
 
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpPresign;
-use crate::ops::OpWriteMultipart;
-use crate::ops::PresignedRequest;
-use crate::path::normalize_path;
 use crate::raw::*;
 use crate::*;
 
@@ -109,7 +103,7 @@ impl ObjectMultipart {
     /// User need to handle the response by self which may differ for different platforms.
     pub fn presign_write(&self, part_number: usize, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(
-            OpWriteMultipart::new(self.upload_id.clone(), part_number, 0).into(),
+            OpWriteMultipart::new(self.upload_id.clone(), part_number, 0),
             expire,
         );
 

@@ -22,7 +22,7 @@ use http::HeaderMap;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use crate::ops::BytesContentRange;
+use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::ObjectMetadata;

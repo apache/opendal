@@ -19,9 +19,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use rocksdb::TransactionDB;
 
-use crate::adapters::kv;
+use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::Result;
 use crate::*;
 
@@ -84,7 +83,7 @@ impl Builder {
             .set_source(e)
         })?;
 
-        Ok(wrapper(Backend::new(Adapter { db: Arc::new(db) })))
+        Ok(apply_wrapper(Backend::new(Adapter { db: Arc::new(db) })))
     }
 }
 

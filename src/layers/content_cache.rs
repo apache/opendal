@@ -27,7 +27,6 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

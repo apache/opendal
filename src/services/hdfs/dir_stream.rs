@@ -15,7 +15,7 @@
 use async_trait::async_trait;
 
 use crate::object::ObjectPage;
-use crate::path::build_rel_path;
+use crate::raw::*;
 use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;

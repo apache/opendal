@@ -19,9 +19,8 @@ use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
 
-use crate::adapters::kv;
+use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::wrappers::wrapper;
 use crate::Result;
 use crate::Scheme;
 
@@ -163,7 +162,7 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend::new(Adapter {
+        Ok(apply_wrapper(Backend::new(Adapter {
             inner: builder.build(),
         })))
     }

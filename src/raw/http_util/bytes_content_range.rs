@@ -16,7 +16,7 @@ use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-use crate::ops::BytesRange;
+use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

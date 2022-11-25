@@ -32,8 +32,6 @@ use log::warn;
 use pin_project::pin_project;
 use tokio::time::Sleep;
 
-use crate::object::BlockingObjectPager;
-use crate::object::ObjectPager;
 use crate::raw::*;
 use crate::*;
 

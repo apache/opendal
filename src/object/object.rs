@@ -711,7 +711,7 @@ impl Object {
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::io_util::CompressAlgorithm;
+    /// # use opendal::raw::CompressAlgorithm;
     /// # use opendal::Scheme;
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -751,7 +751,7 @@ impl Object {
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::io_util::CompressAlgorithm;
+    /// # use opendal::raw::CompressAlgorithm;
     /// # use opendal::Scheme;
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {

@@ -136,8 +136,8 @@ impl From<CompressAlgorithm> for DecompressCodec {
 /// Please use `CompressAlgorithm.into()` to create a new decoder
 ///
 /// ```
-/// use opendal::io_util::CompressAlgorithm;
-/// use opendal::io_util::DecompressCodec;
+/// use opendal::raw::CompressAlgorithm;
+/// use opendal::raw::DecompressCodec;
 ///
 /// let de: DecompressCodec = CompressAlgorithm::Zstd.into();
 /// ```
@@ -258,9 +258,9 @@ pub enum DecompressState {
 ///
 /// ```no_run
 /// use futures::io::Cursor;
-/// use opendal::io_util::DecompressDecoder;
-/// use opendal::io_util::CompressAlgorithm;
-/// use opendal::io_util::DecompressState;
+/// use opendal::raw::DecompressDecoder;
+/// use opendal::raw::CompressAlgorithm;
+/// use opendal::raw::DecompressState;
 /// # use std::io::Result;
 /// # use futures::AsyncReadExt;
 ///
@@ -409,8 +409,8 @@ impl DecompressDecoder {
 ///
 /// ```no_run
 /// use futures::io::Cursor;
-/// use opendal::io_util::DecompressReader;
-/// use opendal::io_util::CompressAlgorithm;
+/// use opendal::raw::DecompressReader;
+/// use opendal::raw::CompressAlgorithm;
 /// # use std::io::Result;
 /// # use futures::AsyncReadExt;
 ///

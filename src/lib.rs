@@ -94,7 +94,6 @@
 //! use opendal::layers::LoggingLayer;
 //! use opendal::layers::RetryLayer;
 //! use opendal::Object;
-//! use opendal::ObjectEntry;
 //! use opendal::ObjectMetadata;
 //! use opendal::ObjectMode;
 //! use opendal::Operator;
@@ -133,7 +132,7 @@
 //!     let mut ds = o.list().await?;
 //!     while let Some(entry) = ds.try_next().await? {
 //!         let path = entry.path();
-//!         let mode = entry.mode();
+//!         let mode = entry.mode().await?;
 //!     }
 //!
 //!     Ok(())
@@ -154,7 +153,6 @@ pub use operator::OperatorMetadata;
 
 mod object;
 pub use object::Object;
-pub use object::ObjectEntry;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
 pub use object::ObjectMultipart;

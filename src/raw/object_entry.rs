@@ -17,9 +17,8 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Operator;
 
-/// ObjectEntry is returned by `ObjectStream` or `ObjectIterate` during object list.
-///
-/// Users can check returning object entry's mode or convert into an object without overhead.
+/// ObjectEntry is returned by `ObjectPage` or `BlockingObjectPage`
+/// during list operations.
 #[derive(Debug, Clone)]
 pub struct ObjectEntry {
     path: String,

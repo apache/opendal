@@ -14,7 +14,7 @@
 
 use http::StatusCode;
 
-use crate::http_util::ErrorResponse;
+use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 

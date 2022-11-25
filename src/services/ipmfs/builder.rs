@@ -15,7 +15,6 @@
 use log::debug;
 
 use super::backend::Backend;
-use crate::http_util::HttpClient;
 use crate::raw::*;
 use crate::Result;
 

@@ -54,5 +54,8 @@ pub use wrappers::apply_wrapper;
 mod ops;
 pub use ops::*;
 
+mod http_util;
+pub use http_util::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;

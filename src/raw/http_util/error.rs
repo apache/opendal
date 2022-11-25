@@ -22,7 +22,7 @@ use http::HeaderValue;
 use http::Response;
 use http::StatusCode;
 
-use crate::http_util::IncomingAsyncBody;
+use super::IncomingAsyncBody;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

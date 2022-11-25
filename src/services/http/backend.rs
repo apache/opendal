@@ -22,7 +22,6 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
-use crate::http_util::*;
 use crate::raw::*;
 use crate::*;
 

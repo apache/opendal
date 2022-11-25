@@ -169,8 +169,7 @@ pub use error::Error;
 pub use error::ErrorKind;
 pub use error::Result;
 
-// Public modules, they will be accessed via `opendal::io_util::Xxxx`
-pub mod http_util;
+// Public modules, they will be accessed via `opendal::layers::Xxxx`
 pub mod io_util;
 pub mod layers;
 pub use layers::Layer;

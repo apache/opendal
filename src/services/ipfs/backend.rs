@@ -25,7 +25,6 @@ use prost::Message;
 
 use super::error::parse_error;
 use super::ipld::PBNode;
-use crate::http_util::*;
 use crate::object::ObjectPage;
 use crate::object::ObjectPager;
 use crate::raw::*;

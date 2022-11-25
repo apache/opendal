@@ -26,10 +26,10 @@ use reqwest::redirect::Policy;
 use reqwest::ClientBuilder;
 use reqwest::Url;
 
+use super::body::IncomingAsyncBody;
 use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
-use crate::http_util::body::IncomingAsyncBody;
 use crate::io_util::into_reader;
 use crate::Error;
 use crate::ErrorKind;

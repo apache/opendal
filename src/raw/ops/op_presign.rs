@@ -149,8 +149,6 @@ mod tests {
     use http::Uri;
 
     use super::*;
-    use crate::http_util::AsyncBody;
-    use crate::http_util::Body;
 
     #[test]
     fn test_presigned_request_convert() -> Result<()> {

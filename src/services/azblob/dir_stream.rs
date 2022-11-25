@@ -22,7 +22,6 @@ use time::OffsetDateTime;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::http_util::parse_error_response;
 use crate::object::ObjectPage;
 use crate::raw::*;
 use crate::*;

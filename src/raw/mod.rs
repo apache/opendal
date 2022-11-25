@@ -57,5 +57,8 @@ pub use ops::*;
 mod http_util;
 pub use http_util::*;
 
+mod io_util;
+pub use io_util::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;

@@ -98,7 +98,6 @@ mod tests {
     use rand::RngCore;
 
     use super::*;
-    use crate::io_util::into_sink;
 
     #[tokio::test]
     async fn test_into_writer() {

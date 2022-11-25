@@ -30,7 +30,7 @@ use super::body::IncomingAsyncBody;
 use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
-use crate::io_util::into_reader;
+use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;

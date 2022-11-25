@@ -12,32 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::BytesRange;
 use crate::*;
-
-/// Args for `read` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpRead {
-    br: BytesRange,
-}
-
-impl OpRead {
-    /// Create a default `OpRead` which will read whole content of object.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create a new OpRead with range.
-    pub fn with_range(mut self, range: BytesRange) -> Self {
-        self.br = range;
-        self
-    }
-
-    /// Get range from OpRead.
-    pub fn range(&self) -> BytesRange {
-        self.br
-    }
-}
 
 /// Reply for `read` operation.
 #[derive(Debug, Clone)]

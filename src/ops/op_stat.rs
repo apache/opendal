@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Reply fro `delete` operation
+/// Args for `stat` operation.
 #[derive(Debug, Clone, Default)]
-pub struct RpDelete {}
+pub struct OpStat {}
+
+impl OpStat {
+    /// Create a new `OpStat`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}

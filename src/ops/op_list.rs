@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Reply fro `delete` operation
+/// Args for `list` operation.
 #[derive(Debug, Clone, Default)]
-pub struct RpDelete {}
+pub struct OpList {}
+
+impl OpList {
+    /// Create a new `OpList`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}

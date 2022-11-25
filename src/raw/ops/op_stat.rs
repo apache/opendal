@@ -14,17 +14,6 @@
 
 use crate::ObjectMetadata;
 
-/// Args for `stat` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpStat {}
-
-impl OpStat {
-    /// Create a new `OpStat`.
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 /// Reply for `stat` operation.
 #[derive(Debug, Clone)]
 pub struct RpStat {

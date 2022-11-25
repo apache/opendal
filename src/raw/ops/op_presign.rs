@@ -13,66 +13,6 @@
 // limitations under the License.
 
 use http::Request;
-use time::Duration;
-
-use crate::raw::*;
-
-/// Args for `presign` operation.
-///
-/// The path must be normalized.
-#[derive(Debug, Clone)]
-pub struct OpPresign {
-    expire: Duration,
-
-    op: PresignOperation,
-}
-
-impl OpPresign {
-    /// Create a new `OpPresign`.
-    pub fn new(op: PresignOperation, expire: Duration) -> Self {
-        Self { op, expire }
-    }
-
-    /// Get operation from op.
-    pub fn operation(&self) -> &PresignOperation {
-        &self.op
-    }
-
-    /// Get expire from op.
-    pub fn expire(&self) -> Duration {
-        self.expire
-    }
-}
-
-/// Presign operation used for presign.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum PresignOperation {
-    /// Presign a read operation.
-    Read(OpRead),
-    /// Presign a write operation.
-    Write(OpWrite),
-    /// Presign a write multipart operation.
-    WriteMultipart(OpWriteMultipart),
-}
-
-impl From<OpRead> for PresignOperation {
-    fn from(v: OpRead) -> Self {
-        Self::Read(v)
-    }
-}
-
-impl From<OpWrite> for PresignOperation {
-    fn from(v: OpWrite) -> Self {
-        Self::Write(v)
-    }
-}
-
-impl From<OpWriteMultipart> for PresignOperation {
-    fn from(v: OpWriteMultipart) -> Self {
-        Self::WriteMultipart(v)
-    }
-}
 
 /// Reply for `presign` operation.
 #[derive(Debug, Clone)]
@@ -149,6 +89,7 @@ mod tests {
     use http::Uri;
 
     use super::*;
+    use crate::raw::*;
 
     #[test]
     fn test_presigned_request_convert() -> Result<()> {

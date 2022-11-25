@@ -12,6 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Reply fro `delete` operation
-#[derive(Debug, Clone, Default)]
-pub struct RpDelete {}
+mod op_create;
+pub use op_create::OpCreate;
+mod op_delete;
+pub use op_delete::OpDelete;
+mod op_list;
+pub use op_list::OpList;
+mod op_presign;
+pub use op_presign::OpPresign;
+pub use op_presign::PresignOperation;
+mod op_read;
+pub use op_read::OpRead;
+mod op_stat;
+pub use op_stat::OpStat;
+mod op_write;
+pub use op_write::OpWrite;
+mod op_multipart;
+pub use op_multipart::OpAbortMultipart;
+pub use op_multipart::OpCompleteMultipart;
+pub use op_multipart::OpCreateMultipart;
+pub use op_multipart::OpWriteMultipart;

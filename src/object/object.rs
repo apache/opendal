@@ -1490,7 +1490,7 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpRead::new().into(), expire);
+        let op = OpPresign::new(OpRead::new(), expire);
 
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())
@@ -1521,7 +1521,7 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpWrite::new(0).into(), expire);
+        let op = OpPresign::new(OpWrite::new(0), expire);
 
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())

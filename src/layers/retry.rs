@@ -574,10 +574,7 @@ mod tests {
 
     use crate::layers::RetryLayer;
     use crate::raw::*;
-    use crate::Error;
-    use crate::ErrorKind;
-    use crate::Operator;
-    use crate::Result;
+    use crate::*;
 
     #[derive(Debug, Clone, Default)]
     struct MockService {

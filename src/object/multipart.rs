@@ -103,7 +103,7 @@ impl ObjectMultipart {
     /// User need to handle the response by self which may differ for different platforms.
     pub fn presign_write(&self, part_number: usize, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(
-            OpWriteMultipart::new(self.upload_id.clone(), part_number, 0).into(),
+            OpWriteMultipart::new(self.upload_id.clone(), part_number, 0),
             expire,
         );
 

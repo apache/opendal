@@ -12,6 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Reply fro `delete` operation
+/// Args for `delete` operation.
+///
+/// The path must be normalized.
 #[derive(Debug, Clone, Default)]
-pub struct RpDelete {}
+pub struct OpDelete {}
+
+impl OpDelete {
+    /// Create a new `OpDelete`.
+    pub fn new() -> Self {
+        Self {}
+    }
+}

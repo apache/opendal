@@ -12,28 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::ObjectMode;
-
-/// Args for `create` operation.
-///
-/// The path must be normalized.
-#[derive(Debug, Clone, Default)]
-pub struct OpCreate {
-    mode: ObjectMode,
-}
-
-impl OpCreate {
-    /// Create a new `OpCreate`.
-    pub fn new(mode: ObjectMode) -> Self {
-        Self { mode }
-    }
-
-    /// Get object mode from option.
-    pub fn mode(&self) -> ObjectMode {
-        self.mode
-    }
-}
-
 /// Reply fro `create` operation
 #[derive(Debug, Clone, Default)]
 pub struct RpCreate {}

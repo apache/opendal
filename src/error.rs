@@ -142,12 +142,30 @@ impl Display for Error {
             write!(f, " }}")?;
         }
 
-        write!(f, " => {}", self.message)
+        write!(f, " => {}", self.message)?;
+
+        if let Some(source) = &self.source {
+            write!(f, ", source: {}", source)?;
+        }
+
+        Ok(())
     }
 }
 
 impl Debug for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        // If alternate has been specified, we will print like Debug.
+        if f.alternate() {
+            let mut de = f.debug_struct("Error");
+            de.field("kind", &self.kind);
+            de.field("message", &self.message);
+            de.field("status", &self.status);
+            de.field("operation", &self.operation);
+            de.field("context", &self.context);
+            de.field("source", &self.source);
+            return de.finish();
+        }
+
         writeln!(
             f,
             "{} ({}) at {} => {}",
@@ -264,5 +282,49 @@ impl From<Error> for io::Error {
         };
 
         io::Error::new(kind, err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::anyhow;
+    use once_cell::sync::Lazy;
+
+    static TEST_ERROR: Lazy<Error> = Lazy::new(|| Error {
+        kind: ErrorKind::Unexpected,
+        message: "something wrong happened".to_string(),
+        status: ErrorStatus::Permanent,
+        operation: "Read",
+        context: vec![
+            ("path", "/path/to/file".to_string()),
+            ("called", "send_async".to_string()),
+        ],
+        source: Some(anyhow!("networking error")),
+    });
+
+    #[test]
+    fn test_error_display() {
+        let s = format!("{}", Lazy::force(&TEST_ERROR));
+        assert_eq!(
+            s,
+            r#"Unexpected (permanent) at Read, context: { path: /path/to/file, called: send_async } => something wrong happened, source: networking error"#
+        )
+    }
+
+    #[test]
+    fn test_error_debug() {
+        let s = format!("{:?}", Lazy::force(&TEST_ERROR));
+        assert_eq!(
+            s,
+            r#"Unexpected (permanent) at Read => something wrong happened
+
+Context:
+    path: /path/to/file
+    called: send_async
+
+Source: networking error
+"#
+        )
     }
 }

@@ -19,7 +19,7 @@ use log::debug;
 use moka::sync::CacheBuilder;
 use moka::sync::SegmentedCache;
 
-use crate::adapters::kv;
+use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::Result;
 use crate::Scheme;

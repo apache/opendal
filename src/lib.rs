@@ -174,7 +174,6 @@ pub mod http_util;
 pub mod io_util;
 pub mod layers;
 pub use layers::Layer;
-pub mod adapters;
 pub mod raw;
 pub mod services;
 

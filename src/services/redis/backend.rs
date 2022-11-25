@@ -28,7 +28,7 @@ use redis::RedisConnectionInfo;
 use redis::RedisError;
 use tokio::sync::OnceCell;
 
-use crate::adapters::kv;
+use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;

@@ -19,8 +19,6 @@ use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
 
-use crate::object::BlockingObjectPager;
-use crate::object::ObjectPager;
 use crate::raw::*;
 use crate::*;
 

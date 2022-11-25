@@ -61,7 +61,6 @@ Access data **efficiently**
 use anyhow::Result;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use opendal::ObjectEntry;
 use opendal::ObjectStreamer;
 use opendal::Object;
 use opendal::ObjectMetadata;
@@ -105,7 +104,7 @@ async fn main() -> Result<()> {
     let mut os = o.list().await?;
     while let Some(entry) = os.try_next().await? {
         let path = entry.path();
-        let mode = entry.mode();
+        let mode = entry.mode().await?;
     }
 
     Ok(())

@@ -32,7 +32,6 @@ use reqsign::AliyunOssSigner;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::uri::percent_encode_path_hard;
-use crate::object::ObjectPager;
 use crate::raw::*;
 use crate::*;
 

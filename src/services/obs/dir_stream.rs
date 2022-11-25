@@ -21,11 +21,9 @@ use serde::Deserialize;
 
 use super::backend::Backend;
 use super::error::parse_error;
-use crate::object::ObjectPage;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
-use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;

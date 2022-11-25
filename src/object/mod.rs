@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod entry;
-
-pub use entry::ObjectEntry;
-
 mod mode;
 pub use mode::ObjectMode;
 
@@ -35,10 +31,4 @@ pub use reader::ObjectReader;
 
 mod list;
 pub use list::BlockingObjectLister;
-pub use list::BlockingObjectPage;
-pub use list::BlockingObjectPager;
-pub use list::EmptyBlockingObjectPager;
-pub use list::EmptyObjectPager;
 pub use list::ObjectLister;
-pub use list::ObjectPage;
-pub use list::ObjectPager;

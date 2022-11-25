@@ -15,10 +15,7 @@
 use async_trait::async_trait;
 
 use super::error::parse_io_error;
-use crate::object::BlockingObjectPage;
-use crate::object::ObjectPage;
 use crate::raw::*;
-use crate::ObjectEntry;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;

@@ -29,8 +29,6 @@ use metrics::register_histogram;
 use metrics::Counter;
 use metrics::Histogram;
 
-use crate::object::BlockingObjectPager;
-use crate::object::ObjectPager;
 use crate::raw::*;
 use crate::*;
 

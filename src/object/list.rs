@@ -19,7 +19,6 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::ready;
 use futures::FutureExt;
@@ -27,39 +26,6 @@ use futures::Stream;
 
 use crate::raw::*;
 use crate::*;
-
-/// ObjectPage trait is used by [`Accessor`] to implement `list` operation.
-///
-/// `list` will return a boxed `ObjectPage` which allow users to call `next_page`
-/// to fecth a new page of [`ObjectEntry`].
-#[async_trait]
-pub trait ObjectPage: Send + Sync + 'static {
-    /// Fetch a new page of [`ObjectEntry`]
-    ///
-    /// `Ok(None)` means all object pages have been returned. Any following call
-    /// to `next_page` will always get the same result.
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
-}
-
-/// The boxed version of [`ObjectPage`]
-pub type ObjectPager = Box<dyn ObjectPage>;
-
-#[async_trait]
-impl ObjectPage for ObjectPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        self.as_mut().next_page().await
-    }
-}
-
-/// EmptyObjectPager will always returns `Ok(None)`
-pub struct EmptyObjectPager;
-
-#[async_trait]
-impl ObjectPage for EmptyObjectPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        Ok(None)
-    }
-}
 
 pub struct ObjectLister {
     acc: Arc<dyn Accessor>,
@@ -164,20 +130,6 @@ impl Stream for ObjectLister {
     }
 }
 
-/// BlockingObjectPage is the blocking version of [`ObjectPage`].
-pub trait BlockingObjectPage: 'static {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
-}
-
-/// BlockingObjectPager is a boxed [`BlockingObjectPage`]
-pub type BlockingObjectPager = Box<dyn BlockingObjectPage>;
-
-impl BlockingObjectPage for BlockingObjectPager {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        self.as_mut().next_page()
-    }
-}
-
 pub struct BlockingObjectLister {
     acc: Arc<dyn Accessor>,
     pager: BlockingObjectPager,
@@ -241,13 +193,5 @@ impl Iterator for BlockingObjectLister {
         };
 
         self.next()
-    }
-}
-
-pub struct EmptyBlockingObjectPager;
-
-impl BlockingObjectPage for EmptyBlockingObjectPager {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        Ok(None)
     }
 }

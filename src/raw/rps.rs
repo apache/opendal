@@ -12,7 +12,80 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::*;
 use http::Request;
+
+/// Reply fro `create` operation
+#[derive(Debug, Clone, Default)]
+pub struct RpCreate {}
+
+/// Reply fro `delete` operation
+#[derive(Debug, Clone, Default)]
+pub struct RpDelete {}
+
+/// Reply for `list` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpList {}
+
+/// Reply for `create_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCreateMultipart {
+    upload_id: String,
+}
+
+impl RpCreateMultipart {
+    /// Create a new reply for create_multipart.
+    pub fn new(upload_id: &str) -> Self {
+        Self {
+            upload_id: upload_id.to_string(),
+        }
+    }
+
+    /// Get the upload_id.
+    pub fn upload_id(&self) -> &str {
+        &self.upload_id
+    }
+}
+
+/// Reply for `write_multipart` operation.
+#[derive(Debug, Clone)]
+pub struct RpWriteMultipart {
+    part_number: usize,
+    etag: String,
+}
+
+impl RpWriteMultipart {
+    /// Create a new reply for `write_multipart`.
+    pub fn new(part_number: usize, etag: &str) -> Self {
+        Self {
+            part_number,
+            etag: etag.to_string(),
+        }
+    }
+
+    /// Get the part_number from reply.
+    pub fn part_number(&self) -> usize {
+        self.part_number
+    }
+
+    /// Get the etag from reply.
+    pub fn etag(&self) -> &str {
+        &self.etag
+    }
+
+    /// Consume reply to build a object part.
+    pub fn into_object_part(self) -> ObjectPart {
+        ObjectPart::new(self.part_number, &self.etag)
+    }
+}
+
+/// Reply for `complete_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpCompleteMultipart {}
+
+/// Reply for `abort_multipart` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpAbortMultipart {}
 
 /// Reply for `presign` operation.
 #[derive(Debug, Clone)]
@@ -76,6 +149,67 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
         builder
             .body(T::default())
             .expect("request must build succeed")
+    }
+}
+
+/// Reply for `read` operation.
+#[derive(Debug, Clone)]
+pub struct RpRead {
+    meta: ObjectMetadata,
+}
+
+impl RpRead {
+    /// Create a new reply.
+    pub fn new(content_length: u64) -> Self {
+        RpRead {
+            meta: ObjectMetadata::new(ObjectMode::FILE).with_content_length(content_length),
+        }
+    }
+
+    /// Create reply read with existing object metadata.
+    pub fn with_metadata(meta: ObjectMetadata) -> Self {
+        RpRead { meta }
+    }
+
+    /// Consume reply to get the object meta.
+    pub fn into_metadata(self) -> ObjectMetadata {
+        self.meta
+    }
+}
+
+/// Reply for `stat` operation.
+#[derive(Debug, Clone)]
+pub struct RpStat {
+    meta: ObjectMetadata,
+}
+
+impl RpStat {
+    /// Create a new reply for stat.
+    pub fn new(meta: ObjectMetadata) -> Self {
+        RpStat { meta }
+    }
+
+    /// Consume RpStat to get the inner metadata.
+    pub fn into_metadata(self) -> ObjectMetadata {
+        self.meta
+    }
+}
+
+/// Reply for `write` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpWrite {
+    written: u64,
+}
+
+impl RpWrite {
+    /// Create a new reply for write.
+    pub fn new(written: u64) -> Self {
+        Self { written }
+    }
+
+    /// Get the written size (in bytes) of write operation.
+    pub fn written(&self) -> u64 {
+        self.written
     }
 }
 

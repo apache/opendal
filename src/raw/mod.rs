@@ -51,8 +51,11 @@ pub use path::validate_path;
 mod wrappers;
 pub use wrappers::apply_wrapper;
 
-mod ops;
-pub use ops::*;
+mod operation;
+pub use operation::Operation;
+
+mod rps;
+pub use rps::*;
 
 mod http_util;
 pub use http_util::*;

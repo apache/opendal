@@ -235,7 +235,9 @@ impl Operator {
     }
 
     /// Get inner accessor.
-    pub(crate) fn inner(&self) -> Arc<dyn Accessor> {
+    ///
+    /// This function should only be used by developers to implement layers.
+    pub fn inner(&self) -> Arc<dyn Accessor> {
         self.accessor.clone()
     }
 

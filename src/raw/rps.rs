@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::*;
 use http::Request;
+
+use crate::*;
 
 /// Reply fro `create` operation
 #[derive(Debug, Clone, Default)]

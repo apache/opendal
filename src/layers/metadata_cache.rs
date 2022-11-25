@@ -50,7 +50,7 @@ use crate::*;
 /// let _ = Operator::from_env(Scheme::Fs)
 ///     .expect("must init")
 ///     .layer(MetadataCacheLayer::new(
-///         memory::Builder::default().build().expect("must init"),
+///         Operator::from_env(Scheme::Memory).expect("must init"),
 ///     ));
 /// ```
 #[derive(Debug, Clone)]
@@ -60,10 +60,8 @@ pub struct MetadataCacheLayer {
 
 impl MetadataCacheLayer {
     /// Create a new metadata cache layer.
-    pub fn new(acc: impl Accessor + 'static) -> Self {
-        Self {
-            cache: Arc::new(acc),
-        }
+    pub fn new(op: Operator) -> Self {
+        Self { cache: op.inner() }
     }
 }
 
@@ -223,7 +221,7 @@ mod tests {
     async fn test_metadata_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
-        let cache_layer = MetadataCacheLayer::new(memory::Builder::default().build()?);
+        let cache_layer = MetadataCacheLayer::new(memory::Builder::default().build()?.into());
         let cached_op = op.clone().layer(cache_layer);
 
         // Write a new object into op.

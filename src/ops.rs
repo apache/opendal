@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use time::Duration;
+
 use crate::raw::*;
 use crate::*;
-use time::Duration;
 
 /// Args for `create` operation.
 ///

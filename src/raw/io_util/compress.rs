@@ -136,8 +136,8 @@ impl From<CompressAlgorithm> for DecompressCodec {
 /// Please use `CompressAlgorithm.into()` to create a new decoder
 ///
 /// ```
-/// use opendal::io_util::CompressAlgorithm;
-/// use opendal::io_util::DecompressCodec;
+/// use opendal::raw::CompressAlgorithm;
+/// use opendal::raw::DecompressCodec;
 ///
 /// let de: DecompressCodec = CompressAlgorithm::Zstd.into();
 /// ```

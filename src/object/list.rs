@@ -27,6 +27,10 @@ use futures::Stream;
 use crate::raw::*;
 use crate::*;
 
+/// ObjectLister is returned by `Object::list` to list objects.
+///
+/// User can use object lister as `Stream<Item = Result<Object>>` or
+/// call `next_page` directly.
 pub struct ObjectLister {
     acc: Arc<dyn Accessor>,
     pager: Option<ObjectPager>,

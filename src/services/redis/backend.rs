@@ -30,7 +30,7 @@ use tokio::sync::OnceCell;
 
 use crate::adapters::kv;
 use crate::raw::*;
-use crate::wrappers::wrapper;
+use crate::wrappers::apply_wrapper;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -213,7 +213,7 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(wrapper(
+        Ok(apply_wrapper(
             Backend::new(Adapter {
                 client,
                 conn,

@@ -41,7 +41,7 @@ use super::util::FtpReader;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::wrapper;
+use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for ftp backend.
@@ -182,7 +182,7 @@ impl Builder {
 
         debug!("ftp backend finished: {:?}", &self);
 
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             endpoint,
             root,
             user,

@@ -31,7 +31,7 @@ use crate::object::EmptyObjectPager;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::wrapper;
+use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for hdfs services
@@ -114,7 +114,7 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             root,
             client: Arc::new(client),
         }))

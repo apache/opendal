@@ -44,7 +44,7 @@ use crate::http_util::*;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::wrapper;
+use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -675,7 +675,7 @@ impl Builder {
             .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),

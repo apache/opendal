@@ -16,6 +16,6 @@ use super::ErrorContextWrapper;
 use crate::raw::*;
 
 /// Wrapper given backend.
-pub fn wrapper(inner: impl Accessor) -> impl Accessor {
+pub fn apply_wrapper(inner: impl Accessor) -> impl Accessor {
     ErrorContextWrapper::new(inner)
 }

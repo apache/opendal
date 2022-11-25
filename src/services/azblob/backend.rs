@@ -35,7 +35,7 @@ use crate::object::ObjectMetadata;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::wrapper;
+use crate::wrappers::apply_wrapper;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
@@ -190,7 +190,7 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),

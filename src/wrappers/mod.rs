@@ -15,7 +15,7 @@
 //! Wrapper is used for providing wrapper at backend level
 
 mod wrapper;
-pub use wrapper::wrapper;
+pub use wrapper::apply_wrapper;
 
 mod error_context;
 use error_context::ErrorContextWrapper;

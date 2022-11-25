@@ -36,7 +36,7 @@ use crate::http_util::*;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::wrapper;
+use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for Aliyun Object Storage Service
@@ -218,7 +218,7 @@ impl Builder {
 
         debug!("Backend build finished: {:?}", &self);
 
-        Ok(wrapper(Backend {
+        Ok(apply_wrapper(Backend {
             root,
             endpoint,
             host,

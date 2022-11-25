@@ -38,7 +38,7 @@ use crate::http_util::*;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::wrapper;
+use crate::wrappers::apply_wrapper;
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
@@ -161,7 +161,7 @@ impl Builder {
             client,
         };
 
-        Ok(wrapper(backend))
+        Ok(apply_wrapper(backend))
     }
 }
 

@@ -32,7 +32,6 @@ use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
 use crate::services::obs::dir_stream::DirStream;
-use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for Huaweicloud OBS services

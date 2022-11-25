@@ -35,7 +35,6 @@ use crate::object::ObjectMetadata;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";

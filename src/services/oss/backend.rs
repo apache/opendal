@@ -36,7 +36,6 @@ use crate::http_util::*;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for Aliyun Object Storage Service

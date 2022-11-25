@@ -44,7 +44,6 @@ use crate::http_util::*;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.

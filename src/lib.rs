@@ -178,7 +178,6 @@ pub mod adapters;
 pub mod ops;
 pub mod raw;
 pub mod services;
-pub mod wrappers;
 
 #[cfg(test)]
 mod tests {

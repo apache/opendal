@@ -21,7 +21,6 @@ use rocksdb::TransactionDB;
 
 use crate::adapters::kv;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::Result;
 use crate::*;
 

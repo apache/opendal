@@ -14,8 +14,14 @@
 
 //! Wrapper is used for providing wrapper at backend level
 
-mod wrapper;
-pub use wrapper::apply_wrapper;
-
 mod error_context;
 use error_context::ErrorContextWrapper;
+
+use crate::raw::*;
+
+/// Wrapper given backend.
+///
+/// Every backend should apply wrapper once and only once.
+pub fn apply_wrapper(inner: impl Accessor) -> impl Accessor {
+    ErrorContextWrapper::new(inner)
+}

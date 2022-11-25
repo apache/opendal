@@ -25,7 +25,6 @@ use super::error::parse_error;
 use crate::http_util::*;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for http backend.

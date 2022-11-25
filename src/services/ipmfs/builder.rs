@@ -17,7 +17,6 @@ use log::debug;
 use super::backend::Backend;
 use crate::http_util::HttpClient;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::Result;
 
 /// Builder for service ipfs.

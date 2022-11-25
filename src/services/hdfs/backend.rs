@@ -31,7 +31,6 @@ use crate::object::EmptyObjectPager;
 use crate::object::ObjectPager;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for hdfs services

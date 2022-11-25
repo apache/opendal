@@ -32,7 +32,6 @@ use super::error::parse_io_error;
 use crate::object::*;
 use crate::ops::*;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::*;
 
 /// Builder for fs backend.

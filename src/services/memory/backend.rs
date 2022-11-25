@@ -20,7 +20,6 @@ use parking_lot::Mutex;
 
 use crate::adapters::kv;
 use crate::raw::*;
-use crate::wrappers::apply_wrapper;
 use crate::Result;
 use crate::Scheme;
 

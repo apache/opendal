@@ -2,6 +2,83 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.21
+
+v0.21 is an internal refactor version of OpenDAL. In this version, we refactored our error handling and our `Accessor` APIs. Thanks to those internal changes, we added an object-level metadata cache, making it nearly zero cost to reuse existing metadata continuously.
+
+Let's start with our errors.
+
+### Error Handling
+
+As described in [RFC-0977: Refactor Error](https://opendal.databend.rs/rfcs/0977-refactor-error.html), we refactor opendal error by a new error
+called [`opendal::Error`](https://opendal.databend.rs/opendal/struct.Error.html).
+
+This change will affect all APIs that are used to return `io::Error`.
+
+To migrate this, please replace `std::io::Error` with `opendal::Error`:
+
+```diff
+- use std::io::Result;
++ use opendal::Result;
+```
+
+And the following error kinds should be updated:
+
+- `std::io::ErrorKind::NotFound` => `opendal::ErrorKind::ObjectNotFound`
+- `std::io::ErrorKind::PermissionDenied` => `opendal::ErrorKind::ObjectPermissionDenied`
+
+And since v0.21, we will return errors `ObjectIsADirectory` and `ObjectNotADirectory` instead of `anyhow::Error`.
+
+### Accessor API
+
+In v0.21, we refactor the whole `Accessor`'s API:
+
+```diff
+- async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<u64>
++ async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite>
+```
+
+Since v0.21, we will return a reply struct for different operations called `RpWrite` instead of an exact type. We can split OpenDAL's public API and raw API with this change.
+
+### ObjectList and ObjectPage
+
+Since v0.21, `Accessor` will return `ObjectPager` for `List`:
+
+```diff
+- async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer>
++ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)>
+```
+
+And `Object` will return an `ObjectLister` which is built upon `ObjectPage`:
+
+```rust
+pub async fn list(&self) -> Result<ObjectLister> { ... }
+```
+
+`ObjectLister` can be used as an object stream as before. It also provides the function `next_page` to get the underlying pages directly:
+
+```rust
+impl ObjectLister {
+    pub async fn next_page(&mut self) -> Result<Option<Vec<Object>>>;
+}
+```
+
+### Code Layout
+
+Since v0.21, we have categorized all APIs into `public` and `raw`.
+
+Public APIs are exposed under `opendal::Xxx`; they are user-face APIs that are easy to use and understand.
+
+Raw APIs are exposed under `opendal::raw::Xxx`; they are implementation details for underlying services and layers.
+
+Please replace all usage of `opendal::io_util::*` and `opendal::http_util::*` to `opendal::raw::*` instead.
+
+With this change, new users of OpenDAL maybe be it easier to get started.
+
+### Summary
+
+Sorry for introducing too much breaking change in a single version. This version can be a solid version for preparing OpenDAL v1.0.
+
 ## Upgrade to v0.20
 
 v0.20 is a big release that we introduce a lot of performance related changes.

@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.21.0] - 2022-11-25
+
+### Added
+
+- docs: Add greptimedb and mars into projects (#975)
+- RFC-0977: Refactor Error (#977)
+- feat: impl atomic write for fs service (#991)
+- feat: Add OperatorMetadata to avoid expose AccessorMetadata (#997)
+- feat: Improve display for error (#1002)
+
+### Changed
+
+- refactor: Use seperate Error instead of std::io::Error to avoid confusing (#976)
+- refactor: Return ReplyCreate for create operation (#981)
+- refactor: Add ReplyRead for read operation (#982)
+- refactor: Add RpWrite for write operation (#983)
+- refactor: Add RpStat for stat operation (#984)
+- refactor: Add RpDelete for delete operations (#985)
+- refactor: Add RpPresign for presign operation (#986)
+- refactor: Add reply for all multipart operations (#988)
+- refactor: Add Reply for all blocking operations (#989)
+- refactor: Avoid accessor in object entry (#992)
+- refactor: Move accessor into raw apis (#994)
+- refactor: Move io to raw (#996)
+- refactor: Move {path,wrapper,http_util,io_util} into raw modules (#998)
+- refactor: Move ObjectEntry and ObjectPage into raw (#999)
+- refactor: Accept Operator intead of `Arc<dyn Accessor>` (#1001)
+
+### Fixed
+
+- fix: RetryAccessor is too verbose (#980)
+
 ## [v0.20.1] - 2022-11-18
 
 ### Added
@@ -981,6 +1013,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.21.0]: https://github.com/datafuselabs/opendal/compare/v0.20.1...v0.21.0
 [v0.20.1]: https://github.com/datafuselabs/opendal/compare/v0.20.0...v0.20.1
 [v0.20.0]: https://github.com/datafuselabs/opendal/compare/v0.19.8...v0.20.0
 [v0.19.8]: https://github.com/datafuselabs/opendal/compare/v0.19.7...v0.19.8

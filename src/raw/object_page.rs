@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use async_trait::async_trait;
+
 use crate::raw::*;
 use crate::*;
-use async_trait::async_trait;
 
 /// ObjectPage trait is used by [`Accessor`] to implement `list` operation.
 ///

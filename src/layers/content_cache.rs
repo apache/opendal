@@ -60,7 +60,7 @@ use crate::*;
 /// let _ = Operator::from_env(Scheme::Fs)
 ///     .expect("must init")
 ///     .layer(ContentCacheLayer::new(
-///         Arc::new(memory::Builder::default().build().expect("must init")),
+///         Operator::from_env(Scheme::Memory).expect("must init"),
 ///         ContentCacheStrategy::Whole,
 ///     ));
 /// ```
@@ -72,8 +72,11 @@ pub struct ContentCacheLayer {
 
 impl ContentCacheLayer {
     /// Create a new metadata cache layer.
-    pub fn new(cache: Arc<dyn Accessor>, strategy: ContentCacheStrategy) -> Self {
-        Self { cache, strategy }
+    pub fn new(cache: Operator, strategy: ContentCacheStrategy) -> Self {
+        Self {
+            cache: cache.inner(),
+            strategy,
+        }
     }
 }
 
@@ -396,7 +399,7 @@ mod tests {
         let op = Operator::new(memory::Builder::default().build()?);
 
         let cache_layer = ContentCacheLayer::new(
-            Arc::new(memory::Builder::default().build()?),
+            Arc::new(memory::Builder::default().build()?).into(),
             ContentCacheStrategy::Whole,
         );
         let cached_op = op.clone().layer(cache_layer);
@@ -434,7 +437,7 @@ mod tests {
         let op = Operator::new(memory::Builder::default().build()?);
 
         let cache_layer = ContentCacheLayer::new(
-            Arc::new(memory::Builder::default().build()?),
+            Arc::new(memory::Builder::default().build()?).into(),
             ContentCacheStrategy::Fixed(5),
         );
         let cached_op = op.clone().layer(cache_layer);

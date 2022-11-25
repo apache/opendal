@@ -39,7 +39,6 @@ use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
 use crate::object::ObjectPager;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

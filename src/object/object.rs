@@ -26,7 +26,6 @@ use time::OffsetDateTime;
 use super::BlockingObjectLister;
 use super::ObjectLister;
 use crate::io_util::*;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

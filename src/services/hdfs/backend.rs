@@ -29,7 +29,6 @@ use super::dir_stream::DirStream;
 use super::error::parse_io_error;
 use crate::object::EmptyObjectPager;
 use crate::object::ObjectPager;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

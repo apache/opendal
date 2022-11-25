@@ -17,11 +17,6 @@ use std::sync::Arc;
 use futures::io::Cursor;
 use time::Duration;
 
-use crate::ops::OpAbortMultipart;
-use crate::ops::OpCompleteMultipart;
-use crate::ops::OpPresign;
-use crate::ops::OpWriteMultipart;
-use crate::ops::PresignedRequest;
 use crate::raw::*;
 use crate::*;
 

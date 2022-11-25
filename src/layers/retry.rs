@@ -34,7 +34,6 @@ use tokio::time::Sleep;
 
 use crate::object::BlockingObjectPager;
 use crate::object::ObjectPager;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -574,7 +573,6 @@ mod tests {
     use futures::AsyncReadExt;
 
     use crate::layers::RetryLayer;
-    use crate::ops::*;
     use crate::raw::*;
     use crate::Error;
     use crate::ErrorKind;

@@ -15,9 +15,7 @@
 use http::Request;
 use time::Duration;
 
-use crate::ops::OpRead;
-use crate::ops::OpWrite;
-use crate::ops::OpWriteMultipart;
+use crate::raw::*;
 
 /// Args for `presign` operation.
 ///

@@ -17,7 +17,6 @@ use futures::io::Cursor;
 use futures::AsyncReadExt;
 
 use super::Adapter;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

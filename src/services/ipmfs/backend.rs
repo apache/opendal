@@ -34,7 +34,6 @@ use crate::http_util::AsyncBody;
 use crate::http_util::HttpClient;
 use crate::http_util::IncomingAsyncBody;
 use crate::object::ObjectPager;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

@@ -21,7 +21,6 @@ use flagset::FlagSet;
 
 use crate::object::BlockingObjectPager;
 use crate::object::ObjectPager;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

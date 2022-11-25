@@ -42,7 +42,6 @@ use super::error::parse_error;
 use super::error::parse_xml_deserialize_error;
 use crate::http_util::*;
 use crate::object::ObjectPager;
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

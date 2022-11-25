@@ -810,7 +810,7 @@ impl Object {
     ///
     /// ```no_run
     /// # use opendal::services::s3;
-    /// # use opendal::ops::OpWrite;
+    /// # use opendal::OpWrite;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
@@ -891,7 +891,7 @@ impl Object {
     ///
     /// ```no_run
     /// # use opendal::services::s3;
-    /// # use opendal::ops::OpWrite;
+    /// # use opendal::OpWrite;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;

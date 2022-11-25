@@ -39,7 +39,7 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::io_util::into_reader;
+/// use opendal::raw::into_reader;
 /// # use anyhow::Result;
 /// # use std::io::Error;
 /// # use futures::io;

@@ -34,7 +34,7 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::io_util::into_stream;
+/// use opendal::raw::into_stream;
 /// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;

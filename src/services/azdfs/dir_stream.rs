@@ -58,6 +58,11 @@ impl ObjectPage for DirStream {
             .azdfs_list(&self.path, &self.continuation)
             .await?;
 
+        // Azdfs will return not found for not-exist path.
+        if resp.status() == http::StatusCode::NOT_FOUND {
+            resp.into_body().consume().await?;
+            return Ok(None);
+        }
         if resp.status() != http::StatusCode::OK {
             let er = parse_error_response(resp).await?;
             let err = parse_error(er);
@@ -85,7 +90,8 @@ impl ObjectPage for DirStream {
         let mut entries = Vec::with_capacity(output.paths.len());
 
         for object in output.paths {
-            let mode = if object.is_directory {
+            // Azdfs will return `"true"` and `"false"` for is_directory.
+            let mode = if &object.is_directory == "true" {
                 ObjectMode::DIR
             } else {
                 ObjectMode::FILE
@@ -109,7 +115,12 @@ impl ObjectPage for DirStream {
                 )
                 .with_complete();
 
-            let de = ObjectEntry::new(&build_rel_path(&self.root, &object.name), meta);
+            let mut path = build_rel_path(&self.root, &object.name);
+            if mode == ObjectMode::DIR {
+                path += "/"
+            };
+
+            let de = ObjectEntry::new(&path, meta);
 
             entries.push(de);
         }
@@ -136,8 +147,9 @@ struct Path {
     content_length: String,
     #[serde(rename = "etag")]
     etag: String,
+    /// Azdfs will return `"true"` and `"false"` for is_directory.
     #[serde(rename = "isDirectory")]
-    is_directory: bool,
+    is_directory: String,
     #[serde(rename = "lastModified")]
     last_modified: String,
     #[serde(rename = "name")]
@@ -163,7 +175,7 @@ mod tests {
             Path {
                 content_length: "1977097".to_string(),
                 etag: "0x8DACF9B0061305F".to_string(),
-                is_directory: false,
+                is_directory: "".to_string(),
                 last_modified: "Sat, 26 Nov 2022 10:43:05 GMT".to_string(),
                 name: "c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725"
                     .to_string()

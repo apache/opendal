@@ -404,7 +404,9 @@ impl Backend {
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
 
         let url = format!(
             "{}/{}/{}?resource={resource}",
@@ -459,7 +461,9 @@ impl Backend {
     }
 
     async fn azdfs_get_properties(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
 
         let url = format!(
             "{}/{}/{}?action=getStatus",
@@ -480,7 +484,9 @@ impl Backend {
     }
 
     async fn azdfs_delete(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
 
         let url = format!(
             "{}/{}/{}",
@@ -505,7 +511,9 @@ impl Backend {
         path: &str,
         continuation: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
 
         let mut url = format!(
             "{}/{}?resource=filesystem&recursive=false",

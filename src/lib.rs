@@ -23,6 +23,7 @@
 //! | Services | Description |
 //! | -------- | ----------- |
 //! | [azblob][services::azblob] | Azure Storage Blob services. |
+//! | [azdfs][services::azdfs] | Azure Data Lake Storage Gen2 services. |
 //! | [fs][services::fs] | POSIX alike file system. |
 //! | [ftp][services::ftp] | FTP and FTPS support. |
 //! | [gcs][services::gcs] | Google Cloud Storage service. |

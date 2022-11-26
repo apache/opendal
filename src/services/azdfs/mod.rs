@@ -47,9 +47,9 @@
 //! ```shell
 //! export OPENDAL_AZDFS_ROOT=/path/to/dir/
 //! export OPENDAL_AZDFS_FILESYSTEM=test
-//! export OPENDAL_AZDFS_ENDPOINT=http://127.0.0.1:10000/devstoreaccount1
-//! export OPENDAL_AZDFS_ACCOUNT_KEY=devstoreaccount1
-//! export OPENDAL_AZBLOB_ACCOUNT_KEY=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
+//! export OPENDAL_AZDFS_ENDPOINT=https://accountname.dfs.core.windows.net
+//! export OPENDAL_AZDFS_ACCOUNT_KEY=accountname
+//! export OPENDAL_AZDFS_ACCOUNT_KEY=accountkey
 //! ```
 //!
 //! ```no_run
@@ -94,16 +94,15 @@
 //!     // Set the endpoint, this is required.
 //!     //
 //!     // For examples:
-//!     // - "http://127.0.0.1:10000/devstoreaccount1"
-//!     // - "https://accountname.blob.core.windows.net"
-//!     builder.endpoint("http://127.0.0.1:10000/devstoreaccount1");
+//!     // - "https://accountname.dfs.core.windows.net"
+//!     builder.endpoint("https://accountname.dfs.core.windows.net");
 //!     // Set the account_name and account_key.
 //!     //
 //!     // OpenDAL will try load credential from the env.
 //!     // If credential not set and no valid credential in env, OpenDAL will
 //!     // send request without signing like anonymous user.
-//!     builder.account_name("devstoreaccount1");
-//!     builder.account_key("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
+//!     builder.account_name("account_name");
+//!     builder.account_key("account_key");
 //!
 //!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
 //!     let op: Operator = Operator::new(builder.build()?);

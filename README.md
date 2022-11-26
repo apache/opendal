@@ -19,6 +19,7 @@ You may be looking for:
 ## Services
 
 - [azblob](https://opendal.databend.rs/opendal/services/azblob/index.html): [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services.
+- [azdfs](https://opendal.databend.rs/opendal/services/azdfs/index.html): [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services. (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
 - [fs](https://opendal.databend.rs/opendal/services/fs/index.html): POSIX alike file system.
 - [ftp](https://opendal.databend.rs/opendal/services/ftp/index.html): FTP and FTPS support.
 - [gcs](https://opendal.databend.rs/opendal/services/gcs/index.html): [Google Cloud Storage](https://cloud.google.com/storage) Service.

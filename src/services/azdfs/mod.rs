@@ -28,22 +28,13 @@
 //!
 //! # Environment
 //!
-//! - `OPENDAL_AZBLOB_ROOT`
-//! - `OPENDAL_AZBLOB_CONTAINER`
-//! - `OPENDAL_AZBLOB_ENDPOINT`
-//! - `OPENDAL_AZBLOB_ACCOUNT_NAME`
-//! - `OPENDAL_AZBLOB_ACCOUNT_KEY`
+//! - `OPENDAL_AZDFS_ROOT`
+//! - `OPENDAL_AZDFS_FILESYSTEM`
+//! - `OPENDAL_AZDFS_ENDPOINT`
+//! - `OPENDAL_AZDFS_ACCOUNT_NAME`
+//! - `OPENDAL_AZDFS_ACCOUNT_KEY`
 //!
 //! # Example
-//!
-//! This example works on [Azurite](https://github.com/Azure/Azurite) for local developments.
-//!
-//! ## Start local blob service
-//!
-//! ```shell
-//! docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite
-//! az storage container create --name test --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-//! ```
 //!
 //! ## Init OpenDAL Operator
 //!
@@ -52,10 +43,10 @@
 //! Set environment correctly:
 //!
 //! ```shell
-//! export OPENDAL_AZBLOB_ROOT=/path/to/dir/
-//! export OPENDAL_AZBLOB_CONTAINER=test
-//! export OPENDAL_AZBLOB_ENDPOINT=http://127.0.0.1:10000/devstoreaccount1
-//! export OPENDAL_AZBLOB_ACCOUNT_NAME=devstoreaccount1
+//! export OPENDAL_AZDFS_ROOT=/path/to/dir/
+//! export OPENDAL_AZDFS_FILESYSTEM=test
+//! export OPENDAL_AZDFS_ENDPOINT=http://127.0.0.1:10000/devstoreaccount1
+//! export OPENDAL_AZDFS_ACCOUNT_KEY=devstoreaccount1
 //! export OPENDAL_AZBLOB_ACCOUNT_KEY=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==
 //! ```
 //!
@@ -69,7 +60,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Azblob)?;
+//!     let op: Operator = Operator::from_env(Scheme::Azdfs)?;
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");
@@ -84,20 +75,20 @@
 //! use std::sync::Arc;
 //!
 //! use anyhow::Result;
-//! use opendal::services::azblob;
+//! use opendal::services::azdfs;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create azblob backend builder.
-//!     let mut builder = azblob::Builder::default();
+//!     let mut builder = azdfs::Builder::default();
 //!     // Set the root for azblob, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.
 //!     builder.root("/path/to/dir");
-//!     // Set the container name, this is required.
-//!     builder.container("test");
+//!     // Set the filesystem name, this is required.
+//!     builder.filesystem("test");
 //!     // Set the endpoint, this is required.
 //!     //
 //!     // For examples:

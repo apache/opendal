@@ -68,6 +68,7 @@ macro_rules! behavior_tests {
 }
 
 behavior_tests!(Azblob);
+behavior_tests!(Azdfs);
 behavior_tests!(Fs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-ftp")] { behavior_tests!(Ftp); }}
 behavior_tests!(Memory);

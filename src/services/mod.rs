@@ -20,6 +20,7 @@
 //! - Backend: the service backend which implements the [`Accessor`][crate::raw::Accessor] trait.
 
 pub mod azblob;
+pub mod azdfs;
 pub mod fs;
 #[cfg(feature = "services-ftp")]
 pub mod ftp;

@@ -30,6 +30,8 @@ use crate::Error;
 pub enum Scheme {
     /// [azblob][crate::services::azblob]: Azure Storage Blob services.
     Azblob,
+    /// [azdls][crate::services::azdls]: Azure Data Lake Storage Gen2.
+    Azdfs,
     /// [fs][crate::services::fs]: POSIX alike file system.
     Fs,
     /// [gcs][crate::services::gcs]: Google Cloud Storage backend.
@@ -90,6 +92,7 @@ impl Display for Scheme {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Scheme::Azblob => write!(f, "azblob"),
+            Scheme::Azdfs => write!(f, "azdfs"),
             Scheme::Fs => write!(f, "fs"),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => write!(f, "hdfs"),
@@ -122,6 +125,7 @@ impl FromStr for Scheme {
         let s = s.to_lowercase();
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
+            "azdfs" => Ok(Scheme::Azdfs),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
             #[cfg(feature = "services-hdfs")]
@@ -151,6 +155,7 @@ impl From<Scheme> for &'static str {
     fn from(v: Scheme) -> Self {
         match v {
             Scheme::Azblob => "azblob",
+            Scheme::Azdfs => "azdfs",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             #[cfg(feature = "services-hdfs")]

@@ -126,6 +126,7 @@ impl Operator {
     ) -> Result<Self> {
         let op = match scheme {
             Scheme::Azblob => services::azblob::Builder::from_iter(it).build()?.into(),
+            Scheme::Azdfs => services::azdfs::Builder::from_iter(it).build()?.into(),
             Scheme::Fs => services::fs::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => services::ftp::Builder::from_iter(it).build()?.into(),

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.21.1] - 2022-11-26
+
+### Added
+
+- feat: Export ObjectLister as public type (#1006)
+
+### Changed
+
+- deps: Remove not used thiserror and num-trait (#1005)
+
 ## [v0.21.0] - 2022-11-25
 
 ### Added
@@ -1013,6 +1023,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.21.1]: https://github.com/datafuselabs/opendal/compare/v0.21.0...v0.21.1
 [v0.21.0]: https://github.com/datafuselabs/opendal/compare/v0.20.1...v0.21.0
 [v0.20.1]: https://github.com/datafuselabs/opendal/compare/v0.20.0...v0.20.1
 [v0.20.0]: https://github.com/datafuselabs/opendal/compare/v0.19.8...v0.20.0

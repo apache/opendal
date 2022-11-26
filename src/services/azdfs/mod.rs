@@ -14,6 +14,8 @@
 
 //! Azure Data Lake Storage Gen2 Support.
 //!
+//! As known as `abfs`, `azdfs` or `azdls`.
+//!
 //! This service will visist the [ABFS](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver) URI supported by [Azure Data Lake Storage Gen2](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).
 //!
 //! # Configuration

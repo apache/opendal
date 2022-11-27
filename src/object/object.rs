@@ -1190,7 +1190,12 @@ impl Object {
     ///
     /// Called can decide to access or clone the content of object metadata.
     /// But they can't pass the guard outside or across the await boundary.
-    async fn metadata_ref(&self) -> Result<MutexGuard<ObjectMetadata>> {
+    ///
+    /// # Notes
+    ///
+    /// We return `MutexGuard<'_, ObjectMetadata>` here to make rustc 1.60 happy.
+    /// After MSRV bumped to higher version, we can elide this.
+    async fn metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock().expect("lock must succeed");
@@ -1208,7 +1213,7 @@ impl Object {
         Ok(guard)
     }
 
-    fn blocking_metadata_ref(&self) -> Result<MutexGuard<ObjectMetadata>> {
+    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock().expect("lock must succeed");

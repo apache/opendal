@@ -60,7 +60,9 @@ jobs:
         with:
           hdfs-version: "3.3.2"
       - name: Setup msrv of rust
-        run: rustup toolchain install ${OPENDAL_MSRV}
+        run: |
+          rustup toolchain install ${OPENDAL_MSRV}
+          rustup component add clippy --toolchain ${OPENDAL_MSRV}
 
       - name: Check
         run: cargo +${OPENDAL_MSRV} clippy --all-targets --all-features -- -D warnings

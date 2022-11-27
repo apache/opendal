@@ -62,10 +62,11 @@ jobs:
       - name: Setup msrv of rust
         run: |
           rustup toolchain install ${OPENDAL_MSRV}
-          rustup component add clippy --toolchain ${OPENDAL_MSRV}
+          rustup default ${OPENDAL_MSRV}
+          rustup component add clippy
 
       - name: Check
-        run: cargo +${OPENDAL_MSRV} clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   build:
     runs-on: ${{ matrix.os }}

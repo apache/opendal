@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.21.2] - 2022-11-27
+
+### Added
+
+- feat: Add azdfs support (#1009)
+- feat: Set MSRV of opendal to 1.60 (#1012)
+
+### Docs
+
+- docs: Fix docs for azdfs service (#1010)
+
 ## [v0.21.1] - 2022-11-26
 
 ### Added
@@ -1023,6 +1034,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.21.2]: https://github.com/datafuselabs/opendal/compare/v0.21.1...v0.21.2
 [v0.21.1]: https://github.com/datafuselabs/opendal/compare/v0.21.0...v0.21.1
 [v0.21.0]: https://github.com/datafuselabs/opendal/compare/v0.20.1...v0.21.0
 [v0.20.1]: https://github.com/datafuselabs/opendal/compare/v0.20.0...v0.20.1

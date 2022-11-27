@@ -18,7 +18,7 @@ all-features = true
 default = ["rustls"]
 
 # Enable compress support so that users can decompress while reading.
-compress = ["async-compression"]
+compress = ["async-compression", "zstd-sys"]
 # Enable trust-dns for better dns cache.
 trust-dns = ["reqwest/trust-dns"]
 
@@ -47,7 +47,7 @@ services-moka = ["moka"]
 # Enable services redis support
 services-redis = ["redis"]
 # Enable services rocksdb support
-services-rocksdb = ["rocksdb"]
+services-rocksdb = ["rocksdb", "zstd-sys"]
 
 [lib]
 bench = false
@@ -126,6 +126,9 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
+# zstd-sys 2.0.3 can't work on 1.60 for `ffi::c_uint` needs rust 1.64.
+# Enable bindgen to make sure they works.
+zstd-sys = { version = "2", optional = true, features = ["bindgen"] }
 # Make sure we are using the latest pathc of reqsign.
 # Should be removed after reqsign bumped to 0.7
 reqsign = "0.6.6"

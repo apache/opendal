@@ -32,6 +32,7 @@ use super::error::parse_io_error;
 use crate::object::*;
 use crate::raw::*;
 use crate::*;
+use uuid::Uuid;
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]
@@ -128,9 +129,10 @@ pub struct Backend {
 
 #[inline]
 fn tmp_file_of(path: &str) -> String {
-    let name = str::replace(path, "/", "_");
+    let name = get_basename(path);
+    let uuid = Uuid::new_v4().to_string();
 
-    format!("{name}.tmp")
+    format!("{name}.{uuid}")
 }
 
 impl Backend {
@@ -630,13 +632,15 @@ mod tests {
     #[test]
     fn test_tmp_file_of() {
         let cases = vec![
-            ("hello.txt", "hello.txt.tmp"),
-            ("/tmp/opendal.log", "_tmp_opendal.log.tmp"),
-            ("/abc/def/hello.parquet", "_abc_def_hello.parquet.tmp"),
+            ("hello.txt", "hello.txt"),
+            ("/tmp/opendal.log", "opendal.log"),
+            ("/abc/def/hello.parquet", "hello.parquet"),
         ];
 
-        for (path, expected) in cases {
-            assert_eq!(expected, tmp_file_of(path));
+        for (path, expected_prefix) in cases {
+            let tmp_file = tmp_file_of(path);
+            assert!(tmp_file.len() > expected_prefix.len());
+            assert!(tmp_file.starts_with(expected_prefix));
         }
     }
 }

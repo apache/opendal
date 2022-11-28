@@ -31,7 +31,6 @@ use reqsign::AliyunOssSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use super::uri::percent_encode_path_hard;
 use crate::raw::*;
 use crate::*;
 
@@ -441,7 +440,7 @@ impl Backend {
         let url = format!(
             "{}/?list-type=2&delimiter=/&prefix={}{}",
             self.endpoint,
-            percent_encode_path_hard(&p),
+            percent_encode_path(&p),
             token
                 .map(|t| format!("&continuation-token={}", percent_encode_path(&t)))
                 .unwrap_or_default(),

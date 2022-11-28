@@ -142,7 +142,9 @@ impl Display for Error {
             write!(f, " }}")?;
         }
 
-        write!(f, " => {}", self.message)?;
+        if !self.message.is_empty() {
+            write!(f, " => {}", self.message)?;
+        }
 
         if let Some(source) = &self.source {
             write!(f, ", source: {}", source)?;
@@ -166,11 +168,12 @@ impl Debug for Error {
             return de.finish();
         }
 
-        writeln!(
-            f,
-            "{} ({}) at {} => {}",
-            self.kind, self.status, self.operation, self.message
-        )?;
+        write!(f, "{} ({}) at {}", self.kind, self.status, self.operation)?;
+        if !self.message.is_empty() {
+            write!(f, " => {}", self.message)?;
+        }
+        writeln!(f)?;
+
         if !self.context.is_empty() {
             writeln!(f)?;
             writeln!(f, "Context:")?;

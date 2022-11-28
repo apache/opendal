@@ -223,9 +223,7 @@ impl Accessor for Backend {
             resp.into_body().consume().await?;
             Ok(RpCreate::default())
         } else {
-            let er = parse_error_response(resp).await?;
-            let e = parse_error(er);
-            Err(e)
+            Err(parse_error(resp).await?)
         }
     }
 
@@ -236,9 +234,7 @@ impl Accessor for Backend {
             let meta = parse_into_object_metadata(path, resp.headers())?;
             Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
         } else {
-            let er = parse_error_response(resp).await?;
-            let e = parse_error(er);
-            Err(e)
+            Err(parse_error(resp).await?)
         }
     }
 
@@ -258,9 +254,7 @@ impl Accessor for Backend {
             resp.into_body().consume().await?;
             Ok(RpWrite::new(args.size()))
         } else {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error(er);
-            Err(err)
+            Err(parse_error(resp).await?)
         }
     }
 
@@ -306,9 +300,7 @@ impl Accessor for Backend {
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
             Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
         } else {
-            let er = parse_error_response(resp).await?;
-            let e = parse_error(er);
-            Err(e)
+            Err(parse_error(resp).await?)
         }
     }
 
@@ -319,9 +311,7 @@ impl Accessor for Backend {
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(RpDelete::default())
         } else {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error(er);
-            Err(err)
+            Err(parse_error(resp).await?)
         }
     }
 

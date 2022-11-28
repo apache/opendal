@@ -32,6 +32,7 @@ use super::error::parse_io_error;
 use crate::object::*;
 use crate::raw::*;
 use crate::*;
+use uuid::Uuid;
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]
@@ -124,6 +125,14 @@ impl Builder {
 pub struct Backend {
     root: String,
     atomic_write_dir: Option<String>,
+}
+
+#[inline]
+fn tmp_file_of(path: &str) -> String {
+    let name = get_basename(path);
+    let uuid = Uuid::new_v4().to_string();
+
+    format!("{name}.{uuid}")
 }
 
 impl Backend {
@@ -322,7 +331,8 @@ impl Accessor for Backend {
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let temp_path = Self::ensure_write_abs_path(atomic_write_dir, path).await?;
+            let temp_path =
+                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
             let f = fs::OpenOptions::new()
                 .create(true)
@@ -509,7 +519,8 @@ impl Accessor for Backend {
         mut r: BlockingBytesReader,
     ) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let temp_path = Self::blocking_ensure_write_abs_path(atomic_write_dir, path)?;
+            let temp_path =
+                Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
             let target_path = Self::blocking_ensure_write_abs_path(&self.root, path)?;
 
             let size = {
@@ -611,5 +622,25 @@ impl Accessor for Backend {
         let rd = BlockingDirPager::new(&self.root, f);
 
         Ok((RpList::default(), Box::new(rd)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tmp_file_of() {
+        let cases = vec![
+            ("hello.txt", "hello.txt"),
+            ("/tmp/opendal.log", "opendal.log"),
+            ("/abc/def/hello.parquet", "hello.parquet"),
+        ];
+
+        for (path, expected_prefix) in cases {
+            let tmp_file = tmp_file_of(path);
+            assert!(tmp_file.len() > expected_prefix.len());
+            assert!(tmp_file.starts_with(expected_prefix));
+        }
     }
 }

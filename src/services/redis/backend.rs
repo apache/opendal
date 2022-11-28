@@ -309,6 +309,6 @@ impl kv::Adapter for Adapter {
 
 impl From<RedisError> for Error {
     fn from(e: RedisError) -> Self {
-        Error::new(ErrorKind::Unexpected, "got redis error").set_source(e)
+        Error::new(ErrorKind::Unexpected, e.category()).set_source(e)
     }
 }

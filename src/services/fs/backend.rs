@@ -126,6 +126,13 @@ pub struct Backend {
     atomic_write_dir: Option<String>,
 }
 
+#[inline]
+fn tmp_file_of(path: &str) -> String {
+    let name = str::replace(path, "/", "_");
+
+    format!("{name}.tmp")
+}
+
 impl Backend {
     // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
     #[inline]
@@ -322,7 +329,8 @@ impl Accessor for Backend {
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let temp_path = Self::ensure_write_abs_path(atomic_write_dir, path).await?;
+            let temp_path =
+                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
             let f = fs::OpenOptions::new()
                 .create(true)
@@ -509,7 +517,8 @@ impl Accessor for Backend {
         mut r: BlockingBytesReader,
     ) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let temp_path = Self::blocking_ensure_write_abs_path(atomic_write_dir, path)?;
+            let temp_path =
+                Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
             let target_path = Self::blocking_ensure_write_abs_path(&self.root, path)?;
 
             let size = {
@@ -611,5 +620,23 @@ impl Accessor for Backend {
         let rd = BlockingDirPager::new(&self.root, f);
 
         Ok((RpList::default(), Box::new(rd)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tmp_file_of() {
+        let cases = vec![
+            ("hello.txt", "hello.txt.tmp"),
+            ("/tmp/opendal.log", "_tmp_opendal.log.tmp"),
+            ("/abc/def/hello.parquet", "_abc_def_hello.parquet.tmp"),
+        ];
+
+        for (path, expected) in cases {
+            assert_eq!(expected, tmp_file_of(path));
+        }
     }
 }

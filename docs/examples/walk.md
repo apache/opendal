@@ -34,7 +34,7 @@ dir_x/file_a
 dir_x/
 ```
 
-Refer to [`BottomUpWalker`](/opendal/io_util/struct.BottomUpWalker.html) for more information.
+Refer to [`BottomUpWalker`](/opendal/raw/struct.BottomUpWalker.html) for more information.
 
 ```rust
 let mut ds = op.batch().walk_bottom_up();
@@ -79,7 +79,7 @@ dir_x/dir_y/dir_z/
 dir_x/dir_y/dir_z/file_c
 ```
 
-Refer to [`TopDownWalker`](/opendal/io_util/struct.TopDownWalker.html) for more information.
+Refer to [`TopDownWalker`](/opendal/raw/struct.TopDownWalker.html) for more information.
 
 ```rust
 let mut ds = op.batch().walk_top_down();

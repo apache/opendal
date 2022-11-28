@@ -19,3 +19,6 @@ no-section-label = true
 
 [output.html.playground]
 runnable = false
+
+# [output.linkcheck]
+# traverse-parent-directories = true

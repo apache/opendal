@@ -62,7 +62,7 @@ let stream = object_store
     .into_stream();
 ```
 
-`opendal` has a similar trait called [`Accessor`](https://opendal.databend.rs/opendal/trait.Accessor.html).
+`opendal` has a similar trait called [`Accessor`](https://opendal.databend.rs/opendal/raw/trait.Accessor.html).
 
 ![](https://opendal.databend.rs/assets/accessor.png)
 

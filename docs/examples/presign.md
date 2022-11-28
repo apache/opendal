@@ -4,7 +4,7 @@ OpenDAL can presign an operation to generate a presigned URL.
 
 ![](../assets/rfcs/0413-presign/process.png)
 
-Refer to [RFC-0413: Presign](/rfcs/0413-presign.html) for more information.
+Refer to [RFC-0413: Presign](../rfcs/0413-presign.md) for more information.
 
 ## Download
 

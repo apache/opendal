@@ -2,7 +2,7 @@
 
 Implement a service mainly two parts:
 
-- `Backend`: the struct that implement [`Accessor`](/opendal/trait.Accessor.html) trait.
+- `Backend`: the struct that implement [`Accessor`](/opendal/raw/trait.Accessor.html) trait.
 - `Builder`: the struct that provide `fn build(&mut self) -> Result<Backend>`.
 
 ## Backend
@@ -10,6 +10,8 @@ Implement a service mainly two parts:
 Backend needs to implement `Accessor`:
 
 ```rust
+use crate::raw::*;
+
 #[async_trait]
 impl Accessor for Backend {}
 ```

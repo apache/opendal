@@ -83,11 +83,7 @@ impl Accessor for Backend {
                 resp.into_body().consume().await?;
                 Ok(RpCreate::default())
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -101,11 +97,7 @@ impl Accessor for Backend {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -121,11 +113,7 @@ impl Accessor for Backend {
                 resp.into_body().consume().await?;
                 Ok(RpWrite::new(args.size()))
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -157,11 +145,7 @@ impl Accessor for Backend {
 
                 Ok(RpStat::new(meta))
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -175,11 +159,7 @@ impl Accessor for Backend {
                 resp.into_body().consume().await?;
                 Ok(RpDelete::default())
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 

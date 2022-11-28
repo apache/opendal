@@ -149,7 +149,7 @@ ureq = { version = "2", default-features = false }
 cfg-if = "1"
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenv = "0.15"
-env_logger = "0.9"
+env_logger = "0.10"
 itertools = "0.10"
 opentelemetry = { version = "0.17", default-features = false, features = [
   "trace",

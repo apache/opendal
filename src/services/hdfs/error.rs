@@ -25,12 +25,18 @@ use crate::ErrorKind;
 pub fn parse_io_error(err: io::Error) -> Error {
     use io::ErrorKind::*;
 
-    let (kind, _) = match err.kind() {
+    let (kind, retryable) = match err.kind() {
         NotFound => (ErrorKind::ObjectNotFound, false),
         PermissionDenied => (ErrorKind::ObjectPermissionDenied, false),
         Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, true),
     };
 
-    Error::new(kind, "hdfs backend io error").set_source(err)
+    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }

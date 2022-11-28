@@ -50,7 +50,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     };
 
     let message = match de::from_reader::<_, OssError>(bs.clone().reader()) {
-        Ok(azblob_err) => format!("{:?}", azblob_err),
+        Ok(oss_err) => format!("{:?}", oss_err),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 

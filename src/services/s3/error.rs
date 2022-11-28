@@ -14,12 +14,32 @@
 
 use http::StatusCode;
 
+use bytes::Buf;
+use http::Response;
+use quick_xml::de;
+use serde::Deserialize;
+
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
+use crate::Result;
 
-pub fn parse_error(er: ErrorResponse) -> Error {
-    let (kind, retryable) = match er.status_code() {
+/// S3Error is the error returned by s3 service.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct S3Error {
+    code: String,
+    message: String,
+    resource: String,
+    request_id: String,
+}
+
+/// Parse error respons into Error.
+pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+    let (parts, body) = resp.into_parts();
+    let bs = body.bytes().await?;
+
+    let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -29,15 +49,49 @@ pub fn parse_error(er: ErrorResponse) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut err = Error::new(kind, &er.to_string());
+    let message = match de::from_reader::<_, S3Error>(bs.clone().reader()) {
+        Ok(s3_err) => format!("{:?}", s3_err),
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
 
     if retryable {
         err = err.set_temporary();
     }
 
-    err
+    Ok(err)
 }
 
 pub fn parse_xml_deserialize_error(e: quick_xml::DeError) -> Error {
     Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Error response example is from https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+    #[test]
+    fn test_parse_error() {
+        let bs = bytes::Bytes::from(
+            r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>NoSuchKey</Code>
+  <Message>The resource you requested does not exist</Message>
+  <Resource>/mybucket/myfoto.jpg</Resource>
+  <RequestId>4442587FB7D0A2F9</RequestId>
+</Error>
+"#,
+        );
+
+        let out: S3Error = de::from_reader(bs.reader()).expect("must success");
+        println!("{:?}", out);
+
+        assert_eq!(out.code, "NoSuchKey");
+        assert_eq!(out.message, "The resource you requested does not exist");
+        assert_eq!(out.resource, "/mybucket/myfoto.jpg");
+        assert_eq!(out.request_id, "4442587FB7D0A2F9");
+    }
 }

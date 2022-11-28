@@ -63,9 +63,7 @@ impl ObjectPage for DirStream {
         let resp = self.backend.list_objects(&self.path, &self.token).await?;
 
         if resp.status() != http::StatusCode::OK {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error(er);
-            return Err(err);
+            return Err(parse_error(resp).await?);
         }
 
         let bs = resp.into_body().bytes().await?;

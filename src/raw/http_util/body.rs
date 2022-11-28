@@ -137,13 +137,13 @@ impl IncomingAsyncBody {
     pub async fn bytes(self) -> Result<Bytes> {
         use futures::io;
 
-        let mut w = io::Cursor::new(Vec::with_capacity(1024));
+        let mut w = Vec::with_capacity(1024);
         io::copy(self.0, &mut w).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "copy from resposne")
                 .with_operation("http_util::IncomingAsyncBody::bytes")
                 .set_source(err)
         })?;
-        Ok(Bytes::from(w.into_inner()))
+        Ok(Bytes::from(w))
     }
 
     /// Consume the response to build a reader.

@@ -54,9 +54,7 @@ impl ObjectPage for DirStream {
         let resp = self.backend.ipmfs_ls(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error(er);
-            return Err(err);
+            return Err(parse_error(resp).await?);
         }
 
         let bs = resp.into_body().bytes().await?;

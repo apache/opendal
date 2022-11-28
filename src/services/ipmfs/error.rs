@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
+use serde_json::de;
 
 use crate::raw::*;
 use crate::Error;
@@ -40,17 +42,21 @@ struct IpfsError {
 /// > (if no error, check the daemon logs).
 ///
 /// ref: https://docs.ipfs.tech/reference/kubo/rpc/#http-status-codes
-pub fn parse_error(er: ErrorResponse) -> Error {
-    let (kind, retryable) = match er.status_code() {
+pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+    let (parts, body) = resp.into_parts();
+    let bs = body.bytes().await?;
+
+    let ipfs_error = de::from_slice::<IpfsError>(&bs).ok();
+
+    let (kind, retryable) = match parts.status {
         StatusCode::INTERNAL_SERVER_ERROR => {
-            let ie: Result<IpfsError> =
-                serde_json::from_slice(er.body()).map_err(parse_json_deserialize_error);
-            match ie {
-                Ok(ie) => match ie.message.as_str() {
+            if let Some(ie) = &ipfs_error {
+                match ie.message.as_str() {
                     "file does not exist" => (ErrorKind::ObjectNotFound, false),
                     _ => (ErrorKind::Unexpected, false),
-                },
-                Err(e) => return e,
+                }
+            } else {
+                (ErrorKind::Unexpected, false)
             }
         }
         StatusCode::BAD_GATEWAY | StatusCode::SERVICE_UNAVAILABLE | StatusCode::GATEWAY_TIMEOUT => {
@@ -59,13 +65,18 @@ pub fn parse_error(er: ErrorResponse) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut err = Error::new(kind, &er.to_string());
+    let message = match ipfs_error {
+        Some(ipfs_error) => format!("{:?}", ipfs_error),
+        None => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
 
     if retryable {
         err = err.set_temporary();
     }
 
-    err
+    Ok(err)
 }
 
 pub fn parse_json_deserialize_error(e: serde_json::Error) -> Error {

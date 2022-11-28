@@ -17,20 +17,22 @@ use std::io;
 use crate::Error;
 use crate::ErrorKind;
 
-/// Parse all path related errors.
-///
-/// ## Notes
-///
-/// Skip utf-8 check to allow invalid path input.
+/// Parse all io related errors.
 pub fn parse_io_error(err: io::Error) -> Error {
     use io::ErrorKind::*;
 
-    let (kind, _) = match err.kind() {
+    let (kind, retryable) = match err.kind() {
         NotFound => (ErrorKind::ObjectNotFound, false),
         PermissionDenied => (ErrorKind::ObjectPermissionDenied, false),
         Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, true),
     };
 
-    Error::new(kind, "fs backend io error").set_source(err)
+    let mut err = Error::new(kind, &err.kind().to_string()).set_source(err);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }

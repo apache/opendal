@@ -31,7 +31,6 @@ use reqsign::AliyunOssSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use super::uri::percent_encode_path_hard;
 use crate::raw::*;
 use crate::*;
 
@@ -275,11 +274,7 @@ impl Accessor for Backend {
                 resp.into_body().consume().await?;
                 Ok(RpCreate::default())
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -293,11 +288,7 @@ impl Accessor for Backend {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -317,11 +308,7 @@ impl Accessor for Backend {
                 resp.into_body().consume().await?;
                 Ok(RpWrite::new(args.size()))
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -342,11 +329,7 @@ impl Accessor for Backend {
                 Ok(RpStat::new(m))
             }
 
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -358,11 +341,7 @@ impl Accessor for Backend {
                 resp.into_body().consume().await?;
                 Ok(RpDelete::default())
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -461,7 +440,7 @@ impl Backend {
         let url = format!(
             "{}/?list-type=2&delimiter=/&prefix={}{}",
             self.endpoint,
-            percent_encode_path_hard(&p),
+            percent_encode_path(&p),
             token
                 .map(|t| format!("&continuation-token={}", percent_encode_path(&t)))
                 .unwrap_or_default(),

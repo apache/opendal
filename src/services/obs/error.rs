@@ -14,17 +14,33 @@
 
 use http::StatusCode;
 
+use bytes::Buf;
+use http::Response;
+use quick_xml::de;
+use serde::Deserialize;
+
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
+use crate::Result;
 
-/// Parse error response into io::Error.
-///
-/// # TODO
-///
-/// In the future, we may have our own error struct.
-pub fn parse_error(er: ErrorResponse) -> Error {
-    let (kind, retryable) = match er.status_code() {
+/// ObsError is the error returned by obs service.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct ObsError {
+    code: String,
+    message: String,
+    resource: String,
+    request_id: String,
+    host_id: String,
+}
+
+/// Parse error respons into Error.
+pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+    let (parts, body) = resp.into_parts();
+    let bs = body.bytes().await?;
+
+    let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -37,11 +53,49 @@ pub fn parse_error(er: ErrorResponse) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut err = Error::new(kind, &er.to_string());
+    let message = match de::from_reader::<_, ObsError>(bs.clone().reader()) {
+        Ok(obs_error) => format!("{:?}", obs_error),
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
 
     if retryable {
         err = err.set_temporary();
     }
 
-    err
+    Ok(err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_error() {
+        let bs = bytes::Bytes::from(
+            r#"
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+<Code>NoSuchKey</Code>
+<Message>The resource you requested does not exist</Message>
+<Resource>/example-bucket/object</Resource>
+<RequestId>001B21A61C6C0000013402C4616D5285</RequestId>
+<HostId>RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD</HostId>
+</Error>
+"#,
+        );
+
+        let out: ObsError = de::from_reader(bs.reader()).expect("must success");
+        println!("{:?}", out);
+
+        assert_eq!(out.code, "NoSuchKey");
+        assert_eq!(out.message, "The resource you requested does not exist");
+        assert_eq!(out.resource, "/example-bucket/object");
+        assert_eq!(out.request_id, "001B21A61C6C0000013402C4616D5285");
+        assert_eq!(
+            out.host_id,
+            "RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD"
+        );
+    }
 }

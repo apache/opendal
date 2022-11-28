@@ -13,7 +13,7 @@ OpenDAL is used to use `std::io::Error` for all functions. This design is natura
 
 ## Not friendly for retry
 
-`io::Error` can't carry retry-related information. In [RFC-0247: Retryable Error](./0247-retryable-error), we use `io::ErrorKind::Interrupt` to indicate this error is retryable. But this change will hide the real error kind from the underlying. To mark this error has been retried, we have to add another new error wrapper:
+`io::Error` can't carry retry-related information. In [RFC-0247: Retryable Error](./0247-retryable-error.md), we use `io::ErrorKind::Interrupt` to indicate this error is retryable. But this change will hide the real error kind from the underlying. To mark this error has been retried, we have to add another new error wrapper:
 
 ```rust
 #[derive(thiserror::Error, Debug)]

@@ -6,7 +6,7 @@ OpenDAL provides a unified abstraction for all storage services.
 
 First, let's start with [`Accessor`]. [`Accessor`] is the underlying trait that communicate with different storage backends. We use `Accessor` to abstract the same operations sets on different backends.
 
-![](../assets/accessor.png)
+![](./assets/accessor.png)
 
 ## Operator
 
@@ -14,7 +14,7 @@ To make our users life easier, we build a struct [`Operator`] which can be used 
 
 [`Operator`] itself is a simple wrapper of [`Accessor`] and is very cheap to be cloned. We build our public APIs upon [`Operator`] instead.
 
-![](../assets/operator.png)
+![](./assets/operator.png)
 
 
 ## Object
@@ -23,11 +23,11 @@ To make our users life easier, we build a struct [`Operator`] which can be used 
 
 It's a bit like `File` and `Handle` in Rust, but we don't need to `open` or `close` them. Every API is very straight:
 
-![](../assets/object.png)
+![](./assets/object.png)
 
 For detailed APIs, please refer to [API Documents](/opendal)
 
-[`Accessor`]: /opendal/trait.Accessor.html
-[`Operator`]: /opendal/struct.Operator.html
-[`Object`]: /opendal/struct.Object.html
-[`Operator::object()`]: /opendal/struct.Operator.html#method.object
+[`Accessor`]: https://docs.rs/opendal/latest/opendal/raw/trait.Accessor.html
+[`Operator`]: https://docs.rs/opendal/latest/opendal/struct.Operator.html
+[`Object`]: https://docs.rs/opendal/latest/opendal/struct.Object.html
+[`Operator::object()`]: https://docs.rs/opendal/latest/opendal/struct.Operator.html#method.object

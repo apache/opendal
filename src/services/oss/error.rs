@@ -14,12 +14,32 @@
 
 use http::StatusCode;
 
+use bytes::Buf;
+use http::Response;
+use quick_xml::de;
+use serde::Deserialize;
+
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
+use crate::Result;
 
-pub fn parse_error(er: ErrorResponse) -> Error {
-    let (kind, retryable) = match er.status_code() {
+/// OssError is the error returned by oss service.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct OssError {
+    code: String,
+    message: String,
+    request_id: String,
+    host_id: String,
+}
+
+/// Parse error respons into Error.
+pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+    let (parts, body) = resp.into_parts();
+    let bs = body.bytes().await?;
+
+    let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -29,11 +49,53 @@ pub fn parse_error(er: ErrorResponse) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut err = Error::new(kind, &er.to_string());
+    let message = match de::from_reader::<_, OssError>(bs.clone().reader()) {
+        Ok(azblob_err) => format!("{:?}", azblob_err),
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
 
     if retryable {
         err = err.set_temporary();
     }
 
-    err
+    Ok(err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Error response example is from https://www.alibabacloud.com/help/en/object-storage-service/latest/error-responses
+    #[test]
+    fn test_parse_error() {
+        let bs = bytes::Bytes::from(
+            r#"
+<?xml version="1.0" ?>
+<Error xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
+    <Code>
+        AccessDenied
+    </Code>
+    <Message>
+        Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters
+    </Message>
+    <RequestId>
+        1D842BC54255****
+    </RequestId>
+    <HostId>
+        oss-cn-hangzhou.aliyuncs.com
+    </HostId>
+</Error>
+"#,
+        );
+
+        let out: OssError = de::from_reader(bs.reader()).expect("must success");
+        println!("{:?}", out);
+
+        assert_eq!(out.code, "AccessDenied");
+        assert_eq!(out.message, "Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters");
+        assert_eq!(out.request_id, "1D842BC54255****");
+        assert_eq!(out.host_id, "oss-cn-hangzhou.aliyuncs.com");
+    }
 }

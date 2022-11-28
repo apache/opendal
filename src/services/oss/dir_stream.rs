@@ -68,9 +68,7 @@ impl ObjectPage for DirStream {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error(er);
-            return Err(err);
+            return Err(parse_error(resp).await?);
         }
 
         let bs = resp.into_body().bytes().await?;

@@ -66,6 +66,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
     Ok(err)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

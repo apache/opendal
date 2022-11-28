@@ -64,9 +64,7 @@ impl ObjectPage for DirStream {
             return Ok(None);
         }
         if resp.status() != http::StatusCode::OK {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error(er);
-            return Err(err);
+            return Err(parse_error(resp).await?);
         }
 
         // Check whether this list is done.

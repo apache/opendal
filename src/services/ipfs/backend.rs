@@ -159,11 +159,7 @@ impl Accessor for Backend {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -310,11 +306,7 @@ impl Accessor for Backend {
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
                 Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
             }
-            _ => {
-                let er = parse_error_response(resp).await?;
-                let err = parse_error(er);
-                Err(err)
-            }
+            _ => Err(parse_error(resp).await?),
         }
     }
 
@@ -406,9 +398,7 @@ impl ObjectPage for DirStream {
         let resp = self.backend.ipfs_list(&self.path).await?;
 
         if resp.status() != StatusCode::OK {
-            let er = parse_error_response(resp).await?;
-            let err = parse_error(er);
-            return Err(err);
+            return Err(parse_error(resp).await?);
         }
 
         let bs = resp.into_body().bytes().await?;

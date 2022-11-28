@@ -12,14 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use http::Response;
 use http::StatusCode;
 
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
+use crate::Result;
 
-pub fn parse_error(er: ErrorResponse) -> Error {
-    let (kind, retryable) = match er.status_code() {
+/// Parse error respons into Error.
+pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
+    let (parts, body) = resp.into_parts();
+    let bs = body.bytes().await?;
+
+    let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -31,11 +37,12 @@ pub fn parse_error(er: ErrorResponse) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut err = Error::new(kind, &er.to_string());
+    let mut err = Error::new(kind, &String::from_utf8_lossy(&bs))
+        .with_context("response", format!("{:?}", parts));
 
     if retryable {
         err = err.set_temporary();
     }
 
-    err
+    Ok(err)
 }

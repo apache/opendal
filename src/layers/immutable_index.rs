@@ -232,7 +232,7 @@ mod tests {
             Scheme::Http,
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         )?
-        .layer(LoggingLayer)
+        .layer(LoggingLayer::default())
         .layer(iil);
 
         let mut map = HashMap::new();
@@ -266,7 +266,7 @@ mod tests {
             Scheme::Http,
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         )?
-        .layer(LoggingLayer)
+        .layer(LoggingLayer::default())
         .layer(iil);
 
         let mut ds = op.batch().walk_top_down("/")?;
@@ -307,7 +307,7 @@ mod tests {
             Scheme::Http,
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         )?
-        .layer(LoggingLayer)
+        .layer(LoggingLayer::default())
         .layer(iil);
 
         //  List /
@@ -372,7 +372,7 @@ mod tests {
             Scheme::Http,
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         )?
-        .layer(LoggingLayer)
+        .layer(LoggingLayer::default())
         .layer(iil);
 
         let mut ds = op.batch().walk_top_down("/")?;

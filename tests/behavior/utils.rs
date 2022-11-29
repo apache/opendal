@@ -57,7 +57,7 @@ pub fn init_service(scheme: Scheme, random_root: bool) -> Option<Operator> {
 
     let op = Operator::from_iter(scheme, cfg.into_iter())
         .expect("init service must succeed")
-        .layer(LoggingLayer)
+        .layer(LoggingLayer::default())
         .layer(RetryLayer::new(ExponentialBackoff::default()));
 
     Some(op)

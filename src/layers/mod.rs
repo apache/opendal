@@ -20,18 +20,15 @@ pub use layer::Layer;
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
-mod content_cache;
-pub use content_cache::ContentCacheLayer;
-pub use content_cache::ContentCacheStrategy;
+mod cache;
+pub use cache::CacheLayer;
+pub use cache::CacheStrategy;
 
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;
 
 mod logging;
 pub use logging::LoggingLayer;
-
-mod metadata_cache;
-pub use metadata_cache::MetadataCacheLayer;
 
 #[cfg(feature = "layers-metrics")]
 mod metrics;

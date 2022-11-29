@@ -25,6 +25,7 @@ use futures::io::copy;
 use futures::io::Cursor;
 use futures::ready;
 use futures::AsyncRead;
+use futures::AsyncReadExt;
 use futures::FutureExt;
 
 use crate::raw::*;
@@ -51,28 +52,28 @@ use crate::*;
 /// use std::sync::Arc;
 ///
 /// use anyhow::Result;
-/// use opendal::layers::ContentCacheLayer;
-/// use opendal::layers::ContentCacheStrategy;
+/// use opendal::layers::CacheLayer;
+/// use opendal::layers::CacheStrategy;
 /// use opendal::services::memory;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
 /// let _ = Operator::from_env(Scheme::Fs)
 ///     .expect("must init")
-///     .layer(ContentCacheLayer::new(
+///     .layer(CacheLayer::new(
 ///         Operator::from_env(Scheme::Memory).expect("must init"),
-///         ContentCacheStrategy::Whole,
+///         CacheStrategy::Whole,
 ///     ));
 /// ```
 #[derive(Debug, Clone)]
-pub struct ContentCacheLayer {
+pub struct CacheLayer {
     cache: Arc<dyn Accessor>,
-    strategy: ContentCacheStrategy,
+    strategy: CacheStrategy,
 }
 
-impl ContentCacheLayer {
+impl CacheLayer {
     /// Create a new metadata cache layer.
-    pub fn new(cache: Operator, strategy: ContentCacheStrategy) -> Self {
+    pub fn new(cache: Operator, strategy: CacheStrategy) -> Self {
         Self {
             cache: cache.inner(),
             strategy,
@@ -80,7 +81,7 @@ impl ContentCacheLayer {
     }
 }
 
-impl Layer for ContentCacheLayer {
+impl Layer for CacheLayer {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
         Arc::new(ContentCacheAccessor {
             inner,
@@ -92,7 +93,7 @@ impl Layer for ContentCacheLayer {
 
 /// The strategy of content cache.
 #[derive(Debug, Clone)]
-pub enum ContentCacheStrategy {
+pub enum CacheStrategy {
     /// Always cache the whole object content.
     Whole,
     /// Cache the object content in parts with fixed size.
@@ -104,7 +105,7 @@ struct ContentCacheAccessor {
     inner: Arc<dyn Accessor>,
     cache: Arc<dyn Accessor>,
 
-    strategy: ContentCacheStrategy,
+    strategy: CacheStrategy,
 }
 
 #[async_trait]
@@ -114,26 +115,63 @@ impl Accessor for ContentCacheAccessor {
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.cache.delete(path, OpDelete::new()).await?;
+        self.cache
+            .delete(&format_meta_cache_path(path), OpDelete::new())
+            .await?;
         self.inner.create(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         match self.strategy {
-            ContentCacheStrategy::Whole => self.new_whole_cache_reader(path, args).await,
-            ContentCacheStrategy::Fixed(step) => {
-                self.new_fixed_cache_reader(path, args, step).await
-            }
+            CacheStrategy::Whole => self.new_whole_cache_reader(path, args).await,
+            CacheStrategy::Fixed(step) => self.new_fixed_cache_reader(path, args, step).await,
         }
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
-        self.cache.delete(path, OpDelete::new()).await?;
+        self.cache
+            .delete(&format_meta_cache_path(path), OpDelete::new())
+            .await?;
         self.inner.write(path, args, r).await
     }
 
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        match self
+            .cache
+            .read(&format_meta_cache_path(path), OpRead::new())
+            .await
+        {
+            Ok((_, mut r)) => {
+                let mut bs = Vec::with_capacity(1024);
+                r.read_to_end(&mut bs).await.map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "read object metadata from cache")
+                        .set_source(err)
+                })?;
+
+                let meta = self.decode_metadata(&bs)?;
+                Ok(RpStat::new(meta))
+            }
+            Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
+                let meta = self.inner.stat(path, args).await?.into_metadata();
+                let bs = self.encode_metadata(&meta)?;
+                self.cache
+                    .write(
+                        path,
+                        OpWrite::new(bs.len() as u64),
+                        Box::new(Cursor::new(bs)),
+                    )
+                    .await?;
+                Ok(RpStat::new(meta))
+            }
+            // We will ignore any other errors happened in cache.
+            Err(_) => self.inner.stat(path, args).await,
+        }
+    }
+
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.cache.delete(path, OpDelete::new()).await?;
+        self.cache
+            .delete(&format_meta_cache_path(path), OpDelete::new())
+            .await?;
         self.inner.delete(path, args).await
     }
 }
@@ -182,6 +220,24 @@ impl ContentCacheAccessor {
         let length = it.size();
         let r = FixedCacheReader::new(self.inner.clone(), self.cache.clone(), path, it);
         Ok((RpRead::new(length), Box::new(r)))
+    }
+
+    fn encode_metadata(&self, meta: &ObjectMetadata) -> Result<Vec<u8>> {
+        bincode::serde::encode_to_vec(meta, bincode::config::standard()).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
+                .with_operation("CacheLayer::encode_metadata")
+                .set_source(err)
+        })
+    }
+
+    fn decode_metadata(&self, bs: &[u8]) -> Result<ObjectMetadata> {
+        let (meta, _) = bincode::serde::decode_from_slice(bs, bincode::config::standard())
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "decode object metadata from cache")
+                    .with_operation("CacheLayer::decode_metadata")
+                    .set_source(err)
+            })?;
+        Ok(meta)
     }
 }
 
@@ -263,8 +319,14 @@ enum FixedCacheState {
     Reading((FixedCacheRangeIterator, (RpRead, BytesReader))),
 }
 
-fn format_cache_path(path: &str, idx: u64) -> String {
-    format!("{path}.cache-{idx}")
+/// Build the path for OpenDAL Content Cache.
+fn format_content_cache_path(path: &str, idx: u64) -> String {
+    format!("{path}.occ_{idx}")
+}
+
+/// Build the path for OpenDAL Metadata Cache.
+fn format_meta_cache_path(path: &str) -> String {
+    format!("{path}.omc")
 }
 
 struct FixedCacheReader {
@@ -307,7 +369,7 @@ impl AsyncRead for FixedCacheReader {
                 match range {
                     None => Poll::Ready(Ok(0)),
                     Some((idx, cache_range, total_range)) => {
-                        let cache_path = format_cache_path(&path, idx);
+                        let cache_path = format_content_cache_path(&path, idx);
                         let fut = async move {
                             match cache
                                 .read(&cache_path, OpRead::new().with_range(cache_range))
@@ -398,9 +460,9 @@ mod tests {
     async fn test_whole_content_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
-        let cache_layer = ContentCacheLayer::new(
+        let cache_layer = CacheLayer::new(
             Arc::new(memory::Builder::default().build()?).into(),
-            ContentCacheStrategy::Whole,
+            CacheStrategy::Whole,
         );
         let cached_op = op.clone().layer(cache_layer);
 
@@ -436,9 +498,9 @@ mod tests {
     async fn test_fixed_content_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
-        let cache_layer = ContentCacheLayer::new(
+        let cache_layer = CacheLayer::new(
             Arc::new(memory::Builder::default().build()?).into(),
-            ContentCacheStrategy::Fixed(5),
+            CacheStrategy::Fixed(5),
         );
         let cached_op = op.clone().layer(cache_layer);
 
@@ -534,5 +596,41 @@ mod tests {
 
             assert_eq!(expected, actual, "{name}")
         }
+    }
+
+    #[tokio::test]
+    async fn test_metadata_cache() -> anyhow::Result<()> {
+        let op = Operator::new(memory::Builder::default().build()?);
+
+        let cache_layer = CacheLayer::new(
+            Arc::new(memory::Builder::default().build()?).into(),
+            CacheStrategy::Fixed(5),
+        );
+        let cached_op = op.clone().layer(cache_layer);
+
+        // Write a new object into op.
+        op.object("test_exist")
+            .write("Hello, World!".as_bytes())
+            .await?;
+        // Stat from cached op.
+        let meta = cached_op.object("test_exist").metadata().await?;
+        assert_eq!(meta.content_length(), 13);
+
+        // Write into cache op.
+        cached_op
+            .object("test_exist")
+            .write("Hello, Xuanwo!".as_bytes())
+            .await?;
+        // op and cached op should have same data.
+        let meta = op.object("test_exist").metadata().await?;
+        assert_eq!(meta.content_length(), 14);
+        let meta = cached_op.object("test_exist").metadata().await?;
+        assert_eq!(meta.content_length(), 14);
+
+        // Stat not exist object.
+        let meta = cached_op.object("test_not_exist").metadata().await;
+        assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+
+        Ok(())
     }
 }

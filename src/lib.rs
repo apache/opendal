@@ -50,10 +50,9 @@
 //! | Layers | Description |
 //! | -------- | ----------- |
 //! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
-//! | [ContentCacheLayer][layers::ContentCacheLayer] | Content cache. |
+//! | [CacheLayer][layers::CacheLayer] | Cache supports. |
 //! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
 //! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
-//! | [MetadataCacheLayer][layers::MetadataCacheLayer] | Metadata cache. |
 //! | [MetricsLayer][layers::MetricsLayer] | Metrics for every operations. |
 //! | [RetryLayer][layers::RetryLayer] | Retry for failed operations. |
 //! | [SubdirLayer][layers::SubdirLayer] | Allow switching directory. |

@@ -23,9 +23,9 @@ use std::task::Poll;
 use async_trait::async_trait;
 use futures::AsyncRead;
 use log::debug;
-use log::error;
+use log::log;
 use log::trace;
-use log::warn;
+use log::Level;
 
 use crate::raw::*;
 use crate::*;
@@ -57,10 +57,44 @@ use crate::*;
 ///
 /// let _ = Operator::from_env(Scheme::Fs)
 ///     .expect("must init")
-///     .layer(LoggingLayer);
+///     .layer(LoggingLayer::default());
 /// ```
 #[derive(Debug, Copy, Clone)]
-pub struct LoggingLayer;
+pub struct LoggingLayer {
+    error_level: Option<Level>,
+    failure_level: Option<Level>,
+}
+
+impl Default for LoggingLayer {
+    fn default() -> Self {
+        Self {
+            error_level: Some(Level::Warn),
+            failure_level: Some(Level::Error),
+        }
+    }
+}
+
+impl LoggingLayer {
+    /// Setting the log level while expected error happened.
+    ///
+    /// For example: accessor returns ObjectNotFound.
+    ///
+    /// `None` means disable the log for error.
+    pub fn with_error_level(mut self, level: Option<Level>) -> Self {
+        self.error_level = level;
+        self
+    }
+
+    /// Setting the log level while unexpected failure happened.
+    ///
+    /// For example: accessor returns Unexpected network error.
+    ///
+    /// `None` means disable the log for failure.
+    pub fn with_failure_level(mut self, level: Option<Level>) -> Self {
+        self.failure_level = level;
+        self
+    }
+}
 
 impl Layer for LoggingLayer {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
@@ -68,6 +102,9 @@ impl Layer for LoggingLayer {
         Arc::new(LoggingAccessor {
             scheme: meta.scheme(),
             inner,
+
+            error_level: self.error_level,
+            failure_level: self.failure_level,
         })
     }
 }
@@ -76,6 +113,31 @@ impl Layer for LoggingLayer {
 struct LoggingAccessor {
     scheme: Scheme,
     inner: Arc<dyn Accessor>,
+
+    error_level: Option<Level>,
+    failure_level: Option<Level>,
+}
+
+static LOGGING_TARGET: &str = "opendal::services";
+
+impl LoggingAccessor {
+    #[inline]
+    fn err_status(&self, err: &Error) -> &'static str {
+        if err.kind() == ErrorKind::Unexpected {
+            "failed"
+        } else {
+            "errored"
+        }
+    }
+
+    #[inline]
+    fn err_level(&self, err: &Error) -> Option<Level> {
+        if err.kind() == ErrorKind::Unexpected {
+            self.failure_level
+        } else {
+            self.error_level
+        }
+    }
 }
 
 #[async_trait]
@@ -86,15 +148,18 @@ impl Accessor for LoggingAccessor {
 
     fn metadata(&self) -> AccessorMetadata {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} -> started",
-            self.scheme, Operation::Metadata
+            self.scheme,
+            Operation::Metadata
         );
         let result = self.inner.metadata();
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} -> finished: {:?}",
-            self.scheme, Operation::Metadata, result
+            self.scheme,
+            Operation::Metadata,
+            result
         );
 
         result
@@ -102,9 +167,11 @@ impl Accessor for LoggingAccessor {
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Create, path
+            self.scheme,
+            Operation::Create,
+            path
         );
 
         self.inner
@@ -112,35 +179,38 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::Create, path
+                    self.scheme,
+                    Operation::Create,
+                    path
                 );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Create, path
-                    );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Create, path
-                    );
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Create,
+                        path,
+                        self.err_status(&err)
+                    )
+                }
                 err
             })
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
-            self.scheme, Operation::Read, path, args.range()
+            self.scheme,
+            Operation::Read,
+            path,
+            args.range()
         );
 
         self.inner
@@ -148,9 +218,11 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|(rp, r)| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} range={} -> got reader",
-                    self.scheme, Operation::Read, path,
+                    self.scheme,
+                    Operation::Read,
+                    path,
                     args.range()
                 );
                 (
@@ -161,33 +233,45 @@ impl Accessor for LoggingAccessor {
                         path,
                         args.range().size(),
                         r,
+                        self.failure_level,
                     )) as BytesReader,
                 )
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} range={} -> failed: {err:?}",
-                        self.scheme, Operation::Read, path, args.range());
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} range={} -> errored: {err:?}",
-                        self.scheme, Operation::Read, path, args.range());
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} range={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Read,
+                        path,
+                        args.range(),
+                        self.err_status(&err)
+                    )
+                }
                 err
             })
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} size={:?} -> started",
-            self.scheme, Operation::Write, path, args.size()
+            self.scheme,
+            Operation::Write,
+            path,
+            args.size()
         );
 
-        let reader = LoggingReader::new(self.scheme, Operation::Write, path, Some(args.size()), r);
+        let reader = LoggingReader::new(
+            self.scheme,
+            Operation::Write,
+            path,
+            Some(args.size()),
+            r,
+            self.failure_level,
+        );
         let r = Box::new(reader) as BytesReader;
 
         self.inner
@@ -195,35 +279,39 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} size={:?} -> written",
-                    self.scheme, Operation::Write, path, args.size()
+                    self.scheme,
+                    Operation::Write,
+                    path,
+                    args.size()
                 );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} size={:?} -> failed: {err:?}",
-                        self.scheme, Operation::Write, path, args.size()
-                    );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} size={:?} -> errored: {err:?}",
-                        self.scheme, Operation::Write, path, args.size()
-                    );
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} size={:?} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Write,
+                        path,
+                        args.size(),
+                        self.err_status(&err)
+                    )
+                }
                 err
             })
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Stat, path
+            self.scheme,
+            Operation::Stat,
+            path
         );
 
         self.inner
@@ -231,35 +319,37 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished: {v:?}",
-                    self.scheme, Operation::Stat, path
+                    self.scheme,
+                    Operation::Stat,
+                    path
                 );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Stat, path
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Stat,
+                        path,
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Stat, path
-                    );
-                };
+                }
                 err
             })
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Delete, path
+            self.scheme,
+            Operation::Delete,
+            path
         );
 
         self.inner
@@ -267,32 +357,37 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::Delete, path);
+                    self.scheme,
+                    Operation::Delete,
+                    path
+                );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Delete, path);
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Delete, path);
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Delete,
+                        path,
+                        self.err_status(&err)
+                    );
+                }
                 err
             })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::List, path
+            self.scheme,
+            Operation::List,
+            path
         );
 
         self.inner
@@ -300,62 +395,65 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|(rp, v)| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> start listing dir",
-                    self.scheme, Operation::List, path
+                    self.scheme,
+                    Operation::List,
+                    path
                 );
-                let streamer = LoggingPager::new(self.scheme, path, v);
+                let streamer =
+                    LoggingPager::new(self.scheme, path, v, self.error_level, self.failure_level);
                 (rp, Box::new(streamer) as ObjectPager)
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::List, path
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::List,
+                        path,
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::List, path
-                    );
-                };
+                }
                 err
             })
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::Presign, path
+            self.scheme,
+            Operation::Presign,
+            path
         );
 
         self.inner
             .presign(path, args)
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished: {v:?}",
-                    self.scheme, Operation::Presign, path
+                    self.scheme,
+                    Operation::Presign,
+                    path
                 );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::Presign, path
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Presign,
+                        path,
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::Presign, path
-                    );
-                };
+                }
                 err
             })
     }
@@ -366,9 +464,11 @@ impl Accessor for LoggingAccessor {
         args: OpCreateMultipart,
     ) -> Result<RpCreateMultipart> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
-            self.scheme, Operation::CreateMultipart, path
+            self.scheme,
+            Operation::CreateMultipart,
+            path
         );
 
         self.inner
@@ -376,23 +476,26 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::CreateMultipart, path);
+                    self.scheme,
+                    Operation::CreateMultipart,
+                    path
+                );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::CreateMultipart, path);
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::CreateMultipart, path);
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::CreateMultipart,
+                        path,
+                        self.err_status(&err)
+                    );
+                }
                 err
             })
     }
@@ -404,7 +507,7 @@ impl Accessor for LoggingAccessor {
         r: BytesReader,
     ) -> Result<RpWriteMultipart> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",
             self.scheme,
             Operation::WriteMultipart,
@@ -414,7 +517,14 @@ impl Accessor for LoggingAccessor {
             args.size()
         );
 
-        let r = LoggingReader::new(self.scheme, Operation::Write, path, Some(args.size()), r);
+        let r = LoggingReader::new(
+            self.scheme,
+            Operation::Write,
+            path,
+            Some(args.size()),
+            r,
+            self.failure_level,
+        );
         let r = Box::new(r);
 
         self.inner
@@ -422,7 +532,7 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> written",
                     self.scheme,
                     Operation::WriteMultipart,
@@ -434,29 +544,20 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> failed: {err:?}",
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                       "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> {}: {err:?}",
                         self.scheme,
                         Operation::WriteMultipart,
                         path,
                         args.upload_id(),
                         args.part_number(),
-                        args.size()
+                        args.size(),
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> errored: {err:?}",
-                        self.scheme,
-                        Operation::WriteMultipart,
-                        path,
-                        args.upload_id(),
-                        args.part_number(),
-                        args.size()
-                    );
-                };
+                }
                 err
             })
     }
@@ -467,7 +568,7 @@ impl Accessor for LoggingAccessor {
         args: OpCompleteMultipart,
     ) -> Result<RpCompleteMultipart> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} upload_id={} -> started",
             self.scheme,
             Operation::CompleteMultipart,
@@ -480,23 +581,28 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} upload_id={} -> finished",
-                    self.scheme, Operation::CompleteMultipart, path, args.upload_id());
+                    self.scheme,
+                    Operation::CompleteMultipart,
+                    path,
+                    args.upload_id()
+                );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} -> failed: {err:?}",
-                        self.scheme, Operation::CompleteMultipart, path, args.upload_id());
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} -> errored: {err:?}",
-                        self.scheme, Operation::CompleteMultipart, path, args.upload_id());
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} upload_id={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::CompleteMultipart,
+                        path,
+                        args.upload_id(),
+                        self.err_status(&err)
+                    );
+                }
                 err
             })
     }
@@ -507,7 +613,7 @@ impl Accessor for LoggingAccessor {
         args: OpAbortMultipart,
     ) -> Result<RpAbortMultipart> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} upload_id={} -> started",
             self.scheme,
             Operation::AbortMultipart,
@@ -520,27 +626,35 @@ impl Accessor for LoggingAccessor {
             .await
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
-                    "service={} operation={} path={} upload_id={} -> finished",self.scheme, Operation::AbortMultipart, path, args.upload_id());
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} upload_id={} -> finished",
+                    self.scheme,
+                    Operation::AbortMultipart,
+                    path,
+                    args.upload_id()
+                );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} -> failed: {err:?}",self.scheme, Operation::AbortMultipart, path, args.upload_id());
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} upload_id={} -> errored: {err:?}",self.scheme, Operation::AbortMultipart, path, args.upload_id());
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} upload_id={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::AbortMultipart,
+                        path,
+                        args.upload_id(),
+                        self.err_status(&err)
+                    );
+                }
                 err
             })
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingCreate,
@@ -551,7 +665,7 @@ impl Accessor for LoggingAccessor {
             .blocking_create(path, args)
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::BlockingCreate,
@@ -560,30 +674,24 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingCreate,
-                        path
+                        path,
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme,
-                        Operation::BlockingCreate,
-                        path
-                    );
-                };
+                }
                 err
             })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
             self.scheme,
             Operation::BlockingRead,
@@ -595,7 +703,7 @@ impl Accessor for LoggingAccessor {
             .blocking_read(path, args.clone())
             .map(|(rp, r)| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} range={} -> got reader",
                     self.scheme,
                     Operation::BlockingRead,
@@ -608,28 +716,30 @@ impl Accessor for LoggingAccessor {
                     path,
                     args.range().size(),
                     r,
+                    self.failure_level,
                 );
                 (rp, Box::new(r) as BlockingBytesReader)
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} range={} -> failed: {err:?}",
-                        self.scheme, Operation::BlockingRead, path, args.range());
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} range={} -> errored: {err:?}",
-                        self.scheme, Operation::BlockingRead, path, args.range());
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} range={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingRead,
+                        path,
+                        args.range(),
+                        self.err_status(&err)
+                    );
+                }
                 err
             })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} size={:?} -> started",
             self.scheme,
             Operation::BlockingWrite,
@@ -643,6 +753,7 @@ impl Accessor for LoggingAccessor {
             path,
             Some(args.size()),
             r,
+            self.failure_level,
         );
         let r = Box::new(reader) as BlockingBytesReader;
 
@@ -650,7 +761,7 @@ impl Accessor for LoggingAccessor {
             .blocking_write(path, args.clone(), r)
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} size={:?} -> written",
                     self.scheme,
                     Operation::BlockingWrite,
@@ -660,32 +771,25 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} size={:?} -> failed: {err:?}",
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} size={:?} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingWrite,
                         path,
-                        args.size()
+                        args.size(),
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} size={:?} -> errored: {err:?}",
-                        self.scheme,
-                        Operation::BlockingWrite,
-                        path,
-                        args.size()
-                    );
-                };
+                }
                 err
             })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingStat,
@@ -696,7 +800,7 @@ impl Accessor for LoggingAccessor {
             .blocking_stat(path, args)
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished: {v:?}",
                     self.scheme,
                     Operation::BlockingStat,
@@ -705,30 +809,24 @@ impl Accessor for LoggingAccessor {
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingStat,
-                        path
+                        path,
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme,
-                        Operation::BlockingStat,
-                        path
-                    );
-                };
+                }
                 err
             })
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingDelete,
@@ -739,30 +837,33 @@ impl Accessor for LoggingAccessor {
             .blocking_delete(path, args)
             .map(|v| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
-                    self.scheme, Operation::BlockingDelete, path);
+                    self.scheme,
+                    Operation::BlockingDelete,
+                    path
+                );
                 v
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
-                        self.scheme, Operation::BlockingDelete, path);
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme, Operation::BlockingDelete, path);
-                };
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingDelete,
+                        path,
+                        self.err_status(&err)
+                    );
+                }
                 err
             })
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingList,
@@ -773,33 +874,33 @@ impl Accessor for LoggingAccessor {
             .blocking_list(path, args)
             .map(|(rp, v)| {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> got dir",
                     self.scheme,
                     Operation::BlockingList,
                     path
                 );
-                let li = BlockingLoggingPager::new(self.scheme, path, v);
+                let li = BlockingLoggingPager::new(
+                    self.scheme,
+                    path,
+                    v,
+                    self.error_level,
+                    self.failure_level,
+                );
                 (rp, Box::new(li) as BlockingObjectPager)
             })
             .map_err(|err| {
-                if err.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {err:?}",
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingList,
-                        path
+                        path,
+                        self.err_status(&err)
                     );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {err:?}",
-                        self.scheme,
-                        Operation::BlockingList,
-                        path
-                    );
-                };
+                }
                 err
             })
     }
@@ -813,6 +914,7 @@ struct LoggingReader {
 
     size: Option<u64>,
     has_read: u64,
+    failure_level: Option<Level>,
 
     inner: BytesReader,
 }
@@ -824,6 +926,7 @@ impl LoggingReader {
         path: &str,
         size: Option<u64>,
         reader: BytesReader,
+        failure_level: Option<Level>,
     ) -> Self {
         Self {
             scheme,
@@ -834,6 +937,7 @@ impl LoggingReader {
             has_read: 0,
 
             inner: reader,
+            failure_level,
         }
     }
 }
@@ -843,18 +947,26 @@ impl Drop for LoggingReader {
         if let Some(size) = self.size {
             if size == self.has_read {
                 debug!(
-                target: "opendal::services",
-                "service={} operation={} path={} has_read={} -> consumed reader fully",
-                self.scheme, self.op, self.path, self.has_read);
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} has_read={} -> consumed reader fully",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read
+                );
 
                 return;
             }
         }
 
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} has_read={} -> dropped reader",
-            self.scheme, self.op, self.path, self.has_read);
+            self.scheme,
+            self.op,
+            self.path,
+            self.has_read
+        );
     }
 }
 
@@ -869,31 +981,41 @@ impl AsyncRead for LoggingReader {
                 Ok(n) => {
                     self.has_read += n as u64;
                     trace!(
-                        target: "opendal::services",
+                        target: LOGGING_TARGET,
                         "service={} operation={} path={} has_read={} -> {}: {}B",
-                        self.scheme, self.op, self.path, self.has_read, self.op, n);
+                        self.scheme,
+                        self.op,
+                        self.path,
+                        self.has_read,
+                        self.op,
+                        n
+                    );
                     Poll::Ready(Ok(n))
                 }
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::Other {
-                        error!(
-                            target: "opendal::services",
-                            "service={} operation={} path={} has_read={} -> failed: {:?}",
-                            self.scheme, self.op, self.path, self.has_read, e);
-                    } else {
-                        warn!(
-                            target: "opendal::services",
-                            "service={} operation={} path={} has_read={} -> errored: {:?}",
-                            self.scheme, self.op, self.path,  self.has_read, e);
+                Err(err) => {
+                    if let Some(lvl) = self.failure_level {
+                        log!(
+                            target: LOGGING_TARGET,
+                            lvl,
+                            "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                            self.scheme,
+                            self.op,
+                            self.path,
+                            self.has_read,
+                        )
                     }
-                    Poll::Ready(Err(e))
+                    Poll::Ready(Err(err))
                 }
             },
             Poll::Pending => {
                 trace!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} has_read={} -> pending",
-                    self.scheme, self.op, self.path, self.has_read);
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read
+                );
                 Poll::Pending
             }
         }
@@ -910,6 +1032,7 @@ struct BlockingLoggingReader {
     has_read: u64,
 
     inner: BlockingBytesReader,
+    failure_level: Option<Level>,
 }
 
 impl BlockingLoggingReader {
@@ -919,6 +1042,7 @@ impl BlockingLoggingReader {
         path: &str,
         size: Option<u64>,
         reader: BlockingBytesReader,
+        failure_level: Option<Level>,
     ) -> Self {
         Self {
             scheme,
@@ -928,6 +1052,7 @@ impl BlockingLoggingReader {
             size,
             has_read: 0,
             inner: reader,
+            failure_level,
         }
     }
 }
@@ -937,18 +1062,26 @@ impl Drop for BlockingLoggingReader {
         if let Some(size) = self.size {
             if size == self.has_read {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} has_read={} -> consumed reader fully",
-                    self.scheme, self.op, self.path, self.has_read);
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read
+                );
 
                 return;
             }
         }
 
         debug!(
-            target: "opendal::services",
+            target: LOGGING_TARGET,
             "service={} operation={} path={} has_read={} -> dropped reader",
-            self.scheme, self.op, self.path, self.has_read);
+            self.scheme,
+            self.op,
+            self.path,
+            self.has_read
+        );
     }
 }
 
@@ -958,24 +1091,30 @@ impl Read for BlockingLoggingReader {
             Ok(n) => {
                 self.has_read += n as u64;
                 trace!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} has_read={} -> {}: {}B",
-                    self.scheme, self.op, self.path, self.has_read, self.op, n);
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read,
+                    self.op,
+                    n
+                );
                 Ok(n)
             }
-            Err(e) => {
-                if e.kind() == io::ErrorKind::Other {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} has_read={} -> failed: {:?}",
-                        self.scheme, self.op, self.path, self.has_read, e);
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} has_read={} -> errored: {:?}",
-                        self.scheme, self.op, self.path,  self.has_read, e);
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                        self.scheme,
+                        self.op,
+                        self.path,
+                        self.has_read,
+                    );
                 }
-                Err(e)
+                Err(err)
             }
         }
     }
@@ -986,15 +1125,25 @@ struct LoggingPager {
     path: String,
     finished: bool,
     inner: ObjectPager,
+    error_level: Option<Level>,
+    failure_level: Option<Level>,
 }
 
 impl LoggingPager {
-    fn new(scheme: Scheme, path: &str, inner: ObjectPager) -> Self {
+    fn new(
+        scheme: Scheme,
+        path: &str,
+        inner: ObjectPager,
+        error_level: Option<Level>,
+        failure_level: Option<Level>,
+    ) -> Self {
         Self {
             scheme,
             path: path.to_string(),
             finished: false,
             inner,
+            error_level,
+            failure_level,
         }
     }
 }
@@ -1003,14 +1152,40 @@ impl Drop for LoggingPager {
     fn drop(&mut self) {
         if self.finished {
             debug!(
-                target: "opendal::services",
+                target: LOGGING_TARGET,
                 "service={} operation={} path={} -> consumed dir fully",
-                self.scheme, Operation::List, self.path);
+                self.scheme,
+                Operation::List,
+                self.path
+            );
         } else {
             debug!(
-                target: "opendal::services",
+                target: LOGGING_TARGET,
                 "service={} operation={} path={} -> dropped dir",
-                self.scheme, Operation::List, self.path);
+                self.scheme,
+                Operation::List,
+                self.path
+            );
+        }
+    }
+}
+
+impl LoggingPager {
+    #[inline]
+    fn err_status(&self, err: &Error) -> &'static str {
+        if err.kind() == ErrorKind::Unexpected {
+            "failed"
+        } else {
+            "errored"
+        }
+    }
+
+    #[inline]
+    fn err_level(&self, err: &Error) -> Option<Level> {
+        if err.kind() == ErrorKind::Unexpected {
+            self.failure_level
+        } else {
+            self.error_level
         }
     }
 }
@@ -1023,7 +1198,7 @@ impl ObjectPage for LoggingPager {
         match &res {
             Ok(Some(des)) => {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> listed {} entries",
                     self.scheme,
                     Operation::List,
@@ -1033,7 +1208,7 @@ impl ObjectPage for LoggingPager {
             }
             Ok(None) => {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::List,
@@ -1041,26 +1216,18 @@ impl ObjectPage for LoggingPager {
                 );
                 self.finished = true;
             }
-            Err(e) => {
-                if e.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {:?}",
+            Err(err) => {
+                if let Some(lvl) = self.err_level(err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::List,
                         self.path,
-                        e
-                    );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {:?}",
-                        self.scheme,
-                        Operation::List,
-                        self.path,
-                        e
-                    );
-                };
+                        self.err_status(err)
+                    )
+                }
             }
         };
 
@@ -1073,15 +1240,25 @@ struct BlockingLoggingPager {
     path: String,
     finished: bool,
     inner: BlockingObjectPager,
+    error_level: Option<Level>,
+    failure_level: Option<Level>,
 }
 
 impl BlockingLoggingPager {
-    fn new(scheme: Scheme, path: &str, inner: BlockingObjectPager) -> Self {
+    fn new(
+        scheme: Scheme,
+        path: &str,
+        inner: BlockingObjectPager,
+        error_level: Option<Level>,
+        failure_level: Option<Level>,
+    ) -> Self {
         Self {
             scheme,
             path: path.to_string(),
             finished: false,
             inner,
+            error_level,
+            failure_level,
         }
     }
 }
@@ -1090,14 +1267,40 @@ impl Drop for BlockingLoggingPager {
     fn drop(&mut self) {
         if self.finished {
             debug!(
-                target: "opendal::services",
+                target: LOGGING_TARGET,
                 "service={} operation={} path={} -> consumed dir fully",
-                self.scheme, Operation::BlockingList, self.path);
+                self.scheme,
+                Operation::BlockingList,
+                self.path
+            );
         } else {
             debug!(
-                target: "opendal::services",
+                target: LOGGING_TARGET,
                 "service={} operation={} path={} -> dropped dir",
-                self.scheme, Operation::BlockingList, self.path);
+                self.scheme,
+                Operation::BlockingList,
+                self.path
+            );
+        }
+    }
+}
+
+impl BlockingLoggingPager {
+    #[inline]
+    fn err_status(&self, err: &Error) -> &'static str {
+        if err.kind() == ErrorKind::Unexpected {
+            "failed"
+        } else {
+            "errored"
+        }
+    }
+
+    #[inline]
+    fn err_level(&self, err: &Error) -> Option<Level> {
+        if err.kind() == ErrorKind::Unexpected {
+            self.failure_level
+        } else {
+            self.error_level
         }
     }
 }
@@ -1109,7 +1312,7 @@ impl BlockingObjectPage for BlockingLoggingPager {
         match &res {
             Ok(Some(des)) => {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> got {} entries",
                     self.scheme,
                     Operation::BlockingList,
@@ -1119,7 +1322,7 @@ impl BlockingObjectPage for BlockingLoggingPager {
             }
             Ok(None) => {
                 debug!(
-                    target: "opendal::services",
+                    target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::BlockingList,
@@ -1127,26 +1330,18 @@ impl BlockingObjectPage for BlockingLoggingPager {
                 );
                 self.finished = true;
             }
-            Err(e) => {
-                if e.kind() == ErrorKind::Unexpected {
-                    error!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> failed: {:?}",
+            Err(err) => {
+                if let Some(lvl) = self.err_level(err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingList,
                         self.path,
-                        e
-                    );
-                } else {
-                    warn!(
-                        target: "opendal::services",
-                        "service={} operation={} path={} -> errored: {:?}",
-                        self.scheme,
-                        Operation::BlockingList,
-                        self.path,
-                        e
-                    );
-                };
+                        self.err_status(err)
+                    )
+                }
             }
         };
 

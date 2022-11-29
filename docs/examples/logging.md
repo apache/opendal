@@ -23,7 +23,7 @@ use opendal::Scheme;
 
 let _ = Operator::from_env(Scheme::Fs)
     .expect("must init")
-    .layer(LoggingLayer);
+    .layer(LoggingLayer::default());
 ```
 
 ## Logging Output

@@ -104,7 +104,7 @@
 //!     // Init a fs operator
 //!     let op = Operator::from_env(Scheme::Fs)?
 //!         // Init with logging layer enabled.
-//!         .layer(LoggingLayer)
+//!         .layer(LoggingLayer::default())
 //!         // Init with retry layer enabled.
 //!         .layer(RetryLayer::new(ExponentialBackoff::default()));
 //!

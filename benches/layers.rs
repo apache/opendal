@@ -55,7 +55,7 @@ fn bench_tracing_layer(c: &mut Criterion) {
     let layered_op = Operator::from_env(Scheme::S3)
         .expect("init operator must succeed")
         .layer(RetryLayer::new(ExponentialBackoff::default()))
-        .layer(LoggingLayer)
+        .layer(LoggingLayer::default())
         .layer(TracingLayer)
         .layer(MetricsLayer);
     TOKIO.block_on(async {

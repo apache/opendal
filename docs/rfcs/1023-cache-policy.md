@@ -94,7 +94,11 @@ None.
 
 # Prior art
 
-None.
+## Lfan
+
+[lfan](https://crates.io/crates/lfan) has implemented this solution in Rust, providing a modular cache.
+
+However, it considers the more generic case and we need to make some modifications to suit the opendal reality.
 
 # Unresolved questions
 

@@ -15,12 +15,17 @@
 use std::cmp::min;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use bytes::Bytes;
 use futures::future::BoxFuture;
+use futures::io;
 use futures::io::Cursor;
-use futures::{io, ready, AsyncRead, AsyncReadExt, FutureExt};
+use futures::ready;
+use futures::AsyncRead;
+use futures::AsyncReadExt;
+use futures::FutureExt;
 
 use super::*;
 use crate::raw::*;

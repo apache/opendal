@@ -290,9 +290,10 @@ impl From<Error> for io::Error {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use anyhow::anyhow;
     use once_cell::sync::Lazy;
+
+    use super::*;
 
     static TEST_ERROR: Lazy<Error> = Lazy::new(|| Error {
         kind: ErrorKind::Unexpected,

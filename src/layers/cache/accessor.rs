@@ -15,12 +15,13 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::*;
-use crate::raw::*;
-use crate::*;
 use async_trait::async_trait;
 use futures::io::Cursor;
 use futures::AsyncReadExt;
+
+use super::*;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Debug, Clone)]
 pub struct CacheAccessor {

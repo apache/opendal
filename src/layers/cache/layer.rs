@@ -71,7 +71,7 @@ use crate::*;
 ///     .expect("must init")
 ///     .layer(CacheLayer::new(
 ///         Operator::from_env(Scheme::Fs).expect("must init"),
-///     ));
+///     ))
 ///     .layer(CacheLayer::new(
 ///         Operator::from_env(Scheme::Memory).expect("must init"),
 ///     ));

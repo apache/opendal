@@ -83,7 +83,7 @@ impl CacheLayer {
 
 impl Layer for CacheLayer {
     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(ContentCacheAccessor {
+        Arc::new(CacheAccessor {
             inner,
             cache: self.cache.clone(),
             strategy: self.strategy.clone(),
@@ -101,7 +101,7 @@ pub enum CacheStrategy {
 }
 
 #[derive(Debug, Clone)]
-struct ContentCacheAccessor {
+struct CacheAccessor {
     inner: Arc<dyn Accessor>,
     cache: Arc<dyn Accessor>,
 
@@ -109,7 +109,7 @@ struct ContentCacheAccessor {
 }
 
 #[async_trait]
-impl Accessor for ContentCacheAccessor {
+impl Accessor for CacheAccessor {
     fn inner(&self) -> Option<Arc<dyn Accessor>> {
         Some(self.inner.clone())
     }
@@ -176,7 +176,7 @@ impl Accessor for ContentCacheAccessor {
     }
 }
 
-impl ContentCacheAccessor {
+impl CacheAccessor {
     /// Create a new whole cache reader.
     async fn new_whole_cache_reader(
         &self,

@@ -21,7 +21,9 @@ mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
 mod cache;
+pub use cache::CacheFillMethod;
 pub use cache::CacheLayer;
+pub use cache::CachePolicy;
 pub use cache::CacheStrategy;
 
 mod immutable_index;

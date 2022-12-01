@@ -18,12 +18,7 @@ pub use layer::CacheLayer;
 mod accessor;
 use accessor::CacheAccessor;
 
-mod reader;
-use reader::new_fixed_cache_reader;
-use reader::new_whole_cache_reader;
-
 mod policy;
 pub use policy::CacheFillMethod;
 pub use policy::CachePolicy;
-pub use policy::CacheReadMethod;
 use policy::DefaultCachePolicy;

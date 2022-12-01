@@ -13,12 +13,17 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use futures::io::Cursor;
-use futures::AsyncReadExt;
+use futures::future::BoxFuture;
+use futures::io;
+use futures::AsyncRead;
+use futures::{ready, FutureExt};
 
+use super::policy::{CacheReadEntry, CacheReadEntryIterator};
 use super::*;
 use crate::raw::*;
 use crate::*;
@@ -51,112 +56,175 @@ impl Accessor for CacheAccessor {
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.cache
-            .delete(&format_meta_cache_path(path), OpDelete::new())
-            .await?;
         self.inner.create(path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
-        let (cache_read, cache_fill_method) = self.policy.on_read(path, &args);
-
-        match cache_read {
-            CacheReadMethod::Skip => self.inner.read(path, args.clone()).await,
-            CacheReadMethod::Whole => {
-                new_whole_cache_reader(
-                    self.inner.clone(),
-                    self.cache.clone(),
-                    path,
-                    args,
-                    cache_fill_method,
-                )
-                .await
-            }
-            CacheReadMethod::Fixed(step) => {
-                new_fixed_cache_reader(
-                    self.inner.clone(),
-                    self.cache.clone(),
-                    path,
-                    args,
-                    step,
-                    cache_fill_method,
-                )
-                .await
-            }
+    async fn read(&self, path: &str, mut args: OpRead) -> Result<(RpRead, BytesReader)> {
+        // Cache read must contain valid size.
+        if args.range().size().is_none() || args.range().offset().is_none() {
+            let rp = self.inner.stat(path, OpStat::default()).await?;
+            let total_size = rp.into_metadata().content_length();
+            let bcr = BytesContentRange::from_bytes_range(total_size, args.range());
+            let br = bcr.to_bytes_range().expect("bytes range must be valid");
+            args = args.with_range(br)
         }
+
+        let (offset, size) = (
+            args.range().offset().expect("offset must be valid"),
+            args.range().size().expect("size must be valid"),
+        );
+
+        let it = self.policy.on_read(path, offset, size).await;
+
+        Ok((
+            RpRead::new(size),
+            Box::new(CacheReader::new(
+                self.inner.clone(),
+                self.cache.clone(),
+                path,
+                it,
+            )) as BytesReader,
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
-        self.cache
-            .delete(&format_meta_cache_path(path), OpDelete::new())
-            .await?;
         self.inner.write(path, args, r).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        match self
-            .cache
-            .read(&format_meta_cache_path(path), OpRead::new())
-            .await
-        {
-            Ok((_, mut r)) => {
-                let mut bs = Vec::with_capacity(1024);
-                r.read_to_end(&mut bs).await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "read object metadata from cache")
-                        .set_source(err)
-                })?;
-
-                let meta = self.decode_metadata(&bs)?;
-                Ok(RpStat::new(meta))
-            }
-            Err(err) if err.kind() == ErrorKind::ObjectNotFound => {
-                let meta = self.inner.stat(path, args).await?.into_metadata();
-                let bs = self.encode_metadata(&meta)?;
-                self.cache
-                    .write(
-                        path,
-                        OpWrite::new(bs.len() as u64),
-                        Box::new(Cursor::new(bs)),
-                    )
-                    .await?;
-                Ok(RpStat::new(meta))
-            }
-            // We will ignore any other errors happened in cache.
-            Err(_) => self.inner.stat(path, args).await,
-        }
+        self.inner.stat(path, args).await
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.cache
-            .delete(&format_meta_cache_path(path), OpDelete::new())
-            .await?;
         self.inner.delete(path, args).await
     }
 }
 
-impl CacheAccessor {
-    fn encode_metadata(&self, meta: &ObjectMetadata) -> Result<Vec<u8>> {
-        bincode::serde::encode_to_vec(meta, bincode::config::standard()).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "encode object metadata into cache")
-                .with_operation("CacheLayer::encode_metadata")
-                .set_source(err)
-        })
-    }
+struct CacheReader {
+    inner: Arc<dyn Accessor>,
+    cache: Arc<dyn Accessor>,
 
-    fn decode_metadata(&self, bs: &[u8]) -> Result<ObjectMetadata> {
-        let (meta, _) = bincode::serde::decode_from_slice(bs, bincode::config::standard())
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "decode object metadata from cache")
-                    .with_operation("CacheLayer::decode_metadata")
-                    .set_source(err)
-            })?;
-        Ok(meta)
+    path: String,
+    it: CacheReadEntryIterator,
+    state: CacheState,
+}
+
+enum CacheState {
+    Idle,
+    Polling(BoxFuture<'static, Result<(RpRead, BytesReader)>>),
+    Reading((RpRead, BytesReader)),
+}
+
+impl CacheReader {
+    fn new(
+        inner: Arc<dyn Accessor>,
+        cache: Arc<dyn Accessor>,
+        path: &str,
+        it: CacheReadEntryIterator,
+    ) -> Self {
+        Self {
+            inner,
+            cache,
+            path: path.to_string(),
+            it,
+            state: CacheState::Idle,
+        }
     }
 }
 
-/// Build the path for OpenDAL Metadata Cache.
-fn format_meta_cache_path(path: &str) -> String {
-    format!("{path}.omc")
+impl AsyncRead for CacheReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
+        let cache = self.cache.clone();
+        let inner = self.inner.clone();
+        let path = self.path.clone();
+
+        match &mut self.state {
+            CacheState::Idle => {
+                let entry = match self.it.next() {
+                    Some(entry) => entry,
+                    None => return Poll::Ready(Ok(0)),
+                };
+
+                let fut = Box::pin(read_cache_entry(inner, cache, path, entry));
+                self.state = CacheState::Polling(fut);
+                self.poll_read(cx, buf)
+            }
+            CacheState::Polling(fut) => {
+                let r = ready!(fut.poll_unpin(cx))?;
+                self.state = CacheState::Reading(r);
+                self.poll_read(cx, buf)
+            }
+            CacheState::Reading((_, r)) => match ready!(Pin::new(r).poll_read(cx, buf)) {
+                Ok(n) if n == 0 => {
+                    self.state = CacheState::Idle;
+                    self.poll_read(cx, buf)
+                }
+                Ok(n) => Poll::Ready(Ok(n)),
+                Err(err) => Poll::Ready(Err(err)),
+            },
+        }
+    }
+}
+
+async fn read_cache_entry(
+    inner: Arc<dyn Accessor>,
+    cache: Arc<dyn Accessor>,
+    path: String,
+    entry: CacheReadEntry,
+) -> Result<(RpRead, BytesReader)> {
+    let ((rp, r), cache_hit) = if entry.read_cache() {
+        match cache.read(entry.cache_path(), entry.cache_read_op()).await {
+            Ok(v) => (v, true),
+            Err(_) => (inner.read(&path, entry.inner_read_op()).await?, false),
+        }
+    } else {
+        (inner.read(&path, entry.inner_read_op()).await?, false)
+    };
+    // If cache is hit, we don't need to fill the cache anymore.
+    if cache_hit {
+        return Ok((rp, r));
+    }
+
+    match entry.fill_method() {
+        CacheFillMethod::Skip => (),
+        CacheFillMethod::Sync => {
+            if let Ok((rp, r)) = inner.read(&path, entry.cache_fill_op()).await {
+                let length = rp.into_metadata().content_length();
+
+                // Ignore error happened during writing cache.
+                let _ = cache
+                    .write(entry.cache_path(), OpWrite::new(length), r)
+                    .await;
+            }
+        }
+        CacheFillMethod::Async => {
+            let path = path.to_string();
+
+            // # Notes
+            //
+            // If a `JoinHandle` is dropped, then the task continues running
+            // in the background and its return value is lost.
+            //
+            // It's safe to just drop the handle here.
+            //
+            // # Todo
+            //
+            // We can support other runtime in the future.
+            let _ = tokio::spawn(async move {
+                let (rp, r) = inner.read(&path, entry.cache_fill_op()).await?;
+                let length = rp.into_metadata().content_length();
+                cache.write(&path, OpWrite::new(length), r).await?;
+
+                Ok::<(), Error>(())
+            });
+        }
+    }
+
+    Ok((rp, r))
 }
 
 #[cfg(test)]

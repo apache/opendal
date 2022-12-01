@@ -13,7 +13,7 @@ version = "0.19.6"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["cargo", "string"] }
-env_logger = "0.9"
+env_logger = "0.10"
 log = "0.4"
 opendal = { version = "0.21", path = "../" }
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }

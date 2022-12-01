@@ -32,7 +32,13 @@ pub trait CachePolicy: Send + Sync + Debug + 'static {
     ///
     /// It's implementor's abailty to make sure the returning entry is
     /// correct.
-    async fn on_read(&self, path: &str, offset: u64, size: u64) -> CacheReadEntryIterator;
+    async fn on_read(
+        &self,
+        path: &str,
+        offset: u64,
+        size: u64,
+        total_size: u64,
+    ) -> CacheReadEntryIterator;
 
     /// The policy for updating cache.
     ///
@@ -54,7 +60,7 @@ pub struct DefaultCachePolicy;
 
 #[async_trait]
 impl CachePolicy for DefaultCachePolicy {
-    async fn on_read(&self, path: &str, offset: u64, size: u64) -> CacheReadEntryIterator {
+    async fn on_read(&self, path: &str, offset: u64, size: u64, _: u64) -> CacheReadEntryIterator {
         let br: BytesRange = (offset..offset + size).into();
 
         Box::new(

@@ -216,6 +216,7 @@ impl From<OpWriteMultipart> for PresignOperation {
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
     br: BytesRange,
+    total_size_hint: Option<u64>,
 }
 
 impl OpRead {
@@ -233,6 +234,18 @@ impl OpRead {
     /// Get range from OpRead.
     pub fn range(&self) -> BytesRange {
         self.br
+    }
+
+    /// Add total size hint for `OpRead` so that our layers can reuse already
+    /// known metadata.
+    pub(crate) fn with_total_size_hint(mut self, total_size_hint: u64) -> Self {
+        self.total_size_hint = Some(total_size_hint);
+        self
+    }
+
+    /// Get totoal size hint from op read.
+    pub(crate) fn total_size_hint(&self) -> Option<u64> {
+        self.total_size_hint
     }
 }
 

@@ -82,21 +82,23 @@ impl Accessor for CacheAccessor {
     }
 
     async fn read(&self, path: &str, mut args: OpRead) -> Result<(RpRead, BytesReader)> {
-        // Cache read must contain valid size.
-        if args.range().size().is_none() || args.range().offset().is_none() {
+        let total_size = if let Some(total_size) = args.total_size_hint() {
+            total_size
+        } else {
             let rp = self.inner.stat(path, OpStat::default()).await?;
-            let total_size = rp.into_metadata().content_length();
-            let bcr = BytesContentRange::from_bytes_range(total_size, args.range());
-            let br = bcr.to_bytes_range().expect("bytes range must be valid");
-            args = args.with_range(br)
-        }
+            rp.into_metadata().content_length()
+        };
+
+        let bcr = BytesContentRange::from_bytes_range(total_size, args.range());
+        let br = bcr.to_bytes_range().expect("bytes range must be valid");
+        args = args.with_range(br);
 
         let (offset, size) = (
             args.range().offset().expect("offset must be valid"),
             args.range().size().expect("size must be valid"),
         );
 
-        let it = self.policy.on_read(path, offset, size).await;
+        let it = self.policy.on_read(path, offset, size, total_size).await;
 
         Ok((
             RpRead::new(size),

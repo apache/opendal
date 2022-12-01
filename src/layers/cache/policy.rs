@@ -91,7 +91,7 @@ impl CachePolicy for DefaultCachePolicy {
 }
 
 /// CacheFillMethod specify the cache fill method while cache missing.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheFillMethod {
     /// Don't fill cache.
     ///
@@ -110,7 +110,7 @@ pub enum CacheFillMethod {
 /// CacheReadEntryIterator is a boxed iterator for [`CacheReadEntry`].
 pub type CacheReadEntryIterator = Box<dyn Iterator<Item = CacheReadEntry> + Send>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// CacheReadEntry indicates the operations that cache layer needs to take.
 pub struct CacheReadEntry {
     /// cache_path is the path that we need to read or fill.
@@ -150,7 +150,7 @@ impl CacheReadEntry {
 /// CacheUpdateEntryIterator is a boxed iterator for [`CacheUpdateEntry`].
 pub type CacheUpdateEntryIterator = Box<dyn Iterator<Item = CacheUpdateEntry> + Send>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// CacheUpdateEntry indicates the operations that cache layer needs to take.
 pub struct CacheUpdateEntry {
     /// cache_path is the path that we need to read or fill.
@@ -165,7 +165,7 @@ pub struct CacheUpdateEntry {
 /// # Notes
 ///
 /// We could add new method in the future.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CacheUpdateMethod {
     /// Don't do anything on cache.
     ///

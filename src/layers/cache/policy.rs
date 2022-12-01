@@ -158,8 +158,13 @@ pub struct CacheUpdateEntry {
 ///
 /// # Notes
 ///
-/// We only support `Delete` now, we could add new method in the future.
+/// We could add new method in the future.
 #[derive(Debug, Clone, Copy)]
 pub enum CacheUpdateMethod {
+    /// Don't do anything on cache.
+    ///
+    /// Level the cache AS-IS until they cleaned by service itself.
+    Skip,
+    /// Delete the cache path.
     Delete,
 }

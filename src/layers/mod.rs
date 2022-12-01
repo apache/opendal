@@ -26,6 +26,8 @@ pub use cache::CacheLayer;
 pub use cache::CachePolicy;
 pub use cache::CacheReadEntry;
 pub use cache::CacheReadEntryIterator;
+pub use cache::CacheUpdateEntry;
+pub use cache::CacheUpdateEntryIterator;
 
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;

@@ -43,7 +43,6 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use opendal::layers::CacheLayer;
-/// use opendal::layers::CacheStrategy;
 /// use opendal::services::memory;
 /// use opendal::Operator;
 /// use opendal::Scheme;
@@ -62,7 +61,6 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use opendal::layers::CacheLayer;
-/// use opendal::layers::CacheStrategy;
 /// use opendal::services::memory;
 /// use opendal::Operator;
 /// use opendal::Scheme;

@@ -240,7 +240,13 @@ async fn read_cache_entry(
             let bs = Bytes::from(bs);
 
             // Ignore error happened during writing cache.
-            let _ = cache.write(&entry.cache_path, OpWrite::new(size), r).await;
+            let _ = cache
+                .write(
+                    &entry.cache_path,
+                    OpWrite::new(size),
+                    Box::new(Cursor::new(bs.clone())),
+                )
+                .await;
 
             // Make sure the reading range has been applied on cache.
             let bs = entry.cache_read_range.apply_on_bytes(bs);

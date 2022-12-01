@@ -395,10 +395,13 @@ impl Object {
 
         let br = BytesRange::from(range);
 
-        let (rp, s) = self
-            .acc
-            .read(self.path(), OpRead::new().with_range(br))
-            .await?;
+        // Add total size hint for OpRead.
+        let mut op = OpRead::new().with_range(br);
+        if let Ok(size) = self.content_length().await {
+            op = op.with_total_size_hint(size);
+        }
+
+        let (rp, s) = self.acc.read(self.path(), op).await?;
 
         let buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
         let mut bs = Cursor::new(buffer);
@@ -547,10 +550,13 @@ impl Object {
             );
         }
 
-        let (rp, r) = self
-            .acc
-            .read(self.path(), OpRead::new().with_range(range.into()))
-            .await?;
+        // Add total size hint for OpRead.
+        let mut op = OpRead::new().with_range(range.into());
+        if let Ok(size) = self.content_length().await {
+            op = op.with_total_size_hint(size);
+        }
+
+        let (rp, r) = self.acc.read(self.path(), op).await?;
 
         Ok(ObjectReader::new(rp.into_metadata(), r))
     }

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use http::StatusCode;
-
 use bytes::Buf;
 use http::Response;
+use http::StatusCode;
 use quick_xml::de;
 use serde::Deserialize;
 

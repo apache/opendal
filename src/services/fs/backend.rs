@@ -25,6 +25,7 @@ use futures::AsyncSeekExt;
 use log::debug;
 use time::OffsetDateTime;
 use tokio::fs;
+use uuid::Uuid;
 
 use super::dir_stream::BlockingDirPager;
 use super::dir_stream::DirPager;
@@ -32,7 +33,6 @@ use super::error::parse_io_error;
 use crate::object::*;
 use crate::raw::*;
 use crate::*;
-use uuid::Uuid;
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]

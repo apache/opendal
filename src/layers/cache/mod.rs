@@ -25,4 +25,5 @@ pub use policy::CacheReadEntry;
 pub use policy::CacheReadEntryIterator;
 pub use policy::CacheUpdateEntry;
 pub use policy::CacheUpdateEntryIterator;
+pub use policy::CacheUpdateMethod;
 use policy::DefaultCachePolicy;

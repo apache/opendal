@@ -27,6 +27,7 @@ use futures::FutureExt;
 
 use super::policy::CacheReadEntry;
 use super::policy::CacheReadEntryIterator;
+use super::policy::CacheUpdateMethod;
 use super::*;
 use crate::raw::*;
 use crate::*;
@@ -50,6 +51,22 @@ impl CacheAccessor {
             policy,
         }
     }
+
+    #[inline]
+    async fn update_cache(&self, path: &str, op: Operation) {
+        let it = self.policy.on_update(path, op).await;
+        for entry in it {
+            match entry.update_method {
+                CacheUpdateMethod::Skip => continue,
+                CacheUpdateMethod::Delete => {
+                    let _ = self
+                        .cache
+                        .delete(&entry.cache_path, OpDelete::default())
+                        .await;
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -59,13 +76,7 @@ impl Accessor for CacheAccessor {
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let it = self.policy.on_update(path, Operation::Create).await;
-        for entry in it {
-            let _ = self
-                .cache
-                .delete(&entry.cache_path, OpDelete::default())
-                .await;
-        }
+        self.update_cache(path, Operation::Create).await;
 
         self.inner.create(path, args).await
     }
@@ -99,13 +110,8 @@ impl Accessor for CacheAccessor {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
-        let it = self.policy.on_update(path, Operation::Create).await;
-        for entry in it {
-            let _ = self
-                .cache
-                .delete(&entry.cache_path, OpDelete::default())
-                .await;
-        }
+        self.update_cache(path, Operation::Write).await;
+
         self.inner.write(path, args, r).await
     }
 
@@ -114,13 +120,8 @@ impl Accessor for CacheAccessor {
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let it = self.policy.on_update(path, Operation::Create).await;
-        for entry in it {
-            let _ = self
-                .cache
-                .delete(&entry.cache_path, OpDelete::default())
-                .await;
-        }
+        self.update_cache(path, Operation::Delete).await;
+
         self.inner.delete(path, args).await
     }
 }

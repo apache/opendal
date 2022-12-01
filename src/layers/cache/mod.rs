@@ -21,4 +21,6 @@ use accessor::CacheAccessor;
 mod policy;
 pub use policy::CacheFillMethod;
 pub use policy::CachePolicy;
+pub use policy::CacheReadEntry;
+pub use policy::CacheReadEntryIterator;
 use policy::DefaultCachePolicy;

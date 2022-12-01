@@ -57,55 +57,34 @@ pub type CacheReadEntryIterator = Box<dyn Iterator<Item = CacheReadEntry> + Send
 /// CacheReadEntry indicates the operations that cache layer needs to take.
 pub struct CacheReadEntry {
     /// cache_path is the path that we need to read or fill.
-    cache_path: String,
+    pub cache_path: String,
 
     /// read_method indicates that do we need to read from cache.
-    read_cache: bool,
+    pub read_cache: bool,
     /// the range to read from cache file if we decide to read cache.
-    cache_read_range: BytesRange,
+    pub cache_read_range: BytesRange,
     /// the range to read from inner file if we decide to skip cache
     /// or cache missed.
-    inner_read_range: BytesRange,
+    pub inner_read_range: BytesRange,
 
     /// fill_method indicates that how we will fill the cache.
-    fill_method: CacheFillMethod,
+    pub fill_method: CacheFillMethod,
     /// the range to read from inner file to fill the cache.
-    cache_fill_range: BytesRange,
+    pub cache_fill_range: BytesRange,
 }
 
 impl CacheReadEntry {
-    pub fn cache_path(&self) -> &str {
-        &self.cache_path
-    }
-
-    pub fn read_cache(&self) -> bool {
-        self.read_cache
-    }
-
-    pub fn cache_read_range(&self) -> BytesRange {
-        self.cache_read_range
-    }
-
+    /// Build an OpRead from cache read range.
     pub fn cache_read_op(&self) -> OpRead {
         OpRead::new().with_range(self.cache_read_range)
     }
 
-    pub fn inner_read_range(&self) -> BytesRange {
-        self.inner_read_range
-    }
-
+    /// Build an OpRead from inner read range.
     pub fn inner_read_op(&self) -> OpRead {
         OpRead::new().with_range(self.inner_read_range)
     }
 
-    pub fn fill_method(&self) -> CacheFillMethod {
-        self.fill_method
-    }
-
-    pub fn cache_fill_range(&self) -> BytesRange {
-        self.cache_fill_range
-    }
-
+    /// Build an OpRead from cache fill range.
     pub fn cache_fill_op(&self) -> OpRead {
         OpRead::new().with_range(self.cache_fill_range)
     }

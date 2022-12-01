@@ -176,8 +176,8 @@ async fn read_cache_entry(
     path: String,
     entry: CacheReadEntry,
 ) -> Result<(RpRead, BytesReader)> {
-    let ((rp, r), cache_hit) = if entry.read_cache() {
-        match cache.read(entry.cache_path(), entry.cache_read_op()).await {
+    let ((rp, r), cache_hit) = if entry.read_cache {
+        match cache.read(&entry.cache_path, entry.cache_read_op()).await {
             Ok(v) => (v, true),
             Err(_) => (inner.read(&path, entry.inner_read_op()).await?, false),
         }
@@ -189,7 +189,7 @@ async fn read_cache_entry(
         return Ok((rp, r));
     }
 
-    match entry.fill_method() {
+    match entry.fill_method {
         CacheFillMethod::Skip => (),
         CacheFillMethod::Sync => {
             if let Ok((rp, r)) = inner.read(&path, entry.cache_fill_op()).await {
@@ -197,7 +197,7 @@ async fn read_cache_entry(
 
                 // Ignore error happened during writing cache.
                 let _ = cache
-                    .write(entry.cache_path(), OpWrite::new(length), r)
+                    .write(&entry.cache_path, OpWrite::new(length), r)
                     .await;
             }
         }

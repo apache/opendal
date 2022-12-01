@@ -15,15 +15,18 @@
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::io;
+use futures::ready;
 use futures::AsyncRead;
-use futures::{ready, FutureExt};
+use futures::FutureExt;
 
-use super::policy::{CacheReadEntry, CacheReadEntryIterator};
+use super::policy::CacheReadEntry;
+use super::policy::CacheReadEntryIterator;
 use super::*;
 use crate::raw::*;
 use crate::*;
@@ -56,6 +59,14 @@ impl Accessor for CacheAccessor {
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let it = self.policy.on_update(path, Operation::Create).await;
+        for entry in it {
+            let _ = self
+                .cache
+                .delete(&entry.cache_path, OpDelete::default())
+                .await;
+        }
+
         self.inner.create(path, args).await
     }
 
@@ -88,6 +99,13 @@ impl Accessor for CacheAccessor {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+        let it = self.policy.on_update(path, Operation::Create).await;
+        for entry in it {
+            let _ = self
+                .cache
+                .delete(&entry.cache_path, OpDelete::default())
+                .await;
+        }
         self.inner.write(path, args, r).await
     }
 
@@ -96,6 +114,13 @@ impl Accessor for CacheAccessor {
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let it = self.policy.on_update(path, Operation::Create).await;
+        for entry in it {
+            let _ = self
+                .cache
+                .delete(&entry.cache_path, OpDelete::default())
+                .await;
+        }
         self.inner.delete(path, args).await
     }
 }
@@ -234,7 +259,7 @@ mod tests {
     use crate::Operator;
 
     #[tokio::test]
-    async fn test_whole_content_cache() -> anyhow::Result<()> {
+    async fn test_default_content_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
         let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into());
@@ -248,90 +273,6 @@ mod tests {
         // Read from cached op.
         let data = cached_op.object("test_exist").read().await?;
         assert_eq!(data.len(), 13);
-
-        // Wait for https://github.com/datafuselabs/opendal/issues/957
-        // // Write into cache op.
-        // cached_op
-        //     .object("test_exist")
-        //     .write("Hello, Xuanwo!".as_bytes())
-        //     .await?;
-        // // op and cached op should have same data.
-        // let data = op.object("test_exist").read().await?;
-        // assert_eq!(data.len(), 14);
-        // let data = cached_op.object("test_exist").read().await?;
-        // assert_eq!(data.len(), 14);
-
-        // Read not exist object.
-        let data = cached_op.object("test_not_exist").read().await;
-        assert_eq!(data.unwrap_err().kind(), ErrorKind::ObjectNotFound);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_fixed_content_cache() -> anyhow::Result<()> {
-        let op = Operator::new(memory::Builder::default().build()?);
-
-        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into());
-        let cached_op = op.clone().layer(cache_layer);
-
-        // Write a new object into op.
-        op.object("test_exist")
-            .write("Hello, World!".as_bytes())
-            .await?;
-
-        // Read from cached op.
-        let data = cached_op.object("test_exist").read().await?;
-        assert_eq!(data.len(), 13);
-
-        // Wait for https://github.com/datafuselabs/opendal/issues/957
-        // Write into cache op.
-        // cached_op
-        //     .object("test_exist")
-        //     .write("Hello, Xuanwo!".as_bytes())
-        //     .await?;
-        // // op and cached op should have same data.
-        // let data = op.object("test_exist").read().await?;
-        // assert_eq!(data.len(), 14);
-        // let data = cached_op.object("test_exist").read().await?;
-        // assert_eq!(data.len(), 14);
-
-        // Read part of data
-        let data = cached_op.object("test_exist").range_read(5..).await?;
-        assert_eq!(data.len(), 8);
-        assert_eq!(data, ", World!".as_bytes());
-
-        // Write a new object into op.
-        op.object("test_new")
-            .write("Hello, OpenDAL!".as_bytes())
-            .await?;
-
-        // Read part of data
-        let data = cached_op.object("test_new").range_read(6..).await?;
-        assert_eq!(data.len(), 9);
-        assert_eq!(data, " OpenDAL!".as_bytes());
-
-        // Read not exist object.
-        let data = cached_op.object("test_not_exist").read().await;
-        assert_eq!(data.unwrap_err().kind(), ErrorKind::ObjectNotFound);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_metadata_cache() -> anyhow::Result<()> {
-        let op = Operator::new(memory::Builder::default().build()?);
-
-        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into());
-        let cached_op = op.clone().layer(cache_layer);
-
-        // Write a new object into op.
-        op.object("test_exist")
-            .write("Hello, World!".as_bytes())
-            .await?;
-        // Stat from cached op.
-        let meta = cached_op.object("test_exist").metadata().await?;
-        assert_eq!(meta.content_length(), 13);
 
         // Write into cache op.
         cached_op
@@ -339,14 +280,14 @@ mod tests {
             .write("Hello, Xuanwo!".as_bytes())
             .await?;
         // op and cached op should have same data.
-        let meta = op.object("test_exist").metadata().await?;
-        assert_eq!(meta.content_length(), 14);
-        let meta = cached_op.object("test_exist").metadata().await?;
-        assert_eq!(meta.content_length(), 14);
+        let data = op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 14);
+        let data = cached_op.object("test_exist").read().await?;
+        assert_eq!(data.len(), 14);
 
-        // Stat not exist object.
-        let meta = cached_op.object("test_not_exist").metadata().await;
-        assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
+        // Read not exist object.
+        let data = cached_op.object("test_not_exist").read().await;
+        assert_eq!(data.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
         Ok(())
     }

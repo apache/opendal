@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use async_trait::async_trait;
 use std::fmt::Debug;
 
-use crate::{raw::*, *};
+use async_trait::async_trait;
+
+use crate::raw::*;
+use crate::*;
 
 /// CachePolicy allows user to specify the policy while caching.
 #[async_trait]
@@ -31,6 +33,55 @@ pub trait CachePolicy: Send + Sync + Debug + 'static {
     /// It's implementor's abailty to make sure the returning entry is
     /// correct.
     async fn on_read(&self, path: &str, offset: u64, size: u64) -> CacheReadEntryIterator;
+
+    /// The policy for updating cache.
+    ///
+    /// `on_update` will return a [`CacheUpdateEntryIterator`] which can
+    /// iterate serval [`CacheUpdateEntry`]. Cache layer will take different
+    /// operations as specified by [`CacheUpdateEntry`].
+    ///
+    /// # Notes
+    ///
+    /// It's implementor's abailty to make sure the returning entry is
+    /// correct.
+    ///
+    /// on_update will be called on `create`, `write` and `delete`.
+    async fn on_update(&self, path: &str, op: Operation) -> CacheUpdateEntryIterator;
+}
+
+#[derive(Debug)]
+pub struct DefaultCachePolicy;
+
+#[async_trait]
+impl CachePolicy for DefaultCachePolicy {
+    async fn on_read(&self, path: &str, offset: u64, size: u64) -> CacheReadEntryIterator {
+        let br: BytesRange = (offset..offset + size).into();
+
+        Box::new(
+            vec![CacheReadEntry {
+                cache_path: path.to_string(),
+
+                read_cache: true,
+                cache_read_range: br,
+                inner_read_range: br,
+
+                fill_method: CacheFillMethod::Async,
+                cache_fill_range: br,
+            }]
+            .into_iter(),
+        )
+    }
+
+    async fn on_update(&self, path: &str, _: Operation) -> CacheUpdateEntryIterator {
+        Box::new(
+            vec![CacheUpdateEntry {
+                cache_path: path.to_string(),
+
+                update_method: CacheUpdateMethod::Delete,
+            }]
+            .into_iter(),
+        )
+    }
 }
 
 /// CacheFillMethod specify the cache fill method while cache missing.
@@ -90,26 +141,25 @@ impl CacheReadEntry {
     }
 }
 
-#[derive(Debug)]
-pub struct DefaultCachePolicy;
+/// CacheUpdateEntryIterator is a boxed iterator for [`CacheUpdateEntry`].
+pub type CacheUpdateEntryIterator = Box<dyn Iterator<Item = CacheUpdateEntry> + Send>;
 
-#[async_trait]
-impl CachePolicy for DefaultCachePolicy {
-    async fn on_read(&self, path: &str, offset: u64, size: u64) -> CacheReadEntryIterator {
-        let br: BytesRange = (offset..offset + size).into();
+#[derive(Debug, Clone)]
+/// CacheUpdateEntry indicates the operations that cache layer needs to take.
+pub struct CacheUpdateEntry {
+    /// cache_path is the path that we need to read or fill.
+    pub cache_path: String,
 
-        Box::new(
-            vec![CacheReadEntry {
-                cache_path: path.to_string(),
+    /// update_method indicates that do we need to update the cache.
+    pub update_method: CacheUpdateMethod,
+}
 
-                read_cache: true,
-                cache_read_range: br,
-                inner_read_range: br,
-
-                fill_method: CacheFillMethod::Async,
-                cache_fill_range: br,
-            }]
-            .into_iter(),
-        )
-    }
+/// CacheUpdateMethod specify the cache update method while inner files changed.
+///
+/// # Notes
+///
+/// We only support `Delete` now, we could add new method in the future.
+#[derive(Debug, Clone, Copy)]
+pub enum CacheUpdateMethod {
+    Delete,
 }

@@ -110,8 +110,15 @@ pub enum CacheFillMethod {
 /// CacheReadEntryIterator is a boxed iterator for [`CacheReadEntry`].
 pub type CacheReadEntryIterator = Box<dyn Iterator<Item = CacheReadEntry> + Send>;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 /// CacheReadEntry indicates the operations that cache layer needs to take.
+///
+/// # TODO
+///
+/// Add debug_assert to make sure:
+///
+/// - cache_read_range.size() == inner_read_range.size()
+/// - cache_fill_range contains inner_read_range ?
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CacheReadEntry {
     /// cache_path is the path that we need to read or fill.
     pub cache_path: String,
@@ -141,9 +148,19 @@ impl CacheReadEntry {
         OpRead::new().with_range(self.inner_read_range)
     }
 
+    /// The size for cache fill.
+    pub fn inner_read_size(&self) -> u64 {
+        self.inner_read_range.size().expect("size must be valid")
+    }
+
     /// Build an OpRead from cache fill range.
     pub fn cache_fill_op(&self) -> OpRead {
         OpRead::new().with_range(self.cache_fill_range)
+    }
+
+    /// The size for cache fill.
+    pub fn cache_fill_size(&self) -> u64 {
+        self.cache_fill_range.size().expect("size must be valid")
     }
 }
 

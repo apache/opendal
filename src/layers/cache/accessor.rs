@@ -19,10 +19,13 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::io;
+use futures::io::Cursor;
 use futures::ready;
 use futures::AsyncRead;
+use futures::AsyncReadExt;
 use futures::FutureExt;
 
 use super::policy::CacheReadEntry;
@@ -204,57 +207,143 @@ async fn read_cache_entry(
     path: String,
     entry: CacheReadEntry,
 ) -> Result<(RpRead, BytesReader)> {
-    let ((rp, r), cache_hit) = if entry.read_cache {
-        match cache.read(&entry.cache_path, entry.cache_read_op()).await {
-            Ok(v) => (v, true),
-            Err(_) => (inner.read(&path, entry.inner_read_op()).await?, false),
+    // If we don't need to fill the cache, we can read with inner_read_cache
+    // directly.
+    if entry.fill_method == CacheFillMethod::Skip {
+        let (rp, r, _) = read_for_load_cache(&inner, &cache, &path, &entry).await?;
+
+        return Ok((rp, r));
+    }
+
+    // If we need to fill cache in sync way, we can fill cache first
+    // and try to load from cache.
+    if entry.fill_method == CacheFillMethod::Sync {
+        let (rp, mut r, cache_hit) = read_for_fill_cache(&inner, &cache, &path, &entry).await?;
+        if cache_hit {
+            return Ok((rp, r));
         }
-    } else {
-        (inner.read(&path, entry.inner_read_op()).await?, false)
-    };
-    // If cache is hit, we don't need to fill the cache anymore.
+
+        let meta = rp.into_metadata();
+        let size = meta.content_length();
+        // if the size is small enough, we can load in memory to avoid
+        // load from cache again. Otherwise, we will fallback to write
+        // in to cache first and than read from cache.
+        //
+        // TODO: make this a config value.
+        if size < 8 * 1024 * 1024 {
+            let mut bs = Vec::with_capacity(size as usize);
+            r.read_to_end(&mut bs).await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "read from underlying storage")
+                    .set_source(err)
+                    .set_temporary()
+            })?;
+            let bs = Bytes::from(bs);
+
+            // Ignore error happened during writing cache.
+            let _ = cache.write(&entry.cache_path, OpWrite::new(size), r).await;
+
+            // Make sure the reading range has been applied on cache.
+            let bs = entry.cache_read_range.apply_on_bytes(bs);
+
+            return Ok((RpRead::new(bs.len() as u64), Box::new(Cursor::new(bs))));
+        } else {
+            // Ignore error happened during writing cache.
+            let _ = cache.write(&entry.cache_path, OpWrite::new(size), r).await;
+
+            let (rp, r, _) = read_for_load_cache(&inner, &cache, &path, &entry).await?;
+
+            return Ok((rp, r));
+        }
+    }
+
+    // If we need to fill cache in async way.
+    let (rp, r, cache_hit) = read_for_load_cache(&inner, &cache, &path, &entry).await?;
     if cache_hit {
         return Ok((rp, r));
     }
 
-    match entry.fill_method {
-        CacheFillMethod::Skip => (),
-        CacheFillMethod::Sync => {
-            if let Ok((rp, r)) = inner.read(&path, entry.cache_fill_op()).await {
-                let length = rp.into_metadata().content_length();
+    // # Notes
+    //
+    // If a `JoinHandle` is dropped, then the task continues running
+    // in the background and its return value is lost.
+    //
+    // It's safe to just drop the handle here.
+    //
+    // # Todo
+    //
+    // We can support other runtime in the future.
+    let moved_inner = inner.clone();
+    let moved_cache = cache.clone();
+    let moved_path = path.clone();
+    let moved_entry = entry.clone();
+    let _ = tokio::spawn(async move {
+        let (rp, r) = moved_inner
+            .read(&moved_path, moved_entry.cache_fill_op())
+            .await?;
+        let length = rp.into_metadata().content_length();
+        moved_cache
+            .write(&moved_entry.cache_path, OpWrite::new(length), r)
+            .await?;
 
-                // Ignore error happened during writing cache.
-                let _ = cache
-                    .write(&entry.cache_path, OpWrite::new(length), r)
-                    .await;
-            }
-        }
-        CacheFillMethod::Async => {
-            // let cache = entry.cache_path.to_string();
-
-            // # Notes
-            //
-            // If a `JoinHandle` is dropped, then the task continues running
-            // in the background and its return value is lost.
-            //
-            // It's safe to just drop the handle here.
-            //
-            // # Todo
-            //
-            // We can support other runtime in the future.
-            let _ = tokio::spawn(async move {
-                let (rp, r) = inner.read(&path, entry.cache_fill_op()).await?;
-                let length = rp.into_metadata().content_length();
-                cache
-                    .write(&entry.cache_path, OpWrite::new(length), r)
-                    .await?;
-
-                Ok::<(), Error>(())
-            });
-        }
-    }
+        Ok::<(), Error>(())
+    });
 
     Ok((rp, r))
+}
+
+/// Read for loading cache.
+///
+/// This function is used to load cache.
+async fn read_for_load_cache(
+    inner: &Arc<dyn Accessor>,
+    cache: &Arc<dyn Accessor>,
+    path: &str,
+    entry: &CacheReadEntry,
+) -> Result<(RpRead, BytesReader, bool)> {
+    if !entry.read_cache {
+        let (rp, r) = inner.read(path, entry.inner_read_op()).await?;
+
+        return Ok((rp, r, false));
+    }
+
+    let res = match cache.read(&entry.cache_path, entry.cache_read_op()).await {
+        Ok((rp, r)) => (rp, r, true),
+        Err(_) => {
+            let (rp, r) = inner.read(path, entry.inner_read_op()).await?;
+            (rp, r, false)
+        }
+    };
+
+    Ok(res)
+}
+
+/// Read for filling cache.
+///
+/// This function is used to read data that can by cached.
+///
+/// - If the cache is exist, we will return the real content.
+/// - If the cache is missing or not read from cache, we will return the data
+///   for filling cache.
+async fn read_for_fill_cache(
+    inner: &Arc<dyn Accessor>,
+    cache: &Arc<dyn Accessor>,
+    path: &str,
+    entry: &CacheReadEntry,
+) -> Result<(RpRead, BytesReader, bool)> {
+    if !entry.read_cache {
+        let (rp, r) = inner.read(path, entry.cache_fill_op()).await?;
+
+        return Ok((rp, r, false));
+    }
+
+    // If cache does exists.
+    if let Ok((rp, r)) = cache.read(&entry.cache_path, entry.cache_read_op()).await {
+        return Ok((rp, r, true));
+    }
+
+    let (rp, r) = inner.read(path, entry.cache_fill_op()).await?;
+
+    Ok((rp, r, false))
 }
 
 #[cfg(test)]

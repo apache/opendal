@@ -34,7 +34,18 @@ pub trait CachePolicy: Send + Sync + Debug + 'static {
     /// `cache_fill_method` indicate the cache filling method after missing.
     ///
     /// The detailed behavior please visit [`CacheFillMethod`].
-    fn on_read(&self, path: &str, args: &OpRead) -> (bool, CacheFillMethod);
+    fn on_read(&self, path: &str, args: &OpRead) -> (CacheReadMethod, CacheFillMethod);
+}
+
+/// CacheReadMethod specify the cache read method before start reading.
+#[derive(Debug, Clone)]
+pub enum CacheReadMethod {
+    /// Don't read from cache
+    Skip,
+    /// Always cache the whole object content.
+    Whole,
+    /// Cache the object content in parts with fixed size.
+    Fixed(u64),
 }
 
 /// CacheFillMethod specify the cache fill method while cache missing.
@@ -43,7 +54,7 @@ pub enum CacheFillMethod {
     /// Don't fill cache.
     ///
     /// Return data from inner directly without fill into the cache.
-    No,
+    Skip,
     /// Fill cache in sync way.
     ///
     /// Write data into cache first and than read from cache.
@@ -58,7 +69,7 @@ pub enum CacheFillMethod {
 pub struct DefaultCachePolicy;
 
 impl CachePolicy for DefaultCachePolicy {
-    fn on_read(&self, _: &str, _: &OpRead) -> (bool, CacheFillMethod) {
-        (true, CacheFillMethod::Sync)
+    fn on_read(&self, _: &str, _: &OpRead) -> (CacheReadMethod, CacheFillMethod) {
+        (CacheReadMethod::Whole, CacheFillMethod::Sync)
     }
 }

@@ -31,31 +31,17 @@ use super::*;
 use crate::raw::*;
 use crate::*;
 
-/// The strategy of content cache.
-#[derive(Debug, Clone)]
-pub enum CacheStrategy {
-    /// Always cache the whole object content.
-    Whole,
-    /// Cache the object content in parts with fixed size.
-    Fixed(u64),
-}
-
 /// Create a new whole cache reader.
 pub async fn new_whole_cache_reader(
     inner: Arc<dyn Accessor>,
     cache: Arc<dyn Accessor>,
     path: &str,
     args: OpRead,
-    cache_read: bool,
     cache_fill: CacheFillMethod,
 ) -> Result<(RpRead, BytesReader)> {
-    let ((rp, r), cache_hit) = if cache_read {
-        match cache.read(path, args.clone()).await {
-            Ok(v) => (v, true),
-            Err(_) => (inner.read(path, args.clone()).await?, false),
-        }
-    } else {
-        (inner.read(path, args.clone()).await?, false)
+    let ((rp, r), cache_hit) = match cache.read(path, args.clone()).await {
+        Ok(v) => (v, true),
+        Err(_) => (inner.read(path, args.clone()).await?, false),
     };
     // If cache is hit, we don't need to fill the cache anymore.
     if cache_hit {
@@ -63,7 +49,7 @@ pub async fn new_whole_cache_reader(
     }
 
     match cache_fill {
-        CacheFillMethod::No => Ok((rp, r)),
+        CacheFillMethod::Skip => Ok((rp, r)),
         CacheFillMethod::Sync => {
             let length = rp.into_metadata().content_length();
 
@@ -106,34 +92,25 @@ pub async fn new_fixed_cache_reader(
     path: &str,
     args: OpRead,
     step: u64,
-    cache_read: bool,
     cache_fill: CacheFillMethod,
 ) -> Result<(RpRead, BytesReader)> {
-    match (cache_read, cache_fill) {
-        (false, _) => {
-            // TODO: Implement cache fill logic in the future.
-            inner.read(path, args.clone()).await
+    let range = args.range();
+    let it = match (range.offset(), range.size()) {
+        (Some(offset), Some(size)) => FixedCacheRangeIterator::new(offset, size, step),
+        _ => {
+            let meta = inner.stat(path, OpStat::new()).await?.into_metadata();
+            let bcr = BytesContentRange::from_bytes_range(meta.content_length(), range);
+            let br = bcr.to_bytes_range().expect("bytes range must be valid");
+            FixedCacheRangeIterator::new(
+                br.offset().expect("offset must be valid"),
+                br.size().expect("size must be valid"),
+                step,
+            )
         }
-        (true, cache_fill) => {
-            let range = args.range();
-            let it = match (range.offset(), range.size()) {
-                (Some(offset), Some(size)) => FixedCacheRangeIterator::new(offset, size, step),
-                _ => {
-                    let meta = inner.stat(path, OpStat::new()).await?.into_metadata();
-                    let bcr = BytesContentRange::from_bytes_range(meta.content_length(), range);
-                    let br = bcr.to_bytes_range().expect("bytes range must be valid");
-                    FixedCacheRangeIterator::new(
-                        br.offset().expect("offset must be valid"),
-                        br.size().expect("size must be valid"),
-                        step,
-                    )
-                }
-            };
-            let length = it.size();
-            let r = FixedCacheReader::new(inner, cache, path, it, cache_fill);
-            Ok((RpRead::new(length), Box::new(r)))
-        }
-    }
+    };
+    let length = it.size();
+    let r = FixedCacheReader::new(inner, cache, path, it, cache_fill);
+    Ok((RpRead::new(length), Box::new(r)))
 }
 
 pub struct FixedCacheReader {
@@ -308,7 +285,7 @@ impl AsyncRead for FixedCacheReader {
                     Some((idx, cache_range, total_range, actual_range)) => {
                         let fut: BoxFuture<'static, Result<(RpRead, BytesReader)>> =
                             match cache_fill {
-                                CacheFillMethod::No => Box::pin(read_cache_without_fill(
+                                CacheFillMethod::Skip => Box::pin(read_cache_without_fill(
                                     inner,
                                     cache,
                                     path,

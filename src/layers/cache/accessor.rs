@@ -27,8 +27,6 @@ use crate::*;
 pub struct CacheAccessor {
     inner: Arc<dyn Accessor>,
     cache: Arc<dyn Accessor>,
-
-    strategy: CacheStrategy,
     policy: Arc<dyn CachePolicy>,
 }
 
@@ -36,13 +34,11 @@ impl CacheAccessor {
     pub fn new(
         inner: Arc<dyn Accessor>,
         cache: Arc<dyn Accessor>,
-        strategy: CacheStrategy,
         policy: Arc<dyn CachePolicy>,
     ) -> Self {
         CacheAccessor {
             inner,
             cache,
-            strategy,
             policy,
         }
     }
@@ -64,26 +60,25 @@ impl Accessor for CacheAccessor {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
         let (cache_read, cache_fill_method) = self.policy.on_read(path, &args);
 
-        match self.strategy {
-            CacheStrategy::Whole => {
+        match cache_read {
+            CacheReadMethod::Skip => self.inner.read(path, args.clone()).await,
+            CacheReadMethod::Whole => {
                 new_whole_cache_reader(
                     self.inner.clone(),
                     self.cache.clone(),
                     path,
                     args,
-                    cache_read,
                     cache_fill_method,
                 )
                 .await
             }
-            CacheStrategy::Fixed(step) => {
+            CacheReadMethod::Fixed(step) => {
                 new_fixed_cache_reader(
                     self.inner.clone(),
                     self.cache.clone(),
                     path,
                     args,
                     step,
-                    cache_read,
                     cache_fill_method,
                 )
                 .await
@@ -174,8 +169,7 @@ mod tests {
     async fn test_whole_content_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
-        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into())
-            .with_strategy(CacheStrategy::Whole);
+        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into());
         let cached_op = op.clone().layer(cache_layer);
 
         // Write a new object into op.
@@ -210,8 +204,7 @@ mod tests {
     async fn test_fixed_content_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
-        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into())
-            .with_strategy(CacheStrategy::Fixed(5));
+        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into());
         let cached_op = op.clone().layer(cache_layer);
 
         // Write a new object into op.
@@ -261,8 +254,7 @@ mod tests {
     async fn test_metadata_cache() -> anyhow::Result<()> {
         let op = Operator::new(memory::Builder::default().build()?);
 
-        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into())
-            .with_strategy(CacheStrategy::Fixed(5));
+        let cache_layer = CacheLayer::new(Arc::new(memory::Builder::default().build()?).into());
         let cached_op = op.clone().layer(cache_layer);
 
         // Write a new object into op.

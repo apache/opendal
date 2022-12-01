@@ -24,7 +24,7 @@ mod cache;
 pub use cache::CacheFillMethod;
 pub use cache::CacheLayer;
 pub use cache::CachePolicy;
-pub use cache::CacheStrategy;
+pub use cache::CacheReadMethod;
 
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;

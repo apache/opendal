@@ -79,7 +79,6 @@ use crate::*;
 #[derive(Debug, Clone)]
 pub struct CacheLayer {
     cache: Arc<dyn Accessor>,
-    strategy: CacheStrategy,
     policy: Arc<dyn CachePolicy>,
 }
 
@@ -88,15 +87,8 @@ impl CacheLayer {
     pub fn new(cache: Operator) -> Self {
         Self {
             cache: cache.inner(),
-            strategy: CacheStrategy::Whole,
             policy: Arc::new(DefaultCachePolicy),
         }
-    }
-
-    /// Update the cache layer's strategy.
-    pub fn with_strategy(mut self, strategy: CacheStrategy) -> Self {
-        self.strategy = strategy;
-        self
     }
 
     /// Update the cache layer's logic.
@@ -111,7 +103,6 @@ impl Layer for CacheLayer {
         Arc::new(CacheAccessor::new(
             inner,
             self.cache.clone(),
-            self.strategy.clone(),
             self.policy.clone(),
         ))
     }

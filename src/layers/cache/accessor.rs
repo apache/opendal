@@ -230,7 +230,7 @@ async fn read_cache_entry(
             }
         }
         CacheFillMethod::Async => {
-            let path = path.to_string();
+            // let cache = entry.cache_path.to_string();
 
             // # Notes
             //
@@ -245,7 +245,9 @@ async fn read_cache_entry(
             let _ = tokio::spawn(async move {
                 let (rp, r) = inner.read(&path, entry.cache_fill_op()).await?;
                 let length = rp.into_metadata().content_length();
-                cache.write(&path, OpWrite::new(length), r).await?;
+                cache
+                    .write(&entry.cache_path, OpWrite::new(length), r)
+                    .await?;
 
                 Ok::<(), Error>(())
             });

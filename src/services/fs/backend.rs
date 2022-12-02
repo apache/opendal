@@ -262,6 +262,7 @@ impl Accessor for Backend {
 
             fs::OpenOptions::new()
                 .create(true)
+                .truncate(true)
                 .write(true)
                 .open(&p)
                 .await
@@ -336,6 +337,7 @@ impl Accessor for Backend {
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
             let f = fs::OpenOptions::new()
                 .create(true)
+                .truncate(true)
                 .write(true)
                 .open(&temp_path)
                 .await
@@ -356,6 +358,7 @@ impl Accessor for Backend {
 
             let f = fs::OpenOptions::new()
                 .create(true)
+                .truncate(true)
                 .write(true)
                 .open(&p)
                 .await

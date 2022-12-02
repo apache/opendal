@@ -258,7 +258,10 @@ impl Accessor for Backend {
             .set_root(&self.root)
             .set_name(&self.bucket)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::List
+                    | AccessorCapability::Presign,
             );
         am
     }
@@ -350,6 +353,35 @@ impl Accessor for Backend {
             RpList::default(),
             Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
         ))
+    }
+
+    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        // We will not send this request out, just for signing.
+        let mut req = match args.operation() {
+            PresignOperation::Read(v) => self.oss_get_object_request(path, v.range())?,
+            PresignOperation::Write(_) => {
+                self.oss_put_object_request(path, None, None, AsyncBody::Empty)?
+            }
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "oss doesn't support multipart now",
+                ))
+            }
+        };
+
+        self.signer
+            .sign_query(&mut req, args.expire())
+            .map_err(new_request_sign_error)?;
+
+        // We don't need this request anymore, consume it directly.
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 }
 

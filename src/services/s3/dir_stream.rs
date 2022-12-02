@@ -60,7 +60,10 @@ impl ObjectPage for DirStream {
             return Ok(None);
         }
 
-        let resp = self.backend.list_objects(&self.path, &self.token).await?;
+        let resp = self
+            .backend
+            .s3_list_objects(&self.path, &self.token)
+            .await?;
 
         if resp.status() != http::StatusCode::OK {
             return Err(parse_error(resp).await?);

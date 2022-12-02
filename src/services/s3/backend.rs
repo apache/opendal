@@ -786,7 +786,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.put_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req = self.s3_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -804,7 +804,7 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
-        let resp = self.get_object(path, args.range()).await?;
+        let resp = self.s3_get_object(path, args.range()).await?;
 
         let status = resp.status();
 
@@ -818,7 +818,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
-        let mut req = self.put_object_request(
+        let mut req = self.s3_put_object_request(
             path,
             Some(args.size()),
             args.content_type(),
@@ -846,7 +846,7 @@ impl Accessor for Backend {
             return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         }
 
-        let resp = self.head_object(path).await?;
+        let resp = self.s3_head_object(path).await?;
 
         let status = resp.status();
 
@@ -860,7 +860,7 @@ impl Accessor for Backend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.delete_object(path).await?;
+        let resp = self.s3_delete_object(path).await?;
 
         let status = resp.status();
 
@@ -880,9 +880,9 @@ impl Accessor for Backend {
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Read(v) => self.get_object_request(path, v.range())?,
+            PresignOperation::Read(v) => self.s3_get_object_request(path, v.range())?,
             PresignOperation::Write(_) => {
-                self.put_object_request(path, None, None, AsyncBody::Empty)?
+                self.s3_put_object_request(path, None, None, AsyncBody::Empty)?
             }
             PresignOperation::WriteMultipart(v) => self.s3_upload_part_request(
                 path,
@@ -1012,7 +1012,7 @@ impl Accessor for Backend {
 }
 
 impl Backend {
-    fn get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
+    fn s3_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1034,19 +1034,19 @@ impl Backend {
         Ok(req)
     }
 
-    async fn get_object(
+    async fn s3_get_object(
         &self,
         path: &str,
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.get_object_request(path, range)?;
+        let mut req = self.s3_get_object_request(path, range)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
         self.client.send_async(req).await
     }
 
-    fn put_object_request(
+    fn s3_put_object_request(
         &self,
         path: &str,
         size: Option<u64>,
@@ -1076,7 +1076,7 @@ impl Backend {
         Ok(req)
     }
 
-    async fn head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn s3_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1095,7 +1095,7 @@ impl Backend {
         self.client.send_async(req).await
     }
 
-    async fn delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn s3_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -1111,7 +1111,7 @@ impl Backend {
 
     /// Make this functions as `pub(suber)` because `DirStream` depends
     /// on this.
-    pub(super) async fn list_objects(
+    pub(super) async fn s3_list_objects(
         &self,
         path: &str,
         continuation_token: &str,

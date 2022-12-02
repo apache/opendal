@@ -126,9 +126,9 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-# Make sure we are using the latest pathc of reqsign.
+# Make sure we are using the latest patch of reqsign.
 # Should be removed after reqsign bumped to 0.7
-reqsign = "0.6.6"
+reqsign = "0.6.7"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",

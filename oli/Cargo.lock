@@ -795,7 +795,7 @@ checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 
 [[package]]
 name = "opendal"
-version = "0.21.0"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "async-compat",
@@ -818,10 +818,10 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
- "thiserror",
  "time",
  "tokio",
  "ureq",
+ "uuid",
 ]
 
 [[package]]
@@ -1055,9 +1055,9 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 
 [[package]]
 name = "reqsign"
-version = "0.6.6"
+version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d34ea360414ee77ddab3a8360a0c241fc77ab5e27892dcde1d2cfcc29d4e0f55"
+checksum = "2d544686c7cb5a31f085ae9f5c4e40a30dcba72d0b1d77656329dc4f90433cd6"
 dependencies = [
  "anyhow",
  "backon",
@@ -1600,6 +1600,16 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+]
+
+[[package]]
+name = "uuid"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "422ee0de9031b5b948b97a8fc04e3aa35230001a722ddd27943e0be31564ce4c"
+dependencies = [
+ "getrandom",
+ "serde",
 ]
 
 [[package]]

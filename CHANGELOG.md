@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.22.0] - 2022-12-05
+
+### Added
+
+- feat: improve temp file organization when enable atomic write in fs (#1017)
+- feat: Allow configure LoggingLayer's level (#1021)
+- feat: Enable users to specify the cache policy (#1024)
+- feat: Implement presign for oss (#1035)
+
+### Changed
+
+- refactor: Polish error handling of different services (#1018)
+- refactor: Merge metadata and content cache together (#1020)
+- refactor(layer/cache): Allow users implement cache by themselves (#1040)
+
+### Fixed
+
+- fix(services/fs): Make sure writing file is truncated (#1036)
+
 ## [v0.21.2] - 2022-11-27
 
 ### Added
@@ -1034,6 +1053,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.22.0]: https://github.com/datafuselabs/opendal/compare/v0.21.2...v0.22.0
 [v0.21.2]: https://github.com/datafuselabs/opendal/compare/v0.21.1...v0.21.2
 [v0.21.1]: https://github.com/datafuselabs/opendal/compare/v0.21.0...v0.21.1
 [v0.21.0]: https://github.com/datafuselabs/opendal/compare/v0.20.1...v0.21.0

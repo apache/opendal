@@ -238,13 +238,13 @@ impl OpRead {
 
     /// Add total size hint for `OpRead` so that our layers can reuse already
     /// known metadata.
-    pub(crate) fn with_total_size_hint(mut self, total_size_hint: u64) -> Self {
+    pub fn with_total_size_hint(mut self, total_size_hint: u64) -> Self {
         self.total_size_hint = Some(total_size_hint);
         self
     }
 
     /// Get totoal size hint from op read.
-    pub(crate) fn total_size_hint(&self) -> Option<u64> {
+    pub fn total_size_hint(&self) -> Option<u64> {
         self.total_size_hint
     }
 }

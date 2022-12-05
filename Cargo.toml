@@ -128,7 +128,7 @@ redis = { version = "0.22", features = [
 ], optional = true }
 # Make sure we are using the latest patch of reqsign.
 # Should be removed after reqsign bumped to 0.7
-reqsign = "0.6.7"
+reqsign = "0.6.9"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",

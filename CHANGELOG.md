@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.22.1] - 2022-12-05
+
+### Fixed
+
+- fix(services/s3): Allow disable loading from imds_v2 and assume_role (#1044)
+
 ## [v0.22.0] - 2022-12-05
 
 ### Added
@@ -1053,6 +1059,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.22.1]: https://github.com/datafuselabs/opendal/compare/v0.22.0...v0.22.1
 [v0.22.0]: https://github.com/datafuselabs/opendal/compare/v0.21.2...v0.22.0
 [v0.21.2]: https://github.com/datafuselabs/opendal/compare/v0.21.1...v0.21.2
 [v0.21.1]: https://github.com/datafuselabs/opendal/compare/v0.21.0...v0.21.1

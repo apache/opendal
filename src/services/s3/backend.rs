@@ -658,6 +658,8 @@ impl Builder {
         if self.disable_credential_loader {
             signer_builder.disable_load_from_env();
             signer_builder.disable_load_from_profile();
+            signer_builder.disable_load_from_imds_v2();
+            signer_builder.disable_load_from_assume_role();
             signer_builder.disable_load_from_assume_role_with_web_identity();
         }
 

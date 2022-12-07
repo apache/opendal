@@ -133,14 +133,10 @@ pub async fn test_presign_head(op: Operator) -> Result<()> {
         req = req.header(k, v);
     }
     let resp = req.send().await.expect("send request must succeed");
+    assert_eq!(resp.status(), http::StatusCode::OK, "status ok",);
 
-    let bs = resp.bytes().await.expect("read response must succeed");
-    assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(resp.content_length(), Some(size as u64), "content length",);
+
     op.object(&path)
         .delete()
         .await

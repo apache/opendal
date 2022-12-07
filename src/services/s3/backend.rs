@@ -882,7 +882,7 @@ impl Accessor for Backend {
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Head(_) => self.s3_head_object_request(path)?,
+            PresignOperation::Stat(_) => self.s3_head_object_request(path)?,
             PresignOperation::Read(v) => self.s3_get_object_request(path, v.range())?,
             PresignOperation::Write(_) => {
                 self.s3_put_object_request(path, None, None, AsyncBody::Empty)?

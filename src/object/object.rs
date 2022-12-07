@@ -25,7 +25,6 @@ use time::OffsetDateTime;
 
 use super::BlockingObjectLister;
 use super::ObjectLister;
-use crate::ops::OpHead;
 use crate::raw::*;
 use crate::*;
 
@@ -1476,7 +1475,7 @@ impl Object {
             },
         }
     }
-    /// Presign an operation for read.
+    /// Presign an operation for stat(head).
     ///
     /// # Example
     ///
@@ -1491,7 +1490,7 @@ impl Object {
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
     /// #    let op = Operator::from_env(Scheme::Memory)?;
-    ///     let signed_req = op.object("test").presign_head(Duration::hours(1))?;
+    ///     let signed_req = op.object("test").presign_stat(Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
@@ -1500,8 +1499,8 @@ impl Object {
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn presign_head(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpHead::new(), expire);
+    pub fn presign_stat(&self, expire: Duration) -> Result<PresignedRequest> {
+        let op = OpPresign::new(OpStat::new(), expire);
 
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())

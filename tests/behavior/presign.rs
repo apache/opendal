@@ -68,7 +68,7 @@ macro_rules! behavior_presign_tests {
 
                 test_presign_write,
                 test_presign_read,
-                test_presign_head,
+                test_presign_stat,
             );
         )*
     };
@@ -114,7 +114,7 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     Ok(())
 }
 
-pub async fn test_presign_head(op: Operator) -> Result<()> {
+pub async fn test_presign_stat(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
@@ -134,8 +134,16 @@ pub async fn test_presign_head(op: Operator) -> Result<()> {
     }
     let resp = req.send().await.expect("send request must succeed");
     assert_eq!(resp.status(), http::StatusCode::OK, "status ok",);
-
-    assert_eq!(resp.content_length(), Some(size as u64), "content length",);
+    // response headers default content_length method cannot get the correct value
+    let content_length = resp
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .expect("content length must exist")
+        .to_str()
+        .expect("content length must be valid str")
+        .parse::<u64>()
+        .expect("content length must be valid u64");
+    assert_eq!(content_length, size as u64);
 
     op.object(&path)
         .delete()

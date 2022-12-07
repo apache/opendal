@@ -1475,6 +1475,36 @@ impl Object {
             },
         }
     }
+    /// Presign an operation for stat(head).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::services::memory;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    /// # use opendal::Scheme;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    /// #    let op = Operator::from_env(Scheme::Memory)?;
+    ///     let signed_req = op.object("test").presign_stat(Duration::hours(1))?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn presign_stat(&self, expire: Duration) -> Result<PresignedRequest> {
+        let op = OpPresign::new(OpStat::new(), expire);
+
+        let rp = self.acc.presign(self.path(), op)?;
+        Ok(rp.into_presigned_request())
+    }
 
     /// Presign an operation for read.
     ///

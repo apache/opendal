@@ -186,12 +186,20 @@ impl OpPresign {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum PresignOperation {
+    /// Presign a stat(head) operation.
+    Stat(OpStat),
     /// Presign a read operation.
     Read(OpRead),
     /// Presign a write operation.
     Write(OpWrite),
     /// Presign a write multipart operation.
     WriteMultipart(OpWriteMultipart),
+}
+
+impl From<OpStat> for PresignOperation {
+    fn from(op: OpStat) -> Self {
+        Self::Stat(op)
+    }
 }
 
 impl From<OpRead> for PresignOperation {

@@ -68,6 +68,7 @@ macro_rules! behavior_presign_tests {
 
                 test_presign_write,
                 test_presign_read,
+                test_presign_stat,
             );
         )*
     };
@@ -105,6 +106,44 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
         .await
         .expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+pub async fn test_presign_stat(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
+    let signed_req = op.object(&path).presign_stat(Duration::hours(1))?;
+    debug!("Generated request: {signed_req:?}");
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+    let resp = req.send().await.expect("send request must succeed");
+    assert_eq!(resp.status(), http::StatusCode::OK, "status ok",);
+    // response headers default content_length method cannot get the correct value
+    let content_length = resp
+        .headers()
+        .get(header::CONTENT_LENGTH)
+        .expect("content length must exist")
+        .to_str()
+        .expect("content length must be valid str")
+        .parse::<u64>()
+        .expect("content length must be valid u64");
+    assert_eq!(content_length, size as u64);
 
     op.object(&path)
         .delete()

@@ -1024,7 +1024,9 @@ impl Backend {
 
         req = self.insert_sse_headers(req, false);
 
-        let req = req.body(AsyncBody::Empty).map_err(new_request_build_error)?;
+        let req = req
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
         Ok(req)
     }

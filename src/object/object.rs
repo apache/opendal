@@ -25,9 +25,9 @@ use time::OffsetDateTime;
 
 use super::BlockingObjectLister;
 use super::ObjectLister;
+use crate::ops::OpHead;
 use crate::raw::*;
 use crate::*;
-use crate::ops::OpHead;
 
 /// Object is the handler for all object related operations.
 ///

@@ -17,7 +17,7 @@ use std::str::FromStr;
 use anyhow::Result;
 use http::header;
 use log::debug;
-use opendal::Operator;
+use opendal::{raw, Operator};
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
@@ -134,15 +134,10 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
     }
     let resp = req.send().await.expect("send request must succeed");
     assert_eq!(resp.status(), http::StatusCode::OK, "status ok",);
-    // response headers default content_length method cannot get the correct value
-    let content_length = resp
-        .headers()
-        .get(header::CONTENT_LENGTH)
-        .expect("content length must exist")
-        .to_str()
-        .expect("content length must be valid str")
-        .parse::<u64>()
-        .expect("content length must be valid u64");
+
+    let content_length = raw::parse_content_length(resp.headers())
+        .expect("no content length")
+        .expect("content length must be present");
     assert_eq!(content_length, size as u64);
 
     op.object(&path)

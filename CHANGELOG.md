@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.22.2] - 2022-12-07
+
+### Added
+
+- feat(presign): support presign head method for s3 and oss (#1049)
+
 ## [v0.22.1] - 2022-12-05
 
 ### Fixed
@@ -1059,6 +1065,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.22.2]: https://github.com/datafuselabs/opendal/compare/v0.22.1...v0.22.2
 [v0.22.1]: https://github.com/datafuselabs/opendal/compare/v0.22.0...v0.22.1
 [v0.22.0]: https://github.com/datafuselabs/opendal/compare/v0.21.2...v0.22.0
 [v0.21.2]: https://github.com/datafuselabs/opendal/compare/v0.21.1...v0.21.2

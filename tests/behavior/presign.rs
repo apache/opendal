@@ -122,7 +122,7 @@ pub async fn test_presign_head(op: Operator) -> Result<()> {
         .write(content.clone())
         .await
         .expect("write must succeed");
-    let signed_req = op.object(&path).presign_head(Duration::hours(1))?;
+    let signed_req = op.object(&path).presign_stat(Duration::hours(1))?;
     debug!("Generated request: {signed_req:?}");
     let client = reqwest::Client::new();
     let mut req = client.request(

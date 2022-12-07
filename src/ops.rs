@@ -186,12 +186,20 @@ impl OpPresign {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum PresignOperation {
+    /// Presign a head operation.
+    Head(OpHead),
     /// Presign a read operation.
     Read(OpRead),
     /// Presign a write operation.
     Write(OpWrite),
     /// Presign a write multipart operation.
     WriteMultipart(OpWriteMultipart),
+}
+
+impl From<OpHead> for PresignOperation {
+    fn from(op: OpHead) -> Self {
+        Self::Head(op)
+    }
 }
 
 impl From<OpRead> for PresignOperation {
@@ -209,6 +217,16 @@ impl From<OpWrite> for PresignOperation {
 impl From<OpWriteMultipart> for PresignOperation {
     fn from(v: OpWriteMultipart) -> Self {
         Self::WriteMultipart(v)
+    }
+}
+
+/// Args for `head` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpHead {}
+
+impl OpHead {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

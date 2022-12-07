@@ -68,6 +68,7 @@ macro_rules! behavior_presign_tests {
 
                 test_presign_write,
                 test_presign_read,
+                test_presign_head,
             );
         )*
     };
@@ -106,6 +107,40 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
         .expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+pub async fn test_presign_head(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
+    let signed_req = op.object(&path).presign_head(Duration::hours(1))?;
+    debug!("Generated request: {signed_req:?}");
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+    let resp = req.send().await.expect("send request must succeed");
+
+    let bs = resp.bytes().await.expect("read response must succeed");
+    assert_eq!(size, bs.len(), "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content)),
+        "read content"
+    );
     op.object(&path)
         .delete()
         .await

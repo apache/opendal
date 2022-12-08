@@ -72,30 +72,7 @@ impl Default for Operation {
 
 impl Display for Operation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Operation::Metadata => write!(f, "metadata"),
-
-            Operation::Create => write!(f, "create"),
-            Operation::Read => write!(f, "read"),
-            Operation::Write => write!(f, "write"),
-            Operation::Stat => write!(f, "stat"),
-            Operation::Delete => write!(f, "delete"),
-            Operation::List => write!(f, "list"),
-
-            Operation::Presign => write!(f, "presign"),
-
-            Operation::CreateMultipart => write!(f, "create_multipart"),
-            Operation::WriteMultipart => write!(f, "write_multipart"),
-            Operation::CompleteMultipart => write!(f, "complete_multipart"),
-            Operation::AbortMultipart => write!(f, "abort_multipart"),
-
-            Operation::BlockingCreate => write!(f, "blocking_create"),
-            Operation::BlockingRead => write!(f, "blocking_read"),
-            Operation::BlockingWrite => write!(f, "blocking_write"),
-            Operation::BlockingStat => write!(f, "blocking_stat"),
-            Operation::BlockingDelete => write!(f, "blocking_delete"),
-            Operation::BlockingList => write!(f, "blocking_list"),
-        }
+        write!(f, "{}", self.into_static())
     }
 }
 

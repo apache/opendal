@@ -67,16 +67,29 @@ pub enum ErrorKind {
     ObjectNotADirectory,
 }
 
+impl ErrorKind {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+}
+
 impl Display for ErrorKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            ErrorKind::Unexpected => write!(f, "Unexpected"),
-            ErrorKind::Unsupported => write!(f, "Unsupported"),
-            ErrorKind::BackendConfigInvalid => write!(f, "BackendConfigInvalid"),
-            ErrorKind::ObjectNotFound => write!(f, "ObjectNotFound"),
-            ErrorKind::ObjectPermissionDenied => write!(f, "ObjectPermissionDenied"),
-            ErrorKind::ObjectIsADirectory => write!(f, "ObjectIsADirectory"),
-            ErrorKind::ObjectNotADirectory => write!(f, "ObjectNotADirectory"),
+        write!(f, "{}", self.into_static())
+    }
+}
+
+impl From<ErrorKind> for &'static str {
+    fn from(v: ErrorKind) -> &'static str {
+        match v {
+            ErrorKind::Unexpected => "Unexpected",
+            ErrorKind::Unsupported => "Unsupported",
+            ErrorKind::BackendConfigInvalid => "BackendConfigInvalid",
+            ErrorKind::ObjectNotFound => "ObjectNotFound",
+            ErrorKind::ObjectPermissionDenied => "ObjectPermissionDenied",
+            ErrorKind::ObjectIsADirectory => "ObjectIsADirectory",
+            ErrorKind::ObjectNotADirectory => "ObjectNotADirectory",
         }
     }
 }

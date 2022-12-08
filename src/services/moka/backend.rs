@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -171,9 +172,18 @@ impl Builder {
 /// Backend is used to serve `Accessor` support in moka.
 pub type Backend = kv::Backend<Adapter>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Adapter {
     inner: SegmentedCache<String, Vec<u8>>,
+}
+
+impl Debug for Adapter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Adapter")
+            .field("size", &self.inner.weighted_size())
+            .field("count", &self.inner.entry_count())
+            .finish()
+    }
 }
 
 #[async_trait]

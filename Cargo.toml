@@ -10,6 +10,8 @@ license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
 version = "0.22.2"
+# MSRV of OpenDAL. Please update this field while bump.
+rust-version = "1.60"
 
 [package.metadata.docs.rs]
 all-features = true

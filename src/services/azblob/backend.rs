@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -66,24 +67,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "container" => builder.container(v),
-                "endpoint" => builder.endpoint(v),
-                "account_name" => builder.account_name(v),
-                "account_key" => builder.account_key(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -139,6 +122,93 @@ impl Builder {
         }
 
         self
+    }
+
+    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
+        let mut builder = Builder::default();
+
+        for (k, v) in it {
+            let v = v.as_str();
+            match k.as_ref() {
+                "root" => builder.root(v),
+                "container" => builder.container(v),
+                "endpoint" => builder.endpoint(v),
+                "account_name" => builder.account_name(v),
+                "account_key" => builder.account_key(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
+
+    /// from_connection_string will make a builder from connection string
+    ///
+    /// connection string looks like:
+    ///
+    /// ```txt
+    /// DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;
+    /// AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;
+    /// BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+    /// QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;
+    /// TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+    /// ```
+    ///
+    /// Or
+    ///
+    /// ```txt
+    /// DefaultEndpointsProtocol=https;
+    /// AccountName=storagesample;
+    /// AccountKey=<account-key>;
+    /// EndpointSuffix=core.chinacloudapi.cn;
+    /// ```
+    ///
+    /// For reference: [Configure Azure Storage connection strings](https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string)
+    ///
+    /// # Note
+    ///
+    /// connection string only configures the endpoint, account name and account key.
+    /// User still needs to configure bucket names.
+    pub fn from_connection_string(conn: &str) -> Result<Self> {
+        let conn = conn.trim().replace('\n', "");
+
+        let mut conn_map: HashMap<_, _> = HashMap::default();
+        for v in conn.split(';') {
+            let entry: Vec<_> = v.splitn(2, '=').collect();
+            if entry.len() != 2 {
+                // Ignore invalid entries.
+                continue;
+            }
+            conn_map.insert(entry[0], entry[1]);
+        }
+
+        let mut builder = Builder::default();
+
+        let account_name = conn_map.get("AccountName").ok_or_else(|| {
+            Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "connection string must have AccountName",
+            )
+            .with_operation("Builder::from_connection_string")
+        })?;
+        builder.account_name(account_name);
+        let account_key = conn_map.get("AccountKey").ok_or_else(|| {
+            Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "connection string must have AccountKey",
+            )
+            .with_operation("Builder::from_connection_string")
+        })?;
+        builder.account_key(account_key);
+
+        if let Some(v) = conn_map.get("BlobEndpoint") {
+            builder.endpoint(v);
+        } else if let Some(v) = conn_map.get("EndpointSuffix") {
+            let protocol = conn_map.get("DefaultEndpointsProtocol").unwrap_or(&"https");
+            builder.endpoint(&format!("{protocol}://{account_name}.blob.{v}"));
+        }
+
+        Ok(builder)
     }
 
     /// Consume builder to build an azblob backend.
@@ -460,5 +530,48 @@ impl Backend {
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
         self.client.send_async(req).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Builder;
+
+    #[test]
+    fn test_builder_from_connection_string() {
+        let builder = Builder::from_connection_string(
+            r#"
+DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;
+AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;
+BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;
+TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+        "#,
+        )
+        .expect("from connection string must succeed");
+
+        assert_eq!(
+            builder.endpoint.unwrap(),
+            "http://127.0.0.1:10000/devstoreaccount1"
+        );
+        assert_eq!(builder.account_name.unwrap(), "devstoreaccount1");
+        assert_eq!(builder.account_key.unwrap(), "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
+
+        let builder = Builder::from_connection_string(
+            r#"
+DefaultEndpointsProtocol=https;
+AccountName=storagesample;
+AccountKey=account-key;
+EndpointSuffix=core.chinacloudapi.cn;
+        "#,
+        )
+        .expect("from connection string must succeed");
+
+        assert_eq!(
+            builder.endpoint.unwrap(),
+            "https://storagesample.blob.core.chinacloudapi.cn"
+        );
+        assert_eq!(builder.account_name.unwrap(), "storagesample");
+        assert_eq!(builder.account_key.unwrap(), "account-key")
     }
 }

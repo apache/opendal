@@ -33,6 +33,8 @@ use crate::Scheme;
 #[derive(Clone, Debug)]
 pub struct Operator {
     accessor: Arc<dyn Accessor>,
+    #[cfg(feature = "unwind-safe")]
+    poison: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl<A> From<A> for Operator
@@ -46,7 +48,23 @@ where
 
 impl From<Arc<dyn Accessor>> for Operator {
     fn from(accessor: Arc<dyn Accessor>) -> Self {
-        Operator { accessor }
+        Operator {
+            accessor,
+            #[cfg(feature = "unwind-safe")]
+            poison: Arc::default(),
+        }
+    }
+}
+
+/// Setting posion to ture if thread panic happened during operator drop.
+#[cfg(feature = "unwind-safe")]
+impl Drop for Operator {
+    fn drop(&mut self) {
+        use std::sync::atomic::Ordering;
+
+        if std::thread::panicking() {
+            self.poison.store(true, Ordering::Relaxed)
+        }
     }
 }
 
@@ -84,6 +102,8 @@ impl Operator {
     pub fn new(accessor: impl Accessor) -> Self {
         Self {
             accessor: Arc::new(accessor),
+            #[cfg(feature = "unwind-safe")]
+            poison: Arc::default(),
         }
     }
 
@@ -231,7 +251,9 @@ impl Operator {
     #[must_use]
     pub fn layer(self, layer: impl Layer) -> Self {
         Operator {
-            accessor: layer.layer(self.accessor),
+            accessor: layer.layer(self.accessor.clone()),
+            #[cfg(feature = "unwind-safe")]
+            poison: self.poison.clone(),
         }
     }
 
@@ -240,6 +262,22 @@ impl Operator {
     /// This function should only be used by developers to implement layers.
     pub fn inner(&self) -> Arc<dyn Accessor> {
         self.accessor.clone()
+    }
+
+    /// is_poisoned will check whether this operator has been poisoned.
+    ///
+    /// # Notes
+    ///
+    /// [`Operator`] will be shared across `catch_unwind` boundary. But we can't
+    /// make sure that all accessor is `UnwindSafe`. So we add a poison flag to
+    /// mark whether [`Operator`] has been dropped during panic.
+    ///
+    /// After feature `unwind-safe` has been enabled, users can use `is_poisoned`
+    /// to check whether thread panic has happened during operator's dropping.
+    #[cfg(feature = "unwind-safe")]
+    pub fn is_poisoned(&self) -> bool {
+        use std::sync::atomic::Ordering;
+        self.poison.load(Ordering::Relaxed)
     }
 
     /// Get metadata of underlying accessor.
@@ -432,5 +470,28 @@ impl OperatorMetadata {
         self.acc
             .capabilities()
             .contains(AccessorCapability::Blocking)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    #[cfg(feature = "unwind-safe")]
+    fn test_is_poisoned() {
+        use std::thread;
+
+        use crate::Operator;
+        use crate::Scheme;
+
+        let op = Operator::from_env(Scheme::Memory).expect("build operator");
+
+        let mop = op.clone();
+        let _ = thread::spawn(move || {
+            let _op = mop;
+            panic!();
+        })
+        .join();
+        assert!(op.is_poisoned());
     }
 }

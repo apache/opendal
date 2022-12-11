@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.22.3] - 2022-12-11
+
+### Added
+
+- feat(layers/metrics): Merge error and failure counters together (#1058)
+- feat: Set MSRV to 1.60 (#1060)
+- feat: Add unwind safe flag for operator (#1061)
+- feat(azblob): Add build from connection string support (#1064)
+
+### Fixed
+
+- fix(services/moka): Don't print all content in cache (#1057)
+
 ## [v0.22.2] - 2022-12-07
 
 ### Added
@@ -1065,6 +1078,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.22.3]: https://github.com/datafuselabs/opendal/compare/v0.22.2...v0.22.3
 [v0.22.2]: https://github.com/datafuselabs/opendal/compare/v0.22.1...v0.22.2
 [v0.22.1]: https://github.com/datafuselabs/opendal/compare/v0.22.0...v0.22.1
 [v0.22.0]: https://github.com/datafuselabs/opendal/compare/v0.21.2...v0.22.0

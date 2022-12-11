@@ -19,6 +19,8 @@ all-features = true
 [features]
 default = ["rustls"]
 
+# Enable unwind safe support so that users can check if the operator is safe # to use after panic.
+unwind-safe = []
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable trust-dns for better dns cache.

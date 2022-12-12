@@ -365,7 +365,9 @@ pub fn test_read_large_range(op: Operator) -> Result<()> {
         .blocking_write(content.clone())
         .expect("write must succeed");
 
-    let bs = op.object(&path).blocking_range_read(offset..u64::MAX)?;
+    let bs = op
+        .object(&path)
+        .blocking_range_read(offset..u32::MAX as u64)?;
     assert_eq!(
         bs.len() as u64,
         size as u64 - offset,

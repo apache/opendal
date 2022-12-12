@@ -421,7 +421,7 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let bs = op.object(&path).range_read(offset..u64::MAX).await?;
+    let bs = op.object(&path).range_read(offset..u32::MAX as u64).await?;
     assert_eq!(
         bs.len() as u64,
         size as u64 - offset,

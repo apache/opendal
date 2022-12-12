@@ -347,6 +347,18 @@ pub fn test_read_range(op: Operator) -> Result<()> {
         "read content"
     );
 
+    let bs = op.object(&path).blocking_range_read(offset..u64::MAX)?;
+    assert_eq!(
+        bs.len() as u64,
+        size as u64 - offset,
+        "read size with large range"
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[offset as usize..])),
+        "read content with large range"
+    );
+
     op.object(&path)
         .blocking_delete()
         .expect("delete must succeed");

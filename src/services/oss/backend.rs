@@ -424,6 +424,9 @@ impl Backend {
 
         if !range.is_full() {
             req = req.header(RANGE, range.to_header());
+            // Adding `x-oss-range-behavior` header to use standard behavior.
+            // ref: https://help.aliyun.com/document_detail/39571.html
+            req = req.header("x-oss-range-behavior", "standard");
         }
 
         let req = req

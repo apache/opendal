@@ -107,7 +107,7 @@ async-compression = { package = "async-compression-issue-150-workaround", versio
 ], optional = true }
 async-trait = "0.1"
 backon = "0.2"
-base64 = "0.13"
+base64 = "0.20"
 bb8 = { version = "0.8", optional = true }
 bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1"

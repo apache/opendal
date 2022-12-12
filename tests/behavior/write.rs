@@ -80,6 +80,7 @@ macro_rules! behavior_write_tests {
                 test_stat_root,
                 test_read_full,
                 test_read_range,
+                test_read_large_range,
                 test_reader_range,
                 test_reader_from,
                 test_reader_tail,
@@ -400,6 +401,37 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
         ),
         "read content"
     );
+
+    let bs = op.object(&path).range_read(offset..u64::MAX).await?;
+    assert_eq!(
+        bs.len() as u64,
+        size as u64 - offset,
+        "read size with large range"
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[offset as usize..])),
+        "read content with large range"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Read large range content should match.
+pub async fn test_read_large_range(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, _) = gen_offset_length(size as usize);
+
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
 
     let bs = op.object(&path).range_read(offset..u64::MAX).await?;
     assert_eq!(

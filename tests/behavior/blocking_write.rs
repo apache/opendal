@@ -79,6 +79,7 @@ macro_rules! behavior_blocking_write_tests {
                 test_stat_not_exist,
                 test_read_full,
                 test_read_range,
+                test_read_large_range,
                 test_read_not_exist,
                 test_delete,
             );
@@ -346,6 +347,23 @@ pub fn test_read_range(op: Operator) -> Result<()> {
         ),
         "read content"
     );
+
+    op.object(&path)
+        .blocking_delete()
+        .expect("delete must succeed");
+    Ok(())
+}
+
+/// Read large range content should match.
+pub fn test_read_large_range(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, _) = gen_offset_length(size as usize);
+
+    op.object(&path)
+        .blocking_write(content.clone())
+        .expect("write must succeed");
 
     let bs = op.object(&path).blocking_range_read(offset..u64::MAX)?;
     assert_eq!(

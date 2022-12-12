@@ -402,18 +402,6 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
         "read content"
     );
 
-    let bs = op.object(&path).range_read(offset..u64::MAX).await?;
-    assert_eq!(
-        bs.len() as u64,
-        size as u64 - offset,
-        "read size with large range"
-    );
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content[offset as usize..])),
-        "read content with large range"
-    );
-
     op.object(&path)
         .delete()
         .await

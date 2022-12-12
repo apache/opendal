@@ -450,15 +450,11 @@ impl Object {
         }
 
         let br = BytesRange::from(range);
-        let (_, mut s) = self
+        let (rp, mut s) = self
             .acc
             .blocking_read(self.path(), OpRead::new().with_range(br))?;
 
-        let mut buffer = if let Some(range_size) = br.size() {
-            Vec::with_capacity(range_size as usize)
-        } else {
-            Vec::with_capacity(4 * 1024 * 1024)
-        };
+        let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
 
         std::io::copy(&mut s, &mut buffer).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "blocking range read failed")

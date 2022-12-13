@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.22.4] - 2022-12-13
+
+### Added
+
+- improve blocking read use read_to_end (#1072)
+- feat(services/gcs): Fully implement default credential support (#1073)
+
+### Fixed
+
+- fix: read a large range without error and add test (#1068)
+- fix(services/oss): Enable standard behavior for oss range (#1070)
+
 ## [v0.22.3] - 2022-12-11
 
 ### Added
@@ -1078,6 +1090,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.22.4]: https://github.com/datafuselabs/opendal/compare/v0.22.3...v0.22.4
 [v0.22.3]: https://github.com/datafuselabs/opendal/compare/v0.22.2...v0.22.3
 [v0.22.2]: https://github.com/datafuselabs/opendal/compare/v0.22.1...v0.22.2
 [v0.22.1]: https://github.com/datafuselabs/opendal/compare/v0.22.0...v0.22.1

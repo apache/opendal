@@ -38,7 +38,7 @@ use crate::raw::*;
 use crate::*;
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
-const DEFAULT_GCS_AUTH: &str = "https://www.googleapis.com/auth/devstorage.read_write";
+const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
 // TODO: Server side encryption support
 
@@ -52,9 +52,13 @@ pub struct Builder {
     /// endpoint URI of GCS service,
     /// default is `https://storage.googleapis.com`
     endpoint: Option<String>,
+    /// Scope for gcs.
+    scope: Option<String>,
 
     /// credential string for GCS service
     credential: Option<String>,
+    /// credential path for GCS service.
+    credential_path: Option<String>,
 }
 
 impl Builder {
@@ -67,6 +71,7 @@ impl Builder {
                 "bucket" => builder.bucket(v),
                 "endpoint" => builder.endpoint(v),
                 "credential" => builder.credential(v),
+                "scope" => builder.scope(v),
                 _ => continue,
             };
         }
@@ -88,6 +93,24 @@ impl Builder {
         self
     }
 
+    /// set the endpoint GCS service scope
+    ///
+    /// If not set, we will use `https://www.googleapis.com/auth/devstorage.read_write`.
+    ///
+    /// # Valid scope exmaples
+    ///
+    /// - read-only: `https://www.googleapis.com/auth/devstorage.read_only`
+    /// - read-write: `https://www.googleapis.com/auth/devstorage.read_write`
+    /// - full-control: `https://www.googleapis.com/auth/devstorage.full_control`
+    ///
+    /// Reference: [Cloud Storage authentication](https://cloud.google.com/storage/docs/authentication)
+    pub fn scope(&mut self, scope: &str) -> &mut Self {
+        if !scope.is_empty() {
+            self.scope = Some(scope.to_string())
+        };
+        self
+    }
+
     /// set the endpoint GCS service uses
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
@@ -100,6 +123,14 @@ impl Builder {
     pub fn credential(&mut self, credential: &str) -> &mut Self {
         if !credential.is_empty() {
             self.credential = Some(credential.to_string())
+        };
+        self
+    }
+
+    /// set the credentials path of GCS.
+    pub fn credential_path(&mut self, path: &str) -> &mut Self {
+        if !path.is_empty() {
+            self.credential_path = Some(path.to_string())
         };
         self
     }
@@ -133,11 +164,17 @@ impl Builder {
         debug!("backend use endpoint: {endpoint}");
 
         // build signer
-        let auth_url = DEFAULT_GCS_AUTH.to_string();
         let mut signer_builder = GoogleSigner::builder();
-        signer_builder.scope(&auth_url);
+        if let Some(scope) = &self.scope {
+            signer_builder.scope(scope);
+        } else {
+            signer_builder.scope(DEFAULT_GCS_SCOPE);
+        }
         if let Some(cred) = &self.credential {
-            signer_builder.credential_from_content(cred);
+            signer_builder.credential_content(cred);
+        }
+        if let Some(cred) = &self.credential_path {
+            signer_builder.credential_path(cred);
         }
         let signer = signer_builder.build().map_err(|e| {
             Error::new(ErrorKind::BackendConfigInvalid, "build GoogleSigner")

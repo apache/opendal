@@ -30,7 +30,7 @@ use crate::Error;
 pub enum Scheme {
     /// [azblob][crate::services::azblob]: Azure Storage Blob services.
     Azblob,
-    /// [azdls][crate::services::azdls]: Azure Data Lake Storage Gen2.
+    /// [azdfs][crate::services::azdfs]: Azure Data Lake Storage Gen2.
     Azdfs,
     /// [fs][crate::services::fs]: POSIX alike file system.
     Fs,

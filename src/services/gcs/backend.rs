@@ -54,6 +54,8 @@ pub struct Builder {
     endpoint: Option<String>,
     /// Scope for gcs.
     scope: Option<String>,
+    /// Service Account for gcs.
+    service_account: Option<String>,
 
     /// credential string for GCS service
     credential: Option<String>,
@@ -93,7 +95,7 @@ impl Builder {
         self
     }
 
-    /// set the endpoint GCS service scope
+    /// set the GCS service scope
     ///
     /// If not set, we will use `https://www.googleapis.com/auth/devstorage.read_write`.
     ///
@@ -107,6 +109,17 @@ impl Builder {
     pub fn scope(&mut self, scope: &str) -> &mut Self {
         if !scope.is_empty() {
             self.scope = Some(scope.to_string())
+        };
+        self
+    }
+
+    /// Set the GCS service account.
+    ///
+    /// service account will be used for fetch token from vm metadata.
+    /// If not set, we will try to fecth with `default` service account.
+    pub fn service_account(&mut self, service_account: &str) -> &mut Self {
+        if !service_account.is_empty() {
+            self.service_account = Some(service_account.to_string())
         };
         self
     }
@@ -169,6 +182,9 @@ impl Builder {
             signer_builder.scope(scope);
         } else {
             signer_builder.scope(DEFAULT_GCS_SCOPE);
+        }
+        if let Some(account) = &self.service_account {
+            signer_builder.service_account(account);
         }
         if let Some(cred) = &self.credential {
             signer_builder.credential_content(cred);

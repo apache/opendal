@@ -55,7 +55,7 @@ fn bench_read_full(c: &mut Criterion, op: Operator) {
             b.to_async(&*TOKIO).iter(|| async {
                 let r = op
                     .object(path)
-                    .range_reader(..=size.bytes() as u64)
+                    .range_reader(0..=size.bytes() as u64)
                     .await
                     .unwrap();
                 io::copy(r, &mut io::sink()).await.unwrap();

@@ -455,8 +455,7 @@ impl Object {
             .blocking_read(self.path(), OpRead::new().with_range(br))?;
 
         let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
-
-        std::io::copy(&mut s, &mut buffer).map_err(|err| {
+        s.read_to_end(&mut buffer).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "blocking range read failed")
                 .with_operation("Object::blocking_range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())

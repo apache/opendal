@@ -30,8 +30,8 @@ impl<T> BytesRead for T where T: AsyncRead + Unpin + Send {}
 pub type BytesReader = Box<dyn BytesRead>;
 
 /// BlockingBytesRead represents a blocking reader of bytes.
-pub trait BlockingBytesRead: Read {}
-impl<T> BlockingBytesRead for T where T: Read {}
+pub trait BlockingBytesRead: Read + Send + Sync {}
+impl<T> BlockingBytesRead for T where T: Read + Send + Sync {}
 
 /// BlockingBytesReader is a boxed dyn [`BlockingBytesRead`].
 pub type BlockingBytesReader = Box<dyn BlockingBytesRead>;

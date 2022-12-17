@@ -304,16 +304,30 @@ impl Accessor for Backend {
         let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
             // Read a specific range.
             (Some(offset), Some(size)) => {
-                f.seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(parse_io_error)?;
+                match offset {
+                    // Read from start.
+                    0 => (),
+                    // Read from offset.
+                    _ => {
+                        f.seek(SeekFrom::Start(offset))
+                            .await
+                            .map_err(parse_io_error)?;
+                    }
+                }
                 (Box::new(f.take(size)), min(size, meta.len() - offset))
             }
             // Read from offset.
             (Some(offset), None) => {
-                f.seek(SeekFrom::Start(offset))
-                    .await
-                    .map_err(parse_io_error)?;
+                match offset {
+                    // Read from start.
+                    0 => (),
+                    // Read from offset.
+                    _ => {
+                        f.seek(SeekFrom::Start(offset))
+                            .await
+                            .map_err(parse_io_error)?;
+                    }
+                }
                 (Box::new(f), meta.len() - offset)
             }
             // Read the last size bytes.
@@ -494,12 +508,26 @@ impl Accessor for Backend {
         let (r, size): (BlockingBytesReader, _) = match (br.offset(), br.size()) {
             // Read a specific range.
             (Some(offset), Some(size)) => {
-                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                match offset {
+                    // Read from start.
+                    0 => (),
+                    // Read from offset.
+                    _ => {
+                        f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                    }
+                }
                 (Box::new(f.take(size)), min(size, meta.len() - offset))
             }
             // Read from offset.
             (Some(offset), None) => {
-                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                match offset {
+                    // Read from start.
+                    0 => (),
+                    // Read from offset.
+                    _ => {
+                        f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                    }
+                }
                 (Box::new(f), meta.len() - offset)
             }
             // Read the last size bytes.

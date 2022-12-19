@@ -183,6 +183,17 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         }
     }
 
+    /// Invoke the `open` operation on the specified path.
+    async fn open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BytesHandler)> {
+        match self.inner() {
+            Some(inner) => inner.open(path, args).await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+        }
+    }
+
     /// Invoke the `presign` operation on the specified path.
     ///
     /// # Behavior
@@ -406,6 +417,9 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         self.as_ref().list(path, args).await
+    }
+    async fn open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BytesHandler)> {
+        self.as_ref().open(path, args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

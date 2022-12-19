@@ -64,3 +64,4 @@
   - [0793-generic-kv-services](rfcs/0793-generic-kv-services.md)
   - [0926-object-reader](rfcs/0926-object-reader.md)
   - [0977-refactor-error](rfcs/0977-refactor-error.md)
+  - [1085-object-handler](rfcs/1085-object-handler.md)

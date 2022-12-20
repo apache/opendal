@@ -675,6 +675,26 @@ impl Accessor for Backend {
 
         Ok((RpList::default(), Box::new(rd)))
     }
+
+    fn blocking_open(&self, path: &str, _: OpOpen) -> Result<(RpOpen, BlockingBytesHandler)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        // Validate if input path is a valid file.
+        let meta = Self::blocking_fs_metadata(&p)?;
+        if meta.is_dir() {
+            return Err(Error::new(
+                ErrorKind::ObjectIsADirectory,
+                "given path is a directoty",
+            ));
+        }
+
+        let f = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
+
+        Ok((RpOpen::default(), Box::new(f)))
+    }
 }
 
 #[cfg(test)]

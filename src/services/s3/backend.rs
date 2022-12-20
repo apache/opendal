@@ -90,6 +90,8 @@ pub struct Builder {
 
     disable_credential_loader: bool,
     enable_virtual_host_style: bool,
+
+    signer: Option<Arc<AwsV4Signer>>,
 }
 
 impl Debug for Builder {
@@ -451,6 +453,25 @@ impl Builder {
         self
     }
 
+    /// Specify the signer directly instead of builling by OpenDAL.
+    ///
+    /// If signer is specified, the following settings will not be used
+    /// any more:
+    ///
+    /// - `region`
+    /// - `security_token`
+    /// - `access_key_id`
+    /// - `secret_access_key`
+    /// - `role_arn`
+    /// - `external_id`
+    /// - `disable_credential_loader`
+    ///
+    /// PLEASE USE THIS API CAREFULLY.
+    pub fn signer(&mut self, signer: AwsV4Signer) -> &mut Self {
+        self.signer = Some(Arc::new(signer));
+        self
+    }
+
     /// Read RFC-0057: Auto Region for detailed behavior.
     ///
     /// - If region is already known, the region will be returned directly.
@@ -642,41 +663,47 @@ impl Builder {
         }
         debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
-        let mut signer_builder = AwsV4Signer::builder();
-        signer_builder.service("s3");
-        signer_builder.region(&region);
-        signer_builder.allow_anonymous();
-        if let Some(v) = &self.security_token {
-            signer_builder.security_token(v);
-        }
-        if let Some(v) = &self.role_arn {
-            signer_builder.role_arn(v);
-        }
-        if let Some(v) = &self.external_id {
-            signer_builder.external_id(v);
-        }
-        if self.disable_credential_loader {
-            signer_builder.disable_load_from_env();
-            signer_builder.disable_load_from_profile();
-            signer_builder.disable_load_from_imds_v2();
-            signer_builder.disable_load_from_assume_role();
-            signer_builder.disable_load_from_assume_role_with_web_identity();
-        }
+        let signer = if let Some(signer) = &self.signer {
+            signer.clone()
+        } else {
+            let mut signer_builder = AwsV4Signer::builder();
+            signer_builder.service("s3");
+            signer_builder.region(&region);
+            signer_builder.allow_anonymous();
+            if let Some(v) = &self.security_token {
+                signer_builder.security_token(v);
+            }
+            if let Some(v) = &self.role_arn {
+                signer_builder.role_arn(v);
+            }
+            if let Some(v) = &self.external_id {
+                signer_builder.external_id(v);
+            }
+            if self.disable_credential_loader {
+                signer_builder.disable_load_from_env();
+                signer_builder.disable_load_from_profile();
+                signer_builder.disable_load_from_imds_v2();
+                signer_builder.disable_load_from_assume_role();
+                signer_builder.disable_load_from_assume_role_with_web_identity();
+            }
 
-        if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
-            signer_builder.access_key(ak);
-            signer_builder.secret_key(sk);
-        }
+            if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
+                signer_builder.access_key(ak);
+                signer_builder.secret_key(sk);
+            }
 
-        let signer = signer_builder
-            .build()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
+            let signer = signer_builder.build().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e)
+            })?;
+
+            Arc::new(signer)
+        };
 
         debug!("backend build finished: {:?}", &self);
         Ok(apply_wrapper(Backend {
             root,
             endpoint,
-            signer: Arc::new(signer),
+            signer,
             bucket: self.bucket.clone(),
             client,
 

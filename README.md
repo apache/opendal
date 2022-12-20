@@ -1,6 +1,6 @@
 # OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io]
 
-[build status]: https://img.shields.io/github/workflow/status/datafuselabs/opendal/CI/main
+[build status]: https://img.shields.io/github/actions/workflow/status/datafuselabs/opendal/ci.yml?branch=main
 [actions]: https://github.com/datafuselabs/opendal/actions?query=branch%3Amain
 [latest version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal

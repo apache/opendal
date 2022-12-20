@@ -61,6 +61,8 @@ pub struct Builder {
     credential: Option<String>,
     /// credential path for GCS service.
     credential_path: Option<String>,
+
+    signer: Option<Arc<GoogleSigner>>,
 }
 
 impl Builder {
@@ -148,6 +150,22 @@ impl Builder {
         self
     }
 
+    /// Specify the signer directly instead of builling by OpenDAL.
+    ///
+    /// If signer is specified, the following settings will not be used
+    /// any more:
+    ///
+    /// - `scope`
+    /// - `service_account`
+    /// - `credential`
+    /// - `credential_path`
+    ///
+    /// PLEASE USE THIS API CAREFULLY.
+    pub fn signer(&mut self, signer: GoogleSigner) -> &mut Self {
+        self.signer = Some(Arc::new(signer));
+        self
+    }
+
     /// Establish connection to GCS and finish making GCS backend
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", self);
@@ -176,31 +194,35 @@ impl Builder {
 
         debug!("backend use endpoint: {endpoint}");
 
-        // build signer
-        let mut signer_builder = GoogleSigner::builder();
-        if let Some(scope) = &self.scope {
-            signer_builder.scope(scope);
+        let signer = if let Some(signer) = &self.signer {
+            signer.clone()
         } else {
-            signer_builder.scope(DEFAULT_GCS_SCOPE);
-        }
-        if let Some(account) = &self.service_account {
-            signer_builder.service_account(account);
-        }
-        if let Some(cred) = &self.credential {
-            signer_builder.credential_content(cred);
-        }
-        if let Some(cred) = &self.credential_path {
-            signer_builder.credential_path(cred);
-        }
-        let signer = signer_builder.build().map_err(|e| {
-            Error::new(ErrorKind::BackendConfigInvalid, "build GoogleSigner")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Gcs)
-                .with_context("bucket", bucket)
-                .with_context("endpoint", &endpoint)
-                .set_source(e)
-        })?;
-        let signer = Arc::new(signer);
+            // build signer
+            let mut signer_builder = GoogleSigner::builder();
+            if let Some(scope) = &self.scope {
+                signer_builder.scope(scope);
+            } else {
+                signer_builder.scope(DEFAULT_GCS_SCOPE);
+            }
+            if let Some(account) = &self.service_account {
+                signer_builder.service_account(account);
+            }
+            if let Some(cred) = &self.credential {
+                signer_builder.credential_content(cred);
+            }
+            if let Some(cred) = &self.credential_path {
+                signer_builder.credential_path(cred);
+            }
+            let signer = signer_builder.build().map_err(|e| {
+                Error::new(ErrorKind::BackendConfigInvalid, "build GoogleSigner")
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::Gcs)
+                    .with_context("bucket", bucket)
+                    .with_context("endpoint", &endpoint)
+                    .set_source(e)
+            })?;
+            Arc::new(signer)
+        };
 
         let backend = Backend {
             root,

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.22.6] - 2022-12-20
+
+### Added
+
+- feat(io): make BlockingBytesRead Send + Sync (#1083)
+- feat(fs): skip seek if offset is 0 (#1082)
+- RFC-1085: Object Handler (#1085)
+- feat(services/s3,gcs): Allow accepting signer directly (#1087)
+
 ## [v0.22.5] - 2022-12-13
 
 ### Added
@@ -1096,6 +1105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.22.6]: https://github.com/datafuselabs/opendal/compare/v0.22.5...v0.22.6
 [v0.22.5]: https://github.com/datafuselabs/opendal/compare/v0.22.4...v0.22.5
 [v0.22.4]: https://github.com/datafuselabs/opendal/compare/v0.22.3...v0.22.4
 [v0.22.3]: https://github.com/datafuselabs/opendal/compare/v0.22.2...v0.22.3

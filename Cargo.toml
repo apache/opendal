@@ -9,7 +9,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.22.5"
+version = "0.22.6"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 
@@ -130,7 +130,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.7"
+reqsign = "0.7.3"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",

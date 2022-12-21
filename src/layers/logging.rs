@@ -953,7 +953,7 @@ impl Accessor for LoggingAccessor {
         );
 
         self.inner
-            .blocking_open(path, args.clone())
+            .blocking_open(path, args)
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,

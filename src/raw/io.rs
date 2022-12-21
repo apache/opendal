@@ -15,9 +15,11 @@
 use std::io::Error;
 use std::io::Read;
 use std::io::Result;
+use std::io::Seek;
 
 use bytes::Bytes;
 use futures::AsyncRead;
+use futures::AsyncSeek;
 use futures::AsyncWrite;
 use futures::Sink;
 use futures::Stream;
@@ -29,12 +31,26 @@ impl<T> BytesRead for T where T: AsyncRead + Unpin + Send {}
 /// BytesReader is a boxed dyn [`BytesRead`].
 pub type BytesReader = Box<dyn BytesRead>;
 
+/// BytesHandle represents a handle of bytes which can be read and seek.
+pub trait BytesHandle: AsyncRead + AsyncSeek + Unpin + Send {}
+impl<T> BytesHandle for T where T: AsyncRead + AsyncSeek + Unpin + Send {}
+
+/// BytesHandler is a boxed dyn [`BytesHandle`].
+pub type BytesHandler = Box<dyn BytesHandle>;
+
 /// BlockingBytesRead represents a blocking reader of bytes.
 pub trait BlockingBytesRead: Read + Send + Sync {}
 impl<T> BlockingBytesRead for T where T: Read + Send + Sync {}
 
 /// BlockingBytesReader is a boxed dyn [`BlockingBytesRead`].
 pub type BlockingBytesReader = Box<dyn BlockingBytesRead>;
+
+/// BytesHandle represents a handle of bytes which can be read an seek.
+pub trait BlockingBytesHandle: Read + Seek + Send {}
+impl<T> BlockingBytesHandle for T where T: Read + Seek + Send {}
+
+/// BlockingBytesHandler is a boxed dyn [`BlockingBytesHandle`].
+pub type BlockingBytesHandler = Box<dyn BlockingBytesHandle>;
 
 /// BytesWrite represents a writer of bytes.
 pub trait BytesWrite: AsyncWrite + Unpin + Send {}

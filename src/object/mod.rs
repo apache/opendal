@@ -32,3 +32,7 @@ pub use reader::ObjectReader;
 mod list;
 pub use list::BlockingObjectLister;
 pub use list::ObjectLister;
+
+mod handler;
+pub use handler::BlockingObjectHandler;
+pub use handler::ObjectHandler;

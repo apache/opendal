@@ -28,6 +28,10 @@ pub struct RpDelete {}
 #[derive(Debug, Clone, Default)]
 pub struct RpList {}
 
+/// Reply for `RpOpen` operation.
+#[derive(Debug, Clone, Default)]
+pub struct RpOpen {}
+
 /// Reply for `create_multipart` operation.
 #[derive(Debug, Clone, Default)]
 pub struct RpCreateMultipart {

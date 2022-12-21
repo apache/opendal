@@ -152,7 +152,9 @@ pub use operator::Operator;
 pub use operator::OperatorMetadata;
 
 mod object;
+pub use object::BlockingObjectHandler;
 pub use object::Object;
+pub use object::ObjectHandler;
 pub use object::ObjectLister;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
@@ -175,6 +177,7 @@ pub use ops::OpCreate;
 pub use ops::OpCreateMultipart;
 pub use ops::OpDelete;
 pub use ops::OpList;
+pub use ops::OpOpen;
 pub use ops::OpPresign;
 pub use ops::OpRead;
 pub use ops::OpStat;

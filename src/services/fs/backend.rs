@@ -237,6 +237,7 @@ impl Accessor for Backend {
                 AccessorCapability::Read
                     | AccessorCapability::Write
                     | AccessorCapability::List
+                    | AccessorCapability::Open
                     | AccessorCapability::Blocking,
             );
 
@@ -456,6 +457,27 @@ impl Accessor for Backend {
         Ok((RpList::default(), Box::new(rd)))
     }
 
+    async fn open(&self, path: &str, _: OpOpen) -> Result<(RpOpen, BytesHandler)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        // Validate if input path is a valid file.
+        let meta = Self::fs_metadata(&p).await?;
+        if meta.is_dir() {
+            return Err(Error::new(
+                ErrorKind::ObjectIsADirectory,
+                "given path is a directoty",
+            ));
+        }
+
+        let f = fs::OpenOptions::new()
+            .read(true)
+            .open(&p)
+            .await
+            .map_err(parse_io_error)?;
+
+        Ok((RpOpen::default(), Box::new(Compat::new(f))))
+    }
+
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -653,6 +675,26 @@ impl Accessor for Backend {
         let rd = BlockingDirPager::new(&self.root, f);
 
         Ok((RpList::default(), Box::new(rd)))
+    }
+
+    fn blocking_open(&self, path: &str, _: OpOpen) -> Result<(RpOpen, BlockingBytesHandler)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        // Validate if input path is a valid file.
+        let meta = Self::blocking_fs_metadata(&p)?;
+        if meta.is_dir() {
+            return Err(Error::new(
+                ErrorKind::ObjectIsADirectory,
+                "given path is a directoty",
+            ));
+        }
+
+        let f = std::fs::OpenOptions::new()
+            .read(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
+
+        Ok((RpOpen::default(), Box::new(f)))
     }
 }
 

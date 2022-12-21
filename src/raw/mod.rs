@@ -29,8 +29,10 @@ pub use accessor::AccessorCapability;
 pub use accessor::AccessorMetadata;
 
 mod io;
+pub use io::BlockingBytesHandler;
 pub use io::BlockingBytesRead;
 pub use io::BlockingBytesReader;
+pub use io::BytesHandler;
 pub use io::BytesRead;
 pub use io::BytesReader;
 pub use io::BytesSink;

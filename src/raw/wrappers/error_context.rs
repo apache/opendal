@@ -116,6 +116,14 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
             })
     }
 
+    async fn open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BytesHandler)> {
+        self.inner.open(path, args).await.map_err(|err| {
+            err.with_operation(Operation::Open.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).map_err(|err| {
             err.with_operation(Operation::Presign.into_static())
@@ -225,6 +233,14 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         self.inner.blocking_list(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingList.into_static())
+                .with_context("service", self.meta.scheme())
+                .with_context("path", path)
+        })
+    }
+
+    fn blocking_open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BlockingBytesHandler)> {
+        self.inner.blocking_open(path, args).map_err(|err| {
+            err.with_operation(Operation::BlockingOpen.into_static())
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })

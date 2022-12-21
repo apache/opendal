@@ -39,6 +39,7 @@ use crate::*;
 /// | [`write`][Accessor::write] | - |
 /// | [`delete`][Accessor::delete] | - |
 /// | [`list`][Accessor::list] | - |
+/// | [`open`][Accessor::open] | `Open` |
 /// | [`presign`][Accessor::presign] | `Presign` |
 /// | [`create_multipart`][Accessor::create_multipart] | `Multipart` |
 /// | [`write_multipart`][Accessor::write_multipart] | `Multipart` |
@@ -49,6 +50,7 @@ use crate::*;
 /// | [`blocking_write`][Accessor::blocking_write] | `Blocking` |
 /// | [`blocking_delete`][Accessor::blocking_delete] | `Blocking` |
 /// | [`blocking_list`][Accessor::blocking_list] | `Blocking` |
+/// | [`blocking_open`][Accessor::blocking_open | `Blocking` && `Open` |
 ///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.
@@ -176,6 +178,17 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         match self.inner() {
             Some(inner) => inner.list(path, args).await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+        }
+    }
+
+    /// Invoke the `open` operation on the specified path.
+    async fn open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BytesHandler)> {
+        match self.inner() {
+            Some(inner) => inner.open(path, args).await,
             None => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -379,6 +392,19 @@ pub trait Accessor: Send + Sync + Debug + 'static {
             )),
         }
     }
+
+    /// Invode the `blocking_open` operation on the specified path.
+    ///
+    /// This operation is the blocking version of [`Accessor::open`]
+    fn blocking_open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BlockingBytesHandler)> {
+        match self.inner() {
+            Some(inner) => inner.blocking_open(path, args),
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+        }
+    }
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
@@ -406,6 +432,9 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         self.as_ref().list(path, args).await
+    }
+    async fn open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BytesHandler)> {
+        self.as_ref().open(path, args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -459,6 +488,9 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
         self.as_ref().blocking_list(path, args)
+    }
+    fn blocking_open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BlockingBytesHandler)> {
+        self.as_ref().blocking_open(path, args)
     }
 }
 
@@ -542,5 +574,7 @@ flags! {
         Multipart,
         /// Add this capability if service supports `blocking`
         Blocking,
+        /// Add this capability if service supports `open`
+        Open,
     }
 }

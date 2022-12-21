@@ -22,10 +22,11 @@ use futures::AsyncSeek;
 
 use crate::raw::*;
 
+/// ObjectHandler is the handler to read and seek a file.
 pub struct ObjectHandler(BytesHandler);
 
 impl ObjectHandler {
-    pub fn new(bh: BytesHandler) -> Self {
+    pub(crate) fn new(bh: BytesHandler) -> Self {
         Self(bh)
     }
 }

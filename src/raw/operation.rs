@@ -33,6 +33,8 @@ pub enum Operation {
     Delete,
     /// Operation for [`crate::raw::Accessor::list`]
     List,
+    /// Operation for [`crate::raw::Accessor::open`]
+    Open,
     /// Operation for [`crate::raw::Accessor::presign`]
     Presign,
     /// Operation for [`crate::raw::Accessor::create_multipart`]
@@ -55,6 +57,8 @@ pub enum Operation {
     BlockingDelete,
     /// Operation for [`crate::raw::Accessor::blocking_list`]
     BlockingList,
+    /// Operation for [`crate::raw::Accessor::blocking_open`]
+    BlockingOpen,
 }
 
 impl Operation {
@@ -86,6 +90,7 @@ impl From<Operation> for &'static str {
             Operation::Stat => "stat",
             Operation::Delete => "delete",
             Operation::List => "list",
+            Operation::Open => "open",
             Operation::Presign => "presign",
             Operation::CreateMultipart => "create_multipart",
             Operation::WriteMultipart => "write_multipart",
@@ -97,6 +102,7 @@ impl From<Operation> for &'static str {
             Operation::BlockingStat => "blocking_stat",
             Operation::BlockingDelete => "blocking_delete",
             Operation::BlockingList => "blocking_list",
+            Operation::BlockingOpen => "blocking_open",
         }
     }
 }

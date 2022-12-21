@@ -13,12 +13,12 @@
 // limitations under the License.
 
 use anyhow::Result;
-use futures::AsyncReadExt;
-use futures::AsyncSeekExt;
 use log::debug;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
+use std::io::Read;
+use std::io::Seek;
 use std::io::SeekFrom;
 
 use super::utils::*;
@@ -28,10 +28,11 @@ use super::utils::*;
 /// - can_read
 /// - can_write
 /// - can_open
-macro_rules! behavior_open_test {
+/// - can_blocking
+macro_rules! behavior_blocking_open_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
-            mod [<services_ $service:lower _open>] {
+            mod [<services_ $service:lower _blocking_open>] {
                 $(
                     #[tokio::test]
                     $(
@@ -40,9 +41,9 @@ macro_rules! behavior_open_test {
                     async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service(opendal::Scheme::$service, true);
                         match op {
-                            Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_open() => $crate::open::$test(op).await,
+                            Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_open() && op.metadata().can_blocking() => $crate::blocking_open::$test(op),
                             Some(_) => {
-                                log::warn!("service {} doesn't support open, ignored", opendal::Scheme::$service);
+                                log::warn!("service {} doesn't support open and blocking, ignored", opendal::Scheme::$service);
                                 Ok(())
                             },
                             None => {
@@ -58,10 +59,10 @@ macro_rules! behavior_open_test {
 }
 
 #[macro_export]
-macro_rules! behavior_open_tests {
+macro_rules! behavior_blocking_open_tests {
      ($($service:ident),*) => {
         $(
-            behavior_open_test!(
+            behavior_blocking_open_test!(
                 $service,
 
                 test_open,
@@ -70,24 +71,23 @@ macro_rules! behavior_open_tests {
     };
 }
 
-pub async fn test_open(op: Operator) -> Result<()> {
+pub fn test_open(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
     let (offset, _) = gen_offset_length(size as usize);
 
     op.object(&path)
-        .write(content.clone())
-        .await
+        .blocking_write(content.clone())
         .expect("write must succeed");
 
-    let mut oh = op.object(&path).open().await?;
-    let n = oh.seek(SeekFrom::End(0)).await?;
+    let mut oh = op.object(&path).blocking_open()?;
+    let n = oh.seek(SeekFrom::End(0))?;
     assert_eq!(n as usize, size, "open size");
 
-    let _ = oh.seek(SeekFrom::Start(offset)).await?;
+    let _ = oh.seek(SeekFrom::Start(offset))?;
     let mut bs = Vec::new();
-    let n = oh.read_to_end(&mut bs).await?;
+    let n = oh.read_to_end(&mut bs)?;
     assert_eq!(n, size - offset as usize, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
@@ -96,8 +96,7 @@ pub async fn test_open(op: Operator) -> Result<()> {
     );
 
     op.object(&path)
-        .delete()
-        .await
+        .blocking_delete()
         .expect("delete must succeed");
     Ok(())
 }

@@ -21,6 +21,8 @@ mod blocking_read;
 #[macro_use]
 mod blocking_write;
 #[macro_use]
+mod blocking_open;
+#[macro_use]
 mod list;
 #[macro_use]
 mod list_only;
@@ -67,6 +69,8 @@ macro_rules! behavior_tests {
             behavior_list_only_tests!($service);
             // can_read && can_write && can_open
             behavior_open_tests!($service);
+            // can_read && can_write && can_open && can_blocking
+            behavior_blocking_open_tests!($service);
         )*
     };
 }

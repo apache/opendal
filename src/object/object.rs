@@ -23,6 +23,7 @@ use futures::io::Cursor;
 use time::Duration;
 use time::OffsetDateTime;
 
+use super::handler::ObjectHandler;
 use super::BlockingObjectLister;
 use super::ObjectLister;
 use crate::raw::*;
@@ -304,6 +305,24 @@ impl Object {
         };
 
         Ok(())
+    }
+
+    /// Open a file so that we can `read` and `seek` it without extra cost.
+    pub async fn open(&self) -> Result<ObjectHandler> {
+        let bh = if self
+            .acc
+            .metadata()
+            .capabilities()
+            .contains(AccessorCapability::Open)
+        {
+            let (_, bh) = self.acc.open(&self.path, OpOpen::default()).await?;
+
+            bh
+        } else {
+            Box::new(seekable_read(self, 0..self.content_length().await?))
+        };
+
+        Ok(ObjectHandler::new(bh))
     }
 
     /// Read the whole object into a bytes.

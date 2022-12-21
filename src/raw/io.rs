@@ -31,9 +31,9 @@ impl<T> BytesRead for T where T: AsyncRead + Unpin + Send {}
 /// BytesReader is a boxed dyn [`BytesRead`].
 pub type BytesReader = Box<dyn BytesRead>;
 
-/// BytesHandle represents a handle of bytes which can be read an seek.
-pub trait BytesHandle: AsyncRead + AsyncSeek + Unpin + Send + Sync {}
-impl<T> BytesHandle for T where T: AsyncRead + AsyncSeek + Unpin + Send + Sync {}
+/// BytesHandle represents a handle of bytes which can be read and seek.
+pub trait BytesHandle: AsyncRead + AsyncSeek + Unpin + Send {}
+impl<T> BytesHandle for T where T: AsyncRead + AsyncSeek + Unpin + Send {}
 
 /// BytesHandler is a boxed dyn [`BytesHandle`].
 pub type BytesHandler = Box<dyn BytesHandle>;

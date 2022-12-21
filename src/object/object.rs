@@ -325,6 +325,28 @@ impl Object {
         Ok(ObjectHandler::new(bh))
     }
 
+    /// Blocking open a file so that we can `read` and `seek` it without extra cost.
+    pub fn blocking_open(&self) -> Result<BlockingObjectHandler> {
+        let bh = if self
+            .acc
+            .metadata()
+            .capabilities()
+            .contains(AccessorCapability::Open)
+        {
+            let (_, bh) = self.acc.blocking_open(&self.path, OpOpen::default())?;
+
+            bh
+        } else {
+            // We don't have blocking seekable read support so far.
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ));
+        };
+
+        Ok(BlockingObjectHandler::new(bh))
+    }
+
     /// Read the whole object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or

@@ -50,3 +50,24 @@ impl AsyncSeek for ObjectHandler {
         Pin::new(self.0.as_mut()).poll_seek(cx, pos)
     }
 }
+
+/// BlockingObjectHandler is the handler to read and seek a file.
+pub struct BlockingObjectHandler(BlockingBytesHandler);
+
+impl BlockingObjectHandler {
+    pub(crate) fn new(bh: BlockingBytesHandler) -> Self {
+        Self(bh)
+    }
+}
+
+impl std::io::Read for BlockingObjectHandler {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl std::io::Seek for BlockingObjectHandler {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.0.seek(pos)
+    }
+}

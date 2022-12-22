@@ -119,6 +119,7 @@ More examples could be found at [Documentation](https://opendal.databend.rs).
 - [Databend](https://github.com/datafuselabs/databend/): A modern Elasticity and Performance cloud data warehouse.
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
 - [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
+- [mozilla/sccache](https://github.com/mozilla/sccache/): sccache is ccache with cloud storage
 
 ## Contributing
 

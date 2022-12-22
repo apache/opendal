@@ -114,7 +114,7 @@ bytes = "1"
 dotenv = { version = "0.15", optional = true }
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
-hdrs = { version = "0.1", optional = true, features = ["futures-io"] }
+hdrs = { version = "0.1.7", optional = true, features = ["futures-io"] }
 http = "0.2"
 log = "0.4"
 md-5 = "0.10"

@@ -15,7 +15,7 @@ anyhow = "1"
 clap = { version = "4", features = ["cargo", "string"] }
 env_logger = "0.9"
 log = "0.4"
-opendal = { version = "0.22", path = "../" }
+opendal = { version = "0.23", path = "../" }
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 
 [dev-dependencies]

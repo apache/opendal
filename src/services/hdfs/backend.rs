@@ -137,7 +137,8 @@ impl Accessor for Backend {
                 AccessorCapability::Read
                     | AccessorCapability::Write
                     | AccessorCapability::List
-                    | AccessorCapability::Blocking,
+                    | AccessorCapability::Blocking
+                    | AccessorCapability::Open,
             );
 
         am
@@ -316,6 +317,19 @@ impl Accessor for Backend {
         Ok((RpList::default(), Box::new(rd)))
     }
 
+    async fn open(&self, path: &str, _: OpOpen) -> Result<(RpOpen, BytesHandler)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = self
+            .client
+            .open_file()
+            .read(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
+
+        Ok((RpOpen::default(), Box::new(f)))
+    }
+
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -492,5 +506,18 @@ impl Accessor for Backend {
         let rd = DirStream::new(&self.root, f);
 
         Ok((RpList::default(), Box::new(rd)))
+    }
+
+    fn blocking_open(&self, path: &str, _: OpOpen) -> Result<(RpOpen, BlockingBytesHandler)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = self
+            .client
+            .open_file()
+            .read(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
+
+        Ok((RpOpen::default(), Box::new(f)))
     }
 }

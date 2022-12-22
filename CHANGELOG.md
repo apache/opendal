@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.23.0] - 2022-12-22
+
+### Added
+
+- feat: Implement object handler so that we can do seek on file (#1091)
+- feat: Implement blocking for hdfs (#1092)
+- feat(services/hdfs): Implement open and blocking open (#1093)
+- docs: Add mozilla/sccache into projects (#1094)
+
 ## [v0.22.6] - 2022-12-20
 
 ### Added
@@ -1105,6 +1114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.23.0]: https://github.com/datafuselabs/opendal/compare/v0.22.6...v0.23.0
 [v0.22.6]: https://github.com/datafuselabs/opendal/compare/v0.22.5...v0.22.6
 [v0.22.5]: https://github.com/datafuselabs/opendal/compare/v0.22.4...v0.22.5
 [v0.22.4]: https://github.com/datafuselabs/opendal/compare/v0.22.3...v0.22.4

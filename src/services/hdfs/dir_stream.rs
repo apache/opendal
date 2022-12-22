@@ -72,3 +72,37 @@ impl ObjectPage for DirStream {
         Ok(if oes.is_empty() { None } else { Some(oes) })
     }
 }
+
+impl BlockingObjectPage for DirStream {
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+
+        for _ in 0..self.size {
+            let de = match self.rd.next() {
+                Some(de) => de,
+                None => break,
+            };
+
+            let path = build_rel_path(&self.root, de.path());
+
+            let d = if de.is_file() {
+                let meta = ObjectMetadata::new(ObjectMode::FILE)
+                    .with_content_length(de.len())
+                    .with_last_modified(time::OffsetDateTime::from(de.modified()));
+                ObjectEntry::new(&path, meta)
+            } else if de.is_dir() {
+                // Make sure we are returning the correct path.
+                ObjectEntry::new(
+                    &format!("{}/", path),
+                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                )
+            } else {
+                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+            };
+
+            oes.push(d)
+        }
+
+        Ok(if oes.is_empty() { None } else { Some(oes) })
+    }
+}

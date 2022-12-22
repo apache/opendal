@@ -21,7 +21,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::AsyncReadExt;
 use log::debug;
 use time::OffsetDateTime;
 
@@ -135,7 +134,10 @@ impl Accessor for Backend {
         am.set_scheme(Scheme::Hdfs)
             .set_root(&self.root)
             .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+                AccessorCapability::Read
+                    | AccessorCapability::Write
+                    | AccessorCapability::List
+                    | AccessorCapability::Blocking,
             );
 
         am
@@ -181,6 +183,8 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+        use futures::AsyncReadExt;
+
         let p = build_rooted_abs_path(&self.root, path);
 
         // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
@@ -301,6 +305,184 @@ impl Accessor for Backend {
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
                     Ok((RpList::default(), Box::new(EmptyObjectPager)))
+                } else {
+                    Err(parse_io_error(e))
+                }
+            }
+        };
+
+        let rd = DirStream::new(&self.root, f);
+
+        Ok((RpList::default(), Box::new(rd)))
+    }
+
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        match args.mode() {
+            ObjectMode::FILE => {
+                let parent = PathBuf::from(&p)
+                    .parent()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path shoud have parent but not, it must be malformed",
+                        )
+                        .with_context("input", &p)
+                    })?
+                    .to_path_buf();
+
+                self.client
+                    .create_dir(&parent.to_string_lossy())
+                    .map_err(parse_io_error)?;
+
+                self.client
+                    .open_file()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(&p)
+                    .map_err(parse_io_error)?;
+
+                Ok(RpCreate::default())
+            }
+            ObjectMode::DIR => {
+                self.client.create_dir(&p).map_err(parse_io_error)?;
+
+                Ok(RpCreate::default())
+            }
+            ObjectMode::Unknown => unreachable!(),
+        }
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+        use std::io::Read;
+
+        let p = build_rooted_abs_path(&self.root, path);
+
+        // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
+        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
+
+        let mut f = self
+            .client
+            .open_file()
+            .read(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
+
+        let br = args.range();
+
+        let (r, size): (BlockingBytesReader, _) = match (br.offset(), br.size()) {
+            (Some(offset), Some(size)) => {
+                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (Box::new(f.take(size)), min(size, meta.len() - offset))
+            }
+            (Some(offset), None) => {
+                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
+                (Box::new(f), meta.len() - offset)
+            }
+            (None, Some(size)) => {
+                // hdfs doesn't support seed from end.
+                f.seek(SeekFrom::Start(meta.len() - size))
+                    .map_err(parse_io_error)?;
+                (Box::new(f), size)
+            }
+            (None, None) => (Box::new(f), meta.len()),
+        };
+
+        Ok((RpRead::new(size), r))
+    }
+
+    fn blocking_write(
+        &self,
+        path: &str,
+        _: OpWrite,
+        mut r: BlockingBytesReader,
+    ) -> Result<RpWrite> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let parent = PathBuf::from(&p)
+            .parent()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path shoud have parent but not, it must be malformed",
+                )
+                .with_context("input", &p)
+            })?
+            .to_path_buf();
+
+        self.client
+            .create_dir(&parent.to_string_lossy())
+            .map_err(parse_io_error)?;
+
+        let mut f = self
+            .client
+            .open_file()
+            .create(true)
+            .write(true)
+            .open(&p)
+            .map_err(parse_io_error)?;
+
+        let n = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
+
+        Ok(RpWrite::new(n))
+    }
+
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
+
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
+        } else if meta.is_file() {
+            ObjectMode::FILE
+        } else {
+            ObjectMode::Unknown
+        };
+        let mut m = ObjectMetadata::new(mode);
+        m.set_content_length(meta.len());
+        m.set_last_modified(OffsetDateTime::from(meta.modified()));
+
+        Ok(RpStat::new(m))
+    }
+
+    fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = self.client.metadata(&p);
+
+        if let Err(err) = meta {
+            return if err.kind() == io::ErrorKind::NotFound {
+                Ok(RpDelete::default())
+            } else {
+                Err(parse_io_error(err))
+            };
+        }
+
+        // Safety: Err branch has been checked, it's OK to unwrap.
+        let meta = meta.ok().unwrap();
+
+        let result = if meta.is_dir() {
+            self.client.remove_dir(&p)
+        } else {
+            self.client.remove_file(&p)
+        };
+
+        result.map_err(parse_io_error)?;
+
+        Ok(RpDelete::default())
+    }
+
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = match self.client.read_dir(&p) {
+            Ok(f) => f,
+            Err(e) => {
+                return if e.kind() == io::ErrorKind::NotFound {
+                    Ok((RpList::default(), Box::new(EmptyBlockingObjectPager)))
                 } else {
                     Err(parse_io_error(e))
                 }

@@ -18,6 +18,7 @@ use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
 
+use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -25,13 +26,13 @@ use futures::io::copy;
 use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
-use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
+
 use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 
@@ -209,7 +210,7 @@ impl bb8::ManageConnection for Manager {
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
             stream
-                .into_secure(TlsConnector::new(), &self.endpoint)
+                .into_secure(TlsConnector::default().into(), &self.endpoint)
                 .await?
         } else {
             stream

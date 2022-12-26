@@ -79,7 +79,7 @@ impl ObjectPage for DirStream {
         };
         self.next_marker = output.next_marker.clone().unwrap_or_default();
 
-        let common_prefixes = output.common_prefixes.unwrap_or_default();
+        let common_prefixes = output.common_prefixes;
         let mut entries = Vec::with_capacity(common_prefixes.len() + output.contents.len());
 
         for prefix in common_prefixes {
@@ -113,7 +113,7 @@ struct Output {
     name: String,
     prefix: String,
     contents: Vec<Content>,
-    common_prefixes: Option<Vec<CommonPrefix>>,
+    common_prefixes: Vec<CommonPrefix>,
     marker: String,
     next_marker: Option<String>,
 }
@@ -195,7 +195,6 @@ mod tests {
         );
         assert_eq!(
             out.common_prefixes
-                .unwrap()
                 .iter()
                 .map(|v| v.prefix.clone())
                 .collect::<Vec<String>>(),

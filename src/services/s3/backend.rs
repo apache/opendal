@@ -1331,7 +1331,7 @@ struct CompleteMultipartUploadRequest {
 #[derive(Default, Debug, Serialize)]
 #[serde(default, rename_all = "PascalCase")]
 struct CompleteMultipartUploadRequestPart {
-    #[serde(rename = "$unflatten=PartNumber")]
+    #[serde(rename = "PartNumber")]
     part_number: usize,
     /// # TODO
     ///
@@ -1344,9 +1344,9 @@ struct CompleteMultipartUploadRequestPart {
     /// #[derive(Default, Debug, Serialize)]
     /// #[serde(default, rename_all = "PascalCase")]
     /// struct CompleteMultipartUploadRequestPart {
-    ///     #[serde(rename = "$unflatten=PartNumber")]
+    ///     #[serde(rename = "PartNumber")]
     ///     part_number: usize,
-    ///     #[serde(rename = "$unflatten=ETag", serialize_with = "partial_escape")]
+    ///     #[serde(rename = "ETag", serialize_with = "partial_escape")]
     ///     etag: String,
     /// }
     ///
@@ -1361,7 +1361,7 @@ struct CompleteMultipartUploadRequestPart {
     /// ```
     ///
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
-    #[serde(rename = "$unflatten=ETag")]
+    #[serde(rename = "ETag")]
     etag: String,
 }
 

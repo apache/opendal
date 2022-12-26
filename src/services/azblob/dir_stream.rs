@@ -77,7 +77,7 @@ impl ObjectPage for DirStream {
         };
         self.next_marker = output.next_marker.clone().unwrap_or_default();
 
-        let prefixes = output.blobs.blob_prefix.unwrap_or_default();
+        let prefixes = output.blobs.blob_prefix;
         let mut entries = Vec::with_capacity(prefixes.len() + output.blobs.blob.len());
 
         for prefix in prefixes {
@@ -136,7 +136,7 @@ struct Output {
 #[serde(default, rename_all = "PascalCase")]
 struct Blobs {
     blob: Vec<Blob>,
-    blob_prefix: Option<Vec<BlobPrefix>>,
+    blob_prefix: Vec<BlobPrefix>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -322,7 +322,6 @@ mod tests {
         assert_eq!(
             out.blobs
                 .blob_prefix
-                .unwrap()
                 .iter()
                 .map(|v| v.name.clone())
                 .collect::<Vec<String>>(),

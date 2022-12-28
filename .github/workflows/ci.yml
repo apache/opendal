@@ -35,6 +35,8 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
+      - uses: Swatinem/rust-cache@v2
+
       - uses: ./.github/actions/check
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -64,6 +66,7 @@ jobs:
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
 
+      - uses: Swatinem/rust-cache@v2
       - name: Check
         run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets --all-features -- -D warnings
 
@@ -75,6 +78,7 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build
 
@@ -100,6 +104,7 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
+      - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --all-features --release
 
@@ -125,6 +130,7 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         run: cargo test --no-fail-fast --features compress,layers-all
         env:

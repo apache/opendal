@@ -29,7 +29,7 @@ jobs:
         run: |
           ipfs add -r ./testdata --to-files /opendal-testdata
           ipfs files ls /opendal-testdata -l
-
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
         run: cargo test ipfs --features services-ipfs -- --nocapture

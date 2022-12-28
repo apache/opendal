@@ -32,6 +32,8 @@ mod io;
 pub use io::BlockingBytesHandler;
 pub use io::BlockingBytesRead;
 pub use io::BlockingBytesReader;
+pub use io::BlockingOutputBytesRead;
+pub use io::BlockingOutputBytesReader;
 pub use io::BytesHandler;
 pub use io::BytesRead;
 pub use io::BytesReader;
@@ -39,6 +41,8 @@ pub use io::BytesSink;
 pub use io::BytesStream;
 pub use io::BytesWrite;
 pub use io::BytesWriter;
+pub use io::OutputBytesRead;
+pub use io::OutputBytesReader;
 
 mod path;
 pub use path::build_abs_path;

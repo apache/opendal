@@ -124,7 +124,7 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let (rp, r) = { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
@@ -139,7 +139,8 @@ where
 
         Ok((
             rp,
-            Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone())) as BytesReader,
+            Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone()))
+                as OutputBytesReader,
         ))
     }
 
@@ -432,8 +433,8 @@ where
 }
 
 #[pin_project]
-struct RetryReader<B: Backoff + Debug + Send + Sync> {
-    inner: BytesReader,
+struct RetryReader<B: Backoff + Debug + Send + Sync, R> {
+    inner: R,
     op: Operation,
 
     backoff: B,
@@ -441,8 +442,8 @@ struct RetryReader<B: Backoff + Debug + Send + Sync> {
     sleep: Option<Pin<Box<Sleep>>>,
 }
 
-impl<B: Backoff + Debug + Send + Sync> RetryReader<B> {
-    fn new(inner: BytesReader, op: Operation, backoff: B) -> Self {
+impl<B: Backoff + Debug + Send + Sync, R> RetryReader<B, R> {
+    fn new(inner: R, op: Operation, backoff: B) -> Self {
         Self {
             inner,
             op,
@@ -453,9 +454,10 @@ impl<B: Backoff + Debug + Send + Sync> RetryReader<B> {
     }
 }
 
-impl<B> AsyncRead for RetryReader<B>
+impl<B, R> AsyncRead for RetryReader<B, R>
 where
     B: Backoff + Debug + Send + Sync,
+    R: AsyncRead + Unpin + Send,
 {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -581,7 +583,7 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, BytesReader)> {
+        async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, OutputBytesReader)> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -673,12 +675,12 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, BytesReader)> {
+        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, OutputBytesReader)> {
             Ok((
                 RpRead::new(0),
                 Box::new(MockReader {
                     attempt: self.attempt.clone(),
-                }) as BytesReader,
+                }) as OutputBytesReader,
             ))
         }
 

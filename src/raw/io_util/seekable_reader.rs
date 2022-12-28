@@ -79,9 +79,9 @@ pub struct SeekableReader {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<(RpRead, BytesReader)>>),
+    Sending(BoxFuture<'static, Result<(RpRead, OutputBytesReader)>>),
     Seeking(BoxFuture<'static, Result<RpStat>>),
-    Reading(BytesReader),
+    Reading(OutputBytesReader),
 }
 
 impl SeekableReader {

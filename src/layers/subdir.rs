@@ -95,7 +95,7 @@ impl Accessor for SubdirAccessor {
         self.inner.create(&path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.read(&path, args).await

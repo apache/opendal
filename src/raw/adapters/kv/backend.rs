@@ -74,7 +74,7 @@ where
         Ok(RpCreate::default())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let bs = match self.kv.get(path).await? {
             Some(bs) => bs,
             None => {

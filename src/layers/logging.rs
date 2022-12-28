@@ -203,7 +203,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
@@ -234,7 +234,7 @@ impl Accessor for LoggingAccessor {
                         args.range().size(),
                         r,
                         self.failure_level,
-                    )) as BytesReader,
+                    )) as OutputBytesReader,
                 )
             })
             .map_err(|err| {
@@ -982,7 +982,7 @@ impl Accessor for LoggingAccessor {
 }
 
 /// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
-struct LoggingReader {
+struct LoggingReader<R> {
     scheme: Scheme,
     path: String,
     op: Operation,
@@ -991,16 +991,16 @@ struct LoggingReader {
     has_read: u64,
     failure_level: Option<Level>,
 
-    inner: BytesReader,
+    inner: R,
 }
 
-impl LoggingReader {
+impl<R> LoggingReader<R> {
     fn new(
         scheme: Scheme,
         op: Operation,
         path: &str,
         size: Option<u64>,
-        reader: BytesReader,
+        reader: R,
         failure_level: Option<Level>,
     ) -> Self {
         Self {
@@ -1017,7 +1017,7 @@ impl LoggingReader {
     }
 }
 
-impl Drop for LoggingReader {
+impl<R> Drop for LoggingReader<R> {
     fn drop(&mut self) {
         if let Some(size) = self.size {
             if size == self.has_read {
@@ -1045,13 +1045,13 @@ impl Drop for LoggingReader {
     }
 }
 
-impl AsyncRead for LoggingReader {
+impl<R: AsyncRead + Unpin + Send> AsyncRead for LoggingReader<R> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        match Pin::new(&mut (*self.inner)).poll_read(cx, buf) {
+        match Pin::new(&mut self.inner).poll_read(cx, buf) {
             Poll::Ready(res) => match res {
                 Ok(n) => {
                     self.has_read += n as u64;

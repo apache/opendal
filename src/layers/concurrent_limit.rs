@@ -88,7 +88,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.create(path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let permit = self
             .semaphore
             .clone()
@@ -99,7 +99,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.read(path, args).await.map(|(rp, r)| {
             (
                 rp,
-                Box::new(ConcurrentLimitReader::new(r, permit)) as BytesReader,
+                Box::new(ConcurrentLimitReader::new(r, permit)) as OutputBytesReader,
             )
         })
     }
@@ -279,14 +279,14 @@ impl Accessor for ConcurrentLimitAccessor {
 }
 
 struct ConcurrentLimitReader {
-    inner: BytesReader,
+    inner: OutputBytesReader,
 
     // Hold on this permit until this reader has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
 impl ConcurrentLimitReader {
-    fn new(inner: BytesReader, permit: OwnedSemaphorePermit) -> Self {
+    fn new(inner: OutputBytesReader, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
             _permit: permit,

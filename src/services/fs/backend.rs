@@ -281,7 +281,7 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
@@ -302,7 +302,7 @@ impl Accessor for Backend {
         let mut f = Compat::new(f);
 
         let br = args.range();
-        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (OutputBytesReader, _) = match (br.offset(), br.size()) {
             // Read a specific range.
             (Some(offset), Some(size)) => {
                 match offset {
@@ -342,7 +342,7 @@ impl Accessor for Backend {
             (None, None) => (Box::new(f), meta.len()),
         };
 
-        Ok((RpRead::new(size), Box::new(r) as BytesReader))
+        Ok((RpRead::new(size), Box::new(r) as OutputBytesReader))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {

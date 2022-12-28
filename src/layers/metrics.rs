@@ -452,7 +452,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
@@ -467,7 +467,7 @@ impl Accessor for MetricsAccessor {
                         .register_errors_total(Operation::Read, ErrorKind::Unexpected),
                     self.handle.requests_duration_seconds_read.clone(),
                     Some(start),
-                )) as BytesReader,
+                )) as OutputBytesReader,
             )
         });
 
@@ -792,8 +792,8 @@ impl Accessor for MetricsAccessor {
     }
 }
 
-struct MetricReader {
-    inner: BytesReader,
+struct MetricReader<R> {
+    inner: R,
 
     bytes_counter: Counter,
     errors_counter: Counter,
@@ -803,9 +803,9 @@ struct MetricReader {
     bytes: u64,
 }
 
-impl MetricReader {
+impl<R> MetricReader<R> {
     fn new(
-        inner: BytesReader,
+        inner: R,
         bytes_counter: Counter,
         errors_counter: Counter,
         requests_duration_seconds: Histogram,
@@ -823,13 +823,13 @@ impl MetricReader {
     }
 }
 
-impl AsyncRead for MetricReader {
+impl<R: AsyncRead + Unpin> AsyncRead for MetricReader<R> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut (*self.inner))
+        Pin::new(&mut self.inner)
             .poll_read(cx, buf)
             .map(|res| match res {
                 Ok(bytes) => {
@@ -844,7 +844,7 @@ impl AsyncRead for MetricReader {
     }
 }
 
-impl Drop for MetricReader {
+impl<R> Drop for MetricReader<R> {
     fn drop(&mut self) {
         self.bytes_counter.increment(self.bytes);
         if let Some(instant) = self.start {

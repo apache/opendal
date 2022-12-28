@@ -303,7 +303,11 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         let retry = self.backoff.clone();
 
         let mut e = None;

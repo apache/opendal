@@ -727,7 +727,11 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
@@ -756,7 +760,7 @@ impl Accessor for LoggingAccessor {
                     r,
                     self.failure_level,
                 );
-                (rp, Box::new(r) as BlockingBytesReader)
+                (rp, Box::new(r) as BlockingOutputBytesReader)
             })
             .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
@@ -1098,7 +1102,7 @@ impl<R: AsyncRead + Unpin + Send> AsyncRead for LoggingReader<R> {
 }
 
 /// `BlockingLoggingReader` is a wrapper of `BlockingBytesReader`, with logging functionality.
-struct BlockingLoggingReader {
+struct BlockingLoggingReader<R> {
     scheme: Scheme,
     path: String,
     op: Operation,
@@ -1106,17 +1110,17 @@ struct BlockingLoggingReader {
     size: Option<u64>,
     has_read: u64,
 
-    inner: BlockingBytesReader,
+    inner: R,
     failure_level: Option<Level>,
 }
 
-impl BlockingLoggingReader {
+impl<R> BlockingLoggingReader<R> {
     fn new(
         scheme: Scheme,
         op: Operation,
         path: &str,
         size: Option<u64>,
-        reader: BlockingBytesReader,
+        reader: R,
         failure_level: Option<Level>,
     ) -> Self {
         Self {
@@ -1132,7 +1136,7 @@ impl BlockingLoggingReader {
     }
 }
 
-impl Drop for BlockingLoggingReader {
+impl<R> Drop for BlockingLoggingReader<R> {
     fn drop(&mut self) {
         if let Some(size) = self.size {
             if size == self.has_read {
@@ -1160,7 +1164,7 @@ impl Drop for BlockingLoggingReader {
     }
 }
 
-impl Read for BlockingLoggingReader {
+impl<R: BlockingBytesRead> Read for BlockingLoggingReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.inner.read(buf) {
             Ok(n) => {

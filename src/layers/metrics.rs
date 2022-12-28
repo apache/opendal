@@ -685,7 +685,11 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         self.handle.requests_total_blocking_read.increment(1);
 
         let start = Instant::now();
@@ -699,7 +703,7 @@ impl Accessor for MetricsAccessor {
                         .register_errors_total(Operation::BlockingRead, ErrorKind::Unexpected),
                     self.handle.requests_duration_seconds_blocking_read.clone(),
                     Some(start),
-                )) as BlockingBytesReader,
+                )) as BlockingOutputBytesReader,
             )
         });
 
@@ -854,8 +858,8 @@ impl<R> Drop for MetricReader<R> {
     }
 }
 
-struct BlockingMetricReader {
-    inner: BlockingBytesReader,
+struct BlockingMetricReader<R> {
+    inner: R,
 
     bytes_counter: Counter,
     errors_counter: Counter,
@@ -865,9 +869,9 @@ struct BlockingMetricReader {
     bytes: u64,
 }
 
-impl BlockingMetricReader {
+impl<R> BlockingMetricReader<R> {
     fn new(
-        inner: BlockingBytesReader,
+        inner: R,
         bytes_counter: Counter,
         errors_counter: Counter,
         requests_duration_seconds: Histogram,
@@ -885,7 +889,7 @@ impl BlockingMetricReader {
     }
 }
 
-impl Read for BlockingMetricReader {
+impl<R: BlockingBytesRead> Read for BlockingMetricReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner
             .read(buf)
@@ -900,7 +904,7 @@ impl Read for BlockingMetricReader {
     }
 }
 
-impl Drop for BlockingMetricReader {
+impl<R> Drop for BlockingMetricReader<R> {
     fn drop(&mut self) {
         self.bytes_counter.increment(self.bytes);
         if let Some(instant) = self.start {

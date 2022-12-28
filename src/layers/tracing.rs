@@ -155,11 +155,16 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader,
+                Box::new(BlockingTracingReader::new(Span::current(), r))
+                    as BlockingOutputBytesReader,
             )
         })
     }
@@ -216,18 +221,18 @@ impl<R: BytesRead> AsyncRead for TracingReader<R> {
     }
 }
 
-struct BlockingTracingReader {
+struct BlockingTracingReader<R> {
     span: Span,
-    inner: BlockingBytesReader,
+    inner: R,
 }
 
-impl BlockingTracingReader {
-    fn new(span: Span, inner: BlockingBytesReader) -> Self {
+impl<R> BlockingTracingReader<R> {
+    fn new(span: Span, inner: R) -> Self {
         Self { span, inner }
     }
 }
 
-impl Read for BlockingTracingReader {
+impl<R: BlockingBytesRead> Read for BlockingTracingReader<R> {
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",

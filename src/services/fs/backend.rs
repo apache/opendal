@@ -513,7 +513,11 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         use std::io::Seek;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -527,7 +531,7 @@ impl Accessor for Backend {
             .map_err(parse_io_error)?;
 
         let br = args.range();
-        let (r, size): (BlockingBytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (BlockingOutputBytesReader, _) = match (br.offset(), br.size()) {
             // Read a specific range.
             (Some(offset), Some(size)) => {
                 match offset {
@@ -562,7 +566,7 @@ impl Accessor for Backend {
             (None, None) => (Box::new(f), meta.len()),
         };
 
-        Ok((RpRead::new(size), Box::new(r) as BlockingBytesReader))
+        Ok((RpRead::new(size), Box::new(r) as BlockingOutputBytesReader))
     }
 
     fn blocking_write(

@@ -198,7 +198,11 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         self.inner.blocking_read(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingRead.into_static())
                 .with_context("service", self.meta.scheme())

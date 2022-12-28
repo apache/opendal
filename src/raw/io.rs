@@ -39,11 +39,19 @@ impl<T> OutputBytesRead for T where T: BytesRead + Sync {}
 pub type OutputBytesReader = Box<dyn OutputBytesRead>;
 
 /// BlockingBytesRead represents a blocking reader of bytes.
-pub trait BlockingBytesRead: Read + Send + Sync {}
-impl<T> BlockingBytesRead for T where T: Read + Send + Sync {}
+pub trait BlockingBytesRead: Read + Send {}
+impl<T> BlockingBytesRead for T where T: Read + Send {}
 
 /// BlockingBytesReader is a boxed dyn [`BlockingBytesRead`].
 pub type BlockingBytesReader = Box<dyn BlockingBytesRead>;
+
+/// BlockingOutputBytesRead is the output version of bytes reader
+/// returned by OpenDAL.
+pub trait BlockingOutputBytesRead: BlockingBytesRead + Sync {}
+impl<T> BlockingOutputBytesRead for T where T: BlockingBytesRead + Sync {}
+
+/// BlockingOutputBytesReader is a boxed dyn [`u`].
+pub type BlockingOutputBytesReader = Box<dyn BlockingOutputBytesRead>;
 
 /// BytesHandle represents a handle of bytes which can be read and seek.
 pub trait BytesHandle: AsyncRead + AsyncSeek + Unpin + Send {}

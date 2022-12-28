@@ -31,12 +31,12 @@ impl<T> BytesRead for T where T: AsyncRead + Unpin + Send {}
 /// BytesReader is a boxed dyn [`BytesRead`].
 pub type BytesReader = Box<dyn BytesRead>;
 
-/// BytesHandle represents a handle of bytes which can be read and seek.
-pub trait BytesHandle: AsyncRead + AsyncSeek + Unpin + Send {}
-impl<T> BytesHandle for T where T: AsyncRead + AsyncSeek + Unpin + Send {}
+/// OutputBytesRead is the output version of bytes returned by OpenDAL.
+pub trait OutputBytesRead: BytesRead + Sync {}
+impl<T> OutputBytesRead for T where T: BytesRead + Sync {}
 
-/// BytesHandler is a boxed dyn [`BytesHandle`].
-pub type BytesHandler = Box<dyn BytesHandle>;
+/// OutputBytesReader is a boxed dyn [`OutputBytesRead`].
+pub type OutputBytesReader = Box<dyn OutputBytesRead>;
 
 /// BlockingBytesRead represents a blocking reader of bytes.
 pub trait BlockingBytesRead: Read + Send + Sync {}
@@ -44,6 +44,13 @@ impl<T> BlockingBytesRead for T where T: Read + Send + Sync {}
 
 /// BlockingBytesReader is a boxed dyn [`BlockingBytesRead`].
 pub type BlockingBytesReader = Box<dyn BlockingBytesRead>;
+
+/// BytesHandle represents a handle of bytes which can be read and seek.
+pub trait BytesHandle: AsyncRead + AsyncSeek + Unpin + Send {}
+impl<T> BytesHandle for T where T: AsyncRead + AsyncSeek + Unpin + Send {}
+
+/// BytesHandler is a boxed dyn [`BytesHandle`].
+pub type BytesHandler = Box<dyn BytesHandle>;
 
 /// BytesHandle represents a handle of bytes which can be read an seek.
 pub trait BlockingBytesHandle: Read + Seek + Send {}

@@ -53,6 +53,7 @@ jobs:
           swapon --show
           echo
 
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
         run: cargo test ftp --features compress,services-ftp -- --nocapture

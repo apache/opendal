@@ -112,11 +112,11 @@ impl From<AsyncBody> for reqwest::Body {
 /// # Notes
 ///
 /// Client SHOULD NEVER construct this body.
-pub struct IncomingAsyncBody(BytesReader);
+pub struct IncomingAsyncBody(OutputBytesReader);
 
 impl IncomingAsyncBody {
     /// Construct a new incoming async body
-    pub fn new(r: BytesReader) -> Self {
+    pub fn new(r: OutputBytesReader) -> Self {
         Self(r)
     }
 
@@ -147,7 +147,7 @@ impl IncomingAsyncBody {
     }
 
     /// Consume the response to build a reader.
-    pub fn reader(self) -> BytesReader {
+    pub fn reader(self) -> OutputBytesReader {
         self.0
     }
 }

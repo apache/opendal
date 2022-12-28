@@ -30,9 +30,11 @@ use crate::Result;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {
-    reader: BytesReader,
+    reader: OutputBytesReader,
     state: State,
 }
+
+unsafe impl Sync for FtpReader {}
 
 pub enum State {
     Reading(Option<PooledConnection<'static, Manager>>),
@@ -41,7 +43,7 @@ pub enum State {
 
 impl FtpReader {
     /// Create an instance of FtpReader.
-    pub fn new(r: BytesReader, c: PooledConnection<'static, Manager>) -> Self {
+    pub fn new(r: OutputBytesReader, c: PooledConnection<'static, Manager>) -> Self {
         Self {
             reader: r,
             state: State::Reading(Some(c)),

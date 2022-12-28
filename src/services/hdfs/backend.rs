@@ -183,7 +183,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         use futures::AsyncReadExt;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -200,7 +200,7 @@ impl Accessor for Backend {
 
         let br = args.range();
 
-        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (OutputBytesReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
                 (Box::new(f.take(size)), min(size, meta.len() - offset))
@@ -369,7 +369,11 @@ impl Accessor for Backend {
         }
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         use std::io::Read;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -386,7 +390,7 @@ impl Accessor for Backend {
 
         let br = args.range();
 
-        let (r, size): (BlockingBytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (BlockingOutputBytesReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
                 (Box::new(f.take(size)), min(size, meta.len() - offset))

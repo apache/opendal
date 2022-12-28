@@ -71,11 +71,11 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         self.inner.read(path, args).await.map(|(rp, r)| {
             (
                 rp,
-                Box::new(TracingReader::new(Span::current(), r)) as BytesReader,
+                Box::new(TracingReader::new(Span::current(), r)) as OutputBytesReader,
             )
         })
     }
@@ -155,11 +155,16 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, BlockingBytesReader)> {
+    fn blocking_read(
+        &self,
+        path: &str,
+        args: OpRead,
+    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                Box::new(BlockingTracingReader::new(Span::current(), r)) as BlockingBytesReader,
+                Box::new(BlockingTracingReader::new(Span::current(), r))
+                    as BlockingOutputBytesReader,
             )
         })
     }
@@ -190,18 +195,18 @@ impl Accessor for TracingAccessor {
     }
 }
 
-struct TracingReader {
+struct TracingReader<R> {
     span: Span,
-    inner: BytesReader,
+    inner: R,
 }
 
-impl TracingReader {
-    fn new(span: Span, inner: BytesReader) -> Self {
+impl<R> TracingReader<R> {
+    fn new(span: Span, inner: R) -> Self {
         Self { span, inner }
     }
 }
 
-impl AsyncRead for TracingReader {
+impl<R: BytesRead> AsyncRead for TracingReader<R> {
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
@@ -212,22 +217,22 @@ impl AsyncRead for TracingReader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut (*self.inner)).poll_read(cx, buf)
+        Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 }
 
-struct BlockingTracingReader {
+struct BlockingTracingReader<R> {
     span: Span,
-    inner: BlockingBytesReader,
+    inner: R,
 }
 
-impl BlockingTracingReader {
-    fn new(span: Span, inner: BlockingBytesReader) -> Self {
+impl<R> BlockingTracingReader<R> {
+    fn new(span: Span, inner: R) -> Self {
         Self { span, inner }
     }
 }
 
-impl Read for BlockingTracingReader {
+impl<R: BlockingBytesRead> Read for BlockingTracingReader<R> {
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",

@@ -22,7 +22,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
-        run: cargo test s3 --features compress -- --nocapture
+        run: cargo test ghac --features compress -- --nocapture
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

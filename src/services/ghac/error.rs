@@ -23,10 +23,9 @@ use crate::Result;
 /// Parse error respons into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
-    let bs = body.bytes().await?;
 
     let (kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
+        StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::ObjectNotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -35,6 +34,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         _ => (ErrorKind::Unexpected, false),
     };
 
+    let bs = body.bytes().await?;
     let mut err = Error::new(kind, &String::from_utf8_lossy(&bs))
         .with_context("response", format!("{:?}", parts));
 

@@ -193,7 +193,7 @@ impl Accessor for Backend {
 
         let resp = self.client.send_async(req).await?;
 
-        let location = if resp.status().is_success() {
+        let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body().bytes().await?;
             let query_resp: GhacQueryResponse =
                 serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
@@ -262,7 +262,7 @@ impl Accessor for Backend {
 
         let resp = self.client.send_async(req).await?;
 
-        let location = if resp.status().is_success() {
+        let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body().bytes().await?;
             let query_resp: GhacQueryResponse =
                 serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;

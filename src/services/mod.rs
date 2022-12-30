@@ -25,6 +25,7 @@ pub mod fs;
 #[cfg(feature = "services-ftp")]
 pub mod ftp;
 pub mod gcs;
+pub mod ghac;
 #[cfg(feature = "services-hdfs")]
 pub mod hdfs;
 pub mod http;

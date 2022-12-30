@@ -100,7 +100,7 @@ impl Builder {
             cache_url: env::var(ACTIONS_CACHE_URL).map_err(|err| {
                 Error::new(
                     ErrorKind::BackendConfigInvalid,
-                    "not in github action environment",
+                    "ACTIONS_CACHE_URL not found, maybe not in github action environment?",
                 )
                 .with_operation("Builder::build")
                 .set_source(err)
@@ -108,7 +108,7 @@ impl Builder {
             catch_token: env::var(ACTIONS_RUNTIME_TOKEN).map_err(|err| {
                 Error::new(
                     ErrorKind::BackendConfigInvalid,
-                    "not in github action environment",
+                    "ACTIONS_RUNTIME_TOKEN not found, maybe not in github action environment?",
                 )
                 .with_operation("Builder::build")
                 .set_source(err)

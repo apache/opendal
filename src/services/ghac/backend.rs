@@ -168,7 +168,7 @@ impl Accessor for Backend {
             return Ok(RpCreate::default());
         }
 
-        let req = self.ghac_reserve(path, 0).await?;
+        let req = self.ghac_reserve(path, 1).await?;
 
         let resp = self.client.send_async(req).await?;
 

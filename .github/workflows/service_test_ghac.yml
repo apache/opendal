@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v2
 
-      - name: Configure sccache
+      - name: Configure Cache Env
         uses: actions/github-script@v6
         with:
           script: |

@@ -183,7 +183,7 @@ impl Accessor for Backend {
         } else {
             return Err(parse_error(resp)
                 .await
-                .map_err(|err| err.with_operation("Backend::ghac_reserve"))?);
+                .map(|err| err.with_operation("Backend::ghac_reserve"))?);
         };
 
         // Write only 1 byte to allow create.
@@ -198,7 +198,7 @@ impl Accessor for Backend {
         } else {
             return Err(parse_error(resp)
                 .await
-                .map_err(|err| err.with_operation("Backend::ghac_upload"))?);
+                .map(|err| err.with_operation("Backend::ghac_upload"))?);
         }
 
         let req = self.ghac_commmit(cache_id, 1).await?;
@@ -210,7 +210,7 @@ impl Accessor for Backend {
         } else {
             Err(parse_error(resp)
                 .await
-                .map_err(|err| err.with_operation("Backend::ghac_commmit"))?)
+                .map(|err| err.with_operation("Backend::ghac_commmit"))?)
         }
     }
 

@@ -29,7 +29,7 @@ use super::error::parse_error;
 /// The base url for cache url.
 const CACHE_URL_BASE: &str = "_apis/artifactcache";
 /// Cache API requires to provide an accept header.
-const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0-preview.1";
+const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0";
 /// The cache url env for ghac.
 const ACTIONS_CACHE_URL: &str = "ACTIONS_CACHE_URL";
 /// The runtime token env for ghac.
@@ -170,6 +170,9 @@ impl Accessor for Backend {
             let reserve_resp: GhacReserveResponse =
                 serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
             reserve_resp.cache_id
+        } else if resp.status().as_u16() == StatusCode::CONFLICT {
+            // If the file is already exist, just return Ok.
+            return Ok(RpCreate::default());
         } else {
             return Err(parse_error(resp).await?);
         };

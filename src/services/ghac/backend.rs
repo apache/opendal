@@ -16,7 +16,7 @@ use std::env;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use http::header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
 use http::{Request, Response, StatusCode};
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,8 @@ use super::error::parse_error;
 
 /// The base url for cache url.
 const CACHE_URL_BASE: &str = "_apis/artifactcache";
+/// Cache API requires to provide an accept header.
+const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0-preview.1";
 /// The cache url env for ghac.
 const ACTIONS_CACHE_URL: &str = "ACTIONS_CACHE_URL";
 /// The runtime token env for ghac.
@@ -309,6 +311,7 @@ impl Backend {
 
         let mut req = Request::get(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -350,6 +353,7 @@ impl Backend {
 
         let mut req = Request::post(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
         req = req.header(CONTENT_LENGTH, bs.len());
         req = req.header(CONTENT_TYPE, "application/json");
 
@@ -370,6 +374,7 @@ impl Backend {
 
         let mut req = Request::patch(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
         req = req.header(CONTENT_LENGTH, size);
         req = req.header(CONTENT_TYPE, "application/octet-stream");
         req = req.header(
@@ -392,6 +397,7 @@ impl Backend {
 
         let mut req = Request::post(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
+        req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
         req = req.header(CONTENT_LENGTH, bs.len());
 
         let req = req

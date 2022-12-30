@@ -35,3 +35,4 @@ jobs:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_GHAC_TEST: ${{ secrets.OPENDAL_GHAC_TEST }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -29,7 +29,7 @@ use super::error::parse_error;
 /// The base url for cache url.
 const CACHE_URL_BASE: &str = "_apis/artifactcache";
 /// Cache API requires to provide an accept header.
-const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0";
+const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0-preview.1";
 /// The cache url env for ghac.
 const ACTIONS_CACHE_URL: &str = "ACTIONS_CACHE_URL";
 /// The runtime token env for ghac.

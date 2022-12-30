@@ -161,6 +161,11 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        // ignore creation of dir.
+        if path.ends_with('/') {
+            return Ok(RpCreate::default());
+        }
+
         let req = self.ghac_reserve(path, 0).await?;
 
         let resp = self.client.send_async(req).await?;
@@ -177,7 +182,20 @@ impl Accessor for Backend {
             return Err(parse_error(resp).await?);
         };
 
-        let req = self.ghac_commmit(cache_id, 0).await?;
+        // Write only 1 byte to allow create.
+        let req = self
+            .ghac_upload(cache_id, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
+            .await?;
+
+        let resp = self.client.send_async(req).await?;
+
+        if resp.status().is_success() {
+            resp.into_body().consume().await?;
+        } else {
+            return Err(parse_error(resp).await?);
+        }
+
+        let req = self.ghac_commmit(cache_id, 1).await?;
         let resp = self.client.send_async(req).await?;
 
         if resp.status().is_success() {
@@ -267,6 +285,8 @@ impl Accessor for Backend {
             let query_resp: GhacQueryResponse =
                 serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
             query_resp.archive_location
+        } else if resp.status() == StatusCode::NO_CONTENT && path.ends_with('/') {
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
         } else {
             return Err(parse_error(resp).await?);
         };
@@ -277,9 +297,6 @@ impl Accessor for Backend {
         let status = resp.status();
         match status {
             StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
-            }
             _ => Err(parse_error(resp).await?),
         }
     }

@@ -23,4 +23,4 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: Cargo.toml
-          key: "path/to/file !@#$%^&*()_+-=;'><,?.txt"
+          key: "path/to/file !@#$%^&*()_+-=;'><?.txt"

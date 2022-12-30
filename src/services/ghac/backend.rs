@@ -309,7 +309,9 @@ impl Backend {
 
         let url = format!(
             "{}/{CACHE_URL_BASE}/cache?keys={}&version={}",
-            self.cache_url, p, self.version
+            self.cache_url,
+            percent_encode_path(&p),
+            self.version
         );
 
         let mut req = Request::get(&url);
@@ -415,8 +417,10 @@ impl Backend {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/repos/{}/actions/caches?key={p}",
-            self.api_url, self.repo
+            "{}/repos/{}/actions/caches?key={}",
+            self.api_url,
+            self.repo,
+            percent_encode_path(&p)
         );
 
         let mut req = Request::post(&url);

@@ -444,7 +444,13 @@ impl Backend {
 
         let mut req = Request::post(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.api_token));
-        req = req.header(USER_AGENT, "opendal/ghac");
+        req = req.header(
+            USER_AGENT,
+            format!(
+                "opendal {}/ghac",
+                env::var("CARGO_PKG_VERSION").unwrap_or_default()
+            ),
+        );
         req = req.header("X-GitHub-Api-Version", GITHUB_API_VERSION);
 
         let req = req

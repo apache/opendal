@@ -22,5 +22,5 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/cache@v3
         with:
-          path: Cargo.toml
-          key: "path/to/file !@#$%^&*()_+-%2C=;'><?.txt"
+          path: empty_file
+          key: "path/to/file !@#$%^&*()_+-=;'><?x.txt"

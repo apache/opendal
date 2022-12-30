@@ -161,7 +161,7 @@ impl Accessor for Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let req = self.ghac_reserve(path).await?;
+        let req = self.ghac_reserve(path, 0).await?;
 
         let resp = self.client.send_async(req).await?;
 
@@ -213,7 +213,7 @@ impl Accessor for Backend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
-        let req = self.ghac_reserve(path).await?;
+        let req = self.ghac_reserve(path, args.size()).await?;
 
         let resp = self.client.send_async(req).await?;
 
@@ -340,7 +340,7 @@ impl Backend {
             .map_err(new_request_build_error)
     }
 
-    async fn ghac_reserve(&self, path: &str) -> Result<Request<AsyncBody>> {
+    async fn ghac_reserve(&self, path: &str, size: u64) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{CACHE_URL_BASE}/caches", self.cache_url);
@@ -348,6 +348,7 @@ impl Backend {
         let bs = serde_json::to_vec(&GhacReserveRequest {
             key: p,
             version: self.version.to_string(),
+            cache_size: size,
         })
         .map_err(parse_json_serialize_error)?;
 
@@ -440,11 +441,12 @@ struct GhacQueryResponse {
 struct GhacReserveRequest {
     key: String,
     version: String,
+    cache_size: u64,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct GhacReserveResponse {
-    #[serde(rename = "cacheID")]
     cache_id: i64,
 }
 

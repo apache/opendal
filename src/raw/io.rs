@@ -32,8 +32,8 @@ impl<T> BytesRead for T where T: AsyncRead + Unpin + Send {}
 pub type BytesReader = Box<dyn BytesRead>;
 
 /// OutputBytesRead is the output version of bytes returned by OpenDAL.
-pub trait OutputBytesRead: BytesRead + Sync {}
-impl<T> OutputBytesRead for T where T: BytesRead + Sync {}
+pub trait OutputBytesRead: BytesStream + BytesRead + Sync {}
+impl<T> OutputBytesRead for T where T: BytesStream + BytesRead + Sync {}
 
 /// OutputBytesReader is a boxed dyn [`OutputBytesRead`].
 pub type OutputBytesReader = Box<dyn OutputBytesRead>;

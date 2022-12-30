@@ -170,7 +170,11 @@ impl Accessor for Backend {
 
         let req = self.ghac_reserve(path, 1).await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|err| err.with_operation("Backend::ghac_reserve"))?;
 
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body().bytes().await?;
@@ -189,7 +193,11 @@ impl Accessor for Backend {
             .ghac_upload(cache_id, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
             .await?;
 
-        let resp = self.client.send_async(req).await?;
+        let resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|err| err.with_operation("Backend::ghac_upload"))?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
@@ -198,7 +206,11 @@ impl Accessor for Backend {
         }
 
         let req = self.ghac_commmit(cache_id, 1).await?;
-        let resp = self.client.send_async(req).await?;
+        let resp = self
+            .client
+            .send_async(req)
+            .await
+            .map_err(|err| err.with_operation("Backend::ghac_commmit"))?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;

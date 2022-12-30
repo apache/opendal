@@ -16,7 +16,9 @@ use std::env;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use http::header::{ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE};
+use http::header::{
+    ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, USER_AGENT,
+};
 use http::{Request, Response, StatusCode};
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -442,6 +444,7 @@ impl Backend {
 
         let mut req = Request::post(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.api_token));
+        req = req.header(USER_AGENT, "opendal/ghac");
         req = req.header("X-GitHub-Api-Version", GITHUB_API_VERSION);
 
         let req = req

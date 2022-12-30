@@ -170,11 +170,7 @@ impl Accessor for Backend {
 
         let req = self.ghac_reserve(path, 1).await?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|err| err.with_operation("Backend::ghac_reserve"))?;
+        let resp = self.client.send_async(req).await?;
 
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body().bytes().await?;
@@ -185,7 +181,9 @@ impl Accessor for Backend {
             // If the file is already exist, just return Ok.
             return Ok(RpCreate::default());
         } else {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp)
+                .await
+                .map_err(|err| err.with_operation("Backend::ghac_reserve"))?);
         };
 
         // Write only 1 byte to allow create.
@@ -193,30 +191,26 @@ impl Accessor for Backend {
             .ghac_upload(cache_id, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
             .await?;
 
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|err| err.with_operation("Backend::ghac_upload"))?;
+        let resp = self.client.send_async(req).await?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
         } else {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp)
+                .await
+                .map_err(|err| err.with_operation("Backend::ghac_upload"))?);
         }
 
         let req = self.ghac_commmit(cache_id, 1).await?;
-        let resp = self
-            .client
-            .send_async(req)
-            .await
-            .map_err(|err| err.with_operation("Backend::ghac_commmit"))?;
+        let resp = self.client.send_async(req).await?;
 
         if resp.status().is_success() {
             resp.into_body().consume().await?;
             Ok(RpCreate::default())
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp)
+                .await
+                .map_err(|err| err.with_operation("Backend::ghac_commmit"))?)
         }
     }
 

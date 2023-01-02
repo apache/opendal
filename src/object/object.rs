@@ -15,11 +15,11 @@
 use std::fmt::Debug;
 use std::ops::RangeBounds;
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::MutexGuard;
 
 use futures::io;
 use futures::io::Cursor;
+use parking_lot::Mutex;
+use parking_lot::MutexGuard;
 use time::Duration;
 use time::OffsetDateTime;
 
@@ -158,7 +158,7 @@ impl Object {
     /// Return this object entry's object mode.
     pub async fn mode(&self) -> Result<ObjectMode> {
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
             // Object mode other than unknown is OK to be returned.
             if guard.mode() != ObjectMode::Unknown {
                 return Ok(guard.mode());
@@ -177,7 +177,7 @@ impl Object {
     /// Return this object entry's object mode in blocking way.
     pub fn blocking_mode(&self) -> Result<ObjectMode> {
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
             // Object mode other than unknown is OK to be returned.
             if guard.mode() != ObjectMode::Unknown {
                 return Ok(guard.mode());
@@ -438,7 +438,7 @@ impl Object {
 
         // Add total size hint for OpRead.
         let mut op = OpRead::new().with_range(br);
-        if let Ok(size) = self.content_length().await {
+        if let Some(size) = self.meta.lock().content_length_raw() {
             op = op.with_total_size_hint(size);
         }
 
@@ -886,7 +886,7 @@ impl Object {
 
         // Always write latest metadata into cache.
         {
-            let mut guard = self.meta.lock().expect("lock must succeed");
+            let mut guard = self.meta.lock();
             *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
         }
 
@@ -966,7 +966,7 @@ impl Object {
 
         // Always write latest metadata into cache.
         {
-            let mut guard = self.meta.lock().expect("lock must succeed");
+            let mut guard = self.meta.lock();
             *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
         }
         Ok(())
@@ -1089,7 +1089,7 @@ impl Object {
 
         // Always write latest metadata into cache.
         {
-            let mut guard = self.meta.lock().expect("lock must succeed");
+            let mut guard = self.meta.lock();
             *guard = ObjectMetadata::new(ObjectMode::Unknown);
         }
         Ok(())
@@ -1120,7 +1120,7 @@ impl Object {
 
         // Always write latest metadata into cache.
         {
-            let mut guard = self.meta.lock().expect("lock must succeed");
+            let mut guard = self.meta.lock();
             *guard = ObjectMetadata::new(ObjectMode::Unknown);
         }
         Ok(())
@@ -1240,7 +1240,7 @@ impl Object {
     async fn metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
         // Make sure the mutex guard has been dropped.
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
             if guard.is_complete() {
                 return Ok(guard);
             }
@@ -1249,7 +1249,7 @@ impl Object {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
 
-        let mut guard = self.meta.lock().expect("lock must succeed");
+        let mut guard = self.meta.lock();
         *guard = meta;
 
         Ok(guard)
@@ -1258,7 +1258,7 @@ impl Object {
     fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
         // Make sure the mutex guard has been dropped.
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
             if guard.is_complete() {
                 return Ok(guard);
             }
@@ -1267,7 +1267,7 @@ impl Object {
         let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
         let meta = rp.into_metadata();
 
-        let mut guard = self.meta.lock().expect("lock must succeed");
+        let mut guard = self.meta.lock();
         *guard = meta;
 
         Ok(guard)
@@ -1287,7 +1287,7 @@ impl Object {
 
         // Always write latest metadata into cache.
         {
-            let mut guard = self.meta.lock().expect("lock must succeed");
+            let mut guard = self.meta.lock();
             *guard = meta.clone();
         }
 
@@ -1334,7 +1334,7 @@ impl Object {
     /// `content_length` is a prefetched metadata field in `ObjectEntry`.
     pub async fn content_length(&self) -> Result<u64> {
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
             if let Some(v) = guard.content_length_raw() {
                 return Ok(v);
             }
@@ -1355,7 +1355,7 @@ impl Object {
     /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub async fn content_md5(&self) -> Result<Option<String>> {
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
 
             if let Some(v) = guard.content_md5() {
                 return Ok(Some(v.to_string()));
@@ -1377,7 +1377,7 @@ impl Object {
     /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
 
             if let Some(v) = guard.last_modified() {
                 return Ok(Some(v));
@@ -1399,7 +1399,7 @@ impl Object {
     /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
     pub async fn etag(&self) -> Result<Option<String>> {
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
 
             if let Some(v) = guard.etag() {
                 return Ok(Some(v.to_string()));
@@ -1438,7 +1438,7 @@ impl Object {
     pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
         // Make sure the mutex guard has been dropped.
         {
-            let guard = self.meta.lock().expect("lock must succeed");
+            let guard = self.meta.lock();
             if guard.is_complete() {
                 return Ok(guard.clone());
             }
@@ -1448,7 +1448,7 @@ impl Object {
         let meta = rp.into_metadata();
 
         {
-            let mut guard = self.meta.lock().expect("lock must succeed");
+            let mut guard = self.meta.lock();
             *guard = meta.clone();
         }
 

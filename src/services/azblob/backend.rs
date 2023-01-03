@@ -129,7 +129,7 @@ impl Builder {
     }
 
     /// Set sas_token of this backend.
-    /// 
+    ///
     /// - If sas_token is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
     pub fn sas_token(&mut self, sas_token: &str) -> &mut Self {

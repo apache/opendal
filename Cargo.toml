@@ -165,6 +165,3 @@ tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.17"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = "0.5"
-
-[patch.crates-io]
-reqsign = { path = "../reqsign" }

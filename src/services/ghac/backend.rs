@@ -399,6 +399,17 @@ impl Backend {
         let mut req = Request::get(location);
 
         if !range.is_full() {
+            // ghac is backed by azblob, and azblob doesn't support
+            // read with suffix range
+            //
+            // ref: https://learn.microsoft.com/en-us/rest/api/storageservices/specifying-the-range-header-for-blob-service-operations
+            if range.offset().is_none() && range.size().is_some() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "ghac doesn't support read with suffix range",
+                ));
+            }
+
             req = req.header(http::header::RANGE, range.to_header());
         }
 

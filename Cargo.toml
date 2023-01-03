@@ -130,7 +130,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.7.3"
+reqsign = "0.7.4"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",
@@ -165,3 +165,6 @@ tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.17"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 wiremock = "0.5"
+
+[patch.crates-io]
+reqsign = { path = "../reqsign" }

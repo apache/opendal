@@ -132,6 +132,9 @@ impl Builder {
     ///
     /// - If sas_token is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
+    /// 
+    /// See https://learn.microsoft.com/en-us/azure/storage/common/storage-sas-overview
+    /// for more info.
     pub fn sas_token(&mut self, sas_token: &str) -> &mut Self {
         if !sas_token.is_empty() {
             self.sas_token = Some(sas_token.to_string());

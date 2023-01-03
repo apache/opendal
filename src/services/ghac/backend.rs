@@ -33,6 +33,8 @@ const CACHE_URL_BASE: &str = "_apis/artifactcache";
 /// Cache API requires to provide an accept header.
 const CACHE_HEADER_ACCEPT: &str = "application/json;api-version=6.0-preview.1";
 /// The cache url env for ghac.
+///
+/// The url will be like `https://artifactcache.actions.githubusercontent.com/<id>/`
 const ACTIONS_CACHE_URL: &str = "ACTIONS_CACHE_URL";
 /// The runtime token env for ghac.
 ///
@@ -252,7 +254,9 @@ impl Accessor for Backend {
                 serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
             reserve_resp.cache_id
         } else {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_reserve"))?);
         };
 
         let req = self
@@ -264,7 +268,9 @@ impl Accessor for Backend {
         if resp.status().is_success() {
             resp.into_body().consume().await?;
         } else {
-            return Err(parse_error(resp).await?);
+            return Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_commmit"))?);
         }
 
         let req = self.ghac_commmit(cache_id, args.size()).await?;
@@ -274,7 +280,9 @@ impl Accessor for Backend {
             resp.into_body().consume().await?;
             Ok(RpWrite::new(args.size()))
         } else {
-            Err(parse_error(resp).await?)
+            Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_commmit"))?)
         }
     }
 
@@ -333,11 +341,12 @@ impl Backend {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
-            "{}/{CACHE_URL_BASE}/cache?keys={}&version={}",
+            "{}{CACHE_URL_BASE}/cache?keys={}&version={}",
             self.cache_url,
             percent_encode_path(&p),
             self.version
         );
+        debug!("query with {url}");
 
         let mut req = Request::get(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
@@ -373,7 +382,8 @@ impl Backend {
     async fn ghac_reserve(&self, path: &str, size: u64) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{CACHE_URL_BASE}/caches", self.cache_url);
+        let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
+        debug!("reserve with {url}");
 
         let bs = serde_json::to_vec(&GhacReserveRequest {
             key: p,
@@ -401,7 +411,8 @@ impl Backend {
         size: u64,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
-        let url = format!("{}/{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+        let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+        debug!("upload with {url}");
 
         let mut req = Request::patch(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
@@ -421,7 +432,8 @@ impl Backend {
     }
 
     async fn ghac_commmit(&self, cache_id: i64, size: u64) -> Result<Request<AsyncBody>> {
-        let url = format!("{}/{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+        let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
+        debug!("commit with {url}");
 
         let bs =
             serde_json::to_vec(&GhacCommitRequest { size }).map_err(parse_json_serialize_error)?;
@@ -429,6 +441,7 @@ impl Backend {
         let mut req = Request::post(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
         req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
+        req = req.header(CONTENT_TYPE, "application/json");
         req = req.header(CONTENT_LENGTH, bs.len());
 
         let req = req

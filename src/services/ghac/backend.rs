@@ -55,6 +55,7 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 pub struct Builder {
     root: Option<String>,
     version: Option<String>,
+    enable_create_simulation: bool,
 }
 
 impl Builder {
@@ -65,11 +66,13 @@ impl Builder {
             match k.as_ref() {
                 "root" => builder.root(v),
                 "version" => builder.version(v),
+                "enable_create_simulation" if !v.is_empty() => builder.enable_create_simulation(),
                 _ => continue,
             };
         }
         builder
     }
+
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
@@ -93,6 +96,18 @@ impl Builder {
         self
     }
 
+    /// Enable create simulation for ghac service.
+    ///
+    /// ghac service doesn't support create empty files. By enabling
+    /// create simulation, we will create a 1 byte file to represent
+    /// empty file.
+    ///
+    /// As a side effect, we can't create file with only 1 byte anymore.
+    pub fn enable_create_simulation(&mut self) -> &mut Self {
+        self.enable_create_simulation = true;
+        self
+    }
+
     /// Build a github action cache runner.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", self);
@@ -102,6 +117,7 @@ impl Builder {
 
         let backend = Backend {
             root,
+            enable_create_simulation: self.enable_create_simulation,
 
             cache_url: env::var(ACTIONS_CACHE_URL).map_err(|err| {
                 Error::new(
@@ -141,6 +157,7 @@ impl Builder {
 pub struct Backend {
     // root should end with "/"
     root: String,
+    enable_create_simulation: bool,
 
     cache_url: String,
     catch_token: String,
@@ -168,6 +185,12 @@ impl Accessor for Backend {
         // ignore creation of dir.
         if path.ends_with('/') {
             return Ok(RpCreate::default());
+        }
+        if !self.enable_create_simulation {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "ghac service doesn't support create empty file",
+            ));
         }
 
         let req = self.ghac_reserve(path, 1).await?;
@@ -312,7 +335,16 @@ impl Accessor for Backend {
 
         let status = resp.status();
         match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let mut meta = parse_into_object_metadata(path, resp.headers())?;
+
+                // Hack for enable_create_simulation.
+                if self.enable_create_simulation && meta.content_length_raw() == Some(1) {
+                    meta.set_content_length(0);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(resp).await?),
         }
     }

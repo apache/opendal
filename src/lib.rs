@@ -27,6 +27,7 @@
 //! | [fs][services::fs] | POSIX alike file system. |
 //! | [ftp][services::ftp] | FTP and FTPS support. |
 //! | [gcs][services::gcs] | Google Cloud Storage service. |
+//! | [ghac][services::ghac] | Github Action Cache service. |
 //! | [hdfs][services::hdfs] | Hadoop Distributed File System(HDFS). |
 //! | [http][services::http] | HTTP read-only backend. |
 //! | [ipfs][services::ipfs] | IPFS HTTP Gateway support. |

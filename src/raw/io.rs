@@ -50,21 +50,21 @@ pub type BlockingBytesReader = Box<dyn BlockingBytesRead>;
 pub trait BlockingOutputBytesRead: BlockingBytesRead + Sync {}
 impl<T> BlockingOutputBytesRead for T where T: BlockingBytesRead + Sync {}
 
-/// BlockingOutputBytesReader is a boxed dyn [`u`].
+/// BlockingOutputBytesReader is a boxed dyn `BlockingOutputBytesRead`.
 pub type BlockingOutputBytesReader = Box<dyn BlockingOutputBytesRead>;
 
 /// BytesHandle represents a handle of bytes which can be read and seek.
 pub trait BytesHandle: AsyncRead + AsyncSeek + Unpin + Send {}
 impl<T> BytesHandle for T where T: AsyncRead + AsyncSeek + Unpin + Send {}
 
-/// BytesHandler is a boxed dyn [`BytesHandle`].
+/// BytesHandler is a boxed dyn `BytesHandle`.
 pub type BytesHandler = Box<dyn BytesHandle>;
 
 /// BytesHandle represents a handle of bytes which can be read an seek.
 pub trait BlockingBytesHandle: Read + Seek + Send {}
 impl<T> BlockingBytesHandle for T where T: Read + Seek + Send {}
 
-/// BlockingBytesHandler is a boxed dyn [`BlockingBytesHandle`].
+/// BlockingBytesHandler is a boxed dyn `BlockingBytesHandle`.
 pub type BlockingBytesHandler = Box<dyn BlockingBytesHandle>;
 
 /// BytesWrite represents a writer of bytes.

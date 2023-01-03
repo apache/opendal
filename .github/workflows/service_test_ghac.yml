@@ -41,4 +41,5 @@ jobs:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_GHAC_TEST: ${{ secrets.OPENDAL_GHAC_TEST }}
+          OPENDAL_GHAC_ENABLE_CREATE_SIMULATION: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

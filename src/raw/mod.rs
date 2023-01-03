@@ -71,6 +71,9 @@ pub use object_page::ObjectPager;
 mod operation;
 pub use operation::Operation;
 
+mod version;
+pub use version::VERSION;
+
 mod rps;
 pub use rps::*;
 

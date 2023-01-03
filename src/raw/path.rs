@@ -308,6 +308,7 @@ mod tests {
             ("input dir", "/abc/", "def/", "abc/def/"),
             ("input file", "/abc/", "def", "abc/def"),
             ("input abs file with root /", "/", "/", ""),
+            ("input empty with root /", "/", "", ""),
             ("input dir with root /", "/", "def/", "def/"),
             ("input file with root /", "/", "def", "def"),
         ];

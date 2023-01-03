@@ -45,6 +45,7 @@ pub struct Builder {
     endpoint: Option<String>,
     account_name: Option<String>,
     account_key: Option<String>,
+    sas_token: Option<String>,
 }
 
 impl Debug for Builder {
@@ -60,6 +61,9 @@ impl Debug for Builder {
         }
         if self.account_key.is_some() {
             ds.field("account_key", &"<redacted>");
+        }
+        if self.sas_token.is_some() {
+            ds.field("sas_token", &"<redacted>");
         }
 
         ds.finish()
@@ -124,6 +128,21 @@ impl Builder {
         self
     }
 
+    /// Set sas_token of this backend.
+    ///
+    /// - If sas_token is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    ///
+    /// See [Grant limited access to Azure Storage resources using shared access signatures (SAS)](https://learn.microsoft.com/en-us/azure/storage/common/storage-sas-overview)
+    /// for more info.
+    pub fn sas_token(&mut self, sas_token: &str) -> &mut Self {
+        if !sas_token.is_empty() {
+            self.sas_token = Some(sas_token.to_string());
+        }
+
+        self
+    }
+
     pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
         let mut builder = Builder::default();
 
@@ -135,6 +154,7 @@ impl Builder {
                 "endpoint" => builder.endpoint(v),
                 "account_name" => builder.account_name(v),
                 "account_key" => builder.account_key(v),
+                "sas_token" => builder.sas_token(v),
                 _ => continue,
             };
         }
@@ -184,27 +204,42 @@ impl Builder {
 
         let mut builder = Builder::default();
 
-        let account_name = conn_map.get("AccountName").ok_or_else(|| {
-            Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "connection string must have AccountName",
-            )
-            .with_operation("Builder::from_connection_string")
-        })?;
-        builder.account_name(account_name);
-        let account_key = conn_map.get("AccountKey").ok_or_else(|| {
-            Error::new(
-                ErrorKind::BackendConfigInvalid,
-                "connection string must have AccountKey",
-            )
-            .with_operation("Builder::from_connection_string")
-        })?;
-        builder.account_key(account_key);
+        if let Some(sas_token) = conn_map.get("SharedAccessSignature") {
+            builder.sas_token(sas_token);
+        } else {
+            let account_name = conn_map.get("AccountName").ok_or_else(|| {
+                Error::new(
+                    ErrorKind::BackendConfigInvalid,
+                    "connection string must have AccountName",
+                )
+                .with_operation("Builder::from_connection_string")
+            })?;
+            builder.account_name(account_name);
+            let account_key = conn_map.get("AccountKey").ok_or_else(|| {
+                Error::new(
+                    ErrorKind::BackendConfigInvalid,
+                    "connection string must have AccountKey",
+                )
+                .with_operation("Builder::from_connection_string")
+            })?;
+            builder.account_key(account_key);
+        }
 
         if let Some(v) = conn_map.get("BlobEndpoint") {
             builder.endpoint(v);
         } else if let Some(v) = conn_map.get("EndpointSuffix") {
             let protocol = conn_map.get("DefaultEndpointsProtocol").unwrap_or(&"https");
+            let account_name = builder
+                .account_name
+                .as_ref()
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::BackendConfigInvalid,
+                        "connection string must have AccountName",
+                    )
+                    .with_operation("Builder::from_connection_string")
+                })?
+                .clone();
             builder.endpoint(&format!("{protocol}://{account_name}.blob.{v}"));
         }
 
@@ -242,7 +277,9 @@ impl Builder {
         let client = HttpClient::new();
 
         let mut signer_builder = AzureStorageSigner::builder();
-        if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
+        if let Some(sas_token) = &self.sas_token {
+            signer_builder.security_token(sas_token);
+        } else if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {
             signer_builder.account_name(name).account_key(key);
         }
 
@@ -573,5 +610,45 @@ EndpointSuffix=core.chinacloudapi.cn;
         );
         assert_eq!(builder.account_name.unwrap(), "storagesample");
         assert_eq!(builder.account_key.unwrap(), "account-key")
+    }
+
+    #[test]
+    fn test_sas_from_connection_string() {
+        // Note, not a correct HMAC
+        let builder = Builder::from_connection_string(
+            r#"
+BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;
+TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
+        "#,
+        )
+        .expect("from connection string must succeed");
+
+        assert_eq!(
+            builder.endpoint.unwrap(),
+            "http://127.0.0.1:10000/devstoreaccount1"
+        );
+        assert_eq!(builder.sas_token.unwrap(), "sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D");
+        assert_eq!(builder.account_name, None);
+        assert_eq!(builder.account_key, None);
+    }
+
+    #[test]
+    pub fn test_sas_preferred() {
+        let builder = Builder::from_connection_string(
+            r#"
+BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+AccountName=storagesample;
+AccountKey=account-key;
+SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D
+        "#,
+        )
+        .expect("from connection string must succeed");
+
+        // SAS should be preferred over shared key
+        assert_eq!(builder.sas_token.unwrap(), "sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D");
+        assert_eq!(builder.account_name, None);
+        assert_eq!(builder.account_key, None);
     }
 }

@@ -23,6 +23,7 @@ You may be looking for:
 - [fs](https://opendal.databend.rs/opendal/services/fs/index.html): POSIX alike file system.
 - [ftp](https://opendal.databend.rs/opendal/services/ftp/index.html): FTP and FTPS support.
 - [gcs](https://opendal.databend.rs/opendal/services/gcs/index.html): [Google Cloud Storage](https://cloud.google.com/storage) Service.
+- [ghac](https://opendal.databend.rs/opendal/services/ghac/index.html): [Github Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service.
 - [hdfs](https://opendal.databend.rs/opendal/services/hdfs/index.html): [Hadoop Distributed File System](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html)(HDFS).
 - [http](https://opendal.databend.rs/opendal/services/http/index.html): HTTP read-only services.
 - [ipfs](https://opendal.databend.rs/opendal/services/ipfs/index.html): [InterPlanetary File System](https://ipfs.tech/) HTTP Gateway support.

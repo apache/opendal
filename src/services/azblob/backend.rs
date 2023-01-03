@@ -235,7 +235,7 @@ impl Builder {
                     "connection string must have AccountName",
                 )
                 .with_operation("Builder::from_connection_string")
-            })?;
+            })?.clone();
             builder.endpoint(&format!("{protocol}://{account_name}.blob.{v}"));
         }
 

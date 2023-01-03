@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Checkout python env
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: ./.github/actions/check
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  msrv_check:
+    runs-on: ubuntu-latest
+    env:
+      # OpenDAL's MSRV is 1.60.
+      OPENDAL_MSRV: "1.60"
+    steps:
+      - uses: actions/checkout@v3
+      - name: Checkout python env
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+      - name: Setup msrv of rust
+        run: |
+          rustup toolchain install ${OPENDAL_MSRV}
+          rustup component add clippy --toolchain ${OPENDAL_MSRV}
+
+      - uses: Swatinem/rust-cache@v2
+      - name: Check
+        run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets --all-features -- -D warnings
+
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build
+
+  build_all_features:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Checkout python env
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --all-features --release
+
+  unit:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Checkout python env
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+      - name: Checkout java env
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: "11"
+      - name: Setup-hdfs env
+        uses: beyondstorage/setup-hdfs@master
+        with:
+          hdfs-version: "3.3.2"
+
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        run: cargo test --no-fail-fast --features compress,layers-all
+        env:
+          RUST_LOG: DEBUG
+          RUST_BACKTRACE: full
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
+  build_oli:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        working-directory: ./oli
+        run: cargo build
+
+  unit_oli:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test
+        working-directory: ./oli
+        run: cargo test
+
+  build_oay:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        working-directory: ./oay
+        run: cargo build
+
+  unit_oay:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Test
+        working-directory: ./oay
+        run: cargo test

@@ -1,0 +1,74 @@
+name: Service Test HTTP
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  nginx:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start nginx
+        shell: bash
+        run: |
+          mkdir /tmp/static
+          cp -r testdata/* /tmp/static
+          nginx -c `pwd`/src/services/http/fixtures/nginx.conf
+
+      - name: Test
+        shell: bash
+        run: cargo test http --features compress -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_HTTP_TEST: on
+          OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080
+
+  caddy:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      # caddy 2.5.2 can't pass our test cases for https://github.com/caddyserver/caddy/issues/4923
+      # Use the latest beta version instead
+      - name: Start caddy
+        shell: bash
+        run: |
+          VERSION="2.6.0-beta.3"
+
+          curl -sSL https://github.com/caddyserver/caddy/releases/download/v${VERSION}/caddy_${VERSION}_linux_amd64.tar.gz -o caddy_linux_amd64.tar.gz
+          tar -xvf caddy_linux_amd64.tar.gz
+
+          mkdir /tmp/static
+          cp -r testdata/* /tmp/static
+          ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 --access-log &
+
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        shell: bash
+        run: cargo test http --features compress -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_HTTP_TEST: on
+          OPENDAL_HTTP_ENDPOINT: http://127.0.0.1:8080

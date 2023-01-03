@@ -1,0 +1,47 @@
+name: Service Test Azblob
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  azurite_azblob:
+    runs-on: ubuntu-latest
+
+    # Setup azurite server
+    services:
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+          - 10000:10000
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup test bucket
+        run: |
+          az storage container create \
+              --name test \
+              --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        shell: bash
+        run: cargo test azblob --features compress -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_AZBLOB_TEST: on
+          OPENDAL_AZBLOB_CONTAINER: test
+          OPENDAL_AZBLOB_ENDPOINT: "http://127.0.0.1:10000/devstoreaccount1"
+          OPENDAL_AZBLOB_ACCOUNT_NAME: devstoreaccount1
+          OPENDAL_AZBLOB_ACCOUNT_KEY: Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==

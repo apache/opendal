@@ -1,0 +1,31 @@
+name: Service Test RocksDB
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  rocksdb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        shell: bash
+        run: cargo test rocksdb --features compress,services-rocksdb -- --nocapture --test-threads=1
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_ROCKSDB_TEST: on
+          OPENDAL_ROCKSDB_ROOT: /
+          OPENDAL_ROCKSDB_DATADIR: /tmp/opendal/rocksdb/

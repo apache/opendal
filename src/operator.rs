@@ -151,6 +151,7 @@ impl Operator {
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => services::ftp::Builder::from_iter(it).build()?.into(),
             Scheme::Gcs => services::gcs::Builder::from_iter(it).build()?.into(),
+            Scheme::Ghac => services::ghac::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => services::hdfs::Builder::from_iter(it).build()?.into(),
             Scheme::Http => services::http::Builder::from_iter(it).build()?.into(),

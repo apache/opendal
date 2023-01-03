@@ -36,6 +36,8 @@ pub enum Scheme {
     Fs,
     /// [gcs][crate::services::gcs]: Google Cloud Storage backend.
     Gcs,
+    /// [ghac][crate::services::ghac]: Github Action Cache services.
+    Ghac,
     /// [hdfs][crate::services::hdfs]: Hadoop Distributed File System.
     #[cfg(feature = "services-hdfs")]
     Hdfs,
@@ -94,9 +96,10 @@ impl Display for Scheme {
             Scheme::Azblob => write!(f, "azblob"),
             Scheme::Azdfs => write!(f, "azdfs"),
             Scheme::Fs => write!(f, "fs"),
+            Scheme::Gcs => write!(f, "gcs"),
+            Scheme::Ghac => write!(f, "ghac"),
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => write!(f, "hdfs"),
-            Scheme::Gcs => write!(f, "gcs"),
             Scheme::Http => write!(f, "http"),
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => write!(f, "ftp"),
@@ -128,6 +131,7 @@ impl FromStr for Scheme {
             "azdfs" => Ok(Scheme::Azdfs),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
+            "ghac" => Ok(Scheme::Ghac),
             #[cfg(feature = "services-hdfs")]
             "hdfs" => Ok(Scheme::Hdfs),
             "http" | "https" => Ok(Scheme::Http),
@@ -158,6 +162,7 @@ impl From<Scheme> for &'static str {
             Scheme::Azdfs => "azdfs",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
+            Scheme::Ghac => "ghac",
             #[cfg(feature = "services-hdfs")]
             Scheme::Hdfs => "hdfs",
             Scheme::Http => "http",

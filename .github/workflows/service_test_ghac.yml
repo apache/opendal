@@ -1,0 +1,39 @@
+name: Service Test Ghac
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  ghac:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Configure Cache Env
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Test
+        shell: bash
+        run: cargo test ghac --features compress -- --nocapture
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_GHAC_TEST: ${{ secrets.OPENDAL_GHAC_TEST }}
+          OPENDAL_GHAC_ENABLE_CREATE_SIMULATION: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

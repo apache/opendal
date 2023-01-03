@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
@@ -102,6 +104,11 @@ impl BytesContentRange {
         }
     }
 
+    /// Convert bytes content range into Content-Range header.
+    pub fn to_header(&self) -> String {
+        format!("bytes {self}")
+    }
+
     /// Calculate bytes content range from size and specfied range.
     pub fn from_bytes_range(total_size: u64, range: BytesRange) -> Self {
         let (start, end) = match (range.offset(), range.size()) {
@@ -119,6 +126,17 @@ impl BytesContentRange {
         match (self.0, self.1, self.2) {
             (Some(start), Some(end), _) => Some(BytesRange::from(start..=end)),
             (None, None, Some(_)) => None,
+            _ => unreachable!("invalid bytes range: {:?}", self),
+        }
+    }
+}
+
+impl Display for BytesContentRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match (self.0, self.1, self.2) {
+            (Some(start), Some(end), Some(size)) => write!(f, "{start}-{end}/{size}"),
+            (Some(start), Some(end), None) => write!(f, "{start}-{end}/*"),
+            (None, None, Some(size)) => write!(f, "*/{size}"),
             _ => unreachable!("invalid bytes range: {:?}", self),
         }
     }
@@ -254,5 +272,33 @@ mod tests {
 
             assert_eq!(expected, actual, "{name}")
         }
+    }
+
+    #[test]
+    fn test_bytes_content_range_to_string() {
+        let h = BytesContentRange::default().with_size(1024);
+        assert_eq!(h.to_string(), "*/1024");
+
+        let h = BytesContentRange::default().with_range(0, 1023);
+        assert_eq!(h.to_string(), "0-1023/*");
+
+        let h = BytesContentRange::default()
+            .with_range(0, 1023)
+            .with_size(1024);
+        assert_eq!(h.to_string(), "0-1023/1024");
+    }
+
+    #[test]
+    fn test_bytes_content_range_to_header() {
+        let h = BytesContentRange::default().with_size(1024);
+        assert_eq!(h.to_header(), "bytes */1024");
+
+        let h = BytesContentRange::default().with_range(0, 1023);
+        assert_eq!(h.to_header(), "bytes 0-1023/*");
+
+        let h = BytesContentRange::default()
+            .with_range(0, 1023)
+            .with_size(1024);
+        assert_eq!(h.to_header(), "bytes 0-1023/1024");
     }
 }

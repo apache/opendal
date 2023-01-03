@@ -493,7 +493,7 @@ impl Backend {
             percent_encode_path(&p)
         );
 
-        let mut req = Request::post(&url);
+        let mut req = Request::delete(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.api_token));
         req = req.header(
             USER_AGENT,

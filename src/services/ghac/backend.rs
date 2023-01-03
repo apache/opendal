@@ -378,7 +378,6 @@ impl Backend {
             percent_encode_path(&p),
             self.version
         );
-        debug!("query with {url}");
 
         let mut req = Request::get(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
@@ -426,7 +425,6 @@ impl Backend {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
-        debug!("reserve with {url}");
 
         let bs = serde_json::to_vec(&GhacReserveRequest {
             key: p,
@@ -455,7 +453,6 @@ impl Backend {
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
-        debug!("upload with {url}");
 
         let mut req = Request::patch(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
@@ -476,7 +473,6 @@ impl Backend {
 
     async fn ghac_commmit(&self, cache_id: i64, size: u64) -> Result<Request<AsyncBody>> {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
-        debug!("commit with {url}");
 
         let bs =
             serde_json::to_vec(&GhacCommitRequest { size }).map_err(parse_json_serialize_error)?;

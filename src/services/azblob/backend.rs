@@ -347,7 +347,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let resp = self.azblob_get_blob(path, args.range()).await?;
 
         let status = resp.status();

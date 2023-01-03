@@ -149,7 +149,7 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let resp = self.ipfs_get(path, args.range()).await?;
 
         let status = resp.status();

@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
@@ -36,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
@@ -54,6 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
@@ -91,7 +94,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: "minioadmin"
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
-
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
@@ -126,7 +129,7 @@ jobs:
           ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
           ./mc mb local/test
           ./mc anonymous set public local/test
-
+      - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture

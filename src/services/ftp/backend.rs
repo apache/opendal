@@ -18,6 +18,7 @@ use std::fmt::Formatter;
 use std::str;
 use std::str::FromStr;
 
+use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -25,13 +26,13 @@ use futures::io::copy;
 use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
-use suppaftp::async_native_tls::TlsConnector;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
+
 use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 
@@ -209,7 +210,7 @@ impl bb8::ManageConnection for Manager {
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
             stream
-                .into_secure(TlsConnector::new(), &self.endpoint)
+                .into_secure(TlsConnector::default().into(), &self.endpoint)
                 .await?
         } else {
             stream
@@ -309,13 +310,13 @@ impl Accessor for Backend {
         return Ok(RpCreate::default());
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, BytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         let meta = self.ftp_stat(path).await?;
 
         let br = args.range();
-        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (OutputBytesReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?.take(size);
@@ -341,7 +342,7 @@ impl Accessor for Backend {
 
         Ok((
             RpRead::new(size),
-            Box::new(FtpReader::new(r, ftp_stream)) as BytesReader,
+            Box::new(FtpReader::new(r, ftp_stream)) as OutputBytesReader,
         ))
     }
 

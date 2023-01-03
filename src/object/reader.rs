@@ -27,29 +27,29 @@ use crate::ObjectMetadata;
 /// Users could fetch part of metadata that carried by read response.
 pub struct ObjectReader {
     meta: ObjectMetadata,
-    inner: BytesReader,
+    inner: OutputBytesReader,
 }
 
 impl ObjectReader {
     /// Create a new object reader.
-    pub fn new(meta: ObjectMetadata, inner: BytesReader) -> Self {
+    pub fn new(meta: ObjectMetadata, inner: OutputBytesReader) -> Self {
         ObjectReader { meta, inner }
     }
 
     /// Replace the bytes reader with new one.
-    pub fn with_reader(mut self, inner: BytesReader) -> Self {
+    pub fn with_reader(mut self, inner: OutputBytesReader) -> Self {
         self.inner = inner;
         self
     }
 
     /// Replace the bytes reader with new one.
-    pub fn map_reader(mut self, f: impl FnOnce(BytesReader) -> BytesReader) -> Self {
+    pub fn map_reader(mut self, f: impl FnOnce(OutputBytesReader) -> OutputBytesReader) -> Self {
         self.inner = f(self.inner);
         self
     }
 
     /// Convert into a bytes reader to consume the reader.
-    pub fn into_reader(self) -> BytesReader {
+    pub fn into_reader(self) -> OutputBytesReader {
         self.inner
     }
 
@@ -61,7 +61,7 @@ impl ObjectReader {
     ///
     /// The [`ObjectMetadata`] is **different** from the whole object's
     /// metadata. It just described the corresbonding reader's metadata.
-    pub fn into_parts(self) -> (ObjectMetadata, BytesReader) {
+    pub fn into_parts(self) -> (ObjectMetadata, OutputBytesReader) {
         (self.meta, self.inner)
     }
 

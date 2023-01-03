@@ -28,12 +28,6 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Echo
-        shell: bash
-        run: |
-          echo ${ACTIONS_CACHE_URL} | base64;
-          echo ${ACTIONS_RUNTIME_TOKEN} | base64;
-
       - name: Test
         shell: bash
         run: cargo test ghac --features compress -- --nocapture

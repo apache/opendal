@@ -229,13 +229,17 @@ impl Builder {
             builder.endpoint(v);
         } else if let Some(v) = conn_map.get("EndpointSuffix") {
             let protocol = conn_map.get("DefaultEndpointsProtocol").unwrap_or(&"https");
-            let account_name = builder.account_name.as_ref().ok_or_else(|| {
-                Error::new(
-                    ErrorKind::BackendConfigInvalid,
-                    "connection string must have AccountName",
-                )
-                .with_operation("Builder::from_connection_string")
-            })?.clone();
+            let account_name = builder
+                .account_name
+                .as_ref()
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::BackendConfigInvalid,
+                        "connection string must have AccountName",
+                    )
+                    .with_operation("Builder::from_connection_string")
+                })?
+                .clone();
             builder.endpoint(&format!("{protocol}://{account_name}.blob.{v}"));
         }
 

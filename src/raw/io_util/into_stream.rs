@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp;
 use std::io::Result;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Buf;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::ready;
 use futures::Stream;
 use pin_project::pin_project;
+use tokio::io::ReadBuf;
 
 use crate::raw::*;
 
@@ -81,9 +84,6 @@ where
 
         if this.buf.is_empty() {
             // Reserve with the given cap every time.
-            //
-            // Ideally, no allocation should be happened because we can reclaim
-            // the previous space.
             this.buf.reserve(*this.cap);
             // # Safety
             //
@@ -105,7 +105,47 @@ where
     }
 }
 
-impl<R: BytesRead> OutputBytesRead for IntoStream<R> {}
+impl<R: BytesRead> OutputBytesRead for IntoStream<R> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+
+        if !self.buf.is_empty() {
+            let amt = cmp::min(self.buf.len(), buf.len());
+            buf[..amt].copy_from_slice(&self.buf[..amt]);
+            self.buf.advance(amt);
+            return Poll::Ready(Ok(amt));
+        }
+
+        Pin::new(&mut self.r).poll_read(cx, buf)
+    }
+
+    fn is_streamable(&mut self) -> bool {
+        true
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        if self.buf.is_empty() {
+            // Reserve with the given cap every time.
+            self.buf.reserve(self.cap);
+        }
+
+        let dst = self.buf.spare_capacity_mut();
+        let mut buf = ReadBuf::uninit(dst);
+        unsafe { buf.assume_init(self.cap) };
+
+        match ready!(Pin::new(&mut self.r).poll_read(cx, buf.initialize_unfilled())) {
+            Err(err) => Poll::Ready(Some(Err(err))),
+            Ok(0) => Poll::Ready(None),
+            Ok(n) => {
+                unsafe { self.buf.set_len(n) }
+                let chunk = self.buf.split_to(n);
+                Poll::Ready(Some(Ok(chunk.freeze())))
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

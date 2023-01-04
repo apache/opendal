@@ -829,6 +829,10 @@ impl<R> MetricReader<R> {
 }
 
 impl OutputBytesRead for MetricReader<OutputBytesReader> {
+    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+        Some(&mut self.inner)
+    }
+
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {

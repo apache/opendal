@@ -121,6 +121,17 @@ impl AsyncRead for dyn OutputBytesRead {
     }
 }
 
+impl AsyncSeek for dyn OutputBytesRead {
+    fn poll_seek(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        pos: SeekFrom,
+    ) -> Poll<Result<u64>> {
+        let this: &mut dyn OutputBytesRead = &mut *self;
+        this.poll_seek(cx, pos)
+    }
+}
+
 impl Stream for dyn OutputBytesRead {
     type Item = Result<Bytes>;
 

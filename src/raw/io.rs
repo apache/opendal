@@ -110,42 +110,22 @@ pub trait OutputBytesRead: Unpin + Send + Sync {
 /// OutputBytesReader is a boxed dyn [`OutputBytesRead`].
 pub type OutputBytesReader = Box<dyn OutputBytesRead>;
 
-impl AsyncRead for &mut dyn OutputBytesRead {
+impl AsyncRead for dyn OutputBytesRead {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<Result<usize>> {
-        let this: &mut dyn OutputBytesRead = *self;
+        let this: &mut dyn OutputBytesRead = &mut *self;
         this.poll_read(cx, buf)
     }
 }
 
-impl Stream for &mut dyn OutputBytesRead {
+impl Stream for dyn OutputBytesRead {
     type Item = Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this: &mut dyn OutputBytesRead = *self;
-        this.poll_next(cx)
-    }
-}
-
-impl AsyncRead for OutputBytesReader {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        let this: &mut OutputBytesReader = &mut (*self);
-        this.poll_read(cx, buf)
-    }
-}
-
-impl Stream for OutputBytesReader {
-    type Item = Result<Bytes>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this: &mut OutputBytesReader = &mut (*self);
+        let this: &mut dyn OutputBytesRead = &mut *self;
         this.poll_next(cx)
     }
 }
@@ -169,8 +149,8 @@ impl<R> OutputBytesRead for SeekableOutputBytesReader<R> where
 
 /// LimitedBytesReader is a wrapper for limited bytes reader.
 pub struct LimitedBytesReader<R: AsyncRead + AsyncSeek + Unpin + Send + Sync> {
-    inner: R,
-    limit: u64,
+    _inner: R,
+    _limit: u64,
 }
 
 impl<R> LimitedBytesReader<R>
@@ -179,7 +159,10 @@ where
 {
     /// Create a new limited bytes reader.
     pub fn new(inner: R, limit: u64) -> Self {
-        Self { inner, limit }
+        Self {
+            _inner: inner,
+            _limit: limit,
+        }
     }
 }
 

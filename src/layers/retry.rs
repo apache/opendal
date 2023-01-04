@@ -835,12 +835,8 @@ mod tests {
         attempt: Arc<Mutex<usize>>,
     }
 
-    impl AsyncRead for MockReader {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            _: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
+    impl OutputBytesRead for MockReader {
+        fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -864,6 +860,17 @@ mod tests {
                 5 => Ok(0),
                 _ => unreachable!(),
             })
+        }
+    }
+
+    impl AsyncRead for MockReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let this: &mut dyn OutputBytesRead = &mut *self;
+            this.poll_read(cx, buf)
         }
     }
 
@@ -902,9 +909,9 @@ mod tests {
         op.object("retryable_error")
             .write_from(
                 6,
-                Box::new(MockReader {
+                MockReader {
                     attempt: srv.attempt.clone(),
-                }),
+                },
             )
             .await
             .expect("write from must succeed");

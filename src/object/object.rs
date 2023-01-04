@@ -437,11 +437,7 @@ impl Object {
 
         let br = BytesRange::from(range);
 
-        // Add total size hint for OpRead.
-        let mut op = OpRead::new().with_range(br);
-        if let Some(size) = self.meta.lock().content_length_raw() {
-            op = op.with_total_size_hint(size);
-        }
+        let op = OpRead::new().with_range(br);
 
         let (rp, mut s) = self.acc.read(self.path(), op).await?;
 
@@ -527,7 +523,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn reader(&self) -> Result<impl BytesRead> {
+    pub async fn reader(&self) -> Result<ObjectReader> {
         self.range_reader(..).await
     }
 
@@ -587,14 +583,14 @@ impl Object {
         }
 
         // Add total size hint for OpRead.
-        let mut op = OpRead::new().with_range(range.into());
-        if let Ok(size) = self.content_length().await {
-            op = op.with_total_size_hint(size);
-        }
+        let op = OpRead::new().with_range(range.into());
 
-        let (rp, r) = self.acc.read(self.path(), op).await?;
-
-        Ok(ObjectReader::new(rp.into_metadata(), r))
+        Ok(ObjectReader::new(
+            self.accessor(),
+            self.path(),
+            self.meta.clone(),
+            op,
+        ))
     }
 
     /// Create a new reader which can read the specified range.

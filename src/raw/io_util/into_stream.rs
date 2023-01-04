@@ -105,6 +105,8 @@ where
     }
 }
 
+impl<R: BytesRead> OutputBytesRead for IntoStream<R> {}
+
 #[cfg(test)]
 mod tests {
     use bytes::BufMut;

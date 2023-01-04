@@ -190,9 +190,9 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
 /// Read range should match.
 pub async fn test_reader_range(op: Operator) -> Result<()> {
     let r = op.object("normal_file").range_reader(1024..2048).await?;
-    assert_eq!(r.content_length(), 1024, "read size");
+    assert_eq!(r.remaining_size(), 1024, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let buffer = Vec::with_capacity(r.remaining_size() as usize);
     let mut bs = Cursor::new(buffer);
     futures::io::copy(r, &mut bs).await?;
 
@@ -210,9 +210,9 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
 /// Read from should match.
 pub async fn test_reader_from(op: Operator) -> Result<()> {
     let r = op.object("normal_file").range_reader(261120..).await?;
-    assert_eq!(r.content_length(), 1024, "read size");
+    assert_eq!(r.remaining_size(), 1024, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let buffer = Vec::with_capacity(r.remaining_size() as usize);
     let mut bs = Cursor::new(buffer);
     futures::io::copy(r, &mut bs).await?;
 
@@ -230,9 +230,9 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
 /// Read tail should match.
 pub async fn test_reader_tail(op: Operator) -> Result<()> {
     let r = op.object("normal_file").range_reader(..1024).await?;
-    assert_eq!(r.content_length(), 1024, "read size");
+    assert_eq!(r.remaining_size(), 1024, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let buffer = Vec::with_capacity(r.remaining_size() as usize);
     let mut bs = Cursor::new(buffer);
     futures::io::copy(r, &mut bs).await?;
 

@@ -456,9 +456,9 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
         .object(&path)
         .range_reader(offset..offset + length)
         .await?;
-    assert_eq!(r.content_length(), length, "read size");
+    assert_eq!(r.remaining_size(), length, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let buffer = Vec::with_capacity(r.remaining_size() as usize);
     let mut bs = Cursor::new(buffer);
     futures::io::copy(r, &mut bs).await?;
 
@@ -492,9 +492,9 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let r = op.object(&path).range_reader(offset..).await?;
-    assert_eq!(r.content_length(), size as u64 - offset, "read size");
+    assert_eq!(r.remaining_size(), size as u64 - offset, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let buffer = Vec::with_capacity(r.remaining_size() as usize);
     let mut bs = Cursor::new(buffer);
     futures::io::copy(r, &mut bs).await?;
 
@@ -533,9 +533,9 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         }
         Err(err) => return Err(err.into()),
     };
-    assert_eq!(r.content_length(), length, "read size");
+    assert_eq!(r.remaining_size(), length, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
+    let buffer = Vec::with_capacity(r.remaining_size() as usize);
     let mut bs = Cursor::new(buffer);
     futures::io::copy(r, &mut bs).await?;
 

@@ -214,7 +214,7 @@ impl OutputBytesRead for IncomingAsyncBody {
         }
 
         let mut bs = match self.chunk.take() {
-            Some(bs) if bs.len() > 0 => bs,
+            Some(bs) if !bs.is_empty() => bs,
             _ => match ready!(self.poll_next(cx)) {
                 Some(Ok(bs)) => bs,
                 Some(Err(err)) => return Poll::Ready(Err(err)),
@@ -225,7 +225,7 @@ impl OutputBytesRead for IncomingAsyncBody {
         let amt = min(bs.len(), buf.len());
         buf.put_slice(&bs[..amt]);
         bs.advance(amt);
-        if bs.len() > 0 {
+        if !bs.is_empty() {
             self.chunk = Some(bs);
         }
 

@@ -20,7 +20,7 @@ use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
-use futures::AsyncSeekExt;
+use futures::future::poll_fn;
 use log::debug;
 use time::OffsetDateTime;
 use tokio::fs;
@@ -298,56 +298,27 @@ impl Accessor for Backend {
             .await
             .map_err(parse_io_error)?;
 
-        let mut f = Compat::new(f);
+        let f = Compat::new(f);
 
         let br = args.range();
-        let (r, size): (OutputBytesReader, _) = match (br.offset(), br.size()) {
+        let (start, end) = match (br.offset(), br.size()) {
             // Read a specific range.
-            (Some(offset), Some(size)) => {
-                match offset {
-                    // Read from start.
-                    0 => (),
-                    // Read from offset.
-                    _ => {
-                        f.seek(SeekFrom::Start(offset))
-                            .await
-                            .map_err(parse_io_error)?;
-                    }
-                }
-                (
-                    Box::new(LimitedBytesReader::new(f, size)),
-                    min(size, meta.len() - offset),
-                )
-            }
+            (Some(offset), Some(size)) => (offset, min(offset + size, meta.len())),
             // Read from offset.
-            (Some(offset), None) => {
-                match offset {
-                    // Read from start.
-                    0 => (),
-                    // Read from offset.
-                    _ => {
-                        f.seek(SeekFrom::Start(offset))
-                            .await
-                            .map_err(parse_io_error)?;
-                    }
-                }
-                (
-                    Box::new(SeekableOutputBytesReader::from(f)),
-                    meta.len() - offset,
-                )
-            }
+            (Some(offset), None) => (offset, meta.len()),
             // Read the last size bytes.
-            (None, Some(size)) => {
-                f.seek(SeekFrom::End(-(size as i64)))
-                    .await
-                    .map_err(parse_io_error)?;
-                (Box::new(SeekableOutputBytesReader::from(f)), size)
-            }
+            (None, Some(size)) => (meta.len() - size, meta.len()),
             // Read the whole file.
-            (None, None) => (Box::new(SeekableOutputBytesReader::from(f)), meta.len()),
+            (None, None) => (0, meta.len()),
         };
 
-        Ok((RpRead::new(size), r))
+        let mut r = SeekableOutputBytesReader::new(f, start, end);
+        // Rewind to make sure we are on the correct offset.
+        poll_fn(|cx| r.poll_seek(cx, SeekFrom::Start(0)))
+            .await
+            .map_err(parse_io_error)?;
+
+        Ok((RpRead::new(end - start), Box::new(r)))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {

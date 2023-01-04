@@ -67,19 +67,6 @@ impl ObjectReader {
         }
     }
 
-    /// Content length of this object reader.
-    ///
-    /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
-    /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
-    ///
-    /// # Notes
-    ///
-    /// The content length returned here is the length of this read request.
-    /// It's **different** from the object's content length.
-    pub fn remaining_size(&self) -> u64 {
-        todo!()
-    }
-
     fn current_offset(&self) -> u64 {
         self.op.range().offset().unwrap_or_default() + self.current_pos
     }

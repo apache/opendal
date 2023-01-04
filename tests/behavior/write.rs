@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use anyhow::Result;
-use futures::io::Cursor;
+use futures::AsyncReadExt;
 use log::debug;
 use log::warn;
 use opendal::ErrorKind;
@@ -452,17 +452,14 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let r = op
+    let mut r = op
         .object(&path)
         .range_reader(offset..offset + length)
         .await?;
-    assert_eq!(r.remaining_size(), length, "read size");
 
-    let buffer = Vec::with_capacity(r.remaining_size() as usize);
-    let mut bs = Cursor::new(buffer);
-    futures::io::copy(r, &mut bs).await?;
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
 
-    let bs = bs.into_inner();
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         format!(
@@ -491,14 +488,12 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let r = op.object(&path).range_reader(offset..).await?;
-    assert_eq!(r.remaining_size(), size as u64 - offset, "read size");
+    let mut r = op.object(&path).range_reader(offset..).await?;
 
-    let buffer = Vec::with_capacity(r.remaining_size() as usize);
-    let mut bs = Cursor::new(buffer);
-    futures::io::copy(r, &mut bs).await?;
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
 
-    let bs = bs.into_inner();
+    assert_eq!(bs.len(), size - offset as usize, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         format!("{:x}", Sha256::digest(&content[offset as usize..])),
@@ -524,7 +519,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let r = match op.object(&path).range_reader(..length).await {
+    let mut r = match op.object(&path).range_reader(..length).await {
         Ok(r) => r,
         // Not all services support range with tail range, let's tolerate this.
         Err(err) if err.kind() == ErrorKind::Unsupported => {
@@ -533,13 +528,11 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         }
         Err(err) => return Err(err.into()),
     };
-    assert_eq!(r.remaining_size(), length, "read size");
 
-    let buffer = Vec::with_capacity(r.remaining_size() as usize);
-    let mut bs = Cursor::new(buffer);
-    futures::io::copy(r, &mut bs).await?;
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
 
-    let bs = bs.into_inner();
+    assert_eq!(bs.len(), length as usize, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         format!("{:x}", Sha256::digest(&content[size - length as usize..])),

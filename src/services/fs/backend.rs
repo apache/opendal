@@ -307,7 +307,14 @@ impl Accessor for Backend {
             // Read from offset.
             (Some(offset), None) => (offset, meta.len()),
             // Read the last size bytes.
-            (None, Some(size)) => (meta.len() - size, meta.len()),
+            (None, Some(size)) => (
+                if meta.len() > size {
+                    meta.len() - size
+                } else {
+                    0
+                },
+                meta.len(),
+            ),
             // Read the whole file.
             (None, None) => (0, meta.len()),
         };

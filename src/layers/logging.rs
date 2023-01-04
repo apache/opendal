@@ -21,6 +21,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::AsyncRead;
 use log::debug;
 use log::log;
@@ -1046,6 +1047,105 @@ impl<R> Drop for LoggingReader<R> {
             self.path,
             self.has_read
         );
+    }
+}
+
+impl OutputBytesRead for LoggingReader<OutputBytesReader> {
+    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+        Some(&mut self.inner)
+    }
+
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        match self.inner.poll_read(cx, buf) {
+            Poll::Ready(res) => match res {
+                Ok(n) => {
+                    self.has_read += n as u64;
+                    trace!(
+                        target: LOGGING_TARGET,
+                        "service={} operation={} path={} has_read={} -> {}: {}B",
+                        self.scheme,
+                        self.op,
+                        self.path,
+                        self.has_read,
+                        self.op,
+                        n
+                    );
+                    Poll::Ready(Ok(n))
+                }
+                Err(err) => {
+                    if let Some(lvl) = self.failure_level {
+                        log!(
+                            target: LOGGING_TARGET,
+                            lvl,
+                            "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                            self.scheme,
+                            self.op,
+                            self.path,
+                            self.has_read,
+                        )
+                    }
+                    Poll::Ready(Err(err))
+                }
+            },
+            Poll::Pending => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} has_read={} -> pending",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read
+                );
+                Poll::Pending
+            }
+        }
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        match self.inner.poll_next(cx) {
+            Poll::Ready(res) => match res {
+                Some(Ok(bs)) => {
+                    self.has_read += bs.len() as u64;
+                    trace!(
+                        target: LOGGING_TARGET,
+                        "service={} operation={} path={} has_read={} -> {}: {}B",
+                        self.scheme,
+                        self.op,
+                        self.path,
+                        self.has_read,
+                        self.op,
+                        bs.len()
+                    );
+                    Poll::Ready(Some(Ok(bs)))
+                }
+                Some(Err(err)) => {
+                    if let Some(lvl) = self.failure_level {
+                        log!(
+                            target: LOGGING_TARGET,
+                            lvl,
+                            "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                            self.scheme,
+                            self.op,
+                            self.path,
+                            self.has_read,
+                        )
+                    }
+                    Poll::Ready(Some(Err(err)))
+                }
+                None => Poll::Ready(None),
+            },
+            Poll::Pending => {
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} has_read={} -> pending",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read
+                );
+                Poll::Pending
+            }
+        }
     }
 }
 

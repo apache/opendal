@@ -184,8 +184,6 @@ impl Accessor for Backend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
-        use futures::AsyncReadExt;
-
         let p = build_rooted_abs_path(&self.root, path);
 
         // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
@@ -203,19 +201,25 @@ impl Accessor for Backend {
         let (r, size): (OutputBytesReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
-                (Box::new(f.take(size)), min(size, meta.len() - offset))
+                (
+                    Box::new(LimitedBytesReader::new(f, size)),
+                    min(size, meta.len() - offset),
+                )
             }
             (Some(offset), None) => {
                 f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
-                (Box::new(f), meta.len() - offset)
+                (
+                    Box::new(SeekableOutputBytesReader::from(f)),
+                    meta.len() - offset,
+                )
             }
             (None, Some(size)) => {
                 // hdfs doesn't support seed from end.
                 f.seek(SeekFrom::Start(meta.len() - size))
                     .map_err(parse_io_error)?;
-                (Box::new(f), size)
+                (Box::new(SeekableOutputBytesReader::from(f)), size)
             }
-            (None, None) => (Box::new(f), meta.len()),
+            (None, None) => (Box::new(SeekableOutputBytesReader::from(f)), meta.len()),
         };
 
         Ok((RpRead::new(size), r))

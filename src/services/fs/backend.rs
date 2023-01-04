@@ -20,7 +20,6 @@ use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
-use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
 use log::debug;
 use time::OffsetDateTime;
@@ -315,7 +314,10 @@ impl Accessor for Backend {
                             .map_err(parse_io_error)?;
                     }
                 }
-                (Box::new(f.take(size)), min(size, meta.len() - offset))
+                (
+                    Box::new(LimitedBytesReader::new(f, size)),
+                    min(size, meta.len() - offset),
+                )
             }
             // Read from offset.
             (Some(offset), None) => {
@@ -329,20 +331,23 @@ impl Accessor for Backend {
                             .map_err(parse_io_error)?;
                     }
                 }
-                (Box::new(f), meta.len() - offset)
+                (
+                    Box::new(SeekableOutputBytesReader::from(f)),
+                    meta.len() - offset,
+                )
             }
             // Read the last size bytes.
             (None, Some(size)) => {
                 f.seek(SeekFrom::End(-(size as i64)))
                     .await
                     .map_err(parse_io_error)?;
-                (Box::new(f), size)
+                (Box::new(SeekableOutputBytesReader::from(f)), size)
             }
             // Read the whole file.
-            (None, None) => (Box::new(f), meta.len()),
+            (None, None) => (Box::new(SeekableOutputBytesReader::from(f)), meta.len()),
         };
 
-        Ok((RpRead::new(size), Box::new(r) as OutputBytesReader))
+        Ok((RpRead::new(size), r))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {

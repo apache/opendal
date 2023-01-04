@@ -30,7 +30,6 @@ use super::body::IncomingAsyncBody;
 use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
-use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -217,7 +216,7 @@ impl HttpClient {
         let stream = resp
             .bytes_stream()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err));
-        let body = IncomingAsyncBody::new(Box::new(into_reader(stream, content_length)));
+        let body = IncomingAsyncBody::new(Box::new(stream), content_length);
 
         let resp = hr.body(body).expect("response must build succeed");
 

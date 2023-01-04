@@ -13,12 +13,19 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::cmp::Ordering;
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use std::task::Context;
+use std::task::Poll;
 
 use bytes::Buf;
+use bytes::BufMut;
 use bytes::Bytes;
+use futures::future::poll_fn;
+use futures::ready;
+use futures::StreamExt;
 
 use crate::raw::*;
 use crate::Error;
@@ -112,42 +119,144 @@ impl From<AsyncBody> for reqwest::Body {
 /// # Notes
 ///
 /// Client SHOULD NEVER construct this body.
-pub struct IncomingAsyncBody(OutputBytesReader);
+pub struct IncomingAsyncBody {
+    inner: BytesStreamer,
+    size: Option<u64>,
+    read: u64,
+    chunk: Option<Bytes>,
+}
 
 impl IncomingAsyncBody {
     /// Construct a new incoming async body
-    pub fn new(r: OutputBytesReader) -> Self {
-        Self(r)
+    pub fn new(s: BytesStreamer, size: Option<u64>) -> Self {
+        Self {
+            inner: s,
+            size,
+            read: 0,
+            chunk: None,
+        }
     }
 
     /// Consume the entire body.
-    pub async fn consume(self) -> Result<()> {
-        use futures::io;
-
-        io::copy(self.0, &mut io::sink()).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "consuming response")
-                .with_operation("http_util::IncomingAsyncBody::consume")
-                .set_source(err)
-        })?;
+    pub async fn consume(mut self) -> Result<()> {
+        while let Some(bs) = poll_fn(|cx| self.poll_next(cx)).await {
+            bs.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
+                    .with_operation("http_util::IncomingAsyncBody::consume")
+                    .set_source(err)
+            })?;
+        }
 
         Ok(())
     }
 
     /// Consume the response to bytes.
-    pub async fn bytes(self) -> Result<Bytes> {
-        use futures::io;
-
-        let mut w = Vec::with_capacity(1024);
-        io::copy(self.0, &mut w).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy from resposne")
+    ///
+    /// Borrowed from hyper's [`to_bytes`](https://docs.rs/hyper/latest/hyper/body/fn.to_bytes.html).
+    pub async fn bytes(mut self) -> Result<Bytes> {
+        let poll_next_error = |err: io::Error| {
+            Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                 .with_operation("http_util::IncomingAsyncBody::bytes")
                 .set_source(err)
-        })?;
-        Ok(Bytes::from(w))
+        };
+
+        // If there's only 1 chunk, we can just return Buf::to_bytes()
+        let mut first = if let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+            buf.map_err(poll_next_error)?
+        } else {
+            return Ok(Bytes::new());
+        };
+
+        let second = if let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+            buf.map_err(poll_next_error)?
+        } else {
+            return Ok(first.copy_to_bytes(first.remaining()));
+        };
+
+        // With more than 1 buf, we gotta flatten into a Vec first.
+        let cap = first.remaining() + second.remaining() + self.size.unwrap_or_default() as usize;
+        let mut vec = Vec::with_capacity(cap);
+        vec.put(first);
+        vec.put(second);
+
+        while let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+            vec.put(buf.map_err(poll_next_error)?);
+        }
+
+        Ok(vec.into())
     }
 
     /// Consume the response to build a reader.
     pub fn reader(self) -> OutputBytesReader {
-        self.0
+        Box::new(self)
+    }
+
+    #[inline]
+    fn check(expect: u64, actual: u64) -> io::Result<()> {
+        match actual.cmp(&expect) {
+            Ordering::Equal => Ok(()),
+            Ordering::Less => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                format!("reader got too less data, expect: {expect}, actual: {actual}"),
+            )),
+            Ordering::Greater => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("reader got too much data, expect: {expect}, actual: {actual}"),
+            )),
+        }
+    }
+}
+
+impl OutputBytesRead for IncomingAsyncBody {
+    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+
+        let mut bs = match self.chunk.take() {
+            Some(bs) if bs.len() > 0 => bs,
+            _ => match ready!(self.poll_next(cx)) {
+                Some(Ok(bs)) => bs,
+                Some(Err(err)) => return Poll::Ready(Err(err)),
+                None => return Poll::Ready(Ok(0)),
+            },
+        };
+
+        let amt = min(bs.len(), buf.len());
+        buf.put_slice(&bs[..amt]);
+        bs.advance(amt);
+        if bs.len() > 0 {
+            self.chunk = Some(bs);
+        }
+
+        Poll::Ready(Ok(amt))
+    }
+
+    fn is_streamable(&mut self) -> bool {
+        true
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        if let Some(bs) = self.chunk.take() {
+            self.read += bs.len() as u64;
+            return Poll::Ready(Some(Ok(bs)));
+        }
+
+        let res = match ready!(self.inner.poll_next_unpin(cx)) {
+            Some(Ok(bs)) => {
+                self.read += bs.len() as u64;
+                Some(Ok(bs))
+            }
+            Some(Err(err)) => Some(Err(err)),
+            None => {
+                if let Some(size) = self.size {
+                    Self::check(size, self.read)?;
+                }
+
+                None
+            }
+        };
+
+        Poll::Ready(res)
     }
 }

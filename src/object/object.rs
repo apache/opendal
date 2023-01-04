@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use futures::io;
 use futures::io::Cursor;
+use futures::AsyncReadExt;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use time::Duration;
@@ -442,12 +443,11 @@ impl Object {
             op = op.with_total_size_hint(size);
         }
 
-        let (rp, s) = self.acc.read(self.path(), op).await?;
+        let (rp, mut s) = self.acc.read(self.path(), op).await?;
 
-        let buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
-        let mut bs = Cursor::new(buffer);
+        let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
 
-        io::copy(s, &mut bs).await.map_err(|err| {
+        s.read_to_end(&mut buffer).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read from storage")
                 .with_operation("Object:range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
@@ -456,7 +456,7 @@ impl Object {
                 .set_source(err)
         })?;
 
-        Ok(bs.into_inner())
+        Ok(buffer)
     }
 
     /// Read the specified range of object into a bytes.

@@ -116,7 +116,7 @@ impl AsyncRead for SeekableReader {
             }
             State::Sending(future) => {
                 let (_, r) = ready!(Pin::new(future).poll(cx))?;
-                self.state = State::Reading(Box::new(r));
+                self.state = State::Reading(r);
                 self.poll_read(cx, buf)
             }
             State::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {

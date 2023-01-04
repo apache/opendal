@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use async_trait::async_trait;
-use futures::io::Cursor;
 use futures::AsyncReadExt;
 
 use super::Adapter;
+use crate::raw::io::BytesCursor;
 use crate::raw::*;
 use crate::*;
 
@@ -88,7 +88,7 @@ where
         let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
-        Ok((RpRead::new(length as u64), Box::new(Cursor::new(bs))))
+        Ok((RpRead::new(length as u64), Box::new(BytesCursor::from(bs))))
     }
 
     fn blocking_read(

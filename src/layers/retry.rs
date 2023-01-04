@@ -26,8 +26,10 @@ use std::thread::sleep;
 use async_trait::async_trait;
 use backon::Backoff;
 use backon::Retryable;
+use bytes::Bytes;
 use futures::ready;
 use futures::AsyncRead;
+use futures::Stream;
 use log::warn;
 use pin_project::pin_project;
 use tokio::time::Sleep;
@@ -458,6 +460,126 @@ impl<B: Backoff + Debug + Send + Sync, R> RetryReader<B, R> {
     }
 }
 
+impl<B> OutputBytesRead for RetryReader<B, OutputBytesReader>
+where
+    B: Backoff + Debug + Send + Sync,
+{
+    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+        Some(&mut self.inner)
+    }
+
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        loop {
+            if let Some(fut) = &mut self.sleep {
+                ready!(fut.as_mut().poll(cx));
+                self.sleep = None;
+            }
+
+            let res = ready!(Pin::new(&mut self.inner).poll_read(cx, buf));
+
+            match res {
+                Ok(v) => {
+                    // Reset retry to none.
+                    self.retry = None;
+
+                    return Poll::Ready(Ok(v));
+                }
+                Err(err) => {
+                    let kind = err.kind();
+
+                    if kind == io::ErrorKind::Interrupted {
+                        let retry = if let Some(retry) = &mut self.retry {
+                            retry
+                        } else {
+                            self.retry = Some(self.backoff.clone());
+                            self.retry.as_mut().unwrap()
+                        };
+
+                        match retry.next() {
+                            None => {
+                                // Reset retry to none.
+                                self.retry = None;
+
+                                return Poll::Ready(Err(err));
+                            }
+                            Some(dur) => {
+                                warn!(
+                                    target: "opendal::service",
+                                    "operation={} -> retry after {}s: error={:?}",
+                                    self.op, dur.as_secs_f64(), err);
+
+                                self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                                continue;
+                            }
+                        }
+                    } else {
+                        // Reset retry to none.
+                        self.retry = None;
+
+                        return Poll::Ready(Err(err));
+                    }
+                }
+            }
+        }
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        loop {
+            if let Some(fut) = &mut self.sleep {
+                ready!(fut.as_mut().poll(cx));
+                self.sleep = None;
+            }
+
+            let res = ready!(Pin::new(&mut self.inner).poll_next(cx));
+
+            match res {
+                Some(Ok(v)) => {
+                    // Reset retry to none.
+                    self.retry = None;
+
+                    return Poll::Ready(Some(Ok(v)));
+                }
+                Some(Err(err)) => {
+                    let kind = err.kind();
+
+                    if kind == io::ErrorKind::Interrupted {
+                        let retry = if let Some(retry) = &mut self.retry {
+                            retry
+                        } else {
+                            self.retry = Some(self.backoff.clone());
+                            self.retry.as_mut().unwrap()
+                        };
+
+                        match retry.next() {
+                            None => {
+                                // Reset retry to none.
+                                self.retry = None;
+
+                                return Poll::Ready(Some(Err(err)));
+                            }
+                            Some(dur) => {
+                                warn!(
+                                    target: "opendal::service",
+                                    "operation={} -> retry after {}s: error={:?}",
+                                    self.op, dur.as_secs_f64(), err);
+
+                                self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                                continue;
+                            }
+                        }
+                    } else {
+                        // Reset retry to none.
+                        self.retry = None;
+
+                        return Poll::Ready(Some(Err(err)));
+                    }
+                }
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
 impl<B, R> AsyncRead for RetryReader<B, R>
 where
     B: Backoff + Debug + Send + Sync,
@@ -506,7 +628,7 @@ where
                             Some(dur) => {
                                 warn!(
                                     target: "opendal::service",
-                                    "operation={}  -> retry after {}s: error={:?}",
+                                    "operation={} -> retry after {}s: error={:?}",
                                     *this.op, dur.as_secs_f64(), err);
 
                                 *this.sleep = Some(Box::pin(tokio::time::sleep(dur)));

@@ -26,6 +26,8 @@ use bytes::BufMut;
 use bytes::Bytes;
 use futures::AsyncBufRead;
 use futures::AsyncRead;
+use futures::Stream;
+use futures::StreamExt;
 use pin_project::pin_project;
 
 use crate::raw::*;
@@ -104,6 +106,17 @@ where
                 format!("reader got too much data, expect: {expect}, actual: {actual}"),
             )),
         }
+    }
+}
+
+impl<S> Stream for IntoReader<S>
+where
+    S: BytesStream,
+{
+    type Item = Result<Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.stream.poll_next_unpin(cx)
     }
 }
 

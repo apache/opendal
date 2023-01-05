@@ -283,7 +283,8 @@ impl Accessor for Backend {
             .set_name(&self.bucket)
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            )
+            .set_hints(AccessorHint::ReadIsStreamable);
         am
     }
 

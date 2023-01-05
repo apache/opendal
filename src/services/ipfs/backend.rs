@@ -144,7 +144,8 @@ impl Accessor for Backend {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Read | AccessorCapability::List);
+            .set_capabilities(AccessorCapability::Read | AccessorCapability::List)
+            .set_hints(AccessorHint::ReadIsStreamable);
 
         ma
     }

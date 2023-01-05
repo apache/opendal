@@ -262,19 +262,19 @@ impl<T> BytesSink for T where T: Sink<Bytes, Error = Error> + Unpin + Send {}
 /// and `BytesStream`
 pub struct BytesCursor {
     inner: Bytes,
-    pos: usize,
+    pos: u64,
 }
 
 impl BytesCursor {
     /// Returns `true` if the remaining slice is empty.
     pub fn is_empty(&self) -> bool {
-        self.pos >= self.inner.len()
+        self.pos as usize >= self.inner.len()
     }
 
     /// Returns the remaining slice.
     pub fn remaining_slice(&self) -> &[u8] {
-        let len = self.pos.min(self.inner.len());
-        &self.inner.as_ref()[(len)..]
+        let len = self.pos.min(self.inner.len() as u64) as usize;
+        &self.inner.as_ref()[len..]
     }
 }
 
@@ -290,7 +290,27 @@ impl From<Vec<u8>> for BytesCursor {
 impl OutputBytesRead for BytesCursor {
     fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let n = Read::read(&mut self.remaining_slice(), buf)?;
-        self.pos += n;
+        self.pos += n as u64;
+        Poll::Ready(Ok(n))
+    }
+
+    fn poll_seek(&mut self, _: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+        let (base, amt) = match pos {
+            SeekFrom::Start(n) => (0, n as i64),
+            SeekFrom::End(n) => (self.inner.len() as i64, n),
+            SeekFrom::Current(n) => (self.pos as i64, n),
+        };
+
+        let n = match base.checked_add(amt) {
+            Some(n) if n >= 0 => n as u64,
+            _ => {
+                return Poll::Ready(Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                )))
+            }
+        };
+        self.pos = n;
         Poll::Ready(Ok(n))
     }
 
@@ -298,8 +318,8 @@ impl OutputBytesRead for BytesCursor {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            let bs = self.inner.split_off(self.pos);
-            self.pos += bs.len();
+            let bs = self.inner.split_off(self.pos as usize);
+            self.pos += bs.len() as u64;
             Poll::Ready(Some(Ok(bs)))
         }
     }

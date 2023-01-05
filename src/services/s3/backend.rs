@@ -809,7 +809,8 @@ impl Accessor for Backend {
                     | AccessorCapability::List
                     | AccessorCapability::Presign
                     | AccessorCapability::Multipart,
-            );
+            )
+            .set_hints(AccessorHint::ReadIsStreamable);
 
         am
     }

@@ -324,7 +324,8 @@ impl Accessor for Backend {
             .set_name(&self.container)
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            )
+            .set_hints(AccessorHint::ReadIsStreamable);
 
         am
     }

@@ -177,7 +177,8 @@ impl Accessor for Backend {
         am.set_scheme(Scheme::Ghac)
             .set_root(&self.root)
             .set_name(&self.version)
-            .set_capabilities(AccessorCapability::Read | AccessorCapability::Write);
+            .set_capabilities(AccessorCapability::Read | AccessorCapability::Write)
+            .set_hints(AccessorHint::ReadIsStreamable);
         am
     }
 

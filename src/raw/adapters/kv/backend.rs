@@ -53,7 +53,8 @@ where
 {
     fn metadata(&self) -> AccessorMetadata {
         let mut am: AccessorMetadata = self.kv.metadata().into();
-        am.set_root(&self.root);
+        am.set_root(&self.root)
+            .set_hints(AccessorHint::ReadIsStreamable | AccessorHint::ReadIsSeekable);
 
         am
     }

@@ -176,7 +176,6 @@ pub use ops::OpCreate;
 pub use ops::OpCreateMultipart;
 pub use ops::OpDelete;
 pub use ops::OpList;
-pub use ops::OpOpen;
 pub use ops::OpPresign;
 pub use ops::OpRead;
 pub use ops::OpStat;

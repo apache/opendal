@@ -472,11 +472,6 @@ impl OperatorMetadata {
             .capabilities()
             .contains(AccessorCapability::Blocking)
     }
-
-    /// Check if current backend supports open operations or not.
-    pub fn can_open(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Open)
-    }
 }
 
 #[cfg(test)]

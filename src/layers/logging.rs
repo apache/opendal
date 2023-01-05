@@ -422,44 +422,6 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BytesHandler)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.scheme,
-            Operation::Open,
-            path
-        );
-
-        self.inner
-            .open(path, args.clone())
-            .await
-            .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.scheme,
-                    Operation::Open,
-                    path
-                );
-                v
-            })
-            .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
-                        Operation::Open,
-                        path,
-                        self.err_status(&err)
-                    );
-                }
-                err
-            })
-    }
-
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
             target: LOGGING_TARGET,
@@ -940,43 +902,6 @@ impl Accessor for LoggingAccessor {
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingList,
-                        path,
-                        self.err_status(&err)
-                    );
-                }
-                err
-            })
-    }
-
-    fn blocking_open(&self, path: &str, args: OpOpen) -> Result<(RpOpen, BlockingBytesHandler)> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.scheme,
-            Operation::BlockingOpen,
-            path
-        );
-
-        self.inner
-            .blocking_open(path, args)
-            .map(|v| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.scheme,
-                    Operation::BlockingOpen,
-                    path
-                );
-                v
-            })
-            .map_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
-                        self.scheme,
-                        Operation::BlockingOpen,
                         path,
                         self.err_status(&err)
                     );

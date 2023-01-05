@@ -61,17 +61,6 @@ impl OpList {
     }
 }
 
-/// Args for `open` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpOpen {}
-
-impl OpOpen {
-    /// Create a new `OpOpen`.
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 /// Args for `create_multipart` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpCreateMultipart {}

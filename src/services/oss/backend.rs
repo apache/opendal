@@ -262,7 +262,8 @@ impl Accessor for Backend {
                     | AccessorCapability::Write
                     | AccessorCapability::List
                     | AccessorCapability::Presign,
-            );
+            )
+            .set_hints(AccessorHint::ReadIsStreamable);
         am
     }
 

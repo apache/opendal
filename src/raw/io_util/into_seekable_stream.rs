@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::io::Result;
+use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -20,36 +21,18 @@ use std::task::Poll;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::ready;
-use futures::Stream;
+use futures::AsyncRead;
+use futures::AsyncSeek;
 use pin_project::pin_project;
+use tokio::io::ReadBuf;
 
 use crate::raw::*;
 
-/// Convert [`BytesRead`][crate::raw::BytesRead] into [`BytesStream`][crate::raw::BytesStream].
-///
-/// # Note
-///
-/// This conversion is **not zero cost**.
-///
-/// # Example
-///
-/// ```rust
-/// use opendal::raw::into_stream;
-/// # use std::io::Result;
-/// # use futures::io;
-/// # use bytes::Bytes;
-/// # use futures::StreamExt;
-/// # use futures::SinkExt;
-///
-/// # #[tokio::main]
-/// # async fn main() -> Result<()> {
-/// let r = io::Cursor::new(vec![0; 1024]);
-/// let mut s = into_stream(r, 8 * 1024);
-/// s.next().await;
-/// # Ok(())
-/// # }
-/// ```
-pub fn into_stream<R: BytesRead>(r: R, capacity: usize) -> IntoStream<R> {
+/// into_seekable_stream will convert a seekable reader into seekable stream.
+pub fn into_seekable_stream<R: AsyncRead + AsyncSeek + Unpin + Send>(
+    r: R,
+    capacity: usize,
+) -> IntoStream<R> {
     IntoStream {
         r,
         cap: capacity,
@@ -58,7 +41,7 @@ pub fn into_stream<R: BytesRead>(r: R, capacity: usize) -> IntoStream<R> {
 }
 
 #[pin_project]
-pub struct IntoStream<R: BytesRead> {
+pub struct IntoStream<R: AsyncRead + AsyncSeek + Unpin + Send> {
     #[pin]
     r: R,
     cap: usize,
@@ -68,34 +51,36 @@ pub struct IntoStream<R: BytesRead> {
 /// IntoStream will be accessed uniquely, not concurrent read will happen.
 ///
 /// No `get_inner`, no `Clone`, no other ways to access internally fields.
-unsafe impl<R: BytesRead> Sync for IntoStream<R> {}
+unsafe impl<R: AsyncRead + AsyncSeek + Unpin + Send> Sync for IntoStream<R> {}
 
-impl<R> Stream for IntoStream<R>
+impl<R> OutputBytesRead for IntoStream<R>
 where
-    R: BytesRead,
+    R: AsyncRead + AsyncSeek + Unpin + Send,
 {
-    type Item = Result<Bytes>;
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        Pin::new(&mut self.r).poll_read(cx, buf)
+    }
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.project();
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+        Pin::new(&mut self.r).poll_seek(cx, pos)
+    }
 
-        if this.buf.is_empty() {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        if self.buf.is_empty() {
             // Reserve with the given cap every time.
-            this.buf.reserve(*this.cap);
-            // # Safety
-            //
-            // We will make sure that only valid content will be returned
-            // after write by calling `this.buf.split_to(n)`.
-            unsafe {
-                this.buf.set_len(*this.cap);
-            }
+            self.buf.reserve(self.cap);
         }
 
-        match ready!(this.r.poll_read(cx, this.buf)) {
+        let dst = self.buf.spare_capacity_mut();
+        let mut buf = ReadBuf::uninit(dst);
+        unsafe { buf.assume_init(self.cap) };
+
+        match ready!(Pin::new(&mut self.r).poll_read(cx, buf.initialize_unfilled())) {
             Err(err) => Poll::Ready(Some(Err(err))),
             Ok(0) => Poll::Ready(None),
             Ok(n) => {
-                let chunk = this.buf.split_to(n);
+                unsafe { self.buf.set_len(n) }
+                let chunk = self.buf.split_to(n);
                 Poll::Ready(Some(Ok(chunk.freeze())))
             }
         }

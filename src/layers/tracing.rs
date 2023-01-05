@@ -21,6 +21,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::AsyncRead;
 use tracing::Span;
 
@@ -203,6 +204,28 @@ struct TracingReader<R> {
 impl<R> TracingReader<R> {
     fn new(span: Span, inner: R) -> Self {
         Self { span, inner }
+    }
+}
+
+impl OutputBytesRead for TracingReader<OutputBytesReader> {
+    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+        Some(&mut self.inner)
+    }
+
+    #[tracing::instrument(
+        parent = &self.span,
+        level = "trace",
+        skip_all)]
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        self.inner.poll_read(cx, buf)
+    }
+
+    #[tracing::instrument(
+        parent = &self.span,
+        level = "trace",
+        skip_all)]
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        self.inner.poll_next(cx)
     }
 }
 

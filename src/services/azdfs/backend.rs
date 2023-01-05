@@ -214,7 +214,8 @@ impl Accessor for Backend {
             .set_name(&self.filesystem)
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            )
+            .set_hints(AccessorHint::ReadIsStreamable);
 
         am
     }

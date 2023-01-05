@@ -26,8 +26,10 @@ use std::thread::sleep;
 use async_trait::async_trait;
 use backon::Backoff;
 use backon::Retryable;
+use bytes::Bytes;
 use futures::ready;
 use futures::AsyncRead;
+use futures::Stream;
 use log::warn;
 use pin_project::pin_project;
 use tokio::time::Sleep;
@@ -458,6 +460,126 @@ impl<B: Backoff + Debug + Send + Sync, R> RetryReader<B, R> {
     }
 }
 
+impl<B> OutputBytesRead for RetryReader<B, OutputBytesReader>
+where
+    B: Backoff + Debug + Send + Sync,
+{
+    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+        Some(&mut self.inner)
+    }
+
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        loop {
+            if let Some(fut) = &mut self.sleep {
+                ready!(fut.as_mut().poll(cx));
+                self.sleep = None;
+            }
+
+            let res = ready!(Pin::new(&mut self.inner).poll_read(cx, buf));
+
+            match res {
+                Ok(v) => {
+                    // Reset retry to none.
+                    self.retry = None;
+
+                    return Poll::Ready(Ok(v));
+                }
+                Err(err) => {
+                    let kind = err.kind();
+
+                    if kind == io::ErrorKind::Interrupted {
+                        let retry = if let Some(retry) = &mut self.retry {
+                            retry
+                        } else {
+                            self.retry = Some(self.backoff.clone());
+                            self.retry.as_mut().unwrap()
+                        };
+
+                        match retry.next() {
+                            None => {
+                                // Reset retry to none.
+                                self.retry = None;
+
+                                return Poll::Ready(Err(err));
+                            }
+                            Some(dur) => {
+                                warn!(
+                                    target: "opendal::service",
+                                    "operation={} -> retry after {}s: error={:?}",
+                                    self.op, dur.as_secs_f64(), err);
+
+                                self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                                continue;
+                            }
+                        }
+                    } else {
+                        // Reset retry to none.
+                        self.retry = None;
+
+                        return Poll::Ready(Err(err));
+                    }
+                }
+            }
+        }
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        loop {
+            if let Some(fut) = &mut self.sleep {
+                ready!(fut.as_mut().poll(cx));
+                self.sleep = None;
+            }
+
+            let res = ready!(Pin::new(&mut self.inner).poll_next(cx));
+
+            match res {
+                Some(Ok(v)) => {
+                    // Reset retry to none.
+                    self.retry = None;
+
+                    return Poll::Ready(Some(Ok(v)));
+                }
+                Some(Err(err)) => {
+                    let kind = err.kind();
+
+                    if kind == io::ErrorKind::Interrupted {
+                        let retry = if let Some(retry) = &mut self.retry {
+                            retry
+                        } else {
+                            self.retry = Some(self.backoff.clone());
+                            self.retry.as_mut().unwrap()
+                        };
+
+                        match retry.next() {
+                            None => {
+                                // Reset retry to none.
+                                self.retry = None;
+
+                                return Poll::Ready(Some(Err(err)));
+                            }
+                            Some(dur) => {
+                                warn!(
+                                    target: "opendal::service",
+                                    "operation={} -> retry after {}s: error={:?}",
+                                    self.op, dur.as_secs_f64(), err);
+
+                                self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
+                                continue;
+                            }
+                        }
+                    } else {
+                        // Reset retry to none.
+                        self.retry = None;
+
+                        return Poll::Ready(Some(Err(err)));
+                    }
+                }
+                None => return Poll::Ready(None),
+            }
+        }
+    }
+}
+
 impl<B, R> AsyncRead for RetryReader<B, R>
 where
     B: Backoff + Debug + Send + Sync,
@@ -506,7 +628,7 @@ where
                             Some(dur) => {
                                 warn!(
                                     target: "opendal::service",
-                                    "operation={}  -> retry after {}s: error={:?}",
+                                    "operation={} -> retry after {}s: error={:?}",
                                     *this.op, dur.as_secs_f64(), err);
 
                                 *this.sleep = Some(Box::pin(tokio::time::sleep(dur)));
@@ -679,11 +801,20 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
+        fn metadata(&self) -> AccessorMetadata {
+            let mut am = AccessorMetadata::default();
+
+            am.set_hints(AccessorHint::ReadIsSeekable);
+
+            am
+        }
+
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, OutputBytesReader)> {
             Ok((
-                RpRead::new(0),
+                RpRead::new(13),
                 Box::new(MockReader {
                     attempt: self.attempt.clone(),
+                    pos: 0,
                 }) as OutputBytesReader,
             ))
         }
@@ -711,14 +842,11 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockReader {
         attempt: Arc<Mutex<usize>>,
+        pos: u64,
     }
 
-    impl AsyncRead for MockReader {
-        fn poll_read(
-            self: Pin<&mut Self>,
-            _: &mut Context<'_>,
-            buf: &mut [u8],
-        ) -> Poll<io::Result<usize>> {
+    impl OutputBytesRead for MockReader {
+        fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -729,6 +857,7 @@ mod tests {
                 )),
                 2 => {
                     buf[..7].copy_from_slice("Hello, ".as_bytes());
+                    self.pos += 7;
                     Ok(7)
                 }
                 3 => Err(io::Error::new(
@@ -737,11 +866,33 @@ mod tests {
                 )),
                 4 => {
                     buf[..6].copy_from_slice("World!".as_bytes());
+                    self.pos += 6;
                     Ok(6)
                 }
                 5 => Ok(0),
                 _ => unreachable!(),
             })
+        }
+
+        fn poll_seek(&mut self, _: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+            self.pos = match pos {
+                io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
+                io::SeekFrom::Start(n) => n,
+                io::SeekFrom::End(n) => (13 + n) as u64,
+            };
+
+            Poll::Ready(Ok(self.pos))
+        }
+    }
+
+    impl AsyncRead for MockReader {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut [u8],
+        ) -> Poll<io::Result<usize>> {
+            let this: &mut dyn OutputBytesRead = &mut *self;
+            this.poll_read(cx, buf)
         }
     }
 
@@ -780,9 +931,10 @@ mod tests {
         op.object("retryable_error")
             .write_from(
                 6,
-                Box::new(MockReader {
+                MockReader {
                     attempt: srv.attempt.clone(),
-                }),
+                    pos: 0,
+                },
             )
             .await
             .expect("write from must succeed");

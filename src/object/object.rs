@@ -16,14 +16,13 @@ use std::fmt::Debug;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
-use futures::io;
 use futures::io::Cursor;
+use futures::AsyncReadExt;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use time::Duration;
 use time::OffsetDateTime;
 
-use super::handler::ObjectHandler;
 use super::BlockingObjectLister;
 use super::ObjectLister;
 use crate::raw::*;
@@ -307,46 +306,6 @@ impl Object {
         Ok(())
     }
 
-    /// Open a file so that we can `read` and `seek` it without extra cost.
-    pub async fn open(&self) -> Result<ObjectHandler> {
-        let bh = if self
-            .acc
-            .metadata()
-            .capabilities()
-            .contains(AccessorCapability::Open)
-        {
-            let (_, bh) = self.acc.open(&self.path, OpOpen::default()).await?;
-
-            bh
-        } else {
-            Box::new(seekable_read(self, 0..self.content_length().await?))
-        };
-
-        Ok(ObjectHandler::new(bh))
-    }
-
-    /// Blocking open a file so that we can `read` and `seek` it without extra cost.
-    pub fn blocking_open(&self) -> Result<BlockingObjectHandler> {
-        let bh = if self
-            .acc
-            .metadata()
-            .capabilities()
-            .contains(AccessorCapability::Open)
-        {
-            let (_, bh) = self.acc.blocking_open(&self.path, OpOpen::default())?;
-
-            bh
-        } else {
-            // We don't have blocking seekable read support so far.
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ));
-        };
-
-        Ok(BlockingObjectHandler::new(bh))
-    }
-
     /// Read the whole object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
@@ -436,18 +395,13 @@ impl Object {
 
         let br = BytesRange::from(range);
 
-        // Add total size hint for OpRead.
-        let mut op = OpRead::new().with_range(br);
-        if let Some(size) = self.meta.lock().content_length_raw() {
-            op = op.with_total_size_hint(size);
-        }
+        let op = OpRead::new().with_range(br);
 
-        let (rp, s) = self.acc.read(self.path(), op).await?;
+        let (rp, mut s) = self.acc.read(self.path(), op).await?;
 
-        let buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
-        let mut bs = Cursor::new(buffer);
+        let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
 
-        io::copy(s, &mut bs).await.map_err(|err| {
+        s.read_to_end(&mut buffer).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read from storage")
                 .with_operation("Object:range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
@@ -456,7 +410,7 @@ impl Object {
                 .set_source(err)
         })?;
 
-        Ok(bs.into_inner())
+        Ok(buffer)
     }
 
     /// Read the specified range of object into a bytes.
@@ -527,7 +481,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn reader(&self) -> Result<impl BytesRead> {
+    pub async fn reader(&self) -> Result<ObjectReader> {
         self.range_reader(..).await
     }
 
@@ -587,14 +541,9 @@ impl Object {
         }
 
         // Add total size hint for OpRead.
-        let mut op = OpRead::new().with_range(range.into());
-        if let Ok(size) = self.content_length().await {
-            op = op.with_total_size_hint(size);
-        }
+        let op = OpRead::new().with_range(range.into());
 
-        let (rp, r) = self.acc.read(self.path(), op).await?;
-
-        Ok(ObjectReader::new(rp.into_metadata(), r))
+        ObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -633,39 +582,6 @@ impl Object {
             .blocking_read(self.path(), OpRead::new().with_range(range.into()))?;
 
         Ok(r)
-    }
-
-    /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.
-    ///
-    /// # Notes
-    ///
-    /// It's not a zero-cost operations. In order to support seeking, we have extra internal
-    /// state which maintains the reader contents:
-    ///
-    /// - Seeking is pure in memory operation.
-    /// - Every first read after seeking will start a new read operation on backend.
-    ///
-    /// This operation is neither async nor returning result, because real IO happens while
-    /// users call `read` or `seek`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use opendal::services::memory;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
-    /// # let o = op.object("path/to/file");
-    /// let r = o.seekable_reader(1024..2048);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn seekable_reader(&self, range: impl RangeBounds<u64>) -> SeekableReader {
-        seekable_read(self, range)
     }
 
     /// Read the whole object into a bytes with auto detected compress algorithm.
@@ -769,7 +685,7 @@ impl Object {
         let r = self.decompress_reader_with(algo).await?;
         let mut bs = Cursor::new(Vec::new());
 
-        io::copy(r, &mut bs).await.map_err(|err| {
+        futures::io::copy(r, &mut bs).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "decompress read with failed")
                 .with_operation("Object::decompress_read_with")
                 .with_context("service", self.accessor().metadata().scheme().into_static())

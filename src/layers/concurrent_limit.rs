@@ -15,13 +15,9 @@
 use std::fmt::Debug;
 use std::io;
 use std::io::Read;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::Context;
-use std::task::Poll;
 
 use async_trait::async_trait;
-use futures::AsyncRead;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
@@ -299,13 +295,9 @@ impl ConcurrentLimitReader {
     }
 }
 
-impl AsyncRead for ConcurrentLimitReader {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut (*self.inner)).poll_read(cx, buf)
+impl OutputBytesRead for ConcurrentLimitReader {
+    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+        Some(&mut self.inner)
     }
 }
 

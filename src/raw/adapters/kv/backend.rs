@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use async_trait::async_trait;
-use futures::io::Cursor;
 use futures::AsyncReadExt;
 
 use super::Adapter;
+use crate::raw::io::BytesCursor;
 use crate::raw::*;
 use crate::*;
 
@@ -53,7 +53,8 @@ where
 {
     fn metadata(&self) -> AccessorMetadata {
         let mut am: AccessorMetadata = self.kv.metadata().into();
-        am.set_root(&self.root);
+        am.set_root(&self.root)
+            .set_hints(AccessorHint::ReadIsStreamable | AccessorHint::ReadIsSeekable);
 
         am
     }
@@ -88,7 +89,7 @@ where
         let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
-        Ok((RpRead::new(length as u64), Box::new(Cursor::new(bs))))
+        Ok((RpRead::new(length as u64), Box::new(BytesCursor::from(bs))))
     }
 
     fn blocking_read(

@@ -153,9 +153,7 @@ pub use operator::Operator;
 pub use operator::OperatorMetadata;
 
 mod object;
-pub use object::BlockingObjectHandler;
 pub use object::Object;
-pub use object::ObjectHandler;
 pub use object::ObjectLister;
 pub use object::ObjectMetadata;
 pub use object::ObjectMode;
@@ -205,7 +203,7 @@ mod tests {
     /// unexpected struct/enum size change.
     #[test]
     fn assert_size() {
-        assert_eq!(80, size_of::<AccessorMetadata>());
+        assert_eq!(88, size_of::<AccessorMetadata>());
         assert_eq!(16, size_of::<Operator>());
         assert_eq!(16, size_of::<BatchOperator>());
         assert_eq!(184, size_of::<ObjectEntry>());

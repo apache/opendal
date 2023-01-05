@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::SeekFrom;
+
 use anyhow::Result;
-use futures::io::Cursor;
+use futures::AsyncReadExt;
+use futures::AsyncSeekExt;
 use log::debug;
 use log::warn;
 use opendal::ErrorKind;
@@ -85,6 +88,7 @@ macro_rules! behavior_write_tests {
                 test_reader_from,
                 test_reader_tail,
                 test_read_not_exist,
+                test_read_with_seek,
                 test_read_with_dir_path,
                 #[cfg(feature = "compress")]
                 test_read_decompress_gzip,
@@ -452,17 +456,14 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let r = op
+    let mut r = op
         .object(&path)
         .range_reader(offset..offset + length)
         .await?;
-    assert_eq!(r.content_length(), length, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
-    let mut bs = Cursor::new(buffer);
-    futures::io::copy(r, &mut bs).await?;
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
 
-    let bs = bs.into_inner();
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         format!(
@@ -491,14 +492,12 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let r = op.object(&path).range_reader(offset..).await?;
-    assert_eq!(r.content_length(), size as u64 - offset, "read size");
+    let mut r = op.object(&path).range_reader(offset..).await?;
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
-    let mut bs = Cursor::new(buffer);
-    futures::io::copy(r, &mut bs).await?;
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
 
-    let bs = bs.into_inner();
+    assert_eq!(bs.len(), size - offset as usize, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         format!("{:x}", Sha256::digest(&content[offset as usize..])),
@@ -524,7 +523,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let r = match op.object(&path).range_reader(..length).await {
+    let mut r = match op.object(&path).range_reader(..length).await {
         Ok(r) => r,
         // Not all services support range with tail range, let's tolerate this.
         Err(err) if err.kind() == ErrorKind::Unsupported => {
@@ -533,13 +532,11 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
         }
         Err(err) => return Err(err.into()),
     };
-    assert_eq!(r.content_length(), length, "read size");
 
-    let buffer = Vec::with_capacity(r.content_length() as usize);
-    let mut bs = Cursor::new(buffer);
-    futures::io::copy(r, &mut bs).await?;
+    let mut bs = Vec::new();
+    r.read_to_end(&mut bs).await?;
 
-    let bs = bs.into_inner();
+    assert_eq!(bs.len(), length as usize, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
         format!("{:x}", Sha256::digest(&content[size - length as usize..])),
@@ -561,6 +558,38 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     assert!(bs.is_err());
     assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
+    Ok(())
+}
+
+pub async fn test_read_with_seek(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, _) = gen_offset_length(size as usize);
+
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut oh = op.object(&path).reader().await?;
+    let n = oh.seek(SeekFrom::End(0)).await?;
+    assert_eq!(n as usize, size, "open size");
+
+    let _ = oh.seek(SeekFrom::Start(offset)).await?;
+    let mut bs = Vec::new();
+    let n = oh.read_to_end(&mut bs).await?;
+    assert_eq!(n, size - offset as usize, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[offset as usize..])),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
     Ok(())
 }
 

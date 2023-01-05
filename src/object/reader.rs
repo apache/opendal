@@ -14,100 +14,86 @@
 
 use std::io;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use bytes::Bytes;
 use futures::AsyncRead;
-use time::OffsetDateTime;
+use futures::AsyncSeek;
+use futures::Stream;
+use parking_lot::Mutex;
 
+use crate::error::Result;
 use crate::raw::*;
 use crate::ObjectMetadata;
+use crate::OpRead;
+use crate::OpStat;
 
-/// ObjectReader is a bytes reader that carries it's related metadata.
-/// Users could fetch part of metadata that carried by read response.
+/// ObjectReader
 pub struct ObjectReader {
-    meta: ObjectMetadata,
     inner: OutputBytesReader,
 }
 
 impl ObjectReader {
     /// Create a new object reader.
-    pub fn new(meta: ObjectMetadata, inner: OutputBytesReader) -> Self {
-        ObjectReader { meta, inner }
+    pub(crate) async fn create(
+        acc: Arc<dyn Accessor>,
+        path: &str,
+        meta: Arc<Mutex<ObjectMetadata>>,
+        op: OpRead,
+    ) -> Result<Self> {
+        let acc_meta = acc.metadata();
+
+        let r = if acc_meta.hints().contains(AccessorHint::ReadIsSeekable) {
+            let (_, r) = acc.read(path, op).await?;
+            r
+        } else {
+            let (offset, size) = match (op.range().offset(), op.range().size()) {
+                (Some(offset), Some(size)) => (offset, size),
+                (Some(offset), None) => {
+                    let total_size = get_total_size(acc.clone(), path, meta).await?;
+                    (offset, total_size - offset)
+                }
+                (None, Some(size)) => {
+                    let total_size = get_total_size(acc.clone(), path, meta).await?;
+                    if size > total_size {
+                        (0, total_size)
+                    } else {
+                        (total_size - size, size)
+                    }
+                }
+                (None, None) => {
+                    let total_size = get_total_size(acc.clone(), path, meta).await?;
+                    (0, total_size)
+                }
+            };
+
+            Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+        };
+
+        let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
+            r
+        } else {
+            // Make this capacity configurable.
+            Box::new(into_seekable_stream(r, 256 * 1024))
+        };
+
+        Ok(ObjectReader { inner: r })
+    }
+}
+
+impl OutputBytesRead for ObjectReader {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        self.inner.poll_read(cx, buf)
     }
 
-    /// Replace the bytes reader with new one.
-    pub fn with_reader(mut self, inner: OutputBytesReader) -> Self {
-        self.inner = inner;
-        self
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+        self.inner.poll_seek(cx, pos)
     }
 
-    /// Replace the bytes reader with new one.
-    pub fn map_reader(mut self, f: impl FnOnce(OutputBytesReader) -> OutputBytesReader) -> Self {
-        self.inner = f(self.inner);
-        self
-    }
-
-    /// Convert into a bytes reader to consume the reader.
-    pub fn into_reader(self) -> OutputBytesReader {
-        self.inner
-    }
-
-    /// Convert into parts.
-    ///
-    /// # Notes
-    ///
-    /// This function must be used **carefully**.
-    ///
-    /// The [`ObjectMetadata`] is **different** from the whole object's
-    /// metadata. It just described the corresbonding reader's metadata.
-    pub fn into_parts(self) -> (ObjectMetadata, OutputBytesReader) {
-        (self.meta, self.inner)
-    }
-
-    /// Content length of this object reader.
-    ///
-    /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
-    /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
-    ///
-    /// # Notes
-    ///
-    /// The content length returned here is the length of this read request.
-    /// It's **different** from the object's content length.
-    pub fn content_length(&self) -> u64 {
-        self.meta
-            .content_length_raw()
-            .expect("object reader must have content length")
-    }
-
-    /// Last modified of this object.
-    ///
-    /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
-    /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    ///
-    /// OpenDAL parse the raw value into [`OffsetDateTime`] for convenient.
-    pub fn last_modified(&self) -> Option<OffsetDateTime> {
-        self.meta.last_modified()
-    }
-
-    /// ETag of this object.
-    ///
-    /// `ETag` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.etag)
-    /// Refer to [MDN ETag](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag) for more information.
-    ///
-    /// OpenDAL will return this value AS-IS like the following:
-    ///
-    /// - `"33a64df551425fcc55e4d42a148795d9f25f89d4"`
-    /// - `W/"0815"`
-    ///
-    /// `"` is part of etag.
-    ///
-    /// # Notes
-    ///
-    /// The etag returned here is the etag of this read request.
-    /// It's **different** from the object's etag.
-    pub fn etag(&self) -> Option<&str> {
-        self.meta.etag()
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        self.inner.poll_next(cx)
     }
 }
 
@@ -119,4 +105,38 @@ impl AsyncRead for ObjectReader {
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.inner).poll_read(cx, buf)
     }
+}
+
+impl AsyncSeek for ObjectReader {
+    fn poll_seek(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        pos: io::SeekFrom,
+    ) -> Poll<io::Result<u64>> {
+        Pin::new(&mut self.inner).poll_seek(cx, pos)
+    }
+}
+
+impl Stream for ObjectReader {
+    type Item = io::Result<Bytes>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.inner).poll_next(cx)
+    }
+}
+
+/// get_total_size will get total size via stat.
+async fn get_total_size(
+    acc: Arc<dyn Accessor>,
+    path: &str,
+    meta: Arc<Mutex<ObjectMetadata>>,
+) -> Result<u64> {
+    if let Some(v) = meta.lock().content_length_raw() {
+        return Ok(v);
+    }
+
+    let om = acc.stat(path, OpStat::new()).await?.into_metadata();
+    let size = om.content_length();
+    *(meta.lock()) = om;
+    Ok(size)
 }

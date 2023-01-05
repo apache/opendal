@@ -32,7 +32,6 @@ use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
-
 use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 
@@ -316,7 +315,7 @@ impl Accessor for Backend {
         let meta = self.ftp_stat(path).await?;
 
         let br = args.range();
-        let (r, size): (OutputBytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?.take(size);

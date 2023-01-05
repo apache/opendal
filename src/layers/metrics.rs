@@ -23,6 +23,7 @@ use std::task::Poll;
 use std::time::Instant;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::AsyncRead;
 use metrics::increment_counter;
 use metrics::register_counter;
@@ -824,6 +825,39 @@ impl<R> MetricReader<R> {
             start,
             bytes: 0,
         }
+    }
+}
+
+impl OutputBytesRead for MetricReader<OutputBytesReader> {
+    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+        Some(&mut self.inner)
+    }
+
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        self.inner.poll_read(cx, buf).map(|res| match res {
+            Ok(bytes) => {
+                self.bytes += bytes as u64;
+                Ok(bytes)
+            }
+            Err(e) => {
+                self.errors_counter.increment(1);
+                Err(e)
+            }
+        })
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        self.inner.poll_next(cx).map(|res| match res {
+            Some(Ok(bytes)) => {
+                self.bytes += bytes.len() as u64;
+                Some(Ok(bytes))
+            }
+            Some(Err(e)) => {
+                self.errors_counter.increment(1);
+                Some(Err(e))
+            }
+            None => None,
+        })
     }
 }
 

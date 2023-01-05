@@ -232,10 +232,6 @@ impl OutputBytesRead for IncomingAsyncBody {
         Poll::Ready(Ok(amt))
     }
 
-    fn is_streamable(&mut self) -> bool {
-        true
-    }
-
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
         if let Some(bs) = self.chunk.take() {
             self.read += bs.len() as u64;

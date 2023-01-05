@@ -62,14 +62,6 @@ pub trait OutputBytesRead: Unpin + Send + Sync {
         }
     }
 
-    /// Check if this reader is seekable.
-    fn is_seekable(&mut self) -> bool {
-        match self.inner() {
-            Some(v) => v.is_seekable(),
-            None => false,
-        }
-    }
-
     /// Seek asynchronously.
     ///
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
@@ -80,14 +72,6 @@ pub trait OutputBytesRead: Unpin + Send + Sync {
                 ErrorKind::Unsupported,
                 "output reader doesn't support seeking",
             ))),
-        }
-    }
-
-    /// Check if this reader is streamable.
-    fn is_streamable(&mut self) -> bool {
-        match self.inner() {
-            Some(v) => v.is_streamable(),
-            None => false,
         }
     }
 
@@ -186,10 +170,6 @@ where
         let n = ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf[..max]))?;
         self.offset += n as u64;
         Poll::Ready(Ok(n))
-    }
-
-    fn is_seekable(&mut self) -> bool {
-        true
     }
 
     /// TODO: maybe we don't need to do seek really, just call pread instead.
@@ -312,10 +292,6 @@ impl OutputBytesRead for BytesCursor {
         let n = Read::read(&mut self.remaining_slice(), buf)?;
         self.pos += n;
         Poll::Ready(Ok(n))
-    }
-
-    fn is_streamable(&mut self) -> bool {
-        true
     }
 
     fn poll_next(&mut self, _: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {

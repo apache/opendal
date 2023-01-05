@@ -24,7 +24,6 @@ use parking_lot::MutexGuard;
 use time::Duration;
 use time::OffsetDateTime;
 
-use super::handler::ObjectHandler;
 use super::BlockingObjectLister;
 use super::ObjectLister;
 use crate::raw::*;
@@ -308,46 +307,6 @@ impl Object {
         Ok(())
     }
 
-    /// Open a file so that we can `read` and `seek` it without extra cost.
-    pub async fn open(&self) -> Result<ObjectHandler> {
-        let bh = if self
-            .acc
-            .metadata()
-            .capabilities()
-            .contains(AccessorCapability::Open)
-        {
-            let (_, bh) = self.acc.open(&self.path, OpOpen::default()).await?;
-
-            bh
-        } else {
-            Box::new(seekable_read(self, 0..self.content_length().await?))
-        };
-
-        Ok(ObjectHandler::new(bh))
-    }
-
-    /// Blocking open a file so that we can `read` and `seek` it without extra cost.
-    pub fn blocking_open(&self) -> Result<BlockingObjectHandler> {
-        let bh = if self
-            .acc
-            .metadata()
-            .capabilities()
-            .contains(AccessorCapability::Open)
-        {
-            let (_, bh) = self.acc.blocking_open(&self.path, OpOpen::default())?;
-
-            bh
-        } else {
-            // We don't have blocking seekable read support so far.
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ));
-        };
-
-        Ok(BlockingObjectHandler::new(bh))
-    }
-
     /// Read the whole object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
@@ -585,12 +544,7 @@ impl Object {
         // Add total size hint for OpRead.
         let op = OpRead::new().with_range(range.into());
 
-        Ok(ObjectReader::new(
-            self.accessor(),
-            self.path(),
-            self.meta.clone(),
-            op,
-        ))
+        ObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -629,39 +583,6 @@ impl Object {
             .blocking_read(self.path(), OpRead::new().with_range(range.into()))?;
 
         Ok(r)
-    }
-
-    /// Create a reader which implements AsyncRead and AsyncSeek inside specified range.
-    ///
-    /// # Notes
-    ///
-    /// It's not a zero-cost operations. In order to support seeking, we have extra internal
-    /// state which maintains the reader contents:
-    ///
-    /// - Seeking is pure in memory operation.
-    /// - Every first read after seeking will start a new read operation on backend.
-    ///
-    /// This operation is neither async nor returning result, because real IO happens while
-    /// users call `read` or `seek`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use opendal::services::memory;
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
-    /// # let o = op.object("path/to/file");
-    /// let r = o.seekable_reader(1024..2048);
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn seekable_reader(&self, range: impl RangeBounds<u64>) -> SeekableReader {
-        seekable_read(self, range)
     }
 
     /// Read the whole object into a bytes with auto detected compress algorithm.

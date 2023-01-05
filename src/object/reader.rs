@@ -19,11 +19,8 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::future::BoxFuture;
-use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
-use futures::Future;
 use futures::Stream;
 
 use crate::error::Result;
@@ -35,214 +32,68 @@ use parking_lot::Mutex;
 
 /// ObjectReader
 pub struct ObjectReader {
-    acc: Arc<dyn Accessor>,
-    path: String,
-    meta: Arc<Mutex<ObjectMetadata>>,
-    op: OpRead,
-
-    state: State,
-    total_size: Option<u64>,
-    current_pos: u64,
+    inner: OutputBytesReader,
 }
 
 impl ObjectReader {
     /// Create a new object reader.
-    pub(crate) fn new(
+    pub(crate) async fn create(
         acc: Arc<dyn Accessor>,
         path: &str,
         meta: Arc<Mutex<ObjectMetadata>>,
         op: OpRead,
-    ) -> Self {
-        let total_size = { meta.lock().content_length_raw() };
+    ) -> Result<Self> {
+        let acc_meta = acc.metadata();
 
-        ObjectReader {
-            acc,
-            path: path.to_string(),
-            meta,
-            op,
+        let r = if acc_meta.hints().contains(AccessorHint::ReadIsSeekable) {
+            let (_, r) = acc.read(path, op).await?;
+            r
+        } else {
+            let (offset, size) = match (op.range().offset(), op.range().size()) {
+                (Some(offset), Some(size)) => (offset, size),
+                (Some(offset), None) => {
+                    let total_size = get_total_size(acc.clone(), path, meta).await?;
+                    (offset, total_size - offset)
+                }
+                (None, Some(size)) => {
+                    let total_size = get_total_size(acc.clone(), path, meta).await?;
+                    if size > total_size {
+                        (0, total_size)
+                    } else {
+                        (total_size - size, size)
+                    }
+                }
+                (None, None) => {
+                    let total_size = get_total_size(acc.clone(), path, meta).await?;
+                    (0, total_size)
+                }
+            };
 
-            state: State::Idle,
-            total_size,
-            current_pos: 0,
-        }
-    }
+            Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+        };
 
-    fn current_offset(&self) -> u64 {
-        self.op.range().offset().unwrap_or_default() + self.current_pos
-    }
+        let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
+            r
+        } else {
+            // Make this capacity configurable.
+            Box::new(into_seekable_stream(r, 256 * 1024))
+        };
 
-    fn current_size(&self) -> Option<u64> {
-        match self.op.range().size() {
-            Some(size) => Some(size - self.current_pos),
-            None => self.total_size.map(|total_size| {
-                total_size - self.op.range().offset().unwrap_or_default() - self.current_pos
-            }),
-        }
+        Ok(ObjectReader { inner: r })
     }
 }
-
-enum State {
-    Idle,
-    Stating(BoxFuture<'static, Result<RpStat>>),
-    Sending(BoxFuture<'static, Result<(RpRead, OutputBytesReader)>>),
-    Reading(OutputBytesReader),
-}
-
-/// State will only changed under &mut.
-unsafe impl Sync for State {}
 
 impl OutputBytesRead for ObjectReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        match &mut self.state {
-            State::Idle => {
-                let acc = self.acc.clone();
-                let path = self.path.clone();
-                let op = OpRead::default().with_range(BytesRange::new(
-                    Some(self.current_offset()),
-                    self.current_size(),
-                ));
-
-                // TODO: use returning content bytes range to fill size.
-                let future = async move { acc.read(&path, op).await };
-
-                self.state = State::Sending(Box::pin(future));
-                self.poll_read(cx, buf)
-            }
-            State::Sending(future) => {
-                let (_, mut r) = ready!(Pin::new(future).poll(cx))?;
-                if !r.is_streamable() {
-                    // TODO: make this configurable.
-                    r = Box::new(into_stream(r, 1024 * 1024));
-                }
-                // TODO: Make sure returning reader is streamable.
-                self.state = State::Reading(r);
-                self.poll_read(cx, buf)
-            }
-            State::Reading(r) => match ready!(Pin::new(r).poll_read(cx, buf)) {
-                Ok(n) => {
-                    self.current_pos += n as u64;
-                    Poll::Ready(Ok(n))
-                }
-                Err(e) => Poll::Ready(Err(e)),
-            },
-            State::Stating(fut) => {
-                let rp = ready!(Pin::new(fut).poll(cx))?;
-                *self.meta.lock() = rp.into_metadata();
-                self.state = State::Idle;
-                self.poll_read(cx, buf)
-            }
-        }
-    }
-
-    fn is_seekable(&mut self) -> bool {
-        true
+        self.inner.poll_read(cx, buf)
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
-        match &mut self.state {
-            State::Idle => {
-                let cur = self.current_pos as i64;
-                let cur = match pos {
-                    io::SeekFrom::Start(off) => off as i64,
-                    io::SeekFrom::Current(off) => cur + off,
-                    io::SeekFrom::End(off) => {
-                        // Stat the object to get it's content-length.
-                        if self.total_size.is_none() {
-                            let acc = self.acc.clone();
-                            let path = self.path.clone();
-
-                            let future = async move { acc.stat(&path, OpStat::new()).await };
-
-                            self.state = State::Stating(Box::pin(future));
-                            return self.poll_seek(cx, pos);
-                        }
-
-                        let total_size = self.total_size.expect("must have valid total_size");
-
-                        total_size as i64 + off
-                    }
-                };
-
-                self.current_pos = cur as u64;
-                Poll::Ready(Ok(self.current_pos))
-            }
-            State::Sending(future) => {
-                let (_, mut r) = ready!(Pin::new(future).poll(cx))?;
-                if !r.is_streamable() {
-                    // TODO: make this configurable.
-                    r = Box::new(into_stream(r, 1024 * 1024));
-                }
-                // TODO: Make sure returning reader is streamable.
-                self.state = State::Reading(r);
-                self.poll_seek(cx, pos)
-            }
-            State::Reading(r) => {
-                if r.is_seekable() {
-                    r.poll_seek(cx, pos)
-                } else {
-                    if self.current_size().is_none() && self.total_size.is_none() {
-                        let acc = self.acc.clone();
-                        let path = self.path.clone();
-
-                        let future = async move { acc.stat(&path, OpStat::new()).await };
-                        self.state = State::Stating(Box::pin(future));
-                    };
-
-                    self.poll_seek(cx, pos)
-                }
-            }
-            State::Stating(fut) => {
-                let rp = ready!(Pin::new(fut).poll(cx))?;
-                let meta = rp.into_metadata();
-                self.total_size = Some(meta.content_length());
-                *self.meta.lock() = meta;
-                self.state = State::Idle;
-                self.poll_seek(cx, pos)
-            }
-        }
-    }
-
-    fn is_streamable(&mut self) -> bool {
-        true
+        self.inner.poll_seek(cx, pos)
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
-        match &mut self.state {
-            State::Idle => {
-                let acc = self.acc.clone();
-                let path = self.path.clone();
-                let op = OpRead::default().with_range(BytesRange::new(
-                    Some(self.current_offset()),
-                    self.current_size(),
-                ));
-
-                let future = async move { acc.read(&path, op).await };
-
-                self.state = State::Sending(Box::pin(future));
-                self.poll_next(cx)
-            }
-            State::Sending(future) => {
-                let (_, r) = ready!(Pin::new(future).poll(cx))?;
-                self.state = State::Reading(r);
-                self.poll_next(cx)
-            }
-            State::Reading(r) => match ready!(Pin::new(r).poll_next(cx)) {
-                Some(Ok(bs)) => {
-                    self.current_pos += bs.len() as u64;
-                    Poll::Ready(Some(Ok(bs)))
-                }
-                Some(Err(e)) => Poll::Ready(Some(Err(e))),
-                None => Poll::Ready(None),
-            },
-            State::Stating(fut) => {
-                let rp = ready!(Pin::new(fut).poll(cx))?;
-                let meta = rp.into_metadata();
-                self.total_size = Some(meta.content_length());
-                *self.meta.lock() = meta;
-                self.state = State::Idle;
-                self.poll_next(cx)
-            }
-        }
+        self.inner.poll_next(cx)
     }
 }
 
@@ -252,8 +103,7 @@ impl AsyncRead for ObjectReader {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        let this: &mut dyn OutputBytesRead = &mut (*self);
-        this.poll_read(cx, buf)
+        Pin::new(&mut self.inner).poll_read(cx, buf)
     }
 }
 
@@ -263,8 +113,7 @@ impl AsyncSeek for ObjectReader {
         cx: &mut Context<'_>,
         pos: io::SeekFrom,
     ) -> Poll<io::Result<u64>> {
-        let this: &mut dyn OutputBytesRead = &mut (*self);
-        this.poll_seek(cx, pos)
+        Pin::new(&mut self.inner).poll_seek(cx, pos)
     }
 }
 
@@ -272,7 +121,22 @@ impl Stream for ObjectReader {
     type Item = io::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this: &mut dyn OutputBytesRead = &mut (*self);
-        this.poll_next(cx)
+        Pin::new(&mut self.inner).poll_next(cx)
     }
+}
+
+/// get_total_size will get total size via stat.
+async fn get_total_size(
+    acc: Arc<dyn Accessor>,
+    path: &str,
+    meta: Arc<Mutex<ObjectMetadata>>,
+) -> Result<u64> {
+    if let Some(v) = meta.lock().content_length_raw() {
+        return Ok(v);
+    }
+
+    let om = acc.stat(path, OpStat::new()).await?.into_metadata();
+    let size = om.content_length();
+    *(meta.lock()) = om;
+    Ok(size)
 }

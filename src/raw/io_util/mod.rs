@@ -31,6 +31,11 @@ pub use into_reader::into_reader;
 mod into_writer;
 pub use into_writer::into_writer;
 
+pub mod into_seekable_reader;
+
+mod into_seekable_stream;
+pub use into_seekable_stream::into_seekable_stream;
+
 mod read_observer;
 pub use read_observer::observe_read;
 pub use read_observer::ReadEvent;
@@ -40,10 +45,6 @@ mod write_observer;
 pub use write_observer::observe_write;
 pub use write_observer::WriteEvent;
 pub use write_observer::WriteObserver;
-
-mod seekable_reader;
-pub use seekable_reader::seekable_read;
-pub use seekable_reader::SeekableReader;
 
 #[cfg(feature = "compress")]
 mod compress;

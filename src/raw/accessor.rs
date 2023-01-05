@@ -610,5 +610,9 @@ flags! {
         ///
         /// We can reuse the same reader instead of always creating new one.
         ReadIsSeekable,
+        /// Read is seekable means the underlying read is streamable.
+        ///
+        /// It's better to use stream to reading data.
+        ReadIsStreamable,
     }
 }

@@ -14,6 +14,7 @@
 
 use anyhow::Result;
 use futures::AsyncReadExt;
+use futures::AsyncSeekExt;
 use log::debug;
 use log::warn;
 use opendal::ErrorKind;
@@ -21,6 +22,7 @@ use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
+use std::io::SeekFrom;
 
 use super::utils::*;
 
@@ -85,6 +87,7 @@ macro_rules! behavior_write_tests {
                 test_reader_from,
                 test_reader_tail,
                 test_read_not_exist,
+                test_read_with_seek,
                 test_read_with_dir_path,
                 #[cfg(feature = "compress")]
                 test_read_decompress_gzip,
@@ -554,6 +557,38 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     assert!(bs.is_err());
     assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
+    Ok(())
+}
+
+pub async fn test_read_with_seek(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, _) = gen_offset_length(size as usize);
+
+    op.object(&path)
+        .write(content.clone())
+        .await
+        .expect("write must succeed");
+
+    let mut oh = op.object(&path).reader().await?;
+    let n = oh.seek(SeekFrom::End(0)).await?;
+    assert_eq!(n as usize, size, "open size");
+
+    let _ = oh.seek(SeekFrom::Start(offset)).await?;
+    let mut bs = Vec::new();
+    let n = oh.read_to_end(&mut bs).await?;
+    assert_eq!(n, size - offset as usize, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs)),
+        format!("{:x}", Sha256::digest(&content[offset as usize..])),
+        "read content"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
     Ok(())
 }
 

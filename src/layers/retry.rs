@@ -801,11 +801,20 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
+        fn metadata(&self) -> AccessorMetadata {
+            let mut am = AccessorMetadata::default();
+
+            am.set_hints(AccessorHint::ReadIsSeekable);
+
+            am
+        }
+
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, OutputBytesReader)> {
             Ok((
-                RpRead::new(0),
+                RpRead::new(13),
                 Box::new(MockReader {
                     attempt: self.attempt.clone(),
+                    pos: 0,
                 }) as OutputBytesReader,
             ))
         }
@@ -833,6 +842,7 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockReader {
         attempt: Arc<Mutex<usize>>,
+        pos: u64,
     }
 
     impl OutputBytesRead for MockReader {
@@ -847,6 +857,7 @@ mod tests {
                 )),
                 2 => {
                     buf[..7].copy_from_slice("Hello, ".as_bytes());
+                    self.pos += 7;
                     Ok(7)
                 }
                 3 => Err(io::Error::new(
@@ -855,11 +866,22 @@ mod tests {
                 )),
                 4 => {
                     buf[..6].copy_from_slice("World!".as_bytes());
+                    self.pos += 6;
                     Ok(6)
                 }
                 5 => Ok(0),
                 _ => unreachable!(),
             })
+        }
+
+        fn poll_seek(&mut self, _: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+            self.pos = match pos {
+                io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
+                io::SeekFrom::Start(n) => n,
+                io::SeekFrom::End(n) => (13 + n) as u64,
+            };
+
+            Poll::Ready(Ok(self.pos))
         }
     }
 
@@ -911,6 +933,7 @@ mod tests {
                 6,
                 MockReader {
                     attempt: srv.attempt.clone(),
+                    pos: 0,
                 },
             )
             .await

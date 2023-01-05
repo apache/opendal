@@ -128,6 +128,7 @@ flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.1.7", optional = true, features = ["futures-io"] }
 http = "0.2"
+# Remove after https://github.com/Canop/lazy-regex/issues/18
 lazy-regex = { version = "=2.3", optional = true }
 log = "0.4"
 md-5 = "0.10"

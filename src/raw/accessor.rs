@@ -563,8 +563,6 @@ flags! {
         Multipart,
         /// Add this capability if service supports `blocking`
         Blocking,
-        /// Add this capability if service supports `open`
-        Open,
     }
 }
 

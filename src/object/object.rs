@@ -16,7 +16,6 @@ use std::fmt::Debug;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
-use futures::io;
 use futures::io::Cursor;
 use futures::AsyncReadExt;
 use parking_lot::Mutex;
@@ -686,7 +685,7 @@ impl Object {
         let r = self.decompress_reader_with(algo).await?;
         let mut bs = Cursor::new(Vec::new());
 
-        io::copy(r, &mut bs).await.map_err(|err| {
+        futures::io::copy(r, &mut bs).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "decompress read with failed")
                 .with_operation("Object::decompress_read_with")
                 .with_context("service", self.accessor().metadata().scheme().into_static())

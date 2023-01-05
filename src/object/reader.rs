@@ -22,13 +22,13 @@ use bytes::Bytes;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
+use parking_lot::Mutex;
 
 use crate::error::Result;
 use crate::raw::*;
 use crate::ObjectMetadata;
 use crate::OpRead;
 use crate::OpStat;
-use parking_lot::Mutex;
 
 /// ObjectReader
 pub struct ObjectReader {

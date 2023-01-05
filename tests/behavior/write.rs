@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::SeekFrom;
+
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
@@ -22,7 +24,6 @@ use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
-use std::io::SeekFrom;
 
 use super::utils::*;
 

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::AsyncRead;
-use futures::AsyncSeek;
 use std::io::Result;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -23,6 +21,8 @@ use std::task::Poll;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::ready;
+use futures::AsyncRead;
+use futures::AsyncSeek;
 use pin_project::pin_project;
 use tokio::io::ReadBuf;
 

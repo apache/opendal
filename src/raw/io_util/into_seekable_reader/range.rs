@@ -227,7 +227,6 @@ impl OutputBytesRead for RangeReader {
 mod tests {
     use std::io::SeekFrom;
 
-    use crate::Result;
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::AsyncRead;
@@ -238,6 +237,7 @@ mod tests {
     use sha2::Sha256;
 
     use super::*;
+    use crate::Result;
 
     // Generate bytes between [4MiB, 16MiB)
     fn gen_bytes() -> (Bytes, usize) {

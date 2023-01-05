@@ -16,17 +16,22 @@ use std::env;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use http::header::{
-    ACCEPT, AUTHORIZATION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, USER_AGENT,
-};
-use http::{Request, Response, StatusCode};
+use http::header::ACCEPT;
+use http::header::AUTHORIZATION;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_RANGE;
+use http::header::CONTENT_TYPE;
+use http::header::USER_AGENT;
+use http::Request;
+use http::Response;
+use http::StatusCode;
 use log::debug;
-use serde::{Deserialize, Serialize};
-
-use crate::raw::*;
-use crate::*;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::error::parse_error;
+use crate::raw::*;
+use crate::*;
 
 /// The base url for cache url.
 const CACHE_URL_BASE: &str = "_apis/artifactcache";

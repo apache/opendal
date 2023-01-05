@@ -32,7 +32,6 @@ use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::FtpStream;
 use suppaftp::Status;
-
 use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 

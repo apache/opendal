@@ -51,12 +51,8 @@ impl FtpReader {
     }
 }
 
-impl AsyncRead for FtpReader {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+impl OutputBytesRead for FtpReader {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         let data = Pin::new(&mut self.reader).poll_read(cx, buf);
 
         match &mut self.state {
@@ -98,5 +94,3 @@ impl AsyncRead for FtpReader {
         }
     }
 }
-
-impl OutputBytesRead for FtpReader {}

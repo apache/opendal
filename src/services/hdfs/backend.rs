@@ -140,7 +140,8 @@ impl Accessor for Backend {
                     | AccessorCapability::List
                     | AccessorCapability::Blocking
                     | AccessorCapability::Open,
-            );
+            )
+            .set_hints(AccessorHint::ReadIsSeekable);
 
         am
     }

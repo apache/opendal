@@ -509,6 +509,7 @@ pub struct AccessorMetadata {
     root: String,
     name: String,
     capabilities: FlagSet<AccessorCapability>,
+    hints: FlagSet<AccessorHint>,
 }
 
 impl AccessorMetadata {
@@ -565,6 +566,17 @@ impl AccessorMetadata {
         self.capabilities = capabilities.into();
         self
     }
+
+    /// Get backend's hints.
+    pub fn hints(&self) -> FlagSet<AccessorHint> {
+        self.hints
+    }
+
+    /// Set hints for backend.
+    pub fn set_hints(&mut self, hints: impl Into<FlagSet<AccessorHint>>) -> &mut Self {
+        self.hints = hints.into();
+        self
+    }
 }
 
 flags! {
@@ -584,5 +596,19 @@ flags! {
         Blocking,
         /// Add this capability if service supports `open`
         Open,
+    }
+}
+
+flags! {
+    /// AccessorHint describes accessor's hint.
+    ///
+    /// Hint means developers can do optimize for this accessor.
+    ///
+    /// All hints are internal used only and will not be exposed to users.
+    pub enum AccessorHint: u64 {
+        /// Read is seekable means the underlying read is seekable.
+        ///
+        /// We can reuse the same reader instead of always creating new one.
+        ReadIsSeekable,
     }
 }

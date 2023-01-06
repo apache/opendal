@@ -424,10 +424,10 @@ impl Backend {
         size: Option<u64>,
         content_type: Option<&str>,
         body: AsyncBody,
-        use_presign_endpoint: bool,
+        use_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, host) = self.choose_endpoint_and_host(use_presign_endpoint);
+        let (endpoint, host) = self.choose_endpoint_and_host(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
@@ -444,9 +444,9 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_get_object_request(&self, path: &str, range: BytesRange, use_presign_endpoint: bool) -> Result<Request<AsyncBody>> {
+    fn oss_get_object_request(&self, path: &str, range: BytesRange, use_presign: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, host) = self.choose_endpoint_and_host(use_presign_endpoint);
+        let (endpoint, host) = self.choose_endpoint_and_host(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
@@ -483,9 +483,9 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_head_object_request(&self, path: &str, use_presign_endpoint: bool) -> Result<Request<AsyncBody>> {
+    fn oss_head_object_request(&self, path: &str, use_presign: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, host) = self.choose_endpoint_and_host(use_presign_endpoint);
+        let (endpoint, host) = self.choose_endpoint_and_host(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
@@ -569,8 +569,8 @@ impl Backend {
         self.client.send_async(req).await
     }
 
-    fn choose_endpoint_and_host(&self, use_presign_endpoint: bool) -> (&str, &str) {
-        if use_presign_endpoint {
+    fn choose_endpoint_and_host(&self, use_presign: bool) -> (&str, &str) {
+        if use_presign {
             (&self.presign_endpoint, &self.presign_host)
         } else {
             (&self.endpoint, &self.host)

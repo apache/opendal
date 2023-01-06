@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
+use std::io::Error;
 
 use bytes::Bytes;
 
-/// Stream represents a stream of bytes.
+/// Sink represents a sink of bytes.
 ///
-/// This trait is used as alias to `futures::Stream<Item = Result<Bytes>> + Unpin + Send`.
-pub trait Stream: futures::Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
-impl<T> Stream for T where T: futures::Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
-
-/// Streamer is a boxed dyn [`Stream`].
-pub type Streamer = Box<dyn Stream>;
+/// THis trait is used as alias to `futures::Sink<Bytes, Error = Error> + Unpin + Send`.
+pub trait Sink: futures::Sink<Bytes, Error = Error> + Unpin + Send {}
+impl<T> Sink for T where T: futures::Sink<Bytes, Error = Error> + Unpin + Send {}

@@ -24,7 +24,6 @@ pub mod output;
 
 mod api;
 pub use api::BytesCursor;
-pub use api::BytesSink;
 
 mod into_stream;
 pub use into_stream::into_stream;

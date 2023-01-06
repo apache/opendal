@@ -49,17 +49,17 @@ use crate::raw::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_writer<S: BytesSink>(s: S) -> IntoWriter<S> {
+pub fn into_writer<S: input::Sink>(s: S) -> IntoWriter<S> {
     IntoWriter { s }
 }
 
-pub struct IntoWriter<S: BytesSink> {
+pub struct IntoWriter<S: input::Sink> {
     s: S,
 }
 
 impl<S> IntoWriter<S>
 where
-    S: BytesSink,
+    S: input::Sink,
 {
     pub fn into_inner(self) -> S {
         self.s
@@ -68,7 +68,7 @@ where
 
 impl<S> AsyncWrite for IntoWriter<S>
 where
-    S: BytesSink,
+    S: input::Sink,
 {
     fn poll_write(
         mut self: Pin<&mut Self>,

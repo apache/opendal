@@ -32,3 +32,6 @@ pub use write::Writer;
 mod stream;
 pub use stream::Stream;
 pub use stream::Streamer;
+
+mod sink;
+pub use sink::Sink;

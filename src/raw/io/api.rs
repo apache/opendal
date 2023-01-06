@@ -22,13 +22,6 @@ use std::task::Poll;
 
 use super::output;
 use bytes::Bytes;
-use futures::Sink;
-
-/// BytesSink represents a sink of bytes.
-///
-/// THis trait is used as alias to `Sink<Bytes, Error = Error> + Unpin + Send`.
-pub trait BytesSink: Sink<Bytes, Error = Error> + Unpin + Send {}
-impl<T> BytesSink for T where T: Sink<Bytes, Error = Error> + Unpin + Send {}
 
 /// BytesCursor is the cursor for [`Bytes`] that implements `AsyncRead`
 /// and `BytesStream`

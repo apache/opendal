@@ -37,10 +37,9 @@ use futures::AsyncWriteExt;
 use futures::StreamExt;
 use log::error;
 use log::warn;
-use opendal::raw::into_stream;
+use opendal::raw::input::into_stream;
 use opendal::raw::BytesContentRange;
 use opendal::raw::BytesRange;
-use opendal::raw::BytesReader;
 use opendal::Operator;
 use percent_encoding::percent_decode;
 
@@ -93,16 +92,11 @@ impl Service {
 
             (
                 bcr.len().expect("range must be specifed"),
-                Box::new(
-                    o.range_reader(bcr.range().expect("range must be specifed"))
-                        .await?,
-                ) as BytesReader,
+                o.range_reader(bcr.range().expect("range must be specifed"))
+                    .await?,
             )
         } else {
-            (
-                meta.content_length(),
-                Box::new(o.reader().await?) as BytesReader,
-            )
+            (meta.content_length(), o.reader().await?)
         };
 
         Ok(HttpResponse::Ok().body(SizedStream::new(size, into_stream(r, 8 * 1024))))

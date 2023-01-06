@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,17 +20,16 @@ use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
 
-use super::output;
+use crate::raw::*;
 use bytes::Bytes;
 
-/// BytesCursor is the cursor for [`Bytes`] that implements `AsyncRead`
-/// and `BytesStream`
-pub struct BytesCursor {
+/// Cursor is the cursor for [`Bytes`] that implements [`output::Read`]
+pub struct Cursor {
     inner: Bytes,
     pos: u64,
 }
 
-impl BytesCursor {
+impl Cursor {
     /// Returns `true` if the remaining slice is empty.
     pub fn is_empty(&self) -> bool {
         self.pos as usize >= self.inner.len()
@@ -43,16 +42,16 @@ impl BytesCursor {
     }
 }
 
-impl From<Vec<u8>> for BytesCursor {
+impl From<Vec<u8>> for Cursor {
     fn from(v: Vec<u8>) -> Self {
-        BytesCursor {
+        Cursor {
             inner: Bytes::from(v),
             pos: 0,
         }
     }
 }
 
-impl output::Read for BytesCursor {
+impl output::Read for Cursor {
     fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let n = Read::read(&mut self.remaining_slice(), buf)?;
         self.pos += n as u64;

@@ -22,19 +22,6 @@
 pub mod input;
 pub mod output;
 
-mod api;
-pub use api::BytesCursor;
-
-mod read_observer;
-pub use read_observer::observe_read;
-pub use read_observer::ReadEvent;
-pub use read_observer::ReadObserver;
-
-mod write_observer;
-pub use write_observer::observe_write;
-pub use write_observer::WriteEvent;
-pub use write_observer::WriteObserver;
-
 #[cfg(feature = "compress")]
 mod compress;
 #[cfg(feature = "compress")]

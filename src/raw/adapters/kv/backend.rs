@@ -16,7 +16,6 @@ use async_trait::async_trait;
 use futures::AsyncReadExt;
 
 use super::Adapter;
-use crate::raw::io::BytesCursor;
 use crate::raw::*;
 use crate::*;
 
@@ -89,7 +88,10 @@ where
         let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
-        Ok((RpRead::new(length as u64), Box::new(BytesCursor::from(bs))))
+        Ok((
+            RpRead::new(length as u64),
+            Box::new(output::Cursor::from(bs)),
+        ))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {

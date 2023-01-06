@@ -145,7 +145,7 @@ impl ObjectReader {
             r
         } else {
             // Make this capacity configurable.
-            Box::new(into_seekable_stream(r, 256 * 1024))
+            Box::new(output::into_reader::as_streamable(r, 256 * 1024))
         };
 
         Ok(ObjectReader { inner: r })

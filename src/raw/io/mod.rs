@@ -34,9 +34,6 @@ pub use into_sink::into_sink;
 mod into_writer;
 pub use into_writer::into_writer;
 
-mod into_seekable_stream;
-pub use into_seekable_stream::into_seekable_stream;
-
 mod read_observer;
 pub use read_observer::observe_read;
 pub use read_observer::ReadEvent;

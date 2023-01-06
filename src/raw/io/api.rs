@@ -26,14 +26,6 @@ use futures::AsyncWrite;
 use futures::Sink;
 use futures::Stream;
 
-/// BlockingOutputBytesRead is the output version of bytes reader
-/// returned by OpenDAL.
-pub trait BlockingOutputBytesRead: super::input::BlockingRead + Sync {}
-impl<T> BlockingOutputBytesRead for T where T: super::input::BlockingRead + Sync {}
-
-/// BlockingOutputBytesReader is a boxed dyn `BlockingOutputBytesRead`.
-pub type BlockingOutputBytesReader = Box<dyn BlockingOutputBytesRead>;
-
 /// BytesWrite represents a writer of bytes.
 pub trait BytesWrite: AsyncWrite + Unpin + Send {}
 impl<T> BytesWrite for T where T: AsyncWrite + Unpin + Send {}

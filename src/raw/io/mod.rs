@@ -23,8 +23,6 @@ pub mod input;
 pub mod output;
 
 mod api;
-pub use api::BlockingOutputBytesRead;
-pub use api::BlockingOutputBytesReader;
 pub use api::BytesCursor;
 pub use api::BytesSink;
 pub use api::BytesStream;

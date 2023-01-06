@@ -28,3 +28,7 @@ pub use read::ReadExt;
 pub use read::Reader;
 
 pub mod into_reader;
+
+mod blocking_read;
+pub use blocking_read::BlockingRead;
+pub use blocking_read::BlockingReader;

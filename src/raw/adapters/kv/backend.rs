@@ -92,11 +92,7 @@ where
         Ok((RpRead::new(length as u64), Box::new(BytesCursor::from(bs))))
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         let bs = match self.kv.blocking_get(path)? {
             Some(bs) => bs,
             None => {

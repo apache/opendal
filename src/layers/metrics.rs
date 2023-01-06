@@ -686,11 +686,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         self.handle.requests_total_blocking_read.increment(1);
 
         let start = Instant::now();
@@ -704,7 +700,7 @@ impl Accessor for MetricsAccessor {
                         .register_errors_total(Operation::BlockingRead, ErrorKind::Unexpected),
                     self.handle.requests_duration_seconds_blocking_read.clone(),
                     Some(start),
-                )) as BlockingOutputBytesReader,
+                )) as output::BlockingReader,
             )
         });
 

@@ -690,11 +690,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
@@ -723,7 +719,7 @@ impl Accessor for LoggingAccessor {
                     r,
                     self.failure_level,
                 );
-                (rp, Box::new(r) as BlockingOutputBytesReader)
+                (rp, Box::new(r) as output::BlockingReader)
             })
             .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {

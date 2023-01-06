@@ -54,7 +54,7 @@ use crate::raw::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn observe_write<F: FnMut(WriteEvent)>(s: BytesWriter, f: F) -> WriteObserver<F> {
+pub fn observe_write<F: FnMut(WriteEvent)>(s: input::Writer, f: F) -> WriteObserver<F> {
     WriteObserver { s, f }
 }
 
@@ -80,7 +80,7 @@ pub enum WriteEvent {
 /// Observer that created via [`observe_write`].
 #[pin_project]
 pub struct WriteObserver<F: FnMut(WriteEvent)> {
-    s: BytesWriter,
+    s: input::Writer,
     f: F,
 }
 

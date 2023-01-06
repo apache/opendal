@@ -22,16 +22,8 @@ use std::task::Poll;
 
 use super::output;
 use bytes::Bytes;
-use futures::AsyncWrite;
 use futures::Sink;
 use futures::Stream;
-
-/// BytesWrite represents a writer of bytes.
-pub trait BytesWrite: AsyncWrite + Unpin + Send {}
-impl<T> BytesWrite for T where T: AsyncWrite + Unpin + Send {}
-
-/// BytesWriter is a boxed dyn [`BytesWrite`].
-pub type BytesWriter = Box<dyn BytesWrite>;
 
 /// BytesStream represents a stream of bytes.
 ///

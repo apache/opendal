@@ -1,4 +1,4 @@
-// Copyright 2023 Datafuse Labs.
+// Copyright 2022 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! `input` provides traits and types that opendal accepts as input.
-//!
-//! Most of them are just alias to `futures::AsyncRead` or `std::io::Read`.
-//! They are provided for convenient and will not have actual logic.
+/// Write represents a writer of bytes.
+pub trait Write: futures::AsyncWrite + Unpin + Send {}
+impl<T> Write for T where T: futures::AsyncWrite + Unpin + Send {}
 
-mod read;
-pub use read::Read;
-pub use read::Reader;
-
-mod blocking_read;
-pub use blocking_read::BlockingRead;
-pub use blocking_read::BlockingReader;
-
-mod write;
-pub use write::Write;
-pub use write::Writer;
+/// Writer is a boxed dyn [`Write`].
+pub type Writer = Box<dyn Write>;

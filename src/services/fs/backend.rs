@@ -328,7 +328,7 @@ impl Accessor for Backend {
         Ok((RpRead::new(end - start), Box::new(r)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =
                 Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
@@ -535,7 +535,7 @@ impl Accessor for Backend {
         &self,
         path: &str,
         _: OpWrite,
-        mut r: BlockingBytesReader,
+        mut r: input::BlockingReader,
     ) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =

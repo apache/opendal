@@ -272,7 +272,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let req = self.ghac_reserve(path, args.size()).await?;
 
         let resp = self.client.send_async(req).await?;

@@ -39,7 +39,7 @@ pub enum Body {
     /// Body with bytes.
     Bytes(Bytes),
     /// Body with a Reader.
-    Reader(BlockingBytesReader),
+    Reader(input::BlockingReader),
 }
 
 impl Default for Body {
@@ -87,12 +87,12 @@ pub enum AsyncBody {
     /// Body with bytes.
     Bytes(Bytes),
     /// Body with a Reader.
-    Reader(BytesReader),
+    Reader(input::Reader),
     /// Body with a multipart field.
     ///
     /// If input with this field, we will goto the internal multipart
     /// handle logic.
-    Multipart(String, BytesReader),
+    Multipart(String, input::Reader),
 }
 
 impl Default for AsyncBody {

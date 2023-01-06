@@ -102,7 +102,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let resp = self
             .ipmfs_write(path, AsyncBody::Multipart("data".to_string(), r))
             .await?;

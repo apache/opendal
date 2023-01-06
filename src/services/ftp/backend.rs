@@ -315,7 +315,7 @@ impl Accessor for Backend {
         let meta = self.ftp_stat(path).await?;
 
         let br = args.range();
-        let (r, size): (BytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (input::Reader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?.take(size);
@@ -345,7 +345,7 @@ impl Accessor for Backend {
         ))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
 
         let mut data_stream = ftp_stream.append_with_stream(path).await?;

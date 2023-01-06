@@ -218,7 +218,7 @@ impl Accessor for Backend {
         Ok((RpRead::new(end - start), Box::new(r)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let parent = PathBuf::from(&p)
@@ -399,7 +399,7 @@ impl Accessor for Backend {
         &self,
         path: &str,
         _: OpWrite,
-        mut r: BlockingBytesReader,
+        mut r: input::BlockingReader,
     ) -> Result<RpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 

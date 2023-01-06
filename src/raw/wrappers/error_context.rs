@@ -65,7 +65,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         self.inner.write(path, args, r).await.map_err(|err| {
             err.with_operation(Operation::Write.into_static())
                 .with_context("service", self.meta.scheme())
@@ -143,7 +143,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         self.inner
             .write_multipart(path, args, r)
@@ -202,7 +202,12 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r).map_err(|err| {
             err.with_operation(Operation::BlockingWrite.into_static())
                 .with_context("service", self.meta.scheme())

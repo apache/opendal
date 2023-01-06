@@ -19,14 +19,12 @@
 //! This mod is not a part of OpenDAL's public API. We expose them out to make
 //! it easier to develop services and layers outside opendal.
 
+pub mod input;
+
 mod api;
-pub use api::BlockingBytesRead;
-pub use api::BlockingBytesReader;
 pub use api::BlockingOutputBytesRead;
 pub use api::BlockingOutputBytesReader;
 pub use api::BytesCursor;
-pub use api::BytesRead;
-pub use api::BytesReader;
 pub use api::BytesSink;
 pub use api::BytesStream;
 pub use api::BytesStreamer;

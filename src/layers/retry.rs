@@ -149,7 +149,7 @@ where
     /// Return `Interrupted` Error even after retry.
     ///
     /// Allowing users to retry the write request from upper logic.
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let r = Box::new(RetryReader::new(r, Operation::Write, self.backoff.clone()));
         let r = Box::new(CloneableReader::new(r));
 
@@ -229,7 +229,7 @@ where
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         // Write can't retry, until can reset this reader.
         self.inner
@@ -340,7 +340,12 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r)
     }
 
@@ -656,14 +661,14 @@ where
 /// Instead of `Mutex`, we use a `RefCell` to borrow the inner reader at runtime.
 #[derive(Clone)]
 struct CloneableReader {
-    inner: Arc<RefCell<BytesReader>>,
+    inner: Arc<RefCell<input::Reader>>,
 }
 
 unsafe impl Send for CloneableReader {}
 unsafe impl Sync for CloneableReader {}
 
 impl CloneableReader {
-    fn new(r: BytesReader) -> Self {
+    fn new(r: input::Reader) -> Self {
         Self {
             inner: Arc::new(RefCell::new(r)),
         }
@@ -721,7 +726,7 @@ mod tests {
             }
         }
 
-        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> Result<RpWrite> {
+        async fn write(&self, path: &str, _: OpWrite, _: input::Reader) -> Result<RpWrite> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -819,7 +824,7 @@ mod tests {
             ))
         }
 
-        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {
+        async fn write(&self, _: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
             {
                 let mut attempt = self.attempt.lock().unwrap();
                 *attempt += 1;

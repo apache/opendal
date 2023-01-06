@@ -30,13 +30,6 @@ use futures::AsyncWrite;
 use futures::Sink;
 use futures::Stream;
 
-/// BytesRead represents a reader of bytes.
-pub trait BytesRead: AsyncRead + Unpin + Send {}
-impl<T> BytesRead for T where T: AsyncRead + Unpin + Send {}
-
-/// BytesReader is a boxed dyn [`BytesRead`].
-pub type BytesReader = Box<dyn BytesRead>;
-
 /// OutputBytesRead is the output version of bytes returned by OpenDAL.
 ///
 /// OutputBytesRead is compose of the following trait
@@ -206,17 +199,10 @@ where
     }
 }
 
-/// BlockingBytesRead represents a blocking reader of bytes.
-pub trait BlockingBytesRead: Read + Send {}
-impl<T> BlockingBytesRead for T where T: Read + Send {}
-
-/// BlockingBytesReader is a boxed dyn [`BlockingBytesRead`].
-pub type BlockingBytesReader = Box<dyn BlockingBytesRead>;
-
 /// BlockingOutputBytesRead is the output version of bytes reader
 /// returned by OpenDAL.
-pub trait BlockingOutputBytesRead: BlockingBytesRead + Sync {}
-impl<T> BlockingOutputBytesRead for T where T: BlockingBytesRead + Sync {}
+pub trait BlockingOutputBytesRead: super::input::BlockingRead + Sync {}
+impl<T> BlockingOutputBytesRead for T where T: super::input::BlockingRead + Sync {}
 
 /// BlockingOutputBytesReader is a boxed dyn `BlockingOutputBytesRead`.
 pub type BlockingOutputBytesReader = Box<dyn BlockingOutputBytesRead>;

@@ -59,7 +59,7 @@ pub trait CachePolicy: Send + Sync + Debug + 'static {
         cache: Arc<dyn Accessor>,
         path: &str,
         args: OpWrite,
-        r: BytesReader,
+        r: input::Reader,
     ) -> CacheResult<RpWrite> {
         let _ = cache;
 
@@ -109,7 +109,7 @@ impl<T: CachePolicy> CachePolicy for Arc<T> {
         cache: Arc<dyn Accessor>,
         path: &str,
         args: OpWrite,
-        r: BytesReader,
+        r: input::Reader,
     ) -> CacheResult<RpWrite> {
         self.as_ref().on_write(inner, cache, path, args, r)
     }

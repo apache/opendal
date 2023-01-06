@@ -124,7 +124,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         match self.inner() {
             Some(inner) => inner.write(path, args, r).await,
             None => Err(Error::new(
@@ -228,7 +228,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         match self.inner() {
             Some(inner) => inner.write_multipart(path, args, r).await,
@@ -322,7 +322,12 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         match self.inner() {
             Some(inner) => inner.blocking_write(path, args, r),
             None => Err(Error::new(
@@ -399,7 +404,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
         self.as_ref().read(path, args).await
     }
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         self.as_ref().write(path, args, r).await
     }
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -427,7 +432,7 @@ impl<T: Accessor> Accessor for Arc<T> {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         self.as_ref().write_multipart(path, args, r).await
     }
@@ -456,7 +461,12 @@ impl<T: Accessor> Accessor for Arc<T> {
     ) -> Result<(RpRead, BlockingOutputBytesReader)> {
         self.as_ref().blocking_read(path, args)
     }
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         self.as_ref().blocking_write(path, args, r)
     }
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

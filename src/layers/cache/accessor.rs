@@ -60,7 +60,7 @@ impl Accessor for CacheAccessor {
             .await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         self.policy
             .on_write(self.inner.clone(), self.cache.clone(), path, args, r)
             .await

@@ -82,7 +82,7 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write(path, args, r).await
     }
@@ -126,7 +126,7 @@ impl Accessor for TracingAccessor {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         let r = Box::new(TracingReader::new(Span::current(), r));
         self.inner.write_multipart(path, args, r).await
@@ -171,7 +171,12 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r)
     }
 
@@ -229,7 +234,7 @@ impl OutputBytesRead for TracingReader<OutputBytesReader> {
     }
 }
 
-impl<R: BytesRead> AsyncRead for TracingReader<R> {
+impl<R: input::Read> AsyncRead for TracingReader<R> {
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
@@ -255,7 +260,7 @@ impl<R> BlockingTracingReader<R> {
     }
 }
 
-impl<R: BlockingBytesRead> Read for BlockingTracingReader<R> {
+impl<R: input::BlockingRead> Read for BlockingTracingReader<R> {
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",

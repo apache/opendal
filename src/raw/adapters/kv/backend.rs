@@ -114,7 +114,7 @@ where
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs)
             .await
@@ -129,7 +129,7 @@ where
         &self,
         path: &str,
         args: OpWrite,
-        mut r: BlockingBytesReader,
+        mut r: input::BlockingReader,
     ) -> Result<RpWrite> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs)

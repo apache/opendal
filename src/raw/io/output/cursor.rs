@@ -20,8 +20,9 @@ use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::raw::*;
 use bytes::Bytes;
+
+use crate::raw::*;
 
 /// Cursor is the cursor for [`Bytes`] that implements [`output::Read`]
 pub struct Cursor {

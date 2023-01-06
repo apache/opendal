@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{
-    io::{Error, ErrorKind, Result, SeekFrom},
-    marker::PhantomPinned,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result;
+use std::io::SeekFrom;
+use std::marker::PhantomPinned;
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
 
 use bytes::Bytes;
 use futures::Future;

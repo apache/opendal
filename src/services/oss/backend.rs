@@ -211,13 +211,12 @@ impl Builder {
         let (endpoint, host) = self.parse_endpoint(&self.endpoint, bucket)?;
         debug!("backend use bucket {}, endpoint: {}", &bucket, &endpoint);
 
-        let mut presign_endpoint = endpoint.clone();
-        let mut presign_host = host.clone();
-        if self.presign_endpoint.is_some() {
-            (presign_endpoint, presign_host) =
-                self.parse_endpoint(&self.presign_endpoint, bucket)?;
-            debug!("backend use presign_endpoint: {}", &presign_endpoint);
-        }
+        let (presign_endpoint, presign_host) = if self.presign_endpoint.is_some() {
+            self.parse_endpoint(&self.presign_endpoint, bucket)?
+        } else {
+            (endpoint.clone(), host.clone())
+        };
+        debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
         let mut signer_builder = AliyunOssBuilder::default();
 

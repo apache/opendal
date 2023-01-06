@@ -74,7 +74,7 @@ use crate::OpStat;
 ///
 /// - `Some(offset), Some(size)` => `RangeReader`
 /// - `Some(offset), None` and `None, None` => `OffsetReader`
-/// - `None, None` => get the total size first to convert as `RangeReader`
+/// - `None, Some(size)` => get the total size first to convert as `RangeReader`
 ///
 /// No matter which reader we use, we will make sure the `read` operation
 /// is zero cost.

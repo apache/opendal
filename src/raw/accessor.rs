@@ -49,7 +49,6 @@ use crate::*;
 /// | [`blocking_write`][Accessor::blocking_write] | `Blocking` |
 /// | [`blocking_delete`][Accessor::blocking_delete] | `Blocking` |
 /// | [`blocking_list`][Accessor::blocking_list] | `Blocking` |
-/// | [`blocking_open`][Accessor::blocking_open] | `Blocking` && `Open` |
 ///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.

@@ -30,20 +30,7 @@ pub use accessor::AccessorHint;
 pub use accessor::AccessorMetadata;
 
 mod io;
-pub use io::BlockingBytesRead;
-pub use io::BlockingBytesReader;
-pub use io::BlockingOutputBytesRead;
-pub use io::BlockingOutputBytesReader;
-pub use io::BytesRead;
-pub use io::BytesReader;
-pub use io::BytesSink;
-pub use io::BytesStream;
-pub use io::BytesStreamer;
-pub use io::BytesWrite;
-pub use io::BytesWriter;
-pub use io::OutputBytesRead;
-pub use io::OutputBytesReader;
-pub use io::SeekableOutputBytesReader;
+pub use io::*;
 
 mod path;
 pub use path::build_abs_path;
@@ -80,9 +67,6 @@ pub use rps::*;
 
 mod http_util;
 pub use http_util::*;
-
-mod io_util;
-pub use io_util::*;
 
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;

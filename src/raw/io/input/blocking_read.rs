@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! `input` provides traits and types that opendal accepts as input.
-//!
-//! Most of them are just alias to `futures::AsyncRead` or `std::io::Read`.
-//! They are provided for convenient and will not have actual logic.
+/// BlockingReader is a boxed dyn of [`BlockingRead`];
+///
+/// We use [`BlockingReader`] to accept users input in `Accessor` trait.
+pub type BlockingReader = Box<dyn BlockingRead>;
 
-mod read;
-pub use read::Read;
-pub use read::Reader;
-
-mod blocking_read;
-pub use blocking_read::BlockingRead;
-pub use blocking_read::BlockingReader;
+/// BlockingRead is a trait alias of [`std::io::Read`] to avoid repeating
+/// `std::io::Read + Send` across the codebase.
+///
+/// We use [`BlockingRead`] to accept users input.
+pub trait BlockingRead: std::io::Read + Send {}
+impl<T> BlockingRead for T where T: std::io::Read + Send {}

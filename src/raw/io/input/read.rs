@@ -23,15 +23,3 @@ pub type Reader = Box<dyn Read>;
 /// We use [`Read`] to accept users input.
 pub trait Read: futures::AsyncRead + Unpin + Send {}
 impl<T> Read for T where T: futures::AsyncRead + Unpin + Send {}
-
-/// Reader is a boxed dyn of [`BlockingRead`];
-///
-/// We use [`BlockingReader`] to accept users input in `Accessor` trait.
-pub type BlockingReader = Box<dyn BlockingRead>;
-
-/// BlockingRead is a trait alias of [`std::io::Read`] to avoid repeating
-/// `std::io::Read + Send` across the codebase.
-///
-/// We use [`BlockingRead`] to accept users input.
-pub trait BlockingRead: std::io::Read + Send {}
-impl<T> BlockingRead for T where T: std::io::Read + Send {}

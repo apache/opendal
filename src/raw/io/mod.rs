@@ -31,9 +31,6 @@ pub use into_stream::into_stream;
 mod into_sink;
 pub use into_sink::into_sink;
 
-mod into_reader;
-pub use into_reader::into_reader;
-
 mod into_writer;
 pub use into_writer::into_writer;
 

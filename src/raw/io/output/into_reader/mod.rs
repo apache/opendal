@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! into_reader will provide different implementations based on
-//! range to convert into [`output::Read`][super::output::Read]
+//! into_reader will provide different implementations to convert into
+//! [`output::Read`][super::output::Read]
 //!
 //! - (Some(offset), Some(size)) => by_range
 //! - (Some(offset), None) => by_offset

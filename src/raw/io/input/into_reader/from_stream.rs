@@ -41,7 +41,7 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::raw::into_reader;
+/// use opendal::raw::input::into_reader;
 /// # use anyhow::Result;
 /// # use std::io::Error;
 /// # use futures::io;
@@ -55,13 +55,13 @@ use crate::raw::*;
 /// # let stream = Box::pin(stream::once(async {
 /// #     Ok::<_, Error>(Bytes::from(vec![0; 1024]))
 /// # }));
-/// let mut s = into_reader(stream, Some(1024));
+/// let mut s = into_reader::from_stream(stream, Some(1024));
 /// let mut bs = Vec::new();
 /// s.read_to_end(&mut bs).await;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_reader<S: input::Stream>(stream: S, size: Option<u64>) -> IntoReader<S> {
+pub fn from_stream<S: input::Stream>(stream: S, size: Option<u64>) -> IntoReader<S> {
     IntoReader {
         stream,
         size,
@@ -212,7 +212,7 @@ mod tests {
         let s = Box::pin(stream::once(async {
             Ok::<_, Error>(Bytes::from(stream_content))
         }));
-        let mut r = into_reader(s, Some(size as u64));
+        let mut r = from_stream(s, Some(size as u64));
 
         let mut bs = Vec::new();
         r.read_to_end(&mut bs).await.expect("read must succeed");
@@ -233,7 +233,7 @@ mod tests {
             Ok::<_, Error>(Bytes::from(stream_content))
         }));
         // Size is larger then expected.
-        let mut r = into_reader(s, Some(size as u64 + 1));
+        let mut r = from_stream(s, Some(size as u64 + 1));
 
         let mut bs = Vec::new();
         let err = r

@@ -12,28 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! `input` provides traits and types that opendal accepts as input.
-//!
-//! Most of them are just alias to `futures::AsyncRead` or `std::io::Read`.
-//! They are provided for convenient and will not have actual logic.
+//! into_reader will provide different implementations to convert into
+//! [`input::Read`][super::input::Read]
 
-mod read;
-pub use read::Read;
-pub use read::Reader;
-
-mod blocking_read;
-pub use blocking_read::BlockingRead;
-pub use blocking_read::BlockingReader;
-
-mod write;
-pub use write::Write;
-pub use write::Writer;
-
-mod stream;
-pub use stream::Stream;
-pub use stream::Streamer;
-
-mod sink;
-pub use sink::Sink;
-
-pub mod into_reader;
+mod from_stream;
+pub use from_stream::from_stream;

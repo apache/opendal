@@ -26,3 +26,5 @@ mod read;
 pub use read::Read;
 pub use read::ReadExt;
 pub use read::Reader;
+
+pub mod into_reader;

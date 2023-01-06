@@ -123,12 +123,10 @@ impl ObjectReader {
         } else {
             match (op.range().offset(), op.range().size()) {
                 (Some(offset), Some(size)) => {
-                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                    Box::new(output::into_reader::by_range(acc, path, offset, size))
                         as output::Reader
                 }
-                (Some(offset), None) => {
-                    Box::new(into_seekable_reader::by_offset(acc, path, offset))
-                }
+                (Some(offset), None) => Box::new(output::into_reader::by_offset(acc, path, offset)),
                 (None, Some(size)) => {
                     let total_size = get_total_size(acc.clone(), path, meta).await?;
                     let (offset, size) = if size > total_size {
@@ -137,9 +135,9 @@ impl ObjectReader {
                         (total_size - size, size)
                     };
 
-                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                    Box::new(output::into_reader::by_range(acc, path, offset, size))
                 }
-                (None, None) => Box::new(into_seekable_reader::by_offset(acc, path, 0)),
+                (None, None) => Box::new(output::into_reader::by_offset(acc, path, 0)),
             }
         };
 

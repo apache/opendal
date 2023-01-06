@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! into_seekable_reader will provide different implementation based on
-//! differnt range into.
+//! into_reader will provide different implementations based on
+//! range to convert into [`output::Read`][super::output::Read]
 //!
 //! - (Some(offset), Some(size)) => by_range
 //! - (Some(offset), None) => by_offset
 //! - (None, Some(size)) => by_tail
-//! - (None, None) => by_full
+//! - (None, None) => by_offset
 //!
 //! The main different is whether and when to call `stat` to get total
 //! content length.

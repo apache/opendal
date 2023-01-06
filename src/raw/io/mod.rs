@@ -45,8 +45,6 @@ pub use into_reader::into_reader;
 mod into_writer;
 pub use into_writer::into_writer;
 
-pub mod into_seekable_reader;
-
 mod into_seekable_stream;
 pub use into_seekable_stream::into_seekable_stream;
 

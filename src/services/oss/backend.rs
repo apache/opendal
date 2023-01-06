@@ -124,6 +124,7 @@ impl Builder {
     /// Set endpoint for presign.
     pub fn presign_endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
+            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
         }
 
@@ -209,8 +210,9 @@ impl Builder {
         // set, take endpoint as default presign_endpoint.
         let (endpoint, host) = self.parse_endpoint(&self.endpoint, bucket)?;
         let mut presign_endpoint = endpoint.clone();
+        let mut presign_host = host.clone();
         if self.presign_endpoint.is_some() {
-            presign_endpoint = self.parse_endpoint(&self.presign_endpoint, bucket)?.0;
+            (presign_endpoint, presign_host) = self.parse_endpoint(&self.presign_endpoint, bucket)?;
         }
         debug!("backend use bucket {}, endpoint: {}, presign_endpoint: {}", &bucket, &endpoint, &presign_endpoint);
 
@@ -242,6 +244,7 @@ impl Builder {
             endpoint,
             presign_endpoint,
             host,
+            presign_host,
             client: HttpClient::new(),
             bucket: self.bucket.clone(),
             signer: Arc::new(signer),
@@ -262,6 +265,7 @@ pub struct Backend {
     host: String,
     endpoint: String,
     presign_endpoint: String,
+    presign_host: String,
     signer: Arc<AliyunOssSigner>,
 }
 
@@ -423,18 +427,13 @@ impl Backend {
         use_presign_endpoint: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-
-        let endpoint = if use_presign_endpoint {
-            &self.presign_endpoint
-        } else {
-            &self.endpoint
-        };
+        let (endpoint, host) = self.choose_endpoint_and_host(use_presign_endpoint);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
         req = req
-            .header(HOST, &self.host)
+            .header(HOST, host)
             .header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(mime) = content_type {
@@ -447,17 +446,12 @@ impl Backend {
 
     fn oss_get_object_request(&self, path: &str, range: BytesRange, use_presign_endpoint: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-
-        let endpoint = if use_presign_endpoint {
-            &self.presign_endpoint
-        } else {
-            &self.endpoint
-        };
+        let (endpoint, host) = self.choose_endpoint_and_host(use_presign_endpoint);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
         req = req
-            .header(HOST, &self.host)
+            .header(HOST, host)
             .header(CONTENT_TYPE, "application/octet-stream");
 
         if !range.is_full() {
@@ -491,17 +485,11 @@ impl Backend {
 
     fn oss_head_object_request(&self, path: &str, use_presign_endpoint: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-
-        let endpoint = if use_presign_endpoint {
-            &self.presign_endpoint
-        } else {
-            &self.endpoint
-        };
-
+        let (endpoint, host) = self.choose_endpoint_and_host(use_presign_endpoint);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
-        req = req.header(HOST, &self.host);
+        req = req.header(HOST, host);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -579,5 +567,13 @@ impl Backend {
         let mut req = self.oss_delete_object_request(path)?;
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
+    }
+
+    fn choose_endpoint_and_host(&self, use_presign_endpoint: bool) -> (&str, &str) {
+        if use_presign_endpoint {
+            (&self.presign_endpoint, &self.presign_host)
+        } else {
+            (&self.endpoint, &self.host)
+        }
     }
 }

@@ -36,3 +36,6 @@
 
 mod range;
 pub use range::by_range;
+
+mod offset;
+pub use offset::by_offset;

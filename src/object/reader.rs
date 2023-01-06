@@ -37,6 +37,12 @@ pub struct ObjectReader {
 
 impl ObjectReader {
     /// Create a new object reader.
+    ///
+    /// Create will use internal information to decide the most suitable
+    /// implementaion for users.
+    ///
+    /// We don't want to expose those detials to users so keep this fuction
+    /// in crate only.
     pub(crate) async fn create(
         acc: Arc<dyn Accessor>,
         path: &str,
@@ -49,27 +55,26 @@ impl ObjectReader {
             let (_, r) = acc.read(path, op).await?;
             r
         } else {
-            let (offset, size) = match (op.range().offset(), op.range().size()) {
-                (Some(offset), Some(size)) => (offset, size),
+            match (op.range().offset(), op.range().size()) {
+                (Some(offset), Some(size)) => {
+                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                        as OutputBytesReader
+                }
                 (Some(offset), None) => {
-                    let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    (offset, total_size - offset)
+                    Box::new(into_seekable_reader::by_offset(acc, path, offset))
                 }
                 (None, Some(size)) => {
                     let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    if size > total_size {
+                    let (offset, size) = if size > total_size {
                         (0, total_size)
                     } else {
                         (total_size - size, size)
-                    }
-                }
-                (None, None) => {
-                    let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    (0, total_size)
-                }
-            };
+                    };
 
-            Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                }
+                (None, None) => Box::new(into_seekable_reader::by_offset(acc, path, 0)),
+            }
         };
 
         let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {

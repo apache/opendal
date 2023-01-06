@@ -105,7 +105,7 @@ impl From<AsyncBody> for reqwest::Body {
         match v {
             AsyncBody::Empty => reqwest::Body::from(""),
             AsyncBody::Bytes(bs) => reqwest::Body::from(bs),
-            AsyncBody::Reader(r) => reqwest::Body::wrap_stream(into_stream(r, 16 * 1024)),
+            AsyncBody::Reader(r) => reqwest::Body::wrap_stream(input::into_stream(r, 256 * 1024)),
             AsyncBody::Multipart(_, _) => {
                 unreachable!("reqwest multipart should not be constructed by body")
             }

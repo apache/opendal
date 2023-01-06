@@ -91,7 +91,7 @@ mod tests {
         let cap = rng.gen_range(1..1024 * 1024);
 
         let r = io::Cursor::new(content.clone());
-        let mut s = into_stream(r, cap);
+        let mut s = input::into_stream(r, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next().await {

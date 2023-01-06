@@ -37,3 +37,12 @@ mod sink;
 pub use sink::Sink;
 
 pub mod into_reader;
+
+mod into_writer;
+pub use into_writer::into_writer;
+
+mod into_sink;
+pub use into_sink::into_sink;
+
+mod into_stream;
+pub use into_stream::into_stream;

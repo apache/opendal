@@ -108,7 +108,7 @@ mod tests {
         rng.fill_bytes(&mut content);
 
         let mut r = io::Cursor::new(content.clone());
-        let mut w = into_writer(into_sink(Vec::new()));
+        let mut w = into_writer(input::into_sink(Vec::new()));
         io::copy(&mut r, &mut w).await.expect("copy must success");
 
         assert_eq!(w.into_inner().into_inner(), content)

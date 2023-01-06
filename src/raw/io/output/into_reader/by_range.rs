@@ -31,7 +31,7 @@ use tokio::io::ReadBuf;
 use crate::raw::*;
 use crate::*;
 
-/// Convert given reader into seekable reader by range.
+/// Convert given reader into [`output::Reader`] by range.
 ///
 /// # Notes
 ///

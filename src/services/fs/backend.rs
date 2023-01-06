@@ -320,7 +320,7 @@ impl Accessor for Backend {
             (None, None) => (0, meta.len()),
         };
 
-        let mut r = SeekableOutputBytesReader::new(f, start, end);
+        let mut r = output::into_reader::from_fd(f, start, end);
 
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;

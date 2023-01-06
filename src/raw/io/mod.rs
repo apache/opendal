@@ -31,7 +31,6 @@ pub use api::BytesStream;
 pub use api::BytesStreamer;
 pub use api::BytesWrite;
 pub use api::BytesWriter;
-pub use api::SeekableOutputBytesReader;
 
 mod into_stream;
 pub use into_stream::into_stream;

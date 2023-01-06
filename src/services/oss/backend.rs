@@ -40,6 +40,7 @@ pub struct Builder {
     root: Option<String>,
 
     endpoint: Option<String>,
+    presign_endpoint: Option<String>,
     bucket: String,
 
     // authenticate options
@@ -55,6 +56,7 @@ impl Debug for Builder {
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
+            .field("presign_endpoint", &self.presign_endpoint)
             .field("allow_anonymous", &self.allow_anonymous);
 
         if self.access_key_id.is_some() {
@@ -78,6 +80,7 @@ impl Builder {
                 "root" => builder.root(v),
                 "bucket" => builder.bucket(v),
                 "endpoint" => builder.endpoint(v),
+                "presign_endpoint" => builder.presign_endpoint(v),
 
                 "access_key_id" => builder.access_key_id(v),
                 "access_key_secret" => builder.access_key_secret(v),
@@ -118,6 +121,15 @@ impl Builder {
         self
     }
 
+    /// Set endpoint for presign.
+    pub fn presign_endpoint(&mut self, endpoint: &str) -> &mut Self {
+        if !endpoint.is_empty() {
+            self.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
+        }
+
+        self
+    }
+
     /// Set access_key_id of this backend.
     ///
     /// - If access_key_id is set, we will take user's input first.
@@ -148,24 +160,9 @@ impl Builder {
         self
     }
 
-    /// finish building
-    pub fn build(&self) -> Result<impl Accessor> {
-        debug!("backend build started: {:?}", &self);
-
-        let root = normalize_root(&self.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
-
-        // Handle endpoint, region and bucket name.
-        let bucket = match self.bucket.is_empty() {
-            false => Ok(&self.bucket),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
-                    .with_context("service", Scheme::Oss),
-            ),
-        }?;
-        debug!("backend use bucket {}", &bucket);
-
-        let (endpoint, host) = match self.endpoint.clone() {
+    /// preprocess the endpoint option
+    fn parse_endpoint(&self, endpoint: &Option<String>, bucket: &str) -> Result<(String, String)> {
+        let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
                     Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
@@ -189,6 +186,33 @@ impl Builder {
                 );
             }
         };
+        Ok((endpoint, host))
+    }
+
+    /// finish building
+    pub fn build(&self) -> Result<impl Accessor> {
+        debug!("backend build started: {:?}", &self);
+
+        let root = normalize_root(&self.root.clone().unwrap_or_default());
+        debug!("backend use root {}", &root);
+
+        // Handle endpoint, region and bucket name.
+        let bucket = match self.bucket.is_empty() {
+            false => Ok(&self.bucket),
+            true => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
+                    .with_context("service", Scheme::Oss),
+            ),
+        }?;
+
+        // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not 
+        // set, take endpoint as default presign_endpoint.
+        let (endpoint, host) = self.parse_endpoint(&self.endpoint, bucket)?;
+        let mut presign_endpoint = endpoint.clone();
+        if self.presign_endpoint.is_some() {
+            presign_endpoint = self.parse_endpoint(&self.presign_endpoint, bucket)?.0;
+        }
+        debug!("backend use bucket {}, endpoint: {}, presign_endpoint: {}", &bucket, &endpoint, &presign_endpoint);
 
         let mut signer_builder = AliyunOssBuilder::default();
 
@@ -216,6 +240,7 @@ impl Builder {
         Ok(apply_wrapper(Backend {
             root,
             endpoint,
+            presign_endpoint,
             host,
             client: HttpClient::new(),
             bucket: self.bucket.clone(),
@@ -236,6 +261,7 @@ pub struct Backend {
     /// format: <bucket-name>.<endpoint-domain-name>
     host: String,
     endpoint: String,
+    presign_endpoint: String,
     signer: Arc<AliyunOssSigner>,
 }
 

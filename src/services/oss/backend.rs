@@ -206,15 +206,19 @@ impl Builder {
             ),
         }?;
 
-        // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not 
+        // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
         // set, take endpoint as default presign_endpoint.
         let (endpoint, host) = self.parse_endpoint(&self.endpoint, bucket)?;
         let mut presign_endpoint = endpoint.clone();
         let mut presign_host = host.clone();
         if self.presign_endpoint.is_some() {
-            (presign_endpoint, presign_host) = self.parse_endpoint(&self.presign_endpoint, bucket)?;
+            (presign_endpoint, presign_host) =
+                self.parse_endpoint(&self.presign_endpoint, bucket)?;
         }
-        debug!("backend use bucket {}, endpoint: {}, presign_endpoint: {}", &bucket, &endpoint, &presign_endpoint);
+        debug!(
+            "backend use bucket {}, endpoint: {}, presign_endpoint: {}",
+            &bucket, &endpoint, &presign_endpoint
+        );
 
         let mut signer_builder = AliyunOssBuilder::default();
 
@@ -444,7 +448,12 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_get_object_request(&self, path: &str, range: BytesRange, use_presign: bool) -> Result<Request<AsyncBody>> {
+    fn oss_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        use_presign: bool,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let (endpoint, host) = self.choose_endpoint_and_host(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));

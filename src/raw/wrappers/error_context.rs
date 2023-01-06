@@ -55,7 +55,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let br = args.range();
         self.inner.read(path, args).await.map_err(|err| {
             err.with_operation(Operation::Read.into_static())
@@ -65,7 +65,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         self.inner.write(path, args, r).await.map_err(|err| {
             err.with_operation(Operation::Write.into_static())
                 .with_context("service", self.meta.scheme())
@@ -143,7 +143,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         self.inner
             .write_multipart(path, args, r)
@@ -190,11 +190,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         self.inner.blocking_read(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingRead.into_static())
                 .with_context("service", self.meta.scheme())
@@ -202,7 +198,12 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r).map_err(|err| {
             err.with_operation(Operation::BlockingWrite.into_static())
                 .with_context("service", self.meta.scheme())

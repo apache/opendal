@@ -35,7 +35,7 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::raw::into_sink;
+/// use opendal::raw::input::into_sink;
 /// # use std::io::Result;
 /// # use bytes::Bytes;
 /// # use futures::SinkExt;
@@ -48,7 +48,7 @@ use crate::raw::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_sink<W: BytesWrite>(w: W) -> IntoSink<W> {
+pub fn into_sink<W: input::Write>(w: W) -> IntoSink<W> {
     IntoSink {
         w,
         buf: Bytes::new(),
@@ -56,7 +56,7 @@ pub fn into_sink<W: BytesWrite>(w: W) -> IntoSink<W> {
 }
 
 #[pin_project]
-pub struct IntoSink<W: BytesWrite> {
+pub struct IntoSink<W: input::Write> {
     #[pin]
     w: W,
     buf: Bytes,
@@ -64,7 +64,7 @@ pub struct IntoSink<W: BytesWrite> {
 
 impl<W> IntoSink<W>
 where
-    W: BytesWrite,
+    W: input::Write,
 {
     pub fn into_inner(self) -> W {
         self.w
@@ -87,7 +87,7 @@ where
 
 impl<W> Sink<Bytes> for IntoSink<W>
 where
-    W: BytesWrite,
+    W: input::Write,
 {
     type Error = Error;
 

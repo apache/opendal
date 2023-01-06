@@ -20,7 +20,6 @@ use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
-use futures::future::poll_fn;
 use log::debug;
 use time::OffsetDateTime;
 use tokio::fs;
@@ -280,7 +279,9 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+        use output::ReadExt;
+
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
@@ -319,16 +320,15 @@ impl Accessor for Backend {
             (None, None) => (0, meta.len()),
         };
 
-        let mut r = SeekableOutputBytesReader::new(f, start, end);
+        let mut r = output::into_reader::from_fd(f, start, end);
+
         // Rewind to make sure we are on the correct offset.
-        poll_fn(|cx| r.poll_seek(cx, SeekFrom::Start(0)))
-            .await
-            .map_err(parse_io_error)?;
+        r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
 
         Ok((RpRead::new(end - start), Box::new(r)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =
                 Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
@@ -475,11 +475,7 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         use std::io::Seek;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -493,7 +489,7 @@ impl Accessor for Backend {
             .map_err(parse_io_error)?;
 
         let br = args.range();
-        let (r, size): (BlockingOutputBytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (output::BlockingReader, _) = match (br.offset(), br.size()) {
             // Read a specific range.
             (Some(offset), Some(size)) => {
                 match offset {
@@ -528,14 +524,14 @@ impl Accessor for Backend {
             (None, None) => (Box::new(f), meta.len()),
         };
 
-        Ok((RpRead::new(size), Box::new(r) as BlockingOutputBytesReader))
+        Ok((RpRead::new(size), Box::new(r) as output::BlockingReader))
     }
 
     fn blocking_write(
         &self,
         path: &str,
         _: OpWrite,
-        mut r: BlockingBytesReader,
+        mut r: input::BlockingReader,
     ) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =

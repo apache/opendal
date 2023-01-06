@@ -12,39 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! io_util Providing IO utils like `into_sink`, `into_stream`.
+//! io Providing IO related functions like `into_sink`, `into_stream`.
 //!
 //! # NOTE
 //!
 //! This mod is not a part of OpenDAL's public API. We expose them out to make
 //! it easier to develop services and layers outside opendal.
 
-mod into_stream;
-pub use into_stream::into_stream;
-
-mod into_sink;
-pub use into_sink::into_sink;
-
-mod into_reader;
-pub use into_reader::into_reader;
-
-mod into_writer;
-pub use into_writer::into_writer;
-
-pub mod into_seekable_reader;
-
-mod into_seekable_stream;
-pub use into_seekable_stream::into_seekable_stream;
-
-mod read_observer;
-pub use read_observer::observe_read;
-pub use read_observer::ReadEvent;
-pub use read_observer::ReadObserver;
-
-mod write_observer;
-pub use write_observer::observe_write;
-pub use write_observer::WriteEvent;
-pub use write_observer::WriteObserver;
+pub mod input;
+pub mod output;
 
 #[cfg(feature = "compress")]
 mod compress;

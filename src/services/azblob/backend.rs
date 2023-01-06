@@ -348,7 +348,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let resp = self.azblob_get_blob(path, args.range()).await?;
 
         let status = resp.status();
@@ -362,7 +362,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let mut req = self.azblob_put_blob_request(
             path,
             Some(args.size()),

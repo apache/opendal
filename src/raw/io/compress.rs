@@ -425,13 +425,13 @@ impl DecompressDecoder {
 /// ```
 #[derive(Debug)]
 #[pin_project]
-pub struct DecompressReader<R: BytesRead> {
+pub struct DecompressReader<R: input::Read> {
     #[pin]
     reader: BufReader<R>,
     decoder: DecompressDecoder,
 }
 
-impl<R: BytesRead> DecompressReader<R> {
+impl<R: input::Read> DecompressReader<R> {
     /// Create a new DecompressReader.
     pub fn new(reader: R, algo: CompressAlgorithm) -> Self {
         Self {
@@ -441,7 +441,7 @@ impl<R: BytesRead> DecompressReader<R> {
     }
 }
 
-impl<R: BytesRead> futures::io::AsyncRead for DecompressReader<R> {
+impl<R: input::Read> futures::io::AsyncRead for DecompressReader<R> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

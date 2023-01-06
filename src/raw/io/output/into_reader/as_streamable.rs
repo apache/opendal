@@ -21,18 +21,12 @@ use std::task::Poll;
 use bytes::Bytes;
 use bytes::BytesMut;
 use futures::ready;
-use futures::AsyncRead;
-use futures::AsyncSeek;
-use pin_project::pin_project;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
 
-/// into_seekable_stream will convert a seekable reader into seekable stream.
-pub fn into_seekable_stream<R: AsyncRead + AsyncSeek + Unpin + Send>(
-    r: R,
-    capacity: usize,
-) -> IntoStream<R> {
+/// as_streamable is used to make [`output::Read`] streamable.
+pub fn as_streamable(r: output::Reader, capacity: usize) -> IntoStream {
     IntoStream {
         r,
         cap: capacity,
@@ -40,23 +34,13 @@ pub fn into_seekable_stream<R: AsyncRead + AsyncSeek + Unpin + Send>(
     }
 }
 
-#[pin_project]
-pub struct IntoStream<R: AsyncRead + AsyncSeek + Unpin + Send> {
-    #[pin]
-    r: R,
+pub struct IntoStream {
+    r: output::Reader,
     cap: usize,
     buf: BytesMut,
 }
 
-/// IntoStream will be accessed uniquely, not concurrent read will happen.
-///
-/// No `get_inner`, no `Clone`, no other ways to access internally fields.
-unsafe impl<R: AsyncRead + AsyncSeek + Unpin + Send> Sync for IntoStream<R> {}
-
-impl<R> OutputBytesRead for IntoStream<R>
-where
-    R: AsyncRead + AsyncSeek + Unpin + Send,
-{
+impl output::Read for IntoStream {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         Pin::new(&mut self.r).poll_read(cx, buf)
     }
@@ -107,7 +91,7 @@ mod tests {
         let cap = rng.gen_range(1..1024 * 1024);
 
         let r = io::Cursor::new(content.clone());
-        let mut s = into_stream(r, cap);
+        let mut s = input::into_stream(r, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next().await {

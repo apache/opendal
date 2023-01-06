@@ -204,7 +204,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
@@ -235,7 +235,7 @@ impl Accessor for LoggingAccessor {
                         args.range().size(),
                         r,
                         self.failure_level,
-                    )) as OutputBytesReader,
+                    )) as output::Reader,
                 )
             })
             .map_err(|err| {
@@ -255,7 +255,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} size={:?} -> started",
@@ -273,7 +273,7 @@ impl Accessor for LoggingAccessor {
             r,
             self.failure_level,
         );
-        let r = Box::new(reader) as BytesReader;
+        let r = Box::new(reader) as input::Reader;
 
         self.inner
             .write(path, args.clone(), r)
@@ -505,7 +505,7 @@ impl Accessor for LoggingAccessor {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         debug!(
             target: LOGGING_TARGET,
@@ -690,11 +690,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
@@ -723,7 +719,7 @@ impl Accessor for LoggingAccessor {
                     r,
                     self.failure_level,
                 );
-                (rp, Box::new(r) as BlockingOutputBytesReader)
+                (rp, Box::new(r) as output::BlockingReader)
             })
             .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
@@ -742,7 +738,12 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} size={:?} -> started",
@@ -760,7 +761,7 @@ impl Accessor for LoggingAccessor {
             r,
             self.failure_level,
         );
-        let r = Box::new(reader) as BlockingBytesReader;
+        let r = Box::new(reader) as input::BlockingReader;
 
         self.inner
             .blocking_write(path, args.clone(), r)
@@ -975,8 +976,8 @@ impl<R> Drop for LoggingReader<R> {
     }
 }
 
-impl OutputBytesRead for LoggingReader<OutputBytesReader> {
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+impl output::Read for LoggingReader<output::Reader> {
+    fn inner(&mut self) -> Option<&mut output::Reader> {
         Some(&mut self.inner)
     }
 
@@ -1189,7 +1190,7 @@ impl<R> Drop for BlockingLoggingReader<R> {
     }
 }
 
-impl<R: BlockingBytesRead> Read for BlockingLoggingReader<R> {
+impl<R: input::BlockingRead> Read for BlockingLoggingReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match self.inner.read(buf) {
             Ok(n) => {

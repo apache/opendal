@@ -17,7 +17,7 @@ use futures::io;
 use futures::AsyncWriteExt;
 use futures::StreamExt;
 use once_cell::sync::Lazy;
-use opendal::raw::into_stream;
+use opendal::raw::input::into_stream;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));

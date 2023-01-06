@@ -503,7 +503,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_reader(&self) -> Result<impl BlockingBytesRead> {
+    pub fn blocking_reader(&self) -> Result<impl input::BlockingRead> {
         self.blocking_range_reader(..)
     }
 
@@ -567,7 +567,7 @@ impl Object {
     pub fn blocking_range_reader(
         &self,
         range: impl RangeBounds<u64>,
-    ) -> Result<impl BlockingBytesRead> {
+    ) -> Result<impl input::BlockingRead> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
@@ -645,7 +645,7 @@ impl Object {
     /// # }
     /// ```
     #[cfg(feature = "compress")]
-    pub async fn decompress_reader(&self) -> Result<Option<impl BytesRead>> {
+    pub async fn decompress_reader(&self) -> Result<Option<impl input::Read>> {
         let algo = match CompressAlgorithm::from_path(self.path()) {
             Some(v) => v,
             None => return Ok(None),
@@ -721,7 +721,10 @@ impl Object {
     /// # }
     /// ```
     #[cfg(feature = "compress")]
-    pub async fn decompress_reader_with(&self, algo: CompressAlgorithm) -> Result<impl BytesRead> {
+    pub async fn decompress_reader_with(
+        &self,
+        algo: CompressAlgorithm,
+    ) -> Result<impl input::Read> {
         let r = self.reader().await?;
 
         Ok(DecompressReader::new(r, algo))
@@ -915,7 +918,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_from(&self, size: u64, br: impl BytesRead + 'static) -> Result<()> {
+    pub async fn write_from(&self, size: u64, br: impl input::Read + 'static) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -962,7 +965,7 @@ impl Object {
     pub fn blocking_write_from(
         &self,
         size: u64,
-        br: impl BlockingBytesRead + 'static,
+        br: impl input::BlockingRead + 'static,
     ) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(

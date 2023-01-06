@@ -34,8 +34,8 @@
 //! user call `poll_read` first, we can get the total_size from returning
 //! reader. In this way, we can save 40ms in average for every s3 read call.
 
-mod range;
-pub use range::by_range;
+mod by_range;
+pub use by_range::by_range;
 
-mod offset;
-pub use offset::by_offset;
+mod by_offset;
+pub use by_offset::by_offset;

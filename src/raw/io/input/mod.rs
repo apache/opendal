@@ -17,26 +17,8 @@
 //! Most of them are just alias to `futures::AsyncRead` or `std::io::Read`.
 //! They are provided for convenient and will not have actual logic.
 
-/// Reader is a boxed dyn of [`Read`];
-///
-/// We use [`Reader`] to accept users input in `Accessor` trait.
-pub type Reader = Box<dyn Read>;
-
-/// Read is a trait alias of [`futures::AsyncRead`] to avoid repeating
-/// `futures::AsyncRead + Unpin + Send` across the codebase.
-///
-/// We use [`Read`] to accept users input.
-pub trait Read: futures::AsyncRead + Unpin + Send {}
-impl<T> Read for T where T: futures::AsyncRead + Unpin + Send {}
-
-/// Reader is a boxed dyn of [`BlockingRead`];
-///
-/// We use [`BlockingReader`] to accept users input in `Accessor` trait.
-pub type BlockingReader = Box<dyn BlockingRead>;
-
-/// BlockingRead is a trait alias of [`std::io::Read`] to avoid repeating
-/// `std::io::Read + Send` across the codebase.
-///
-/// We use [`BlockingRead`] to accept users input.
-pub trait BlockingRead: std::io::Read + Send {}
-impl<T> BlockingRead for T where T: std::io::Read + Send {}
+mod read;
+pub use read::BlockingRead;
+pub use read::BlockingReader;
+pub use read::Read;
+pub use read::Reader;

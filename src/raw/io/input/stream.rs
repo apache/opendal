@@ -12,23 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! `input` provides traits and types that opendal accepts as input.
-//!
-//! Most of them are just alias to `futures::AsyncRead` or `std::io::Read`.
-//! They are provided for convenient and will not have actual logic.
+use std::io::Result;
 
-mod read;
-pub use read::Read;
-pub use read::Reader;
+use bytes::Bytes;
 
-mod blocking_read;
-pub use blocking_read::BlockingRead;
-pub use blocking_read::BlockingReader;
+/// Stream represents a stream of bytes.
+///
+/// This trait is used as alias to `Stream<Item = Result<Bytes>> + Unpin + Send`.
+pub trait Stream: futures::Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
+impl<T> Stream for T where T: futures::Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
 
-mod write;
-pub use write::Write;
-pub use write::Writer;
-
-mod stream;
-pub use stream::Stream;
-pub use stream::Streamer;
+/// Streamer is a boxed dyn [`Stream`].
+pub type Streamer = Box<dyn Stream>;

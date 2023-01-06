@@ -119,7 +119,7 @@ impl From<AsyncBody> for reqwest::Body {
 ///
 /// Client SHOULD NEVER construct this body.
 pub struct IncomingAsyncBody {
-    inner: BytesStreamer,
+    inner: input::Streamer,
     size: Option<u64>,
     read: u64,
     chunk: Option<Bytes>,
@@ -127,7 +127,7 @@ pub struct IncomingAsyncBody {
 
 impl IncomingAsyncBody {
     /// Construct a new incoming async body
-    pub fn new(s: BytesStreamer, size: Option<u64>) -> Self {
+    pub fn new(s: input::Streamer, size: Option<u64>) -> Self {
         Self {
             inner: s,
             size,

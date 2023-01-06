@@ -61,7 +61,7 @@ use crate::raw::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_reader<S: BytesStream>(stream: S, size: Option<u64>) -> IntoReader<S> {
+pub fn into_reader<S: input::Stream>(stream: S, size: Option<u64>) -> IntoReader<S> {
     IntoReader {
         stream,
         size,
@@ -71,7 +71,7 @@ pub fn into_reader<S: BytesStream>(stream: S, size: Option<u64>) -> IntoReader<S
 }
 
 #[pin_project]
-pub struct IntoReader<S: BytesStream> {
+pub struct IntoReader<S: input::Stream> {
     #[pin]
     stream: S,
     size: Option<u64>,
@@ -81,7 +81,7 @@ pub struct IntoReader<S: BytesStream> {
 
 impl<S> IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     /// Do we have a chunk and is it non-empty?
     #[inline]
@@ -111,7 +111,7 @@ where
 
 impl<S> Stream for IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     type Item = Result<Bytes>;
 
@@ -122,7 +122,7 @@ where
 
 impl<S> AsyncRead for IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     fn poll_read(
         mut self: Pin<&mut Self>,
@@ -157,7 +157,7 @@ where
 
 impl<S> AsyncBufRead for IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     fn poll_fill_buf(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         loop {

@@ -23,16 +23,6 @@ use std::task::Poll;
 use super::output;
 use bytes::Bytes;
 use futures::Sink;
-use futures::Stream;
-
-/// BytesStream represents a stream of bytes.
-///
-/// This trait is used as alias to `Stream<Item = Result<Bytes>> + Unpin + Send`.
-pub trait BytesStream: Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
-impl<T> BytesStream for T where T: Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
-
-/// BytesStreamer is a boxed dyn [`BytesStream`].
-pub type BytesStreamer = Box<dyn BytesStream>;
 
 /// BytesSink represents a sink of bytes.
 ///

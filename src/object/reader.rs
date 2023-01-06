@@ -98,7 +98,7 @@ use crate::OpStat;
 ///
 /// In this way, we can reduce the extra cost of dropping reader.
 pub struct ObjectReader {
-    inner: OutputBytesReader,
+    inner: output::Reader,
 }
 
 impl ObjectReader {
@@ -124,7 +124,7 @@ impl ObjectReader {
             match (op.range().offset(), op.range().size()) {
                 (Some(offset), Some(size)) => {
                     Box::new(into_seekable_reader::by_range(acc, path, offset, size))
-                        as OutputBytesReader
+                        as output::Reader
                 }
                 (Some(offset), None) => {
                     Box::new(into_seekable_reader::by_offset(acc, path, offset))
@@ -154,7 +154,7 @@ impl ObjectReader {
     }
 }
 
-impl OutputBytesRead for ObjectReader {
+impl output::Read for ObjectReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         self.inner.poll_read(cx, buf)
     }

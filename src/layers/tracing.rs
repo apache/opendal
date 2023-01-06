@@ -72,11 +72,11 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         self.inner.read(path, args).await.map(|(rp, r)| {
             (
                 rp,
-                Box::new(TracingReader::new(Span::current(), r)) as OutputBytesReader,
+                Box::new(TracingReader::new(Span::current(), r)) as output::Reader,
             )
         })
     }
@@ -212,8 +212,8 @@ impl<R> TracingReader<R> {
     }
 }
 
-impl OutputBytesRead for TracingReader<OutputBytesReader> {
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+impl output::Read for TracingReader<output::Reader> {
+    fn inner(&mut self) -> Option<&mut output::Reader> {
         Some(&mut self.inner)
     }
 

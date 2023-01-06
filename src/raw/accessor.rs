@@ -108,7 +108,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     /// - The returning contnet length may be smaller than the range specifed.
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,
             None => Err(Error::new(
@@ -401,7 +401,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.as_ref().create(path, args).await
     }
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         self.as_ref().read(path, args).await
     }
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {

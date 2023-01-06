@@ -23,7 +23,6 @@ use std::task::Poll;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
-use futures::future::poll_fn;
 use futures::ready;
 use futures::StreamExt;
 
@@ -139,7 +138,9 @@ impl IncomingAsyncBody {
 
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
-        while let Some(bs) = poll_fn(|cx| self.poll_next(cx)).await {
+        use output::ReadExt;
+
+        while let Some(bs) = self.next().await {
             bs.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                     .with_operation("http_util::IncomingAsyncBody::consume")
@@ -154,6 +155,8 @@ impl IncomingAsyncBody {
     ///
     /// Borrowed from hyper's [`to_bytes`](https://docs.rs/hyper/latest/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
+        use output::ReadExt;
+
         let poll_next_error = |err: io::Error| {
             Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                 .with_operation("http_util::IncomingAsyncBody::bytes")
@@ -161,13 +164,13 @@ impl IncomingAsyncBody {
         };
 
         // If there's only 1 chunk, we can just return Buf::to_bytes()
-        let mut first = if let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+        let mut first = if let Some(buf) = self.next().await {
             buf.map_err(poll_next_error)?
         } else {
             return Ok(Bytes::new());
         };
 
-        let second = if let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+        let second = if let Some(buf) = self.next().await {
             buf.map_err(poll_next_error)?
         } else {
             return Ok(first.copy_to_bytes(first.remaining()));
@@ -179,7 +182,7 @@ impl IncomingAsyncBody {
         vec.put(first);
         vec.put(second);
 
-        while let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+        while let Some(buf) = self.next().await {
             vec.put(buf.map_err(poll_next_error)?);
         }
 
@@ -187,7 +190,7 @@ impl IncomingAsyncBody {
     }
 
     /// Consume the response to build a reader.
-    pub fn reader(self) -> OutputBytesReader {
+    pub fn reader(self) -> output::Reader {
         Box::new(self)
     }
 
@@ -207,7 +210,7 @@ impl IncomingAsyncBody {
     }
 }
 
-impl OutputBytesRead for IncomingAsyncBody {
+impl output::Read for IncomingAsyncBody {
     fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<io::Result<usize>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));

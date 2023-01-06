@@ -22,6 +22,7 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
+use super::output;
 use bytes::Bytes;
 use futures::ready;
 use futures::AsyncRead;
@@ -29,95 +30,6 @@ use futures::AsyncSeek;
 use futures::AsyncWrite;
 use futures::Sink;
 use futures::Stream;
-
-/// OutputBytesRead is the output version of bytes returned by OpenDAL.
-///
-/// OutputBytesRead is compose of the following trait
-///
-/// - `AsyncRead`
-/// - `AsyncSeek`
-/// - `Stream<Item = Result<Bytes>>`
-///
-/// `AsyncRead` is required to be implemented, `AsyncSeek` and `Stream`
-/// is optional. We use `OutputBytesRead` to make users life easier.
-pub trait OutputBytesRead: Unpin + Send + Sync {
-    /// Return the inner output bytes reader if there is one.
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
-        None
-    }
-
-    /// Read bytes asynchronously.
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        match self.inner() {
-            Some(v) => v.poll_read(cx, buf),
-            None => unimplemented!("poll_read is required to be implemented for OutputBytesRead"),
-        }
-    }
-
-    /// Seek asynchronously.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support seek.
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        match self.inner() {
-            Some(v) => v.poll_seek(cx, pos),
-            None => Poll::Ready(Err(Error::new(
-                ErrorKind::Unsupported,
-                "output reader doesn't support seeking",
-            ))),
-        }
-    }
-
-    /// Stream [`Bytes`] from underlying reader.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support stream.
-    ///
-    /// This API exists for avoiding bytes copying inside async runtime.
-    /// Users can poll bytes from underlying reader and decide when to
-    /// read/consume them.
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        match self.inner() {
-            Some(v) => v.poll_next(cx),
-            None => Poll::Ready(Some(Err(Error::new(
-                ErrorKind::Unsupported,
-                "output reader doesn't support streaming",
-            )))),
-        }
-    }
-}
-
-/// OutputBytesReader is a boxed dyn [`OutputBytesRead`].
-pub type OutputBytesReader = Box<dyn OutputBytesRead>;
-
-impl AsyncRead for dyn OutputBytesRead {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
-        let this: &mut dyn OutputBytesRead = &mut *self;
-        this.poll_read(cx, buf)
-    }
-}
-
-impl AsyncSeek for dyn OutputBytesRead {
-    fn poll_seek(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<Result<u64>> {
-        let this: &mut dyn OutputBytesRead = &mut *self;
-        this.poll_seek(cx, pos)
-    }
-}
-
-impl Stream for dyn OutputBytesRead {
-    type Item = Result<Bytes>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this: &mut dyn OutputBytesRead = &mut *self;
-        this.poll_next(cx)
-    }
-}
 
 /// SeekableOutputBytesReader is a wrapper for seekable bytes reader.
 pub struct SeekableOutputBytesReader<R: AsyncRead + AsyncSeek + Unpin + Send + Sync> {
@@ -148,7 +60,7 @@ where
     }
 }
 
-impl<R> OutputBytesRead for SeekableOutputBytesReader<R>
+impl<R> output::Read for SeekableOutputBytesReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {
@@ -258,7 +170,7 @@ impl From<Vec<u8>> for BytesCursor {
     }
 }
 
-impl OutputBytesRead for BytesCursor {
+impl output::Read for BytesCursor {
     fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let n = Read::read(&mut self.remaining_slice(), buf)?;
         self.pos += n as u64;

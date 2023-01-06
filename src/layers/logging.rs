@@ -204,7 +204,7 @@ impl Accessor for LoggingAccessor {
             })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
@@ -235,7 +235,7 @@ impl Accessor for LoggingAccessor {
                         args.range().size(),
                         r,
                         self.failure_level,
-                    )) as OutputBytesReader,
+                    )) as output::Reader,
                 )
             })
             .map_err(|err| {
@@ -980,8 +980,8 @@ impl<R> Drop for LoggingReader<R> {
     }
 }
 
-impl OutputBytesRead for LoggingReader<OutputBytesReader> {
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+impl output::Read for LoggingReader<output::Reader> {
+    fn inner(&mut self) -> Option<&mut output::Reader> {
         Some(&mut self.inner)
     }
 

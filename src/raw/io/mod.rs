@@ -20,6 +20,7 @@
 //! it easier to develop services and layers outside opendal.
 
 pub mod input;
+pub mod output;
 
 mod api;
 pub use api::BlockingOutputBytesRead;
@@ -30,8 +31,6 @@ pub use api::BytesStream;
 pub use api::BytesStreamer;
 pub use api::BytesWrite;
 pub use api::BytesWriter;
-pub use api::OutputBytesRead;
-pub use api::OutputBytesReader;
 pub use api::SeekableOutputBytesReader;
 
 mod into_stream;

@@ -453,7 +453,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
@@ -468,7 +468,7 @@ impl Accessor for MetricsAccessor {
                         .register_errors_total(Operation::Read, ErrorKind::Unexpected),
                     self.handle.requests_duration_seconds_read.clone(),
                     Some(start),
-                )) as OutputBytesReader,
+                )) as output::Reader,
             )
         });
 
@@ -833,8 +833,8 @@ impl<R> MetricReader<R> {
     }
 }
 
-impl OutputBytesRead for MetricReader<OutputBytesReader> {
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+impl output::Read for MetricReader<output::Reader> {
+    fn inner(&mut self) -> Option<&mut output::Reader> {
         Some(&mut self.inner)
     }
 

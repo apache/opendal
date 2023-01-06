@@ -55,7 +55,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let br = args.range();
         self.inner.read(path, args).await.map_err(|err| {
             err.with_operation(Operation::Read.into_static())

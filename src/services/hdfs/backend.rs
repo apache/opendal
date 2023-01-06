@@ -21,7 +21,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::poll_fn;
 use log::debug;
 use time::OffsetDateTime;
 
@@ -184,7 +183,9 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+        use output::ReadExt;
+
         let p = build_rooted_abs_path(&self.root, path);
 
         // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
@@ -211,9 +212,7 @@ impl Accessor for Backend {
 
         let mut r = SeekableOutputBytesReader::new(f, start, end);
         // Rewind to make sure we are on the correct offset.
-        poll_fn(|cx| r.poll_seek(cx, SeekFrom::Start(0)))
-            .await
-            .map_err(parse_io_error)?;
+        r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
 
         Ok((RpRead::new(end - start), Box::new(r)))
     }

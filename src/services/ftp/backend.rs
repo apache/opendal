@@ -309,7 +309,7 @@ impl Accessor for Backend {
         return Ok(RpCreate::default());
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         let meta = self.ftp_stat(path).await?;
@@ -341,7 +341,7 @@ impl Accessor for Backend {
 
         Ok((
             RpRead::new(size),
-            Box::new(FtpReader::new(r, ftp_stream)) as OutputBytesReader,
+            Box::new(FtpReader::new(r, ftp_stream)) as output::Reader,
         ))
     }
 

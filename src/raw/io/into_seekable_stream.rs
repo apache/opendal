@@ -53,7 +53,7 @@ pub struct IntoStream<R: AsyncRead + AsyncSeek + Unpin + Send> {
 /// No `get_inner`, no `Clone`, no other ways to access internally fields.
 unsafe impl<R: AsyncRead + AsyncSeek + Unpin + Send> Sync for IntoStream<R> {}
 
-impl<R> OutputBytesRead for IntoStream<R>
+impl<R> output::Read for IntoStream<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send,
 {

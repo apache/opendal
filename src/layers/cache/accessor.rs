@@ -54,7 +54,7 @@ impl Accessor for CacheAccessor {
             .await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         self.policy
             .on_read(self.inner.clone(), self.cache.clone(), path, args)
             .await

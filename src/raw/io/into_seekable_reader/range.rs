@@ -65,15 +65,15 @@ pub struct RangeReader {
 
 enum State {
     Idle,
-    Sending(BoxFuture<'static, Result<(RpRead, OutputBytesReader)>>),
-    Reading(OutputBytesReader),
+    Sending(BoxFuture<'static, Result<(RpRead, output::Reader)>>),
+    Reading(output::Reader),
 }
 
 /// Safety: State will only be accessed under &mut.
 unsafe impl Sync for State {}
 
 impl RangeReader {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, OutputBytesReader)>> {
+    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, output::Reader)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
         let op = OpRead::default().with_range(BytesRange::new(
@@ -109,7 +109,7 @@ impl RangeReader {
     }
 }
 
-impl OutputBytesRead for RangeReader {
+impl output::Read for RangeReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match &mut self.state {
             State::Idle => {
@@ -267,14 +267,14 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());
 
             Ok((
                 RpRead::new(bs.len() as u64),
                 Box::new(MockReader {
                     inner: futures::io::Cursor::new(bs.into()),
-                }) as OutputBytesReader,
+                }) as output::Reader,
             ))
         }
     }
@@ -284,7 +284,7 @@ mod tests {
         inner: futures::io::Cursor<Vec<u8>>,
     }
 
-    impl OutputBytesRead for MockReader {
+    impl output::Read for MockReader {
         fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_read(cx, buf)
         }
@@ -305,7 +305,7 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_range(acc, "x", 0, bs.len() as u64)) as OutputBytesReader;
+        let mut r = Box::new(by_range(acc, "x", 0, bs.len() as u64)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -336,7 +336,7 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_range(acc, "x", 4096, 4096)) as OutputBytesReader;
+        let mut r = Box::new(by_range(acc, "x", 4096, 4096)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;

@@ -30,13 +30,85 @@ use crate::ObjectMetadata;
 use crate::OpRead;
 use crate::OpStat;
 
-/// ObjectReader
+/// ObjectReader is the public API for users.
+///
+/// # Usage
+///
+/// ObjectReader implements the following APIs:
+///
+/// - `AsyncRead`
+/// - `AsyncSeek`
+/// - `Stream<Item = <io::Result<Bytes>>>`
+///
+/// For reading data, we can use `AsyncRead` and `Stream`. The mainly
+/// different is where the `copy` happend.
+///
+/// `AsyncRead` requires user to prepare a buffer for `ObjectReader` to fill.
+/// And `Stream` will stream out a `Bytes` for user to decide when to copy
+/// it's content.
+///
+/// For example, users may have their only CPU/IO bound workers and don't
+/// want to do copy inside IO workers. They can use `Stream` to get a `Bytes`
+/// and consume it in side CPU workers inside.
+///
+/// Besides, `Stream` **COULD** reduce an extra copy if underlying reader is
+/// stream based (like services s3, azure which based on HTTP).
+///
+/// # Notes
+///
+/// All implementions of ObjectReader should be `zero cost`. In our cases,
+/// which means others must pay the same cost for the same feature provide
+/// by us.
+///
+/// For examples, call `read` without `seek` should always act the same as
+/// calling `read` on plain reader.
+///
+/// ## Read is Seekable
+///
+/// We use internal `AccessorHint::ReadIsSeekable` to decide the most
+/// suitable implementations.
+///
+/// If there is a hint that `ReadIsSeekable`, we will open it with given args
+/// directy. Otherwise, we will pick a seekable reader implementation based
+/// on input range for it.
+///
+/// - `Some(offset), Some(size)` => `RangeReader`
+/// - `Some(offset), None` and `None, None` => `OffsetReader`
+/// - `None, Some(size)` => get the total size first to convert as `RangeReader`
+///
+/// No matter which reader we use, we will make sure the `read` operation
+/// is zero cost.
+///
+/// ## Read is Streamable
+///
+/// We use internal `AccessorHint::ReadIsStreamable` to decide the most
+/// suitable implementations.
+///
+/// If there is a hint that `ReadIsStreamable`, we will use existing reader
+/// directly. Otherwise, we will use transform this reader as a stream.
+///
+/// ## Consume instead of Drop
+///
+/// Normally, if reader is seekable, we need to drop current reader and start
+/// a new read call.
+///
+/// We can consume the data if the seek position is close enough. For
+/// example, users try to seek to `Current(1)`, we can just read the data
+/// can consume it.
+///
+/// In this way, we can reduce the extra cost of dropping reader.
 pub struct ObjectReader {
     inner: OutputBytesReader,
 }
 
 impl ObjectReader {
     /// Create a new object reader.
+    ///
+    /// Create will use internal information to decide the most suitable
+    /// implementaion for users.
+    ///
+    /// We don't want to expose those detials to users so keep this fuction
+    /// in crate only.
     pub(crate) async fn create(
         acc: Arc<dyn Accessor>,
         path: &str,
@@ -49,27 +121,26 @@ impl ObjectReader {
             let (_, r) = acc.read(path, op).await?;
             r
         } else {
-            let (offset, size) = match (op.range().offset(), op.range().size()) {
-                (Some(offset), Some(size)) => (offset, size),
+            match (op.range().offset(), op.range().size()) {
+                (Some(offset), Some(size)) => {
+                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                        as OutputBytesReader
+                }
                 (Some(offset), None) => {
-                    let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    (offset, total_size - offset)
+                    Box::new(into_seekable_reader::by_offset(acc, path, offset))
                 }
                 (None, Some(size)) => {
                     let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    if size > total_size {
+                    let (offset, size) = if size > total_size {
                         (0, total_size)
                     } else {
                         (total_size - size, size)
-                    }
-                }
-                (None, None) => {
-                    let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    (0, total_size)
-                }
-            };
+                    };
 
-            Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                }
+                (None, None) => Box::new(into_seekable_reader::by_offset(acc, path, 0)),
+            }
         };
 
         let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {

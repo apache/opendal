@@ -385,10 +385,10 @@ impl Accessor for Backend {
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.oss_head_object_request(path)?,
-            PresignOperation::Read(v) => self.oss_get_object_request(path, v.range())?,
+            PresignOperation::Stat(_) => self.oss_head_object_request(path, true)?,
+            PresignOperation::Read(v) => self.oss_get_object_request(path, v.range(), true)?,
             PresignOperation::Write(_) => {
-                self.oss_put_object_request(path, None, None, AsyncBody::Empty)?
+                self.oss_put_object_request(path, None, None, AsyncBody::Empty, true)?
             }
             _ => {
                 return Err(Error::new(
@@ -420,10 +420,16 @@ impl Backend {
         size: Option<u64>,
         content_type: Option<&str>,
         body: AsyncBody,
+        use_presign_endpoint: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let endpoint = if use_presign_endpoint {
+            &self.presign_endpoint
+        } else {
+            &self.endpoint
+        };
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
@@ -439,10 +445,15 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
+    fn oss_get_object_request(&self, path: &str, range: BytesRange, use_presign_endpoint: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let endpoint = if use_presign_endpoint {
+            &self.presign_endpoint
+        } else {
+            &self.endpoint
+        };
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
         req = req
@@ -478,10 +489,16 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn oss_head_object_request(&self, path: &str, use_presign_endpoint: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let endpoint = if use_presign_endpoint {
+            &self.presign_endpoint
+        } else {
+            &self.endpoint
+        };
+
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::head(&url);
         req = req.header(HOST, &self.host);
@@ -521,14 +538,14 @@ impl Backend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_get_object_request(path, range)?;
+        let mut req = self.oss_get_object_request(path, range, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
     }
 
     async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_head_object_request(path)?;
+        let mut req = self.oss_head_object_request(path, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
@@ -541,7 +558,7 @@ impl Backend {
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_put_object_request(path, size, content_type, body)?;
+        let mut req = self.oss_put_object_request(path, size, content_type, body, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await

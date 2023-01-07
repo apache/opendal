@@ -121,7 +121,7 @@ impl From<AsyncBody> for reqwest::Body {
 pub struct IncomingAsyncBody {
     inner: input::Streamer,
     size: Option<u64>,
-    read: u64,
+    consumed: u64,
     chunk: Option<Bytes>,
 }
 
@@ -131,7 +131,7 @@ impl IncomingAsyncBody {
         Self {
             inner: s,
             size,
-            read: 0,
+            consumed: 0,
             chunk: None,
         }
     }
@@ -216,13 +216,14 @@ impl output::Read for IncomingAsyncBody {
             return Poll::Ready(Ok(0));
         }
 
-        let mut bs = match self.chunk.take() {
-            Some(bs) if !bs.is_empty() => bs,
-            _ => match ready!(self.poll_next(cx)) {
-                Some(Ok(bs)) => bs,
+        // We must get a valid bytes from underlying stream
+        let mut bs = loop {
+            match ready!(self.poll_next(cx)) {
+                Some(Ok(bs)) if bs.is_empty() => continue,
+                Some(Ok(bs)) => break bs,
                 Some(Err(err)) => return Poll::Ready(Err(err)),
                 None => return Poll::Ready(Ok(0)),
-            },
+            }
         };
 
         let amt = min(bs.len(), buf.len());
@@ -237,19 +238,18 @@ impl output::Read for IncomingAsyncBody {
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
         if let Some(bs) = self.chunk.take() {
-            self.read += bs.len() as u64;
             return Poll::Ready(Some(Ok(bs)));
         }
 
         let res = match ready!(self.inner.poll_next_unpin(cx)) {
             Some(Ok(bs)) => {
-                self.read += bs.len() as u64;
+                self.consumed += bs.len() as u64;
                 Some(Ok(bs))
             }
             Some(Err(err)) => Some(Err(err)),
             None => {
                 if let Some(size) = self.size {
-                    Self::check(size, self.read)?;
+                    Self::check(size, self.consumed)?;
                 }
 
                 None

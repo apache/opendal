@@ -14,13 +14,19 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::io::SeekFrom;
+use std::usize;
 
 use backon::ExponentialBackoff;
+use bytes::Bytes;
+use log::debug;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::Operator;
 use opendal::Scheme;
 use rand::prelude::*;
+use sha2::Digest;
+use sha2::Sha256;
 
 /// Init a service with given scheme.
 ///
@@ -90,4 +96,162 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
     let length = rng.gen_range(1..(size - offset));
 
     (offset as u64, length as u64)
+}
+
+/// ObjectReaderFuzzer is the fuzzer for object readers.
+///
+/// We will generate random read/seek/next operations to operate on obejct
+/// reader to check if the output is expected.
+///
+/// # TODO
+///
+/// This fuzzer only generate valid operations.
+///
+/// In the future, we need to generate invalid operations to check if we
+/// handled correctly.
+pub struct ObjectReaderFuzzer {
+    bs: Vec<u8>,
+
+    offset: usize,
+    size: usize,
+    cur: usize,
+    rng: ThreadRng,
+    actions: Vec<ObjectReaderAction>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ObjectReaderAction {
+    Read(usize),
+    Seek(SeekFrom),
+    Next,
+}
+
+impl ObjectReaderFuzzer {
+    /// Create a new fuzzer.
+    pub fn new(bs: Vec<u8>, offset: usize, size: usize) -> Self {
+        Self {
+            bs,
+
+            offset,
+            size,
+            cur: 0,
+
+            rng: thread_rng(),
+            actions: vec![],
+        }
+    }
+
+    /// Generate a new action.
+    pub fn fuzz(&mut self) -> ObjectReaderAction {
+        let action = match self.rng.gen_range(0..3) {
+            // Generate a read action.
+            0 => {
+                if self.cur >= self.size {
+                    ObjectReaderAction::Read(0)
+                } else {
+                    let size = self.rng.gen_range(0..self.size - self.cur);
+                    ObjectReaderAction::Read(size)
+                }
+            }
+            // Generate a seek action.
+            1 => match self.rng.gen_range(0..3) {
+                // Generate a SeekFrom::Start action.
+                0 => {
+                    let offset = self.rng.gen_range(0..self.size as u64);
+                    ObjectReaderAction::Seek(SeekFrom::Start(offset))
+                }
+                // Generate a SeekFrom::End action.
+                1 => {
+                    let offset = self.rng.gen_range(-(self.size as i64)..0);
+                    ObjectReaderAction::Seek(SeekFrom::End(offset))
+                }
+                // Generate a SeekFrom::Current action.
+                2 => {
+                    let offset = self
+                        .rng
+                        .gen_range(-(self.cur as i64)..(self.size - self.cur) as i64);
+                    ObjectReaderAction::Seek(SeekFrom::Current(offset))
+                }
+                _ => unreachable!(),
+            },
+            // Generate a next action.
+            2 => ObjectReaderAction::Next,
+            _ => unreachable!(),
+        };
+
+        debug!("perform fuzz action: {:?}", action);
+        self.actions.push(action);
+
+        action
+    }
+
+    /// Check if read operation is expected.
+    pub fn check_read(&mut self, output_n: usize, output_bs: &[u8]) {
+        assert!(
+            self.cur + output_n <= self.size,
+            "check read failed: output bs is larger than remaining bs: actions: {:?}",
+            self.actions
+        );
+
+        let current_size = self.offset + self.cur;
+        let expected_bs = &self.bs[current_size..current_size + output_n];
+
+        assert_eq!(
+            format!("{:x}", Sha256::digest(output_bs)),
+            format!("{:x}", Sha256::digest(expected_bs)),
+            "check read failed: output bs is different with expected bs, actions: {:?}",
+            self.actions,
+        );
+
+        // Update current pos.
+        self.cur += output_n;
+    }
+
+    /// Check if seek operation is expected.
+    pub fn check_seek(&mut self, input_pos: SeekFrom, output_pos: u64) {
+        let expected_pos = match input_pos {
+            SeekFrom::Start(offset) => offset as i64,
+            SeekFrom::End(offset) => self.size as i64 + offset,
+            SeekFrom::Current(offset) => self.cur as i64 + offset,
+        };
+
+        assert_eq!(
+            output_pos, expected_pos as u64,
+            "check seek failed: output pos is different with expected pos, actions: {:?}",
+            self.actions
+        );
+
+        // Update current pos.
+        self.cur = expected_pos as usize;
+    }
+
+    /// Check if next operation is expected.
+    pub fn check_next(&mut self, output_bs: Option<Bytes>) {
+        if let Some(output_bs) = output_bs {
+            assert!(
+                self.cur + output_bs.len() <= self.size,
+                "check next failed: output bs is larger than remaining bs, actions: {:?}",
+                self.actions
+            );
+
+            let current_size = self.offset + self.cur;
+            let expected_bs = &self.bs[current_size..current_size + output_bs.len()];
+
+            assert_eq!(
+                format!("{:x}", Sha256::digest(&output_bs)),
+                format!("{:x}", Sha256::digest(expected_bs)),
+                "check next failed: output bs is different with expected bs, actions: {:?}",
+                self.actions
+            );
+
+            // Update current pos.
+            self.cur += output_bs.len();
+        } else {
+            assert!(
+                self.cur >= self.size,
+                "check next failed: output bs is None, we still have bytes to read, actions: {:?}",
+                self.actions
+            )
+        }
+    }
 }

@@ -45,6 +45,7 @@ pub fn by_range(acc: Arc<dyn Accessor>, path: &str, offset: u64, size: u64) -> R
         size,
         cur: 0,
         state: State::Idle,
+        last_seek_pos: None,
         sink: Vec::new(),
     }
 }
@@ -59,6 +60,12 @@ pub struct RangeReader {
     cur: u64,
     state: State,
 
+    /// Seek operation could return Pending which may lead
+    /// `SeekFrom::Current(off)` been input multiple times.
+    ///
+    /// So we need to store the last seek pos to make sure
+    /// we always seek to the right position.
+    last_seek_pos: Option<u64>,
     /// sink is to consume bytes for seek optimize.
     sink: Vec<u8>,
 }
@@ -90,6 +97,10 @@ impl RangeReader {
     ///
     /// This operation will not update the `self.cur`.
     fn seek_pos(&self, pos: SeekFrom) -> io::Result<u64> {
+        if let Some(last_pos) = self.last_seek_pos {
+            return Ok(last_pos);
+        }
+
         let (base, amt) = match pos {
             SeekFrom::Start(n) => (0, n as i64),
             SeekFrom::End(n) => (self.size as i64, n),
@@ -146,20 +157,23 @@ impl output::Read for RangeReader {
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<io::Result<u64>> {
         let seek_pos = self.seek_pos(pos)?;
+        self.last_seek_pos = Some(seek_pos);
 
         match &mut self.state {
             State::Idle => {
                 self.cur = seek_pos;
+                self.last_seek_pos = None;
                 Poll::Ready(Ok(self.cur))
             }
             State::Sending(_) => {
                 // It's impossible for us to go into this state while
                 // poll_seek. We can just drop this future.
                 self.state = State::Idle;
-                self.poll_seek(cx, pos)
+                self.poll_seek(cx, SeekFrom::Start(seek_pos))
             }
             State::Reading(r) => {
                 if seek_pos == self.cur {
+                    self.last_seek_pos = None;
                     return Poll::Ready(Ok(self.cur));
                 }
 
@@ -178,15 +192,18 @@ impl output::Read for RangeReader {
                     let mut buf = ReadBuf::uninit(self.sink.spare_capacity_mut());
                     unsafe { buf.assume_init(consume) };
 
-                    // poll_read will update pos, so we don't need to
-                    // update again.
-                    let n = ready!(Pin::new(r).poll_read(cx, buf.initialize_unfilled()))?;
-                    self.cur += n as u64;
+                    let n = ready!(Pin::new(r).poll_read(cx, buf.initialized_mut()))?;
+                    assert!(n > 0, "consumed bytes must be valid");
 
+                    self.cur += n as u64;
                     // Make sure the pos is absolute from start.
                     self.poll_seek(cx, SeekFrom::Start(seek_pos))
                 } else {
+                    // If we are trying to seek to far more away.
+                    // Let's just drop the reader.
                     self.state = State::Idle;
+                    self.cur = seek_pos;
+                    self.last_seek_pos = None;
                     Poll::Ready(Ok(self.cur))
                 }
             }

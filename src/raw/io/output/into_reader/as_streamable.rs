@@ -19,7 +19,6 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use bytes::BytesMut;
 use futures::ready;
 use tokio::io::ReadBuf;
 
@@ -30,14 +29,14 @@ pub fn as_streamable(r: output::Reader, capacity: usize) -> IntoStream {
     IntoStream {
         r,
         cap: capacity,
-        buf: BytesMut::with_capacity(capacity),
+        buf: Vec::with_capacity(capacity),
     }
 }
 
 pub struct IntoStream {
     r: output::Reader,
     cap: usize,
-    buf: BytesMut,
+    buf: Vec<u8>,
 }
 
 impl output::Read for IntoStream {
@@ -50,22 +49,16 @@ impl output::Read for IntoStream {
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        if self.buf.is_empty() {
-            // Reserve with the given cap every time.
-            self.buf.reserve(self.cap);
-        }
-
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);
         unsafe { buf.assume_init(self.cap) };
 
-        match ready!(Pin::new(&mut self.r).poll_read(cx, buf.initialize_unfilled())) {
+        match ready!(Pin::new(&mut self.r).poll_read(cx, buf.initialized_mut())) {
             Err(err) => Poll::Ready(Some(Err(err))),
             Ok(0) => Poll::Ready(None),
             Ok(n) => {
-                unsafe { self.buf.set_len(n) }
-                let chunk = self.buf.split_to(n);
-                Poll::Ready(Some(Ok(chunk.freeze())))
+                buf.set_filled(n);
+                Poll::Ready(Some(Ok(Bytes::from(buf.filled().to_vec()))))
             }
         }
     }
@@ -74,6 +67,7 @@ impl output::Read for IntoStream {
 #[cfg(test)]
 mod tests {
     use bytes::BufMut;
+    use bytes::BytesMut;
     use futures::io;
     use futures::StreamExt;
     use rand::prelude::*;

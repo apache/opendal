@@ -83,7 +83,8 @@ impl output::Read for Cursor {
         if self.is_empty() {
             Poll::Ready(None)
         } else {
-            let bs = self.inner.split_off(self.pos as usize);
+            // The clone here is required as we don't want to change it.
+            let bs = self.inner.clone().split_off(self.pos as usize);
             self.pos += bs.len() as u64;
             Poll::Ready(Some(Ok(bs)))
         }

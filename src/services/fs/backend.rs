@@ -325,7 +325,11 @@ impl Accessor for Backend {
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
 
-        Ok((RpRead::new(end - start), Box::new(r)))
+        Ok((
+            // If end is smaller than start, we will return 0.
+            RpRead::new(end.checked_sub(start).unwrap_or_default()),
+            Box::new(r),
+        ))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {

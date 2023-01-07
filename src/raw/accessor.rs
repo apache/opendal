@@ -108,6 +108,8 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     /// - The returning contnet length may be smaller than the range specifed.
+    /// - If input offset is larger than given file, we will return empty
+    ///   instead of error
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,

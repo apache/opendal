@@ -268,6 +268,7 @@ impl Accessor for Backend {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
+            StatusCode::RANGE_NOT_SATISFIABLE => Ok((RpRead::new(0), Box::new(output::Empty))),
             _ => Err(parse_error(resp).await?),
         }
     }

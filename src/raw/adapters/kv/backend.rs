@@ -196,7 +196,13 @@ where
                 }
                 bs
             }
-            (Some(offset), None) => bs.split_off(offset as usize),
+            (Some(offset), None) => {
+                if offset > bs.len() as u64 {
+                    vec![]
+                } else {
+                    bs.split_off(offset as usize)
+                }
+            }
             (None, Some(size)) => bs.split_off(bs.len() - size as usize),
             (None, None) => bs,
         }

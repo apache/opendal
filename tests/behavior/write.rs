@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::SeekFrom;
-
 use anyhow::Result;
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
+use futures::StreamExt;
 use log::debug;
 use log::warn;
 use opendal::ErrorKind;
@@ -88,7 +87,7 @@ macro_rules! behavior_write_tests {
                 test_reader_from,
                 test_reader_tail,
                 test_read_not_exist,
-                test_read_with_seek,
+                test_fuzz_reader,
                 test_read_with_dir_path,
                 #[cfg(feature = "compress")]
                 test_read_decompress_gzip,
@@ -561,30 +560,39 @@ pub async fn test_read_not_exist(op: Operator) -> Result<()> {
     Ok(())
 }
 
-pub async fn test_read_with_seek(op: Operator) -> Result<()> {
+pub async fn test_fuzz_reader(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
-    let (offset, _) = gen_offset_length(size as usize);
+    let (content, _) = gen_bytes();
 
     op.object(&path)
         .write(content.clone())
         .await
         .expect("write must succeed");
 
-    let mut oh = op.object(&path).reader().await?;
-    let n = oh.seek(SeekFrom::End(0)).await?;
-    assert_eq!(n as usize, size, "open size");
+    let mut fuzzer = ObjectReaderFuzzer::new(content.clone(), 0, content.len());
+    let mut o = op.object(&path).reader().await?;
 
-    let _ = oh.seek(SeekFrom::Start(offset)).await?;
-    let mut bs = Vec::new();
-    let n = oh.read_to_end(&mut bs).await?;
-    assert_eq!(n, size - offset as usize, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content[offset as usize..])),
-        "read content"
-    );
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectReaderAction::Read(size) => {
+                let mut bs = vec![0; size];
+                let n = o.read(&mut bs).await?;
+                fuzzer.check_read(n, &bs[..n])
+            }
+            ObjectReaderAction::Seek(input_pos) => {
+                let actual_pos = o.seek(input_pos).await?;
+                fuzzer.check_seek(input_pos, actual_pos)
+            }
+            ObjectReaderAction::Next => {
+                let actual_bs = o
+                    .next()
+                    .await
+                    .map(|v| v.expect("next should not return error"));
+                fuzzer.check_next(actual_bs)
+            }
+        }
+    }
 
     op.object(&path)
         .delete()

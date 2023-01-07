@@ -19,6 +19,7 @@ use std::usize;
 
 use backon::ExponentialBackoff;
 use bytes::Bytes;
+use log::debug;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::Operator;
@@ -178,6 +179,7 @@ impl ObjectReaderFuzzer {
             _ => unreachable!(),
         };
 
+        debug!("perform fuzz action: {:?}", action);
         self.actions.push(action);
 
         action

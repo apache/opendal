@@ -45,6 +45,7 @@ pub fn by_offset(acc: Arc<dyn Accessor>, path: &str, offset: u64) -> OffsetReade
         size: None,
         cur: 0,
         state: State::Idle,
+        last_seek_pos: None,
         sink: Vec::new(),
     }
 }
@@ -59,6 +60,12 @@ pub struct OffsetReader {
     cur: u64,
     state: State,
 
+    /// Seek operation could return Pending which may lead
+    /// `SeekFrom::Current(off)` been input multiple times.
+    ///
+    /// So we need to store the last seek pos to make sure
+    /// we always seek to the right position.
+    last_seek_pos: Option<u64>,
     /// sink is to consume bytes for seek optimize.
     sink: Vec<u8>,
 }
@@ -142,6 +149,12 @@ impl output::Read for OffsetReader {
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<io::Result<u64>> {
         match &mut self.state {
             State::Idle => {
+                if let Some(last_pos) = self.last_seek_pos {
+                    self.cur = last_pos;
+                    self.last_seek_pos = None;
+                    return Poll::Ready(Ok(self.cur));
+                }
+
                 let (base, amt) = match pos {
                     SeekFrom::Start(n) => (0, n as i64),
                     SeekFrom::End(n) => {
@@ -167,6 +180,7 @@ impl output::Read for OffsetReader {
                 };
 
                 self.cur = n;
+                self.last_seek_pos = None;
                 Poll::Ready(Ok(self.cur))
             }
             State::Sending(_) => {
@@ -176,31 +190,37 @@ impl output::Read for OffsetReader {
                 self.poll_seek(cx, pos)
             }
             State::Reading(r) => {
-                let (base, amt) = match pos {
-                    SeekFrom::Start(n) => (0, n as i64),
-                    SeekFrom::End(n) => {
-                        if let Some(size) = self.size {
-                            (size as i64, n)
-                        } else {
-                            // We don't know the length yet, we need to stat.
-                            self.state = State::Stating(self.stat_future());
-                            return self.poll_seek(cx, pos);
+                let seek_pos = if let Some(last_pos) = self.last_seek_pos {
+                    last_pos
+                } else {
+                    let (base, amt) = match pos {
+                        SeekFrom::Start(n) => (0, n as i64),
+                        SeekFrom::End(n) => {
+                            if let Some(size) = self.size {
+                                (size as i64, n)
+                            } else {
+                                // We don't know the length yet, we need to stat.
+                                self.state = State::Stating(self.stat_future());
+                                return self.poll_seek(cx, pos);
+                            }
+                        }
+                        SeekFrom::Current(n) => (self.cur as i64, n),
+                    };
+
+                    match base.checked_add(amt) {
+                        Some(n) if n >= 0 => n as u64,
+                        _ => {
+                            return Poll::Ready(Err(Error::new(
+                                ErrorKind::InvalidInput,
+                                "invalid seek to a negative or overflowing position",
+                            )))
                         }
                     }
-                    SeekFrom::Current(n) => (self.cur as i64, n),
                 };
-
-                let seek_pos = match base.checked_add(amt) {
-                    Some(n) if n >= 0 => n as u64,
-                    _ => {
-                        return Poll::Ready(Err(Error::new(
-                            ErrorKind::InvalidInput,
-                            "invalid seek to a negative or overflowing position",
-                        )))
-                    }
-                };
+                self.last_seek_pos = Some(seek_pos);
 
                 if seek_pos == self.cur {
+                    self.last_seek_pos = None;
                     return Poll::Ready(Ok(self.cur));
                 }
 
@@ -217,15 +237,18 @@ impl output::Read for OffsetReader {
 
                     // poll_read will update pos, so we don't need to
                     // update again.
-                    let n = ready!(Pin::new(r).poll_read(cx, buf.initialize_unfilled()))?;
-                    self.cur += n as u64;
+                    let n = ready!(Pin::new(r).poll_read(cx, buf.initialized_mut()))?;
+                    assert!(n > 0, "consumed bytes must be valid");
 
-                    // Make sure the pos is absolute from start.
-                    self.poll_seek(cx, SeekFrom::Start(seek_pos))
+                    self.cur += n as u64;
                 } else {
+                    // If we are trying to seek to far more away.
+                    // Let's just drop the reader.
                     self.state = State::Idle;
-                    Poll::Ready(Ok(self.cur))
                 }
+
+                // Make sure the pos is absolute from start.
+                self.poll_seek(cx, SeekFrom::Start(seek_pos))
             }
             State::Stating(fut) => {
                 let rp = ready!(Pin::new(fut).poll(cx))?;

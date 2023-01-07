@@ -273,11 +273,10 @@ impl output::Read for OffsetReader {
                 self.poll_next(cx)
             }
             State::Sending(fut) => {
-                // TODO
-                //
-                // we can use RpRead returned here to correct size.
-                let (_, r) = ready!(Pin::new(fut).poll(cx))?;
+                let (rp, r) = ready!(Pin::new(fut).poll(cx))?;
+                let meta = rp.into_metadata();
 
+                self.size = Some(meta.content_length() + self.cur);
                 self.state = State::Reading(r);
                 self.poll_next(cx)
             }

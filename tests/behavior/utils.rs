@@ -110,6 +110,7 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
 /// In the future, we need to generate invalid operations to check if we
 /// handled correctly.
 pub struct ObjectReaderFuzzer {
+    name: String,
     bs: Vec<u8>,
 
     offset: usize,
@@ -128,8 +129,9 @@ pub enum ObjectReaderAction {
 
 impl ObjectReaderFuzzer {
     /// Create a new fuzzer.
-    pub fn new(bs: Vec<u8>, offset: usize, size: usize) -> Self {
+    pub fn new(name: &str, bs: Vec<u8>, offset: usize, size: usize) -> Self {
         Self {
+            name: name.to_string(),
             bs,
 
             offset,
@@ -179,7 +181,7 @@ impl ObjectReaderFuzzer {
             _ => unreachable!(),
         };
 
-        debug!("perform fuzz action: {:?}", action);
+        debug!("{} perform fuzz action: {:?}", self.name, action);
         self.actions.push(action);
 
         action

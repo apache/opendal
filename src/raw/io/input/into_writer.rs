@@ -23,7 +23,7 @@ use futures::AsyncWrite;
 
 use crate::raw::*;
 
-/// Convert [`BytesSink`][crate::raw::BytesSink] into [`BytesWrite`][crate::raw::BytesWrite].
+/// Convert [`input::Sink`] into [`input::Write`].
 ///
 /// # Note
 ///

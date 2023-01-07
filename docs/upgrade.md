@@ -2,6 +2,35 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade to v0.24
+
+In v0.24, we made a big refactor on our internal IO-related traits. In this version, we split our IO traits into `input` and `output` versions:
+
+Take `Reader` as an example:
+
+`input::Reader` is the user input reader, which only requires `futures::AsyncRead + Send`.
+
+`output::Reader` is the reader returned by `OpenDAL`, which implements `futures::AsyncRead`, `futures::AsyncSeek`, and `futures::Stream<Item=io::Result<Bytes>>`. Besides, `output::Reader` also implements `Send + Sync`, which makes it useful for users.
+
+Due to this change, all code that depends on `BytesReader` should be refactored.
+
+- `BytesReader` => `input::Reader`
+- `OutputBytesReader` => `output::Reader`
+
+Thanks to the change of IO trait split, we make `ObjectReader` implements all needed traits:
+
+- `futures::AsyncRead`
+- `futures::AsyncSeek`
+- `futures::Stream<Item=io::Result<Bytes>>`
+
+Thus, we removed the `seekable_reader` API. They can be replaced by `range_reader`:
+
+- `o.seekable_reader` => `o.range_reader`
+
+Most changes only happen inside. Users not using `opendal::raw::*` will not be affected.
+
+Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/datafuselabs/opendal/discussions).
+
 ## Upgrade to v0.21
 
 v0.21 is an internal refactor version of OpenDAL. In this version, we refactored our error handling and our `Accessor` APIs. Thanks to those internal changes, we added an object-level metadata cache, making it nearly zero cost to reuse existing metadata continuously.

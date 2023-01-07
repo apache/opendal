@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.24.0] - 2023-01-07
+
+### Added
+
+- Add support for SAS tokens in Azure blob storage (#1124)
+- feat: Add github action cache service support (#1111)
+- docs: Add docs for ghac service (#1126)
+- feat: Implement offset seekable reader for zero cost read (#1133)
+- feat: Implement fuzz test on ObjectReader (#1140)
+
+### Changed
+
+- chore(deps): update quick-xml requirement from 0.26 to 0.27 (#1101)
+- ci: Enable rust cache for CI (#1107)
+- deps(oay,oli): Update dependences of oay and oli (#1122)
+- refactor: Only add content length hint if we already know length (#1123)
+- refactor: Redesign outpu bytes reader trait (#1127)
+- refactor: Remove open related APIs (#1129)
+- refactor: Merge and cleanup io & io_util modules (#1136)
+
+### Fixed
+
+- ci: Fix build for oay and oli (#1097)
+- fix: Fix rustls support for suppaftp (#1102)
+- fix(services/ghac): Fix pkg version not used correctly (#1125)
+
 ## [v0.23.0] - 2022-12-22
 
 ### Added

@@ -891,7 +891,7 @@ impl Object {
         Ok(())
     }
 
-    /// Write data into object from a [`BytesRead`].
+    /// Write data into object from a [`input::Read`].
     ///
     /// # Notes
     ///
@@ -935,7 +935,7 @@ impl Object {
         Ok(())
     }
 
-    /// Write data into object from a [`BlockingBytesRead`].
+    /// Write data into object from a [`input::BlockingRead`].
     ///
     /// # Notes
     ///

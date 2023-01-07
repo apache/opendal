@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //! into_reader will provide different implementations to convert into
-//! [`input::Read`][super::input::Read]
+//! [`input::Read`][crate::raw::input::Read]
 
 mod from_stream;
 pub use from_stream::from_stream;

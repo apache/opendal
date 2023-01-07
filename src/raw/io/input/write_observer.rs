@@ -23,7 +23,7 @@ use pin_project::pin_project;
 
 use crate::raw::*;
 
-/// Create an observer over [`crate::raw::BytesWrite`].
+/// Create an observer over [`input::Write`].
 ///
 /// `observe_write` will accept a `FnMut(WriteEvent)` which handles [`WriteEvent`]
 /// triggered by [`WriteObserver`].

@@ -572,7 +572,7 @@ pub async fn test_fuzz_range_reader(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut fuzzer = ObjectReaderFuzzer::new(content.clone(), 0, content.len());
+    let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
     let mut o = op
         .object(&path)
         .range_reader(0..content.len() as u64)
@@ -616,7 +616,7 @@ pub async fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut fuzzer = ObjectReaderFuzzer::new(content.clone(), 0, content.len());
+    let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
     let mut o = op.object(&path).range_reader(0..).await?;
 
     for _ in 0..100 {
@@ -658,7 +658,8 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    let mut fuzzer = ObjectReaderFuzzer::new(content.clone(), offset as usize, length as usize);
+    let mut fuzzer =
+        ObjectReaderFuzzer::new(&path, content.clone(), offset as usize, length as usize);
     let mut o = op
         .object(&path)
         .range_reader(offset..offset + length)

@@ -118,7 +118,7 @@ pub struct Adapter {
 }
 
 impl Adapter {
-    async fn conn(&self) -> Result<bb8::PooledConnection<MemcacheConnectionManager>> {
+    async fn conn(&self) -> Result<bb8::PooledConnection<'_, MemcacheConnectionManager>> {
         let endpint = self.endpoint.as_str();
 
         let pool = self

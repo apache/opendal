@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,25 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Redis support for OpenDAL
+//! Memcached support for OpenDAL
 //!
 //! # Configuration
 //!
 //! - `root`: Set the working directory of `OpenDAL`
-//! - `endpoint`: Set the network address of redis server
-//! - `username`: Set the username of Redis
-//! - `password`: Set the password for authentication
-//! - `db`: Set the DB of redis
+//! - `endpoint`: Set the network address of memcached server
+//! - `default_ttl`: Set the ttl for memcached service.
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
 //! # Environment
 //!
-//! - `OPENDAL_REDIS_ROOT` optional
-//! - `OPENDAL_REDIS_ENDPOINT` optional
-//! - `OPENDAL_REDIS_USERNAME` optional
-//! - `OPENDAL_REDIS_PASSWORD` optional
-//! - `OPENDAL_REDIS_DB` optional
+//! - `OPENDAL_MEMCACHED_ROOT` optional
+//! - `OPENDAL_MEMCACHED_ENDPOINT` optional
 //!
 //! # Example
 //!
@@ -39,11 +34,10 @@
 //! Set environment correctly:
 //!
 //! ```shell
-//! export OPENDAL_REDIS_ENDPOINT=tcp://example.com
-//! export OPENDAL_REDIS_ROOT=/path/to/dir
-//! export OPENDAL_REDIS_USERNAME=opendal
-//! export OPENDAL_REDIS_PASSWORD=example_password
+//! export OPENDAL_MEMCACHED_ENDPOINT=tcp://example.com
+//! export OPENDAL_MEMCACHED_ROOT=/path/to/dir
 //! ```
+//!
 //! ```no_run
 //! use anyhow::Result;
 //! use opendal::Object;
@@ -52,7 +46,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op = Operator::from_env(Scheme::Redis);
+//!     let op = Operator::from_env(Scheme::Memcached);
 //!
 //!     // create an object handler to start operation on redis!
 //!
@@ -66,15 +60,16 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::redis;
+//! use opendal::services::memcached;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let mut builder = redis::Builder::default();
+//!     let mut builder = memcached::Builder::default();
 //!
-//!     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
+//!     builder.endpoint("tcp://127.0.0.1:11211")
+//!
 //!     let op: Operator = Operator::new(builder.build());
 //!     let _: Object = op.object("test_file");
 //!     Ok(())

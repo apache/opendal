@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.24.2] - 2023-01-08
+
+### Changed
+
+- refactor: Use dep: to make our features more clean (#1153)
+
+### Fixed
+
+- fix: ghac shall return ObjectAlreadyExists for writing the same path (#1156)
+- fix: futures read_to_end will lead to performance regression (#1158)
+
 ## [v0.24.1] - 2023-01-08
 
 ### Fixed
@@ -1146,6 +1157,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.24.2]: https://github.com/datafuselabs/opendal/compare/v0.24.1...v0.24.2
 [v0.24.1]: https://github.com/datafuselabs/opendal/compare/v0.24.0...v0.24.1
 [v0.24.0]: https://github.com/datafuselabs/opendal/compare/v0.23.0...v0.24.0
 [v0.23.0]: https://github.com/datafuselabs/opendal/compare/v0.22.6...v0.23.0

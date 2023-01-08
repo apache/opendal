@@ -256,6 +256,14 @@ impl Error {
         self
     }
 
+    /// Operate on error with map.
+    pub fn map<F>(self, f: F) -> Self
+    where
+        F: FnOnce(Self) -> Self,
+    {
+        f(self)
+    }
+
     /// Set permenent status for error.
     pub fn set_permanent(mut self) -> Self {
         self.status = ErrorStatus::Permanent;

@@ -65,6 +65,8 @@ pub enum ErrorKind {
     ObjectIsADirectory,
     /// Object is not a directory.
     ObjectNotADirectory,
+    /// Object already exists thus we failed to the specified operation on it.
+    ObjectAlreadyExists,
 }
 
 impl ErrorKind {
@@ -90,6 +92,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::ObjectPermissionDenied => "ObjectPermissionDenied",
             ErrorKind::ObjectIsADirectory => "ObjectIsADirectory",
             ErrorKind::ObjectNotADirectory => "ObjectNotADirectory",
+            ErrorKind::ObjectAlreadyExists => "ObjectAlreadyExists",
         }
     }
 }

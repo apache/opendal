@@ -26,6 +26,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::ObjectNotFound, false),
+        StatusCode::CONFLICT => (ErrorKind::ObjectAlreadyExists, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

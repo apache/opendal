@@ -32,6 +32,8 @@ pub mod http;
 #[cfg(feature = "services-ipfs")]
 pub mod ipfs;
 pub mod ipmfs;
+#[cfg(feature = "services-memcached")]
+pub mod memcached;
 pub mod memory;
 #[cfg(feature = "services-moka")]
 pub mod moka;

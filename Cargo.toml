@@ -27,16 +27,9 @@ compress = ["async-compression"]
 trust-dns = ["reqwest/trust-dns"]
 
 # Enable rustls for TLS support
-rustls = [
-  "reqwest/rustls-tls-native-roots",
-  "ureq/tls",
-  "ureq/native-certs",
-]
+rustls = ["reqwest/rustls-tls-native-roots", "ureq/tls", "ureq/native-certs"]
 # Enable native-tls for TLS support
-native-tls = [
-  "reqwest/native-tls",
-  "ureq/native-tls",
-]
+native-tls = ["reqwest/native-tls", "ureq/native-tls"]
 # Enable vendored native-tls for TLS support
 native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
 
@@ -53,6 +46,8 @@ services-hdfs = ["dep:hdrs"]
 services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
 # Enable services ipfs support
 services-ipfs = ["dep:prost"]
+# Enable services memcached support
+services-memcached = ["dep:bb8-memcached"]
 # Enable services moka support
 services-moka = ["dep:moka"]
 # Enable services redis support
@@ -117,6 +112,7 @@ async-trait = "0.1"
 backon = "0.2"
 base64 = "0.20"
 bb8 = { version = "0.8", optional = true }
+bb8-memcached = { version = "0.5", optional = true }
 bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1"
 dotenv = { version = "0.15", optional = true }

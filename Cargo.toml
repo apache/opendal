@@ -31,15 +31,11 @@ rustls = [
   "reqwest/rustls-tls-native-roots",
   "ureq/tls",
   "ureq/native-certs",
-  "suppaftp?/async-rustls",
 ]
 # Enable native-tls for TLS support
 native-tls = [
   "reqwest/native-tls",
   "ureq/native-tls",
-  # Ideally, we need to use `suppaftp?/async-native-tls` here.
-  # But suppaftp's tls feature is not additive thus we can't use native here.
-  "suppaftp?/async-rustls",
 ]
 # Enable vendored native-tls for TLS support
 native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
@@ -153,6 +149,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
+  "async-rustls",
 ], optional = true }
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }

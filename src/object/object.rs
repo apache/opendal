@@ -22,6 +22,7 @@ use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use time::Duration;
 use time::OffsetDateTime;
+use tokio::io::ReadBuf;
 
 use super::BlockingObjectLister;
 use super::ObjectLister;
@@ -399,9 +400,14 @@ impl Object {
 
         let (rp, mut s) = self.acc.read(self.path(), op).await?;
 
-        let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
+        let length = rp.into_metadata().content_length() as usize;
+        let mut buffer = Vec::with_capacity(length);
 
-        s.read_to_end(&mut buffer).await.map_err(|err| {
+        let dst = buffer.spare_capacity_mut();
+        let mut buf = ReadBuf::uninit(dst);
+        unsafe { buf.assume_init(length) };
+
+        s.read_exact(buf.initialized_mut()).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read from storage")
                 .with_operation("Object:range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
@@ -417,6 +423,9 @@ impl Object {
                 })
                 .set_source(err)
         })?;
+
+        // Safety: this buffer has been filled.
+        unsafe { buffer.set_len(length) }
 
         Ok(buffer)
     }

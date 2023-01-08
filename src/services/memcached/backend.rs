@@ -164,7 +164,7 @@ impl kv::Adapter for Adapter {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
         let mut conn = self.conn().await?;
         // TODO: memcache-async have `Sized` limit on key, can we remove it?
-        match conn.get(&key.to_string()).await {
+        match conn.get(&percent_encode_path(key)).await {
             Ok(bs) => Ok(Some(bs)),
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(err) => Err(parse_io_error(err)),
@@ -175,7 +175,7 @@ impl kv::Adapter for Adapter {
         let mut conn = self.conn().await?;
 
         conn.set(
-            &key.to_string(),
+            &percent_encode_path(key),
             value,
             // Set expiration to 0 if ttl not set.
             self.default_ttl
@@ -192,7 +192,7 @@ impl kv::Adapter for Adapter {
         let mut conn = self.conn().await?;
 
         let _: () = conn
-            .delete(&key.to_string())
+            .delete(&percent_encode_path(key))
             .await
             .map_err(parse_io_error)?;
         Ok(())

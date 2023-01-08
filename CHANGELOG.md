@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.24.3] - 2023-01-09
+
+### Added
+
+- feat: Implement memcached service support (#1161)
+
 ## [v0.24.2] - 2023-01-08
 
 ### Changed
@@ -1157,6 +1163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.24.3]: https://github.com/datafuselabs/opendal/compare/v0.24.2...v0.24.3
 [v0.24.2]: https://github.com/datafuselabs/opendal/compare/v0.24.1...v0.24.2
 [v0.24.1]: https://github.com/datafuselabs/opendal/compare/v0.24.0...v0.24.1
 [v0.24.0]: https://github.com/datafuselabs/opendal/compare/v0.23.0...v0.24.0

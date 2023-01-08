@@ -47,22 +47,22 @@ native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
 # Enable all layers.
 layers-all = ["layers-metrics", "layers-tracing"]
 # Enable layers metrics support
-layers-metrics = ["metrics"]
+layers-metrics = ["dep:metrics"]
 # Enable layers tracing support.
-layers-tracing = ["tracing"]
+layers-tracing = ["dep:tracing"]
 
 # Enable services hdfs support
-services-hdfs = ["hdrs"]
+services-hdfs = ["dep:hdrs"]
 # Enable services ftp support
-services-ftp = ["suppaftp", "bb8", "async-tls"]
+services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
 # Enable services ipfs support
-services-ipfs = ["prost"]
+services-ipfs = ["dep:prost"]
 # Enable services moka support
-services-moka = ["moka"]
+services-moka = ["dep:moka"]
 # Enable services redis support
-services-redis = ["redis"]
+services-redis = ["dep:redis"]
 # Enable services rocksdb support
-services-rocksdb = ["rocksdb"]
+services-rocksdb = ["dep:rocksdb"]
 
 [lib]
 bench = false
@@ -94,7 +94,7 @@ required-features = ["services-ipfs"]
 
 [[example]]
 name = "ftp"
-required-features = ["services-ftp", "lazy-regex"]
+required-features = ["services-ftp"]
 
 [[example]]
 name = "redis"

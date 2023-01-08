@@ -408,10 +408,11 @@ impl Object {
                 .with_context("path", self.path())
                 .with_context("range", &br.to_string())
                 .map(|e| {
-                    if err.kind() == std::io::ErrorKind::Interrupted {
-                        e.set_temporary()
-                    } else {
-                        e
+                    use std::io::ErrorKind;
+
+                    match err.kind() {
+                        ErrorKind::Interrupted | ErrorKind::UnexpectedEof => e.set_temporary(),
+                        _ => e,
                     }
                 })
                 .set_source(err)

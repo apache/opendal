@@ -88,6 +88,51 @@ impl Builder {
             Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Memcached)
         })?;
+        let uri = http::Uri::try_from(&endpoint).map_err(|err| {
+            Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
+                .with_context("service", Scheme::Memcached)
+                .with_context("endpoint", &endpoint)
+                .set_source(err)
+        })?;
+
+        match uri.scheme_str() {
+            // If scheme is none, we will use tcp by default.
+            None => (),
+            Some(scheme) => {
+                // We only support tcp by now.
+                if scheme != "tcp" {
+                    return Err(Error::new(
+                        ErrorKind::BackendConfigInvalid,
+                        "endpoint is using invalid scheme",
+                    )
+                    .with_context("service", Scheme::Memcached)
+                    .with_context("endpoint", &endpoint)
+                    .with_context("scheme", scheme.to_string()));
+                }
+            }
+        };
+
+        let host = if let Some(host) = uri.host() {
+            host.to_string()
+        } else {
+            return Err(Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "endpoint doesn't have host",
+            )
+            .with_context("service", Scheme::Memcached)
+            .with_context("endpoint", &endpoint));
+        };
+        let port = if let Some(port) = uri.port_u16() {
+            port
+        } else {
+            return Err(Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "endpoint doesn't have port",
+            )
+            .with_context("service", Scheme::Memcached)
+            .with_context("endpoint", &endpoint));
+        };
+        let endpoint = format!("{host}:{port}",);
 
         let root = normalize_root(
             self.root
@@ -120,12 +165,10 @@ pub struct Adapter {
 
 impl Adapter {
     async fn conn(&self) -> Result<bb8::PooledConnection<'_, MemcacheConnectionManager>> {
-        let endpint = self.endpoint.as_str();
-
         let pool = self
             .conn
             .get_or_try_init(|| async {
-                let mgr = MemcacheConnectionManager::new(endpint);
+                let mgr = MemcacheConnectionManager::new(&self.endpoint);
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
                     Error::new(
@@ -219,13 +262,13 @@ fn parse_io_error(err: std::io::Error) -> Error {
 /// Most code is borrowed from [bb8-memcached](https://github.com/dqminh/bb8-memcached/blob/master/src/client.rs).
 #[derive(Clone, Debug)]
 struct MemcacheConnectionManager {
-    uri: String,
+    address: String,
 }
 
 impl MemcacheConnectionManager {
-    fn new(uri: &str) -> Self {
+    fn new(address: &str) -> Self {
         Self {
-            uri: uri.to_string(),
+            address: address.to_string(),
         }
     }
 }
@@ -237,7 +280,7 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
 
     /// TODO: Implement unix stream support.
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let sock = TcpStream::connect(&self.uri).await?;
+        let sock = TcpStream::connect(&self.address).await?;
         Ok(memcache_async::ascii::Protocol::new(Compat::new(sock)))
     }
 

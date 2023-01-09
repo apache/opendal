@@ -14,9 +14,10 @@
 
 use std::time::Duration;
 
+use async_compat::Compat;
 use async_trait::async_trait;
 use bb8::RunError;
-use bb8_memcached::{bb8, MemcacheConnectionManager};
+use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -124,13 +125,7 @@ impl Adapter {
         let pool = self
             .conn
             .get_or_try_init(|| async {
-                let mgr = MemcacheConnectionManager::new(endpint).map_err(|err| {
-                    Error::new(
-                        ErrorKind::BackendConfigInvalid,
-                        "connect to memecached failed",
-                    )
-                    .set_source(err)
-                })?;
+                let mgr = MemcacheConnectionManager::new(endpint);
 
                 bb8::Pool::builder().build(mgr).await.map_err(|err| {
                     Error::new(
@@ -217,4 +212,40 @@ fn parse_io_error(err: std::io::Error) -> Error {
     }
 
     err
+}
+
+/// A `bb8::ManageConnection` for `memcache_async::ascii::Protocol`.
+///
+/// Most code is borrowed from [bb8-memcached](https://github.com/dqminh/bb8-memcached/blob/master/src/client.rs).
+#[derive(Clone, Debug)]
+struct MemcacheConnectionManager {
+    uri: String,
+}
+
+impl MemcacheConnectionManager {
+    fn new(uri: &str) -> Self {
+        Self {
+            uri: uri.to_string(),
+        }
+    }
+}
+
+#[async_trait]
+impl bb8::ManageConnection for MemcacheConnectionManager {
+    type Connection = memcache_async::ascii::Protocol<Compat<TcpStream>>;
+    type Error = std::io::Error;
+
+    /// TODO: Implement unix stream support.
+    async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
+        let sock = TcpStream::connect(&self.uri).await?;
+        Ok(memcache_async::ascii::Protocol::new(Compat::new(sock)))
+    }
+
+    async fn is_valid(&self, conn: &mut Self::Connection) -> std::result::Result<(), Self::Error> {
+        conn.version().await.map(|_| ())
+    }
+
+    fn has_broken(&self, _: &mut Self::Connection) -> bool {
+        false
+    }
 }

@@ -19,7 +19,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::header::HOST;
 use http::header::RANGE;
 use http::Request;
 use http::Response;
@@ -40,6 +39,7 @@ pub struct Builder {
     root: Option<String>,
 
     endpoint: Option<String>,
+    presign_endpoint: Option<String>,
     bucket: String,
 
     // authenticate options
@@ -55,6 +55,7 @@ impl Debug for Builder {
         d.field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
+            .field("presign_endpoint", &self.presign_endpoint)
             .field("allow_anonymous", &self.allow_anonymous);
 
         if self.access_key_id.is_some() {
@@ -78,6 +79,7 @@ impl Builder {
                 "root" => builder.root(v),
                 "bucket" => builder.bucket(v),
                 "endpoint" => builder.endpoint(v),
+                "presign_endpoint" => builder.presign_endpoint(v),
 
                 "access_key_id" => builder.access_key_id(v),
                 "access_key_secret" => builder.access_key_secret(v),
@@ -118,6 +120,23 @@ impl Builder {
         self
     }
 
+    /// Set a endpoint for generating presigned urls.
+    ///
+    /// You can offer a public endpoint like https://oss-cn-beijing.aliyuncs.com to return a presinged url for
+    /// public accessors, along with an internal endpoint like https://oss-cn-beijing-internal.aliyuncs.com
+    /// to access objects in a faster path.
+    ///
+    /// - If presign_endpoint is set, we will use presign_endpoint on generating presigned urls.
+    /// - if not, we will use endpoint as default.
+    pub fn presign_endpoint(&mut self, endpoint: &str) -> &mut Self {
+        if !endpoint.is_empty() {
+            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
+            self.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
+        }
+
+        self
+    }
+
     /// Set access_key_id of this backend.
     ///
     /// - If access_key_id is set, we will take user's input first.
@@ -148,24 +167,9 @@ impl Builder {
         self
     }
 
-    /// finish building
-    pub fn build(&self) -> Result<impl Accessor> {
-        debug!("backend build started: {:?}", &self);
-
-        let root = normalize_root(&self.root.clone().unwrap_or_default());
-        debug!("backend use root {}", &root);
-
-        // Handle endpoint, region and bucket name.
-        let bucket = match self.bucket.is_empty() {
-            false => Ok(&self.bucket),
-            true => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
-                    .with_context("service", Scheme::Oss),
-            ),
-        }?;
-        debug!("backend use bucket {}", &bucket);
-
-        let (endpoint, host) = match self.endpoint.clone() {
+    /// preprocess the endpoint option
+    fn parse_endpoint(&self, endpoint: &Option<String>, bucket: &str) -> Result<(String, String)> {
+        let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
                     Error::new(ErrorKind::BackendConfigInvalid, "endpoint is invalid")
@@ -189,6 +193,36 @@ impl Builder {
                 );
             }
         };
+        Ok((endpoint, host))
+    }
+
+    /// finish building
+    pub fn build(&self) -> Result<impl Accessor> {
+        debug!("backend build started: {:?}", &self);
+
+        let root = normalize_root(&self.root.clone().unwrap_or_default());
+        debug!("backend use root {}", &root);
+
+        // Handle endpoint, region and bucket name.
+        let bucket = match self.bucket.is_empty() {
+            false => Ok(&self.bucket),
+            true => Err(
+                Error::new(ErrorKind::BackendConfigInvalid, "bucket is empty")
+                    .with_context("service", Scheme::Oss),
+            ),
+        }?;
+
+        // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
+        // set, take endpoint as default presign_endpoint.
+        let (endpoint, host) = self.parse_endpoint(&self.endpoint, bucket)?;
+        debug!("backend use bucket {}, endpoint: {}", &bucket, &endpoint);
+
+        let presign_endpoint = if self.presign_endpoint.is_some() {
+            self.parse_endpoint(&self.presign_endpoint, bucket)?.0
+        } else {
+            endpoint.clone()
+        };
+        debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
         let mut signer_builder = AliyunOssBuilder::default();
 
@@ -216,6 +250,7 @@ impl Builder {
         Ok(apply_wrapper(Backend {
             root,
             endpoint,
+            presign_endpoint,
             host,
             client: HttpClient::new(),
             bucket: self.bucket.clone(),
@@ -236,6 +271,7 @@ pub struct Backend {
     /// format: <bucket-name>.<endpoint-domain-name>
     host: String,
     endpoint: String,
+    presign_endpoint: String,
     signer: Arc<AliyunOssSigner>,
 }
 
@@ -359,10 +395,10 @@ impl Accessor for Backend {
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let mut req = match args.operation() {
-            PresignOperation::Stat(_) => self.oss_head_object_request(path)?,
-            PresignOperation::Read(v) => self.oss_get_object_request(path, v.range())?,
+            PresignOperation::Stat(_) => self.oss_head_object_request(path, true)?,
+            PresignOperation::Read(v) => self.oss_get_object_request(path, v.range(), true)?,
             PresignOperation::Write(_) => {
-                self.oss_put_object_request(path, None, None, AsyncBody::Empty)?
+                self.oss_put_object_request(path, None, None, AsyncBody::Empty, true)?
             }
             _ => {
                 return Err(Error::new(
@@ -394,16 +430,15 @@ impl Backend {
         size: Option<u64>,
         content_type: Option<&str>,
         body: AsyncBody,
+        is_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let endpoint = self.get_endpoint(is_presign);
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
-        req = req
-            .header(HOST, &self.host)
-            .header(CONTENT_LENGTH, size.unwrap_or_default());
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime);
@@ -413,15 +448,18 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
+    fn oss_get_object_request(
+        &self,
+        path: &str,
+        range: BytesRange,
+        is_presign: bool,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let endpoint = self.get_endpoint(is_presign);
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
-        req = req
-            .header(HOST, &self.host)
-            .header(CONTENT_TYPE, "application/octet-stream");
+        req = req.header(CONTENT_TYPE, "application/octet-stream");
 
         if !range.is_full() {
             req = req.header(RANGE, range.to_header());
@@ -439,11 +477,9 @@ impl Backend {
 
     fn oss_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::delete(&url);
-        req = req.header(HOST, &self.host);
+        let endpoint = self.get_endpoint(false);
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
+        let req = Request::delete(&url);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -452,14 +488,12 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn oss_head_object_request(&self, path: &str, is_presign: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
+        let endpoint = self.get_endpoint(is_presign);
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::head(&url);
-        req = req.header(HOST, &self.host);
-
+        let req = Request::head(&url);
         let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -474,9 +508,10 @@ impl Backend {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
+        let endpoint = self.get_endpoint(false);
         let url = format!(
             "{}/?list-type=2&delimiter=/&prefix={}{}",
-            self.endpoint,
+            endpoint,
             percent_encode_path(&p),
             token
                 .map(|t| format!("&continuation-token={}", percent_encode_path(&t)))
@@ -484,7 +519,6 @@ impl Backend {
         );
 
         let req = Request::get(&url)
-            .header(HOST, &self.host)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         Ok(req)
@@ -495,14 +529,14 @@ impl Backend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_get_object_request(path, range)?;
+        let mut req = self.oss_get_object_request(path, range, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
     }
 
     async fn oss_head_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_head_object_request(path)?;
+        let mut req = self.oss_head_object_request(path, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
@@ -515,7 +549,7 @@ impl Backend {
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_put_object_request(path, size, content_type, body)?;
+        let mut req = self.oss_put_object_request(path, size, content_type, body, false)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
@@ -536,5 +570,13 @@ impl Backend {
         let mut req = self.oss_delete_object_request(path)?;
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
+    }
+
+    fn get_endpoint(&self, is_presign: bool) -> &str {
+        if is_presign {
+            &self.presign_endpoint
+        } else {
+            &self.endpoint
+        }
     }
 }

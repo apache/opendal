@@ -19,6 +19,7 @@
 //! - `root`: Set the work dir for backend.
 //! - `bucket`: Set the container name for backend.
 //! - `endpoint`: Set the endpoint for backend.
+//! - `presign_endpoint`: Set the endpoint for presign.
 //! - `access_key_id`: Set the access_key_id for backend.
 //! - `access_key_secret`: Set the access_key_secret for backend.
 //! - `role_arn`: Set the role of backend.
@@ -32,6 +33,7 @@
 //! - `OPENDAL_OSS_ROOT`
 //! - `OPENDAL_OSS_BUCKET`
 //! - `OPENDAL_OSS_ENDPOINT`
+//! - `OPENDAL_OSS_PRESIGN_ENDPOINT`
 //! - `OPENDAL_OSS_ACCESS_KEY_ID`
 //! - `OPENDAL_OSS_ACCESS_KEY_SECRET`
 //! - `OPENDAL_OSS_ROLE_ARN`

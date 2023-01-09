@@ -214,7 +214,7 @@ impl tokio::io::AsyncSeek for ObjectReader {
     }
 
     fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-        let state = self.seek_state.clone();
+        let state = self.seek_state;
         match state {
             SeekState::Init => {
                 // AsyncSeek recommends calling poll_complete before start_seek.

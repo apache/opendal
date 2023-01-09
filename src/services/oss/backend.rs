@@ -429,13 +429,12 @@ impl Backend {
         use_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, host) = self.choose_endpoint_and_host(use_presign);
+        let (endpoint, _) = self.choose_endpoint_and_host(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
         req = req
-            .header(HOST, host)
             .header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(mime) = content_type {
@@ -453,12 +452,11 @@ impl Backend {
         use_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, host) = self.choose_endpoint_and_host(use_presign);
+        let (endpoint, _) = self.choose_endpoint_and_host(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
         req = req
-            .header(HOST, host)
             .header(CONTENT_TYPE, "application/octet-stream");
 
         if !range.is_full() {
@@ -481,7 +479,6 @@ impl Backend {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::delete(&url);
-        req = req.header(HOST, &self.host);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -522,7 +519,6 @@ impl Backend {
         );
 
         let req = Request::get(&url)
-            .header(HOST, &self.host)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         Ok(req)

@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.24.4] - 2023-01-09
+
+### Added
+
+- feat: Add presign endpoint option for OSS (#1135)
+- feat: Reset state while returning error so that we can retry IO (#1166)
+
+### Changed
+
+- chore(deps): update base64 requirement from 0.20 to 0.21 (#1164)
+
+### Fixed
+
+- fix: Memcached can't work on windows (#1165)
+
 ## [v0.24.3] - 2023-01-09
 
 ### Added
@@ -1163,6 +1178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.24.4]: https://github.com/datafuselabs/opendal/compare/v0.24.3...v0.24.4
 [v0.24.3]: https://github.com/datafuselabs/opendal/compare/v0.24.2...v0.24.3
 [v0.24.2]: https://github.com/datafuselabs/opendal/compare/v0.24.1...v0.24.2
 [v0.24.1]: https://github.com/datafuselabs/opendal/compare/v0.24.0...v0.24.1

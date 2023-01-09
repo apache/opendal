@@ -19,9 +19,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::{AsyncRead, ready};
 use futures::AsyncSeek;
 use futures::Stream;
+use futures::{ready, AsyncRead};
 use parking_lot::Mutex;
 
 use crate::error::Result;
@@ -149,7 +149,10 @@ impl ObjectReader {
             Box::new(output::into_reader::as_streamable(r, 256 * 1024))
         };
 
-        Ok(ObjectReader { inner: r , seek_state: SeekState::Init })
+        Ok(ObjectReader {
+            inner: r,
+            seek_state: SeekState::Init,
+        })
     }
 }
 
@@ -219,7 +222,7 @@ impl tokio::io::AsyncSeek for ObjectReader {
                 // poll_complete called without start_seek is correct,
                 // so we'll return 0.
                 Poll::Ready(Ok(0))
-            },
+            }
             SeekState::Start(pos) => {
                 let n = ready!(futures::AsyncSeek::poll_seek(self.as_mut(), cx, pos))?;
                 Poll::Ready(Ok(n))
@@ -263,16 +266,16 @@ async fn get_total_size(
 
 #[cfg(test)]
 mod tests {
-    use rand::{Rng, RngCore};
-    use rand::rngs::ThreadRng;
     use crate::{Operator, Scheme};
+    use rand::rngs::ThreadRng;
+    use rand::{Rng, RngCore};
     use tokio::io::AsyncReadExt;
     use tokio::io::AsyncSeekExt;
 
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
-        let size = rng.gen_range(1..16*1024*1024);
+        let size = rng.gen_range(1..16 * 1024 * 1024);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content
@@ -284,11 +287,16 @@ mod tests {
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
-        obj.write(&*content).await.expect("writ to object must succeed");
+        obj.write(&*content)
+            .await
+            .expect("writ to object must succeed");
 
         let mut reader = obj.reader().await.unwrap();
         let mut buf = Vec::new();
-        reader.read_to_end(&mut buf).await.expect("read to end must succeed");
+        reader
+            .read_to_end(&mut buf)
+            .await
+            .expect("read to end must succeed");
 
         assert_eq!(buf, content);
     }
@@ -299,18 +307,26 @@ mod tests {
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
-        obj.write(&*content).await.expect("writ to object must succeed");
+        obj.write(&*content)
+            .await
+            .expect("writ to object must succeed");
 
         let mut reader = obj.reader().await.unwrap();
         let mut buf = Vec::new();
-        reader.read_to_end(&mut buf).await.expect("read to end must succeed");
+        reader
+            .read_to_end(&mut buf)
+            .await
+            .expect("read to end must succeed");
         assert_eq!(buf, content);
 
         let n = reader.seek(tokio::io::SeekFrom::Start(0)).await.unwrap();
         assert_eq!(n, 0, "seekp osition must be 0");
 
         let mut buf = Vec::new();
-        reader.read_to_end(&mut buf).await.expect("read to end must succeed");
+        reader
+            .read_to_end(&mut buf)
+            .await
+            .expect("read to end must succeed");
         assert_eq!(buf, content);
     }
 }

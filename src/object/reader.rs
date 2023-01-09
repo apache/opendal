@@ -197,7 +197,7 @@ impl tokio::io::AsyncRead for ObjectReader {
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         let b = buf.initialize_unfilled();
-        let n = ready!(futures::AsyncRead::poll_read(self.as_mut(), cx, b))?;
+        let n = ready!(self.inner.poll_read(cx, b))?;
         unsafe {
             buf.assume_init(n);
         }
@@ -209,6 +209,12 @@ impl tokio::io::AsyncRead for ObjectReader {
 impl tokio::io::AsyncSeek for ObjectReader {
     fn start_seek(self: Pin<&mut Self>, pos: io::SeekFrom) -> io::Result<()> {
         let this = self.get_mut();
+        if let SeekState::Start(_) = this.seek_state {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "another search is in progress.",
+            ));
+        }
         this.seek_state = SeekState::Start(pos);
         Ok(())
     }
@@ -224,7 +230,7 @@ impl tokio::io::AsyncSeek for ObjectReader {
                 Poll::Ready(Ok(0))
             }
             SeekState::Start(pos) => {
-                let n = ready!(futures::AsyncSeek::poll_seek(self.as_mut(), cx, pos))?;
+                let n = ready!(self.inner.poll_seek(cx, pos))?;
                 Poll::Ready(Ok(n))
             }
         }

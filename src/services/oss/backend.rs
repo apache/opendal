@@ -423,10 +423,10 @@ impl Backend {
         size: Option<u64>,
         content_type: Option<&str>,
         body: AsyncBody,
-        use_presign: bool,
+        is_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(use_presign);
+        let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
@@ -445,10 +445,10 @@ impl Backend {
         &self,
         path: &str,
         range: BytesRange,
-        use_presign: bool,
+        is_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(use_presign);
+        let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
@@ -470,7 +470,8 @@ impl Backend {
 
     fn oss_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let endpoint = self.get_endpoint(false);
+        let url = format!("{}/{}", endpoint, percent_encode_path(&p));
         let req = Request::delete(&url);
 
         let req = req
@@ -480,9 +481,9 @@ impl Backend {
         Ok(req)
     }
 
-    fn oss_head_object_request(&self, path: &str, use_presign: bool) -> Result<Request<AsyncBody>> {
+    fn oss_head_object_request(&self, path: &str, is_presign: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let endpoint = self.get_endpoint(use_presign);
+        let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let req = Request::head(&url);
@@ -500,9 +501,10 @@ impl Backend {
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
+        let endpoint = self.get_endpoint(false);
         let url = format!(
             "{}/?list-type=2&delimiter=/&prefix={}{}",
-            self.endpoint,
+            endpoint,
             percent_encode_path(&p),
             token
                 .map(|t| format!("&continuation-token={}", percent_encode_path(&t)))

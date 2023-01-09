@@ -150,7 +150,10 @@ impl output::Read for RangeReader {
                     self.cur += n as u64;
                     Poll::Ready(Ok(n))
                 }
-                Err(e) => Poll::Ready(Err(e)),
+                Err(e) => {
+                    self.state = State::Idle;
+                    Poll::Ready(Err(e))
+                }
             },
         }
     }
@@ -234,7 +237,10 @@ impl output::Read for RangeReader {
                     self.cur += bs.len() as u64;
                     Poll::Ready(Some(Ok(bs)))
                 }
-                Some(Err(err)) => Poll::Ready(Some(Err(err))),
+                Some(Err(err)) => {
+                    self.state = State::Idle;
+                    Poll::Ready(Some(Err(err)))
+                }
                 None => {
                     self.state = State::Idle;
                     Poll::Ready(None)

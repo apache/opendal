@@ -19,9 +19,9 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
+use futures::{ready, AsyncRead};
 use parking_lot::Mutex;
 
 use crate::error::Result;
@@ -99,6 +99,7 @@ use crate::OpStat;
 /// In this way, we can reduce the extra cost of dropping reader.
 pub struct ObjectReader {
     inner: output::Reader,
+    seek_state: SeekState,
 }
 
 impl ObjectReader {
@@ -148,7 +149,10 @@ impl ObjectReader {
             Box::new(output::into_reader::as_streamable(r, 256 * 1024))
         };
 
-        Ok(ObjectReader { inner: r })
+        Ok(ObjectReader {
+            inner: r,
+            seek_state: SeekState::Init,
+        })
     }
 }
 
@@ -186,6 +190,62 @@ impl AsyncSeek for ObjectReader {
     }
 }
 
+impl tokio::io::AsyncRead for ObjectReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let b = buf.initialize_unfilled();
+        let n = ready!(self.inner.poll_read(cx, b))?;
+        unsafe {
+            buf.assume_init(n);
+        }
+        buf.advance(n);
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl tokio::io::AsyncSeek for ObjectReader {
+    fn start_seek(self: Pin<&mut Self>, pos: io::SeekFrom) -> io::Result<()> {
+        let this = self.get_mut();
+        if let SeekState::Start(_) = this.seek_state {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "another search is in progress.",
+            ));
+        }
+        this.seek_state = SeekState::Start(pos);
+        Ok(())
+    }
+
+    fn poll_complete(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
+        let state = self.seek_state;
+        match state {
+            SeekState::Init => {
+                // AsyncSeek recommends calling poll_complete before start_seek.
+                // We don't have to guarantee that the value returned by
+                // poll_complete called without start_seek is correct,
+                // so we'll return 0.
+                Poll::Ready(Ok(0))
+            }
+            SeekState::Start(pos) => {
+                let n = ready!(self.inner.poll_seek(cx, pos))?;
+                Poll::Ready(Ok(n))
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// SeekState is used to track the tokio seek state of ObjectReader.
+enum SeekState {
+    /// start_seek has not been called.
+    Init,
+    /// start_seek has been called, but poll_complete has not yet been called.
+    Start(io::SeekFrom),
+}
+
 impl Stream for ObjectReader {
     type Item = io::Result<Bytes>;
 
@@ -208,4 +268,71 @@ async fn get_total_size(
     let size = om.content_length();
     *(meta.lock()) = om;
     Ok(size)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Operator, Scheme};
+    use rand::rngs::ThreadRng;
+    use rand::{Rng, RngCore};
+    use tokio::io::AsyncReadExt;
+    use tokio::io::AsyncSeekExt;
+
+    fn gen_random_bytes() -> Vec<u8> {
+        let mut rng = ThreadRng::default();
+        // Generate size between 1B..16MB.
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+        content
+    }
+
+    #[tokio::test]
+    async fn test_reader_async_read() {
+        let op = Operator::from_env(Scheme::Memory).unwrap();
+        let obj = op.object("test_file");
+
+        let content = gen_random_bytes();
+        obj.write(&*content)
+            .await
+            .expect("writ to object must succeed");
+
+        let mut reader = obj.reader().await.unwrap();
+        let mut buf = Vec::new();
+        reader
+            .read_to_end(&mut buf)
+            .await
+            .expect("read to end must succeed");
+
+        assert_eq!(buf, content);
+    }
+
+    #[tokio::test]
+    async fn test_reader_async_seek() {
+        let op = Operator::from_env(Scheme::Memory).unwrap();
+        let obj = op.object("test_file");
+
+        let content = gen_random_bytes();
+        obj.write(&*content)
+            .await
+            .expect("writ to object must succeed");
+
+        let mut reader = obj.reader().await.unwrap();
+        let mut buf = Vec::new();
+        reader
+            .read_to_end(&mut buf)
+            .await
+            .expect("read to end must succeed");
+        assert_eq!(buf, content);
+
+        let n = reader.seek(tokio::io::SeekFrom::Start(0)).await.unwrap();
+        assert_eq!(n, 0, "seekp osition must be 0");
+
+        let mut buf = Vec::new();
+        reader
+            .read_to_end(&mut buf)
+            .await
+            .expect("read to end must succeed");
+        assert_eq!(buf, content);
+    }
 }

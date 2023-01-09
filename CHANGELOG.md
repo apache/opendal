@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.24.5] - 2023-01-09
+
+### Fixed
+
+- fix(services/memcached): TcpStream should only accept host:port (#1170)
+
 ## [v0.24.4] - 2023-01-09
 
 ### Added
@@ -1178,6 +1184,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.24.5]: https://github.com/datafuselabs/opendal/compare/v0.24.4...v0.24.5
 [v0.24.4]: https://github.com/datafuselabs/opendal/compare/v0.24.3...v0.24.4
 [v0.24.3]: https://github.com/datafuselabs/opendal/compare/v0.24.2...v0.24.3
 [v0.24.2]: https://github.com/datafuselabs/opendal/compare/v0.24.1...v0.24.2

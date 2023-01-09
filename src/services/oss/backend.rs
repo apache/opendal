@@ -120,7 +120,14 @@ impl Builder {
         self
     }
 
-    /// Set endpoint for presign.
+    /// Set a endpoint for generating presigned urls.
+    ///
+    /// You can offer a public endpoint like https://oss-cn-beijing.aliyuncs.com to return a presinged url for
+    /// public accessors, along with an internal endpoint like https://oss-cn-beijing-internal.aliyuncs.com
+    /// to access objects in a faster path.
+    ///
+    /// - If presign_endpoint is set, we will use presign_endpoint on generating presigned urls.
+    /// - if not, we will use endpoint as default.
     pub fn presign_endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`

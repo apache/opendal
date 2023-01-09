@@ -126,7 +126,7 @@ where
             .map_err(|e| e.set_persistent())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let (rp, r) = { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
@@ -141,15 +141,14 @@ where
 
         Ok((
             rp,
-            Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone()))
-                as OutputBytesReader,
+            Box::new(RetryReader::new(r, Operation::Read, self.backoff.clone())) as output::Reader,
         ))
     }
 
     /// Return `Interrupted` Error even after retry.
     ///
     /// Allowing users to retry the write request from upper logic.
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let r = Box::new(RetryReader::new(r, Operation::Write, self.backoff.clone()));
         let r = Box::new(CloneableReader::new(r));
 
@@ -229,7 +228,7 @@ where
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         // Write can't retry, until can reset this reader.
         self.inner
@@ -305,11 +304,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         let retry = self.backoff.clone();
 
         let mut e = None;
@@ -340,7 +335,12 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         self.inner.blocking_write(path, args, r)
     }
 
@@ -460,11 +460,11 @@ impl<B: Backoff + Debug + Send + Sync, R> RetryReader<B, R> {
     }
 }
 
-impl<B> OutputBytesRead for RetryReader<B, OutputBytesReader>
+impl<B> output::Read for RetryReader<B, output::Reader>
 where
     B: Backoff + Debug + Send + Sync,
 {
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+    fn inner(&mut self) -> Option<&mut output::Reader> {
         Some(&mut self.inner)
     }
 
@@ -656,14 +656,14 @@ where
 /// Instead of `Mutex`, we use a `RefCell` to borrow the inner reader at runtime.
 #[derive(Clone)]
 struct CloneableReader {
-    inner: Arc<RefCell<BytesReader>>,
+    inner: Arc<RefCell<input::Reader>>,
 }
 
 unsafe impl Send for CloneableReader {}
 unsafe impl Sync for CloneableReader {}
 
 impl CloneableReader {
-    fn new(r: BytesReader) -> Self {
+    fn new(r: input::Reader) -> Self {
         Self {
             inner: Arc::new(RefCell::new(r)),
         }
@@ -709,7 +709,7 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockService {
-        async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+        async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, output::Reader)> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -721,7 +721,7 @@ mod tests {
             }
         }
 
-        async fn write(&self, path: &str, _: OpWrite, _: BytesReader) -> Result<RpWrite> {
+        async fn write(&self, path: &str, _: OpWrite, _: input::Reader) -> Result<RpWrite> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -809,17 +809,17 @@ mod tests {
             am
         }
 
-        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, output::Reader)> {
             Ok((
                 RpRead::new(13),
                 Box::new(MockReader {
                     attempt: self.attempt.clone(),
                     pos: 0,
-                }) as OutputBytesReader,
+                }) as output::Reader,
             ))
         }
 
-        async fn write(&self, _: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {
+        async fn write(&self, _: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
             {
                 let mut attempt = self.attempt.lock().unwrap();
                 *attempt += 1;
@@ -845,7 +845,7 @@ mod tests {
         pos: u64,
     }
 
-    impl OutputBytesRead for MockReader {
+    impl output::Read for MockReader {
         fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
@@ -891,7 +891,7 @@ mod tests {
             cx: &mut Context<'_>,
             buf: &mut [u8],
         ) -> Poll<io::Result<usize>> {
-            let this: &mut dyn OutputBytesRead = &mut *self;
+            let this: &mut dyn output::Read = &mut *self;
             this.poll_read(cx, buf)
         }
     }

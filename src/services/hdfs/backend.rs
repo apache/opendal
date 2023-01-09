@@ -21,7 +21,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::poll_fn;
 use log::debug;
 use time::OffsetDateTime;
 
@@ -184,7 +183,9 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+        use output::ReadExt;
+
         let p = build_rooted_abs_path(&self.root, path);
 
         // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
@@ -209,16 +210,14 @@ impl Accessor for Backend {
             (None, None) => (0, meta.len()),
         };
 
-        let mut r = SeekableOutputBytesReader::new(f, start, end);
+        let mut r = output::into_reader::from_fd(f, start, end);
         // Rewind to make sure we are on the correct offset.
-        poll_fn(|cx| r.poll_seek(cx, SeekFrom::Start(0)))
-            .await
-            .map_err(parse_io_error)?;
+        r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
 
         Ok((RpRead::new(end - start), Box::new(r)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let parent = PathBuf::from(&p)
@@ -353,11 +352,7 @@ impl Accessor for Backend {
         }
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         use std::io::Read;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -374,7 +369,7 @@ impl Accessor for Backend {
 
         let br = args.range();
 
-        let (r, size): (BlockingOutputBytesReader, _) = match (br.offset(), br.size()) {
+        let (r, size): (output::BlockingReader, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
                 (Box::new(f.take(size)), min(size, meta.len() - offset))
@@ -399,7 +394,7 @@ impl Accessor for Backend {
         &self,
         path: &str,
         _: OpWrite,
-        mut r: BlockingBytesReader,
+        mut r: input::BlockingReader,
     ) -> Result<RpWrite> {
         let p = build_rooted_abs_path(&self.root, path);
 

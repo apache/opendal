@@ -84,7 +84,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.create(path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let permit = self
             .semaphore
             .clone()
@@ -95,12 +95,12 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.read(path, args).await.map(|(rp, r)| {
             (
                 rp,
-                Box::new(ConcurrentLimitReader::new(r, permit)) as OutputBytesReader,
+                Box::new(ConcurrentLimitReader::new(r, permit)) as output::Reader,
             )
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let _permit = self
             .semaphore
             .acquire()
@@ -168,7 +168,7 @@ impl Accessor for ConcurrentLimitAccessor {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         let _permit = self
             .semaphore
@@ -216,11 +216,7 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.blocking_create(path, args)
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         let permit = self
             .semaphore
             .clone()
@@ -230,13 +226,17 @@ impl Accessor for ConcurrentLimitAccessor {
         self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                Box::new(BlockingConcurrentLimitReader::new(r, permit))
-                    as BlockingOutputBytesReader,
+                Box::new(BlockingConcurrentLimitReader::new(r, permit)) as output::BlockingReader,
             )
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         let _permit = self
             .semaphore
             .try_acquire()
@@ -280,14 +280,14 @@ impl Accessor for ConcurrentLimitAccessor {
 }
 
 struct ConcurrentLimitReader {
-    inner: OutputBytesReader,
+    inner: output::Reader,
 
     // Hold on this permit until this reader has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
 impl ConcurrentLimitReader {
-    fn new(inner: OutputBytesReader, permit: OwnedSemaphorePermit) -> Self {
+    fn new(inner: output::Reader, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
             _permit: permit,
@@ -295,21 +295,21 @@ impl ConcurrentLimitReader {
     }
 }
 
-impl OutputBytesRead for ConcurrentLimitReader {
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+impl output::Read for ConcurrentLimitReader {
+    fn inner(&mut self) -> Option<&mut output::Reader> {
         Some(&mut self.inner)
     }
 }
 
 struct BlockingConcurrentLimitReader {
-    inner: BlockingOutputBytesReader,
+    inner: output::BlockingReader,
 
     // Hold on this permit until this reader has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
 impl BlockingConcurrentLimitReader {
-    fn new(inner: BlockingOutputBytesReader, permit: OwnedSemaphorePermit) -> Self {
+    fn new(inner: output::BlockingReader, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
             _permit: permit,

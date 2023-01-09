@@ -45,6 +45,7 @@ pub fn by_offset(acc: Arc<dyn Accessor>, path: &str, offset: u64) -> OffsetReade
         size: None,
         cur: 0,
         state: State::Idle,
+        last_seek_pos: None,
         sink: Vec::new(),
     }
 }
@@ -59,6 +60,12 @@ pub struct OffsetReader {
     cur: u64,
     state: State,
 
+    /// Seek operation could return Pending which may lead
+    /// `SeekFrom::Current(off)` been input multiple times.
+    ///
+    /// So we need to store the last seek pos to make sure
+    /// we always seek to the right position.
+    last_seek_pos: Option<u64>,
     /// sink is to consume bytes for seek optimize.
     sink: Vec<u8>,
 }
@@ -66,15 +73,15 @@ pub struct OffsetReader {
 enum State {
     Idle,
     Stating(BoxFuture<'static, Result<RpStat>>),
-    Sending(BoxFuture<'static, Result<(RpRead, OutputBytesReader)>>),
-    Reading(OutputBytesReader),
+    Sending(BoxFuture<'static, Result<(RpRead, output::Reader)>>),
+    Reading(output::Reader),
 }
 
 /// Safety: State will only be accessed under &mut.
 unsafe impl Sync for State {}
 
 impl OffsetReader {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, OutputBytesReader)>> {
+    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, output::Reader)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
         let op = OpRead::default().with_range(BytesRange::new(
@@ -97,7 +104,7 @@ impl OffsetReader {
     }
 }
 
-impl OutputBytesRead for OffsetReader {
+impl output::Read for OffsetReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match &mut self.state {
             State::Idle => {
@@ -142,6 +149,12 @@ impl OutputBytesRead for OffsetReader {
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<io::Result<u64>> {
         match &mut self.state {
             State::Idle => {
+                if let Some(last_pos) = self.last_seek_pos {
+                    self.cur = last_pos;
+                    self.last_seek_pos = None;
+                    return Poll::Ready(Ok(self.cur));
+                }
+
                 let (base, amt) = match pos {
                     SeekFrom::Start(n) => (0, n as i64),
                     SeekFrom::End(n) => {
@@ -167,6 +180,7 @@ impl OutputBytesRead for OffsetReader {
                 };
 
                 self.cur = n;
+                self.last_seek_pos = None;
                 Poll::Ready(Ok(self.cur))
             }
             State::Sending(_) => {
@@ -176,31 +190,37 @@ impl OutputBytesRead for OffsetReader {
                 self.poll_seek(cx, pos)
             }
             State::Reading(r) => {
-                let (base, amt) = match pos {
-                    SeekFrom::Start(n) => (0, n as i64),
-                    SeekFrom::End(n) => {
-                        if let Some(size) = self.size {
-                            (size as i64, n)
-                        } else {
-                            // We don't know the length yet, we need to stat.
-                            self.state = State::Stating(self.stat_future());
-                            return self.poll_seek(cx, pos);
+                let seek_pos = if let Some(last_pos) = self.last_seek_pos {
+                    last_pos
+                } else {
+                    let (base, amt) = match pos {
+                        SeekFrom::Start(n) => (0, n as i64),
+                        SeekFrom::End(n) => {
+                            if let Some(size) = self.size {
+                                (size as i64, n)
+                            } else {
+                                // We don't know the length yet, we need to stat.
+                                self.state = State::Stating(self.stat_future());
+                                return self.poll_seek(cx, pos);
+                            }
+                        }
+                        SeekFrom::Current(n) => (self.cur as i64, n),
+                    };
+
+                    match base.checked_add(amt) {
+                        Some(n) if n >= 0 => n as u64,
+                        _ => {
+                            return Poll::Ready(Err(Error::new(
+                                ErrorKind::InvalidInput,
+                                "invalid seek to a negative or overflowing position",
+                            )))
                         }
                     }
-                    SeekFrom::Current(n) => (self.cur as i64, n),
                 };
-
-                let seek_pos = match base.checked_add(amt) {
-                    Some(n) if n >= 0 => n as u64,
-                    _ => {
-                        return Poll::Ready(Err(Error::new(
-                            ErrorKind::InvalidInput,
-                            "invalid seek to a negative or overflowing position",
-                        )))
-                    }
-                };
+                self.last_seek_pos = Some(seek_pos);
 
                 if seek_pos == self.cur {
+                    self.last_seek_pos = None;
                     return Poll::Ready(Ok(self.cur));
                 }
 
@@ -217,15 +237,18 @@ impl OutputBytesRead for OffsetReader {
 
                     // poll_read will update pos, so we don't need to
                     // update again.
-                    let n = ready!(Pin::new(r).poll_read(cx, buf.initialize_unfilled()))?;
-                    self.cur += n as u64;
+                    let n = ready!(Pin::new(r).poll_read(cx, buf.initialized_mut()))?;
+                    assert!(n > 0, "consumed bytes must be valid");
 
-                    // Make sure the pos is absolute from start.
-                    self.poll_seek(cx, SeekFrom::Start(seek_pos))
+                    self.cur += n as u64;
                 } else {
+                    // If we are trying to seek to far more away.
+                    // Let's just drop the reader.
                     self.state = State::Idle;
-                    Poll::Ready(Ok(self.cur))
                 }
+
+                // Make sure the pos is absolute from start.
+                self.poll_seek(cx, SeekFrom::Start(seek_pos))
             }
             State::Stating(fut) => {
                 let rp = ready!(Pin::new(fut).poll(cx))?;
@@ -250,11 +273,10 @@ impl OutputBytesRead for OffsetReader {
                 self.poll_next(cx)
             }
             State::Sending(fut) => {
-                // TODO
-                //
-                // we can use RpRead returned here to correct size.
-                let (_, r) = ready!(Pin::new(fut).poll(cx))?;
+                let (rp, r) = ready!(Pin::new(fut).poll(cx))?;
+                let meta = rp.into_metadata();
 
+                self.size = Some(meta.content_length() + self.cur);
                 self.state = State::Reading(r);
                 self.poll_next(cx)
             }
@@ -319,14 +341,14 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());
 
             Ok((
                 RpRead::new(bs.len() as u64),
                 Box::new(MockReader {
                     inner: futures::io::Cursor::new(bs.into()),
-                }) as OutputBytesReader,
+                }) as output::Reader,
             ))
         }
 
@@ -342,7 +364,7 @@ mod tests {
         inner: futures::io::Cursor<Vec<u8>>,
     }
 
-    impl OutputBytesRead for MockReader {
+    impl output::Read for MockReader {
         fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_read(cx, buf)
         }
@@ -363,7 +385,7 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_offset(acc, "x", 0)) as OutputBytesReader;
+        let mut r = Box::new(by_offset(acc, "x", 0)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -394,7 +416,7 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_offset(acc, "x", 4096)) as OutputBytesReader;
+        let mut r = Box::new(by_offset(acc, "x", 4096)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;

@@ -213,9 +213,18 @@ impl HttpClient {
             hr = hr.header(k, v);
         }
 
-        let stream = resp
-            .bytes_stream()
-            .map_err(|err| io::Error::new(io::ErrorKind::Other, err));
+        let stream = resp.bytes_stream().map_err(|err| {
+            io::Error::new(
+                // If stream returns a body related error, we can convert
+                // it to interrupt so we can retry it.
+                if err.is_body() {
+                    io::ErrorKind::Interrupted
+                } else {
+                    io::ErrorKind::Other
+                },
+                err,
+            )
+        });
         let body = IncomingAsyncBody::new(Box::new(stream), content_length);
 
         let resp = hr.body(body).expect("response must build succeed");

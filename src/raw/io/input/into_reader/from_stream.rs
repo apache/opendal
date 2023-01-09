@@ -32,7 +32,7 @@ use pin_project::pin_project;
 
 use crate::raw::*;
 
-/// Convert [`BytesStream`][crate::raw::BytesStream] into [`BytesRead`][crate::raw::BytesRead].
+/// Convert [`input::Stream`] into [`input::Read`].
 ///
 /// # Note
 ///
@@ -41,7 +41,7 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::raw::into_reader;
+/// use opendal::raw::input::into_reader;
 /// # use anyhow::Result;
 /// # use std::io::Error;
 /// # use futures::io;
@@ -55,13 +55,13 @@ use crate::raw::*;
 /// # let stream = Box::pin(stream::once(async {
 /// #     Ok::<_, Error>(Bytes::from(vec![0; 1024]))
 /// # }));
-/// let mut s = into_reader(stream, Some(1024));
+/// let mut s = into_reader::from_stream(stream, Some(1024));
 /// let mut bs = Vec::new();
 /// s.read_to_end(&mut bs).await;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_reader<S: BytesStream>(stream: S, size: Option<u64>) -> IntoReader<S> {
+pub fn from_stream<S: input::Stream>(stream: S, size: Option<u64>) -> IntoReader<S> {
     IntoReader {
         stream,
         size,
@@ -71,7 +71,7 @@ pub fn into_reader<S: BytesStream>(stream: S, size: Option<u64>) -> IntoReader<S
 }
 
 #[pin_project]
-pub struct IntoReader<S: BytesStream> {
+pub struct IntoReader<S: input::Stream> {
     #[pin]
     stream: S,
     size: Option<u64>,
@@ -81,7 +81,7 @@ pub struct IntoReader<S: BytesStream> {
 
 impl<S> IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     /// Do we have a chunk and is it non-empty?
     #[inline]
@@ -111,7 +111,7 @@ where
 
 impl<S> Stream for IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     type Item = Result<Bytes>;
 
@@ -122,7 +122,7 @@ where
 
 impl<S> AsyncRead for IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     fn poll_read(
         mut self: Pin<&mut Self>,
@@ -157,7 +157,7 @@ where
 
 impl<S> AsyncBufRead for IntoReader<S>
 where
-    S: BytesStream,
+    S: input::Stream,
 {
     fn poll_fill_buf(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<&[u8]>> {
         loop {
@@ -212,7 +212,7 @@ mod tests {
         let s = Box::pin(stream::once(async {
             Ok::<_, Error>(Bytes::from(stream_content))
         }));
-        let mut r = into_reader(s, Some(size as u64));
+        let mut r = from_stream(s, Some(size as u64));
 
         let mut bs = Vec::new();
         r.read_to_end(&mut bs).await.expect("read must succeed");
@@ -233,7 +233,7 @@ mod tests {
             Ok::<_, Error>(Bytes::from(stream_content))
         }));
         // Size is larger then expected.
-        let mut r = into_reader(s, Some(size as u64 + 1));
+        let mut r = from_stream(s, Some(size as u64 + 1));
 
         let mut bs = Vec::new();
         let err = r

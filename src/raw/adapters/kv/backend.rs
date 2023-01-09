@@ -16,7 +16,6 @@ use async_trait::async_trait;
 use futures::AsyncReadExt;
 
 use super::Adapter;
-use crate::raw::io::BytesCursor;
 use crate::raw::*;
 use crate::*;
 
@@ -75,7 +74,7 @@ where
         Ok(RpCreate::default())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let bs = match self.kv.get(path).await? {
             Some(bs) => bs,
             None => {
@@ -89,14 +88,13 @@ where
         let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
-        Ok((RpRead::new(length as u64), Box::new(BytesCursor::from(bs))))
+        Ok((
+            RpRead::new(length as u64),
+            Box::new(output::Cursor::from(bs)),
+        ))
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         let bs = match self.kv.blocking_get(path)? {
             Some(bs) => bs,
             None => {
@@ -114,7 +112,7 @@ where
         ))
     }
 
-    async fn write(&self, path: &str, args: OpWrite, mut r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs)
             .await
@@ -129,7 +127,7 @@ where
         &self,
         path: &str,
         args: OpWrite,
-        mut r: BlockingBytesReader,
+        mut r: input::BlockingReader,
     ) -> Result<RpWrite> {
         let mut bs = Vec::with_capacity(args.size() as usize);
         r.read_to_end(&mut bs)

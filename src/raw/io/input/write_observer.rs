@@ -23,7 +23,7 @@ use pin_project::pin_project;
 
 use crate::raw::*;
 
-/// Create an observer over [`crate::raw::BytesWrite`].
+/// Create an observer over [`input::Write`].
 ///
 /// `observe_write` will accept a `FnMut(WriteEvent)` which handles [`WriteEvent`]
 /// triggered by [`WriteObserver`].
@@ -31,9 +31,9 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::raw::observe_write;
-/// use opendal::raw::WriteEvent;
-/// # use opendal::raw::into_sink;
+/// use opendal::raw::input::observe_write;
+/// use opendal::raw::input::WriteEvent;
+/// # use opendal::raw::input::into_sink;
 /// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
@@ -54,7 +54,7 @@ use crate::raw::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn observe_write<F: FnMut(WriteEvent)>(s: BytesWriter, f: F) -> WriteObserver<F> {
+pub fn observe_write<F: FnMut(WriteEvent)>(s: input::Writer, f: F) -> WriteObserver<F> {
     WriteObserver { s, f }
 }
 
@@ -80,7 +80,7 @@ pub enum WriteEvent {
 /// Observer that created via [`observe_write`].
 #[pin_project]
 pub struct WriteObserver<F: FnMut(WriteEvent)> {
-    s: BytesWriter,
+    s: input::Writer,
     f: F,
 }
 

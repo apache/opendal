@@ -51,6 +51,9 @@ pub enum Scheme {
     Ipfs,
     /// [ipmfs][crate::services::ipmfs]: IPFS mutable file system
     Ipmfs,
+    /// [memcached][crate::services::memcached]: Memcached service support.
+    #[cfg(feature = "services-memcached")]
+    Memcached,
     /// [memory][crate::services::memory]: In memory backend support.
     Memory,
     /// [moka][crate::services::moka]: moka backend support.
@@ -106,6 +109,8 @@ impl Display for Scheme {
             #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs => write!(f, "ipfs"),
             Scheme::Ipmfs => write!(f, "ipmfs"),
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached => write!(f, "memcached"),
             Scheme::Memory => write!(f, "memory"),
             #[cfg(feature = "services-moka")]
             Scheme::Moka => write!(f, "moka"),
@@ -140,6 +145,8 @@ impl FromStr for Scheme {
             #[cfg(feature = "services-ipfs")]
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
+            #[cfg(feature = "services-memcached")]
+            "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
             #[cfg(feature = "services-moka")]
             "moka" => Ok(Scheme::Moka),
@@ -171,6 +178,8 @@ impl From<Scheme> for &'static str {
             #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
             #[cfg(feature = "services-moka")]
             Scheme::Moka => "moka",

@@ -23,7 +23,6 @@ use std::task::Poll;
 use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
-use futures::future::poll_fn;
 use futures::ready;
 use futures::StreamExt;
 
@@ -39,7 +38,7 @@ pub enum Body {
     /// Body with bytes.
     Bytes(Bytes),
     /// Body with a Reader.
-    Reader(BlockingBytesReader),
+    Reader(input::BlockingReader),
 }
 
 impl Default for Body {
@@ -87,12 +86,12 @@ pub enum AsyncBody {
     /// Body with bytes.
     Bytes(Bytes),
     /// Body with a Reader.
-    Reader(BytesReader),
+    Reader(input::Reader),
     /// Body with a multipart field.
     ///
     /// If input with this field, we will goto the internal multipart
     /// handle logic.
-    Multipart(String, BytesReader),
+    Multipart(String, input::Reader),
 }
 
 impl Default for AsyncBody {
@@ -106,7 +105,7 @@ impl From<AsyncBody> for reqwest::Body {
         match v {
             AsyncBody::Empty => reqwest::Body::from(""),
             AsyncBody::Bytes(bs) => reqwest::Body::from(bs),
-            AsyncBody::Reader(r) => reqwest::Body::wrap_stream(into_stream(r, 16 * 1024)),
+            AsyncBody::Reader(r) => reqwest::Body::wrap_stream(input::into_stream(r, 256 * 1024)),
             AsyncBody::Multipart(_, _) => {
                 unreachable!("reqwest multipart should not be constructed by body")
             }
@@ -120,26 +119,28 @@ impl From<AsyncBody> for reqwest::Body {
 ///
 /// Client SHOULD NEVER construct this body.
 pub struct IncomingAsyncBody {
-    inner: BytesStreamer,
+    inner: input::Streamer,
     size: Option<u64>,
-    read: u64,
+    consumed: u64,
     chunk: Option<Bytes>,
 }
 
 impl IncomingAsyncBody {
     /// Construct a new incoming async body
-    pub fn new(s: BytesStreamer, size: Option<u64>) -> Self {
+    pub fn new(s: input::Streamer, size: Option<u64>) -> Self {
         Self {
             inner: s,
             size,
-            read: 0,
+            consumed: 0,
             chunk: None,
         }
     }
 
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
-        while let Some(bs) = poll_fn(|cx| self.poll_next(cx)).await {
+        use output::ReadExt;
+
+        while let Some(bs) = self.next().await {
             bs.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                     .with_operation("http_util::IncomingAsyncBody::consume")
@@ -154,6 +155,8 @@ impl IncomingAsyncBody {
     ///
     /// Borrowed from hyper's [`to_bytes`](https://docs.rs/hyper/latest/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
+        use output::ReadExt;
+
         let poll_next_error = |err: io::Error| {
             Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
                 .with_operation("http_util::IncomingAsyncBody::bytes")
@@ -161,13 +164,13 @@ impl IncomingAsyncBody {
         };
 
         // If there's only 1 chunk, we can just return Buf::to_bytes()
-        let mut first = if let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+        let mut first = if let Some(buf) = self.next().await {
             buf.map_err(poll_next_error)?
         } else {
             return Ok(Bytes::new());
         };
 
-        let second = if let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+        let second = if let Some(buf) = self.next().await {
             buf.map_err(poll_next_error)?
         } else {
             return Ok(first.copy_to_bytes(first.remaining()));
@@ -179,7 +182,7 @@ impl IncomingAsyncBody {
         vec.put(first);
         vec.put(second);
 
-        while let Some(buf) = poll_fn(|cx| self.poll_next(cx)).await {
+        while let Some(buf) = self.next().await {
             vec.put(buf.map_err(poll_next_error)?);
         }
 
@@ -187,7 +190,7 @@ impl IncomingAsyncBody {
     }
 
     /// Consume the response to build a reader.
-    pub fn reader(self) -> OutputBytesReader {
+    pub fn reader(self) -> output::Reader {
         Box::new(self)
     }
 
@@ -207,19 +210,20 @@ impl IncomingAsyncBody {
     }
 }
 
-impl OutputBytesRead for IncomingAsyncBody {
+impl output::Read for IncomingAsyncBody {
     fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<io::Result<usize>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
 
-        let mut bs = match self.chunk.take() {
-            Some(bs) if !bs.is_empty() => bs,
-            _ => match ready!(self.poll_next(cx)) {
-                Some(Ok(bs)) => bs,
+        // We must get a valid bytes from underlying stream
+        let mut bs = loop {
+            match ready!(self.poll_next(cx)) {
+                Some(Ok(bs)) if bs.is_empty() => continue,
+                Some(Ok(bs)) => break bs,
                 Some(Err(err)) => return Poll::Ready(Err(err)),
                 None => return Poll::Ready(Ok(0)),
-            },
+            }
         };
 
         let amt = min(bs.len(), buf.len());
@@ -234,19 +238,18 @@ impl OutputBytesRead for IncomingAsyncBody {
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
         if let Some(bs) = self.chunk.take() {
-            self.read += bs.len() as u64;
             return Poll::Ready(Some(Ok(bs)));
         }
 
         let res = match ready!(self.inner.poll_next_unpin(cx)) {
             Some(Ok(bs)) => {
-                self.read += bs.len() as u64;
+                self.consumed += bs.len() as u64;
                 Some(Ok(bs))
             }
             Some(Err(err)) => Some(Err(err)),
             None => {
                 if let Some(size) = self.size {
-                    Self::check(size, self.read)?;
+                    Self::check(size, self.consumed)?;
                 }
 
                 None

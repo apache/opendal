@@ -25,7 +25,7 @@ use pin_project::pin_project;
 
 use crate::raw::*;
 
-/// Convert [`BytesRead`][crate::raw::BytesRead] into [`BytesStream`][crate::raw::BytesStream].
+/// Convert [`input::Read`] into [`input::Stream`].
 ///
 /// # Note
 ///
@@ -34,7 +34,7 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::raw::into_stream;
+/// use opendal::raw::input::into_stream;
 /// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
@@ -49,7 +49,7 @@ use crate::raw::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn into_stream<R: BytesRead>(r: R, capacity: usize) -> IntoStream<R> {
+pub fn into_stream<R: input::Read>(r: R, capacity: usize) -> IntoStream<R> {
     IntoStream {
         r,
         cap: capacity,
@@ -58,7 +58,7 @@ pub fn into_stream<R: BytesRead>(r: R, capacity: usize) -> IntoStream<R> {
 }
 
 #[pin_project]
-pub struct IntoStream<R: BytesRead> {
+pub struct IntoStream<R: input::Read> {
     #[pin]
     r: R,
     cap: usize,
@@ -68,11 +68,11 @@ pub struct IntoStream<R: BytesRead> {
 /// IntoStream will be accessed uniquely, not concurrent read will happen.
 ///
 /// No `get_inner`, no `Clone`, no other ways to access internally fields.
-unsafe impl<R: BytesRead> Sync for IntoStream<R> {}
+unsafe impl<R: input::Read> Sync for IntoStream<R> {}
 
 impl<R> Stream for IntoStream<R>
 where
-    R: BytesRead,
+    R: input::Read,
 {
     type Item = Result<Bytes>;
 

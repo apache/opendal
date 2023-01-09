@@ -453,7 +453,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
@@ -468,7 +468,7 @@ impl Accessor for MetricsAccessor {
                         .register_errors_total(Operation::Read, ErrorKind::Unexpected),
                     self.handle.requests_duration_seconds_read.clone(),
                     Some(start),
-                )) as OutputBytesReader,
+                )) as output::Reader,
             )
         });
 
@@ -479,7 +479,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         self.handle.requests_total_write.increment(1);
 
         let r = Box::new(MetricReader::new(
@@ -594,7 +594,7 @@ impl Accessor for MetricsAccessor {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         self.handle.requests_total_write_multipart.increment(1);
 
@@ -686,11 +686,7 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         self.handle.requests_total_blocking_read.increment(1);
 
         let start = Instant::now();
@@ -704,7 +700,7 @@ impl Accessor for MetricsAccessor {
                         .register_errors_total(Operation::BlockingRead, ErrorKind::Unexpected),
                     self.handle.requests_duration_seconds_blocking_read.clone(),
                     Some(start),
-                )) as BlockingOutputBytesReader,
+                )) as output::BlockingReader,
             )
         });
 
@@ -715,7 +711,12 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         self.handle.requests_total_blocking_write.increment(1);
 
         let r = Box::new(BlockingMetricReader::new(
@@ -828,8 +829,8 @@ impl<R> MetricReader<R> {
     }
 }
 
-impl OutputBytesRead for MetricReader<OutputBytesReader> {
-    fn inner(&mut self) -> Option<&mut OutputBytesReader> {
+impl output::Read for MetricReader<output::Reader> {
+    fn inner(&mut self) -> Option<&mut output::Reader> {
         Some(&mut self.inner)
     }
 
@@ -923,7 +924,7 @@ impl<R> BlockingMetricReader<R> {
     }
 }
 
-impl<R: BlockingBytesRead> Read for BlockingMetricReader<R> {
+impl<R: input::BlockingRead> Read for BlockingMetricReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner
             .read(buf)

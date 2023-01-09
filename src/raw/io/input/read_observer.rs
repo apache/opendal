@@ -30,9 +30,9 @@ use crate::raw::*;
 /// # Example
 ///
 /// ```rust
-/// use opendal::raw::observe_read;
-/// use opendal::raw::ReadEvent;
-/// # use opendal::raw::into_stream;
+/// use opendal::raw::input::observe_read;
+/// use opendal::raw::input::ReadEvent;
+/// # use opendal::raw::input::into_stream;
 /// # use std::io::Result;
 /// # use futures::io;
 /// # use bytes::Bytes;
@@ -52,7 +52,7 @@ use crate::raw::*;
 /// # Ok(())
 /// # }
 /// ```
-pub fn observe_read<F: FnMut(ReadEvent)>(s: BytesReader, f: F) -> ReadObserver<F> {
+pub fn observe_read<F: FnMut(ReadEvent)>(s: input::Reader, f: F) -> ReadObserver<F> {
     ReadObserver { s, f }
 }
 
@@ -76,7 +76,7 @@ pub enum ReadEvent {
 /// Observer that created via [`observe_read`].
 #[pin_project]
 pub struct ReadObserver<F: FnMut(ReadEvent)> {
-    s: BytesReader,
+    s: input::Reader,
     f: F,
 }
 

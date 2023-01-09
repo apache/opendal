@@ -9,7 +9,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.23.0"
+version = "0.24.3"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 
@@ -27,42 +27,33 @@ compress = ["async-compression"]
 trust-dns = ["reqwest/trust-dns"]
 
 # Enable rustls for TLS support
-rustls = [
-  "reqwest/rustls-tls-native-roots",
-  "ureq/tls",
-  "ureq/native-certs",
-  "suppaftp?/async-rustls",
-]
+rustls = ["reqwest/rustls-tls-native-roots", "ureq/tls", "ureq/native-certs"]
 # Enable native-tls for TLS support
-native-tls = [
-  "reqwest/native-tls",
-  "ureq/native-tls",
-  # Ideally, we need to use `suppaftp?/async-native-tls` here.
-  # But suppaftp's tls feature is not additive thus we can't use native here.
-  "suppaftp?/async-rustls",
-]
+native-tls = ["reqwest/native-tls", "ureq/native-tls"]
 # Enable vendored native-tls for TLS support
 native-tls-vendored = ["reqwest/native-tls-vendored", "ureq/native-tls"]
 
 # Enable all layers.
 layers-all = ["layers-metrics", "layers-tracing"]
 # Enable layers metrics support
-layers-metrics = ["metrics"]
+layers-metrics = ["dep:metrics"]
 # Enable layers tracing support.
-layers-tracing = ["tracing"]
+layers-tracing = ["dep:tracing"]
 
 # Enable services hdfs support
-services-hdfs = ["hdrs"]
+services-hdfs = ["dep:hdrs"]
 # Enable services ftp support
-services-ftp = ["suppaftp", "bb8", "async-tls"]
+services-ftp = ["dep:suppaftp", "dep:lazy-regex", "dep:bb8", "dep:async-tls"]
 # Enable services ipfs support
-services-ipfs = ["prost"]
+services-ipfs = ["dep:prost"]
+# Enable services memcached support
+services-memcached = ["dep:bb8-memcached"]
 # Enable services moka support
-services-moka = ["moka"]
+services-moka = ["dep:moka"]
 # Enable services redis support
-services-redis = ["redis"]
+services-redis = ["dep:redis"]
 # Enable services rocksdb support
-services-rocksdb = ["rocksdb"]
+services-rocksdb = ["dep:rocksdb"]
 
 [lib]
 bench = false
@@ -94,7 +85,7 @@ required-features = ["services-ipfs"]
 
 [[example]]
 name = "ftp"
-required-features = ["services-ftp", "lazy-regex"]
+required-features = ["services-ftp"]
 
 [[example]]
 name = "redis"
@@ -121,6 +112,7 @@ async-trait = "0.1"
 backon = "0.2"
 base64 = "0.20"
 bb8 = { version = "0.8", optional = true }
+bb8-memcached = { version = "0.5", optional = true }
 bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1"
 dotenv = { version = "0.15", optional = true }
@@ -153,6 +145,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
+  "async-rustls",
 ], optional = true }
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }

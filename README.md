@@ -28,6 +28,7 @@ You may be looking for:
 - [http](https://opendal.databend.rs/opendal/services/http/index.html): HTTP read-only services.
 - [ipfs](https://opendal.databend.rs/opendal/services/ipfs/index.html): [InterPlanetary File System](https://ipfs.tech/) HTTP Gateway support.
 - [ipmfs](https://opendal.databend.rs/opendal/services/ipmfs/index.html): [InterPlanetary File System](https://ipfs.tech/) MFS API support.
+- [memcached](https://opendal.databend.rs/opendal/services/memcached/index.html): [Memcached](https://memcached.org/) service support.
 - [memory](https://opendal.databend.rs/opendal/services/memory/index.html): In memory backend.
 - [moka](https://opendal.databend.rs/opendal/services/moka/index.html): [moka](https://github.com/moka-rs/moka) backend support.
 - [obs](https://opendal.databend.rs/opendal/services/obs/index.html): [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS).

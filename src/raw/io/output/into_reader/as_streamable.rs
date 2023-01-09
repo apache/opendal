@@ -19,44 +19,27 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
-use bytes::BytesMut;
 use futures::ready;
-use futures::AsyncRead;
-use futures::AsyncSeek;
-use pin_project::pin_project;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
 
-/// into_seekable_stream will convert a seekable reader into seekable stream.
-pub fn into_seekable_stream<R: AsyncRead + AsyncSeek + Unpin + Send>(
-    r: R,
-    capacity: usize,
-) -> IntoStream<R> {
+/// as_streamable is used to make [`output::Read`] streamable.
+pub fn as_streamable(r: output::Reader, capacity: usize) -> IntoStream {
     IntoStream {
         r,
         cap: capacity,
-        buf: BytesMut::with_capacity(capacity),
+        buf: Vec::with_capacity(capacity),
     }
 }
 
-#[pin_project]
-pub struct IntoStream<R: AsyncRead + AsyncSeek + Unpin + Send> {
-    #[pin]
-    r: R,
+pub struct IntoStream {
+    r: output::Reader,
     cap: usize,
-    buf: BytesMut,
+    buf: Vec<u8>,
 }
 
-/// IntoStream will be accessed uniquely, not concurrent read will happen.
-///
-/// No `get_inner`, no `Clone`, no other ways to access internally fields.
-unsafe impl<R: AsyncRead + AsyncSeek + Unpin + Send> Sync for IntoStream<R> {}
-
-impl<R> OutputBytesRead for IntoStream<R>
-where
-    R: AsyncRead + AsyncSeek + Unpin + Send,
-{
+impl output::Read for IntoStream {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         Pin::new(&mut self.r).poll_read(cx, buf)
     }
@@ -66,22 +49,16 @@ where
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        if self.buf.is_empty() {
-            // Reserve with the given cap every time.
-            self.buf.reserve(self.cap);
-        }
-
         let dst = self.buf.spare_capacity_mut();
         let mut buf = ReadBuf::uninit(dst);
         unsafe { buf.assume_init(self.cap) };
 
-        match ready!(Pin::new(&mut self.r).poll_read(cx, buf.initialize_unfilled())) {
+        match ready!(Pin::new(&mut self.r).poll_read(cx, buf.initialized_mut())) {
             Err(err) => Poll::Ready(Some(Err(err))),
             Ok(0) => Poll::Ready(None),
             Ok(n) => {
-                unsafe { self.buf.set_len(n) }
-                let chunk = self.buf.split_to(n);
-                Poll::Ready(Some(Ok(chunk.freeze())))
+                buf.set_filled(n);
+                Poll::Ready(Some(Ok(Bytes::from(buf.filled().to_vec()))))
             }
         }
     }
@@ -90,6 +67,7 @@ where
 #[cfg(test)]
 mod tests {
     use bytes::BufMut;
+    use bytes::BytesMut;
     use futures::io;
     use futures::StreamExt;
     use rand::prelude::*;
@@ -107,7 +85,7 @@ mod tests {
         let cap = rng.gen_range(1..1024 * 1024);
 
         let r = io::Cursor::new(content.clone());
-        let mut s = into_stream(r, cap);
+        let mut s = input::into_stream(r, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next().await {

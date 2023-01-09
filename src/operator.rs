@@ -158,6 +158,8 @@ impl Operator {
             #[cfg(feature = "services-ipfs")]
             Scheme::Ipfs => services::ipfs::Builder::from_iter(it).build()?.into(),
             Scheme::Ipmfs => services::ipmfs::Builder::from_iter(it).build()?.into(),
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached => services::memcached::Builder::from_iter(it).build()?.into(),
             Scheme::Memory => services::memory::Builder::default().build()?.into(),
             #[cfg(feature = "services-moka")]
             Scheme::Moka => services::moka::Builder::from_iter(it).build()?.into(),

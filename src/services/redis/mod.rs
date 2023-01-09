@@ -14,12 +14,6 @@
 
 //! Redis support for OpenDAL
 //!
-//! # Note
-//!
-//! The storage format for this service is not **stable** yet.
-//!
-//! PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
-//!
 //! # Configuration
 //!
 //! - `root`: Set the working directory of `OpenDAL`

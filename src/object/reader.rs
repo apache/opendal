@@ -98,7 +98,7 @@ use crate::OpStat;
 ///
 /// In this way, we can reduce the extra cost of dropping reader.
 pub struct ObjectReader {
-    inner: OutputBytesReader,
+    inner: output::Reader,
 }
 
 impl ObjectReader {
@@ -123,12 +123,10 @@ impl ObjectReader {
         } else {
             match (op.range().offset(), op.range().size()) {
                 (Some(offset), Some(size)) => {
-                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
-                        as OutputBytesReader
+                    Box::new(output::into_reader::by_range(acc, path, offset, size))
+                        as output::Reader
                 }
-                (Some(offset), None) => {
-                    Box::new(into_seekable_reader::by_offset(acc, path, offset))
-                }
+                (Some(offset), None) => Box::new(output::into_reader::by_offset(acc, path, offset)),
                 (None, Some(size)) => {
                     let total_size = get_total_size(acc.clone(), path, meta).await?;
                     let (offset, size) = if size > total_size {
@@ -137,9 +135,9 @@ impl ObjectReader {
                         (total_size - size, size)
                     };
 
-                    Box::new(into_seekable_reader::by_range(acc, path, offset, size))
+                    Box::new(output::into_reader::by_range(acc, path, offset, size))
                 }
-                (None, None) => Box::new(into_seekable_reader::by_offset(acc, path, 0)),
+                (None, None) => Box::new(output::into_reader::by_offset(acc, path, 0)),
             }
         };
 
@@ -147,14 +145,14 @@ impl ObjectReader {
             r
         } else {
             // Make this capacity configurable.
-            Box::new(into_seekable_stream(r, 256 * 1024))
+            Box::new(output::into_reader::as_streamable(r, 256 * 1024))
         };
 
         Ok(ObjectReader { inner: r })
     }
 }
 
-impl OutputBytesRead for ObjectReader {
+impl output::Read for ObjectReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         self.inner.poll_read(cx, buf)
     }

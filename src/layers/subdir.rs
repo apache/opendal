@@ -95,13 +95,13 @@ impl Accessor for SubdirAccessor {
         self.inner.create(&path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, OutputBytesReader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.read(&path, args).await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: BytesReader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let path = self.prepend_subdir(path);
 
         self.inner.write(&path, args, r).await
@@ -146,7 +146,7 @@ impl Accessor for SubdirAccessor {
         &self,
         path: &str,
         args: OpWriteMultipart,
-        r: BytesReader,
+        r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         let path = self.prepend_subdir(path);
 
@@ -179,17 +179,18 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_create(&path, args)
     }
 
-    fn blocking_read(
-        &self,
-        path: &str,
-        args: OpRead,
-    ) -> Result<(RpRead, BlockingOutputBytesReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_read(&path, args)
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite, r: BlockingBytesReader) -> Result<RpWrite> {
+    fn blocking_write(
+        &self,
+        path: &str,
+        args: OpWrite,
+        r: input::BlockingReader,
+    ) -> Result<RpWrite> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_write(&path, args, r)

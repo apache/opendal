@@ -65,6 +65,8 @@ pub enum ErrorKind {
     ObjectIsADirectory,
     /// Object is not a directory.
     ObjectNotADirectory,
+    /// Object already exists thus we failed to the specified operation on it.
+    ObjectAlreadyExists,
 }
 
 impl ErrorKind {
@@ -90,6 +92,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::ObjectPermissionDenied => "ObjectPermissionDenied",
             ErrorKind::ObjectIsADirectory => "ObjectIsADirectory",
             ErrorKind::ObjectNotADirectory => "ObjectNotADirectory",
+            ErrorKind::ObjectAlreadyExists => "ObjectAlreadyExists",
         }
     }
 }
@@ -254,6 +257,14 @@ impl Error {
 
         self.source = Some(src.into());
         self
+    }
+
+    /// Operate on error with map.
+    pub fn map<F>(self, f: F) -> Self
+    where
+        F: FnOnce(Self) -> Self,
+    {
+        f(self)
     }
 
     /// Set permenent status for error.

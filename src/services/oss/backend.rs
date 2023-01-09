@@ -19,7 +19,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::header::HOST;
 use http::header::RANGE;
 use http::Request;
 use http::Response;
@@ -211,10 +210,10 @@ impl Builder {
         let (endpoint, host) = self.parse_endpoint(&self.endpoint, bucket)?;
         debug!("backend use bucket {}, endpoint: {}", &bucket, &endpoint);
 
-        let (presign_endpoint, presign_host) = if self.presign_endpoint.is_some() {
-            self.parse_endpoint(&self.presign_endpoint, bucket)?
+        let presign_endpoint = if self.presign_endpoint.is_some() {
+            self.parse_endpoint(&self.presign_endpoint, bucket)?.0
         } else {
-            (endpoint.clone(), host.clone())
+            endpoint.clone()
         };
         debug!("backend use presign_endpoint: {}", &presign_endpoint);
 
@@ -246,7 +245,6 @@ impl Builder {
             endpoint,
             presign_endpoint,
             host,
-            presign_host,
             client: HttpClient::new(),
             bucket: self.bucket.clone(),
             signer: Arc::new(signer),
@@ -267,7 +265,6 @@ pub struct Backend {
     host: String,
     endpoint: String,
     presign_endpoint: String,
-    presign_host: String,
     signer: Arc<AliyunOssSigner>,
 }
 
@@ -429,13 +426,12 @@ impl Backend {
         use_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, _) = self.choose_endpoint_and_host(use_presign);
+        let endpoint = self.get_endpoint(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
-        req = req
-            .header(CONTENT_LENGTH, size.unwrap_or_default());
+        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
 
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime);
@@ -452,12 +448,11 @@ impl Backend {
         use_presign: bool,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, _) = self.choose_endpoint_and_host(use_presign);
+        let endpoint = self.get_endpoint(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut req = Request::get(&url);
-        req = req
-            .header(CONTENT_TYPE, "application/octet-stream");
+        req = req.header(CONTENT_TYPE, "application/octet-stream");
 
         if !range.is_full() {
             req = req.header(RANGE, range.to_header());
@@ -475,10 +470,8 @@ impl Backend {
 
     fn oss_delete_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::delete(&url);
+        let req = Request::delete(&url);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -489,12 +482,10 @@ impl Backend {
 
     fn oss_head_object_request(&self, path: &str, use_presign: bool) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
-        let (endpoint, host) = self.choose_endpoint_and_host(use_presign);
+        let endpoint = self.get_endpoint(use_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
-        let mut req = Request::head(&url);
-        req = req.header(HOST, host);
-
+        let req = Request::head(&url);
         let req = req
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
@@ -572,11 +563,11 @@ impl Backend {
         self.client.send_async(req).await
     }
 
-    fn choose_endpoint_and_host(&self, use_presign: bool) -> (&str, &str) {
-        if use_presign {
-            (&self.presign_endpoint, &self.presign_host)
+    fn get_endpoint(&self, is_presign: bool) -> &str {
+        if is_presign {
+            &self.presign_endpoint
         } else {
-            (&self.endpoint, &self.host)
+            &self.endpoint
         }
     }
 }

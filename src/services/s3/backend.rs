@@ -19,6 +19,8 @@ use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
 use http::header::HeaderName;
@@ -418,9 +420,9 @@ impl Builder {
         key: &[u8],
     ) -> &mut Self {
         self.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
-        self.server_side_encryption_customer_key = Some(base64::encode(key));
+        self.server_side_encryption_customer_key = Some(BASE64_STANDARD.encode(key));
         self.server_side_encryption_customer_key_md5 =
-            Some(base64::encode(Md5::digest(key).as_slice()));
+            Some(BASE64_STANDARD.encode(Md5::digest(key).as_slice()));
         self
     }
 

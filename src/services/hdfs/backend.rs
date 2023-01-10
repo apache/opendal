@@ -195,7 +195,8 @@ impl Accessor for Backend {
             .client
             .open_file()
             .read(true)
-            .open(&p)
+            .async_open(&p)
+            .await
             .map_err(parse_io_error)?;
 
         let br = args.range();
@@ -240,7 +241,8 @@ impl Accessor for Backend {
             .open_file()
             .create(true)
             .write(true)
-            .open(&p)
+            .async_open(&p)
+            .await
             .map_err(parse_io_error)?;
 
         let n = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;

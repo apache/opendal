@@ -17,7 +17,15 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: '11'
+          java-version: "11"
+
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
 
       - uses: actions-rs/cargo@v1
         with:
@@ -25,11 +33,12 @@ jobs:
           args: --no-deps --all-features
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v1
         with:
-          mdbook-version: 'latest'
+          mdbook-version: "latest"
 
       - run: |
           mdbook build
@@ -43,7 +52,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
+          vercel-args: "--prod"
           scope: databend
           working-directory: ./target/book
 

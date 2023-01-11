@@ -35,6 +35,7 @@ jobs:
         shell: bash
         run: cargo test http --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_HTTP_TEST: on
@@ -63,11 +64,18 @@ jobs:
           cp -r testdata/* /tmp/static
           ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 --access-log &
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
       - name: Test
         shell: bash
         run: cargo test http --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_HTTP_TEST: on

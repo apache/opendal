@@ -25,11 +25,18 @@ jobs:
         with:
           ipfs_version: "v0.14.0"
           run_daemon: true
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
       - name: Test
         shell: bash
         run: cargo test ipmfs --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_IPFS_TEST: on

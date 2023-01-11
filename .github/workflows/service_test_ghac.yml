@@ -19,7 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
 
       - name: Configure Cache Env
         uses: actions/github-script@v6
@@ -32,6 +38,7 @@ jobs:
         shell: bash
         run: cargo test ghac --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_GHAC_TEST: ${{ secrets.OPENDAL_GHAC_TEST }}

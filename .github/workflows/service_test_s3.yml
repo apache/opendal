@@ -19,11 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
@@ -37,11 +44,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
@@ -56,11 +70,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_S3_TEST: ${{ secrets.OPENDAL_S3_TEST }}
@@ -94,11 +115,18 @@ jobs:
           AWS_SECRET_ACCESS_KEY: "minioadmin"
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_S3_TEST: on
@@ -129,11 +157,18 @@ jobs:
           ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
           ./mc mb local/test
           ./mc anonymous set public local/test
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
       - name: Test
         shell: bash
         run: cargo test s3 --features compress -- --nocapture
         env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_S3_TEST: on

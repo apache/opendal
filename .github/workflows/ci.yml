@@ -74,9 +74,18 @@ jobs:
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
+
       - name: Check
         run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets --all-features -- -D warnings
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   build:
     runs-on: ${{ matrix.os }}
@@ -86,9 +95,18 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
+
       - name: Build
         run: cargo build
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   build_all_features:
     runs-on: ${{ matrix.os }}
@@ -112,9 +130,18 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
+
       - name: Build
         run: cargo build --all-features --release
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   unit:
     runs-on: ${{ matrix.os }}
@@ -138,13 +165,21 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
+
       - name: Test
         run: cargo test --no-fail-fast --features compress,layers-all
         env:
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   build_oli:
     runs-on: ${{ matrix.os }}
@@ -154,9 +189,19 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
+
       - name: Build
         working-directory: ./oli
         run: cargo build
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   unit_oli:
     runs-on: ${{ matrix.os }}
@@ -169,6 +214,8 @@ jobs:
       - name: Test
         working-directory: ./oli
         run: cargo test
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   build_oay:
     runs-on: ${{ matrix.os }}
@@ -178,9 +225,20 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
+
       - name: Build
         working-directory: ./oay
         run: cargo build
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   unit_oay:
     runs-on: ${{ matrix.os }}
@@ -190,6 +248,17 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+        with:
+          version: "v0.4.0-pre.5"
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start-server
+        env:
+          SCCACHE_GHA_VERSION: opendal
+
       - name: Test
         working-directory: ./oay
         run: cargo test
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}

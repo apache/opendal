@@ -35,7 +35,7 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -74,7 +74,7 @@ jobs:
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
 
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -95,7 +95,7 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -130,7 +130,7 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -165,7 +165,7 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -189,7 +189,7 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -226,7 +226,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -249,7 +249,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache

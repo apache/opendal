@@ -29,7 +29,7 @@ jobs:
         run: |
           ipfs add -r ./testdata --to-files /opendal-testdata
           ipfs files ls /opendal-testdata -l
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache

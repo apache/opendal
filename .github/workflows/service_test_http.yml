@@ -64,7 +64,7 @@ jobs:
           cp -r testdata/* /tmp/static
           ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 --access-log &
 
-      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
+      - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache

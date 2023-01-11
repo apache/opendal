@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -115,7 +115,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: "minioadmin"
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
-      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache
@@ -157,7 +157,7 @@ jobs:
           ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
           ./mc mb local/test
           ./mc anonymous set public local/test
-      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+      - uses: Xuanwo/sccache-action@be7e4cdfaeeadacaab1a25bc571e739f39c907a1
         with:
           version: "v0.4.0-pre.5"
       - name: Start sccache

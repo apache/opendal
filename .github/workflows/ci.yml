@@ -35,11 +35,17 @@ jobs:
         with:
           hdfs-version: "3.3.2"
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Xuanwo/sccache-action@a3137a0ec889b54220d79dfeb69b4c00f92dbcbd
+      - name: Start sccache
+        run: ${SCCACHE_PATH} --start
+        env:
+          SCCACHE_GHA_VERSION: opendal
 
       - uses: ./.github/actions/check
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
 
   msrv_check:
     runs-on: ubuntu-latest

@@ -64,7 +64,7 @@ Access data **efficiently**
 use anyhow::Result;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use opendal::ObjectStreamer;
+use opendal::ObjectReader;
 use opendal::Object;
 use opendal::ObjectMetadata;
 use opendal::ObjectMode;
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
     let op = Operator::from_env(Scheme::Fs)?;
 
     // Create object handler.
-    let o = op.object("test_file");
+    let o = op.object("/tmp/test_file");
 
     // Write data info object;
     o.write("Hello, World!").await?;

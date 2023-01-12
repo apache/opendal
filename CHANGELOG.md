@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.24.6] - 2023-01-12
+
+### Added
+
+- feat: implement tokio::io::{AsyncRead, AsyncSeek} for ObjectReader (#1175)
+- feat(services/hdfs): Evaluating the new async implementation (#1176)
+- feat(services/ghac): Handling too many requests error (#1181)
+
+### Fixed
+
+- doc: fix name change in README (#1179)
+
+
 ## [v0.24.5] - 2023-01-09
 
 ### Fixed
@@ -1184,6 +1197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.24.6]: https://github.com/datafuselabs/opendal/compare/v0.24.5...v0.24.6
 [v0.24.5]: https://github.com/datafuselabs/opendal/compare/v0.24.4...v0.24.5
 [v0.24.4]: https://github.com/datafuselabs/opendal/compare/v0.24.3...v0.24.4
 [v0.24.3]: https://github.com/datafuselabs/opendal/compare/v0.24.2...v0.24.3

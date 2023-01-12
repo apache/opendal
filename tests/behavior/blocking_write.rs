@@ -329,7 +329,7 @@ pub fn test_read_range(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (offset, length) = gen_offset_length(size as usize);
+    let (offset, length) = gen_offset_length(size);
 
     op.object(&path)
         .blocking_write(content.clone())
@@ -359,7 +359,7 @@ pub fn test_read_large_range(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (offset, _) = gen_offset_length(size as usize);
+    let (offset, _) = gen_offset_length(size);
 
     op.object(&path)
         .blocking_write(content.clone())

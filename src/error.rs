@@ -67,6 +67,8 @@ pub enum ErrorKind {
     ObjectNotADirectory,
     /// Object already exists thus we failed to the specified operation on it.
     ObjectAlreadyExists,
+    /// Requests that sent to this object is over the limit, please slow down.
+    ObjectRateLimited,
 }
 
 impl ErrorKind {
@@ -93,6 +95,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::ObjectIsADirectory => "ObjectIsADirectory",
             ErrorKind::ObjectNotADirectory => "ObjectNotADirectory",
             ErrorKind::ObjectAlreadyExists => "ObjectAlreadyExists",
+            ErrorKind::ObjectRateLimited => "ObjectRateLimited",
         }
     }
 }

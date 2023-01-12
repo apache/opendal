@@ -412,7 +412,7 @@ impl Object {
                 .with_operation("Object:range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
-                .with_context("range", &br.to_string())
+                .with_context("range", br.to_string())
                 .map(|e| {
                     use std::io::ErrorKind;
 
@@ -472,7 +472,7 @@ impl Object {
                 .with_operation("Object::blocking_range_read")
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
-                .with_context("range", &br.to_string())
+                .with_context("range", br.to_string())
                 .set_source(err)
         })?;
 

@@ -51,7 +51,7 @@ pub fn services() -> Vec<(&'static str, Option<Operator>)> {
 }
 
 pub fn gen_bytes(rng: &mut ThreadRng, size: usize) -> Vec<u8> {
-    let mut content = vec![0; size as usize];
+    let mut content = vec![0; size];
     rng.fill_bytes(&mut content);
 
     content

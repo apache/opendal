@@ -193,7 +193,7 @@ impl Backend {
             })?
             .to_path_buf();
 
-        std::fs::create_dir_all(&parent).map_err(parse_io_error)?;
+        std::fs::create_dir_all(parent).map_err(parse_io_error)?;
 
         Ok(p)
     }
@@ -383,7 +383,7 @@ impl Accessor for Backend {
             ObjectMode::Unknown
         };
         let m = ObjectMetadata::new(mode)
-            .with_content_length(meta.len() as u64)
+            .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
                     .map(OffsetDateTime::from)
@@ -455,7 +455,7 @@ impl Accessor for Backend {
                 })?
                 .to_path_buf();
 
-            std::fs::create_dir_all(&parent).map_err(parse_io_error)?;
+            std::fs::create_dir_all(parent).map_err(parse_io_error)?;
 
             std::fs::OpenOptions::new()
                 .create(true)
@@ -548,7 +548,7 @@ impl Accessor for Backend {
 
                 std::io::copy(&mut r, &mut f).map_err(parse_io_error)?
             };
-            std::fs::rename(&temp_path, &target_path).map_err(parse_io_error)?;
+            std::fs::rename(&temp_path, target_path).map_err(parse_io_error)?;
 
             Ok(RpWrite::new(size))
         } else {
@@ -557,7 +557,7 @@ impl Accessor for Backend {
             let mut f = std::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
-                .open(&p)
+                .open(p)
                 .map_err(parse_io_error)?;
 
             let size = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
@@ -579,7 +579,7 @@ impl Accessor for Backend {
             ObjectMode::Unknown
         };
         let m = ObjectMetadata::new(mode)
-            .with_content_length(meta.len() as u64)
+            .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
                     .map(OffsetDateTime::from)
@@ -620,7 +620,7 @@ impl Accessor for Backend {
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = match std::fs::read_dir(&p) {
+        let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {

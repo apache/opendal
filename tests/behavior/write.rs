@@ -389,7 +389,7 @@ pub async fn test_read_range(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (offset, length) = gen_offset_length(size as usize);
+    let (offset, length) = gen_offset_length(size);
 
     op.object(&path)
         .write(content.clone())
@@ -419,7 +419,7 @@ pub async fn test_read_large_range(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (offset, _) = gen_offset_length(size as usize);
+    let (offset, _) = gen_offset_length(size);
 
     op.object(&path)
         .write(content.clone())
@@ -450,7 +450,7 @@ pub async fn test_reader_range(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (offset, length) = gen_offset_length(size as usize);
+    let (offset, length) = gen_offset_length(size);
 
     op.object(&path)
         .write(content.clone())
@@ -486,7 +486,7 @@ pub async fn test_reader_from(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (offset, _) = gen_offset_length(size as usize);
+    let (offset, _) = gen_offset_length(size);
 
     op.object(&path)
         .write(content.clone())
@@ -517,7 +517,7 @@ pub async fn test_reader_tail(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (_, length) = gen_offset_length(size as usize);
+    let (_, length) = gen_offset_length(size);
 
     op.object(&path)
         .write(content.clone())
@@ -651,7 +651,7 @@ pub async fn test_fuzz_part_reader(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
-    let (offset, length) = gen_offset_length(size as usize);
+    let (offset, length) = gen_offset_length(size);
 
     op.object(&path)
         .write(content.clone())

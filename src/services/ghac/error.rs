@@ -28,6 +28,7 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
         StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::ObjectNotFound, false),
         StatusCode::CONFLICT => (ErrorKind::ObjectAlreadyExists, false),
         StatusCode::FORBIDDEN => (ErrorKind::ObjectPermissionDenied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::ObjectRateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

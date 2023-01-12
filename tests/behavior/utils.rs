@@ -73,7 +73,7 @@ pub fn gen_bytes() -> (Vec<u8>, usize) {
     let mut rng = thread_rng();
 
     let size = rng.gen_range(1..4 * 1024 * 1024);
-    let mut content = vec![0; size as usize];
+    let mut content = vec![0; size];
     rng.fill_bytes(&mut content);
 
     (content, size)

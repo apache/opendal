@@ -328,7 +328,7 @@ mod tests {
         let mut rng = thread_rng();
 
         let size = rng.gen_range(4 * 1024 * 1024..16 * 1024 * 1024);
-        let mut content = vec![0; size as usize];
+        let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
 
         (Bytes::from(content), size)

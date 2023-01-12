@@ -273,7 +273,7 @@ pub async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
     let raw_bs = op.object("ontime.csv").read().await?;
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&raw_bs)),
+        format!("{:x}", Sha256::digest(raw_bs)),
         "read content"
     );
 
@@ -293,7 +293,7 @@ pub async fn test_read_decompress_zstd(op: Operator) -> Result<()> {
     let raw_bs = op.object("ontime.csv").read().await?;
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&raw_bs)),
+        format!("{:x}", Sha256::digest(raw_bs)),
         "read content"
     );
 
@@ -313,7 +313,7 @@ pub async fn test_read_decompress_bz2(op: Operator) -> Result<()> {
     let raw_bs = op.object("ontime.csv").read().await?;
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&raw_bs)),
+        format!("{:x}", Sha256::digest(raw_bs)),
         "read content"
     );
 

@@ -37,6 +37,8 @@ jobs:
       - name: Test
         shell: bash
         run: cargo test ghac --features compress -- --nocapture
+        # Allow ghac test fail for rate limit
+        continue-on-error: true
         env:
           RUSTC_WRAPPER: ${{ env.SCCACHE_PATH }}
           RUST_BACKTRACE: full

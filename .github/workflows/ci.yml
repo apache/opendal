@@ -37,7 +37,7 @@ jobs:
 
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
@@ -76,7 +76,7 @@ jobs:
 
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
@@ -97,7 +97,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
@@ -132,7 +132,7 @@ jobs:
 
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
@@ -167,7 +167,7 @@ jobs:
 
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
@@ -191,7 +191,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
@@ -228,7 +228,7 @@ jobs:
 
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
@@ -251,7 +251,7 @@ jobs:
 
       - uses: Xuanwo/sccache-action@c94e27bef21ab3fb4a5152c8a878c53262b4abb0
         with:
-          version: "v0.4.0-pre.5"
+          version: "v0.4.0-pre.6"
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:

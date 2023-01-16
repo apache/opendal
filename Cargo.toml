@@ -114,7 +114,6 @@ base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1"
-dotenv = { version = "0.15", optional = true }
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }
@@ -156,7 +155,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 [dev-dependencies]
 cfg-if = "1"
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
-dotenv = "0.15"
+dotenvy = "0.15"
 env_logger = "0.10"
 itertools = "0.10"
 opentelemetry = { version = "0.17", default-features = false, features = [

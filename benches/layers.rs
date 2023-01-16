@@ -50,7 +50,7 @@ pub static TOKIO: Lazy<tokio::runtime::Runtime> =
 fn bench_tracing_layer(c: &mut Criterion) {
     let mut group = c.benchmark_group("tracing_layers");
 
-    let _ = dotenv::dotenv();
+    let _ = dotenvy::dotenv();
     let op = Operator::from_env(Scheme::S3).expect("init operator must succeed");
     let layered_op = Operator::from_env(Scheme::S3)
         .expect("init operator must succeed")

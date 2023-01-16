@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
         let _enter = root.enter();
 
-        let _ = dotenv::dotenv();
+        let _ = dotenvy::dotenv();
         let op = Operator::from_env(Scheme::S3)
             .expect("init operator must succeed")
             .layer(TracingLayer);

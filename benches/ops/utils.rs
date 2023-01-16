@@ -39,7 +39,7 @@ async fn service(scheme: Scheme) -> Option<Operator> {
 }
 
 pub fn services() -> Vec<(&'static str, Option<Operator>)> {
-    let _ = dotenv::dotenv();
+    let _ = dotenvy::dotenv();
 
     TOKIO.block_on(async {
         vec![

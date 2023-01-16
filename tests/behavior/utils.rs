@@ -34,7 +34,7 @@ use sha2::Sha256;
 /// - Else, returns a `None` to represent no valid config for operator.
 pub fn init_service(scheme: Scheme, random_root: bool) -> Option<Operator> {
     let _ = env_logger::builder().is_test(true).try_init();
-    let _ = dotenv::dotenv();
+    let _ = dotenvy::dotenv();
 
     let prefix = format!("opendal_{}_", scheme);
 

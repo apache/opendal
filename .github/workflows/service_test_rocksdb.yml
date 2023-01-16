@@ -25,7 +25,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
       - name: Test
         shell: bash
         run: cargo test rocksdb --features compress,services-rocksdb -- --nocapture --test-threads=1

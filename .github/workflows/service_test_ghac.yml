@@ -25,7 +25,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Configure Cache Env
         uses: actions/github-script@v6

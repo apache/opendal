@@ -41,7 +41,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - uses: ./.github/actions/check
         with:
@@ -80,7 +80,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Check
         run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets --all-features -- -D warnings
@@ -101,7 +101,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Build
         run: cargo build
@@ -136,7 +136,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Build
         run: cargo build --all-features --release
@@ -171,7 +171,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Test
         run: cargo test --no-fail-fast --features compress,layers-all
@@ -195,7 +195,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Build
         working-directory: ./oli
@@ -232,7 +232,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Build
         working-directory: ./oay
@@ -255,7 +255,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
 
       - name: Test
         working-directory: ./oay

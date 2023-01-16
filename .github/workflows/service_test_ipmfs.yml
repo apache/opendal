@@ -31,7 +31,7 @@ jobs:
       - name: Start sccache
         run: ${SCCACHE_PATH} --start-server
         env:
-          SCCACHE_GHA_VERSION: opendal
+          SCCACHE_GHA_ENABLED: on
       - name: Test
         shell: bash
         run: cargo test ipmfs --features compress -- --nocapture

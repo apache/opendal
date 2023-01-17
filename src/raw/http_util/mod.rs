@@ -50,3 +50,8 @@ pub use bytes_range::BytesRange;
 
 mod bytes_content_range;
 pub use bytes_content_range::BytesContentRange;
+
+#[cfg(feature = "trust-dns")]
+mod resolver;
+#[cfg(feature = "trust-dns")]
+pub use resolver::DnsClient;

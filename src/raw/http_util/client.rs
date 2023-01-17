@@ -30,6 +30,8 @@ use super::body::IncomingAsyncBody;
 use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
+#[cfg(feature = "trust-dns")]
+use super::DnsClient;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -70,8 +72,11 @@ impl HttpClient {
             builder = builder.redirect(Policy::none());
 
             #[cfg(feature = "trust-dns")]
-            // using trust-dns async resolver
-            let builder = builder.trust_dns(true);
+            let builder = {
+                // using a global resolver to reuse dns cache
+                let resolver = DnsClient::new_arc(); // using trust-dns async resolver
+                builder.trust_dns(true).dns_resolver(resolver)
+            };
             #[cfg(not(feature = "trust-dns"))]
             // using `getaddrinfo`
             let builder = builder.no_trust_dns();

@@ -54,4 +54,4 @@ pub use bytes_content_range::BytesContentRange;
 #[cfg(feature = "trust-dns")]
 mod resolver;
 #[cfg(feature = "trust-dns")]
-pub use resolver::DnsClient;
+pub use resolver::get_trust_dns_client;

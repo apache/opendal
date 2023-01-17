@@ -27,35 +27,33 @@ use trust_dns_resolver::TokioAsyncResolver;
 /// this structure contains nothing, only used as an entry point
 /// to call from `trust_dns_resolver`
 #[derive(Debug)]
-pub struct DnsClient {}
+pub struct TrustDnsClient {
+    resolver: Arc<TokioAsyncResolver>,
+}
 
-static GLOBAL_DNS_CLIENT: OnceCell<Arc<TokioAsyncResolver>> = OnceCell::new();
+static GLOBAL_DNS_CLIENT: OnceCell<Arc<TrustDnsClient>> = OnceCell::new();
 
 /// Get a new async dns client.
-fn get_client() -> Arc<TokioAsyncResolver> {
+pub fn get_trust_dns_client() -> Arc<TrustDnsClient> {
     GLOBAL_DNS_CLIENT
-        .get_or_init(|| {
-            let resolver = TokioAsyncResolver::tokio_from_system_conf().unwrap();
-            Arc::new(resolver)
-        })
+        .get_or_init(|| Arc::new(TrustDnsClient::new()))
         .clone()
 }
 
-impl DnsClient {
+impl TrustDnsClient {
     /// get a new global dns client
     pub fn new() -> Self {
-        DnsClient {}
-    }
-    /// get a new global dns client, wrapped in Arc
-    pub fn new_arc() -> Arc<Self> {
-        Arc::new(DnsClient::new())
+        let resolver = Arc::new(
+            TokioAsyncResolver::tokio_from_system_conf().expect("init trust dns resolver failure"),
+        );
+        Self { resolver }
     }
 }
 
-impl Resolve for DnsClient {
+impl Resolve for TrustDnsClient {
     fn resolve(&self, name: Name) -> reqwest::dns::Resolving {
+        let resolver = self.resolver.clone();
         Box::pin(async move {
-            let resolver = get_client();
             let ip = resolver.lookup_ip(name.as_str()).await?;
             let addrs: Addrs = Box::new(ip.into_iter().map(|ip| SocketAddr::new(ip, 0)));
             Ok(addrs)
@@ -69,16 +67,13 @@ mod resolve_test {
     async fn test_resolve() {
         use super::*;
 
-        let our_resolver = DnsClient::new_arc();
-        let addrs = our_resolver
-            .resolve("datafuselabs.rs".parse().unwrap())
-            .await
-            .unwrap();
+        let name = "docs.rs";
+        let our_resolver = get_trust_dns_client();
+        let addrs = our_resolver.resolve(name.parse().unwrap()).await.unwrap();
         let got = addrs.map(|s| s.ip()).collect::<Vec<_>>();
-        println!("{:?}", got);
 
         let trust_resolver = TokioAsyncResolver::tokio_from_system_conf().unwrap();
-        let addrs = trust_resolver.lookup_ip("datafuselabs.rs").await.unwrap();
+        let addrs = trust_resolver.lookup_ip(name).await.unwrap();
         let expected = addrs.into_iter().collect::<Vec<_>>();
         assert!(got.len() > 0);
         assert_eq!(got, expected);

@@ -27,11 +27,11 @@ use reqwest::ClientBuilder;
 use reqwest::Url;
 
 use super::body::IncomingAsyncBody;
+#[cfg(feature = "trust-dns")]
+use super::get_trust_dns_client;
 use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
-#[cfg(feature = "trust-dns")]
-use super::DnsClient;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
@@ -74,7 +74,7 @@ impl HttpClient {
             #[cfg(feature = "trust-dns")]
             let builder = {
                 // using a global resolver to reuse dns cache
-                let resolver = DnsClient::new_arc(); // using trust-dns async resolver
+                let resolver = get_trust_dns_client();
                 builder.trust_dns(true).dns_resolver(resolver)
             };
             #[cfg(not(feature = "trust-dns"))]

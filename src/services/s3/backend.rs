@@ -454,17 +454,6 @@ impl Builder {
         self
     }
 
-    /// Disable credential loader so that opendal will not load credentials
-    /// from environment.
-    ///
-    /// # Deprecated
-    ///
-    /// This function is no-op for now.
-    #[deprecated = "credential_loader can't be disabled, if want to disable the config loading logic, use disable_config_loader instead"]
-    pub fn disable_credential_loader(&mut self) -> &mut Self {
-        self
-    }
-
     /// Enable virtual host style so that opendal will send API requests
     /// in virtual host style instead of path style.
     ///

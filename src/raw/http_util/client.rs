@@ -101,6 +101,16 @@ impl HttpClient {
         }
     }
 
+    /// Get the async client from http client.
+    pub fn async_client(&self) -> reqwest::Client {
+        self.async_client.clone()
+    }
+
+    /// Get the sync client from http client.
+    pub fn sync_client(&self) -> ureq::Agent {
+        self.sync_client.clone()
+    }
+
     /// Send a request in blocking way.
     pub fn send(&self, req: Request<Body>) -> Result<Response<Body>> {
         let (parts, body) = req.into_parts();

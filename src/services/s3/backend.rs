@@ -32,9 +32,13 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::error;
+use log::warn;
 use md5::Digest;
 use md5::Md5;
 use once_cell::sync::Lazy;
+use reqsign::AwsConfigLoader;
+use reqsign::AwsCredentialLoad;
+use reqsign::AwsCredentialLoader;
 use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
@@ -90,10 +94,10 @@ pub struct Builder {
     /// temporary credentials, check the official [doc](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html) for detail
     security_token: Option<String>,
 
-    disable_credential_loader: bool,
+    disable_config_load: bool,
     enable_virtual_host_style: bool,
 
-    signer: Option<Arc<AwsV4Signer>>,
+    customed_credential_load: Option<Arc<dyn AwsCredentialLoad>>,
 }
 
 impl Debug for Builder {
@@ -106,8 +110,8 @@ impl Debug for Builder {
             .field("region", &self.region)
             .field("role_arn", &self.role_arn)
             .field("external_id", &self.external_id)
-            .field("disable_credential_loader", &self.disable_credential_loader)
-            .field("enable_virtual_host_style", &self.disable_credential_loader);
+            .field("disable_config_load", &self.disable_config_load)
+            .field("enable_virtual_host_style", &self.enable_virtual_host_style);
 
         if self.access_key_id.is_some() {
             d.field("access_key_id", &"<redacted>");
@@ -168,7 +172,7 @@ impl Builder {
                 "server_side_encryption_customer_key_md5" => {
                     builder.server_side_encryption_customer_key_md5(v)
                 }
-                "disable_credential_loader" if !v.is_empty() => builder.disable_credential_loader(),
+                "disable_config_load" if !v.is_empty() => builder.disable_config_load(),
                 "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
                 _ => continue,
             };
@@ -438,10 +442,26 @@ impl Builder {
         self
     }
 
+    /// Disable config load so that opendal will not load config from
+    /// environment.
+    ///
+    /// For examples:
+    ///
+    /// - envs like `AWS_ACCESS_KEY_ID`
+    /// - files like `~/.aws/config`
+    pub fn disable_config_load(&mut self) -> &mut Self {
+        self.disable_config_load = true;
+        self
+    }
+
     /// Disable credential loader so that opendal will not load credentials
     /// from environment.
+    ///
+    /// # Deprecated
+    ///
+    /// This function is no-op for now.
+    #[deprecated = "credential_loader can't be disabled, if want to disable the config loading logic, use disable_config_loader instead"]
     pub fn disable_credential_loader(&mut self) -> &mut Self {
-        self.disable_credential_loader = true;
         self
     }
 
@@ -455,22 +475,9 @@ impl Builder {
         self
     }
 
-    /// Specify the signer directly instead of builling by OpenDAL.
-    ///
-    /// If signer is specified, the following settings will not be used
-    /// any more:
-    ///
-    /// - `region`
-    /// - `security_token`
-    /// - `access_key_id`
-    /// - `secret_access_key`
-    /// - `role_arn`
-    /// - `external_id`
-    /// - `disable_credential_loader`
-    ///
-    /// PLEASE USE THIS API CAREFULLY.
-    pub fn signer(&mut self, signer: AwsV4Signer) -> &mut Self {
-        self.signer = Some(Arc::new(signer));
+    /// Adding a customed credential load for service.
+    pub fn customed_credential_load(&mut self, cred: impl AwsCredentialLoad) -> &mut Self {
+        self.customed_credential_load = Some(Arc::new(cred));
         self
     }
 
@@ -483,7 +490,15 @@ impl Builder {
     /// Returning endpoint will trim bucket name:
     ///
     /// - `https://bucket_name.s3.amazonaws.com` => `https://s3.amazonaws.com`
-    fn detect_region(&self, client: &HttpClient, bucket: &str) -> Result<(String, String)> {
+    fn detect_region(&self, client: &HttpClient) -> Result<String> {
+        debug_assert!(
+            self.region.is_none(),
+            "calling detect region with region already know is buggy"
+        );
+
+        // Builder's bucket must be valid.
+        let bucket = self.bucket.as_str();
+
         let mut endpoint = match &self.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
@@ -498,16 +513,6 @@ impl Builder {
 
         // If endpoint contains bucket name, we should trim them.
         endpoint = endpoint.replace(&format!("//{bucket}."), "//");
-
-        if let Some(region) = &self.region {
-            let endpoint = if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
-                template.replace("{region}", region)
-            } else {
-                endpoint.to_string()
-            };
-
-            return Ok((endpoint, region.to_string()));
-        }
 
         let url = format!("{endpoint}/{bucket}");
         debug!("backend detect region with url: {url}");
@@ -541,7 +546,7 @@ impl Builder {
                             .set_source(e)
                     })?
                     .to_string();
-                Ok((endpoint, region))
+                Ok(region)
             }
             // The endpoint should move, return with constructed endpoint
             StatusCode::MOVED_PERMANENTLY => {
@@ -555,24 +560,58 @@ impl Builder {
                             .set_source(e)
                     })?
                     .to_string();
-                let template = ENDPOINT_TEMPLATES.get(endpoint.as_str()).ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "can't detect region automatically, no valid endpoint template",
-                    )
-                })?;
 
-                let endpoint = template.replace("{region}", &region);
-
-                Ok((endpoint, region))
+                Ok(region)
             }
-            // Unexpected status code
+            // Unexpected status code, fallback to default region "us-east-1"
             code => Err(Error::new(
                 ErrorKind::Unexpected,
                 "can't detect region automatically, unexpect status code got",
             )
             .with_context("status", code.as_str())),
         }
+    }
+
+    /// Build endpoint with given region.
+    fn build_endpoint(&self, region: &str) -> String {
+        let bucket = {
+            debug_assert!(!self.bucket.is_empty(), "bucket must be valid");
+
+            self.bucket.as_str()
+        };
+
+        let mut endpoint = match &self.endpoint {
+            Some(endpoint) => {
+                if endpoint.starts_with("http") {
+                    endpoint.to_string()
+                } else {
+                    // Prefix https if endpoint doesn't start with scheme.
+                    format!("https://{}", endpoint)
+                }
+            }
+            None => "https://s3.amazonaws.com".to_string(),
+        };
+
+        // If endpoint contains bucket name, we should trim them.
+        endpoint = endpoint.replace(&format!("//{bucket}."), "//");
+
+        // Update with endpoint templates.
+        endpoint = if let Some(template) = ENDPOINT_TEMPLATES.get(endpoint.as_str()) {
+            template.replace("{region}", region)
+        } else {
+            // If we don't know where about this endpoint, just leave
+            // them as it.
+            endpoint.to_string()
+        };
+
+        // Apply virtual host style.
+        if self.enable_virtual_host_style {
+            endpoint = endpoint.replace("//", &format!("//{bucket}."))
+        } else {
+            write!(endpoint, "/{bucket}").expect("write into string must succeed");
+        };
+
+        endpoint
     }
 
     /// Finish the build process and create a new accessor.
@@ -582,7 +621,7 @@ impl Builder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", &root);
 
-        // Handle endpoint, region and bucket name.
+        // Handle bucket name.
         let bucket = match self.bucket.is_empty() {
             false => Ok(&self.bucket),
             true => Err(Error::new(
@@ -656,56 +695,90 @@ impl Builder {
 
         let client = HttpClient::new();
 
-        let (mut endpoint, region) = self.detect_region(&client, bucket)?;
-        // Construct endpoint which contains bucket name.
-        if self.enable_virtual_host_style {
-            endpoint = endpoint.replace("//", &format!("//{bucket}."))
-        } else {
-            write!(endpoint, "/{bucket}").expect("write into string must succeed");
+        let cfg = AwsConfigLoader::default();
+        if !self.disable_config_load {
+            cfg.load();
         }
-        debug!("backend use endpoint: {}, region: {}", &endpoint, &region);
 
-        let signer = if let Some(signer) = &self.signer {
-            signer.clone()
-        } else {
-            let mut signer_builder = AwsV4Signer::builder();
-            signer_builder.service("s3");
-            signer_builder.region(&region);
-            signer_builder.allow_anonymous();
-            if let Some(v) = &self.security_token {
-                signer_builder.security_token(v);
-            }
-            if let Some(v) = &self.role_arn {
-                signer_builder.role_arn(v);
-            }
-            if let Some(v) = &self.external_id {
-                signer_builder.external_id(v);
-            }
-            if self.disable_credential_loader {
-                signer_builder.disable_load_from_env();
-                signer_builder.disable_load_from_profile();
-                signer_builder.disable_load_from_imds_v2();
-                signer_builder.disable_load_from_assume_role();
-                signer_builder.disable_load_from_assume_role_with_web_identity();
-            }
+        // Setting all value from user input if available.
+        if let Some(region) = &self.region {
+            cfg.set_region(region);
+        }
+        if let Some(v) = &self.access_key_id {
+            cfg.set_access_key_id(v);
+        }
+        if let Some(v) = &self.secret_access_key {
+            cfg.set_secret_access_key(v);
+        }
+        if let Some(v) = &self.security_token {
+            cfg.set_session_token(v);
+        }
+        if let Some(v) = &self.role_arn {
+            cfg.set_role_arn(v);
+        }
+        if let Some(v) = &self.external_id {
+            cfg.set_external_id(v);
+        }
 
-            if let (Some(ak), Some(sk)) = (&self.access_key_id, &self.secret_access_key) {
-                signer_builder.access_key(ak);
-                signer_builder.secret_key(sk);
+        // Calculate region based on current cfg.
+        let region = match cfg.region() {
+            Some(region) => region,
+            None => {
+                // region is required to make signer work.
+                //
+                // If we don't know region after loading from builder and env.
+                // We should try to detect them.
+                let region = self
+                    .detect_region(&client)
+                    // If we met error during detect region, use "us-east-1"
+                    // as default instead of returning error.
+                    .unwrap_or_else(|err| {
+                        warn!(
+                            "backend detect region failed for {err:?}, using default region instead"
+                        );
+                        "us-east-1".to_string()
+                    });
+                cfg.set_region(&region);
+
+                region
             }
-
-            let signer = signer_builder.build().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e)
-            })?;
-
-            Arc::new(signer)
         };
+        debug!("backend use region: {region}");
+
+        // Building endpoint.
+        let endpoint = self.build_endpoint(&region);
+        debug!("backend use endpoint: {endpoint}");
+
+        let mut signer_builder = AwsV4Signer::builder();
+        signer_builder.service("s3");
+        signer_builder.allow_anonymous();
+        signer_builder.config_loader(cfg.clone());
+        signer_builder.credential_loader({
+            let mut cred_loader = AwsCredentialLoader::new(cfg);
+            cred_loader = cred_loader.with_allow_anonymous();
+            cred_loader = cred_loader.with_client(client.sync_client());
+            if self.disable_config_load {
+                // If load config has been disable, we should also disable
+                // ec2 metadata to avoid leaking permits.
+                cred_loader = cred_loader.with_disable_ec2_metadata();
+            }
+
+            if let Some(ccl) = &self.customed_credential_load {
+                cred_loader = cred_loader.with_customed_credential_loader(ccl.clone());
+            }
+
+            cred_loader
+        });
+
+        let signer = signer_builder
+            .build()
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(apply_wrapper(Backend {
             root,
             endpoint,
-            signer,
+            signer: Arc::new(signer),
             bucket: self.bucket.clone(),
             client,
 
@@ -1372,12 +1445,11 @@ struct CompleteMultipartUploadRequestPart {
 mod tests {
     use bytes::Buf;
     use bytes::Bytes;
-    use itertools::iproduct;
 
     use super::*;
 
     #[tokio::test]
-    async fn test_detect_region() {
+    async fn test_region() {
         let _ = env_logger::try_init();
 
         let client = HttpClient::new();
@@ -1389,22 +1461,52 @@ mod tests {
             None,
         ];
 
-        let region_cases = vec![Some("us-east-2"), None];
-
-        for (endpoint, region) in iproduct!(endpoint_cases, region_cases) {
+        for endpoint in endpoint_cases {
             let mut b = Builder::default();
+            b.bucket("test");
             if let Some(endpoint) = endpoint {
                 b.endpoint(endpoint);
             }
-            if let Some(region) = region {
-                b.region(region);
+
+            let region = b
+                .detect_region(&client)
+                .expect("detect region must success");
+            assert_eq!(region, "us-east-2");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_build_endpoint() {
+        let _ = env_logger::try_init();
+
+        let endpoint_cases = vec![
+            Some("s3.amazonaws.com"),
+            Some("https://s3.amazonaws.com"),
+            Some("https://s3.us-east-2.amazonaws.com"),
+            None,
+        ];
+
+        for endpoint in &endpoint_cases {
+            let mut b = Builder::default();
+            b.bucket("test");
+            if let Some(endpoint) = endpoint {
+                b.endpoint(endpoint);
             }
 
-            let (endpoint, region) = b
-                .detect_region(&client, "test")
-                .expect("detect region must success");
-            assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com");
-            assert_eq!(region, "us-east-2");
+            let endpoint = b.build_endpoint("us-east-2");
+            assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com/test");
+        }
+
+        for endpoint in &endpoint_cases {
+            let mut b = Builder::default();
+            b.bucket("test");
+            b.enable_virtual_host_style();
+            if let Some(endpoint) = endpoint {
+                b.endpoint(endpoint);
+            }
+
+            let endpoint = b.build_endpoint("us-east-2");
+            assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
         }
     }
 

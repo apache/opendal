@@ -134,7 +134,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.7.4"
+reqsign = "0.8.1"
 reqwest = { version = "0.11", features = [
   "multipart",
   "stream",
@@ -157,7 +157,6 @@ cfg-if = "1"
 criterion = { version = "0.4", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
 env_logger = "0.10"
-itertools = "0.10"
 opentelemetry = { version = "0.17", default-features = false, features = [
   "trace",
 ] }

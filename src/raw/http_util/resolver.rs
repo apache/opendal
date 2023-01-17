@@ -75,6 +75,7 @@ mod resolve_test {
             .await
             .unwrap();
         let got = addrs.map(|s| s.ip()).collect::<Vec<_>>();
+        println!("{:?}", got);
 
         let trust_resolver = TokioAsyncResolver::tokio_from_system_conf().unwrap();
         let addrs = trust_resolver.lookup_ip("datafuselabs.rs").await.unwrap();

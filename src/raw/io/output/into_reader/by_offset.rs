@@ -353,7 +353,7 @@ mod tests {
             Ok((
                 RpRead::new(bs.len() as u64),
                 Box::new(MockReader {
-                    inner: futures::io::Cursor::new(Vec::<u8>::from(bs)),
+                    inner: futures::io::Cursor::new(bs.into()),
                 }) as output::Reader,
             ))
         }

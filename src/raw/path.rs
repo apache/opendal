@@ -67,13 +67,17 @@ pub fn build_rel_path(root: &str, path: &str) -> String {
     if path.starts_with('/') {
         debug_assert!(
             path.starts_with(root),
-            "path {path} doesn't start with root {root}"
+            "path {} doesn't start with root {}",
+            path,
+            root
         );
         path[root.len()..].to_string()
     } else {
         debug_assert!(
             path.starts_with(&root[1..]),
-            "path {path} doesn't start with root {root}"
+            "path {} doesn't start with root {}",
+            path,
+            root
         );
         path[root.len() - 1..].to_string()
     }
@@ -241,7 +245,7 @@ mod tests {
         ];
 
         for (name, input, expect) in cases {
-            assert_eq!(normalize_path(input), expect, "{name}")
+            assert_eq!(normalize_path(input), expect, "{}", name)
         }
     }
 
@@ -259,7 +263,7 @@ mod tests {
         ];
 
         for (name, input, expect) in cases {
-            assert_eq!(normalize_root(input), expect, "{name}")
+            assert_eq!(normalize_root(input), expect, "{}", name)
         }
     }
 
@@ -276,7 +280,7 @@ mod tests {
 
         for (name, input, expect) in cases {
             let actual = get_basename(input);
-            assert_eq!(actual, expect, "{name}")
+            assert_eq!(actual, expect, "{}", name)
         }
     }
 
@@ -293,7 +297,7 @@ mod tests {
 
         for (name, input, expect) in cases {
             let actual = get_parent(input);
-            assert_eq!(actual, expect, "{name}")
+            assert_eq!(actual, expect, "{}", name)
         }
     }
 
@@ -311,7 +315,7 @@ mod tests {
 
         for (name, root, input, expect) in cases {
             let actual = build_abs_path(root, input);
-            assert_eq!(actual, expect, "{name}")
+            assert_eq!(actual, expect, "{}", name)
         }
     }
 
@@ -328,7 +332,7 @@ mod tests {
 
         for (name, root, input, expect) in cases {
             let actual = build_rooted_abs_path(root, input);
-            assert_eq!(actual, expect, "{name}")
+            assert_eq!(actual, expect, "{}", name)
         }
     }
 
@@ -344,7 +348,7 @@ mod tests {
 
         for (name, root, input, expect) in cases {
             let actual = build_rel_path(root, input);
-            assert_eq!(actual, expect, "{name}")
+            assert_eq!(actual, expect, "{}", name)
         }
     }
 
@@ -372,7 +376,7 @@ mod tests {
 
         for (name, path, mode, expect) in cases {
             let actual = validate_path(path, mode);
-            assert_eq!(actual, expect, "{name}")
+            assert_eq!(actual, expect, "{}", name)
         }
     }
 }

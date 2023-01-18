@@ -13,8 +13,6 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::io;
-use std::io::Read;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -317,9 +315,9 @@ impl BlockingConcurrentLimitReader {
     }
 }
 
-impl Read for BlockingConcurrentLimitReader {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.read(buf)
+impl output::BlockingRead for BlockingConcurrentLimitReader {
+    fn inner(&mut self) -> Option<&mut output::BlockingReader> {
+        Some(&mut self.inner)
     }
 }
 

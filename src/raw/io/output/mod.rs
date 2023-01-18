@@ -33,5 +33,7 @@ mod blocking_read;
 pub use blocking_read::BlockingRead;
 pub use blocking_read::BlockingReader;
 
+pub mod into_blocking_reader;
+
 mod cursor;
 pub use cursor::Cursor;

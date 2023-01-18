@@ -38,8 +38,6 @@ pub type Reader = Box<dyn Read>;
 ///
 /// `AsyncRead` is required to be implemented, `AsyncSeek` and `Stream`
 /// is optional. We use `Read` to make users life easier.
-///
-/// TODO: we can implement tokio::io::AsyncRead too.
 pub trait Read: Unpin + Send + Sync {
     /// Return the inner output bytes reader if there is one.
     fn inner(&mut self) -> Option<&mut Reader> {
@@ -50,7 +48,7 @@ pub trait Read: Unpin + Send + Sync {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match self.inner() {
             Some(v) => v.poll_read(cx, buf),
-            None => unimplemented!("poll_read is required to be implemented for OutputBytesRead"),
+            None => unimplemented!("poll_read is required to be implemented for output::Read"),
         }
     }
 

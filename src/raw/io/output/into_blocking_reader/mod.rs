@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,26 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod mode;
-pub use mode::ObjectMode;
+//! into_blocking_reader will provide different implementations to convert
+//! into [`output::BlockingRead`][crate::raw::output::BlockingRead]
 
-mod metadata;
-pub use metadata::ObjectMetadata;
+mod as_iterable;
+pub use as_iterable::as_iterable;
 
-mod multipart;
-pub use multipart::ObjectMultipart;
-pub use multipart::ObjectPart;
-
-#[allow(clippy::module_inception)]
-mod object;
-pub use object::Object;
-
-mod reader;
-pub use reader::ObjectReader;
-
-mod blocking_reader;
-pub use blocking_reader::BlockingObjectReader;
-
-mod list;
-pub use list::BlockingObjectLister;
-pub use list::ObjectLister;
+mod from_fd;
+pub use from_fd::from_fd;

@@ -1,5 +1,3 @@
-use std::io;
-use std::io::SeekFrom;
 // Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +11,13 @@ use std::io::SeekFrom;
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use std::io;
+use std::io::SeekFrom;
 use std::sync::Arc;
+
+use bytes::Bytes;
+use parking_lot::Mutex;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -21,8 +25,6 @@ use crate::raw::*;
 use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::OpRead;
-use bytes::Bytes;
-use parking_lot::Mutex;
 
 /// BlockingObjectReader is the public API for users.
 pub struct BlockingObjectReader {

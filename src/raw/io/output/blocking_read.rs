@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bytes::Bytes;
-
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::SeekFrom;
+
+use bytes::Bytes;
 
 /// BlockingReader is a boxed dyn `BlockingRead`.
 pub type BlockingReader = Box<dyn BlockingRead>;

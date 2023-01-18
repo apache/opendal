@@ -15,9 +15,10 @@
 use std::io::Result;
 use std::io::SeekFrom;
 
-use crate::raw::*;
 use bytes::Bytes;
 use tokio::io::ReadBuf;
+
+use crate::raw::*;
 
 /// as_iterable is used to make [`output::BlockingReader`] iterable.
 pub fn as_iterable(r: output::BlockingReader, capacity: usize) -> IntoIter {

@@ -15,7 +15,6 @@
 use std::cmp::min;
 use std::fmt::Debug;
 use std::io;
-use std::io::Seek;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -355,14 +354,14 @@ impl Accessor for Backend {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
-        use std::io::Read;
+        use output::BlockingRead;
 
         let p = build_rooted_abs_path(&self.root, path);
 
         // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
         let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
-        let mut f = self
+        let f = self
             .client
             .open_file()
             .read(true)
@@ -370,26 +369,22 @@ impl Accessor for Backend {
             .map_err(parse_io_error)?;
 
         let br = args.range();
-
-        let (r, size): (output::BlockingReader, _) = match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
-                (Box::new(f.take(size)), min(size, meta.len() - offset))
-            }
-            (Some(offset), None) => {
-                f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
-                (Box::new(f), meta.len() - offset)
-            }
-            (None, Some(size)) => {
-                // hdfs doesn't support seed from end.
-                f.seek(SeekFrom::Start(meta.len() - size))
-                    .map_err(parse_io_error)?;
-                (Box::new(f), size)
-            }
-            (None, None) => (Box::new(f), meta.len()),
+        let (start, end) = match (br.offset(), br.size()) {
+            // Read a specific range.
+            (Some(offset), Some(size)) => (offset, min(offset + size, meta.len())),
+            // Read from offset.
+            (Some(offset), None) => (offset, meta.len()),
+            // Read the last size bytes.
+            (None, Some(size)) => (meta.len() - size, meta.len()),
+            // Read the whole file.
+            (None, None) => (0, meta.len()),
         };
 
-        Ok((RpRead::new(size), r))
+        let mut r = output::into_blocking_reader::from_fd(f, start, end);
+        // Rewind to make sure we are on the correct offset.
+        r.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
+
+        Ok((RpRead::new(end - start), Box::new(r)))
     }
 
     fn blocking_write(

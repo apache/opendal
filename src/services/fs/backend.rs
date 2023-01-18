@@ -14,7 +14,6 @@
 
 use std::cmp::min;
 use std::io;
-use std::io::Read;
 use std::io::SeekFrom;
 use std::path::PathBuf;
 
@@ -476,55 +475,43 @@ impl Accessor for Backend {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
-        use std::io::Seek;
+        use output::BlockingRead;
 
         let p = build_rooted_abs_path(&self.root, path);
 
         // Validate if input path is a valid file.
         let meta = Self::blocking_fs_metadata(&p)?;
 
-        let mut f = std::fs::OpenOptions::new()
+        let f = std::fs::OpenOptions::new()
             .read(true)
             .open(&p)
             .map_err(parse_io_error)?;
 
         let br = args.range();
-        let (r, size): (output::BlockingReader, _) = match (br.offset(), br.size()) {
+        let (start, end) = match (br.offset(), br.size()) {
             // Read a specific range.
-            (Some(offset), Some(size)) => {
-                match offset {
-                    // Read from start.
-                    0 => (),
-                    // Read from offset.
-                    _ => {
-                        f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
-                    }
-                }
-                (Box::new(f.take(size)), min(size, meta.len() - offset))
-            }
+            (Some(offset), Some(size)) => (offset, min(offset + size, meta.len())),
             // Read from offset.
-            (Some(offset), None) => {
-                match offset {
-                    // Read from start.
-                    0 => (),
-                    // Read from offset.
-                    _ => {
-                        f.seek(SeekFrom::Start(offset)).map_err(parse_io_error)?;
-                    }
-                }
-                (Box::new(f), meta.len() - offset)
-            }
+            (Some(offset), None) => (offset, meta.len()),
             // Read the last size bytes.
-            (None, Some(size)) => {
-                f.seek(SeekFrom::End(-(size as i64)))
-                    .map_err(parse_io_error)?;
-                (Box::new(f), size)
-            }
+            (None, Some(size)) => (
+                if meta.len() > size {
+                    meta.len() - size
+                } else {
+                    0
+                },
+                meta.len(),
+            ),
             // Read the whole file.
-            (None, None) => (Box::new(f), meta.len()),
+            (None, None) => (0, meta.len()),
         };
 
-        Ok((RpRead::new(size), Box::new(r) as output::BlockingReader))
+        let mut r = output::into_blocking_reader::from_fd(f, start, end);
+
+        // Rewind to make sure we are on the correct offset.
+        r.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
+
+        Ok((RpRead::new(end - start), Box::new(r)))
     }
 
     fn blocking_write(

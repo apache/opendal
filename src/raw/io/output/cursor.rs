@@ -90,3 +90,42 @@ impl output::Read for Cursor {
         }
     }
 }
+
+impl output::BlockingRead for Cursor {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let n = Read::read(&mut self.remaining_slice(), buf)?;
+        self.pos += n as u64;
+        Ok(n)
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let (base, amt) = match pos {
+            SeekFrom::Start(n) => (0, n as i64),
+            SeekFrom::End(n) => (self.inner.len() as i64, n),
+            SeekFrom::Current(n) => (self.pos as i64, n),
+        };
+
+        let n = match base.checked_add(amt) {
+            Some(n) if n >= 0 => n as u64,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                ))
+            }
+        };
+        self.pos = n;
+        Ok(n)
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        if self.is_empty() {
+            None
+        } else {
+            // The clone here is required as we don't want to change it.
+            let bs = self.inner.clone().split_off(self.pos as usize);
+            self.pos += bs.len() as u64;
+            Some(Ok(bs))
+        }
+    }
+}

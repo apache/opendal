@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::io::Read;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
@@ -25,6 +26,7 @@ use time::OffsetDateTime;
 use tokio::io::ReadBuf;
 
 use super::BlockingObjectLister;
+use super::BlockingObjectReader;
 use super::ObjectLister;
 use crate::raw::*;
 use crate::*;
@@ -520,7 +522,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_reader(&self) -> Result<impl input::BlockingRead> {
+    pub fn blocking_reader(&self) -> Result<BlockingObjectReader> {
         self.blocking_range_reader(..)
     }
 
@@ -557,7 +559,6 @@ impl Object {
             );
         }
 
-        // Add total size hint for OpRead.
         let op = OpRead::new().with_range(range.into());
 
         ObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op).await
@@ -584,7 +585,7 @@ impl Object {
     pub fn blocking_range_reader(
         &self,
         range: impl RangeBounds<u64>,
-    ) -> Result<impl input::BlockingRead> {
+    ) -> Result<BlockingObjectReader> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
@@ -594,11 +595,9 @@ impl Object {
             );
         }
 
-        let (_, r) = self
-            .acc
-            .blocking_read(self.path(), OpRead::new().with_range(range.into()))?;
+        let op = OpRead::new().with_range(range.into());
 
-        Ok(r)
+        BlockingObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op)
     }
 
     /// Read the whole object into a bytes with auto detected compress algorithm.

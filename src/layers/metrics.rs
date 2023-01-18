@@ -924,6 +924,38 @@ impl<R> BlockingMetricReader<R> {
     }
 }
 
+impl output::BlockingRead for BlockingMetricReader<output::BlockingReader> {
+    fn inner(&mut self) -> Option<&mut output::BlockingReader> {
+        Some(&mut self.inner)
+    }
+
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner
+            .read(buf)
+            .map(|n| {
+                self.bytes += n as u64;
+                n
+            })
+            .map_err(|e| {
+                self.errors_counter.increment(1);
+                e
+            })
+    }
+
+    fn next(&mut self) -> Option<io::Result<Bytes>> {
+        self.inner.next().map(|res| match res {
+            Ok(bytes) => {
+                self.bytes += bytes.len() as u64;
+                Ok(bytes)
+            }
+            Err(e) => {
+                self.errors_counter.increment(1);
+                Err(e)
+            }
+        })
+    }
+}
+
 impl<R: input::BlockingRead> Read for BlockingMetricReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner

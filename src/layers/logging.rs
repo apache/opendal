@@ -1075,7 +1075,7 @@ impl output::Read for LoggingReader<output::Reader> {
     }
 }
 
-impl<R: AsyncRead + Unpin + Send> AsyncRead for LoggingReader<R> {
+impl<R: input::Read> AsyncRead for LoggingReader<R> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -1187,6 +1187,79 @@ impl<R> Drop for BlockingLoggingReader<R> {
             self.path,
             self.has_read
         );
+    }
+}
+
+impl output::BlockingRead for BlockingLoggingReader<output::BlockingReader> {
+    fn inner(&mut self) -> Option<&mut output::BlockingReader> {
+        Some(&mut self.inner)
+    }
+
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self.inner.read(buf) {
+            Ok(n) => {
+                self.has_read += n as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} has_read={} -> {}: {}B",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read,
+                    self.op,
+                    n
+                );
+                Ok(n)
+            }
+            Err(err) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                        self.scheme,
+                        self.op,
+                        self.path,
+                        self.has_read,
+                    );
+                }
+                Err(err)
+            }
+        }
+    }
+
+    fn next(&mut self) -> Option<io::Result<Bytes>> {
+        match self.inner.next() {
+            Some(Ok(bs)) => {
+                self.has_read += bs.len() as u64;
+                trace!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} has_read={} -> {}: {}B",
+                    self.scheme,
+                    self.op,
+                    self.path,
+                    self.has_read,
+                    self.op,
+                    bs.len()
+                );
+                Some(Ok(bs))
+            }
+            Some(Err(err)) => {
+                if let Some(lvl) = self.failure_level {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} has_read={} -> failed: {err:?}",
+                        self.scheme,
+                        self.op,
+                        self.path,
+                        self.has_read,
+                    )
+                }
+                Some(Err(err))
+            }
+            None => None,
+        }
     }
 }
 

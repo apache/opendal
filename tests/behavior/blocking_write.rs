@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::io::Read;
+use std::io::Seek;
+
 use anyhow::Result;
 use log::debug;
 use opendal::ErrorKind;
@@ -81,6 +84,9 @@ macro_rules! behavior_blocking_write_tests {
                 test_read_range,
                 test_read_large_range,
                 test_read_not_exist,
+                test_fuzz_range_reader,
+                test_fuzz_offset_reader,
+                test_fuzz_part_reader,
                 test_delete,
             );
         )*
@@ -393,6 +399,119 @@ pub fn test_read_not_exist(op: Operator) -> Result<()> {
     assert!(bs.is_err());
     assert_eq!(bs.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
+    Ok(())
+}
+
+pub fn test_fuzz_range_reader(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    op.object(&path)
+        .blocking_write(content.clone())
+        .expect("write must succeed");
+
+    let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
+    let mut o = op
+        .object(&path)
+        .blocking_range_reader(0..content.len() as u64)?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectReaderAction::Read(size) => {
+                let mut bs = vec![0; size];
+                let n = o.read(&mut bs)?;
+                fuzzer.check_read(n, &bs[..n])
+            }
+            ObjectReaderAction::Seek(input_pos) => {
+                let actual_pos = o.seek(input_pos)?;
+                fuzzer.check_seek(input_pos, actual_pos)
+            }
+            ObjectReaderAction::Next => {
+                let actual_bs = o.next().map(|v| v.expect("next should not return error"));
+                fuzzer.check_next(actual_bs)
+            }
+        }
+    }
+
+    op.object(&path)
+        .blocking_delete()
+        .expect("delete must succeed");
+    Ok(())
+}
+
+pub fn test_fuzz_offset_reader(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, _) = gen_bytes();
+
+    op.object(&path)
+        .blocking_write(content.clone())
+        .expect("write must succeed");
+
+    let mut fuzzer = ObjectReaderFuzzer::new(&path, content.clone(), 0, content.len());
+    let mut o = op.object(&path).blocking_range_reader(0..)?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectReaderAction::Read(size) => {
+                let mut bs = vec![0; size];
+                let n = o.read(&mut bs)?;
+                fuzzer.check_read(n, &bs[..n])
+            }
+            ObjectReaderAction::Seek(input_pos) => {
+                let actual_pos = o.seek(input_pos)?;
+                fuzzer.check_seek(input_pos, actual_pos)
+            }
+            ObjectReaderAction::Next => {
+                let actual_bs = o.next().map(|v| v.expect("next should not return error"));
+                fuzzer.check_next(actual_bs)
+            }
+        }
+    }
+
+    op.object(&path)
+        .blocking_delete()
+        .expect("delete must succeed");
+    Ok(())
+}
+
+pub fn test_fuzz_part_reader(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file: {}", &path);
+    let (content, size) = gen_bytes();
+    let (offset, length) = gen_offset_length(size);
+
+    op.object(&path)
+        .blocking_write(content.clone())
+        .expect("write must succeed");
+
+    let mut fuzzer = ObjectReaderFuzzer::new(&path, content, offset as usize, length as usize);
+    let mut o = op
+        .object(&path)
+        .blocking_range_reader(offset..offset + length)?;
+
+    for _ in 0..100 {
+        match fuzzer.fuzz() {
+            ObjectReaderAction::Read(size) => {
+                let mut bs = vec![0; size];
+                let n = o.read(&mut bs)?;
+                fuzzer.check_read(n, &bs[..n])
+            }
+            ObjectReaderAction::Seek(input_pos) => {
+                let actual_pos = o.seek(input_pos)?;
+                fuzzer.check_seek(input_pos, actual_pos)
+            }
+            ObjectReaderAction::Next => {
+                let actual_bs = o.next().map(|v| v.expect("next should not return error"));
+                fuzzer.check_next(actual_bs)
+            }
+        }
+    }
+
+    op.object(&path)
+        .blocking_delete()
+        .expect("delete must succeed");
     Ok(())
 }
 

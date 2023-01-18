@@ -108,7 +108,7 @@ where
         let bs = self.apply_range(bs, args.range());
         Ok((
             RpRead::new(bs.len() as u64),
-            Box::new(std::io::Cursor::new(bs)),
+            Box::new(output::Cursor::from(bs)),
         ))
     }
 

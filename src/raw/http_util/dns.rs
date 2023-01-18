@@ -87,7 +87,7 @@ impl reqwest::dns::Resolve for AsyncStdDnsResolver {
         let fut = async move {
             match runtime
                 .spawn_blocking(move || {
-                    ToSocketAddrs::to_socket_addrs(name.as_str()).map(|iter| {
+                    (name.as_str(), 0).to_socket_addrs().map(|iter| {
                         let res: Vec<_> = iter.collect();
                         // Insert into cache if resolved succeeded.
                         cache.insert(name.as_str(), res.clone());
@@ -138,10 +138,7 @@ impl reqwest::dns::Resolve for AsyncTrustDnsResolver {
         let fut = async move {
             let lookup = resolver.lookup_ip(name.as_str()).await?;
 
-            Ok(
-                Box::new(lookup.into_iter().map(|v| SocketAddr::from((v, 0))))
-                    as reqwest::dns::Addrs,
-            )
+            Ok(Box::new(lookup.into_iter().map(|v| SocketAddr::new(v, 0))) as reqwest::dns::Addrs)
         };
 
         Box::pin(fut)

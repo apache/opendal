@@ -41,6 +41,7 @@ pub struct Builder {
     endpoint: Option<String>,
     account_name: Option<String>,
     account_key: Option<String>,
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for Builder {
@@ -138,6 +139,17 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Consume builder to build an azblob backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -151,7 +163,7 @@ impl Builder {
             true => Err(
                 Error::new(ErrorKind::BackendConfigInvalid, "filesystem is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azblob),
+                    .with_context("service", Scheme::Azdfs),
             ),
         }?;
         debug!("backend use filesystem {}", &filesystem);
@@ -161,12 +173,19 @@ impl Builder {
             None => Err(
                 Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azblob),
+                    .with_context("service", Scheme::Azdfs),
             ),
         }?;
         debug!("backend use endpoint {}", &filesystem);
 
-        let client = HttpClient::new();
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Azdfs)
+            })?
+        };
 
         let mut signer_builder = AzureStorageSigner::builder();
         if let (Some(name), Some(key)) = (&self.account_name, &self.account_key) {

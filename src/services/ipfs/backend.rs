@@ -33,6 +33,7 @@ use crate::*;
 pub struct Builder {
     endpoint: Option<String>,
     root: Option<String>,
+    http_client: Option<HttpClient>,
 }
 
 impl Builder {
@@ -86,6 +87,17 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Consume builder to build an ipfs backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -111,11 +123,20 @@ impl Builder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Ipfs)
+            })?
+        };
+
         debug!("backend build finished: {:?}", &self);
         Ok(apply_wrapper(Backend {
             root,
             endpoint,
-            client: HttpClient::new(),
+            client,
         }))
     }
 }

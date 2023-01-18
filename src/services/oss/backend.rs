@@ -47,6 +47,8 @@ pub struct Builder {
     access_key_secret: Option<String>,
 
     allow_anonymous: bool,
+
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for Builder {
@@ -167,6 +169,17 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// preprocess the endpoint option
     fn parse_endpoint(&self, endpoint: &Option<String>, bucket: &str) -> Result<(String, String)> {
         let (endpoint, host) = match endpoint.clone() {
@@ -197,7 +210,7 @@ impl Builder {
     }
 
     /// finish building
-    pub fn build(&self) -> Result<impl Accessor> {
+    pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.clone().unwrap_or_default());
@@ -211,6 +224,15 @@ impl Builder {
                     .with_context("service", Scheme::Oss),
             ),
         }?;
+
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Oss)
+            })?
+        };
 
         // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
         // set, take endpoint as default presign_endpoint.
@@ -252,7 +274,7 @@ impl Builder {
             endpoint,
             presign_endpoint,
             host,
-            client: HttpClient::new(),
+            client,
             bucket: self.bucket.clone(),
             signer: Arc::new(signer),
         }))

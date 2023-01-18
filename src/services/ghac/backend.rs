@@ -61,6 +61,8 @@ pub struct Builder {
     root: Option<String>,
     version: Option<String>,
     enable_create_simulation: bool,
+
+    http_client: Option<HttpClient>,
 }
 
 impl Builder {
@@ -113,12 +115,32 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Build a github action cache runner.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
+
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Ghac)
+            })?
+        };
 
         let backend = Backend {
             root,
@@ -150,7 +172,7 @@ impl Builder {
             api_token: env::var(GITHUB_TOKEN).unwrap_or_default(),
             repo: env::var(GITHUB_REPOSITORY).unwrap_or_default(),
 
-            client: HttpClient::new(),
+            client,
         };
 
         Ok(apply_wrapper(backend))

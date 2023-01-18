@@ -30,6 +30,7 @@ use crate::*;
 pub struct Builder {
     endpoint: Option<String>,
     root: Option<String>,
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for Builder {
@@ -82,6 +83,17 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Build a HTTP backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -99,7 +111,14 @@ impl Builder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = HttpClient::new();
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Http)
+            })?
+        };
 
         debug!("backend build finished: {:?}", &self);
         Ok(apply_wrapper(Backend {

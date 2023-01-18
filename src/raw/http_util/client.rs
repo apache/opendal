@@ -43,12 +43,6 @@ pub struct HttpClient {
     sync_client: ureq::Agent,
 }
 
-impl Default for HttpClient {
-    fn default() -> Self {
-        HttpClient::new()
-    }
-}
-
 /// We don't want users to know details about our clients.
 impl Debug for HttpClient {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -58,7 +52,7 @@ impl Debug for HttpClient {
 
 impl HttpClient {
     /// Create a new http client.
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         let async_client = {
             let mut builder = ClientBuilder::new();
 
@@ -76,7 +70,9 @@ impl HttpClient {
             #[cfg(not(feature = "trust-dns"))]
             let builder = builder.dns_resolver(Arc::new(AsyncStdDnsResolver::default()));
 
-            builder.build().expect("reqwest client must build succeed")
+            builder.build().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "async client build failed").set_source(err)
+            })?
         };
 
         let sync_client = {
@@ -97,7 +93,23 @@ impl HttpClient {
             builder.build()
         };
 
-        HttpClient {
+        Ok(HttpClient {
+            async_client,
+            sync_client,
+        })
+    }
+
+    /// Build a new http client from already built clients.
+    ///
+    /// # Notes
+    ///
+    /// By using this method, it's caller's duty to make sure everything
+    /// configured correctly. Like proxy, dns resolver and so on.
+    ///
+    /// And this API is an internal API, OpenDAL could change it while bumping
+    /// minor versions.
+    pub fn with_client(async_client: reqwest::Client, sync_client: ureq::Agent) -> Self {
+        Self {
             async_client,
             sync_client,
         }

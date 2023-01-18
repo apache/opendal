@@ -46,6 +46,7 @@ pub struct Builder {
     account_name: Option<String>,
     account_key: Option<String>,
     sas_token: Option<String>,
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for Builder {
@@ -140,6 +141,17 @@ impl Builder {
             self.sas_token = Some(sas_token.to_string());
         }
 
+        self
+    }
+
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
         self
     }
 
@@ -274,7 +286,14 @@ impl Builder {
         }?;
         debug!("backend use endpoint {}", &container);
 
-        let client = HttpClient::new();
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Azblob)
+            })?
+        };
 
         let mut signer_builder = AzureStorageSigner::builder();
         if let Some(sas_token) = &self.sas_token {

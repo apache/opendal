@@ -115,7 +115,10 @@ impl Builder {
         Ok(apply_wrapper(Backend {
             root,
             endpoint,
-            client: HttpClient::new(),
+            client: HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Azblob)
+            })?,
         }))
     }
 }

@@ -252,7 +252,10 @@ impl Builder {
             endpoint,
             presign_endpoint,
             host,
-            client: HttpClient::new(),
+            client: HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Oss)
+            })?,
             bucket: self.bucket.clone(),
             signer: Arc::new(signer),
         }))

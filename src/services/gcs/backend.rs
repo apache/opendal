@@ -186,7 +186,11 @@ impl Builder {
         // TODO: server side encryption
 
         // build http client
-        let client = HttpClient::new();
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", Scheme::Gcs)
+        })?;
+
         let endpoint = self
             .endpoint
             .clone()

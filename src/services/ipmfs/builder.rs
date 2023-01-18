@@ -17,6 +17,7 @@ use log::debug;
 use super::backend::Backend;
 use crate::raw::*;
 use crate::Result;
+use crate::Scheme;
 
 /// Builder for service ipfs.
 #[derive(Default, Debug)]
@@ -74,7 +75,10 @@ impl Builder {
             .clone()
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
-        let client = HttpClient::new();
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", Scheme::Ipmfs)
+        })?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(apply_wrapper(Backend::new(root, client, endpoint)))

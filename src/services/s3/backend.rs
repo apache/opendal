@@ -682,7 +682,10 @@ impl Builder {
                 })?),
             };
 
-        let client = HttpClient::new();
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", Scheme::S3)
+        })?;
 
         let cfg = AwsConfigLoader::default();
         if !self.disable_config_load {
@@ -1441,7 +1444,7 @@ mod tests {
     fn test_region() {
         let _ = env_logger::try_init();
 
-        let client = HttpClient::new();
+        let client = HttpClient::new().unwrap();
 
         let endpoint_cases = vec![
             Some("s3.amazonaws.com"),

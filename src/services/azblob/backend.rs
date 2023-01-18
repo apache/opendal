@@ -274,7 +274,10 @@ impl Builder {
         }?;
         debug!("backend use endpoint {}", &container);
 
-        let client = HttpClient::new();
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", Scheme::Azblob)
+        })?;
 
         let mut signer_builder = AzureStorageSigner::builder();
         if let Some(sas_token) = &self.sas_token {

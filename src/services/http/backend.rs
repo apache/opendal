@@ -99,7 +99,10 @@ impl Builder {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
-        let client = HttpClient::new();
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", Scheme::Http)
+        })?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(apply_wrapper(Backend {

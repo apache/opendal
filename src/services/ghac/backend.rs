@@ -150,7 +150,10 @@ impl Builder {
             api_token: env::var(GITHUB_TOKEN).unwrap_or_default(),
             repo: env::var(GITHUB_REPOSITORY).unwrap_or_default(),
 
-            client: HttpClient::new(),
+            client: HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Ghac)
+            })?,
         };
 
         Ok(apply_wrapper(backend))

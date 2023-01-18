@@ -175,7 +175,10 @@ impl Builder {
 
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = HttpClient::new();
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", Scheme::Obs)
+        })?;
 
         let mut signer_builder = HuaweicloudObsSigner::builder();
         if let (Some(access_key_id), Some(secret_access_key)) =

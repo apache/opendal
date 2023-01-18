@@ -100,7 +100,7 @@ name = "tracing_layer"
 required-features = ["layers-all"]
 
 [dependencies]
-anyhow = { version = "1.0", features = ["std"] }
+anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
 async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
@@ -108,16 +108,16 @@ async-compression = { package = "async-compression-issue-150-workaround", versio
   "all-algorithms",
 ], optional = true }
 async-tls = { version = "0.11", optional = true }
-async-trait = "0.1"
+async-trait = "0.1.50"
 backon = "0.2"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bincode = { version = "2.0.0-rc.2", features = ["serde"] }
-bytes = "1"
+bytes = "1.2"
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }
-http = "0.2"
+http = "0.2.5"
 hyper = "0.14"
 lazy-regex = { version = "2.4.1", optional = true }
 log = "0.4"
@@ -136,7 +136,7 @@ redis = { version = "0.22", features = [
   "connection-manager",
 ], optional = true }
 reqsign = "0.8.1"
-reqwest = { version = "0.11", features = [
+reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",
 ], default-features = false }
@@ -147,7 +147,7 @@ suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
   "async-rustls",
 ], optional = true }
-time = { version = "0.3", features = ["serde"] }
+time = { version = "0.3.10", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
 trust-dns-resolver = { version = "0.22", optional = true }

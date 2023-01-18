@@ -39,6 +39,7 @@ pub struct Builder {
     access_key_id: Option<String>,
     secret_access_key: Option<String>,
     bucket: Option<String>,
+    http_client: Option<HttpClient>,
 }
 
 impl Debug for Builder {
@@ -131,6 +132,17 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Consume builder to build an OBS backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -172,13 +184,16 @@ impl Builder {
                 (host, false)
             }
         };
-
         debug!("backend use endpoint {}", &endpoint);
 
-        let client = HttpClient::new().map_err(|err| {
-            err.with_operation("Builder::build")
-                .with_context("service", Scheme::Obs)
-        })?;
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Obs)
+            })?
+        };
 
         let mut signer_builder = HuaweicloudObsSigner::builder();
         if let (Some(access_key_id), Some(secret_access_key)) =

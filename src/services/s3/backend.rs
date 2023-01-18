@@ -97,6 +97,7 @@ pub struct Builder {
     disable_config_load: bool,
     enable_virtual_host_style: bool,
 
+    http_client: Option<HttpClient>,
     customed_credential_load: Option<Arc<dyn AwsCredentialLoad>>,
 }
 
@@ -470,6 +471,17 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Read RFC-0057: Auto Region for detailed behavior.
     ///
     /// - If region is already known, the region will be returned directly.
@@ -682,10 +694,14 @@ impl Builder {
                 })?),
             };
 
-        let client = HttpClient::new().map_err(|err| {
-            err.with_operation("Builder::build")
-                .with_context("service", Scheme::S3)
-        })?;
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::S3)
+            })?
+        };
 
         let cfg = AwsConfigLoader::default();
         if !self.disable_config_load {

@@ -62,6 +62,7 @@ pub struct Builder {
     /// credential path for GCS service.
     credential_path: Option<String>,
 
+    http_client: Option<HttpClient>,
     signer: Option<Arc<GoogleSigner>>,
 }
 
@@ -150,6 +151,17 @@ impl Builder {
         self
     }
 
+    /// Specify the http client that used by this service.
+    ///
+    /// # Notes
+    ///
+    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
+    /// during minor updates.
+    pub fn http_client(&mut self, client: HttpClient) -> &mut Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Specify the signer directly instead of builling by OpenDAL.
     ///
     /// If signer is specified, the following settings will not be used
@@ -185,11 +197,14 @@ impl Builder {
 
         // TODO: server side encryption
 
-        // build http client
-        let client = HttpClient::new().map_err(|err| {
-            err.with_operation("Builder::build")
-                .with_context("service", Scheme::Gcs)
-        })?;
+        let client = if let Some(client) = self.http_client.take() {
+            client
+        } else {
+            HttpClient::new().map_err(|err| {
+                err.with_operation("Builder::build")
+                    .with_context("service", Scheme::Gcs)
+            })?
+        };
 
         let endpoint = self
             .endpoint

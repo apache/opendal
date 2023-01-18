@@ -36,7 +36,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
-        run: cargo test azblob --features compress -- --nocapture
+        run: cargo test azblob --features compress -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

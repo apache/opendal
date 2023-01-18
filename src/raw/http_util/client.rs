@@ -17,6 +17,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use futures::TryStreamExt;
 use http::Request;
@@ -27,6 +28,7 @@ use reqwest::ClientBuilder;
 use reqwest::Url;
 
 use super::body::IncomingAsyncBody;
+use super::dns::*;
 use super::parse_content_length;
 use super::AsyncBody;
 use super::Body;
@@ -70,11 +72,9 @@ impl HttpClient {
             builder = builder.redirect(Policy::none());
 
             #[cfg(feature = "trust-dns")]
-            // using trust-dns async resolver
-            let builder = builder.trust_dns(true);
+            let builder = builder.dns_resolver(Arc::new(AsyncTrustDnsResolver::new().unwrap()));
             #[cfg(not(feature = "trust-dns"))]
-            // using `getaddrinfo`
-            let builder = builder.no_trust_dns();
+            let builder = builder.dns_resolver(Arc::new(AsyncStdDnsResolver::default()));
 
             builder.build().expect("reqwest client must build succeed")
         };
@@ -91,6 +91,8 @@ impl HttpClient {
                     }
                 }
             }
+
+            let builder = builder.resolver(StdDnsResolver::default());
 
             builder.build()
         };

@@ -19,9 +19,10 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
+use futures::ready;
+use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
-use futures::{ready, AsyncRead};
 use parking_lot::Mutex;
 
 use crate::error::Result;
@@ -272,11 +273,14 @@ async fn get_total_size(
 
 #[cfg(test)]
 mod tests {
-    use crate::{Operator, Scheme};
     use rand::rngs::ThreadRng;
-    use rand::{Rng, RngCore};
+    use rand::Rng;
+    use rand::RngCore;
     use tokio::io::AsyncReadExt;
     use tokio::io::AsyncSeekExt;
+
+    use crate::Operator;
+    use crate::Scheme;
 
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = ThreadRng::default();

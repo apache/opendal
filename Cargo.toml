@@ -23,8 +23,8 @@ default = ["rustls"]
 unwind-safe = []
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
-# Enable trust-dns for better dns cache.
-trust-dns = ["reqwest/trust-dns"]
+# Enable trust-dns for pure rust dns cache.
+trust-dns = ["reqwest/trust-dns", "dep:trust-dns-resolver"]
 
 # Enable rustls for TLS support
 rustls = ["reqwest/rustls-tls-native-roots", "ureq/tls", "ureq/native-certs"]
@@ -118,6 +118,7 @@ flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }
 http = "0.2"
+hyper = "0.14"
 lazy-regex = { version = "2.4.1", optional = true }
 log = "0.4"
 md-5 = "0.10"
@@ -149,6 +150,7 @@ suppaftp = { version = "4.5", default-features = false, features = [
 time = { version = "0.3", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
+trust-dns-resolver = { version = "0.22", optional = true }
 ureq = { version = "2", default-features = false }
 uuid = { version = "1", features = ["serde", "v4"] }
 

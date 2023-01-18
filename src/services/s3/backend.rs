@@ -1437,8 +1437,8 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_region() {
+    #[test]
+    fn test_region() {
         let _ = env_logger::try_init();
 
         let client = HttpClient::new();
@@ -1464,8 +1464,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_build_endpoint() {
+    #[test]
+    fn test_build_endpoint() {
         let _ = env_logger::try_init();
 
         let endpoint_cases = vec![

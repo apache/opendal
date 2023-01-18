@@ -30,7 +30,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test ghac --features compress -- --nocapture
+        run: cargo test ghac --features compress -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

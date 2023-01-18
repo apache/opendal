@@ -36,7 +36,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
-        run: cargo test memcached --features compress,services-memcached -- --nocapture
+        run: cargo test memcached --features compress,services-memcached -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

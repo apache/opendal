@@ -33,7 +33,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test http --features compress -- --nocapture
+        run: cargo test http --features compress -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -66,7 +66,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
-        run: cargo test http --features compress -- --nocapture
+        run: cargo test http --features compress -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

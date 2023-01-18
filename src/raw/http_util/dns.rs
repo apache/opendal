@@ -87,6 +87,10 @@ impl reqwest::dns::Resolve for AsyncStdDnsResolver {
         let fut = async move {
             match runtime
                 .spawn_blocking(move || {
+                    // hyper will set port externally, so the port here is
+                    // just used to construct a correct query.
+                    //
+                    // Ref: <https://github.com/hyperium/hyper/blob/4d89adce6122af1650165337d9d814314e7ee409/src/client/connect/http.rs#L322-L359>
                     (name.as_str(), 0).to_socket_addrs().map(|iter| {
                         let res: Vec<_> = iter.collect();
                         // Insert into cache if resolved succeeded.
@@ -138,6 +142,10 @@ impl reqwest::dns::Resolve for AsyncTrustDnsResolver {
         let fut = async move {
             let lookup = resolver.lookup_ip(name.as_str()).await?;
 
+            // hyper will set port externally, so the port here is
+            // just used to construct a correct SocketAddr.
+            //
+            // Ref: <https://github.com/hyperium/hyper/blob/4d89adce6122af1650165337d9d814314e7ee409/src/client/connect/http.rs#L322-L359>
             Ok(Box::new(lookup.into_iter().map(|v| SocketAddr::new(v, 0))) as reqwest::dns::Addrs)
         };
 

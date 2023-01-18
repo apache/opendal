@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.25.0] - 2023-01-18
+
+### Added
+
+- feat: Add dns cache for std dns resolver (#1191)
+- feat: Allow setting http client that built from external (#1192)
+- feat: Implement BlockingObjectReader (#1194)
+
+### Changed
+
+- chore(deps): replace dotenv with dotenvy (#1187)
+- refactor: Avoid calling detect region if we know the region (#1188)
+- chore: ensure minimal version buildable (#1193)
+
 ## [v0.24.6] - 2023-01-12
 
 ### Added
@@ -1197,6 +1211,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.25.0]: https://github.com/datafuselabs/opendal/compare/v0.24.6...v0.25.0
 [v0.24.6]: https://github.com/datafuselabs/opendal/compare/v0.24.5...v0.24.6
 [v0.24.5]: https://github.com/datafuselabs/opendal/compare/v0.24.4...v0.24.5
 [v0.24.4]: https://github.com/datafuselabs/opendal/compare/v0.24.3...v0.24.4

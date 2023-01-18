@@ -2,6 +2,21 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
+## Upgrade t0 v0.25
+
+In v0.25, we bring the same feature sets from `ObjectReader` to `BlockingObjectReader`.
+
+Due to this change, all code that depends on `BlockingBytesReader` should be refactored.
+
+- `BlockingBytesReader` => `input::BlockingReader`
+- `BlockingOutputBytesReader` => `output::BlockingReader`
+
+Most changes only happen inside. Users not using `opendal::raw::*` will not be affected.
+
+Apart from this change, we refactored s3 credential loading logic. After this change, we can disable the config load instead of the credential methods.
+
+- `builder.disable_credential_loader` => `builder.disable_config_load`
+
 ## Upgrade to v0.24
 
 In v0.24, we made a big refactor on our internal IO-related traits. In this version, we split our IO traits into `input` and `output` versions:

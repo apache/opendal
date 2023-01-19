@@ -3,7 +3,7 @@ requires = ["maturin>=0.14,<0.15"]
 build-backend = "maturin"
 
 [project]
-name = "python"
+name = "opendal"
 requires-python = ">=3.7"
 classifiers = [
     "Programming Language :: Rust",

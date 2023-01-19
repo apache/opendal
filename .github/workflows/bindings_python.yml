@@ -26,20 +26,22 @@ jobs:
           name: wheels
           path: bindings/python/dist
 
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: PyO3/maturin-action@v1
-        with:
-          working-directory: "bindings/python"
-          command: build
-          args: --release -o dist --find-interpreter
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: bindings/python/dist
+  # Disable windows until we have test case migrated.
+  #
+  # windows:
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: PyO3/maturin-action@v1
+  #       with:
+  #         working-directory: "bindings/python"
+  #         command: build
+  #         args: --release -o dist --find-interpreter
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wheels
+  #         path: bindings/python/dist
 
   macos:
     runs-on: macos-latest

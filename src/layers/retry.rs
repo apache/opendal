@@ -134,7 +134,7 @@ where
     ///
     /// Allowing users to retry the write request from upper logic.
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.inner.write(path, args.clone(), r).await
+        self.inner.write(path, args, r).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

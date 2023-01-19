@@ -4,7 +4,7 @@ header:
     copyright-owner: Datafuse Labs
   paths-ignore:
     # Ignore hidden files
-    - ".*"
+    - "**/.*"
     # Ignore LICENSE and Makefile
     - "LICENSE"
     - "Makefile"

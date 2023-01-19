@@ -1,0 +1,12 @@
+[package]
+name = "opendal-python"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+name = "opendal"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.18", features = ["extension-module"] }
+opendal = {version = "0.25", path = "../../" }

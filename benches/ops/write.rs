@@ -27,12 +27,12 @@ pub fn bench(c: &mut Criterion) {
 
         let op = case.1.unwrap();
 
-        bench_write_once(c, op.clone());
+        bench_write_once(c, case.0, op.clone());
     }
 }
 
-fn bench_write_once(c: &mut Criterion, op: Operator) {
-    let mut group = c.benchmark_group("write_once");
+fn bench_write_once(c: &mut Criterion, name: &str, op: Operator) {
+    let mut group = c.benchmark_group(format!("service_{name}_write_once"));
 
     let mut rng = thread_rng();
 

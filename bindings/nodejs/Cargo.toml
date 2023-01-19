@@ -1,0 +1,15 @@
+[package]
+name = "opendal-nodejs"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = "2"
+napi-derive = "2"
+opendal = {version = "0.25", path = "../../" }
+
+[build-dependencies]
+napi-build = "2"

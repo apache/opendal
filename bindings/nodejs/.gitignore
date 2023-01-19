@@ -1,0 +1,7 @@
+/target
+
+*.node
+
+Cargo.lock
+
+node_modules/

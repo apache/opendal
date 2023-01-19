@@ -1,0 +1,33 @@
+{
+  "name": "opendal",
+  "author": "Databend Authors <opensource@datafuselabs.com>",
+  "license": "Apache-2.0",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "dependencies": {
+    "@node-rs/helper": "^1.2.1"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^1.0.0"
+  },
+  "napi": {
+    "name": "opendal",
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">= 10"
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "prepublishOnly": "napi prepublish -t npm",
+    "version": "napi version"
+  }
+}

@@ -46,13 +46,3 @@ pub use into_sink::into_sink;
 
 mod into_stream;
 pub use into_stream::into_stream;
-
-mod read_observer;
-pub use read_observer::observe_read;
-pub use read_observer::ReadEvent;
-pub use read_observer::ReadObserver;
-
-mod write_observer;
-pub use write_observer::observe_write;
-pub use write_observer::WriteEvent;
-pub use write_observer::WriteObserver;

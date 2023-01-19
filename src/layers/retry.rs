@@ -115,7 +115,19 @@ where
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        self.inner.read(path, args).await
+        let (rp, r) = { || self.inner.read(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Read, dur.as_secs_f64(), err)
+            })
+            .await
+            .map_err(|e| e.set_persistent())?;
+
+        Ok((rp, r))
     }
 
     /// Return `Interrupted` Error even after retry.
@@ -266,7 +278,34 @@ where
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
-        self.inner.blocking_read(path, args)
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.blocking_read(path, args.clone());
+
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let retryable = err.is_temporary();
+                    e = Some(err);
+
+                    if retryable {
+                        sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingRead, path, dur.as_secs_f64(), e);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
     }
 
     fn blocking_write(

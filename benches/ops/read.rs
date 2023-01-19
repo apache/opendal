@@ -29,14 +29,14 @@ pub fn bench(c: &mut Criterion) {
 
         let op = case.1.unwrap();
 
-        bench_read_full(c, op.clone());
-        bench_read_part(c, op.clone());
-        bench_read_parallel(c, op.clone());
+        bench_read_full(c, case.0, op.clone());
+        bench_read_part(c, case.0, op.clone());
+        bench_read_parallel(c, case.0, op.clone());
     }
 }
 
-fn bench_read_full(c: &mut Criterion, op: Operator) {
-    let mut group = c.benchmark_group("read_full");
+fn bench_read_full(c: &mut Criterion, name: &str, op: Operator) {
+    let mut group = c.benchmark_group(format!("service_{name}_read_full"));
 
     let mut rng = thread_rng();
 
@@ -69,8 +69,8 @@ fn bench_read_full(c: &mut Criterion, op: Operator) {
 }
 
 /// Read from 1/4 to 3/4 and than drop the reader without consuming all data;
-fn bench_read_part(c: &mut Criterion, op: Operator) {
-    let mut group = c.benchmark_group("read_part");
+fn bench_read_part(c: &mut Criterion, name: &str, op: Operator) {
+    let mut group = c.benchmark_group(format!("service_{name}_read_part"));
 
     let mut rng = thread_rng();
 
@@ -99,8 +99,8 @@ fn bench_read_part(c: &mut Criterion, op: Operator) {
     group.finish()
 }
 
-fn bench_read_parallel(c: &mut Criterion, op: Operator) {
-    let mut group = c.benchmark_group("read_parallel");
+fn bench_read_parallel(c: &mut Criterion, name: &str, op: Operator) {
+    let mut group = c.benchmark_group(format!("service_{name}_read_parallel"));
 
     let mut rng = thread_rng();
 

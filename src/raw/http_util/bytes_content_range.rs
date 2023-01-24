@@ -25,7 +25,7 @@ use crate::Result;
 
 /// BytesContentRange is the content range of bytes.
 ///
-/// <unit> should always be `bytes`.
+/// `<unit>` should always be `bytes`.
 ///
 /// ```text
 /// Content-Range: bytes <range-start>-<range-end>/<size>

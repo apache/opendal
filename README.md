@@ -8,12 +8,8 @@
 
 **Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
 
----
-
-You may be looking for:
-
-- [Documentation](https://opendal.databend.rs)
-- [API Reference](https://opendal.databend.rs/opendal/)
+- [User Guide](https://opendal.databend.rs)
+- API Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.databend.rs/opendal/)
 - [Release notes](https://github.com/datafuselabs/opendal/releases)
 
 ## Services
@@ -56,6 +52,7 @@ Access data **painlessly**
 Access data **efficiently**
 
 - Zero cost: mapping to underlying API calls directly
+- Best effort: auto pick the best `read`/`seek`/`next` implementations based on services
 - [Auto metadata reuse](https://opendal.databend.rs/rfcs/0561-list-metadata-reuse.html): avoid extra `metadata` calls
 
 ## Quickstart

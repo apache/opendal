@@ -29,7 +29,7 @@ use crate::Result;
 ///
 /// BytesRange implements `ToString` which can be used as `Range` HTTP header directly.
 ///
-/// <unit> should always be `bytes`.
+/// `<unit>` should always be `bytes`.
 ///
 /// ```text
 /// Range: bytes=<range-start>-
@@ -63,8 +63,8 @@ impl BytesRange {
     ///
     /// The behavior for `None` and `Some(0)` is different.
     ///
-    /// - offset=None => `bytes=-<size>`, read <size> bytes from end.
-    /// - offset=Some(0) => `bytes=0-<size>`, read <size> bytes from start.
+    /// - offset=None => `bytes=-<size>`, read `<size>` bytes from end.
+    /// - offset=Some(0) => `bytes=0-<size>`, read `<size>` bytes from start.
     pub fn new(offset: Option<u64>, size: Option<u64>) -> Self {
         BytesRange(offset, size)
     }

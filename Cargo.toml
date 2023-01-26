@@ -3,7 +3,15 @@ authors = ["Databend Authors <opensource@datafuselabs.com>"]
 categories = ["filesystem"]
 description = "OpenDAL: Access data freely, painlessly, and efficiently."
 edition = "2021"
-exclude = ["docs/", "testdata/"]
+exclude = [
+  ".github/",
+  "bindings/",
+  "docs/",
+  "oay/",
+  "oli/",
+  "testdata/",
+  "tests/",
+]
 homepage = "https://opendal.databend.rs/"
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"

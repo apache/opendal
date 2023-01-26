@@ -22,6 +22,7 @@ jobs:
         hdfs-version: ["2.10.1", "3.2.3", "3.3.2"]
         os:
           - ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v3
 

@@ -1,7 +1,0 @@
-[advisories]
-ignore = [
-  # time: Potential segfault in the time crate
-  # We are not accected by this CVE.
-  # And there is no actions we can take, waiting for upstream.
-  "RUSTSEC-2020-0071",
-]

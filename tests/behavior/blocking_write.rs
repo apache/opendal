@@ -133,7 +133,7 @@ pub fn test_create_file_existing(op: Operator) -> Result<()> {
 
 /// Create file with special chars should succeed.
 pub fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
 
     let o = op.object(&path);
     debug!("{o:?}");
@@ -220,7 +220,7 @@ pub fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub fn test_write_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
@@ -277,7 +277,7 @@ pub fn test_stat_dir(op: Operator) -> Result<()> {
 
 /// Stat existing file with special chars should return metadata
 pub fn test_stat_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 

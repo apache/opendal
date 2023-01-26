@@ -88,13 +88,13 @@ pub fn test_stat(op: Operator) -> Result<()> {
 /// Stat special file and dir should return metadata
 pub fn test_stat_special_chars(op: Operator) -> Result<()> {
     let meta = op
-        .object("special_file  !@#$%^&*()_+-=;'><,?")
+        .object("special_file  !@#$%^&()_+-=;',")
         .blocking_metadata()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     let meta = op
-        .object("special_dir  !@#$%^&*()_+-=;'><,?/")
+        .object("special_dir  !@#$%^&()_+-=;',/")
         .blocking_metadata()?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 

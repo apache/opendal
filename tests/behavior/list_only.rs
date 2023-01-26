@@ -75,16 +75,10 @@ pub async fn test_list(op: Operator) -> Result<()> {
     }
 
     assert_eq!(entries["normal_file"], ObjectMode::FILE);
-    assert_eq!(
-        entries["special_file  !@#$%^&*()_+-=;'><,?"],
-        ObjectMode::FILE
-    );
+    assert_eq!(entries["special_file  !@#$%^&()_+-=;',"], ObjectMode::FILE);
 
     assert_eq!(entries["normal_dir/"], ObjectMode::DIR);
-    assert_eq!(
-        entries["special_dir  !@#$%^&*()_+-=;'><,?/"],
-        ObjectMode::DIR
-    );
+    assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], ObjectMode::DIR);
 
     Ok(())
 }

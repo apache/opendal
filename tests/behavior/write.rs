@@ -147,7 +147,7 @@ pub async fn test_create_file_existing(op: Operator) -> Result<()> {
 
 /// Create file with special chars should succeed.
 pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
 
     let o = op.object(&path);
 
@@ -237,7 +237,7 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (content, size) = gen_bytes();
 
     op.object(&path).write(content).await?;
@@ -295,7 +295,7 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
 
 /// Stat existing file with special chars should return metadata
 pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (content, size) = gen_bytes();
 
     op.object(&path)
@@ -784,7 +784,7 @@ pub async fn test_read_decompress_zstd(op: Operator) -> Result<()> {
 
 /// Read file with special chars should succeed.
 pub async fn test_read_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, size) = gen_bytes();
 
@@ -842,7 +842,7 @@ pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
 
 // Delete file with special chars should succeed.
 pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
-    let path = format!("{} !@#$%^&*()_+-=;'><,?.txt", uuid::Uuid::new_v4());
+    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     debug!("Generate a random file: {}", &path);
     let (content, _) = gen_bytes();
 

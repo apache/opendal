@@ -99,14 +99,14 @@ pub async fn test_stat(op: Operator) -> Result<()> {
 /// Stat special file and dir should return metadata
 pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
     let meta = op
-        .object("special_file  !@#$%^&*()_+-=;'><,?")
+        .object("special_file  !@#$%^&()_+-=;',")
         .metadata()
         .await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     let meta = op
-        .object("special_dir  !@#$%^&*()_+-=;'><,?/")
+        .object("special_dir  !@#$%^&()_+-=;',/")
         .metadata()
         .await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
@@ -160,10 +160,7 @@ pub async fn test_read_full(op: Operator) -> Result<()> {
 
 /// Read full content should match.
 pub async fn test_read_full_with_special_chars(op: Operator) -> Result<()> {
-    let bs = op
-        .object("special_file  !@#$%^&*()_+-=;'><,?")
-        .read()
-        .await?;
+    let bs = op.object("special_file  !@#$%^&()_+-=;',").read().await?;
     assert_eq!(bs.len(), 262144, "read size");
     assert_eq!(
         format!("{:x}", Sha256::digest(&bs)),

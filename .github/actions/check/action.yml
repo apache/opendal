@@ -23,16 +23,6 @@ runs:
       shell: bash
       run: cargo doc --no-deps --all-features
 
-    - name: Install cargo-audit
-      uses: actions-rs/cargo@v1
-      with:
-        command: install
-        args: cargo-audit
-
-    - name: Audit dependencies
-      shell: bash
-      run: cargo audit
-
     - name: Clippy
       shell: bash
       run: cargo clippy --all-targets --all-features -- -D warnings

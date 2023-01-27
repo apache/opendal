@@ -9,7 +9,6 @@ exclude = [
   "docs/",
   "oay/",
   "oli/",
-  "testdata/",
   "tests/",
 ]
 homepage = "https://opendal.databend.rs/"

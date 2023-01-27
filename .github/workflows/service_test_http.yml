@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           mkdir /tmp/static
-          cp -r testdata/* /tmp/static
+          cp -r tests/data/* /tmp/static
           nginx -c `pwd`/src/services/http/fixtures/nginx.conf
 
       - name: Test
@@ -60,7 +60,7 @@ jobs:
           tar -xvf caddy_linux_amd64.tar.gz
 
           mkdir /tmp/static
-          cp -r testdata/* /tmp/static
+          cp -r tests/data/* /tmp/static
           ./caddy file-server --root /tmp/static --listen 127.0.0.1:8080 --access-log &
 
       - uses: Swatinem/rust-cache@v2

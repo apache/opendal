@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.25.1] - 2023-01-27
+
+### Added
+
+- ci: Setup benchmark workflow (#1200)
+- feat: Let's try play with python (#1205)
+- feat: Let's try play with Node.js (#1206)
+- feat: Allow retry sending read request (#1212)
+- ci: Make sure opendal is buildable on windows (#1221)
+- ci: Remove not needed audit checks (#1226)
+
+### Changed
+
+- refactor: Remove observe read/write (#1202)
+- refactor: Remove not used unwind safe feature (#1218)
+- cleanup: Move oli and oay into binaries (#1227)
+- cleanup: Move testdata into tests/data (#1228)
+- refactor(layers/metrics): Defer initiation of error counters (#1232)
+
+### Fixed
+
+- fix: Retry for read and write should at ObjectReader level (#1211)
+
 ## [v0.25.0] - 2023-01-18
 
 ### Added
@@ -1211,6 +1234,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.25.1]: https://github.com/datafuselabs/opendal/compare/v0.25.0...v0.25.1
 [v0.25.0]: https://github.com/datafuselabs/opendal/compare/v0.24.6...v0.25.0
 [v0.24.6]: https://github.com/datafuselabs/opendal/compare/v0.24.5...v0.24.6
 [v0.24.5]: https://github.com/datafuselabs/opendal/compare/v0.24.4...v0.24.5

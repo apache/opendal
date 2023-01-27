@@ -21,6 +21,6 @@ header:
     - "target/**"
     - "**/target/**"
     # Ignore test data
-    - "testdata"
+    - "tests/data"
 
   comment: on-failure

@@ -29,5 +29,5 @@ runs:
 
     - name: Clippy Oli
       shell: bash
-      working-directory: ./oli
+      working-directory: ./binaries/oli
       run: cargo clippy --all-targets --all-features -- -D warnings

@@ -27,7 +27,7 @@ jobs:
           run_daemon: true
       - name: IPFS Add testdata
         run: |
-          ipfs add -r ./testdata --to-files /opendal-testdata
+          ipfs add -r ./tests/data --to-files /opendal-testdata
           ipfs files ls /opendal-testdata -l
       - uses: Swatinem/rust-cache@v2
       - name: Test

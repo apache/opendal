@@ -50,7 +50,7 @@ static LABEL_ERROR_KIND: &str = "error_kind";
 /// - `opendal_requests_total`: Total requests numbers;
 /// - `opendal_requests_duration_seconds`: Request duration seconds;
 /// - `opendal_errors_total`: number of errors encountered, like file not found;
-/// - `opendal_bytes_total`: bytes read/write from/to underlying storage, only avalid about for IO operations like `read` and `write`
+/// - `opendal_bytes_total`: bytes read/write from/to underlying storage, only available for IO operations like `read` and `write`
 ///
 /// # Labels
 ///
@@ -82,7 +82,7 @@ impl Layer for MetricsLayer {
 
         Arc::new(MetricsAccessor {
             inner,
-            handle: MetricsHandler::new(meta.scheme().into_static()),
+            handle: Arc::new(MetricsHandler::new(meta.scheme().into_static())),
         })
     }
 }
@@ -408,7 +408,7 @@ impl MetricsHandler {
 #[derive(Clone)]
 struct MetricsAccessor {
     inner: Arc<dyn Accessor>,
-    handle: MetricsHandler,
+    handle: Arc<MetricsHandler>,
 }
 
 impl Debug for MetricsAccessor {

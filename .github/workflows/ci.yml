@@ -149,7 +149,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Build
-        working-directory: ./oli
+        working-directory: ./binaries/oli
         run: cargo build
 
   unit_oli:
@@ -161,7 +161,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Test
-        working-directory: ./oli
+        working-directory: ./binaries/oli
         run: cargo test
 
   build_oay:
@@ -173,7 +173,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Build
-        working-directory: ./oay
+        working-directory: ./binaries/oay
         run: cargo build
 
   unit_oay:
@@ -185,5 +185,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Test
-        working-directory: ./oay
+        working-directory: ./binaries/oay
         run: cargo test

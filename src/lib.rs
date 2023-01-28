@@ -40,6 +40,7 @@
 //! | [redis][services::redis] | Redis service. |
 //! | [rocksdb][services::rocksdb] | RocksDB service. |
 //! | [s3][services::s3] | AWS S3 alike services. |
+//! | [webdav][services::webdav] | WebDAV services. |
 //!
 //! More services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5)
 //!

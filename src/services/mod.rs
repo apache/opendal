@@ -44,3 +44,4 @@ pub mod redis;
 #[cfg(feature = "services-rocksdb")]
 pub mod rocksdb;
 pub mod s3;
+pub mod webdav;

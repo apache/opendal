@@ -1,0 +1,16 @@
+[package]
+name = "object_store_opendal"
+version = "0.0.1"
+edition = "2021"
+repository = "https://github.com/datafuselabs/opendal"
+# MSRV of OpenDAL. Please update this field while bump.
+rust-version = "1.60"
+
+
+[dependencies]
+opendal = { version = "0.25", path = "../../" }
+object_store = "0.5"
+async-trait = "0.1"
+bytes = "1"
+tokio = "1"
+futures = "0.3"

@@ -32,6 +32,7 @@
 - [redis](https://opendal.databend.rs/opendal/services/redis/index.html): [Redis](https://redis.io/) services support.
 - [rocksdb](https://opendal.databend.rs/opendal/services/rocksdb/index.html): [RocksDB](http://rocksdb.org/) services support.
 - [s3](https://opendal.databend.rs/opendal/services/s3/index.html): [AWS S3](https://aws.amazon.com/s3/) alike services.
+- [webdav](https://opendal.databend.rs/opendal/services/webdav/index.html): [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service Support.
 
 ## Features
 

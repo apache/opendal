@@ -17,7 +17,6 @@
 //! # Configuration
 //!
 //! - `endpoint`: set the endpoint for connection
-//! - `port` : set the port for connection
 //! - `root`: Set the work directory for backend
 //! - `credential`:  login credentials
 //! - `tls`: tls mode
@@ -43,6 +42,7 @@
 //! export OPENDAL_FTP_USER=name            # default with empty string ""
 //! export OPENDAL_FTP_PASSWORD=password    # default with empty string ""
 //! ```
+//!
 //! ```no_run
 //! use anyhow::Result;
 //! use opendal::Object;

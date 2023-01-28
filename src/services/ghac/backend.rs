@@ -321,7 +321,7 @@ impl Accessor for Backend {
         } else {
             return Err(parse_error(resp)
                 .await
-                .map(|err| err.with_operation("Backend::ghac_commmit"))?);
+                .map(|err| err.with_operation("Backend::ghac_upload"))?);
         }
 
         let req = self.ghac_commmit(cache_id, args.size()).await?;

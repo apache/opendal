@@ -39,6 +39,10 @@ Access data **freely**
 
 - Access different storage services in the same way
 - Behavior tests for all services
+- Cross language/project bindings (working on)
+  - [Python](./bindings/python/)
+  - [Node.js](./bindings/nodejs/)
+  - [object_store](./bindings/object_store/)
 
 Access data **painlessly**
 

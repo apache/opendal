@@ -150,6 +150,7 @@ impl Operator {
             #[cfg(feature = "services-rocksdb")]
             Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
             Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
+            Scheme::Webdav => services::webdav::Builder::from_iter(it).build()?.into(),
             Scheme::Custom(v) => {
                 return Err(
                     Error::new(ErrorKind::Unsupported, "custom service  is not supported")

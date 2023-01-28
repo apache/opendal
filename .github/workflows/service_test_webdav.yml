@@ -32,7 +32,7 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cargo test http --features compress -- --show-output
+        run: cargo test webdav --features compress -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

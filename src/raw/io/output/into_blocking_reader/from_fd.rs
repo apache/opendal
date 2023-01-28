@@ -86,11 +86,6 @@ where
                 "invalid seek to a negative or overflowing position",
             )),
             Some(n) => {
-                // Ignore seek operation if we are already on start.
-                if self.offset == n as u64 {
-                    return Ok(self.offset - self.start);
-                }
-
                 let cur = self.inner.seek(SeekFrom::Start(n as u64))?;
 
                 self.offset = cur;

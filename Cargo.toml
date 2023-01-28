@@ -71,15 +71,6 @@ name = "ops"
 harness = false
 name = "io"
 
-[[bench]]
-harness = false
-name = "path"
-
-[[bench]]
-harness = false
-name = "layers"
-required-features = ["layers-all"]
-
 [[example]]
 name = "hdfs"
 required-features = ["services-hdfs"]

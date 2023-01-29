@@ -259,6 +259,11 @@ impl output::BlockingRead for BlockingTracingReader<output::BlockingReader> {
     fn inner(&mut self) -> Option<&mut output::BlockingReader> {
         Some(&mut self.inner)
     }
+
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
+    }
 }
 
 impl<R: input::BlockingRead> Read for BlockingTracingReader<R> {

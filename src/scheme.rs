@@ -71,6 +71,8 @@ pub enum Scheme {
     S3,
     /// [oss][crate::services::oss]: Aliyun Object Storage Services
     Oss,
+    /// [webhdfs][crate::services::webhdfs]: WebHDFS RESTful API Services
+    WebHdfs,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -121,6 +123,7 @@ impl Display for Scheme {
             Scheme::Rocksdb => write!(f, "rocksdb"),
             Scheme::S3 => write!(f, "s3"),
             Scheme::Oss => write!(f, "oss"),
+            Scheme::WebHdfs => write!(f, "webhdfs"),
             Scheme::Custom(v) => write!(f, "{v}"),
         }
     }
@@ -157,6 +160,7 @@ impl FromStr for Scheme {
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
             "oss" => Ok(Scheme::Oss),
+            "webhdfs" => Ok(Scheme::WebHdfs),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -190,6 +194,7 @@ impl From<Scheme> for &'static str {
             Scheme::Rocksdb => "service-rocksdb",
             Scheme::S3 => "s3",
             Scheme::Oss => "oss",
+            Scheme::WebHdfs => "webhdfs",
             Scheme::Custom(v) => v,
         }
     }

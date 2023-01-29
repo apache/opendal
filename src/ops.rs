@@ -78,7 +78,6 @@ pub struct OpWriteMultipart {
     upload_id: String,
     part_number: usize,
     size: u64,
-    content_type: Option<String>,
 }
 
 impl OpWriteMultipart {
@@ -88,15 +87,6 @@ impl OpWriteMultipart {
             upload_id,
             part_number,
             size,
-            content_type: None,
-        }
-    }
-
-    /// Set the content type of option
-    pub fn with_content_type(self, content_type: &str) -> Self {
-        Self {
-            content_type: Some(content_type.to_string()),
-            ..self
         }
     }
 
@@ -108,11 +98,6 @@ impl OpWriteMultipart {
     /// Get part_number from option.
     pub fn part_number(&self) -> usize {
         self.part_number
-    }
-
-    /// Get content_type from option.
-    pub fn content_type(&self) -> Option<&str> {
-        self.content_type.as_deref()
     }
 
     /// Get size from option.

@@ -1533,7 +1533,39 @@ impl Object {
     /// # }
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpWrite::new(0), expire);
+        self.presign_write_with(OpWrite::new(0), expire)
+    }
+
+    /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
+    ///
+    /// You can pass `OpWrite` to this method to specify the content length and content type.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::services::memory;
+    /// use opendal::OpWrite;
+    /// use opendal::Operator;
+    /// use time::Duration;
+    /// use opendal::Scheme;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    /// #    let op = Operator::from_env(Scheme::Memory)?;
+    ///     let args = OpWrite::new(0).with_content_type("text/csv");
+    ///     let signed_req = op.object("test").presign_write_with(args, Duration::hours(1))?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn presign_write_with(&self, op: OpWrite, expire: Duration) -> Result<PresignedRequest> {
+        let op = OpPresign::new(op, expire);
 
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())

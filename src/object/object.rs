@@ -1536,7 +1536,6 @@ impl Object {
         self.presign_write_with(OpWrite::new(0), expire)
     }
 
-
     /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
     ///
     /// You can pass `OpWrite` to this method to specify the content length and content type.
@@ -1547,6 +1546,7 @@ impl Object {
     /// use anyhow::Result;
     /// use futures::io;
     /// use opendal::services::memory;
+    /// use opendal::OpWrite;
     /// use opendal::Operator;
     /// use time::Duration;
     /// use opendal::Scheme;

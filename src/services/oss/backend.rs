@@ -419,8 +419,8 @@ impl Accessor for Backend {
         let mut req = match args.operation() {
             PresignOperation::Stat(_) => self.oss_head_object_request(path, true)?,
             PresignOperation::Read(v) => self.oss_get_object_request(path, v.range(), true)?,
-            PresignOperation::Write(_) => {
-                self.oss_put_object_request(path, None, None, AsyncBody::Empty, true)?
+            PresignOperation::Write(v) => {
+                self.oss_put_object_request(path, None, v.content_type(), AsyncBody::Empty, true)?
             }
             _ => {
                 return Err(Error::new(

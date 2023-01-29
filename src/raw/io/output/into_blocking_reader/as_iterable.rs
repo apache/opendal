@@ -36,10 +36,12 @@ pub struct IntoIter {
 }
 
 impl output::BlockingRead for IntoIter {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.r.read(buf)
     }
 
+    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         self.r.seek(pos)
     }

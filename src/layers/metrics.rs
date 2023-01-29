@@ -920,6 +920,11 @@ impl output::BlockingRead for MetricReader<output::BlockingReader> {
             })
     }
 
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
+    }
+
     fn next(&mut self) -> Option<io::Result<Bytes>> {
         self.inner.next().map(|res| match res {
             Ok(bytes) => {

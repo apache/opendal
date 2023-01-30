@@ -28,6 +28,9 @@ pub use accessor::Accessor;
 pub use accessor::AccessorCapability;
 pub use accessor::AccessorHint;
 pub use accessor::AccessorMetadata;
+pub use accessor::AccessorNext;
+pub use accessor::LayerNext;
+pub use accessor::OperatorNext;
 
 mod io;
 pub use io::*;

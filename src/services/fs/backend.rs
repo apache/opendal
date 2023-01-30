@@ -89,6 +89,46 @@ impl Builder {
         self
     }
 
+    pub fn build_next(&mut self) -> Result<Backend> {
+        debug!("backend build started: {:?}", &self);
+
+        let root = normalize_root(&self.root.take().unwrap_or_default());
+        let atomic_write_dir = self.atomic_write_dir.as_deref().map(normalize_root);
+
+        // If root dir is not exist, we must create it.
+        if let Err(e) = std::fs::metadata(&root) {
+            if e.kind() == io::ErrorKind::NotFound {
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
+                        .with_context("root", &root)
+                        .set_source(e)
+                })?;
+            }
+        }
+
+        // If atomic write dir is not exist, we must create it.
+        if let Some(d) = &atomic_write_dir {
+            if let Err(e) = std::fs::metadata(d) {
+                if e.kind() == io::ErrorKind::NotFound {
+                    std::fs::create_dir_all(d).map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
+                            .with_operation("Builder::build")
+                            .with_context("atomic_write_dir", d)
+                            .set_source(e)
+                    })?;
+                }
+            }
+        }
+
+        debug!("backend build finished: {:?}", &self);
+        Ok(Backend {
+            root,
+            atomic_write_dir,
+            enable_path_check: self.enable_path_check,
+        })
+    }
+
     /// Consume current builder to build a fs backend.
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -642,6 +682,71 @@ impl Accessor for Backend {
         let rd = BlockingDirPager::new(&self.root, f);
 
         Ok((RpList::default(), Box::new(rd)))
+    }
+}
+
+#[async_trait]
+impl AccessorNext for Backend {
+    type OR = output::into_blocking_reader::FdReader<std::fs::File>;
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::OR)> {
+        use output::BlockingRead;
+
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let mut f = std::fs::OpenOptions::new()
+            .read(true)
+            .open(p)
+            .map_err(parse_io_error)?;
+
+        let total_length = if self.enable_path_check {
+            // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
+            let meta = f.metadata().map_err(parse_io_error)?;
+            if meta.is_dir() != path.ends_with('/') {
+                return Err(Error::new(
+                    ErrorKind::ObjectNotFound,
+                    "file mode is not match with its path",
+                ));
+            }
+            if meta.is_dir() {
+                return Err(Error::new(
+                    ErrorKind::ObjectIsADirectory,
+                    "given path is a directoty",
+                ));
+            }
+
+            meta.len()
+        } else {
+            use std::io::Seek;
+
+            f.seek(SeekFrom::End(0)).map_err(parse_io_error)?
+        };
+
+        let br = args.range();
+        let (start, end) = match (br.offset(), br.size()) {
+            // Read a specific range.
+            (Some(offset), Some(size)) => (offset, min(offset + size, total_length)),
+            // Read from offset.
+            (Some(offset), None) => (offset, total_length),
+            // Read the last size bytes.
+            (None, Some(size)) => (
+                if total_length > size {
+                    total_length - size
+                } else {
+                    0
+                },
+                total_length,
+            ),
+            // Read the whole file.
+            (None, None) => (0, total_length),
+        };
+
+        let mut r = output::into_blocking_reader::from_fd(f, start, end);
+
+        // Rewind to make sure we are on the correct offset.
+        r.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
+
+        Ok((RpRead::new(end - start), r))
     }
 }
 

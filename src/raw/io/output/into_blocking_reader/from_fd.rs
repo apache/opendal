@@ -57,7 +57,7 @@ where
 
 impl<R> output::BlockingRead for FdReader<R>
 where
-    R: Read + Seek + Send + Sync,
+    R: Read + Seek + Send + Sync + 'static,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         if self.current_size() <= 0 {

@@ -965,3 +965,45 @@ impl<R> Drop for MetricReader<R> {
         }
     }
 }
+
+impl<A: AccessorNext<OR = IR>, IR: output::BlockingRead> LayerNext<A, IR> for MetricsLayer {
+    type OR = MetricReaderNext<IR>;
+    type OA = MetricsAccessorNext<A, IR>;
+
+    fn layer(self, inner: A) -> Self::OA {
+        MetricsAccessorNext { inner }
+    }
+}
+
+#[derive(Clone)]
+pub struct MetricsAccessorNext<A: AccessorNext<OR = OR>, OR: output::BlockingRead> {
+    inner: A,
+}
+
+impl<A: AccessorNext<OR = OR>, OR: output::BlockingRead> Debug for MetricsAccessorNext<A, OR> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MetricsAccessorNext")
+    }
+}
+
+impl<A: AccessorNext<OR = OR>, OR: output::BlockingRead> AccessorNext
+    for MetricsAccessorNext<A, OR>
+{
+    type OR = MetricReaderNext<OR>;
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::OR)> {
+        let (rp, r) = self.inner.blocking_read(path, args)?;
+        Ok((rp, MetricReaderNext { inner: r }))
+    }
+}
+
+pub struct MetricReaderNext<R> {
+    inner: R,
+}
+
+impl<R: output::BlockingRead> output::BlockingRead for MetricReaderNext<R> {
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}

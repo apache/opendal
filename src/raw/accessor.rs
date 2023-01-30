@@ -13,12 +13,14 @@
 // limitations under the License.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
 
+use crate::object::BlockingObjectReader;
 use crate::raw::*;
 use crate::*;
 
@@ -583,4 +585,55 @@ flags! {
         /// It's better to use stream to reading data.
         ReadIsStreamable,
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct OperatorNext<A: AccessorNext<OR = OR>, OR: output::BlockingRead> {
+    pub accessor: A,
+}
+
+impl<A, OR> OperatorNext<A, OR>
+where
+    A: AccessorNext<OR = OR>,
+    OR: output::BlockingRead,
+{
+    pub fn layer<L: LayerNext<A, OR>>(self, layer: L) -> OperatorNext<L::OA, L::OR> {
+        OperatorNext {
+            accessor: layer.layer(self.accessor),
+        }
+    }
+
+    // pub fn blocking_reader(&self, path: &str) -> Result<OR> {
+    //     let (_, r) = self.accessor.blocking_read(path, OpRead::default())?;
+    //     Ok(r)
+    // }
+
+    pub fn blocking_reader(&self, path: &str) -> Result<BlockingObjectReader> {
+        let (_, r) = self.accessor.blocking_read(path, OpRead::default())?;
+        Ok(BlockingObjectReader { inner: Box::new(r) })
+    }
+}
+
+#[async_trait]
+pub trait AccessorNext: Send + Sync + Debug + 'static {
+    type OR: output::BlockingRead;
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::OR)> {
+        unimplemented!()
+    }
+
+    fn boxed(self) -> Box<dyn AccessorNext<OR = Self::OR>>
+    where
+        Self: Sized,
+    {
+        Box::new(self)
+    }
+}
+
+pub trait LayerNext<A: AccessorNext<OR = IR>, IR: output::BlockingRead> {
+    type OR: output::BlockingRead;
+    type OA: AccessorNext<OR = Self::OR>;
+
+    /// Intercept the operations on the underlying storage.
+    fn layer(self, inner: A) -> Self::OA;
 }

@@ -17,39 +17,82 @@ use std::io::{Seek, SeekFrom};
 
 use opendal::{
     layers::{LoggingLayer, MetricsLayer, RetryLayer, TracingLayer},
-    Operator,
+    raw::output::BlockingRead,
+    services::fs,
+    Operator, OperatorNext,
 };
 use rand::prelude::*;
+
+// pub fn bench(c: &mut Criterion) {
+//     let mut group = c.benchmark_group("blocking_seek");
+//     let size = 64 * 1024 * 1024;
+
+//     let op = Operator::from_iter(
+//         opendal::Scheme::Fs,
+//         vec![("root".to_string(), "/tmp".to_string())].into_iter(),
+//     )
+//     .unwrap();
+
+//     op.object("test_file")
+//         .blocking_write(vec![0; size])
+//         .unwrap();
+
+//     let op = op
+//         .layer(LoggingLayer::default())
+//         .layer(TracingLayer)
+//         .layer(MetricsLayer)
+//         .layer(RetryLayer::new(backon::ExponentialBackoff::default()));
+
+//     let mut rng = rand::thread_rng();
+
+//     let o = op.object("test_file");
+//     let mut r = o.blocking_reader().unwrap();
+
+//     group.bench_function("seek", |b| {
+//         b.iter(|| {
+//             let off = rng.gen_range(0..size as u64);
+//             r.seek(SeekFrom::Start(off)).unwrap();
+//         })
+//     });
+// }
 
 pub fn bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("blocking_seek");
     let size = 64 * 1024 * 1024;
 
-    let op = Operator::from_iter(
-        opendal::Scheme::Fs,
-        vec![("root".to_string(), "/tmp".to_string())].into_iter(),
-    )
-    .unwrap();
+    let op = OperatorNext {
+        accessor: {
+            let mut builder = fs::Builder::default();
+            builder.root("/tmp");
+            builder.build_next().unwrap()
+        },
+    }
+    .layer(MetricsLayer);
 
-    op.object("test_file")
-        .blocking_write(vec![0; size])
-        .unwrap();
+    // let op = Operator::from_iter(
+    //     opendal::Scheme::Fs,
+    //     vec![("root".to_string(), "/tmp".to_string())].into_iter(),
+    // )
+    // .unwrap();
 
-    let op = op
-        .layer(LoggingLayer::default())
-        .layer(TracingLayer)
-        .layer(MetricsLayer)
-        .layer(RetryLayer::new(backon::ExponentialBackoff::default()));
+    // op.object("test_file")
+    //     .blocking_write(vec![0; size])
+    //     .unwrap();
+
+    // let op = op
+    //     .layer(LoggingLayer::default())
+    //     .layer(TracingLayer)
+    //     .layer(MetricsLayer)
+    //     .layer(RetryLayer::new(backon::ExponentialBackoff::default()));
 
     let mut rng = rand::thread_rng();
 
-    let o = op.object("test_file");
-    let mut r = o.blocking_reader().unwrap();
+    let mut r = op.blocking_reader("test_file").unwrap();
 
     group.bench_function("seek", |b| {
         b.iter(|| {
             let off = rng.gen_range(0..size as u64);
-            r.seek(SeekFrom::Start(off)).unwrap();
+            std::io::Seek::seek(&mut r, SeekFrom::Start(off)).unwrap();
         })
     });
 }

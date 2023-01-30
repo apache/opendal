@@ -28,7 +28,7 @@ use crate::OpRead;
 
 /// BlockingObjectReader is the public API for users.
 pub struct BlockingObjectReader {
-    inner: output::BlockingReader,
+    pub(crate) inner: output::BlockingReader,
 }
 
 impl BlockingObjectReader {

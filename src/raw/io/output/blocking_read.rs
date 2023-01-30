@@ -32,7 +32,7 @@ pub type BlockingReader = Box<dyn BlockingRead>;
 ///
 /// `Read` is required to be implemented, `Seek` and `Iterator`
 /// is optional. We use `Read` to make users life easier.
-pub trait BlockingRead: Send + Sync {
+pub trait BlockingRead: Send + Sync + 'static {
     /// Return the inner output bytes reader if there is one.
     #[inline]
     fn inner(&mut self) -> Option<&mut BlockingReader> {

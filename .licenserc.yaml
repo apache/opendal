@@ -22,5 +22,7 @@ header:
     - "**/target/**"
     # Ignore test data
     - "tests/data"
+    # Ignore dockerfile
+    - "**/Dockerfile"
 
   comment: on-failure

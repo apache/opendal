@@ -162,7 +162,6 @@ opentelemetry-jaeger = "0.16"
 paste = "1"
 pretty_assertions = "1"
 rand = "0.8"
-serde_json = "1"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }

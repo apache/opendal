@@ -7,6 +7,7 @@ exclude = [
   ".github/",
   "bindings/",
   "docs/",
+  "profiles/",
   "oay/",
   "oli/",
   "tests/",
@@ -22,6 +23,9 @@ rust-version = "1.60"
 
 [package.metadata.docs.rs]
 all-features = true
+
+[profile.bench]
+debug = true
 
 [features]
 default = ["rustls"]
@@ -70,6 +74,7 @@ name = "ops"
 [[bench]]
 harness = false
 name = "io"
+required-features = ["layers-all"]
 
 [[example]]
 name = "hdfs"

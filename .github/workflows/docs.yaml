@@ -37,7 +37,7 @@ jobs:
 
       - name: Deploy to vercel
         if: github.ref_name == 'main'
-        uses: amondnet/vercel-action@v25.1.0
+        uses: amondnet/vercel-action@v25.1.1
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -49,7 +49,7 @@ jobs:
 
       - name: Deploy to vercel (preview)
         if: github.ref_name != 'main'
-        uses: amondnet/vercel-action@v25.1.0
+        uses: amondnet/vercel-action@v25.1.1
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -16,7 +16,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.25.1"
+version = "0.25.2"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 
@@ -162,7 +162,6 @@ opentelemetry-jaeger = "0.16"
 paste = "1"
 pretty_assertions = "1"
 rand = "0.8"
-serde_json = "1"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }

@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.25.2] - 2023-01-30
+
+### Added
+
+- feat: Add basic object_store support (#1243)
+- feat: Implement webdav support (#1246)
+- feat: Allow passing content_type to OSS presign (#1252)
+- feat: Make sure short functions have been inlined (#1253)
+
+### Changed
+
+- refacor(services/fs): Make normalized path check optional (#1242)
+
+### Docs
+
+- docs(http): remove out-dated comments (#1240)
+- docs: Add bindings in README (#1244)
+- docs: Add docs for webdav and http services (#1248)
+- docs: Add webdav in lib docs (#1249)
+
+### Fixed
+
+- fix(services/ghac): Fix log message for ghac_upload in write (#1239)
+
 ## [v0.25.1] - 2023-01-27
 
 ### Added
@@ -1234,6 +1258,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.25.2]: https://github.com/datafuselabs/opendal/compare/v0.25.1...v0.25.2
 [v0.25.1]: https://github.com/datafuselabs/opendal/compare/v0.25.0...v0.25.1
 [v0.25.0]: https://github.com/datafuselabs/opendal/compare/v0.24.6...v0.25.0
 [v0.24.6]: https://github.com/datafuselabs/opendal/compare/v0.24.5...v0.24.6

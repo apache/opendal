@@ -7,3 +7,7 @@
 
 # env files for backends
 .env
+
+# profiling
+flamegraph.svg
+perf.*

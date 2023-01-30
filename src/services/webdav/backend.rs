@@ -50,7 +50,6 @@ impl Builder {
         let mut builder = Builder::default();
 
         for (k, v) in it {
-            let v = v.as_str();
             match k.as_ref() {
                 "root" => builder.root(v),
                 "endpoint" => builder.endpoint(v),
@@ -64,24 +63,20 @@ impl Builder {
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
-    pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
+    pub fn endpoint(&mut self, endpoint: impl Into<String>) -> &mut Self {
+        let endpoint = endpoint.into();
         self.endpoint = if endpoint.is_empty() {
             None
         } else {
-            Some(endpoint.to_string())
+            Some(endpoint)
         };
-
         self
     }
 
     /// Set root path of http backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
-
+    pub fn root(&mut self, root: impl Into<String>) -> &mut Self {
+        let root = root.into();
+        self.root = if root.is_empty() { None } else { Some(root) };
         self
     }
 

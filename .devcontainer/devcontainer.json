@@ -15,6 +15,7 @@
 	"remoteUser": "builder",
 	"updateRemoteUserUID": true,
 	"postCreateCommand": "sudo chown -R builder /opt/rust",
+	"postAttachCommand": "bash",
 	"settings": {
 		"editor.formatOnSave": true,
 		"files.exclude": {

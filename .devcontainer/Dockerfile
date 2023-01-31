@@ -1,11 +1,6 @@
-FROM golang:1.18 AS go-build
-RUN go install github.com/apache/skywalking-eyes/cmd/license-eye@latest
-
 FROM debian:bullseye
 
 ENV TERM xterm-256color
-
-COPY --from=go-build /go/bin/license-eye /usr/local/bin/license-eye
 
 RUN apt-get update -yq && \
     apt-get install -yq locales sudo unzip file curl clang openjdk-11-jdk-headless libssl-dev make git ripgrep && \

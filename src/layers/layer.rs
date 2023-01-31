@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use std::sync::Arc;
 
 use crate::raw::*;
 
@@ -76,23 +75,29 @@ mod tests {
     use crate::*;
 
     #[derive(Debug)]
-    struct Test {
+    struct Test<A: Accessor> {
         #[allow(dead_code)]
-        inner: Option<Arc<dyn Accessor>>,
+        inner: Option<A>,
         deleted: Arc<Mutex<bool>>,
     }
 
-    impl Layer for &Test {
-        fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-            Arc::new(Test {
+    impl<A: Accessor> Layer<A> for &Test<A> {
+        type LayeredAccessor = Test<A>;
+
+        fn layer(&self, inner: A) -> Self::LayeredAccessor {
+            Test {
                 inner: Some(inner.clone()),
                 deleted: self.deleted.clone(),
-            })
+            }
         }
     }
 
     #[async_trait::async_trait]
-    impl Accessor for Test {
+    impl<A: Accessor> Accessor for Test<A> {
+        type Inner = A;
+        type Reader = ();
+        type BlockingReader = ();
+
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
             let mut x = self.deleted.lock().await;
             *x = true;

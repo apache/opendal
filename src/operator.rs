@@ -32,22 +32,7 @@ use crate::Scheme;
 /// User-facing APIs for object and object streams.
 #[derive(Clone, Debug)]
 pub struct Operator {
-    accessor: Arc<dyn Accessor>,
-}
-
-impl<A> From<A> for Operator
-where
-    A: Accessor,
-{
-    fn from(accessor: A) -> Self {
-        Operator::new(accessor)
-    }
-}
-
-impl From<Arc<dyn Accessor>> for Operator {
-    fn from(accessor: Arc<dyn Accessor>) -> Self {
-        Operator { accessor }
-    }
+    accessor: FusedAccessor,
 }
 
 impl Operator {
@@ -232,17 +217,17 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use]
-    pub fn layer(self, layer: impl Layer) -> Self {
-        Operator {
-            accessor: layer.layer(self.accessor.clone()),
-        }
-    }
+    // #[must_use]
+    // pub fn layer(self, layer: impl Layer) -> Self {
+    //     Operator {
+    //         accessor: layer.layer(self.accessor.clone()),
+    //     }
+    // }
 
     /// Get inner accessor.
     ///
     /// This function should only be used by developers to implement layers.
-    pub fn inner(&self) -> Arc<dyn Accessor> {
+    pub fn inner(&self) -> FusedAccessor {
         self.accessor.clone()
     }
 

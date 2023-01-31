@@ -37,7 +37,7 @@ use crate::*;
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn by_offset(acc: Arc<dyn Accessor>, path: &str, offset: u64) -> OffsetReader {
+pub fn by_offset<A: Accessor>(acc: A, path: &str, offset: u64) -> OffsetReader<A> {
     OffsetReader {
         acc,
         path: path.to_string(),
@@ -51,14 +51,14 @@ pub fn by_offset(acc: Arc<dyn Accessor>, path: &str, offset: u64) -> OffsetReade
 }
 
 /// OffsetReader that can do seek on non-seekable reader.
-pub struct OffsetReader {
-    acc: Arc<dyn Accessor>,
+pub struct OffsetReader<A: Accessor> {
+    acc: A,
     path: String,
 
     offset: u64,
     size: Option<u64>,
     cur: u64,
-    state: State,
+    state: State<A::Reader>,
 
     /// Seek operation could return Pending which may lead
     /// `SeekFrom::Current(off)` been input multiple times.
@@ -70,41 +70,32 @@ pub struct OffsetReader {
     sink: Vec<u8>,
 }
 
-enum State {
+enum State<R: output::Read> {
     Idle,
-    Stating(BoxFuture<'static, Result<RpStat>>),
-    Sending(BoxFuture<'static, Result<(RpRead, output::Reader)>>),
+    Stating(FutureResult<RpStat>),
+    Sending(FutureResult<(RpRead, R)>),
     Reading(output::Reader),
 }
 
 /// Safety: State will only be accessed under &mut.
-unsafe impl Sync for State {}
+unsafe impl<R: output::Read> Sync for State<R> {}
 
-impl OffsetReader {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, output::Reader)>> {
-        let acc = self.acc.clone();
-        let path = self.path.clone();
+impl<A: Accessor> OffsetReader<A> {
+    fn read_future(&self) -> FutureResult<(RpRead, A::Reader)> {
         let op = OpRead::default().with_range(BytesRange::new(
             Some(self.offset + self.cur),
             self.size.map(|v| v - self.cur),
         ));
 
-        let fut = async move { acc.read(&path, op).await };
-
-        Box::pin(fut)
+        self.acc.read(&self.path, op)
     }
 
-    fn stat_future(&self) -> BoxFuture<'static, Result<RpStat>> {
-        let acc = self.acc.clone();
-        let path = self.path.clone();
-
-        let fut = async move { acc.stat(&path, OpStat::default()).await };
-
-        Box::pin(fut)
+    fn stat_future(&self) -> FutureResult<RpStat> {
+        self.acc.stat(&self.path, OpStat::default())
     }
 }
 
-impl output::Read for OffsetReader {
+impl<A: Accessor> output::Read for OffsetReader<A> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match &mut self.state {
             State::Idle => {

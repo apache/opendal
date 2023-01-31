@@ -19,6 +19,7 @@ use std::mem;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::future;
 
 use crate::object::*;
 use crate::raw::*;
@@ -64,23 +65,25 @@ impl ImmutableIndexLayer {
     }
 }
 
-impl Layer for ImmutableIndexLayer {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(ImmutableIndexAccessor {
+impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
+    type LayeredAccessor = ImmutableIndexAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        ImmutableIndexAccessor {
             set: self.set.clone(),
             inner,
-        })
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-struct ImmutableIndexAccessor {
-    inner: Arc<dyn Accessor>,
+struct ImmutableIndexAccessor<A: Accessor> {
+    inner: A,
     /// TODO: we can introduce trie here to lower the memory footprint.
     set: BTreeSet<String>,
 }
 
-impl ImmutableIndexAccessor {
+impl<A: Accessor> ImmutableIndexAccessor<A> {
     fn children(&self, path: &str) -> Vec<String> {
         let mut res = HashSet::new();
 
@@ -121,9 +124,13 @@ impl ImmutableIndexAccessor {
 }
 
 #[async_trait]
-impl Accessor for ImmutableIndexAccessor {
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
-        Some(self.inner.clone())
+impl<A: Accessor> Accessor for ImmutableIndexAccessor<A> {
+    type Inner = A;
+    type Reader = A::Reader;
+    type BlockingReader = A::BlockingReader;
+
+    fn inner(&self) -> Option<&A> {
+        Some(&self.inner)
     }
 
     /// Add list capabilities for underlying storage services.
@@ -134,16 +141,16 @@ impl Accessor for ImmutableIndexAccessor {
         meta
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok((
+        Box::pin(future::ok((
             RpList::default(),
-            Box::new(ImmutableDir::new(self.children(path))),
-        ))
+            Box::new(ImmutableDir::new(self.children(path))) as ObjectPager,
+        )))
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {

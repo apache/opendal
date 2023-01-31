@@ -41,8 +41,12 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
 
+use futures::future::BoxFuture;
+
 /// Result that is a wrapper of `Reustl<T, opendal::Error>`
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub type FutureResult<T> = BoxFuture<'static, Result<T>>;
 
 /// ErrorKind is all kinds of opendal's Error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

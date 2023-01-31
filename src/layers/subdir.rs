@@ -16,6 +16,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
@@ -51,23 +52,25 @@ impl SubdirLayer {
     }
 }
 
-impl Layer for SubdirLayer {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(SubdirAccessor {
+impl<A: Accessor> Layer<A> for SubdirLayer {
+    type LayeredAccessor = SubdirAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        SubdirAccessor {
             subdir: self.subdir.clone(),
             inner,
-        })
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-struct SubdirAccessor {
+struct SubdirAccessor<A: Accessor> {
     /// Subdir must be like `abc/`
     subdir: String,
-    inner: Arc<dyn Accessor>,
+    inner: A,
 }
 
-impl SubdirAccessor {
+impl<A: Accessor> SubdirAccessor<A> {
     fn prepend_subdir(&self, path: &str) -> String {
         if path == "/" {
             self.subdir.clone()
@@ -78,9 +81,13 @@ impl SubdirAccessor {
 }
 
 #[async_trait]
-impl Accessor for SubdirAccessor {
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
-        Some(self.inner.clone())
+impl<A: Accessor> Accessor for SubdirAccessor<A> {
+    type Inner = A;
+    type Reader = A::Reader;
+    type BlockingReader = A::BlockingReader;
+
+    fn inner(&self) -> Option<&Self::Inner> {
+        Some(&self.inner)
     }
 
     fn metadata(&self) -> AccessorMetadata {
@@ -89,41 +96,47 @@ impl Accessor for SubdirAccessor {
         meta
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
         let path = self.prepend_subdir(path);
 
-        self.inner.create(&path, args).await
+        self.inner.create(&path, args)
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
         let path = self.prepend_subdir(path);
 
-        self.inner.read(&path, args).await
+        self.inner.read(&path, args)
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
         let path = self.prepend_subdir(path);
 
-        self.inner.write(&path, args, r).await
+        self.inner.write(&path, args, r)
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
         let path = self.prepend_subdir(path);
 
-        self.inner.stat(&path, args).await
+        self.inner.stat(&path, args)
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
         let path = self.prepend_subdir(path);
 
-        self.inner.delete(&path, args).await
+        self.inner.delete(&path, args)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
         let path = self.prepend_subdir(path);
-        let (rp, pager) = self.inner.list(&path, args).await?;
 
-        Ok((rp, Box::new(SubdirPager::new(&self.subdir, pager))))
+        Box::pin(self.inner.list(&path, args).map(|v| {
+            v.map(|(rp, p)| {
+                (
+                    rp,
+                    Box::new(SubdirPager::new(&self.subdir, p)) as ObjectPager,
+                )
+            })
+        }))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -132,45 +145,45 @@ impl Accessor for SubdirAccessor {
         self.inner.presign(&path, args)
     }
 
-    async fn create_multipart(
+    fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
+    ) -> FutureResult<RpCreateMultipart> {
         let path = self.prepend_subdir(path);
 
-        self.inner.create_multipart(&path, args).await
+        self.inner.create_multipart(&path, args)
     }
 
-    async fn write_multipart(
+    fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
+    ) -> FutureResult<RpWriteMultipart> {
         let path = self.prepend_subdir(path);
 
-        self.inner.write_multipart(&path, args, r).await
+        self.inner.write_multipart(&path, args, r)
     }
 
-    async fn complete_multipart(
+    fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
+    ) -> FutureResult<RpCompleteMultipart> {
         let path = self.prepend_subdir(path);
 
-        self.inner.complete_multipart(&path, args).await
+        self.inner.complete_multipart(&path, args)
     }
 
-    async fn abort_multipart(
+    fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
+    ) -> FutureResult<RpAbortMultipart> {
         let path = self.prepend_subdir(path);
 
-        self.inner.abort_multipart(&path, args).await
+        self.inner.abort_multipart(&path, args)
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -179,7 +192,7 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_create(&path, args)
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_read(&path, args)

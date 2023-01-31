@@ -112,7 +112,7 @@ impl ObjectReader {
     /// We don't want to expose those detials to users so keep this fuction
     /// in crate only.
     pub(crate) async fn create(
-        acc: Arc<dyn Accessor>,
+        acc: FusedAccessor,
         path: &str,
         meta: Arc<Mutex<ObjectMetadata>>,
         op: OpRead,
@@ -257,7 +257,7 @@ impl Stream for ObjectReader {
 
 /// get_total_size will get total size via stat.
 async fn get_total_size(
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     path: &str,
     meta: Arc<Mutex<ObjectMetadata>>,
 ) -> Result<u64> {

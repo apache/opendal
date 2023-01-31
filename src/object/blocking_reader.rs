@@ -40,7 +40,7 @@ impl BlockingObjectReader {
     /// We don't want to expose those detials to users so keep this fuction
     /// in crate only.
     pub(crate) fn create(
-        acc: Arc<dyn Accessor>,
+        acc: FusedAccessor,
         path: &str,
         _meta: Arc<Mutex<ObjectMetadata>>,
         op: OpRead,
@@ -81,7 +81,7 @@ impl output::BlockingRead for BlockingObjectReader {
 
     #[inline]
     fn next(&mut self) -> Option<io::Result<Bytes>> {
-        self.inner.next()
+        output::BlockingRead::next(&mut self.inner)
     }
 }
 

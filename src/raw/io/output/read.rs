@@ -39,30 +39,19 @@ pub type Reader = Box<dyn Read>;
 /// `AsyncRead` is required to be implemented, `AsyncSeek` and `Stream`
 /// is optional. We use `Read` to make users life easier.
 pub trait Read: Unpin + Send + Sync {
-    /// Return the inner output bytes reader if there is one.
-    fn inner(&mut self) -> Option<&mut Reader> {
-        None
-    }
-
     /// Read bytes asynchronously.
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        match self.inner() {
-            Some(v) => v.poll_read(cx, buf),
-            None => unimplemented!("poll_read is required to be implemented for output::Read"),
-        }
+        unimplemented!("poll_read is required to be implemented for output::Read")
     }
 
     /// Seek asynchronously.
     ///
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        match self.inner() {
-            Some(v) => v.poll_seek(cx, pos),
-            None => Poll::Ready(Err(Error::new(
-                ErrorKind::Unsupported,
-                "output reader doesn't support seeking",
-            ))),
-        }
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support seeking",
+        )))
     }
 
     /// Stream [`Bytes`] from underlying reader.
@@ -73,13 +62,26 @@ pub trait Read: Unpin + Send + Sync {
     /// Users can poll bytes from underlying reader and decide when to
     /// read/consume them.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        match self.inner() {
-            Some(v) => v.poll_next(cx),
-            None => Poll::Ready(Some(Err(Error::new(
-                ErrorKind::Unsupported,
-                "output reader doesn't support streaming",
-            )))),
-        }
+        Poll::Ready(Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support streaming",
+        ))))
+    }
+}
+
+impl Read for () {}
+
+impl<T: Read + ?Sized> Read for Box<T> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        (**self).poll_read(cx, buf)
+    }
+
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+        (**self).poll_seek(cx, pos)
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        (**self).poll_next(cx)
     }
 }
 

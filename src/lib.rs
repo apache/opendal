@@ -153,7 +153,6 @@ mod operator;
 pub use operator::BatchOperator;
 pub use operator::Operator;
 pub use operator::OperatorMetadata;
-pub use raw::OperatorNext;
 
 mod object;
 pub use object::Object;
@@ -170,6 +169,7 @@ pub use scheme::Scheme;
 mod error;
 pub use error::Error;
 pub use error::ErrorKind;
+pub(crate) use error::FutureResult;
 pub use error::Result;
 
 mod ops;

@@ -37,7 +37,7 @@ use crate::*;
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn by_range(acc: Arc<dyn Accessor>, path: &str, offset: u64, size: u64) -> RangeReader {
+pub fn by_range<A: Accessor>(acc: A, path: &str, offset: u64, size: u64) -> RangeReader<A> {
     RangeReader {
         acc,
         path: path.to_string(),
@@ -51,14 +51,14 @@ pub fn by_range(acc: Arc<dyn Accessor>, path: &str, offset: u64, size: u64) -> R
 }
 
 /// RangeReader that can do seek on non-seekable reader.
-pub struct RangeReader {
-    acc: Arc<dyn Accessor>,
+pub struct RangeReader<A: Accessor> {
+    acc: A,
     path: String,
 
     offset: u64,
     size: u64,
     cur: u64,
-    state: State,
+    state: State<A::Reader>,
 
     /// Seek operation could return Pending which may lead
     /// `SeekFrom::Current(off)` been input multiple times.
@@ -70,27 +70,23 @@ pub struct RangeReader {
     sink: Vec<u8>,
 }
 
-enum State {
+enum State<R: output::Read> {
     Idle,
-    Sending(BoxFuture<'static, Result<(RpRead, output::Reader)>>),
-    Reading(output::Reader),
+    Sending(FutureResult<(RpRead, R)>),
+    Reading(R),
 }
 
 /// Safety: State will only be accessed under &mut.
-unsafe impl Sync for State {}
+unsafe impl<R: output::Read> Sync for State<R> {}
 
-impl RangeReader {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, output::Reader)>> {
-        let acc = self.acc.clone();
-        let path = self.path.clone();
+impl<A: Accessor> RangeReader<A> {
+    fn read_future(&self) -> FutureResult<(RpRead, A::Reader)> {
         let op = OpRead::default().with_range(BytesRange::new(
             Some(self.offset + self.cur),
             Some(self.size - self.cur),
         ));
 
-        let fut = async move { acc.read(&path, op).await };
-
-        Box::pin(fut)
+        self.acc.read(&self.path, op)
     }
 
     /// calculate the seek postion.
@@ -120,7 +116,7 @@ impl RangeReader {
     }
 }
 
-impl output::Read for RangeReader {
+impl<A: Accessor> output::Read for RangeReader<A> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match &mut self.state {
             State::Idle => {

@@ -25,6 +25,8 @@ use std::time::Instant;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::AsyncRead;
+use futures::FutureExt;
+use futures::TryFutureExt;
 use metrics::increment_counter;
 use metrics::register_counter;
 use metrics::register_histogram;
@@ -97,14 +99,16 @@ static LABEL_ERROR: &str = "error";
 #[derive(Debug, Copy, Clone)]
 pub struct MetricsLayer;
 
-impl Layer for MetricsLayer {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
+impl<A: Accessor> Layer<A> for MetricsLayer {
+    type LayeredAccessor = MetricsAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
         let meta = inner.metadata();
 
-        Arc::new(MetricsAccessor {
+        MetricsAccessor {
             inner,
             handle: Arc::new(MetricsHandler::new(meta.scheme().into_static())),
-        })
+        }
     }
 }
 
@@ -419,12 +423,12 @@ impl MetricsHandler {
 }
 
 #[derive(Clone)]
-struct MetricsAccessor {
-    inner: Arc<dyn Accessor>,
+struct MetricsAccessor<A: Accessor> {
+    inner: A,
     handle: Arc<MetricsHandler>,
 }
 
-impl Debug for MetricsAccessor {
+impl<A: Accessor> Debug for MetricsAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetricsAccessor")
             .field("inner", &self.inner)
@@ -433,9 +437,13 @@ impl Debug for MetricsAccessor {
 }
 
 #[async_trait]
-impl Accessor for MetricsAccessor {
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
-        Some(self.inner.clone())
+impl<A: Accessor> Accessor for MetricsAccessor<A> {
+    type Inner = A;
+    type Reader = MetricReader<A::Reader>;
+    type BlockingReader = MetricReader<A::BlockingReader>;
+
+    fn inner(&self) -> Option<&Self::Inner> {
+        Some(&self.inner)
     }
 
     fn metadata(&self) -> AccessorMetadata {
@@ -450,49 +458,52 @@ impl Accessor for MetricsAccessor {
         result
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
         self.handle.requests_total_create.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.create(path, args).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle.requests_duration_seconds_create.record(dur);
+        Box::pin(self.inner.create(path, args).map(|v| {
+            let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::Create, e.kind());
-            e
-        })
+            self.handle.requests_duration_seconds_create.record(dur);
+
+            v.map_err(|e| {
+                self.handle
+                    .increment_errors_total(Operation::Create, e.kind());
+                e
+            })
+        }))
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
         self.handle.requests_total_read.increment(1);
 
         let start = Instant::now();
 
-        let result = self.inner.read(path, args).await.map(|(rp, r)| {
-            (
-                rp,
-                Box::new(MetricReader::new(
-                    r,
-                    Operation::Read,
-                    self.handle.clone(),
-                    self.handle.bytes_total_read.clone(),
-                    self.handle.requests_duration_seconds_read.clone(),
-                    Some(start),
-                )) as output::Reader,
-            )
-        });
-
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::Read, e.kind());
-            e
-        })
+        Box::pin(self.inner.read(path, args).map(|v| {
+            v.map(|(rp, r)| {
+                (
+                    rp,
+                    MetricReader::new(
+                        r,
+                        Operation::Read,
+                        self.handle.clone(),
+                        self.handle.bytes_total_read.clone(),
+                        self.handle.requests_duration_seconds_read.clone(),
+                        Some(start),
+                    ),
+                )
+            })
+            .map_err(|err| {
+                self.handle
+                    .increment_errors_total(Operation::Read, err.kind());
+                err
+            })
+        }))
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
         self.handle.requests_total_write.increment(1);
 
         let r = Box::new(MetricReader::new(
@@ -505,64 +516,80 @@ impl Accessor for MetricsAccessor {
         ));
 
         let start = Instant::now();
-        let result = self.inner.write(path, args, r).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle.requests_duration_seconds_write.record(dur);
+        Box::pin(
+            self.inner
+                .write(path, args, r)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::Write, e.kind());
-            e
-        })
+                    self.handle.requests_duration_seconds_write.record(dur);
+                })
+                .inspect_err(|e| {
+                    self.handle
+                        .increment_errors_total(Operation::Write, e.kind());
+                }),
+        )
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
         self.handle.requests_total_stat.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.stat(path, args).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle.requests_duration_seconds_stat.record(dur);
+        Box::pin(
+            self.inner
+                .stat(path, args)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::Stat, e.kind());
-            e
-        })
+                    self.handle.requests_duration_seconds_stat.record(dur);
+                })
+                .inspect_err(|e| {
+                    self.handle
+                        .increment_errors_total(Operation::Stat, e.kind());
+                }),
+        )
     }
 
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
         self.handle.requests_total_delete.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.delete(path, args).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle.requests_duration_seconds_delete.record(dur);
+        Box::pin(
+            self.inner
+                .delete(path, args)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::Delete, e.kind());
-            e
-        })
+                    self.handle.requests_duration_seconds_delete.record(dur);
+                })
+                .inspect_err(|e| {
+                    self.handle
+                        .increment_errors_total(Operation::Delete, e.kind());
+                }),
+        )
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
         self.handle.requests_total_list.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.list(path, args).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle.requests_duration_seconds_list.record(dur);
+        Box::pin(
+            self.inner
+                .list(path, args)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::List, e.kind());
-            e
-        })
+                    self.handle.requests_duration_seconds_list.record(dur);
+                })
+                .inspect_err(|e| {
+                    self.handle
+                        .increment_errors_total(Operation::List, e.kind());
+                }),
+        )
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -581,34 +608,38 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    async fn create_multipart(
+    fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
+    ) -> FutureResult<RpCreateMultipart> {
         self.handle.requests_total_create_multipart.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.create_multipart(path, args).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle
-            .requests_duration_seconds_create_multipart
-            .record(dur);
+        Box::pin(
+            self.inner
+                .create_multipart(path, args)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::CreateMultipart, e.kind());
-            e
-        })
+                    self.handle
+                        .requests_duration_seconds_create_multipart
+                        .record(dur);
+                })
+                .inspect_err(|err| {
+                    self.handle
+                        .increment_errors_total(Operation::CreateMultipart, err.kind());
+                }),
+        )
     }
 
-    async fn write_multipart(
+    fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
+    ) -> FutureResult<RpWriteMultipart> {
         self.handle.requests_total_write_multipart.increment(1);
 
         let r = Box::new(MetricReader::new(
@@ -623,62 +654,74 @@ impl Accessor for MetricsAccessor {
         ));
 
         let start = Instant::now();
-        let result = self.inner.write_multipart(path, args, r).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle
-            .requests_duration_seconds_write_multipart
-            .record(dur);
+        Box::pin(
+            self.inner
+                .write_multipart(path, args, r)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::WriteMultipart, e.kind());
-            e
-        })
+                    self.handle
+                        .requests_duration_seconds_write_multipart
+                        .record(dur);
+                })
+                .inspect_err(|err| {
+                    self.handle
+                        .increment_errors_total(Operation::WriteMultipart, err.kind());
+                }),
+        )
     }
 
-    async fn complete_multipart(
+    fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
+    ) -> FutureResult<RpCompleteMultipart> {
         self.handle.requests_total_complete_multipartt.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.complete_multipart(path, args).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle
-            .requests_duration_seconds_complete_multipart
-            .record(dur);
+        Box::pin(
+            self.inner
+                .complete_multipart(path, args)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::CompleteMultipart, e.kind());
-            e
-        })
+                    self.handle
+                        .requests_duration_seconds_complete_multipart
+                        .record(dur);
+                })
+                .inspect_err(|err| {
+                    self.handle
+                        .increment_errors_total(Operation::CompleteMultipart, err.kind());
+                }),
+        )
     }
 
-    async fn abort_multipart(
+    fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
+    ) -> FutureResult<RpAbortMultipart> {
         self.handle.requests_total_abort_multipart.increment(1);
 
         let start = Instant::now();
-        let result = self.inner.abort_multipart(path, args).await;
-        let dur = start.elapsed().as_secs_f64();
 
-        self.handle
-            .requests_duration_seconds_abort_multipart
-            .record(dur);
+        Box::pin(
+            self.inner
+                .abort_multipart(path, args)
+                .inspect_ok(|_| {
+                    let dur = start.elapsed().as_secs_f64();
 
-        result.map_err(|e| {
-            self.handle
-                .increment_errors_total(Operation::AbortMultipart, e.kind());
-            e
-        })
+                    self.handle
+                        .requests_duration_seconds_abort_multipart
+                        .record(dur);
+                })
+                .inspect_err(|err| {
+                    self.handle
+                        .increment_errors_total(Operation::AbortMultipart, err.kind());
+                }),
+        )
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -699,21 +742,21 @@ impl Accessor for MetricsAccessor {
         })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.handle.requests_total_blocking_read.increment(1);
 
         let start = Instant::now();
         let result = self.inner.blocking_read(path, args).map(|(rp, r)| {
             (
                 rp,
-                Box::new(MetricReader::new(
+                MetricReader::new(
                     r,
                     Operation::BlockingRead,
                     self.handle.clone(),
                     self.handle.bytes_total_blocking_read.clone(),
                     self.handle.requests_duration_seconds_blocking_read.clone(),
                     Some(start),
-                )) as output::BlockingReader,
+                ),
             )
         });
 
@@ -844,11 +887,7 @@ impl<R> MetricReader<R> {
     }
 }
 
-impl output::Read for MetricReader<output::Reader> {
-    fn inner(&mut self) -> Option<&mut output::Reader> {
-        Some(&mut self.inner)
-    }
-
+impl<R: output::Read> output::Read for MetricReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
@@ -861,6 +900,10 @@ impl output::Read for MetricReader<output::Reader> {
                 Err(e)
             }
         })
+    }
+
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+        self.inner.poll_seek(cx, pos)
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
@@ -901,11 +944,7 @@ impl<R: AsyncRead + Unpin> AsyncRead for MetricReader<R> {
     }
 }
 
-impl output::BlockingRead for MetricReader<output::BlockingReader> {
-    fn inner(&mut self) -> Option<&mut output::BlockingReader> {
-        Some(&mut self.inner)
-    }
-
+impl<R: output::BlockingRead> output::BlockingRead for MetricReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner
             .read(buf)
@@ -963,51 +1002,5 @@ impl<R> Drop for MetricReader<R> {
             let dur = instant.elapsed().as_secs_f64();
             self.requests_duration_seconds.record(dur);
         }
-    }
-}
-
-impl<A: AccessorNext> LayerNext<A> for MetricsLayer {
-    type LayeredAccessor = MetricsAccessorNext<A>;
-
-    fn layer(self, inner: A) -> Self::LayeredAccessor {
-        MetricsAccessorNext { inner }
-    }
-}
-
-#[derive(Clone)]
-pub struct MetricsAccessorNext<A: AccessorNext> {
-    inner: A,
-}
-
-impl<A: AccessorNext> Debug for MetricsAccessorNext<A> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MetricsAccessorNext")
-    }
-}
-
-impl<A: AccessorNext> AccessorNext for MetricsAccessorNext<A> {
-    type Inner = A;
-    type Reader = MetricReaderNext<A::Reader>;
-    type BlockingReader = MetricReaderNext<A::BlockingReader>;
-
-    fn inner(&self) -> Option<&Self::Inner> {
-        Some(&self.inner)
-    }
-
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let (rp, r) = self.inner.blocking_read(path, args)?;
-        Ok((rp, MetricReaderNext { inner: r }))
-    }
-}
-
-pub struct MetricReaderNext<R> {
-    inner: R,
-}
-
-impl<R: output::Read> output::Read for MetricReaderNext<R> {}
-
-impl<R: output::BlockingRead> output::BlockingRead for MetricReaderNext<R> {
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.inner.seek(pos)
     }
 }

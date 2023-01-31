@@ -23,6 +23,7 @@ use std::task::Poll;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::AsyncRead;
+use futures::FutureExt;
 use tracing::Span;
 
 use crate::raw::*;
@@ -44,21 +45,27 @@ use crate::*;
 /// ```
 pub struct TracingLayer;
 
-impl Layer for TracingLayer {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(TracingAccessor { inner })
+impl<A: Accessor> Layer<A> for TracingLayer {
+    type LayeredAccessor = TracingAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        TracingAccessor { inner }
     }
 }
 
-#[derive(Debug, Clone)]
-struct TracingAccessor {
-    inner: Arc<dyn Accessor>,
+#[derive(Debug)]
+struct TracingAccessor<A> {
+    inner: A,
 }
 
 #[async_trait]
-impl Accessor for TracingAccessor {
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
-        Some(self.inner.clone())
+impl<A: Accessor> Accessor for TracingAccessor<A> {
+    type Inner = A;
+    type Reader = TracingReader<A::Reader>;
+    type BlockingReader = TracingReader<A::BlockingReader>;
+
+    fn inner(&self) -> Option<&Self::Inner> {
+        Some(&self.inner)
     }
 
     #[tracing::instrument(level = "debug")]
@@ -67,44 +74,45 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.create(path, args).await
+    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
+        self.inner.create(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        self.inner.read(path, args).await.map(|(rp, r)| {
-            (
-                rp,
-                Box::new(TracingReader::new(Span::current(), r)) as output::Reader,
-            )
-        })
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        Box::pin(
+            self.inner
+                .read(path, args)
+                .map(|v| v.map(|(rp, r)| (rp, TracingReader::new(Span::current(), r)))),
+        )
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
         let r = Box::new(TracingReader::new(Span::current(), r));
-        self.inner.write(path, args, r).await
+        self.inner.write(path, args, r)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner.stat(path, args).await
+    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
+        self.inner.stat(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await
+    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
+        self.inner.delete(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-        self.inner.list(path, args).await.map(|(rp, s)| {
-            (
-                rp,
-                Box::new(TracingPager::new(Span::current(), s)) as ObjectPager,
-            )
-        })
+    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
+        Box::pin(self.inner.list(path, args).map(|v| {
+            v.map(|(rp, s)| {
+                (
+                    rp,
+                    Box::new(TracingPager::new(Span::current(), s)) as ObjectPager,
+                )
+            })
+        }))
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -113,41 +121,41 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create_multipart(
+    fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.inner.create_multipart(path, args).await
+    ) -> FutureResult<RpCreateMultipart> {
+        self.inner.create_multipart(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    async fn write_multipart(
+    fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
+    ) -> FutureResult<RpWriteMultipart> {
         let r = Box::new(TracingReader::new(Span::current(), r));
-        self.inner.write_multipart(path, args, r).await
+        self.inner.write_multipart(path, args, r)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn complete_multipart(
+    fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.inner.complete_multipart(path, args).await
+    ) -> FutureResult<RpCompleteMultipart> {
+        self.inner.complete_multipart(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn abort_multipart(
+    fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.inner.abort_multipart(path, args).await
+    ) -> FutureResult<RpAbortMultipart> {
+        self.inner.abort_multipart(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -156,13 +164,10 @@ impl Accessor for TracingAccessor {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
-        self.inner.blocking_read(path, args).map(|(rp, r)| {
-            (
-                rp,
-                Box::new(BlockingTracingReader::new(Span::current(), r)) as output::BlockingReader,
-            )
-        })
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, r)| (rp, TracingReader::new(Span::current(), r)))
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
@@ -207,17 +212,21 @@ impl<R> TracingReader<R> {
     }
 }
 
-impl output::Read for TracingReader<output::Reader> {
-    fn inner(&mut self) -> Option<&mut output::Reader> {
-        Some(&mut self.inner)
-    }
-
+impl<R: output::Read> output::Read for TracingReader<R> {
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
         skip_all)]
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         self.inner.poll_read(cx, buf)
+    }
+
+    #[tracing::instrument(
+        parent = &self.span,
+        level = "trace",
+        skip_all)]
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+        self.inner.poll_seek(cx, pos)
     }
 
     #[tracing::instrument(
@@ -244,34 +253,21 @@ impl<R: input::Read> AsyncRead for TracingReader<R> {
     }
 }
 
-struct BlockingTracingReader<R> {
-    span: Span,
-    inner: R,
-}
-
-impl<R> BlockingTracingReader<R> {
-    fn new(span: Span, inner: R) -> Self {
-        Self { span, inner }
-    }
-}
-
-impl output::BlockingRead for BlockingTracingReader<output::BlockingReader> {
-    fn inner(&mut self) -> Option<&mut output::BlockingReader> {
-        Some(&mut self.inner)
+impl<R: output::BlockingRead> output::BlockingRead for TracingReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
     }
 
-    #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         self.inner.seek(pos)
     }
+
+    fn next(&mut self) -> Option<io::Result<Bytes>> {
+        self.inner.next()
+    }
 }
 
-impl<R: input::BlockingRead> Read for BlockingTracingReader<R> {
-    #[tracing::instrument(
-        parent = &self.span,
-        level = "trace",
-        fields(size = buf.len())
-        skip_all)]
+impl<R: input::BlockingRead> Read for TracingReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
     }

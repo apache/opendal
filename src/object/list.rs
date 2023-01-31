@@ -32,7 +32,7 @@ use crate::*;
 /// User can use object lister as `Stream<Item = Result<Object>>` or
 /// call `next_page` directly.
 pub struct ObjectLister {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     pager: Option<ObjectPager>,
 
     buf: VecDeque<ObjectEntry>,
@@ -56,7 +56,7 @@ impl ObjectLister {
 
     /// Fetch the operator that used by this object.
     pub fn operator(&self) -> Operator {
-        self.acc.clone().into()
+        todo!()
     }
 
     /// next_page can be used to fetch a new object page.
@@ -135,14 +135,14 @@ impl Stream for ObjectLister {
 }
 
 pub struct BlockingObjectLister {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     pager: BlockingObjectPager,
     buf: VecDeque<ObjectEntry>,
 }
 
 impl BlockingObjectLister {
     /// Create a new object lister.
-    pub fn new(acc: Arc<dyn Accessor>, pager: BlockingObjectPager) -> Self {
+    pub fn new(acc: FusedAccessor, pager: BlockingObjectPager) -> Self {
         Self {
             acc,
             pager,
@@ -152,7 +152,7 @@ impl BlockingObjectLister {
 
     /// Fetch the operator that used by this object.
     pub fn operator(&self) -> Operator {
-        self.acc.clone().into()
+        todo!()
     }
 
     /// next_page can be used to fetch a new object page.

@@ -35,7 +35,7 @@ use crate::*;
 ///
 /// Before [`ObjectMultipart::complete`] has been called, we can't read any content from this multipart object.
 pub struct ObjectMultipart {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     path: String,
     upload_id: String,
 }

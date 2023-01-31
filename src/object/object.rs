@@ -39,7 +39,7 @@ use crate::*;
 /// operations. It's better to reuse the same object whenever possible.
 #[derive(Clone, Debug)]
 pub struct Object {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     path: String,
 
     meta: Arc<Mutex<ObjectMetadata>>,
@@ -65,10 +65,10 @@ impl Object {
 
     /// Fetch the operator that used by this object.
     pub fn operator(&self) -> Operator {
-        self.acc.clone().into()
+        todo!()
     }
 
-    pub(crate) fn accessor(&self) -> Arc<dyn Accessor> {
+    pub(crate) fn accessor(&self) -> FusedAccessor {
         self.acc.clone()
     }
 

@@ -33,43 +33,44 @@ pub type BlockingReader = Box<dyn BlockingRead>;
 /// `Read` is required to be implemented, `Seek` and `Iterator`
 /// is optional. We use `Read` to make users life easier.
 pub trait BlockingRead: Send + Sync + 'static {
-    /// Return the inner output bytes reader if there is one.
-    #[inline]
-    fn inner(&mut self) -> Option<&mut BlockingReader> {
-        None
-    }
-
     /// Read synchronously.
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self.inner() {
-            Some(v) => v.read(buf),
-            None => unimplemented!("read is required to be implemented for output::BlockingRead"),
-        }
+        unimplemented!("read is required to be implemented for output::BlockingRead")
     }
 
     /// Seek synchronously.
     #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        match self.inner() {
-            Some(v) => v.seek(pos),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "output blocking reader doesn't support seeking",
-            )),
-        }
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output blocking reader doesn't support seeking",
+        ))
     }
 
     /// Iterating [`Bytes`] from underlying reader.
     #[inline]
     fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.inner() {
-            Some(v) => v.next(),
-            None => Some(Err(Error::new(
-                ErrorKind::Unsupported,
-                "output reader doesn't support iterating",
-            ))),
-        }
+        Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support iterating",
+        )))
+    }
+}
+
+impl BlockingRead for () {}
+
+impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        (**self).read(buf)
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        (**self).seek(pos)
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        (**self).next()
     }
 }
 
@@ -81,13 +82,13 @@ impl std::io::Read for dyn BlockingRead {
     }
 }
 
-// impl std::io::Seek for dyn BlockingRead {
-//     #[inline]
-//     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-//         let this: &mut dyn BlockingRead = &mut *self;
-//         this.seek(pos)
-//     }
-// }
+impl std::io::Seek for dyn BlockingRead {
+    #[inline]
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let this: &mut dyn BlockingRead = &mut *self;
+        this.seek(pos)
+    }
+}
 
 impl Iterator for dyn BlockingRead {
     type Item = Result<Bytes>;

@@ -57,7 +57,7 @@ const WALK_BUFFER_SIZE: usize = 256;
 /// There is no guarantee about the order between files and dirs at the same level.
 /// We only make sure the parent dirs will show up before nest dirs.
 pub struct TopDownWalker {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     dirs: VecDeque<ObjectEntry>,
     pagers: Vec<(ObjectPager, Vec<ObjectEntry>)>,
     res: Vec<ObjectEntry>,
@@ -65,7 +65,7 @@ pub struct TopDownWalker {
 
 impl TopDownWalker {
     /// Create a new [`TopDownWalker`]
-    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+    pub fn new(acc: FusedAccessor, path: &str) -> Self {
         let path = normalize_path(path);
         TopDownWalker {
             acc,
@@ -170,7 +170,7 @@ impl ObjectPage for TopDownWalker {
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
 pub struct BottomUpWalker {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     dirs: VecDeque<ObjectEntry>,
     pagers: Vec<(ObjectPager, ObjectEntry, Vec<ObjectEntry>)>,
     res: Vec<ObjectEntry>,
@@ -178,7 +178,7 @@ pub struct BottomUpWalker {
 
 impl BottomUpWalker {
     /// Create a new [`BottomUpWalker`]
-    pub fn new(acc: Arc<dyn Accessor>, path: &str) -> Self {
+    pub fn new(acc: FusedAccessor, path: &str) -> Self {
         BottomUpWalker {
             acc,
             dirs: VecDeque::from([ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),

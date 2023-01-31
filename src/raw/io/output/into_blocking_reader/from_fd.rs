@@ -48,6 +48,7 @@ impl<R> FdReader<R>
 where
     R: Read + Seek + Send + Sync,
 {
+    #[inline]
     pub(crate) fn current_size(&self) -> i64 {
         debug_assert!(self.offset >= self.start, "offset must in range");
         self.end as i64 - self.offset as i64
@@ -73,6 +74,7 @@ where
     /// TODO: maybe we don't need to do seek really, just call pread instead.
     ///
     /// We need to wait for tokio's pread support.
+    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let (base, offset) = match pos {
             SeekFrom::Start(n) => (self.start as i64, n as i64),
@@ -86,11 +88,6 @@ where
                 "invalid seek to a negative or overflowing position",
             )),
             Some(n) => {
-                // Ignore seek operation if we are already on start.
-                if self.offset == n as u64 {
-                    return Ok(self.offset - self.start);
-                }
-
                 let cur = self.inner.seek(SeekFrom::Start(n as u64))?;
 
                 self.offset = cur;

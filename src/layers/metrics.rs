@@ -76,6 +76,12 @@ static LABEL_ERROR: &str = "error";
 /// - `operation`: Operation name from [`Operation`]
 /// - `error`: [`ErrorKind`] received by requests
 ///
+/// # Notes
+///
+/// Please make sure the exporter has been pulled in regular time.
+/// Otherwise, the histogram data collected by `requests_duration_seconds`
+/// could result in OOM.
+///
 /// # Examples
 ///
 /// ```
@@ -912,6 +918,11 @@ impl output::BlockingRead for MetricReader<output::BlockingReader> {
                     .increment_errors_total(self.op, ErrorKind::Unexpected);
                 e
             })
+    }
+
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
     }
 
     fn next(&mut self) -> Option<io::Result<Bytes>> {

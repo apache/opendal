@@ -12,23 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! FTP support for OpenDAL.
+//! [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
+//!
+//! # Notes
+//!
+//! Bazel Remote Caching and Ccache HTTP Storage is also part of this service.
+//! Users can use `webdav` to connect those services.
+//!
+//! # Status
+//!
+//! - `list` is not supported so far.
 //!
 //! # Configuration
 //!
-//! - `endpoint`: set the endpoint for connection
+//! - `endpoint`: set the endpoint for webdav
 //! - `root`: Set the work directory for backend
-//! - `credential`:  login credentials
-//! - `tls`: tls mode
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
 //! # Environment
 //!
-//! - `OPENDAL_FTP_ENDPOINT`    optional
-//! - `OPENDAL_FTP_ROOT`    required
-//! - `OPENDAL_FTP_USER`  optional
-//! - `OPENDAL_FTP_PASSWORD`    optional
+//! - `OPENDAL_WEBDAV_ENDPOINT`
+//! - `OPENDAL_WEBDAV_ROOT`
 //!
 //! # Example
 //!
@@ -37,10 +42,8 @@
 //! Set environment correctly:
 //!
 //! ```shell
-//! export OPENDAL_FTP_ENDPOINT=endpoint    # required
-//! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/"
-//! export OPENDAL_FTP_USER=name            # default with empty string ""
-//! export OPENDAL_FTP_PASSWORD=password    # default with empty string ""
+//! export OPENDAL_WEBDAV_ENDPOINT=endpoint
+//! export OPENDAL_WEBDAV_ROOT=/path/to/dir/
 //! ```
 //!
 //! ```no_run
@@ -51,7 +54,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Ftp)?;
+//!     let op: Operator = Operator::from_env(Scheme::Webdav)?;
 //!
 //!     // create an object handler to start operation on it.
 //!     let _op: Object = op.object("test_file");
@@ -64,14 +67,14 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::ftp;
+//! use opendal::services::webdav;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = ftp::Builder::default();
+//!     let mut builder = webdav::Builder::default();
 //!
 //!     builder.endpoint("127.0.0.1");
 //!
@@ -84,6 +87,4 @@
 mod backend;
 pub use backend::Builder;
 
-mod dir_stream;
-mod err;
-mod util;
+mod error;

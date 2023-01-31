@@ -15,25 +15,53 @@ use core::fmt::Debug;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use http::{
-    header::{CONTENT_LENGTH, CONTENT_TYPE},
-    Request, Response, StatusCode,
-};
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
+use http::Request;
+use http::Response;
+use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
-use crate::{
-    raw::{
-        apply_wrapper, build_abs_path, input, new_request_build_error, normalize_root, output,
-        parse_into_object_metadata, percent_encode_path, Accessor, AccessorCapability,
-        AccessorHint, AccessorMetadata, AsyncBody, BytesRange, HttpClient, IncomingAsyncBody,
-        ObjectPage, ObjectPager, RpCreate, RpDelete, RpList, RpRead, RpStat, RpWrite,
-    },
-    Error, ErrorKind, ObjectMetadata, ObjectMode, OpCreate, OpDelete, OpList, OpRead, OpStat,
-    OpWrite, Result, Scheme,
-};
-
-use super::{dir_stream::DirStream, error::parse_error, signer::Signer};
+use super::dir_stream::DirStream;
+use super::error::parse_error;
+use super::signer::Signer;
+use crate::raw::apply_wrapper;
+use crate::raw::build_abs_path;
+use crate::raw::input;
+use crate::raw::new_request_build_error;
+use crate::raw::normalize_root;
+use crate::raw::output;
+use crate::raw::parse_into_object_metadata;
+use crate::raw::percent_encode_path;
+use crate::raw::Accessor;
+use crate::raw::AccessorCapability;
+use crate::raw::AccessorHint;
+use crate::raw::AccessorMetadata;
+use crate::raw::AsyncBody;
+use crate::raw::BytesRange;
+use crate::raw::HttpClient;
+use crate::raw::IncomingAsyncBody;
+use crate::raw::ObjectPage;
+use crate::raw::ObjectPager;
+use crate::raw::RpCreate;
+use crate::raw::RpDelete;
+use crate::raw::RpList;
+use crate::raw::RpRead;
+use crate::raw::RpStat;
+use crate::raw::RpWrite;
+use crate::Error;
+use crate::ErrorKind;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
+use crate::OpCreate;
+use crate::OpDelete;
+use crate::OpList;
+use crate::OpRead;
+use crate::OpStat;
+use crate::OpWrite;
+use crate::Result;
+use crate::Scheme;
 
 type AsyncReq = Request<AsyncBody>;
 type AsyncResp = Response<IncomingAsyncBody>;
@@ -547,7 +575,7 @@ struct FileStatusesWrapper {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
-pub struct FileStatuses {
+pub(super) struct FileStatuses {
     pub file_status: Vec<FileStatus>,
 }
 

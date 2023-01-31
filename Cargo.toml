@@ -7,6 +7,7 @@ exclude = [
   ".github/",
   "bindings/",
   "docs/",
+  "profiles/",
   "oay/",
   "oli/",
   "tests/",
@@ -16,12 +17,15 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.25.1"
+version = "0.25.2"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 
 [package.metadata.docs.rs]
 all-features = true
+
+[profile.bench]
+debug = true
 
 [features]
 default = ["rustls"]
@@ -70,14 +74,6 @@ name = "ops"
 [[bench]]
 harness = false
 name = "io"
-
-[[bench]]
-harness = false
-name = "path"
-
-[[bench]]
-harness = false
-name = "layers"
 required-features = ["layers-all"]
 
 [[example]]
@@ -171,7 +167,6 @@ opentelemetry-jaeger = "0.16"
 paste = "1"
 pretty_assertions = "1"
 rand = "0.8"
-serde_json = "1"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.20", features = ["fs", "macros", "rt-multi-thread"] }

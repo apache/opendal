@@ -1191,6 +1191,7 @@ impl<R> Drop for BlockingLoggingReader<R> {
 }
 
 impl output::BlockingRead for BlockingLoggingReader<output::BlockingReader> {
+    #[inline]
     fn inner(&mut self) -> Option<&mut output::BlockingReader> {
         Some(&mut self.inner)
     }
@@ -1226,6 +1227,11 @@ impl output::BlockingRead for BlockingLoggingReader<output::BlockingReader> {
                 Err(err)
             }
         }
+    }
+
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
     }
 
     fn next(&mut self) -> Option<io::Result<Bytes>> {

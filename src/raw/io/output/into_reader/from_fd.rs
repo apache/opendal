@@ -91,11 +91,6 @@ where
                 "invalid seek to a negative or overflowing position",
             ))),
             Some(n) => {
-                // Ignore seek operation if we are already on start.
-                if self.offset == n as u64 {
-                    return Poll::Ready(Ok(self.offset - self.start));
-                }
-
                 let cur =
                     ready!(Pin::new(&mut self.inner).poll_seek(cx, SeekFrom::Start(n as u64)))?;
 

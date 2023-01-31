@@ -73,6 +73,8 @@ pub enum Scheme {
     Oss,
     /// [webhdfs][crate::services::webhdfs]: WebHDFS RESTful API Services
     WebHdfs,
+    /// [webdav][crate::services::webdav]: WebDAV support.
+    Webdav,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
     /// # NOTE
@@ -97,35 +99,7 @@ impl Default for Scheme {
 
 impl Display for Scheme {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Scheme::Azblob => write!(f, "azblob"),
-            Scheme::Azdfs => write!(f, "azdfs"),
-            Scheme::Fs => write!(f, "fs"),
-            Scheme::Gcs => write!(f, "gcs"),
-            Scheme::Ghac => write!(f, "ghac"),
-            #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => write!(f, "hdfs"),
-            Scheme::Http => write!(f, "http"),
-            #[cfg(feature = "services-ftp")]
-            Scheme::Ftp => write!(f, "ftp"),
-            #[cfg(feature = "services-ipfs")]
-            Scheme::Ipfs => write!(f, "ipfs"),
-            Scheme::Ipmfs => write!(f, "ipmfs"),
-            #[cfg(feature = "services-memcached")]
-            Scheme::Memcached => write!(f, "memcached"),
-            Scheme::Memory => write!(f, "memory"),
-            #[cfg(feature = "services-moka")]
-            Scheme::Moka => write!(f, "moka"),
-            Scheme::Obs => write!(f, "obs"),
-            #[cfg(feature = "services-redis")]
-            Scheme::Redis => write!(f, "redis"),
-            #[cfg(feature = "services-rocksdb")]
-            Scheme::Rocksdb => write!(f, "rocksdb"),
-            Scheme::S3 => write!(f, "s3"),
-            Scheme::Oss => write!(f, "oss"),
-            Scheme::WebHdfs => write!(f, "webhdfs"),
-            Scheme::Custom(v) => write!(f, "{v}"),
-        }
+        write!(f, "{}", self.into_static())
     }
 }
 
@@ -161,6 +135,7 @@ impl FromStr for Scheme {
             "s3" => Ok(Scheme::S3),
             "oss" => Ok(Scheme::Oss),
             "webhdfs" => Ok(Scheme::WebHdfs),
+            "webdav" => Ok(Scheme::Webdav),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -195,6 +170,7 @@ impl From<Scheme> for &'static str {
             Scheme::S3 => "s3",
             Scheme::Oss => "oss",
             Scheme::WebHdfs => "webhdfs",
+            Scheme::Webdav => "webdav",
             Scheme::Custom(v) => v,
         }
     }

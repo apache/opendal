@@ -1,0 +1,21 @@
+[package]
+description = "OpenDAL's object_store binding"
+edition = "2021"
+license = "Apache-2.0"
+name = "object_store_opendal"
+repository = "https://github.com/datafuselabs/opendal"
+version = "0.0.1"
+# MSRV of OpenDAL. Please update this field while bump.
+rust-version = "1.60"
+
+[dependencies]
+async-trait = "0.1"
+bytes = "1"
+chrono = "0.4.23"
+futures = "0.3"
+object_store = "0.5"
+opendal = { version = "0.25", path = "../../" }
+tokio = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }

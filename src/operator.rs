@@ -127,6 +127,7 @@ impl Operator {
         let op = match scheme {
             Scheme::Azblob => services::azblob::Builder::from_iter(it).build()?.into(),
             Scheme::Azdfs => services::azdfs::Builder::from_iter(it).build()?.into(),
+            Scheme::WebHdfs => services::webhdfs::Builder::from_iter(it).build()?.into(),
             Scheme::Fs => services::fs::Builder::from_iter(it).build()?.into(),
             #[cfg(feature = "services-ftp")]
             Scheme::Ftp => services::ftp::Builder::from_iter(it).build()?.into(),
@@ -150,6 +151,7 @@ impl Operator {
             #[cfg(feature = "services-rocksdb")]
             Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
             Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
+            Scheme::Webdav => services::webdav::Builder::from_iter(it).build()?.into(),
             Scheme::Custom(v) => {
                 return Err(
                     Error::new(ErrorKind::Unsupported, "custom service  is not supported")

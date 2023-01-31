@@ -69,26 +69,31 @@ impl BlockingObjectReader {
 }
 
 impl output::BlockingRead for BlockingObjectReader {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
     }
 
+    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.inner.seek(pos)
     }
 
+    #[inline]
     fn next(&mut self) -> Option<io::Result<Bytes>> {
         self.inner.next()
     }
 }
 
 impl io::Read for BlockingObjectReader {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
     }
 }
 
 impl io::Seek for BlockingObjectReader {
+    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         self.inner.seek(pos)
     }
@@ -97,6 +102,7 @@ impl io::Seek for BlockingObjectReader {
 impl Iterator for BlockingObjectReader {
     type Item = io::Result<Bytes>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }

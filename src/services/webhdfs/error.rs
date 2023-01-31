@@ -13,11 +13,15 @@
 // limitations under the License.
 
 use bytes::Buf;
-use http::{Response, StatusCode};
+use http::Response;
+use http::StatusCode;
 use serde::Deserialize;
 use serde_json::from_reader;
 
-use crate::{raw::IncomingAsyncBody, Error, ErrorKind, Result};
+use crate::raw::IncomingAsyncBody;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Result;
 
 /// WebHdfsError is the error message returned by WebHdfs service
 #[derive(Default, Debug, Deserialize)]
@@ -61,11 +65,10 @@ pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Err
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
-
-    use crate::raw::input::Stream;
     use futures::stream;
 
     use super::*;
+    use crate::raw::input::Stream;
 
     /// Error response example from https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Error%20Responses
     #[tokio::test]

@@ -1,0 +1,40 @@
+name: Service Test WebDAV
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  nginx:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start nginx
+        shell: bash
+        run: |
+          mkdir -p /tmp/static
+          nginx -c `pwd`/src/services/webdav/fixtures/nginx.conf
+
+      - name: Test
+        shell: bash
+        run: cargo test webdav --features compress -- --show-output
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080

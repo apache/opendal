@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::raw::build_abs_path;
 use async_trait::async_trait;
 
 use super::backend::FileStatus;
+use crate::raw::build_abs_path;
 use crate::raw::ObjectEntry;
 use crate::raw::ObjectPage;
 use crate::Result;
 
-pub struct DirStream {
+pub(super) struct DirStream {
     root: String,
     path: String,
     statuses: Vec<FileStatus>,

@@ -59,9 +59,11 @@ use crate::raw::*;
 ///     }
 /// }
 /// ```
-pub trait Layer {
+pub trait Layer<A: Accessor> {
+    type LayeredAccessor: Accessor;
+
     /// Intercept the operations on the underlying storage.
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor>;
+    fn layer(&self, inner: A) -> Self::LayeredAccessor;
 }
 
 #[cfg(test)]

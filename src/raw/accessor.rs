@@ -66,13 +66,17 @@ use crate::*;
 ///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug + 'static {
+    type Inner: Accessor;
+    type Reader: output::Read;
+    type BlockingReader: output::BlockingRead;
+
     /// Return the inner accessor if there is one.
     ///
     /// # Behavior
     ///
     /// - Service should not implement this method.
     /// - Layers can implement this method to forward API call to inner accessor.
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
+    fn inner(&self) -> Option<&Self::Inner> {
         None
     }
 
@@ -110,7 +114,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     /// - The returning contnet length may be smaller than the range specifed.
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         match self.inner() {
             Some(inner) => inner.read(path, args).await,
             None => Err(Error::new(
@@ -303,7 +307,7 @@ pub trait Accessor: Send + Sync + Debug + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Blocking`
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         match self.inner() {
             Some(inner) => inner.blocking_read(path, args),
             None => Err(Error::new(
@@ -632,15 +636,8 @@ pub trait AccessorNext: Send + Sync + Debug + 'static {
     }
 }
 
-pub trait LayerNext<A: AccessorNext> {
-    type LayeredAccessor: AccessorNext;
-
-    /// Intercept the operations on the underlying storage.
-    fn layer(self, inner: A) -> Self::LayeredAccessor;
-}
-
 #[async_trait]
-impl AccessorNext for () {
+impl Accessor for () {
     type Inner = ();
     type Reader = ();
     type BlockingReader = ();

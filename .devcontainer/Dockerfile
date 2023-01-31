@@ -41,3 +41,5 @@ RUN curl -qL https://github.com/rui314/mold/releases/download/v1.2.1/mold-1.2.1-
     tar --strip-components=1 -xzf /tmp/mold.tar.gz -C /usr/local && \
     rm -rf /tmp/mold.tar.gz && \
     ln -sf /usr/local/bin/mold /usr/bin/$(uname -m)-linux-gnu-ld
+
+RUN git config --global --add safe.directory /workspaces/opendal

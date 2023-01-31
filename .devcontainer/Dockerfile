@@ -4,12 +4,13 @@ RUN go install github.com/apache/skywalking-eyes/cmd/license-eye@latest
 FROM debian:bullseye
 
 ENV TERM xterm-256color
-ENV DEBIAN_FRONTEND=noninteractive
 
 COPY --from=go-build /go/bin/license-eye /usr/local/bin/license-eye
 
 RUN apt-get update -yq && \
-    apt-get install -yq locales sudo unzip file curl clang openjdk-11-jdk-headless libssl-dev make && \
+    apt-get install -yq locales sudo unzip file curl clang openjdk-11-jdk-headless libssl-dev make git ripgrep && \
+    curl -sSLo /tmp/lsd.deb https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb && \
+    dpkg -i /tmp/lsd.deb && \
     printf 'en_US.UTF-8 UTF-8\n' > /etc/locale.gen && \
     locale-gen && \
     rm -rf /var/lib/apt/lists/*
@@ -26,9 +27,9 @@ RUN groupdel dialout && groupdel staff && \
     printf "builder,runner,macos ALL=(ALL:ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/opendal
 
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable && \
+    mkdir -p /opt/rust && \
     rm -rf /root/.cargo/git && \
     rm -rf /root/.cargo/registry && \
-    mkdir -p /opt/rust && \
     mv /root/.cargo /opt/rust/cargo && \
     mv /root/.rustup /opt/rust/rustup
 
@@ -40,14 +41,11 @@ ENV RUSTUP_HOME /opt/rust/rustup
 ENV CARGO_HOME /opt/rust/cargo
 ENV PATH /opt/rust/cargo/bin:/opt/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-RUN cargo install taplo-cli mdbook --locked
-
 VOLUME [ "/workspace", "/opt/rust/cargo/registry", "/opt/rust/cargo/git" ]
 
-RUN apt-get update && apt-get install -y git ripgrep && \
-    curl -sSLo /tmp/lsd.deb https://github.com/Peltoche/lsd/releases/download/0.21.0/lsd_0.21.0_amd64.deb && \
-    dpkg -i /tmp/lsd.deb && \
-    rm -rf /tmp/* /var/lib/apt/lists/*
+RUN curl -L --output cargo-binstall.tgz https://github.com/cargo-bins/cargo-binstall/releases/download/v0.19.3/cargo-binstall-x86_64-unknown-linux-gnu.tgz && \
+    tar xf cargo-binstall*.tgz -C /opt/rust/cargo/bin
+RUN cargo binstall taplo-cli mdbook --no-confirm
 
 RUN curl -qL https://github.com/rui314/mold/releases/download/v1.2.1/mold-1.2.1-$(uname -m)-linux.tar.gz -o /tmp/mold.tar.gz && \
     tar --strip-components=1 -xzf /tmp/mold.tar.gz -C /usr/local && \

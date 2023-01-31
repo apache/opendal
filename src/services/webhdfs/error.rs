@@ -23,13 +23,20 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct WebHdfsErrorWrapper {
+    pub remote_exception: WebHdfsError,
+}
+
 /// WebHdfsError is the error message returned by WebHdfs service
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
 struct WebHdfsError {
     exception: String,
     message: String,
-    java_class: String,
+    java_class_name: String,
 }
 
 pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
@@ -48,8 +55,8 @@ pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Err
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match from_reader::<_, WebHdfsError>(bs.clone().reader()) {
-        Ok(wh_error) => format!("{:?}", wh_error),
+    let message = match from_reader::<_, WebHdfsErrorWrapper>(bs.clone().reader()) {
+        Ok(wh_error) => format!("{:?}", wh_error.remote_exception),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 
@@ -96,11 +103,16 @@ mod tests {
 
         let err = parse_error(resp).await?;
         assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert_eq!(err.is_temporary(), false);
+        assert!(!err.is_temporary());
 
-        let err_msg: WebHdfsError = from_reader(ill_args.reader()).expect("must success");
+        let err_msg: WebHdfsError = from_reader::<_, WebHdfsErrorWrapper>(ill_args.reader())
+            .expect("must success")
+            .remote_exception;
         assert_eq!(err_msg.exception, "IllegalArgumentException");
-        assert_eq!(err_msg.java_class, "java.lang.IllegalArgumentException");
+        assert_eq!(
+            err_msg.java_class_name,
+            "java.lang.IllegalArgumentException"
+        );
         assert_eq!(
             err_msg.message,
             "Invalid value for webhdfs parameter \"permission\": ..."

@@ -491,16 +491,18 @@ impl Accessor for Backend {
                     })?
                     .file_status;
 
-                let last_modified =
-                    time::OffsetDateTime::from_unix_timestamp(file_status.modification_time as i64)
-                        .map_err(|e| {
-                            Error::new(ErrorKind::Unexpected, "cannot get last_modified data")
-                                .with_context("service", Scheme::WebHdfs)
-                                .set_source(e)
-                        })?;
-
-                meta.set_last_modified(last_modified)
-                    .set_content_length(file_status.length);
+                let last_modi = file_status.modification_time;
+                if last_modi != -1 {
+                    let till_now = time::Duration::milliseconds(last_modi);
+                    let last_modified = time::OffsetDateTime::UNIX_EPOCH
+                        .checked_add(till_now)
+                        .ok_or(Error::new(
+                            ErrorKind::Unexpected,
+                            "last modification overflowed!",
+                        ))?;
+                    meta.set_last_modified(last_modified);
+                }
+                meta.set_content_length(file_status.length);
                 Ok(RpStat::new(meta))
             }
 
@@ -583,7 +585,8 @@ pub(super) struct FileStatuses {
 #[serde(rename_all = "camelCase")]
 pub(super) struct FileStatus {
     pub length: u64,
-    pub modification_time: u64,
+    pub modification_time: i64,
+
     pub path_suffix: String,
     #[serde(rename = "type")]
     pub ty: FileStatusType,
@@ -596,14 +599,13 @@ impl TryFrom<FileStatus> for ObjectMetadata {
             FileStatusType::Directory => ObjectMetadata::new(ObjectMode::DIR),
             FileStatusType::File => ObjectMetadata::new(ObjectMode::FILE),
         };
-        let last_modified = time::OffsetDateTime::from_unix_timestamp(
-            value.modification_time as i64,
-        )
-        .map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "cannot get last_modified data")
-                .with_context("service", Scheme::WebHdfs)
-                .set_source(e)
-        })?;
+        let till_now = time::Duration::milliseconds(value.modification_time);
+        let last_modified = time::OffsetDateTime::UNIX_EPOCH
+            .checked_add(till_now)
+            .ok_or(Error::new(
+                ErrorKind::Unexpected,
+                "last modification overflowed!",
+            ))?;
         meta.set_last_modified(last_modified)
             .set_content_length(value.length);
         Ok(meta)
@@ -619,6 +621,8 @@ pub(super) enum FileStatusType {
 
 #[cfg(test)]
 mod test {
+    use crate::raw::build_rel_path;
+
     use super::*;
 
     #[test]
@@ -689,15 +693,18 @@ mod test {
             .file_statuses
             .file_status;
 
-        let mut pager = DirStream::new("/path", "listing/directory", file_statuses);
+        let mut pager = DirStream::new("/path/", "listing/directory", file_statuses);
         let mut entries = vec![];
         while let Some(oes) = pager.next_page().await.expect("must success") {
             entries.extend(oes);
         }
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].path(), "/path/listing/directory/a.patch");
+        let root = format!("/{}/", build_abs_path("/path/", "listing/directory"));
+        let e0p = build_rel_path(&root, entries[0].path());
+        let e1p = build_rel_path(&root, entries[1].path());
+        assert_eq!(&e0p, "a.patch");
         assert_eq!(entries[0].mode(), ObjectMode::FILE);
-        assert_eq!(entries[1].path(), "/path/listing/directory/bar");
+        assert_eq!(&e1p, "bar/");
         assert_eq!(entries[1].mode(), ObjectMode::DIR);
     }
 }

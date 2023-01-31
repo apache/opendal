@@ -12,9 +12,7 @@
 		"source=${localEnv:HOME},target=/home/builder,type=bind,consistency=cached"
 	],
 	"dockerFile": "Dockerfile",
-	"remoteUser": "builder",
 	"updateRemoteUserUID": true,
-	"postCreateCommand": "sudo chown -R builder /opt/rust",
 	"postAttachCommand": "bash",
 	"settings": {
 		"editor.formatOnSave": true,

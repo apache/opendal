@@ -16,11 +16,11 @@ use http::Request;
 
 use crate::*;
 
-/// Reply fro `create` operation
+/// Reply for `create` operation
 #[derive(Debug, Clone, Default)]
 pub struct RpCreate {}
 
-/// Reply fro `delete` operation
+/// Reply for `delete` operation
 #[derive(Debug, Clone, Default)]
 pub struct RpDelete {}
 

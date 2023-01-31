@@ -15,10 +15,6 @@
 //! This module contains some naive utilities
 //! for WebHDFS authentication.
 
-use http::Request;
-
-use crate::{raw::AsyncBody, Error, ErrorKind, Result};
-
 /// a naive WebHDFS signer implementation
 /// # Note
 /// WebHDFS supports using delegation token, or user and proxy user, for authentication.
@@ -50,35 +46,18 @@ impl Signer {
     }
 
     /// sign a request
-    pub fn sign(&self, req: &mut Request<AsyncBody>) -> Result<()> {
+    pub fn sign_str(&self) -> String {
         match self {
             Self::Token(token) => {
-                let mut hs = req.headers_mut();
-                hs.insert(
-                    "delegation",
-                    token.parse().map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "signing request").set_source(err)
-                    })?,
-                );
+                format!("delegation={}", token)
             }
             Self::User(username, doas) => {
-                let mut hs = req.headers_mut();
-                hs.insert(
-                    "user.name",
-                    username.parse().map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "signing request").set_source(err)
-                    })?,
-                );
                 if !doas.is_empty() {
-                    hs.insert(
-                        "doas",
-                        doas.parse().map_err(|err| {
-                            Error::new(ErrorKind::Unexpected, "signing request").set_source(err)
-                        })?,
-                    );
+                    format!("user.name={}&doas={}", username, doas)
+                } else {
+                    format!("user.name={}", username)
                 }
             }
         }
-        Ok(())
     }
 }

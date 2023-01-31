@@ -16,7 +16,8 @@ ENV LC_ALL en_US.UTF-8
 RUN groupdel dialout && groupdel staff && \
     groupadd -g 20 staff && groupadd -g 121 docker && \
     useradd -u 1000 -g 100 builder && \
-    printf "builder ALL=(ALL:ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/opendal
+    printf "builder ALL=(ALL:ALL) NOPASSWD:ALL\n" > /etc/sudoers.d/opendal && \
+    && chmod 0440 /etc/sudoers.d/builder
 
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable  && \
     rm -rf /root/.cargo/git && \

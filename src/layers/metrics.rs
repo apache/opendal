@@ -966,32 +966,35 @@ impl<R> Drop for MetricReader<R> {
     }
 }
 
-impl<A: AccessorNext<OR = IR>, IR: output::BlockingRead> LayerNext<A, IR> for MetricsLayer {
-    type OR = MetricReaderNext<IR>;
-    type OA = MetricsAccessorNext<A, IR>;
+impl<A: AccessorNext> LayerNext<A> for MetricsLayer {
+    type LayeredAccessor = MetricsAccessorNext<A>;
 
-    fn layer(self, inner: A) -> Self::OA {
+    fn layer(self, inner: A) -> Self::LayeredAccessor {
         MetricsAccessorNext { inner }
     }
 }
 
 #[derive(Clone)]
-pub struct MetricsAccessorNext<A: AccessorNext<OR = OR>, OR: output::BlockingRead> {
+pub struct MetricsAccessorNext<A: AccessorNext> {
     inner: A,
 }
 
-impl<A: AccessorNext<OR = OR>, OR: output::BlockingRead> Debug for MetricsAccessorNext<A, OR> {
+impl<A: AccessorNext> Debug for MetricsAccessorNext<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "MetricsAccessorNext")
     }
 }
 
-impl<A: AccessorNext<OR = OR>, OR: output::BlockingRead> AccessorNext
-    for MetricsAccessorNext<A, OR>
-{
-    type OR = MetricReaderNext<OR>;
+impl<A: AccessorNext> AccessorNext for MetricsAccessorNext<A> {
+    type Inner = A;
+    type Reader = MetricReaderNext<A::Reader>;
+    type BlockingReader = MetricReaderNext<A::BlockingReader>;
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::OR)> {
+    fn inner(&self) -> Option<&Self::Inner> {
+        Some(&self.inner)
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let (rp, r) = self.inner.blocking_read(path, args)?;
         Ok((rp, MetricReaderNext { inner: r }))
     }
@@ -1001,8 +1004,9 @@ pub struct MetricReaderNext<R> {
     inner: R,
 }
 
+impl<R: output::Read> output::Read for MetricReaderNext<R> {}
+
 impl<R: output::BlockingRead> output::BlockingRead for MetricReaderNext<R> {
-    #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         self.inner.seek(pos)
     }

@@ -81,13 +81,13 @@ impl std::io::Read for dyn BlockingRead {
     }
 }
 
-impl std::io::Seek for dyn BlockingRead {
-    #[inline]
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let this: &mut dyn BlockingRead = &mut *self;
-        this.seek(pos)
-    }
-}
+// impl std::io::Seek for dyn BlockingRead {
+//     #[inline]
+//     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+//         let this: &mut dyn BlockingRead = &mut *self;
+//         this.seek(pos)
+//     }
+// }
 
 impl Iterator for dyn BlockingRead {
     type Item = Result<Bytes>;

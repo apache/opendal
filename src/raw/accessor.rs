@@ -588,52 +588,64 @@ flags! {
 }
 
 #[derive(Clone, Debug)]
-pub struct OperatorNext<A: AccessorNext<OR = OR>, OR: output::BlockingRead> {
+pub struct OperatorNext<A: AccessorNext> {
     pub accessor: A,
 }
 
-impl<A, OR> OperatorNext<A, OR>
+impl<A> OperatorNext<A>
 where
-    A: AccessorNext<OR = OR>,
-    OR: output::BlockingRead,
+    A: AccessorNext,
 {
-    pub fn layer<L: LayerNext<A, OR>>(self, layer: L) -> OperatorNext<L::OA, L::OR> {
+    pub fn layer<L: LayerNext<A>>(self, layer: L) -> OperatorNext<L::LayeredAccessor> {
         OperatorNext {
             accessor: layer.layer(self.accessor),
         }
     }
 
-    // pub fn blocking_reader(&self, path: &str) -> Result<OR> {
-    //     let (_, r) = self.accessor.blocking_read(path, OpRead::default())?;
-    //     Ok(r)
-    // }
-
-    pub fn blocking_reader(&self, path: &str) -> Result<BlockingObjectReader> {
+    pub fn blocking_reader(&self, path: &str) -> Result<A::BlockingReader> {
         let (_, r) = self.accessor.blocking_read(path, OpRead::default())?;
-        Ok(BlockingObjectReader { inner: Box::new(r) })
+        Ok(r)
     }
+
+    // pub fn blocking_reader(&self, path: &str) -> Result<BlockingObjectReader> {
+    //     let (_, r) = self.accessor.blocking_read(path, OpRead::default())?;
+    //     Ok(BlockingObjectReader { inner: Box::new(r) })
+    // }
 }
 
 #[async_trait]
 pub trait AccessorNext: Send + Sync + Debug + 'static {
-    type OR: output::BlockingRead;
+    type Inner: AccessorNext;
+    type Reader: output::Read;
+    type BlockingReader: output::BlockingRead;
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::OR)> {
+    fn inner(&self) -> Option<&Self::Inner> {
+        None
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         unimplemented!()
     }
 
-    fn boxed(self) -> Box<dyn AccessorNext<OR = Self::OR>>
-    where
-        Self: Sized,
-    {
-        Box::new(self)
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        unimplemented!()
     }
 }
 
-pub trait LayerNext<A: AccessorNext<OR = IR>, IR: output::BlockingRead> {
-    type OR: output::BlockingRead;
-    type OA: AccessorNext<OR = Self::OR>;
+pub trait LayerNext<A: AccessorNext> {
+    type LayeredAccessor: AccessorNext;
 
     /// Intercept the operations on the underlying storage.
-    fn layer(self, inner: A) -> Self::OA;
+    fn layer(self, inner: A) -> Self::LayeredAccessor;
 }
+
+#[async_trait]
+impl AccessorNext for () {
+    type Inner = ();
+    type Reader = ();
+    type BlockingReader = ();
+}
+
+impl output::Read for () {}
+
+impl output::BlockingRead for () {}

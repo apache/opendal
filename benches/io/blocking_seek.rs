@@ -38,10 +38,10 @@ use rand::prelude::*;
 //         .unwrap();
 
 //     let op = op
-//         .layer(LoggingLayer::default())
-//         .layer(TracingLayer)
-//         .layer(MetricsLayer)
-//         .layer(RetryLayer::new(backon::ExponentialBackoff::default()));
+//         // .layer(LoggingLayer::default())
+//         // .layer(TracingLayer)
+//         .layer(MetricsLayer);
+//     // .layer(RetryLayer::new(backon::ExponentialBackoff::default()));
 
 //     let mut rng = rand::thread_rng();
 
@@ -51,7 +51,25 @@ use rand::prelude::*;
 //     group.bench_function("seek", |b| {
 //         b.iter(|| {
 //             let off = rng.gen_range(0..size as u64);
-//             r.seek(SeekFrom::Start(off)).unwrap();
+//             std::io::Seek::seek(&mut r, SeekFrom::Start(off)).unwrap();
+//         })
+//     });
+// }
+
+// pub fn bench(c: &mut Criterion) {
+//     let mut group = c.benchmark_group("blocking_seek");
+//     let size = 64 * 1024 * 1024;
+
+//     let mut r = std::fs::OpenOptions::new()
+//         .read(true)
+//         .open("/tmp/test_file")
+//         .unwrap();
+//     let mut rng = rand::thread_rng();
+
+//     group.bench_function("seek", |b| {
+//         b.iter(|| {
+//             let off = rng.gen_range(0..size as u64);
+//             std::io::Seek::seek(&mut r, SeekFrom::Start(off)).unwrap();
 //         })
 //     });
 // }
@@ -92,7 +110,7 @@ pub fn bench(c: &mut Criterion) {
     group.bench_function("seek", |b| {
         b.iter(|| {
             let off = rng.gen_range(0..size as u64);
-            std::io::Seek::seek(&mut r, SeekFrom::Start(off)).unwrap();
+            r.seek(SeekFrom::Start(off)).unwrap();
         })
     });
 }

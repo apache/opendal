@@ -42,6 +42,7 @@ pub use by_offset::by_offset;
 
 mod from_fd;
 pub use from_fd::from_fd;
+pub use from_fd::FdReader;
 
 mod as_streamable;
 pub use as_streamable::as_streamable;

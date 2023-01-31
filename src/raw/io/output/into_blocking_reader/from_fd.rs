@@ -74,7 +74,6 @@ where
     /// TODO: maybe we don't need to do seek really, just call pread instead.
     ///
     /// We need to wait for tokio's pread support.
-    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let (base, offset) = match pos {
             SeekFrom::Start(n) => (self.start as i64, n as i64),

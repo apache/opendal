@@ -149,6 +149,9 @@ impl Debug for Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Http)
@@ -159,39 +162,43 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        let resp = self.http_get(path, args.range()).await?;
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        Box::pin(async {
+            let resp = self.http_get(path, args.range()).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                    let meta = parse_into_object_metadata(path, resp.headers())?;
+                    Ok((RpRead::with_metadata(meta), resp.into_body()))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-        }
-
-        let resp = self.http_head(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
-            // HTTP Server like nginx could return FORBIDDEN if auto-index
-            // is not enabled, we should ignore them.
-            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
+        Box::pin(async {
+            // Stat root always returns a DIR.
+            if path == "/" {
+                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
             }
-            _ => Err(parse_error(resp).await?),
-        }
+
+            let resp = self.http_head(path).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+                // HTTP Server like nginx could return FORBIDDEN if auto-index
+                // is not enabled, we should ignore them.
+                StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
+                    Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+                }
+                _ => Err(parse_error(resp).await?),
+            }
+        })
     }
 }
 
@@ -255,7 +262,7 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder.build()?);
+        let op = Operator::new(builder.build()?).finish();
 
         let bs = op.object("hello").read().await?;
 
@@ -277,7 +284,7 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder.build()?);
+        let op = Operator::new(builder.build()?).finish();
 
         let bs = op.object("hello").metadata().await?;
 

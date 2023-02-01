@@ -18,6 +18,7 @@ use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::future;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -295,6 +296,9 @@ impl Debug for Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Gcs)
@@ -307,114 +311,124 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
+    fn create(&self, path: &str, _: OpCreate) -> FutureResult<RpCreate> {
+        Box::pin(async {
+            let mut req = self.gcs_insert_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+            let resp = self.client.send_async(req).await?;
 
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpCreate::default())
-        } else {
-            Err(parse_error(resp).await?)
-        }
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        let resp = self.gcs_get_object(path, args.range()).await?;
-
-        if resp.status().is_success() {
-            let meta = parse_into_object_metadata(path, resp.headers())?;
-            Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
-        } else {
-            Err(parse_error(resp).await?)
-        }
-    }
-
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req = self.gcs_insert_object_request(
-            path,
-            Some(args.size()),
-            args.content_type(),
-            AsyncBody::Reader(r),
-        )?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        if (200..300).contains(&resp.status().as_u16()) {
-            resp.into_body().consume().await?;
-            Ok(RpWrite::new(args.size()))
-        } else {
-            Err(parse_error(resp).await?)
-        }
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-        }
-
-        let resp = self.gcs_get_object_metadata(path).await?;
-
-        if resp.status().is_success() {
-            // read http response body
-            let slc = resp.into_body().bytes().await?;
-            let meta: GetObjectJsonResponse =
-                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
-
-            let mode = if path.ends_with('/') {
-                ObjectMode::DIR
+            if resp.status().is_success() {
+                resp.into_body().consume().await?;
+                Ok(RpCreate::default())
             } else {
-                ObjectMode::FILE
-            };
-            let mut m = ObjectMetadata::new(mode);
+                Err(parse_error(resp).await?)
+            }
+        })
+    }
 
-            m.set_etag(&meta.etag);
-            m.set_content_md5(&meta.md5_hash);
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        Box::pin(async {
+            let resp = self.gcs_get_object(path, args.range()).await?;
 
-            let size = meta
-                .size
-                .parse::<u64>()
-                .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
-            m.set_content_length(size);
-            if !meta.content_type.is_empty() {
-                m.set_content_type(&meta.content_type);
+            if resp.status().is_success() {
+                let meta = parse_into_object_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
+            } else {
+                Err(parse_error(resp).await?)
+            }
+        })
+    }
+
+    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
+        Box::pin(async {
+            let mut req = self.gcs_insert_object_request(
+                path,
+                Some(args.size()),
+                args.content_type(),
+                AsyncBody::Reader(r),
+            )?;
+
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+            let resp = self.client.send_async(req).await?;
+
+            if (200..300).contains(&resp.status().as_u16()) {
+                resp.into_body().consume().await?;
+                Ok(RpWrite::new(args.size()))
+            } else {
+                Err(parse_error(resp).await?)
+            }
+        })
+    }
+
+    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
+        Box::pin(async {
+            // Stat root always returns a DIR.
+            if path == "/" {
+                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
             }
 
-            let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse date time with rfc 3339").set_source(e)
-            })?;
-            m.set_last_modified(datetime);
+            let resp = self.gcs_get_object_metadata(path).await?;
 
-            Ok(RpStat::new(m))
-        } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
-            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
-        } else {
-            Err(parse_error(resp).await?)
-        }
+            if resp.status().is_success() {
+                // read http response body
+                let slc = resp.into_body().bytes().await?;
+                let meta: GetObjectJsonResponse =
+                    serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+
+                let mode = if path.ends_with('/') {
+                    ObjectMode::DIR
+                } else {
+                    ObjectMode::FILE
+                };
+                let mut m = ObjectMetadata::new(mode);
+
+                m.set_etag(&meta.etag);
+                m.set_content_md5(&meta.md5_hash);
+
+                let size = meta
+                    .size
+                    .parse::<u64>()
+                    .map_err(|e| Error::new(ErrorKind::Unexpected, "parse u64").set_source(e))?;
+                m.set_content_length(size);
+                if !meta.content_type.is_empty() {
+                    m.set_content_type(&meta.content_type);
+                }
+
+                let datetime = OffsetDateTime::parse(&meta.updated, &Rfc3339).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse date time with rfc 3339").set_source(e)
+                })?;
+                m.set_last_modified(datetime);
+
+                Ok(RpStat::new(m))
+            } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
+                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+            } else {
+                Err(parse_error(resp).await?)
+            }
+        })
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.gcs_delete_object(path).await?;
+    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
+        Box::pin(async {
+            let resp = self.gcs_delete_object(path).await?;
 
-        // deleting not existing objects is ok
-        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-            Ok(RpDelete::default())
-        } else {
-            Err(parse_error(resp).await?)
-        }
+            // deleting not existing objects is ok
+            if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
+                Ok(RpDelete::default())
+            } else {
+                Err(parse_error(resp).await?)
+            }
+        })
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
-        Ok((
+    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
+        Box::pin(future::ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
-        ))
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+        )))
     }
 }
 

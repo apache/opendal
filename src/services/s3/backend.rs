@@ -23,6 +23,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
+use futures::future;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -881,6 +882,9 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::S3)
@@ -898,96 +902,106 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.s3_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
+    fn create(&self, path: &str, _: OpCreate) -> FutureResult<RpCreate> {
+        Box::pin(async {
+            let mut req = self.s3_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+            let resp = self.client.send_async(req).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+            match status {
+                StatusCode::CREATED | StatusCode::OK => {
+                    resp.into_body().consume().await?;
+                    Ok(RpCreate::default())
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        let resp = self.s3_get_object(path, args.range()).await?;
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        Box::pin(async {
+            let resp = self.s3_get_object(path, args.range()).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                    let meta = parse_into_object_metadata(path, resp.headers())?;
+                    Ok((RpRead::with_metadata(meta), resp.into_body()))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req = self.s3_put_object_request(
-            path,
-            Some(args.size()),
-            args.content_type(),
-            AsyncBody::Reader(r),
-        )?;
+    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
+        Box::pin(async {
+            let mut req = self.s3_put_object_request(
+                path,
+                Some(args.size()),
+                args.content_type(),
+                AsyncBody::Reader(r),
+            )?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+            let resp = self.client.send_async(req).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
+            match status {
+                StatusCode::CREATED | StatusCode::OK => {
+                    resp.into_body().consume().await?;
+                    Ok(RpWrite::new(args.size()))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-        }
-
-        let resp = self.s3_head_object(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
+        Box::pin(async {
+            // Stat root always returns a DIR.
+            if path == "/" {
+                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
             }
-            _ => Err(parse_error(resp).await?),
-        }
+
+            let resp = self.s3_head_object(path).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+                StatusCode::NOT_FOUND if path.ends_with('/') => {
+                    Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+                }
+                _ => Err(parse_error(resp).await?),
+            }
+        })
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.s3_delete_object(path).await?;
+    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
+        Box::pin(async {
+            let resp = self.s3_delete_object(path).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::NO_CONTENT => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+            match status {
+                StatusCode::NO_CONTENT => Ok(RpDelete::default()),
+                _ => Err(parse_error(resp).await?),
+            }
+        })
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
-        Ok((
+    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
+        Box::pin(future::ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
-        ))
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+        )))
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -1021,107 +1035,116 @@ impl Accessor for Backend {
         )))
     }
 
-    async fn create_multipart(
+    fn create_multipart(
         &self,
         path: &str,
         _: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        let resp = self.s3_initiate_multipart_upload(path).await?;
+    ) -> FutureResult<RpCreateMultipart> {
+        Box::pin(async {
+            let resp = self.s3_initiate_multipart_upload(path).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
+            match status {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
 
-                let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
+                    let result: InitiateMultipartUploadResult =
+                        quick_xml::de::from_reader(bs.reader())
+                            .map_err(parse_xml_deserialize_error)?;
 
-                Ok(RpCreateMultipart::new(&result.upload_id))
+                    Ok(RpCreateMultipart::new(&result.upload_id))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 
-    async fn write_multipart(
+    fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        let mut req = self.s3_upload_part_request(
-            path,
-            args.upload_id(),
-            args.part_number(),
-            Some(args.size()),
-            AsyncBody::Reader(r),
-        )?;
+    ) -> FutureResult<RpWriteMultipart> {
+        Box::pin(async {
+            let mut req = self.s3_upload_part_request(
+                path,
+                args.upload_id(),
+                args.part_number(),
+                Some(args.size()),
+                AsyncBody::Reader(r),
+            )?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+            let resp = self.client.send_async(req).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => {
-                let etag = parse_etag(resp.headers())?
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "ETag not present in returning response",
-                        )
-                    })?
-                    .to_string();
+            match status {
+                StatusCode::OK => {
+                    let etag = parse_etag(resp.headers())?
+                        .ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "ETag not present in returning response",
+                            )
+                        })?
+                        .to_string();
 
-                resp.into_body().consume().await?;
+                    resp.into_body().consume().await?;
 
-                Ok(RpWriteMultipart::new(args.part_number(), &etag))
+                    Ok(RpWriteMultipart::new(args.part_number(), &etag))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 
-    async fn complete_multipart(
+    fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        let resp = self
-            .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
-            .await?;
+    ) -> FutureResult<RpCompleteMultipart> {
+        Box::pin(async {
+            let resp = self
+                .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
+                .await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
+            match status {
+                StatusCode::OK => {
+                    resp.into_body().consume().await?;
 
-                Ok(RpCompleteMultipart::default())
+                    Ok(RpCompleteMultipart::default())
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 
-    async fn abort_multipart(
+    fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        let resp = self
-            .s3_abort_multipart_upload(path, args.upload_id())
-            .await?;
+    ) -> FutureResult<RpAbortMultipart> {
+        Box::pin(async {
+            let resp = self
+                .s3_abort_multipart_upload(path, args.upload_id())
+                .await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
+            match status {
+                StatusCode::NO_CONTENT => {
+                    resp.into_body().consume().await?;
 
-                Ok(RpAbortMultipart::default())
+                    Ok(RpAbortMultipart::default())
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        })
     }
 }
 

@@ -79,8 +79,10 @@ impl<S: Adapter> Accessor for Backend<S> {
     }
 
     fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        let fut = async {
-            let bs = match self.kv.get(path).await? {
+        let path = path.to_string();
+
+        Box::pin(async move {
+            let bs = match self.kv.get(&path).await? {
                 Some(bs) => bs,
                 None => {
                     return Err(Error::new(
@@ -94,9 +96,7 @@ impl<S: Adapter> Accessor for Backend<S> {
 
             let length = bs.len();
             Ok((RpRead::new(length as u64), output::Cursor::from(bs)))
-        };
-
-        Box::pin(fut)
+        })
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -183,12 +183,10 @@ impl<S: Adapter> Accessor for Backend<S> {
     }
 
     fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
-        let fut = async {
+        Box::pin(async {
             self.kv.delete(path).await?;
             Ok(RpDelete::default())
-        };
-
-        Box::pin(fut)
+        })
     }
 
     fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

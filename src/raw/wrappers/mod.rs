@@ -17,6 +17,8 @@
 mod error_context;
 use error_context::ErrorContextWrapper;
 
+mod type_eraser;
+
 use crate::raw::*;
 
 /// Wrapper given backend.

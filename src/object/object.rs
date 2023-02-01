@@ -561,7 +561,7 @@ impl Object {
 
         let op = OpRead::new().with_range(range.into());
 
-        ObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op).await
+        ObjectReader::create(self.accessor(), self.path(), op).await
     }
 
     /// Create a new reader which can read the specified range.

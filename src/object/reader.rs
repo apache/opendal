@@ -111,44 +111,8 @@ impl ObjectReader {
     ///
     /// We don't want to expose those detials to users so keep this fuction
     /// in crate only.
-    pub(crate) async fn create(
-        acc: FusedAccessor,
-        path: &str,
-        meta: Arc<Mutex<ObjectMetadata>>,
-        op: OpRead,
-    ) -> Result<Self> {
-        let acc_meta = acc.metadata();
-
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsSeekable) {
-            let (_, r) = acc.read(path, op).await?;
-            r
-        } else {
-            match (op.range().offset(), op.range().size()) {
-                (Some(offset), Some(size)) => {
-                    Box::new(output::into_reader::by_range(acc, path, offset, size))
-                        as output::Reader
-                }
-                (Some(offset), None) => Box::new(output::into_reader::by_offset(acc, path, offset)),
-                (None, Some(size)) => {
-                    let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    let (offset, size) = if size > total_size {
-                        (0, total_size)
-                    } else {
-                        (total_size - size, size)
-                    };
-
-                    Box::new(output::into_reader::by_range(acc, path, offset, size))
-                }
-                (None, None) => Box::new(output::into_reader::by_offset(acc, path, 0)),
-            }
-        };
-
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
-            r
-        } else {
-            // Make this capacity configurable.
-            Box::new(output::into_reader::as_streamable(r, 256 * 1024))
-        };
+    pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
+        let (_, r) = acc.read(path, op).await?;
 
         Ok(ObjectReader {
             inner: r,

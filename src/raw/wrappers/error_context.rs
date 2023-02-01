@@ -20,8 +20,7 @@ use futures::TryFutureExt;
 use crate::raw::*;
 use crate::*;
 
-/// Provide a zero cost error context wrapper for backend.
-#[derive(Clone)]
+/// Provide error context wrapper for backend.
 pub struct ErrorContextWrapper<A: Accessor> {
     meta: AccessorMetadata,
     inner: A,

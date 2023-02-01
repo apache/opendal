@@ -15,25 +15,22 @@
 use std::collections::VecDeque;
 
 use async_trait::async_trait;
+use log::debug;
 
 use super::backend::FileStatus;
-use crate::raw::build_abs_path;
 use crate::raw::ObjectEntry;
 use crate::raw::ObjectPage;
 use crate::ObjectMetadata;
-use crate::ObjectMode;
 use crate::Result;
 
 pub(super) struct DirStream {
-    root: String,
     path: String,
     statuses: Vec<FileStatus>,
 }
 
 impl DirStream {
-    pub fn new(root: &str, path: &str, statuses: Vec<FileStatus>) -> Self {
+    pub fn new(path: &str, statuses: Vec<FileStatus>) -> Self {
         Self {
-            root: root.to_string(),
             path: path.to_string(),
             statuses,
         }
@@ -47,12 +44,12 @@ impl ObjectPage for DirStream {
             return Ok(None);
         }
         let mut entries = VecDeque::new();
-        let list_root = build_abs_path(&self.root, &self.path);
         while let Some(status) = self.statuses.pop() {
-            let mut path = format!("{}/{}", list_root, status.path_suffix);
+            let file_name = status.path_suffix.clone();
+            let mut path = format!("{}/{}", &self.path, file_name);
             let meta: ObjectMetadata = status.try_into()?;
-            if meta.mode() == ObjectMode::DIR {
-                path = format!("{}/", path);
+            if meta.mode().is_dir() {
+                path = format!("{path}/");
             }
             let entry = ObjectEntry::new(&path, meta);
             entries.push_front(entry);

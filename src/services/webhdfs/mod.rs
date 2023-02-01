@@ -58,3 +58,5 @@ pub use backend::Builder;
 mod dir_stream;
 mod error;
 mod signer;
+mod uri;
+use uri::percent_encode_path;

@@ -15,6 +15,8 @@ use core::fmt::Debug;
 
 use async_trait::async_trait;
 use bytes::Buf;
+use bytes::BytesMut;
+use futures::AsyncReadExt;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -25,6 +27,7 @@ use serde::Deserialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::percent_encode_path;
 use super::signer::Signer;
 use crate::raw::apply_wrapper;
 use crate::raw::build_abs_path;
@@ -33,7 +36,6 @@ use crate::raw::new_request_build_error;
 use crate::raw::normalize_root;
 use crate::raw::output;
 use crate::raw::parse_into_object_metadata;
-use crate::raw::percent_encode_path;
 use crate::raw::Accessor;
 use crate::raw::AccessorCapability;
 use crate::raw::AccessorHint;
@@ -74,7 +76,7 @@ pub struct Builder {
     root: Option<String>,
     endpoint: Option<String>,
     delegation: Option<String>,
-    username: Option<String>,
+    user: Option<String>,
     // proxy user
     doas: Option<String>,
 }
@@ -87,11 +89,11 @@ impl Debug for Builder {
         if self.delegation.is_some() {
             ds.field("delegation", &"<redacted>");
         }
-        if self.username.is_some() {
-            ds.field("username", &"<redacted>");
+        if self.user.is_some() {
+            ds.field("user", &"<redacted>");
         }
         if self.doas.is_some() {
-            ds.field("do_as", &"<redacted>");
+            ds.field("doas", &"<redacted>");
         }
         ds.finish()
     }
@@ -107,8 +109,8 @@ impl Builder {
                 "root" => builder.root(v),
                 "endpoint" => builder.endpoint(v),
                 "delegation" => builder.delegation(v),
-                "username" => builder.username(v),
-                "do_as" => builder.doas(v),
+                "user" => builder.user(v),
+                "doas" => builder.doas(v),
                 _ => continue,
             };
         }
@@ -166,11 +168,11 @@ impl Builder {
     /// The builder prefers using delegation token over username.
     /// If both are set, delegation token will be used. And username
     /// will be ignored.
-    pub fn username(&mut self, username: &str) -> &mut Self {
-        self.username = if username.is_empty() {
+    pub fn user(&mut self, user: &str) -> &mut Self {
+        self.user = if user.is_empty() {
             None
         } else {
-            Some(username.to_string())
+            Some(user.to_string())
         };
         self
     }
@@ -209,29 +211,28 @@ impl Builder {
 
         let signer = {
             if let Some(token) = self.delegation.take() {
-                Signer::new_delegation(&token)
-            } else if let Some(username) = self.username.take() {
+                Some(Signer::new_delegation(&token))
+            } else if let Some(username) = self.user.take() {
                 let doas = if let Some(doas) = self.doas.take() {
                     doas
                 } else {
                     String::new()
                 };
-                Signer::new_user(&username, &doas)
+                Some(Signer::new_user(&username, &doas))
             } else {
                 debug!("neither delegation token nor username is set");
-                return Err(Error::new(
-                    ErrorKind::BackendConfigInvalid,
-                    "neither delegation token nor username is set",
-                )
-                .with_context("service", Scheme::WebHdfs));
+                None
             }
         };
+        let sign = signer.map(|s| s.sign_str());
+
         let client = HttpClient::new()?;
+
         debug!("backend initialized:{:?}", &self);
         Ok(apply_wrapper(Backend {
             root,
             endpoint,
-            sign: signer.sign_str(),
+            sign,
             client,
         }))
     }
@@ -243,7 +244,7 @@ pub struct Backend {
     root: String,
     endpoint: String,
     client: HttpClient,
-    sign: String,
+    sign: Option<String>,
 }
 
 impl Backend {
@@ -260,32 +261,39 @@ impl Backend {
         } else {
             "CREATE"
         };
-        let url = format!(
-            "{}/webhdfs/v1/{}?op={}&overwrite=true&{}",
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op={}&overwrite=true",
             self.endpoint,
             percent_encode_path(&p),
             op,
-            self.sign
         );
+        if let Some(sign) = &self.sign {
+            url = url + "&" + sign;
+        }
         let mut req = Request::put(&url);
+
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size.to_string());
         }
         if let Some(content_type) = content_type {
             req = req.header(CONTENT_TYPE, content_type);
         }
+
         req.body(body).map_err(new_request_build_error)
     }
 
     fn open_object_req(&self, path: &str, range: &BytesRange) -> Result<AsyncReq> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op=OPEN&{}",
+            "{}/webhdfs/v1/{}?op=OPEN",
             self.endpoint,
             percent_encode_path(&p),
-            self.sign
         );
+        if let Some(sign) = &self.sign {
+            url = url + "&" + sign;
+        }
         let (offset, size) = (range.offset(), range.size());
+
         match (offset, size) {
             (Some(offset), Some(size)) => {
                 url = format!("{}&offset={}&length={}", url, offset, size);
@@ -301,30 +309,38 @@ impl Backend {
                 unreachable!()
             }
         }
+
         let req = Request::get(&url);
+
         req.body(AsyncBody::Empty).map_err(new_request_build_error)
     }
 
     fn status_object_req(&self, path: &str) -> Result<AsyncReq> {
         let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/webhdfs/v1/{}?op=GETFILESTATUS&{}",
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op=GETFILESTATUS",
             self.endpoint,
             percent_encode_path(&p),
-            self.sign
         );
+        if let Some(sign) = &self.sign {
+            url = url + "&" + sign;
+        }
+
         let req = Request::get(&url);
         req.body(AsyncBody::Empty).map_err(new_request_build_error)
     }
 
     fn delete_object_req(&self, path: &str) -> Result<AsyncReq> {
         let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/webhdfs/v1/{}?op=DELETE&recursive=false&{}",
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
             self.endpoint,
             percent_encode_path(&p),
-            self.sign
         );
+        if let Some(sign) = &self.sign {
+            url = url + "&" + sign;
+        }
+
         let req = Request::delete(&url);
         let req = req
             .body(AsyncBody::Empty)
@@ -334,12 +350,15 @@ impl Backend {
 
     fn list_object_req(&self, path: &str) -> Result<AsyncReq> {
         let p = build_abs_path(&self.root, path);
-        let url = format!(
-            "{}/webhdfs/v1/{}?op=LISTSTATUS&{}",
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op=LISTSTATUS",
             self.endpoint,
             percent_encode_path(&p),
-            self.sign
         );
+        if let Some(sign) = &self.sign {
+            url = url + "&" + sign;
+        }
+
         let req = Request::get(&url);
         let req = req
             .body(AsyncBody::Empty)
@@ -367,6 +386,66 @@ impl Backend {
         let req = self.delete_object_req(path)?;
         self.client.send_async(req).await
     }
+
+    async fn follow_redirect(&self, resp: AsyncResp, body: AsyncBody) -> Result<AsyncReq> {
+        let redirect = resp
+            .headers()
+            .get("location")
+            .ok_or(
+                Error::new(ErrorKind::Unexpected, "got incorrect redirection")
+                    .with_context("service", Scheme::WebHdfs),
+            )?
+            .to_str()
+            .map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "got incorrect redirection")
+                    .with_context("service", Scheme::WebHdfs)
+                    .set_source(e)
+            })?;
+
+        Request::put(redirect)
+            .body(body)
+            .map_err(new_request_build_error)
+    }
+
+    async fn consume_success_create(&self, path: &str, resp: AsyncResp) -> Result<RpCreate> {
+        if path.ends_with('/') {
+            let bs = resp.into_body().bytes().await?;
+            let mkdir_rsp =
+                serde_json::from_reader::<_, BooleanResp>(bs.reader()).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "cannot parse mkdir response")
+                        .with_context("service", Scheme::WebHdfs)
+                        .set_source(e)
+                })?;
+
+            if mkdir_rsp.boolean {
+                return Ok(RpCreate::default());
+            } else {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("mkdir failed: {}", path),
+                ));
+            }
+        }
+        resp.into_body().consume().await?;
+        Ok(RpCreate::default())
+    }
+
+    async fn consume_success_delete(&self, resp: AsyncResp) -> Result<RpDelete> {
+        let body_bs = resp.into_body().bytes().await?;
+        let delete_resp =
+            serde_json::from_reader::<_, BooleanResp>(body_bs.reader()).map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "cannot parse returned json")
+                    .with_context("service", Scheme::WebHdfs)
+                    .set_source(e)
+            })?;
+
+        if delete_resp.boolean {
+            Ok(RpDelete::default())
+        } else {
+            Err(Error::new(ErrorKind::Unexpected, "cannot delete object")
+                .with_context("service", Scheme::WebHdfs))
+        }
+    }
 }
 
 #[async_trait]
@@ -383,13 +462,15 @@ impl Accessor for Backend {
     }
 
     /// Create a file or directory
-    /// if the path ends with '/', it will be treated as a directory
-    /// otherwise, it will be treated as a file
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let path = if ObjectMode::FILE == args.mode() && !path.ends_with('/') {
-            format!("{}/", path)
+        // if the path ends with '/', it will be treated as a directory
+        // otherwise, it will be treated as a file
+        let path = if args.mode().is_file() && path.ends_with('/') {
+            path.trim_end_matches('/').to_owned()
+        } else if args.mode().is_dir() && !path.ends_with('/') {
+            path.to_owned() + "/"
         } else {
-            path.to_string()
+            path.to_owned()
         };
 
         let req = self.create_or_write_object_req(&path, Some(0), None, AsyncBody::Empty)?;
@@ -403,27 +484,17 @@ impl Accessor for Backend {
         // According to the redirect policy of `reqwest` HTTP Client we are using,
         // the redirection should be done automatically.
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                if path.ends_with('/') {
-                    let bs = resp.into_body().bytes().await?;
-                    let mkdir_rsp = serde_json::from_reader::<_, BooleanResp>(bs.reader())
-                        .map_err(|e| {
-                            Error::new(ErrorKind::Unexpected, "cannot parse mkdir response")
-                                .with_context("service", Scheme::WebHdfs)
-                                .set_source(e)
-                        })?;
+            StatusCode::CREATED | StatusCode::OK => self.consume_success_create(&path, resp).await,
+            StatusCode::TEMPORARY_REDIRECT => {
+                debug!("got 307 redirect, following...");
+                let req = self.follow_redirect(resp, AsyncBody::Empty).await?;
+                let resp = self.client.send_async(req).await?;
 
-                    if mkdir_rsp.boolean {
-                        return Ok(RpCreate::default());
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            &format!("mkdir failed: {}", path),
-                        ));
-                    }
+                if resp.status() == StatusCode::CREATED || resp.status() == StatusCode::OK {
+                    self.consume_success_create(&path, resp).await
+                } else {
+                    Err(parse_error(resp).await?)
                 }
-                resp.into_body().consume().await?;
-                Ok(RpCreate::default())
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -452,12 +523,19 @@ impl Accessor for Backend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
+        let mut buf = BytesMut::with_capacity(args.size() as usize);
+        r.read_exact(&mut buf).await.map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "cannot write request")
+                .with_context("service", Scheme::WebHdfs)
+                .set_source(e)
+        })?;
+        let buf = buf.freeze();
         let req = self.create_or_write_object_req(
             path,
             Some(args.size()),
             args.content_type(),
-            AsyncBody::Reader(r),
+            AsyncBody::Bytes(buf.clone()),
         )?;
         // As for the reqwuest http client,
         // the 307 temporary redirect will be followed automatically.
@@ -471,6 +549,18 @@ impl Accessor for Backend {
             StatusCode::OK | StatusCode::CREATED => {
                 resp.into_body().consume().await?;
                 Ok(RpWrite::default())
+            }
+            StatusCode::TEMPORARY_REDIRECT => {
+                debug!("got 307 redirect, following...");
+                let req = self.follow_redirect(resp, AsyncBody::Bytes(buf)).await?;
+                let resp = self.client.send_async(req).await?;
+
+                if resp.status() == StatusCode::OK || resp.status() == StatusCode::CREATED {
+                    resp.into_body().consume().await?;
+                    Ok(RpWrite::default())
+                } else {
+                    Err(parse_error(resp).await?)
+                }
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -513,20 +603,16 @@ impl Accessor for Backend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.delete_object(path).await?;
         match resp.status() {
-            StatusCode::OK => {
-                let body_bs = resp.into_body().bytes().await?;
-                let delete_resp = serde_json::from_reader::<_, BooleanResp>(body_bs.reader())
-                    .map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "cannot parse returned json")
-                            .with_context("service", Scheme::WebHdfs)
-                            .set_source(e)
-                    })?;
+            StatusCode::OK => self.consume_success_delete(resp).await,
+            StatusCode::TEMPORARY_REDIRECT => {
+                debug!("got 307 redirect, following...");
+                let req = self.follow_redirect(resp, AsyncBody::Empty).await?;
+                let resp = self.client.send_async(req).await?;
 
-                if delete_resp.boolean {
-                    Ok(RpDelete::default())
+                if resp.status() == StatusCode::OK {
+                    self.consume_success_delete(resp).await
                 } else {
-                    Err(Error::new(ErrorKind::Unexpected, "cannot delete object")
-                        .with_context("service", Scheme::WebHdfs))
+                    Err(parse_error(resp).await?)
                 }
             }
             _ => Err(parse_error(resp).await?),
@@ -534,6 +620,7 @@ impl Accessor for Backend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        let path = path.trim_end_matches('/');
         let req = self.list_object_req(path)?;
 
         let resp = self.client.send_async(req).await?;
@@ -550,7 +637,11 @@ impl Accessor for Backend {
                         .file_statuses
                         .file_status;
 
-                let objects = DirStream::new(&self.root, path, file_statuses);
+                let objects = DirStream::new(path, file_statuses);
+                Ok((RpList::default(), Box::new(objects) as Box<dyn ObjectPage>))
+            }
+            StatusCode::NOT_FOUND => {
+                let objects = DirStream::new(path, vec![]);
                 Ok((RpList::default(), Box::new(objects) as Box<dyn ObjectPage>))
             }
             _ => Err(parse_error(resp).await?),
@@ -621,8 +712,6 @@ pub(super) enum FileStatusType {
 
 #[cfg(test)]
 mod test {
-    use crate::raw::build_rel_path;
-
     use super::*;
 
     #[test]
@@ -649,6 +738,20 @@ mod test {
         assert_eq!(status.file_status.modification_time, 1320173277227);
         assert_eq!(status.file_status.path_suffix, "");
         assert_eq!(status.file_status.ty, FileStatusType::Directory);
+    }
+
+    #[tokio::test]
+    async fn test_list_empty() {
+        let json = r#"
+    {
+        "FileStatuses": {"FileStatus":[]}
+    }
+        "#;
+        let file_statuses = serde_json::from_str::<FileStatusesWrapper>(json)
+            .expect("must success")
+            .file_statuses
+            .file_status;
+        assert!(file_statuses.is_empty());
     }
 
     #[tokio::test]
@@ -693,18 +796,15 @@ mod test {
             .file_statuses
             .file_status;
 
-        let mut pager = DirStream::new("/path/", "listing/directory", file_statuses);
+        let mut pager = DirStream::new("listing/directory", file_statuses);
         let mut entries = vec![];
         while let Some(oes) = pager.next_page().await.expect("must success") {
             entries.extend(oes);
         }
         assert_eq!(entries.len(), 2);
-        let root = format!("/{}/", build_abs_path("/path/", "listing/directory"));
-        let e0p = build_rel_path(&root, entries[0].path());
-        let e1p = build_rel_path(&root, entries[1].path());
-        assert_eq!(&e0p, "a.patch");
+        assert_eq!(entries[0].path(), "listing/directory/a.patch");
         assert_eq!(entries[0].mode(), ObjectMode::FILE);
-        assert_eq!(&e1p, "bar/");
+        assert_eq!(entries[1].path(), "listing/directory/bar/");
         assert_eq!(entries[1].mode(), ObjectMode::DIR);
     }
 }

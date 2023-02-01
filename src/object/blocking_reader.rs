@@ -57,12 +57,12 @@ impl BlockingObjectReader {
             ));
         };
 
-        // let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
-        //     r
-        // } else {
-        //     // Make this capacity configurable.
-        //     Box::new(output::into_blocking_reader::as_iterable(r, 256 * 1024))
-        // };
+        let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
+            r
+        } else {
+            // Make this capacity configurable.
+            Box::new(output::into_blocking_reader::as_iterable(r, 256 * 1024))
+        };
 
         Ok(BlockingObjectReader { inner: r })
     }

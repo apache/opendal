@@ -16,10 +16,8 @@ use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::mem;
-use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future;
 
 use crate::object::*;
 use crate::raw::*;
@@ -233,7 +231,6 @@ mod tests {
     use crate::services::http;
     use crate::ObjectMode;
     use crate::Operator;
-    use crate::Scheme;
 
     #[tokio::test]
     async fn test_list() -> Result<()> {

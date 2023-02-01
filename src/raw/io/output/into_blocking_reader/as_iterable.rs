@@ -21,7 +21,7 @@ use tokio::io::ReadBuf;
 use crate::raw::*;
 
 /// as_iterable is used to make [`output::BlockingReader`] iterable.
-pub fn as_iterable(r: output::BlockingReader, capacity: usize) -> IntoIter {
+pub fn as_iterable<R>(r: R, capacity: usize) -> IntoIter<R> {
     IntoIter {
         r,
         cap: capacity,
@@ -29,13 +29,13 @@ pub fn as_iterable(r: output::BlockingReader, capacity: usize) -> IntoIter {
     }
 }
 
-pub struct IntoIter {
-    r: output::BlockingReader,
+pub struct IntoIter<R> {
+    r: R,
     cap: usize,
     buf: Vec<u8>,
 }
 
-impl output::BlockingRead for IntoIter {
+impl<R: output::BlockingRead> output::BlockingRead for IntoIter<R> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.r.read(buf)

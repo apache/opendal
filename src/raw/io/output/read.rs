@@ -41,6 +41,8 @@ pub type Reader = Box<dyn Read>;
 pub trait Read: Unpin + Send + Sync {
     /// Read bytes asynchronously.
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        let (_, _) = (cx, buf);
+
         unimplemented!("poll_read is required to be implemented for output::Read")
     }
 
@@ -48,6 +50,8 @@ pub trait Read: Unpin + Send + Sync {
     ///
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+        let (_, _) = (cx, pos);
+
         Poll::Ready(Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support seeking",
@@ -62,6 +66,8 @@ pub trait Read: Unpin + Send + Sync {
     /// Users can poll bytes from underlying reader and decide when to
     /// read/consume them.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        let _ = cx;
+
         Poll::Ready(Some(Err(Error::new(
             ErrorKind::Unsupported,
             "output reader doesn't support streaming",

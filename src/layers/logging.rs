@@ -16,7 +16,6 @@ use std::fmt::Debug;
 use std::io;
 use std::io::Read;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
@@ -549,7 +548,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         self.inner
             .write_multipart(path, args.clone(), r)
-            .inspect_ok(|v| {
+            .inspect_ok(|_| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> written",
@@ -595,7 +594,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         self.inner
             .complete_multipart(path, args.clone())
-            .inspect_ok(|v| {
+            .inspect_ok(|_| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} upload_id={} -> finished",
@@ -638,7 +637,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         self.inner
             .abort_multipart(path, args.clone())
-            .inspect_ok(|v| {
+            .inspect_ok(|_| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} upload_id={} -> finished",

@@ -64,7 +64,10 @@ use crate::*;
 ///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
+    /// Reader is the associated reader the could return in `read` operation.
     type Reader: output::Read;
+    /// BlockingReader is the associated reader that could return in
+    /// `blocking_read` operation.
     type BlockingReader: output::BlockingRead;
 
     /// Invoke the `metadata` operation to get metadata of accessor.
@@ -172,6 +175,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let (_, _) = (path, args);
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -208,7 +213,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         args: OpWriteMultipart,
         r: input::Reader,
     ) -> Result<RpWriteMultipart> {
-        let (_, _) = (path, args);
+        let (_, _, _) = (path, args, r);
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -445,6 +450,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     }
 }
 
+/// FusedAccessor is the type erased accessor with `Box<dyn Reader>`.
 pub type FusedAccessor =
     Arc<dyn Accessor<Reader = output::Reader, BlockingReader = output::BlockingReader>>;
 

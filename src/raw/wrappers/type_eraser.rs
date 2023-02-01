@@ -17,7 +17,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::TryFutureExt;
 
 use crate::raw::*;
 use crate::*;
@@ -91,7 +90,28 @@ impl<A: Accessor> TypeEraser<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, output::BlockingReader)> {
-        todo!()
+        let (seekable, streamable) = (
+            self.meta.hints().contains(AccessorHint::ReadIsSeekable),
+            self.meta.hints().contains(AccessorHint::ReadIsStreamable),
+        );
+
+        match (seekable, streamable) {
+            (true, true) => {
+                let (rp, r) = self.inner.blocking_read(path, args)?;
+                return Ok((rp, Box::new(r)));
+            }
+            (true, false) => {
+                let (rp, r) = self.inner.blocking_read(path, args)?;
+                let r = output::into_blocking_reader::as_iterable(r, 256 * 1024);
+                return Ok((rp, Box::new(r)));
+            }
+            (false, _) => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "non seekable blocking reader is not supported",
+                ));
+            }
+        }
     }
 }
 

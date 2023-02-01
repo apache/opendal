@@ -36,12 +36,16 @@ pub trait BlockingRead: Send + Sync + 'static {
     /// Read synchronously.
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let _ = buf;
+
         unimplemented!("read is required to be implemented for output::BlockingRead")
     }
 
     /// Seek synchronously.
     #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let _ = pos;
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "output blocking reader doesn't support seeking",

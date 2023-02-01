@@ -64,12 +64,16 @@ use crate::*;
 /// }
 /// ```
 pub trait Layer<A: Accessor> {
+    /// The layered accessor that return by this layer.
     type LayeredAccessor: Accessor;
 
     /// Intercept the operations on the underlying storage.
     fn layer(&self, inner: A) -> Self::LayeredAccessor;
 }
 
+/// LayeredAccessor is layered accessor that forward all not implemented
+/// method to inner.
+#[allow(missing_docs)]
 #[async_trait]
 pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
@@ -277,7 +281,6 @@ mod tests {
 
     use super::*;
     use crate::services::fs;
-    use crate::*;
 
     #[derive(Debug)]
     struct Test<A: Accessor> {

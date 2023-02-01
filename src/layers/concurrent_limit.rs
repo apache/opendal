@@ -300,7 +300,7 @@ impl<R: output::Read> output::Read for ConcurrentLimitReader<R> {
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<std::io::Result<Bytes>>> {
-        self.poll_next(cx)
+        self.inner.poll_next(cx)
     }
 }
 

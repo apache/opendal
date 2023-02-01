@@ -25,7 +25,6 @@ use std::task::Poll;
 
 use futures::future::BoxFuture;
 use futures::ready;
-use futures::AsyncRead;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
@@ -254,7 +253,6 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::future;
     use futures::AsyncRead;
     use futures::AsyncReadExt;
     use futures::AsyncSeekExt;

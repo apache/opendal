@@ -56,8 +56,6 @@ pub use object_entry::ObjectEntry;
 mod object_page;
 pub use object_page::BlockingObjectPage;
 pub use object_page::BlockingObjectPager;
-pub use object_page::EmptyBlockingObjectPager;
-pub use object_page::EmptyObjectPager;
 pub use object_page::ObjectPage;
 pub use object_page::ObjectPager;
 

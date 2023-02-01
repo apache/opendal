@@ -271,7 +271,7 @@ mod tests {
             env::temp_dir().display(),
             uuid::Uuid::new_v4()
         ));
-        let op = Operator::new(builder.build()?);
+        let op = Operator::new(builder.build()?).finish();
         let mut expected = vec![
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         ];
@@ -318,7 +318,9 @@ mod tests {
             env::temp_dir().display(),
             uuid::Uuid::new_v4()
         ));
-        let op = Operator::new(builder.build()?).layer(LoggingLayer::default());
+        let op = Operator::new(builder.build()?)
+            .layer(LoggingLayer::default())
+            .finish();
         for path in ["x/x/a", "x/x/b", "x/x/c"] {
             op.object(path).create().await?;
         }
@@ -361,7 +363,9 @@ mod tests {
             env::temp_dir().display(),
             uuid::Uuid::new_v4()
         ));
-        let op = Operator::new(builder.build()?).layer(LoggingLayer::default());
+        let op = Operator::new(builder.build()?)
+            .layer(LoggingLayer::default())
+            .finish();
         let mut expected = vec![
             "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
         ];

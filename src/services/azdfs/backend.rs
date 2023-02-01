@@ -19,6 +19,7 @@ use std::mem;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::future;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -226,6 +227,9 @@ pub struct Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Azdfs)
@@ -239,120 +243,141 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let resource = match args.mode() {
-            ObjectMode::FILE => "file",
-            ObjectMode::DIR => "directory",
-            _ => unimplemented!("not supported object mode"),
+    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
+        let fut = async {
+            let resource = match args.mode() {
+                ObjectMode::FILE => "file",
+                ObjectMode::DIR => "directory",
+                _ => unimplemented!("not supported object mode"),
+            };
+
+            let mut req = self.azdfs_create_request(path, resource, None, AsyncBody::Empty)?;
+
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+            let resp = self.client.send_async(req).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::CREATED | StatusCode::OK => {
+                    resp.into_body().consume().await?;
+                    Ok(RpCreate::default())
+                }
+                _ => Err(parse_error(resp).await?),
+            }
         };
 
-        let mut req = self.azdfs_create_request(path, resource, None, AsyncBody::Empty)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpCreate::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Box::pin(fut)
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        let resp = self.azdfs_read(path, args.range()).await?;
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        let fut = async {
+            let resp = self.azdfs_read(path, args.range()).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+            match status {
+                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                    let meta = parse_into_object_metadata(path, resp.headers())?;
+                    Ok((RpRead::with_metadata(meta), resp.into_body()))
+                }
+                _ => Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        };
+
+        Box::pin(fut)
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req =
-            self.azdfs_create_request(path, "file", args.content_type(), AsyncBody::Empty)?;
+    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
+        let fut = async {
+            let mut req =
+                self.azdfs_create_request(path, "file", args.content_type(), AsyncBody::Empty)?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-        let resp = self.client.send_async(req).await?;
+            let resp = self.client.send_async(req).await?;
 
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
+            let status = resp.status();
+            match status {
+                StatusCode::CREATED | StatusCode::OK => {
+                    resp.into_body().consume().await?;
+                }
+                _ => {
+                    return Err(parse_error(resp)
+                        .await?
+                        .with_operation("Backend::azdfs_create_request"));
+                }
             }
-            _ => {
-                return Err(parse_error(resp)
+
+            let mut req =
+                self.azdfs_update_request(path, Some(args.size()), AsyncBody::Reader(r))?;
+
+            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+            let resp = self.client.send_async(req).await?;
+
+            let status = resp.status();
+            match status {
+                StatusCode::OK | StatusCode::ACCEPTED => {
+                    resp.into_body().consume().await?;
+                    Ok(RpWrite::new(args.size()))
+                }
+                _ => Err(parse_error(resp)
                     .await?
-                    .with_operation("Backend::azdfs_create_request"));
+                    .with_operation("Backend::azdfs_update_request")),
             }
-        }
+        };
 
-        let mut req = self.azdfs_update_request(path, Some(args.size()), AsyncBody::Reader(r))?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            }
-            _ => Err(parse_error(resp)
-                .await?
-                .with_operation("Backend::azdfs_update_request")),
-        }
+        Box::pin(fut)
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
-        if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-        }
-
-        let resp = self.azdfs_get_properties(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
+        let fut = async {
+            // Stat root always returns a DIR.
+            if path == "/" {
+                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
             }
-            _ => Err(parse_error(resp).await?),
-        }
+
+            let resp = self.azdfs_get_properties(path).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+                StatusCode::NOT_FOUND if path.ends_with('/') => {
+                    Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+                }
+                _ => Err(parse_error(resp).await?),
+            }
+        };
+
+        Box::pin(fut)
     }
 
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.azdfs_delete(path).await?;
+    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
+        let fut = async {
+            let resp = self.azdfs_delete(path).await?;
 
-        let status = resp.status();
+            let status = resp.status();
 
-        match status {
-            StatusCode::OK | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-            _ => Err(parse_error(resp).await?),
-        }
+            match status {
+                StatusCode::OK | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
+                _ => Err(parse_error(resp).await?),
+            }
+        };
+
+        Box::pin(fut)
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
         let op = Box::new(DirStream::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
         ));
 
-        Ok((RpList::default(), op))
+        Box::pin(future::ok((RpList::default(), op as ObjectPager)))
     }
 }
 

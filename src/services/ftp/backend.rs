@@ -267,6 +267,9 @@ impl Debug for Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = FtpReader;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Ftp)
@@ -278,144 +281,165 @@ impl Accessor for Backend {
         am
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
+    fn create(&self, path: &str, _: OpCreate) -> FutureResult<RpCreate> {
+        let fut = async {
+            let mut ftp_stream = self.ftp_connect(Operation::Create).await?;
 
-        let paths: Vec<&str> = path.split_inclusive('/').collect();
+            let paths: Vec<&str> = path.split_inclusive('/').collect();
 
-        let mut curr_path = String::new();
+            let mut curr_path = String::new();
 
-        for path in paths {
-            curr_path.push_str(path);
-            // try to create directory
-            if curr_path.ends_with('/') {
-                match ftp_stream.mkdir(&curr_path).await {
-                    // Do nothing if status is FileUnavailable or OK(()) is return.
-                    Err(FtpError::UnexpectedResponse(Response {
-                        status: Status::FileUnavailable,
-                        ..
-                    }))
-                    | Ok(()) => (),
-                    Err(e) => {
-                        return Err(e.into());
+            for path in paths {
+                curr_path.push_str(path);
+                // try to create directory
+                if curr_path.ends_with('/') {
+                    match ftp_stream.mkdir(&curr_path).await {
+                        // Do nothing if status is FileUnavailable or OK(()) is return.
+                        Err(FtpError::UnexpectedResponse(Response {
+                            status: Status::FileUnavailable,
+                            ..
+                        }))
+                        | Ok(()) => (),
+                        Err(e) => {
+                            return Err(e.into());
+                        }
                     }
+                } else {
+                    // else, create file
+                    ftp_stream.put_file(&curr_path, &mut "".as_bytes()).await?;
                 }
+            }
+
+            return Ok(RpCreate::default());
+        };
+
+        Box::pin(fut)
+    }
+
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        let fut = async {
+            let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
+
+            let meta = self.ftp_stat(path).await?;
+
+            let br = args.range();
+            let (r, size): (input::Reader, _) = match (br.offset(), br.size()) {
+                (Some(offset), Some(size)) => {
+                    ftp_stream.resume_transfer(offset as usize).await?;
+                    let ds = ftp_stream.retr_as_stream(path).await?.take(size);
+                    (Box::new(ds), min(size, meta.size() as u64 - offset))
+                }
+                (Some(offset), None) => {
+                    ftp_stream.resume_transfer(offset as usize).await?;
+                    let ds = ftp_stream.retr_as_stream(path).await?;
+                    (Box::new(ds), meta.size() as u64 - offset)
+                }
+                (None, Some(size)) => {
+                    ftp_stream
+                        .resume_transfer((meta.size() as u64 - size) as usize)
+                        .await?;
+                    let ds = ftp_stream.retr_as_stream(path).await?;
+                    (Box::new(ds), size)
+                }
+                (None, None) => {
+                    let ds = ftp_stream.retr_as_stream(path).await?;
+                    (Box::new(ds), meta.size() as u64)
+                }
+            };
+
+            Ok((RpRead::new(size), FtpReader::new(r, ftp_stream)))
+        };
+
+        Box::pin(fut)
+    }
+
+    fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
+        let fut = async {
+            let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+
+            let mut data_stream = ftp_stream.append_with_stream(path).await?;
+
+            let bytes = copy(r, &mut data_stream).await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
+            })?;
+
+            ftp_stream.finalize_put_stream(data_stream).await?;
+
+            Ok(RpWrite::new(bytes))
+        };
+
+        Box::pin(fut)
+    }
+
+    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
+        let fut = async {
+            // root dir, return default ObjectMetadata with Dir ObjectMode.
+            if path == "/" {
+                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            }
+
+            let file = self.ftp_stat(path).await?;
+
+            let mode = if file.is_file() {
+                ObjectMode::FILE
+            } else if file.is_directory() {
+                ObjectMode::DIR
             } else {
-                // else, create file
-                ftp_stream.put_file(&curr_path, &mut "".as_bytes()).await?;
-            }
-        }
+                ObjectMode::Unknown
+            };
+            let mut meta = ObjectMetadata::new(mode);
+            meta.set_content_length(file.size() as u64);
+            meta.set_last_modified(OffsetDateTime::from(file.modified()));
 
-        return Ok(RpCreate::default());
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
-
-        let meta = self.ftp_stat(path).await?;
-
-        let br = args.range();
-        let (r, size): (input::Reader, _) = match (br.offset(), br.size()) {
-            (Some(offset), Some(size)) => {
-                ftp_stream.resume_transfer(offset as usize).await?;
-                let ds = ftp_stream.retr_as_stream(path).await?.take(size);
-                (Box::new(ds), min(size, meta.size() as u64 - offset))
-            }
-            (Some(offset), None) => {
-                ftp_stream.resume_transfer(offset as usize).await?;
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64 - offset)
-            }
-            (None, Some(size)) => {
-                ftp_stream
-                    .resume_transfer((meta.size() as u64 - size) as usize)
-                    .await?;
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), size)
-            }
-            (None, None) => {
-                let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64)
-            }
+            Ok(RpStat::new(meta))
         };
 
-        Ok((
-            RpRead::new(size),
-            Box::new(FtpReader::new(r, ftp_stream)) as output::Reader,
-        ))
+        Box::pin(fut)
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
+    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
+        let fut = async {
+            let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
 
-        let mut data_stream = ftp_stream.append_with_stream(path).await?;
+            let result = if path.ends_with('/') {
+                ftp_stream.rmdir(&path).await
+            } else {
+                ftp_stream.rm(&path).await
+            };
 
-        let bytes = copy(r, &mut data_stream).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-        })?;
-
-        ftp_stream.finalize_put_stream(data_stream).await?;
-
-        Ok(RpWrite::new(bytes))
-    }
-
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // root dir, return default ObjectMetadata with Dir ObjectMode.
-        if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-        }
-
-        let file = self.ftp_stat(path).await?;
-
-        let mode = if file.is_file() {
-            ObjectMode::FILE
-        } else if file.is_directory() {
-            ObjectMode::DIR
-        } else {
-            ObjectMode::Unknown
-        };
-        let mut meta = ObjectMetadata::new(mode);
-        meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(OffsetDateTime::from(file.modified()));
-
-        Ok(RpStat::new(meta))
-    }
-
-    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let mut ftp_stream = self.ftp_connect(Operation::Delete).await?;
-
-        let result = if path.ends_with('/') {
-            ftp_stream.rmdir(&path).await
-        } else {
-            ftp_stream.rm(&path).await
-        };
-
-        match result {
-            Err(FtpError::UnexpectedResponse(Response {
-                status: Status::FileUnavailable,
-                ..
-            }))
-            | Ok(_) => (),
-            Err(e) => {
-                return Err(e.into());
+            match result {
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }))
+                | Ok(_) => (),
+                Err(e) => {
+                    return Err(e.into());
+                }
             }
-        }
 
-        Ok(RpDelete::default())
+            Ok(RpDelete::default())
+        };
+
+        Box::pin(fut)
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
-        let mut ftp_stream = self.ftp_connect(Operation::List).await?;
+    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
+        let fut = async {
+            let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
-        let pathname = if path == "/" { None } else { Some(path) };
-        let files = ftp_stream.list(pathname).await?;
+            let pathname = if path == "/" { None } else { Some(path) };
+            let files = ftp_stream.list(pathname).await?;
 
-        let rd = ReadDir::new(files);
+            let rd = ReadDir::new(files);
 
-        Ok((
-            RpList::default(),
-            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)),
-        ))
+            Ok((
+                RpList::default(),
+                Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)) as ObjectPager,
+            ))
+        };
+
+        Box::pin(fut)
     }
 }
 

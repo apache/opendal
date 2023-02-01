@@ -74,7 +74,7 @@ enum State<R: output::Read> {
     Idle,
     Stating(FutureResult<RpStat>),
     Sending(FutureResult<(RpRead, R)>),
-    Reading(output::Reader),
+    Reading(R),
 }
 
 /// Safety: State will only be accessed under &mut.
@@ -304,6 +304,7 @@ mod tests {
 
     use async_trait::async_trait;
     use bytes::Bytes;
+    use futures::future;
     use futures::AsyncRead;
     use futures::AsyncReadExt;
     use futures::AsyncSeekExt;
@@ -338,21 +339,24 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+        type Reader = MockReader;
+        type BlockingReader = ();
+
+        fn read(&self, _: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());
 
-            Ok((
+            Box::pin(future::ok((
                 RpRead::new(bs.len() as u64),
-                Box::new(MockReader {
+                MockReader {
                     inner: futures::io::Cursor::new(bs.into()),
-                }) as output::Reader,
-            ))
+                },
+            )))
         }
 
-        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(
+        fn stat(&self, _: &str, _: OpStat) -> FutureResult<RpStat> {
+            Box::pin(future::ok(RpStat::new(
                 ObjectMetadata::new(ObjectMode::FILE).with_content_length(self.data.len() as u64),
-            ))
+            )))
         }
     }
 

@@ -30,6 +30,10 @@ pub use accessor::AccessorHint;
 pub use accessor::AccessorMetadata;
 pub use accessor::FusedAccessor;
 
+mod layer;
+pub use layer::Layer;
+pub use layer::LayeredAccessor;
+
 mod io;
 pub use io::*;
 

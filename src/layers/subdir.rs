@@ -81,13 +81,13 @@ impl<A: Accessor> SubdirAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> Accessor for SubdirAccessor<A> {
+impl<A: Accessor> LayeredAccessor for SubdirAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
 
-    fn inner(&self) -> Option<&Self::Inner> {
-        Some(&self.inner)
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     fn metadata(&self) -> AccessorMetadata {

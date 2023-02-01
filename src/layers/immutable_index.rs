@@ -123,14 +123,13 @@ impl<A: Accessor> ImmutableIndexAccessor<A> {
     }
 }
 
-#[async_trait]
-impl<A: Accessor> Accessor for ImmutableIndexAccessor<A> {
+impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
 
-    fn inner(&self) -> Option<&A> {
-        Some(&self.inner)
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     /// Add list capabilities for underlying storage services.
@@ -139,6 +138,10 @@ impl<A: Accessor> Accessor for ImmutableIndexAccessor<A> {
         meta.set_capabilities(meta.capabilities() | AccessorCapability::List);
 
         meta
+    }
+
+    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        self.inner.read(path, args)
     }
 
     fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
@@ -151,6 +154,10 @@ impl<A: Accessor> Accessor for ImmutableIndexAccessor<A> {
             RpList::default(),
             Box::new(ImmutableDir::new(self.children(path))) as ObjectPager,
         )))
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.inner.blocking_read(path, args)
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
@@ -216,6 +223,7 @@ mod tests {
     use std::collections::HashMap;
     use std::collections::HashSet;
 
+    use crate::services::http;
     use anyhow::Result;
     use futures::TryStreamExt;
     use log::debug;
@@ -235,12 +243,15 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        let op = Operator::new(
+            http::Builder::from_iter(
+                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+            )
+            .build()?,
+        )
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
@@ -269,12 +280,15 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        let op = Operator::new(
+            http::Builder::from_iter(
+                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+            )
+            .build()?,
+        )
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         let mut ds = op.batch().walk_top_down("/")?;
         let mut set = HashSet::new();
@@ -310,12 +324,15 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        let op = Operator::new(
+            http::Builder::from_iter(
+                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+            )
+            .build()?,
+        )
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         //  List /
         let mut map = HashMap::new();
@@ -375,12 +392,15 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
-            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        let op = Operator::new(
+            http::Builder::from_iter(
+                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+            )
+            .build()?,
+        )
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         let mut ds = op.batch().walk_top_down("/")?;
 

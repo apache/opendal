@@ -188,7 +188,6 @@ pub use ops::PresignOperation;
 
 // Public modules, they will be accessed via `opendal::layers::Xxxx`
 pub mod layers;
-pub use layers::Layer;
 pub mod raw;
 pub mod services;
 

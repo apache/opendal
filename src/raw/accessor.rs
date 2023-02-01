@@ -67,28 +67,12 @@ use crate::*;
 ///   - Services can implement them based on services capabilities.
 ///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
-    type Inner: Accessor;
     type Reader: output::Read;
     type BlockingReader: output::BlockingRead;
 
-    /// Return the inner accessor if there is one.
-    ///
-    /// # Behavior
-    ///
-    /// - Service should not implement this method.
-    /// - Layers can implement this method to forward API call to inner accessor.
-    fn inner(&self) -> Option<&Self::Inner> {
-        None
-    }
-
     /// Invoke the `metadata` operation to get metadata of accessor.
     fn metadata(&self) -> AccessorMetadata {
-        match self.inner() {
-            None => {
-                unimplemented!()
-            }
-            Some(inner) => inner.metadata(),
-        }
+        unimplemented!("metadata() is required to be implemented")
     }
 
     /// Invoke the `create` operation on the specified path
@@ -99,13 +83,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
     fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        match self.inner() {
-            Some(inner) => inner.create(path, args),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `read` operation on the specified path, returns a
@@ -129,13 +110,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        match self.inner() {
-            Some(inner) => inner.write(path, args, r),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `stat` operation on the specified path.
@@ -146,13 +124,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - `stat` a path endswith "/" means stating a dir.
     /// - `mode` and `content_length` must be set.
     fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        match self.inner() {
-            Some(inner) => inner.stat(path, args),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `delete` operation on the specified path.
@@ -162,13 +137,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
     /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
     fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        match self.inner() {
-            Some(inner) => inner.delete(path, args),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `list` operation on the specified path.
@@ -178,13 +150,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
     fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        match self.inner() {
-            Some(inner) => inner.list(path, args),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `presign` operation on the specified path.
@@ -194,13 +163,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        match self.inner() {
-            Some(inner) => inner.presign(path, args),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
-        }
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
     /// Invoke the `create_multipart` operation on the specified path.
@@ -214,13 +180,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         path: &str,
         args: OpCreateMultipart,
     ) -> FutureResult<RpCreateMultipart> {
-        match self.inner() {
-            Some(inner) => inner.create_multipart(path, args),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `write_multipart` operation on the specified path.
@@ -234,13 +197,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         args: OpWriteMultipart,
         r: input::Reader,
     ) -> FutureResult<RpWriteMultipart> {
-        match self.inner() {
-            Some(inner) => inner.write_multipart(path, args, r),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `complete_multipart` operation on the specified path.
@@ -253,13 +213,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         path: &str,
         args: OpCompleteMultipart,
     ) -> FutureResult<RpCompleteMultipart> {
-        match self.inner() {
-            Some(inner) => inner.complete_multipart(path, args),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `abort_multipart` operation on the specified path.
@@ -272,13 +229,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         path: &str,
         args: OpAbortMultipart,
     ) -> FutureResult<RpAbortMultipart> {
-        match self.inner() {
-            Some(inner) => inner.abort_multipart(path, args),
-            None => Box::pin(future::err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))),
-        }
+        Box::pin(future::err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     /// Invoke the `blocking_create` operation on the specified path.
@@ -289,13 +243,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        match self.inner() {
-            Some(inner) => inner.blocking_create(path, args),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
-        }
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
     /// Invoke the `blocking_read` operation on the specified path.
@@ -325,13 +276,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         args: OpWrite,
         r: input::BlockingReader,
     ) -> Result<RpWrite> {
-        match self.inner() {
-            Some(inner) => inner.blocking_write(path, args, r),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
-        }
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
     /// Invoke the `blocking_stat` operation on the specified path.
@@ -342,13 +290,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        match self.inner() {
-            Some(inner) => inner.blocking_stat(path, args),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
-        }
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
     /// Invoke the `blocking_delete` operation on the specified path.
@@ -359,13 +304,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        match self.inner() {
-            Some(inner) => inner.blocking_delete(path, args),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
-        }
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 
     /// Invoke the `blocking_list` operation on the specified path.
@@ -377,13 +319,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        match self.inner() {
-            Some(inner) => inner.blocking_list(path, args),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
-        }
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }
 
@@ -391,7 +330,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
 impl<T: Accessor> Accessor for Arc<T> {
-    type Inner = T;
     type Reader = T::Reader;
     type BlockingReader = T::BlockingReader;
 
@@ -479,7 +417,7 @@ impl<T: Accessor> Accessor for Arc<T> {
 }
 
 pub type FusedAccessor =
-    Arc<dyn Accessor<Inner = (), Reader = output::Reader, BlockingReader = output::BlockingReader>>;
+    Arc<dyn Accessor<Reader = output::Reader, BlockingReader = output::BlockingReader>>;
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]
@@ -622,7 +560,6 @@ flags! {
 
 #[async_trait]
 impl Accessor for () {
-    type Inner = ();
     type Reader = ();
     type BlockingReader = ();
 }

@@ -437,13 +437,13 @@ impl<A: Accessor> Debug for MetricsAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> Accessor for MetricsAccessor<A> {
+impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type Inner = A;
     type Reader = MetricReader<A::Reader>;
     type BlockingReader = MetricReader<A::BlockingReader>;
 
-    fn inner(&self) -> Option<&Self::Inner> {
-        Some(&self.inner)
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     fn metadata(&self) -> AccessorMetadata {

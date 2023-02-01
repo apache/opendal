@@ -59,13 +59,13 @@ struct TracingAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> Accessor for TracingAccessor<A> {
+impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     type Inner = A;
     type Reader = TracingReader<A::Reader>;
     type BlockingReader = TracingReader<A::BlockingReader>;
 
-    fn inner(&self) -> Option<&Self::Inner> {
-        Some(&self.inner)
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     #[tracing::instrument(level = "debug")]

@@ -71,6 +71,8 @@ pub trait Read: Unpin + Send + Sync {
 
 impl Read for () {}
 
+/// `Box<dyn Read>` won't implement `Read` automanticly. To make Reader
+/// work as expected, we must add this impl.
 impl<T: Read + ?Sized> Read for Box<T> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         (**self).poll_read(cx, buf)

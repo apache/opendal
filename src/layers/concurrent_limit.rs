@@ -69,17 +69,13 @@ struct ConcurrentLimitAccessor<A: Accessor> {
 }
 
 #[async_trait]
-impl<A: Accessor> Accessor for ConcurrentLimitAccessor<A> {
+impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     type Inner = A;
     type Reader = ConcurrentLimitReader<A::Reader>;
     type BlockingReader = ConcurrentLimitReader<A::BlockingReader>;
 
-    fn inner(&self) -> Option<&Self::Inner> {
-        Some(&self.inner)
-    }
-
-    fn metadata(&self) -> AccessorMetadata {
-        self.inner.metadata()
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
@@ -174,10 +170,6 @@ impl<A: Accessor> Accessor for ConcurrentLimitAccessor<A> {
         };
 
         Box::pin(fut)
-    }
-
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.inner.presign(path, args)
     }
 
     fn create_multipart(

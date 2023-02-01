@@ -146,13 +146,13 @@ impl<A: Accessor> LoggingAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> Accessor for LoggingAccessor<A> {
+impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;
 
-    fn inner(&self) -> Option<&Self::Inner> {
-        Some(&self.inner)
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     fn metadata(&self) -> AccessorMetadata {

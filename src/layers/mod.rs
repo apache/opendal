@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing Layer trait and its implementations.
-
-mod layer;
-pub use layer::Layer;
+//! Providing Layer implementations.
 
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;

@@ -51,8 +51,8 @@ impl ObjectMultipart {
     }
 
     /// Fetch the operator that used by this object.
-    pub fn operatoer(&self) -> Operator {
-        self.acc.clone().into()
+    pub fn operator(&self) -> Operator {
+        todo!()
     }
 
     /// Write a new [`ObjectPart`] with specified part number.
@@ -79,7 +79,7 @@ impl ObjectMultipart {
         let op = OpCompleteMultipart::new(self.upload_id.clone(), parts);
         self.acc.complete_multipart(&self.path, op).await?;
 
-        Ok(Object::new(self.acc.clone().into(), &self.path))
+        Ok(Object::new(self.operator(), &self.path))
     }
 
     /// Abort multipart uploads.

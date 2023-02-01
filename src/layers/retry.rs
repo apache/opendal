@@ -96,7 +96,7 @@ impl<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> Debug for RetryAcces
 }
 
 #[async_trait]
-impl<A, B> Accessor for RetryAccessor<A, B>
+impl<A, B> LayeredAccessor for RetryAccessor<A, B>
 where
     A: Accessor,
     B: Backoff + Debug + Send + Sync + Unpin + 'static,
@@ -105,8 +105,8 @@ where
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
 
-    fn inner(&self) -> Option<&Self::Inner> {
-        Some(&self.inner)
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {

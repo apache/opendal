@@ -60,6 +60,8 @@ pub trait BlockingRead: Send + Sync + 'static {
 
 impl BlockingRead for () {}
 
+/// `Box<dyn BlockingRead>` won't implement `BlockingRead` automanticly.
+/// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         (**self).read(buf)

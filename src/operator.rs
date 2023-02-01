@@ -23,7 +23,6 @@ use crate::raw::*;
 use crate::services;
 use crate::Error;
 use crate::ErrorKind;
-use crate::Layer;
 use crate::Object;
 use crate::ObjectMode;
 use crate::Result;
@@ -66,10 +65,8 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(accessor: impl Accessor) -> Self {
-        Self {
-            accessor: Arc::new(accessor),
-        }
+    pub fn new<A: Accessor>(accessor: A) -> OperatorBuilder<A> {
+        OperatorBuilder { accessor }
     }
 
     /// Create a new operator from iter.
@@ -109,42 +106,7 @@ impl Operator {
         scheme: Scheme,
         it: impl Iterator<Item = (String, String)> + 'static,
     ) -> Result<Self> {
-        let op = match scheme {
-            Scheme::Azblob => services::azblob::Builder::from_iter(it).build()?.into(),
-            Scheme::Azdfs => services::azdfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Fs => services::fs::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-ftp")]
-            Scheme::Ftp => services::ftp::Builder::from_iter(it).build()?.into(),
-            Scheme::Gcs => services::gcs::Builder::from_iter(it).build()?.into(),
-            Scheme::Ghac => services::ghac::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => services::hdfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Http => services::http::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-ipfs")]
-            Scheme::Ipfs => services::ipfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Ipmfs => services::ipmfs::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-memcached")]
-            Scheme::Memcached => services::memcached::Builder::from_iter(it).build()?.into(),
-            Scheme::Memory => services::memory::Builder::default().build()?.into(),
-            #[cfg(feature = "services-moka")]
-            Scheme::Moka => services::moka::Builder::from_iter(it).build()?.into(),
-            Scheme::Obs => services::obs::Builder::from_iter(it).build()?.into(),
-            Scheme::Oss => services::oss::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-redis")]
-            Scheme::Redis => services::redis::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-rocksdb")]
-            Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
-            Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
-            Scheme::Webdav => services::webdav::Builder::from_iter(it).build()?.into(),
-            Scheme::Custom(v) => {
-                return Err(
-                    Error::new(ErrorKind::Unsupported, "custom service  is not supported")
-                        .with_context("service", v),
-                )
-            }
-        };
-
-        Ok(op)
+        todo!()
     }
 
     /// Create a new operator from env.
@@ -293,6 +255,22 @@ impl Operator {
             Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
             _ => Ok(()),
         }
+    }
+}
+
+pub struct OperatorBuilder<A: Accessor> {
+    accessor: A,
+}
+
+impl<A: Accessor> OperatorBuilder<A> {
+    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
+        OperatorBuilder {
+            accessor: layer.layer(self.accessor),
+        }
+    }
+
+    pub fn finish(self) -> Operator {
+        todo!()
     }
 }
 

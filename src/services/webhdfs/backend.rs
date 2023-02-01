@@ -15,8 +15,6 @@ use core::fmt::Debug;
 
 use async_trait::async_trait;
 use bytes::Buf;
-use bytes::BytesMut;
-use futures::AsyncReadExt;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -248,7 +246,7 @@ pub struct Backend {
 }
 
 impl Backend {
-    fn create_or_write_object_req(
+    async fn create_or_write_object_req(
         &self,
         path: &str,
         size: Option<u64>,
@@ -262,7 +260,7 @@ impl Backend {
             "CREATE"
         };
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op={}&overwrite=true",
+            "{}/webhdfs/v1/{}?op={}&overwrite=true&noredirect=true",
             self.endpoint,
             percent_encode_path(&p),
             op,
@@ -270,22 +268,25 @@ impl Backend {
         if let Some(sign) = &self.sign {
             url = url + "&" + sign;
         }
-        let mut req = Request::put(&url);
 
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size.to_string());
-        }
-        if let Some(content_type) = content_type {
-            req = req.header(CONTENT_TYPE, content_type);
+        let req = Request::put(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
+        // mkdir does not redirect
+        if path.ends_with('/') {
+            return Ok(req);
         }
 
-        req.body(body).map_err(new_request_build_error)
+        let resp = self.client.send_async(req).await?;
+
+        self.put_along_redirect(resp, size, content_type, body)
+            .await
     }
 
-    fn open_object_req(&self, path: &str, range: &BytesRange) -> Result<AsyncReq> {
+    async fn open_object_req(&self, path: &str, range: &BytesRange) -> Result<AsyncReq> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op=OPEN",
+            "{}/webhdfs/v1/{}?op=OPEN&noredirect=true",
             self.endpoint,
             percent_encode_path(&p),
         );
@@ -310,9 +311,11 @@ impl Backend {
             }
         }
 
-        let req = Request::get(&url);
+        let req = Request::get(&url)
+            .body(AsyncBody::Empty)
+            .map_err(new_request_build_error)?;
 
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        Ok(req)
     }
 
     fn status_object_req(&self, path: &str) -> Result<AsyncReq> {
@@ -373,8 +376,18 @@ impl Backend {
     /// looks like webhdfs doesn't support range request from file end.
     /// so if we want to read the tail of object, the whole object should be transfered.
     async fn get_object(&self, path: &str, range: BytesRange) -> Result<AsyncResp> {
-        let req = self.open_object_req(path, &range)?;
-        self.client.send_async(req).await
+        let req = self.open_object_req(path, &range).await?;
+        let resp = self.client.send_async(req).await?;
+
+        // this should be an 200 OK http response
+        // with JSON redirect message in its body
+        if resp.status() != StatusCode::OK {
+            // let the outside handle this error
+            return Ok(resp);
+        }
+
+        let redirected = self.get_along_redirect(resp).await?;
+        self.client.send_async(redirected).await
     }
 
     async fn status_object(&self, path: &str) -> Result<AsyncResp> {
@@ -387,24 +400,50 @@ impl Backend {
         self.client.send_async(req).await
     }
 
-    async fn follow_redirect(&self, resp: AsyncResp, body: AsyncBody) -> Result<AsyncReq> {
-        let redirect = resp
-            .headers()
-            .get("location")
-            .ok_or(
-                Error::new(ErrorKind::Unexpected, "got incorrect redirection")
-                    .with_context("service", Scheme::WebHdfs),
-            )?
-            .to_str()
+    /// get redirect destination from 307 TEMPORARY_REDIRECT http response
+    async fn follow_redirect(&self, resp: AsyncResp) -> Result<String> {
+        let bs = resp.into_body().bytes().await.map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "redirection receive fail")
+                .with_context("service", Scheme::WebHdfs)
+                .set_source(e)
+        })?;
+        let loc = serde_json::from_reader::<_, Redirection>(bs.reader())
             .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "got incorrect redirection")
+                Error::new(ErrorKind::Unexpected, "redirection fail")
                     .with_context("service", Scheme::WebHdfs)
+                    .set_permanent()
                     .set_source(e)
-            })?;
+            })?
+            .location;
 
-        Request::put(redirect)
-            .body(body)
+        Ok(loc)
+    }
+
+    async fn get_along_redirect(&self, redirection: AsyncResp) -> Result<AsyncReq> {
+        let redirect = self.follow_redirect(redirection).await?;
+
+        Request::get(redirect)
+            .body(AsyncBody::Empty)
             .map_err(new_request_build_error)
+    }
+
+    async fn put_along_redirect(
+        &self,
+        resp: AsyncResp,
+        size: Option<u64>,
+        content_type: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<AsyncReq> {
+        let redirect = self.follow_redirect(resp).await?;
+
+        let mut req = Request::put(redirect);
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size.to_string());
+        }
+        if let Some(content_type) = content_type {
+            req = req.header(CONTENT_TYPE, content_type);
+        }
+        req.body(body).map_err(new_request_build_error)
     }
 
     async fn consume_success_create(&self, path: &str, resp: AsyncResp) -> Result<RpCreate> {
@@ -430,21 +469,13 @@ impl Backend {
         Ok(RpCreate::default())
     }
 
+    /// consume 200 OK delete response
+    /// # NOTE
+    /// deleting a non-exist object is tolerated by OpenDAL
+    /// so the response will just be consumed
     async fn consume_success_delete(&self, resp: AsyncResp) -> Result<RpDelete> {
-        let body_bs = resp.into_body().bytes().await?;
-        let delete_resp =
-            serde_json::from_reader::<_, BooleanResp>(body_bs.reader()).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "cannot parse returned json")
-                    .with_context("service", Scheme::WebHdfs)
-                    .set_source(e)
-            })?;
-
-        if delete_resp.boolean {
-            Ok(RpDelete::default())
-        } else {
-            Err(Error::new(ErrorKind::Unexpected, "cannot delete object")
-                .with_context("service", Scheme::WebHdfs))
-        }
+        resp.into_body().consume().await?;
+        Ok(RpDelete::default())
     }
 }
 
@@ -473,7 +504,9 @@ impl Accessor for Backend {
             path.to_owned()
         };
 
-        let req = self.create_or_write_object_req(&path, Some(0), None, AsyncBody::Empty)?;
+        let req = self
+            .create_or_write_object_req(&path, Some(0), None, AsyncBody::Empty)
+            .await?;
 
         let resp = self.client.send_async(req).await?;
 
@@ -485,17 +518,6 @@ impl Accessor for Backend {
         // the redirection should be done automatically.
         match status {
             StatusCode::CREATED | StatusCode::OK => self.consume_success_create(&path, resp).await,
-            StatusCode::TEMPORARY_REDIRECT => {
-                debug!("got 307 redirect, following...");
-                let req = self.follow_redirect(resp, AsyncBody::Empty).await?;
-                let resp = self.client.send_async(req).await?;
-
-                if resp.status() == StatusCode::CREATED || resp.status() == StatusCode::OK {
-                    self.consume_success_create(&path, resp).await
-                } else {
-                    Err(parse_error(resp).await?)
-                }
-            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -519,29 +541,21 @@ impl Accessor for Backend {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
                 Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
             }
+            StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::ObjectNotFound, "object not found")
+                .with_context("service", Scheme::WebHdfs)),
             _ => Err(parse_error(resp).await?),
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
-        let mut buf = BytesMut::with_capacity(args.size() as usize);
-        r.read_exact(&mut buf).await.map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "cannot write request")
-                .with_context("service", Scheme::WebHdfs)
-                .set_source(e)
-        })?;
-        let buf = buf.freeze();
-        let req = self.create_or_write_object_req(
-            path,
-            Some(args.size()),
-            args.content_type(),
-            AsyncBody::Bytes(buf.clone()),
-        )?;
-        // As for the reqwuest http client,
-        // the 307 temporary redirect will be followed automatically.
-        // And all headers and body will be kept
-        //
-        // Extra costs may present since the body will be send out twice.
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let req = self
+            .create_or_write_object_req(
+                path,
+                Some(args.size()),
+                args.content_type(),
+                AsyncBody::Reader(r),
+            )
+            .await?;
         let resp = self.client.send_async(req).await?;
 
         let status = resp.status();
@@ -549,18 +563,6 @@ impl Accessor for Backend {
             StatusCode::OK | StatusCode::CREATED => {
                 resp.into_body().consume().await?;
                 Ok(RpWrite::default())
-            }
-            StatusCode::TEMPORARY_REDIRECT => {
-                debug!("got 307 redirect, following...");
-                let req = self.follow_redirect(resp, AsyncBody::Bytes(buf)).await?;
-                let resp = self.client.send_async(req).await?;
-
-                if resp.status() == StatusCode::OK || resp.status() == StatusCode::CREATED {
-                    resp.into_body().consume().await?;
-                    Ok(RpWrite::default())
-                } else {
-                    Err(parse_error(resp).await?)
-                }
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -606,7 +608,9 @@ impl Accessor for Backend {
             StatusCode::OK => self.consume_success_delete(resp).await,
             StatusCode::TEMPORARY_REDIRECT => {
                 debug!("got 307 redirect, following...");
-                let req = self.follow_redirect(resp, AsyncBody::Empty).await?;
+                let req = self
+                    .put_along_redirect(resp, None, None, AsyncBody::Empty)
+                    .await?;
                 let resp = self.client.send_async(req).await?;
 
                 if resp.status() == StatusCode::OK {
@@ -647,6 +651,12 @@ impl Accessor for Backend {
             _ => Err(parse_error(resp).await?),
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct Redirection {
+    pub location: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -713,6 +723,16 @@ pub(super) enum FileStatusType {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_file_statuses() {
+        let json = r#"{"Location":"http://<DATANODE>:<PORT>/webhdfs/v1/<PATH>?op=CREATE..."}"#;
+        let redir: Redirection = serde_json::from_str(json).expect("must success");
+        assert_eq!(
+            redir.location,
+            "http://<DATANODE>:<PORT>/webhdfs/v1/<PATH>?op=CREATE..."
+        );
+    }
 
     #[test]
     fn test_file_status() {

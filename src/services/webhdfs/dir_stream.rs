@@ -15,7 +15,6 @@
 use std::collections::VecDeque;
 
 use async_trait::async_trait;
-use log::debug;
 
 use super::backend::FileStatus;
 use crate::raw::ObjectEntry;

@@ -19,6 +19,7 @@ use std::fmt::Write;
 use std::mem;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::future;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
@@ -334,6 +335,7 @@ pub struct Backend {
     _account_name: String,
 }
 
+#[async_trait]
 impl Accessor for Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
@@ -351,120 +353,100 @@ impl Accessor for Backend {
         am
     }
 
-    fn create(&self, path: &str, _: OpCreate) -> FutureResult<RpCreate> {
-        let fut = async {
-            let mut req = self.azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty)?;
+    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let mut req = self.azblob_put_blob_request(path, Some(0), None, AsyncBody::Empty)?;
 
-            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-            let resp = self.client.send_async(req).await?;
+        let resp = self.client.send_async(req).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(RpCreate::default())
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCreate::default())
             }
-        };
-
-        Box::pin(fut)
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        let fut = async {
-            let resp = self.azblob_get_blob(path, args.range()).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.azblob_get_blob(path, args.range()).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                    let meta = parse_into_object_metadata(path, resp.headers())?;
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_object_metadata(path, resp.headers())?;
 
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
-                _ => Err(parse_error(resp).await?),
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-        };
-
-        Box::pin(fut)
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        let fut = async {
-            let mut req = self.azblob_put_blob_request(
-                path,
-                Some(args.size()),
-                args.content_type(),
-                AsyncBody::Reader(r),
-            )?;
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let mut req = self.azblob_put_blob_request(
+            path,
+            Some(args.size()),
+            args.content_type(),
+            AsyncBody::Reader(r),
+        )?;
 
-            self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
-            let resp = self.client.send_async(req).await?;
+        let resp = self.client.send_async(req).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(RpWrite::new(args.size()))
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpWrite::new(args.size()))
             }
-        };
-
-        Box::pin(fut)
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        let fut = async {
-            // Stat root always returns a DIR.
-            if path == "/" {
-                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+        }
+
+        let resp = self.azblob_get_blob_properties(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
+                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
             }
-
-            let resp = self.azblob_get_blob_properties(path).await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
-                StatusCode::NOT_FOUND if path.ends_with('/') => {
-                    Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        };
-
-        Box::pin(fut)
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
-        let fut = async {
-            let resp = self.azblob_delete_blob(path).await?;
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.azblob_delete_blob(path).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
-                _ => Err(parse_error(resp).await?),
-            }
-        };
-
-        Box::pin(fut)
+        match status {
+            StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let op = Box::new(DirStream::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
         ));
 
-        Box::pin(future::ok((RpList::default(), op as ObjectPager)))
+        Ok((RpList::default(), op as ObjectPager))
     }
 }
 

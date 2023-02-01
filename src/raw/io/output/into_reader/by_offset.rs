@@ -37,7 +37,7 @@ use crate::*;
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn by_offset<A: Accessor>(acc: A, path: &str, offset: u64) -> OffsetReader<A> {
+pub fn by_offset<A: Accessor>(acc: Arc<A>, path: &str, offset: u64) -> OffsetReader<A> {
     OffsetReader {
         acc,
         path: path.to_string(),
@@ -52,7 +52,7 @@ pub fn by_offset<A: Accessor>(acc: A, path: &str, offset: u64) -> OffsetReader<A
 
 /// OffsetReader that can do seek on non-seekable reader.
 pub struct OffsetReader<A: Accessor> {
-    acc: A,
+    acc: Arc<A>,
     path: String,
 
     offset: u64,
@@ -72,8 +72,8 @@ pub struct OffsetReader<A: Accessor> {
 
 enum State<R: output::Read> {
     Idle,
-    Stating(FutureResult<RpStat>),
-    Sending(FutureResult<(RpRead, R)>),
+    Stating(BoxFuture<'static, Result<RpStat>>),
+    Sending(BoxFuture<'static, Result<(RpRead, R)>>),
     Reading(R),
 }
 
@@ -81,17 +81,22 @@ enum State<R: output::Read> {
 unsafe impl<R: output::Read> Sync for State<R> {}
 
 impl<A: Accessor> OffsetReader<A> {
-    fn read_future(&self) -> FutureResult<(RpRead, A::Reader)> {
+    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, A::Reader)>> {
+        let acc = self.acc.clone();
+        let path = self.path.clone();
         let op = OpRead::default().with_range(BytesRange::new(
             Some(self.offset + self.cur),
             self.size.map(|v| v - self.cur),
         ));
 
-        self.acc.read(&self.path, op)
+        Box::pin(async move { acc.read(&path, op).await })
     }
 
-    fn stat_future(&self) -> FutureResult<RpStat> {
-        self.acc.stat(&self.path, OpStat::default())
+    fn stat_future(&self) -> BoxFuture<'static, Result<RpStat>> {
+        let acc = self.acc.clone();
+        let path = self.path.clone();
+
+        Box::pin(async move { acc.stat(&path, OpStat::default()).await })
     }
 }
 
@@ -342,21 +347,21 @@ mod tests {
         type Reader = MockReader;
         type BlockingReader = ();
 
-        fn read(&self, _: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());
 
-            Box::pin(future::ok((
+            Ok((
                 RpRead::new(bs.len() as u64),
                 MockReader {
                     inner: futures::io::Cursor::new(bs.into()),
                 },
-            )))
+            ))
         }
 
-        fn stat(&self, _: &str, _: OpStat) -> FutureResult<RpStat> {
-            Box::pin(future::ok(RpStat::new(
+        async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            Ok(RpStat::new(
                 ObjectMetadata::new(ObjectMode::FILE).with_content_length(self.data.len() as u64),
-            )))
+            ))
         }
     }
 

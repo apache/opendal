@@ -63,7 +63,7 @@ impl<A: Accessor> Layer<A> for ConcurrentLimitLayer {
 }
 
 #[derive(Debug, Clone)]
-struct ConcurrentLimitAccessor<A: Accessor> {
+pub struct ConcurrentLimitAccessor<A: Accessor> {
     inner: A,
     semaphore: Arc<Semaphore>,
 }
@@ -78,171 +78,131 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         &self.inner
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.create(path, args).await
-        };
-
-        Box::pin(fut)
+        self.inner.create(path, args).await
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        let fut = async {
-            let permit = self
-                .semaphore
-                .clone()
-                .acquire_owned()
-                .await
-                .expect("semaphore must be valid");
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let permit = self
+            .semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner
-                .read(path, args)
-                .await
-                .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, permit)))
-        };
-
-        Box::pin(fut)
+        self.inner
+            .read(path, args)
+            .await
+            .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, permit)))
     }
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.write(path, args, r).await
-        };
-
-        Box::pin(fut)
+        self.inner.write(path, args, r).await
     }
 
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.stat(path, args).await
-        };
-
-        Box::pin(fut)
+        self.inner.stat(path, args).await
     }
 
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.delete(path, args).await
-        };
-
-        Box::pin(fut)
+        self.inner.delete(path, args).await
     }
 
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        let fut = async {
-            let permit = self
-                .semaphore
-                .clone()
-                .acquire_owned()
-                .await
-                .expect("semaphore must be valid");
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        let permit = self
+            .semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.list(path, args).await.map(|(rp, s)| {
-                (
-                    rp,
-                    Box::new(ConcurrentLimitPager::new(s, permit)) as ObjectPager,
-                )
-            })
-        };
-
-        Box::pin(fut)
+        self.inner.list(path, args).await.map(|(rp, s)| {
+            (
+                rp,
+                Box::new(ConcurrentLimitPager::new(s, permit)) as ObjectPager,
+            )
+        })
     }
 
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    ) -> Result<RpCreateMultipart> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.create_multipart(path, args).await
-        };
-
-        Box::pin(fut)
+        self.inner.create_multipart(path, args).await
     }
 
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    ) -> Result<RpWriteMultipart> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.write_multipart(path, args, r).await
-        };
-
-        Box::pin(fut)
+        self.inner.write_multipart(path, args, r).await
     }
 
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    ) -> Result<RpCompleteMultipart> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.complete_multipart(path, args).await
-        };
-
-        Box::pin(fut)
+        self.inner.complete_multipart(path, args).await
     }
 
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
-        let fut = async {
-            let _permit = self
-                .semaphore
-                .acquire()
-                .await
-                .expect("semaphore must be valid");
+    ) -> Result<RpAbortMultipart> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
 
-            self.inner.abort_multipart(path, args).await
-        };
-
-        Box::pin(fut)
+        self.inner.abort_multipart(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -314,7 +274,7 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     }
 }
 
-struct ConcurrentLimitReader<R> {
+pub struct ConcurrentLimitReader<R> {
     inner: R,
 
     // Hold on this permit until this reader has been dropped.

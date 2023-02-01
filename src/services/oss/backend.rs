@@ -329,104 +329,92 @@ impl Accessor for Backend {
         am
     }
 
-    fn create(&self, path: &str, _: OpCreate) -> FutureResult<RpCreate> {
-        Box::pin(async {
-            let resp = self
-                .oss_put_object(path, None, None, AsyncBody::Empty)
-                .await?;
-            let status = resp.status();
+    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        let resp = self
+            .oss_put_object(path, None, None, AsyncBody::Empty)
+            .await?;
+        let status = resp.status();
 
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(RpCreate::default())
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCreate::default())
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(async {
-            let resp = self.oss_get_object(path, args.range()).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.oss_get_object(path, args.range()).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                    let meta = parse_into_object_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_object_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        Box::pin(async {
-            let resp = self
-                .oss_put_object(
-                    path,
-                    Some(args.size()),
-                    args.content_type(),
-                    AsyncBody::Reader(r),
-                )
-                .await?;
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let resp = self
+            .oss_put_object(
+                path,
+                Some(args.size()),
+                args.content_type(),
+                AsyncBody::Reader(r),
+            )
+            .await?;
 
-            let status = resp.status();
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(RpWrite::new(args.size()))
-                }
-                _ => Err(parse_error(resp).await?),
+        let status = resp.status();
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpWrite::new(args.size()))
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        Box::pin(async {
-            if path == "/" {
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        if path == "/" {
+            let m = ObjectMetadata::new(ObjectMode::DIR);
+            return Ok(RpStat::new(m));
+        }
+
+        let resp = self.oss_head_object(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+            StatusCode::NOT_FOUND if path.ends_with('/') => {
                 let m = ObjectMetadata::new(ObjectMode::DIR);
-                return Ok(RpStat::new(m));
+                Ok(RpStat::new(m))
             }
 
-            let resp = self.oss_head_object(path).await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
-                StatusCode::NOT_FOUND if path.ends_with('/') => {
-                    let m = ObjectMetadata::new(ObjectMode::DIR);
-                    Ok(RpStat::new(m))
-                }
-
-                _ => Err(parse_error(resp).await?),
-            }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
-        Box::pin(async {
-            let resp = self.obs_delete_object(path).await?;
-            let status = resp.status();
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
-                    resp.into_body().consume().await?;
-                    Ok(RpDelete::default())
-                }
-                _ => Err(parse_error(resp).await?),
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.obs_delete_object(path).await?;
+        let status = resp.status();
+        match status {
+            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
+                resp.into_body().consume().await?;
+                Ok(RpDelete::default())
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        Box::pin(future::ok(
-            ((
-                RpList::default(),
-                Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
-            )),
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        Ok((
+            RpList::default(),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 

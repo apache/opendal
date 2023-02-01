@@ -146,187 +146,175 @@ impl Accessor for Backend {
         am
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        Box::pin(async {
-            let p = build_rooted_abs_path(&self.root, path);
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-            match args.mode() {
-                ObjectMode::FILE => {
-                    let parent = PathBuf::from(&p)
-                        .parent()
-                        .ok_or_else(|| {
-                            Error::new(
-                                ErrorKind::Unexpected,
-                                "path shoud have parent but not, it must be malformed",
-                            )
-                            .with_context("input", &p)
-                        })?
-                        .to_path_buf();
+        match args.mode() {
+            ObjectMode::FILE => {
+                let parent = PathBuf::from(&p)
+                    .parent()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path shoud have parent but not, it must be malformed",
+                        )
+                        .with_context("input", &p)
+                    })?
+                    .to_path_buf();
 
-                    self.client
-                        .create_dir(&parent.to_string_lossy())
-                        .map_err(parse_io_error)?;
+                self.client
+                    .create_dir(&parent.to_string_lossy())
+                    .map_err(parse_io_error)?;
 
-                    self.client
-                        .open_file()
-                        .create(true)
-                        .write(true)
-                        .truncate(true)
-                        .open(&p)
-                        .map_err(parse_io_error)?;
+                self.client
+                    .open_file()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(&p)
+                    .map_err(parse_io_error)?;
 
-                    Ok(RpCreate::default())
-                }
-                ObjectMode::DIR => {
-                    self.client.create_dir(&p).map_err(parse_io_error)?;
-
-                    Ok(RpCreate::default())
-                }
-                ObjectMode::Unknown => unreachable!(),
+                Ok(RpCreate::default())
             }
-        })
+            ObjectMode::DIR => {
+                self.client.create_dir(&p).map_err(parse_io_error)?;
+
+                Ok(RpCreate::default())
+            }
+            ObjectMode::Unknown => unreachable!(),
+        }
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(async {
-            use output::ReadExt;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        use output::ReadExt;
 
-            let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_abs_path(&self.root, path);
 
-            // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
-            let meta = self.client.metadata(&p).map_err(parse_io_error)?;
+        // This will be addressed by https://github.com/datafuselabs/opendal/issues/506
+        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
-            let f = self
-                .client
-                .open_file()
-                .read(true)
-                .async_open(&p)
-                .await
-                .map_err(parse_io_error)?;
+        let f = self
+            .client
+            .open_file()
+            .read(true)
+            .async_open(&p)
+            .await
+            .map_err(parse_io_error)?;
 
-            let br = args.range();
-            let (start, end) = match (br.offset(), br.size()) {
-                // Read a specific range.
-                (Some(offset), Some(size)) => (offset, min(offset + size, meta.len())),
-                // Read from offset.
-                (Some(offset), None) => (offset, meta.len()),
-                // Read the last size bytes.
-                (None, Some(size)) => (meta.len() - size, meta.len()),
-                // Read the whole file.
-                (None, None) => (0, meta.len()),
-            };
+        let br = args.range();
+        let (start, end) = match (br.offset(), br.size()) {
+            // Read a specific range.
+            (Some(offset), Some(size)) => (offset, min(offset + size, meta.len())),
+            // Read from offset.
+            (Some(offset), None) => (offset, meta.len()),
+            // Read the last size bytes.
+            (None, Some(size)) => (meta.len() - size, meta.len()),
+            // Read the whole file.
+            (None, None) => (0, meta.len()),
+        };
 
-            let mut r = output::into_reader::from_fd(f, start, end);
-            // Rewind to make sure we are on the correct offset.
-            r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
+        let mut r = output::into_reader::from_fd(f, start, end);
+        // Rewind to make sure we are on the correct offset.
+        r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
 
-            Ok((RpRead::new(end - start), r))
-        })
+        Ok((RpRead::new(end - start), r))
     }
 
-    fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        Box::pin(async {
-            let p = build_rooted_abs_path(&self.root, path);
+    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-            let parent = PathBuf::from(&p)
-                .parent()
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "path shoud have parent but not, it must be malformed",
-                    )
-                    .with_context("input", &p)
-                })?
-                .to_path_buf();
+        let parent = PathBuf::from(&p)
+            .parent()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "path shoud have parent but not, it must be malformed",
+                )
+                .with_context("input", &p)
+            })?
+            .to_path_buf();
 
-            self.client
-                .create_dir(&parent.to_string_lossy())
-                .map_err(parse_io_error)?;
+        self.client
+            .create_dir(&parent.to_string_lossy())
+            .map_err(parse_io_error)?;
 
-            let mut f = self
-                .client
-                .open_file()
-                .create(true)
-                .write(true)
-                .async_open(&p)
-                .await
-                .map_err(parse_io_error)?;
+        let mut f = self
+            .client
+            .open_file()
+            .create(true)
+            .write(true)
+            .async_open(&p)
+            .await
+            .map_err(parse_io_error)?;
 
-            let n = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
+        let n = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
 
-            Ok(RpWrite::new(n))
-        })
+        Ok(RpWrite::new(n))
     }
 
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        Box::pin(async {
-            let p = build_rooted_abs_path(&self.root, path);
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-            let meta = self.client.metadata(&p).map_err(parse_io_error)?;
+        let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
-            let mode = if meta.is_dir() {
-                ObjectMode::DIR
-            } else if meta.is_file() {
-                ObjectMode::FILE
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
+        } else if meta.is_file() {
+            ObjectMode::FILE
+        } else {
+            ObjectMode::Unknown
+        };
+        let mut m = ObjectMetadata::new(mode);
+        m.set_content_length(meta.len());
+        m.set_last_modified(OffsetDateTime::from(meta.modified()));
+
+        Ok(RpStat::new(m))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = self.client.metadata(&p);
+
+        if let Err(err) = meta {
+            return if err.kind() == io::ErrorKind::NotFound {
+                Ok(RpDelete::default())
             } else {
-                ObjectMode::Unknown
+                Err(parse_io_error(err))
             };
-            let mut m = ObjectMetadata::new(mode);
-            m.set_content_length(meta.len());
-            m.set_last_modified(OffsetDateTime::from(meta.modified()));
+        }
 
-            Ok(RpStat::new(m))
-        })
+        // Safety: Err branch has been checked, it's OK to unwrap.
+        let meta = meta.ok().unwrap();
+
+        let result = if meta.is_dir() {
+            self.client.remove_dir(&p)
+        } else {
+            self.client.remove_file(&p)
+        };
+
+        result.map_err(parse_io_error)?;
+
+        Ok(RpDelete::default())
     }
 
-    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
-        Box::pin(async {
-            let p = build_rooted_abs_path(&self.root, path);
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        let p = build_rooted_abs_path(&self.root, path);
 
-            let meta = self.client.metadata(&p);
-
-            if let Err(err) = meta {
-                return if err.kind() == io::ErrorKind::NotFound {
-                    Ok(RpDelete::default())
+        let f = match self.client.read_dir(&p) {
+            Ok(f) => f,
+            Err(e) => {
+                return if e.kind() == io::ErrorKind::NotFound {
+                    Ok((RpList::default(), Box::new(()) as ObjectPager))
                 } else {
-                    Err(parse_io_error(err))
-                };
-            }
-
-            // Safety: Err branch has been checked, it's OK to unwrap.
-            let meta = meta.ok().unwrap();
-
-            let result = if meta.is_dir() {
-                self.client.remove_dir(&p)
-            } else {
-                self.client.remove_file(&p)
-            };
-
-            result.map_err(parse_io_error)?;
-
-            Ok(RpDelete::default())
-        })
-    }
-
-    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        Box::pin(async {
-            let p = build_rooted_abs_path(&self.root, path);
-
-            let f = match self.client.read_dir(&p) {
-                Ok(f) => f,
-                Err(e) => {
-                    return if e.kind() == io::ErrorKind::NotFound {
-                        Ok((RpList::default(), Box::new(()) as ObjectPager))
-                    } else {
-                        Err(parse_io_error(e))
-                    }
+                    Err(parse_io_error(e))
                 }
-            };
+            }
+        };
 
-            let rd = DirStream::new(&self.root, f);
+        let rd = DirStream::new(&self.root, f);
 
-            Ok((RpList::default(), Box::new(rd)))
-        })
+        Ok((RpList::default(), Box::new(rd)))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {

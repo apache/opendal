@@ -82,7 +82,7 @@ where
 }
 
 #[derive(Clone)]
-struct RetryAccessor<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> {
+pub struct RetryAccessor<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> {
     inner: A,
     backoff: B,
 }
@@ -109,153 +109,145 @@ where
         &self.inner
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        Box::pin(
-            { || self.inner.create(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        { || self.inner.create(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Create, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(
-            { || self.inner.read(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        { || self.inner.read(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Read, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
     /// Return `Interrupted` Error even after retry.
     ///
     /// Allowing users to retry the write request from upper logic.
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        self.inner.write(path, args, r)
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        self.inner.write(path, args, r).await
     }
 
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        Box::pin(
-            { || self.inner.stat(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        { || self.inner.stat(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Stat, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        Box::pin(
-            { || self.inner.delete(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        { || self.inner.delete(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Delete, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        Box::pin(
-            { || self.inner.list(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        { || self.inner.list(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::List, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
-        Box::pin(
-            { || self.inner.create_multipart(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    ) -> Result<RpCreateMultipart> {
+        { || self.inner.create_multipart(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::CreateMultipart, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
+    ) -> Result<RpWriteMultipart> {
         // Write can't retry, until can reset this reader.
-        self.inner.write_multipart(path, args.clone(), r)
+        self.inner.write_multipart(path, args.clone(), r).await
     }
 
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
-        Box::pin(
-            { || self.inner.complete_multipart(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    ) -> Result<RpCompleteMultipart> {
+        { || self.inner.complete_multipart(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::CompleteMultipart, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
-        Box::pin(
-            { || self.inner.abort_multipart(path, args.clone()) }
-                .retry(self.backoff.clone())
-                .when(|e| e.is_temporary())
-                .notify(|err, dur| {
-                    warn!(
+    ) -> Result<RpAbortMultipart> {
+        { || self.inner.abort_multipart(path, args.clone()) }
+            .retry(self.backoff.clone())
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::AbortMultipart, dur.as_secs_f64(), err)
-                })
-                .map(|v| v.map_err(|e| e.set_persistent())),
-        )
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {

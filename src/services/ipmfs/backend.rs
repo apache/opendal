@@ -74,115 +74,105 @@ impl Accessor for Backend {
         am
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        Box::pin(async {
-            let resp = match args.mode() {
-                ObjectMode::DIR => self.ipmfs_mkdir(path).await?,
-                ObjectMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
-                _ => unreachable!(),
-            };
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let resp = match args.mode() {
+            ObjectMode::DIR => self.ipmfs_mkdir(path).await?,
+            ObjectMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
+            _ => unreachable!(),
+        };
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(RpCreate::default())
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpCreate::default())
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(async {
-            let resp = self.ipmfs_read(path, args.range()).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.ipmfs_read(path, args.range()).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::OK => {
-                    let meta = parse_into_object_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::OK => {
+                let meta = parse_into_object_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        Box::pin(async {
-            let resp = self
-                .ipmfs_write(path, AsyncBody::Multipart("data".to_string(), r))
-                .await?;
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let resp = self
+            .ipmfs_write(path, AsyncBody::Multipart("data".to_string(), r))
+            .await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(RpWrite::new(args.size()))
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpWrite::new(args.size()))
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        Box::pin(async {
-            // Stat root always returns a DIR.
-            if path == "/" {
-                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+        }
+
+        let resp = self.ipmfs_stat(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let bs = resp.into_body().bytes().await?;
+
+                let res: IpfsStatResponse =
+                    serde_json::from_slice(&bs).map_err(parse_json_deserialize_error)?;
+
+                let mode = match res.file_type.as_str() {
+                    "file" => ObjectMode::FILE,
+                    "directory" => ObjectMode::DIR,
+                    _ => ObjectMode::Unknown,
+                };
+
+                let mut meta = ObjectMetadata::new(mode);
+                meta.set_content_length(res.size);
+
+                Ok(RpStat::new(meta))
             }
-
-            let resp = self.ipmfs_stat(path).await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => {
-                    let bs = resp.into_body().bytes().await?;
-
-                    let res: IpfsStatResponse =
-                        serde_json::from_slice(&bs).map_err(parse_json_deserialize_error)?;
-
-                    let mode = match res.file_type.as_str() {
-                        "file" => ObjectMode::FILE,
-                        "directory" => ObjectMode::DIR,
-                        _ => ObjectMode::Unknown,
-                    };
-
-                    let mut meta = ObjectMetadata::new(mode);
-                    meta.set_content_length(res.size);
-
-                    Ok(RpStat::new(meta))
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
-        Box::pin(async {
-            let resp = self.ipmfs_rm(path).await?;
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let resp = self.ipmfs_rm(path).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::OK => {
-                    resp.into_body().consume().await?;
-                    Ok(RpDelete::default())
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpDelete::default())
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        Box::pin(future::ok((
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        Ok((
             RpList::default(),
             Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
-        )))
+        ))
     }
 }
 

@@ -54,7 +54,7 @@ impl<A: Accessor> Layer<A> for TracingLayer {
 }
 
 #[derive(Debug)]
-struct TracingAccessor<A> {
+pub struct TracingAccessor<A> {
     inner: A,
 }
 
@@ -74,45 +74,47 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        self.inner.create(path, args)
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner.create(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(
-            self.inner
-                .read(path, args)
-                .map(|v| v.map(|(rp, r)| (rp, TracingReader::new(Span::current(), r)))),
-        )
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.inner
+            .read(path, args)
+            .map(|v| v.map(|(rp, r)| (rp, TracingReader::new(Span::current(), r))))
+            .await
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let r = Box::new(TracingReader::new(Span::current(), r));
-        self.inner.write(path, args, r)
+        self.inner.write(path, args, r).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        self.inner.stat(path, args)
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        self.inner.delete(path, args)
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        self.inner.delete(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        Box::pin(self.inner.list(path, args).map(|v| {
-            v.map(|(rp, s)| {
-                (
-                    rp,
-                    Box::new(TracingPager::new(Span::current(), s)) as ObjectPager,
-                )
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        self.inner
+            .list(path, args)
+            .map(|v| {
+                v.map(|(rp, s)| {
+                    (
+                        rp,
+                        Box::new(TracingPager::new(Span::current(), s)) as ObjectPager,
+                    )
+                })
             })
-        }))
+            .await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -121,41 +123,41 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
-        self.inner.create_multipart(path, args)
+    ) -> Result<RpCreateMultipart> {
+        self.inner.create_multipart(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self, r))]
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
+    ) -> Result<RpWriteMultipart> {
         let r = Box::new(TracingReader::new(Span::current(), r));
-        self.inner.write_multipart(path, args, r)
+        self.inner.write_multipart(path, args, r).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
-        self.inner.complete_multipart(path, args)
+    ) -> Result<RpCompleteMultipart> {
+        self.inner.complete_multipart(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
-        self.inner.abort_multipart(path, args)
+    ) -> Result<RpAbortMultipart> {
+        self.inner.abort_multipart(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -201,7 +203,7 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 }
 
-struct TracingReader<R> {
+pub struct TracingReader<R> {
     span: Span,
     inner: R,
 }

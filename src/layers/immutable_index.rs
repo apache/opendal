@@ -77,7 +77,7 @@ impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
 }
 
 #[derive(Debug, Clone)]
-struct ImmutableIndexAccessor<A: Accessor> {
+pub struct ImmutableIndexAccessor<A: Accessor> {
     inner: A,
     /// TODO: we can introduce trie here to lower the memory footprint.
     set: BTreeSet<String>,
@@ -123,6 +123,7 @@ impl<A: Accessor> ImmutableIndexAccessor<A> {
     }
 }
 
+#[async_trait]
 impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
@@ -140,20 +141,20 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         meta
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        self.inner.read(path, args)
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.inner.read(path, args).await
     }
 
-    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Box::pin(future::ok((
+        Ok((
             RpList::default(),
             Box::new(ImmutableDir::new(self.children(path))) as ObjectPager,
-        )))
+        ))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -223,13 +224,13 @@ mod tests {
     use std::collections::HashMap;
     use std::collections::HashSet;
 
-    use crate::services::http;
     use anyhow::Result;
     use futures::TryStreamExt;
     use log::debug;
 
     use super::*;
     use crate::layers::LoggingLayer;
+    use crate::services::http;
     use crate::ObjectMode;
     use crate::Operator;
     use crate::Scheme;

@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use async_trait::async_trait;
-use futures::{future, AsyncReadExt};
+use futures::future;
+use futures::AsyncReadExt;
 
 use super::Adapter;
 use crate::raw::*;
@@ -58,16 +59,12 @@ impl<S: Adapter> Accessor for Backend<S> {
         am
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        let fut = async {
-            if args.mode() == ObjectMode::FILE {
-                self.kv.set(path, &[]).await?;
-            }
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        if args.mode() == ObjectMode::FILE {
+            self.kv.set(path, &[]).await?;
+        }
 
-            Ok(RpCreate::default())
-        };
-
-        Box::pin(fut)
+        Ok(RpCreate::default())
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -78,25 +75,23 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok(RpCreate::default())
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = path.to_string();
 
-        Box::pin(async move {
-            let bs = match self.kv.get(&path).await? {
-                Some(bs) => bs,
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::ObjectNotFound,
-                        "kv doesn't have this path",
-                    ))
-                }
-            };
+        let bs = match self.kv.get(&path).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::ObjectNotFound,
+                    "kv doesn't have this path",
+                ))
+            }
+        };
 
-            let bs = self.apply_range(bs, args.range());
+        let bs = self.apply_range(bs, args.range());
 
-            let length = bs.len();
-            Ok((RpRead::new(length as u64), output::Cursor::from(bs)))
-        })
+        let length = bs.len();
+        Ok((RpRead::new(length as u64), output::Cursor::from(bs)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -114,19 +109,15 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok((RpRead::new(bs.len() as u64), output::Cursor::from(bs)))
     }
 
-    fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> FutureResult<RpWrite> {
-        let fut = async {
-            let mut bs = Vec::with_capacity(args.size() as usize);
-            r.read_to_end(&mut bs).await.map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "read from source").set_source(err)
-            })?;
+    async fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
+        let mut bs = Vec::with_capacity(args.size() as usize);
+        r.read_to_end(&mut bs)
+            .await
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
 
-            self.kv.set(path, &bs).await?;
+        self.kv.set(path, &bs).await?;
 
-            Ok(RpWrite::new(args.size()))
-        };
-
-        Box::pin(fut)
+        Ok(RpWrite::new(args.size()))
     }
 
     fn blocking_write(
@@ -144,25 +135,21 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok(RpWrite::new(args.size()))
     }
 
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        let fut = async {
-            if path.ends_with('/') {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
-            } else {
-                let bs = self.kv.get(path).await?;
-                match bs {
-                    Some(bs) => Ok(RpStat::new(
-                        ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
-                    )),
-                    None => Err(Error::new(
-                        ErrorKind::ObjectNotFound,
-                        "kv doesn't have this path",
-                    )),
-                }
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        if path.ends_with('/') {
+            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+        } else {
+            let bs = self.kv.get(path).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(
+                    ErrorKind::ObjectNotFound,
+                    "kv doesn't have this path",
+                )),
             }
-        };
-
-        Box::pin(fut)
+        }
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -182,11 +169,9 @@ impl<S: Adapter> Accessor for Backend<S> {
         }
     }
 
-    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
-        Box::pin(async {
-            self.kv.delete(path).await?;
-            Ok(RpDelete::default())
-        })
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        self.kv.delete(path).await?;
+        Ok(RpDelete::default())
     }
 
     fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {

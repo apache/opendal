@@ -212,200 +212,190 @@ impl Accessor for Backend {
         am
     }
 
-    fn create(&self, path: &str, _: OpCreate) -> FutureResult<RpCreate> {
-        Box::pin(async {
-            // ignore creation of dir.
-            if path.ends_with('/') {
-                return Ok(RpCreate::default());
-            }
-            if !self.enable_create_simulation {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "ghac service doesn't support create empty file",
-                ));
-            }
+    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        // ignore creation of dir.
+        if path.ends_with('/') {
+            return Ok(RpCreate::default());
+        }
+        if !self.enable_create_simulation {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "ghac service doesn't support create empty file",
+            ));
+        }
 
-            let req = self.ghac_reserve(path, 1).await?;
+        let req = self.ghac_reserve(path, 1).await?;
 
-            let resp = self.client.send_async(req).await?;
+        let resp = self.client.send_async(req).await?;
 
-            let cache_id = if resp.status().is_success() {
-                let slc = resp.into_body().bytes().await?;
-                let reserve_resp: GhacReserveResponse =
-                    serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
-                reserve_resp.cache_id
-            } else if resp.status().as_u16() == StatusCode::CONFLICT {
-                // If the file is already exist, just return Ok.
-                return Ok(RpCreate::default());
-            } else {
-                return Err(parse_error(resp)
-                    .await
-                    .map(|err| err.with_operation("Backend::ghac_reserve"))?);
-            };
+        let cache_id = if resp.status().is_success() {
+            let slc = resp.into_body().bytes().await?;
+            let reserve_resp: GhacReserveResponse =
+                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+            reserve_resp.cache_id
+        } else if resp.status().as_u16() == StatusCode::CONFLICT {
+            // If the file is already exist, just return Ok.
+            return Ok(RpCreate::default());
+        } else {
+            return Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_reserve"))?);
+        };
 
-            // Write only 1 byte to allow create.
-            let req = self
-                .ghac_upload(cache_id, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
-                .await?;
+        // Write only 1 byte to allow create.
+        let req = self
+            .ghac_upload(cache_id, 1, AsyncBody::Bytes(Bytes::from_static(&[0])))
+            .await?;
 
-            let resp = self.client.send_async(req).await?;
+        let resp = self.client.send_async(req).await?;
 
-            if resp.status().is_success() {
-                resp.into_body().consume().await?;
-            } else {
-                return Err(parse_error(resp)
-                    .await
-                    .map(|err| err.with_operation("Backend::ghac_upload"))?);
-            }
+        if resp.status().is_success() {
+            resp.into_body().consume().await?;
+        } else {
+            return Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_upload"))?);
+        }
 
-            let req = self.ghac_commmit(cache_id, 1).await?;
-            let resp = self.client.send_async(req).await?;
+        let req = self.ghac_commmit(cache_id, 1).await?;
+        let resp = self.client.send_async(req).await?;
 
-            if resp.status().is_success() {
-                resp.into_body().consume().await?;
-                Ok(RpCreate::default())
-            } else {
-                Err(parse_error(resp)
-                    .await
-                    .map(|err| err.with_operation("Backend::ghac_commmit"))?)
-            }
-        })
+        if resp.status().is_success() {
+            resp.into_body().consume().await?;
+            Ok(RpCreate::default())
+        } else {
+            Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_commmit"))?)
+        }
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(async {
-            let req = self.ghac_query(path).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let req = self.ghac_query(path).await?;
 
-            let resp = self.client.send_async(req).await?;
+        let resp = self.client.send_async(req).await?;
 
-            let location = if resp.status() == StatusCode::OK {
-                let slc = resp.into_body().bytes().await?;
-                let query_resp: GhacQueryResponse =
-                    serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
-                query_resp.archive_location
-            } else {
-                return Err(parse_error(resp).await?);
-            };
+        let location = if resp.status() == StatusCode::OK {
+            let slc = resp.into_body().bytes().await?;
+            let query_resp: GhacQueryResponse =
+                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+            query_resp.archive_location
+        } else {
+            return Err(parse_error(resp).await?);
+        };
 
-            let req = self.ghac_get_location(&location, args.range()).await?;
-            let resp = self.client.send_async(req).await?;
+        let req = self.ghac_get_location(&location, args.range()).await?;
+        let resp = self.client.send_async(req).await?;
 
-            let status = resp.status();
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                    let meta = parse_into_object_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_object_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let req = self.ghac_reserve(path, args.size()).await?;
+
+        let resp = self.client.send_async(req).await?;
+
+        let cache_id = if resp.status().is_success() {
+            let slc = resp.into_body().bytes().await?;
+            let reserve_resp: GhacReserveResponse =
+                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+            reserve_resp.cache_id
+        } else {
+            return Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_reserve"))?);
+        };
+
+        let req = self
+            .ghac_upload(cache_id, args.size(), AsyncBody::Reader(r))
+            .await?;
+
+        let resp = self.client.send_async(req).await?;
+
+        if resp.status().is_success() {
+            resp.into_body().consume().await?;
+        } else {
+            return Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_upload"))?);
+        }
+
+        let req = self.ghac_commmit(cache_id, args.size()).await?;
+        let resp = self.client.send_async(req).await?;
+
+        if resp.status().is_success() {
+            resp.into_body().consume().await?;
+            Ok(RpWrite::new(args.size()))
+        } else {
+            Err(parse_error(resp)
+                .await
+                .map(|err| err.with_operation("Backend::ghac_commmit"))?)
+        }
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+        }
+
+        let req = self.ghac_query(path).await?;
+
+        let resp = self.client.send_async(req).await?;
+
+        let location = if resp.status() == StatusCode::OK {
+            let slc = resp.into_body().bytes().await?;
+            let query_resp: GhacQueryResponse =
+                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+            query_resp.archive_location
+        } else if resp.status() == StatusCode::NO_CONTENT && path.ends_with('/') {
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+        } else {
+            return Err(parse_error(resp).await?);
+        };
+
+        let req = self.ghac_head_location(&location).await?;
+        let resp = self.client.send_async(req).await?;
+
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let mut meta = parse_into_object_metadata(path, resp.headers())?;
+
+                // Hack for enable_create_simulation.
+                if self.enable_create_simulation && meta.content_length_raw() == Some(1) {
+                    meta.set_content_length(0);
                 }
-                _ => Err(parse_error(resp).await?),
+
+                Ok(RpStat::new(meta))
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        Box::pin(async {
-            let req = self.ghac_reserve(path, args.size()).await?;
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        if self.api_token.is_empty() {
+            return Err(Error::new(
+                ErrorKind::ObjectPermissionDenied,
+                "github token is not configued, delete is permission denied",
+            ));
+        }
 
-            let resp = self.client.send_async(req).await?;
+        let resp = self.ghac_delete(path).await?;
 
-            let cache_id = if resp.status().is_success() {
-                let slc = resp.into_body().bytes().await?;
-                let reserve_resp: GhacReserveResponse =
-                    serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
-                reserve_resp.cache_id
-            } else {
-                return Err(parse_error(resp)
-                    .await
-                    .map(|err| err.with_operation("Backend::ghac_reserve"))?);
-            };
-
-            let req = self
-                .ghac_upload(cache_id, args.size(), AsyncBody::Reader(r))
-                .await?;
-
-            let resp = self.client.send_async(req).await?;
-
-            if resp.status().is_success() {
-                resp.into_body().consume().await?;
-            } else {
-                return Err(parse_error(resp)
-                    .await
-                    .map(|err| err.with_operation("Backend::ghac_upload"))?);
-            }
-
-            let req = self.ghac_commmit(cache_id, args.size()).await?;
-            let resp = self.client.send_async(req).await?;
-
-            if resp.status().is_success() {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            } else {
-                Err(parse_error(resp)
-                    .await
-                    .map(|err| err.with_operation("Backend::ghac_commmit"))?)
-            }
-        })
-    }
-
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        Box::pin(async {
-            // Stat root always returns a DIR.
-            if path == "/" {
-                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-            }
-
-            let req = self.ghac_query(path).await?;
-
-            let resp = self.client.send_async(req).await?;
-
-            let location = if resp.status() == StatusCode::OK {
-                let slc = resp.into_body().bytes().await?;
-                let query_resp: GhacQueryResponse =
-                    serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
-                query_resp.archive_location
-            } else if resp.status() == StatusCode::NO_CONTENT && path.ends_with('/') {
-                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-            } else {
-                return Err(parse_error(resp).await?);
-            };
-
-            let req = self.ghac_head_location(&location).await?;
-            let resp = self.client.send_async(req).await?;
-
-            let status = resp.status();
-            match status {
-                StatusCode::OK => {
-                    let mut meta = parse_into_object_metadata(path, resp.headers())?;
-
-                    // Hack for enable_create_simulation.
-                    if self.enable_create_simulation && meta.content_length_raw() == Some(1) {
-                        meta.set_content_length(0);
-                    }
-
-                    Ok(RpStat::new(meta))
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        })
-    }
-
-    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
-        Box::pin(async {
-            if self.api_token.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::ObjectPermissionDenied,
-                    "github token is not configued, delete is permission denied",
-                ));
-            }
-
-            let resp = self.ghac_delete(path).await?;
-
-            // deleting not existing objects is ok
-            if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-                Ok(RpDelete::default())
-            } else {
-                Err(parse_error(resp).await?)
-            }
-        })
+        // deleting not existing objects is ok
+        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
+            Ok(RpDelete::default())
+        } else {
+            Err(parse_error(resp).await?)
+        }
     }
 }
 

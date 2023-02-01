@@ -169,7 +169,6 @@ pub use scheme::Scheme;
 mod error;
 pub use error::Error;
 pub use error::ErrorKind;
-pub(crate) use error::FutureResult;
 pub use error::Result;
 
 mod ops;

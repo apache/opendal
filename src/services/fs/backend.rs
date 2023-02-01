@@ -261,45 +261,41 @@ impl Accessor for Backend {
         am
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let fut = async {
-            if args.mode() == ObjectMode::FILE {
-                let parent = PathBuf::from(&p)
-                    .parent()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "path shoud have parent but not, it must be malformed",
-                        )
-                        .with_context("input", &p)
-                    })?
-                    .to_path_buf();
+        if args.mode() == ObjectMode::FILE {
+            let parent = PathBuf::from(&p)
+                .parent()
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "path shoud have parent but not, it must be malformed",
+                    )
+                    .with_context("input", &p)
+                })?
+                .to_path_buf();
 
-                fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
+            fs::create_dir_all(&parent).await.map_err(parse_io_error)?;
 
-                fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(&p)
-                    .await
-                    .map_err(parse_io_error)?;
+            fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&p)
+                .await
+                .map_err(parse_io_error)?;
 
-                return Ok(RpCreate::default());
-            }
+            return Ok(RpCreate::default());
+        }
 
-            if args.mode() == ObjectMode::DIR {
-                fs::create_dir_all(&p).await.map_err(parse_io_error)?;
+        if args.mode() == ObjectMode::DIR {
+            fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
-                return Ok(RpCreate::default());
-            }
+            return Ok(RpCreate::default());
+        }
 
-            unreachable!()
-        };
-
-        Box::pin(fut)
+        unreachable!()
     }
 
     /// # Notes
@@ -311,198 +307,178 @@ impl Accessor for Backend {
     /// - open file first, and than use `seek`. (100ns)
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         use output::ReadExt;
 
         let p = build_rooted_abs_path(&self.root, path);
 
-        let fut = async {
-            let mut f = fs::OpenOptions::new()
-                .read(true)
-                .open(&p)
-                .await
-                .map_err(parse_io_error)?;
+        let mut f = fs::OpenOptions::new()
+            .read(true)
+            .open(&p)
+            .await
+            .map_err(parse_io_error)?;
 
-            let total_length = if self.enable_path_check {
-                // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
-                let meta = f.metadata().await.map_err(parse_io_error)?;
-                if meta.is_dir() != path.ends_with('/') {
-                    return Err(Error::new(
-                        ErrorKind::ObjectNotFound,
-                        "file mode is not match with its path",
-                    ));
-                }
-                if meta.is_dir() {
-                    return Err(Error::new(
-                        ErrorKind::ObjectIsADirectory,
-                        "given path is a directoty",
-                    ));
-                }
-
-                meta.len()
-            } else {
-                use tokio::io::AsyncSeekExt;
-
-                f.seek(SeekFrom::End(0)).await.map_err(parse_io_error)?
-            };
-
-            let f = Compat::new(f);
-
-            let br = args.range();
-            let (start, end) = match (br.offset(), br.size()) {
-                // Read a specific range.
-                (Some(offset), Some(size)) => (offset, min(offset + size, total_length)),
-                // Read from offset.
-                (Some(offset), None) => (offset, total_length),
-                // Read the last size bytes.
-                (None, Some(size)) => (
-                    if total_length > size {
-                        total_length - size
-                    } else {
-                        0
-                    },
-                    total_length,
-                ),
-                // Read the whole file.
-                (None, None) => (0, total_length),
-            };
-
-            let mut r = output::into_reader::from_fd(f, start, end);
-
-            // Rewind to make sure we are on the correct offset.
-            r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
-
-            Ok((RpRead::new(end - start), r))
-        };
-
-        Box::pin(fut)
-    }
-
-    fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        let fut = async {
-            if let Some(atomic_write_dir) = &self.atomic_write_dir {
-                let temp_path =
-                    Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
-                let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
-                let f = fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(&temp_path)
-                    .await
-                    .map_err(parse_io_error)?;
-
-                let size = {
-                    // Implicitly flush and close temp file
-                    let mut f = Compat::new(f);
-                    futures::io::copy(r, &mut f).await.map_err(parse_io_error)?
-                };
-                fs::rename(&temp_path, &target_path)
-                    .await
-                    .map_err(parse_io_error)?;
-
-                Ok(RpWrite::new(size))
-            } else {
-                let p = Self::ensure_write_abs_path(&self.root, path).await?;
-
-                let f = fs::OpenOptions::new()
-                    .create(true)
-                    .truncate(true)
-                    .write(true)
-                    .open(&p)
-                    .await
-                    .map_err(parse_io_error)?;
-
-                let mut f = Compat::new(f);
-
-                let size = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
-
-                Ok(RpWrite::new(size))
-            }
-        };
-
-        Box::pin(fut)
-    }
-
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let fut = async {
-            let meta = tokio::fs::metadata(&p).await.map_err(parse_io_error)?;
-
-            if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
+        let total_length = if self.enable_path_check {
+            // Get fs metadata of file at given path, ensuring it is not a false-positive due to slash normalization.
+            let meta = f.metadata().await.map_err(parse_io_error)?;
+            if meta.is_dir() != path.ends_with('/') {
                 return Err(Error::new(
                     ErrorKind::ObjectNotFound,
                     "file mode is not match with its path",
                 ));
             }
+            if meta.is_dir() {
+                return Err(Error::new(
+                    ErrorKind::ObjectIsADirectory,
+                    "given path is a directoty",
+                ));
+            }
 
-            let mode = if meta.is_dir() {
-                ObjectMode::DIR
-            } else if meta.is_file() {
-                ObjectMode::FILE
-            } else {
-                ObjectMode::Unknown
-            };
-            let m = ObjectMetadata::new(mode)
-                .with_content_length(meta.len())
-                .with_last_modified(
-                    meta.modified()
-                        .map(OffsetDateTime::from)
-                        .map_err(parse_io_error)?,
-                );
+            meta.len()
+        } else {
+            use tokio::io::AsyncSeekExt;
 
-            Ok(RpStat::new(m))
+            f.seek(SeekFrom::End(0)).await.map_err(parse_io_error)?
         };
 
-        Box::pin(fut)
+        let f = Compat::new(f);
+
+        let br = args.range();
+        let (start, end) = match (br.offset(), br.size()) {
+            // Read a specific range.
+            (Some(offset), Some(size)) => (offset, min(offset + size, total_length)),
+            // Read from offset.
+            (Some(offset), None) => (offset, total_length),
+            // Read the last size bytes.
+            (None, Some(size)) => (
+                if total_length > size {
+                    total_length - size
+                } else {
+                    0
+                },
+                total_length,
+            ),
+            // Read the whole file.
+            (None, None) => (0, total_length),
+        };
+
+        let mut r = output::into_reader::from_fd(f, start, end);
+
+        // Rewind to make sure we are on the correct offset.
+        r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
+
+        Ok((RpRead::new(end - start), r))
     }
 
-    fn delete(&self, path: &str, _: OpDelete) -> FutureResult<RpDelete> {
+    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        if let Some(atomic_write_dir) = &self.atomic_write_dir {
+            let temp_path =
+                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
+            let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
+            let f = fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&temp_path)
+                .await
+                .map_err(parse_io_error)?;
+
+            let size = {
+                // Implicitly flush and close temp file
+                let mut f = Compat::new(f);
+                futures::io::copy(r, &mut f).await.map_err(parse_io_error)?
+            };
+            fs::rename(&temp_path, &target_path)
+                .await
+                .map_err(parse_io_error)?;
+
+            Ok(RpWrite::new(size))
+        } else {
+            let p = Self::ensure_write_abs_path(&self.root, path).await?;
+
+            let f = fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&p)
+                .await
+                .map_err(parse_io_error)?;
+
+            let mut f = Compat::new(f);
+
+            let size = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
+
+            Ok(RpWrite::new(size))
+        }
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let fut = async {
-            let meta = tokio::fs::metadata(&p).await;
+        let meta = tokio::fs::metadata(&p).await.map_err(parse_io_error)?;
 
-            match meta {
-                Ok(meta) => {
-                    if meta.is_dir() {
-                        fs::remove_dir(&p).await.map_err(parse_io_error)?;
-                    } else {
-                        fs::remove_file(&p).await.map_err(parse_io_error)?;
-                    }
+        if self.enable_path_check && meta.is_dir() != path.ends_with('/') {
+            return Err(Error::new(
+                ErrorKind::ObjectNotFound,
+                "file mode is not match with its path",
+            ));
+        }
 
-                    Ok(RpDelete::default())
+        let mode = if meta.is_dir() {
+            ObjectMode::DIR
+        } else if meta.is_file() {
+            ObjectMode::FILE
+        } else {
+            ObjectMode::Unknown
+        };
+        let m = ObjectMetadata::new(mode)
+            .with_content_length(meta.len())
+            .with_last_modified(
+                meta.modified()
+                    .map(OffsetDateTime::from)
+                    .map_err(parse_io_error)?,
+            );
+
+        Ok(RpStat::new(m))
+    }
+
+    async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let meta = tokio::fs::metadata(&p).await;
+
+        match meta {
+            Ok(meta) => {
+                if meta.is_dir() {
+                    fs::remove_dir(&p).await.map_err(parse_io_error)?;
+                } else {
+                    fs::remove_file(&p).await.map_err(parse_io_error)?;
                 }
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
-                Err(err) => Err(parse_io_error(err)),
+
+                Ok(RpDelete::default())
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(RpDelete::default()),
+            Err(err) => Err(parse_io_error(err)),
+        }
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        let p = build_rooted_abs_path(&self.root, path);
+
+        let f = match tokio::fs::read_dir(&p).await {
+            Ok(rd) => rd,
+            Err(e) => {
+                return if e.kind() == io::ErrorKind::NotFound {
+                    Ok((RpList::default(), Box::new(()) as ObjectPager))
+                } else {
+                    Err(parse_io_error(e))
+                }
             }
         };
 
-        Box::pin(fut)
-    }
+        let rd = DirPager::new(&self.root, f);
 
-    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        let p = build_rooted_abs_path(&self.root, path);
-
-        let fut = async {
-            let f = match tokio::fs::read_dir(&p).await {
-                Ok(rd) => rd,
-                Err(e) => {
-                    return if e.kind() == io::ErrorKind::NotFound {
-                        Ok((RpList::default(), Box::new(()) as ObjectPager))
-                    } else {
-                        Err(parse_io_error(e))
-                    }
-                }
-            };
-
-            let rd = DirPager::new(&self.root, f);
-
-            Ok((RpList::default(), Box::new(rd)))
-        };
-
-        Box::pin(fut)
+        Ok((RpList::default(), Box::new(rd)))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {

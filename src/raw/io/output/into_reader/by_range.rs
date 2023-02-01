@@ -37,7 +37,7 @@ use crate::*;
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn by_range<A: Accessor>(acc: A, path: &str, offset: u64, size: u64) -> RangeReader<A> {
+pub fn by_range<A: Accessor>(acc: Arc<A>, path: &str, offset: u64, size: u64) -> RangeReader<A> {
     RangeReader {
         acc,
         path: path.to_string(),
@@ -52,7 +52,7 @@ pub fn by_range<A: Accessor>(acc: A, path: &str, offset: u64, size: u64) -> Rang
 
 /// RangeReader that can do seek on non-seekable reader.
 pub struct RangeReader<A: Accessor> {
-    acc: A,
+    acc: Arc<A>,
     path: String,
 
     offset: u64,
@@ -72,7 +72,7 @@ pub struct RangeReader<A: Accessor> {
 
 enum State<R: output::Read> {
     Idle,
-    Sending(FutureResult<(RpRead, R)>),
+    Sending(BoxFuture<'static, Result<(RpRead, R)>>),
     Reading(R),
 }
 
@@ -80,13 +80,15 @@ enum State<R: output::Read> {
 unsafe impl<R: output::Read> Sync for State<R> {}
 
 impl<A: Accessor> RangeReader<A> {
-    fn read_future(&self) -> FutureResult<(RpRead, A::Reader)> {
+    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, A::Reader)>> {
+        let acc = self.acc.clone();
+        let path = self.path.clone();
         let op = OpRead::default().with_range(BytesRange::new(
             Some(self.offset + self.cur),
             Some(self.size - self.cur),
         ));
 
-        self.acc.read(&self.path, op)
+        Box::pin(async move { acc.read(&path, op).await })
     }
 
     /// calculate the seek postion.
@@ -290,15 +292,15 @@ mod tests {
         type Reader = MockReader;
         type BlockingReader = ();
 
-        fn read(&self, _: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());
 
-            Box::pin(future::ok((
+            Ok((
                 RpRead::new(bs.len() as u64),
                 MockReader {
                     inner: futures::io::Cursor::new(bs.into()),
                 },
-            )))
+            ))
         }
     }
 

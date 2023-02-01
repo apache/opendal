@@ -13,16 +13,12 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
-use futures::future;
-use futures::FutureExt;
 
-use crate::object::BlockingObjectReader;
 use crate::raw::*;
 use crate::*;
 
@@ -66,6 +62,7 @@ use crate::*;
 /// - Operations with capability requirement like `presign` are optional operations.
 ///   - Services can implement them based on services capabilities.
 ///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
+#[async_trait]
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     type Reader: output::Read;
     type BlockingReader: output::BlockingRead;
@@ -82,11 +79,13 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Input path MUST match with ObjectMode, DON'T NEED to check object mode.
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        Box::pin(future::err(Error::new(
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `read` operation on the specified path, returns a
@@ -96,11 +95,13 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
     /// - The returning contnet length may be smaller than the range specifed.
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(future::err(Error::new(
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `write` operation on the specified path, returns a
@@ -109,11 +110,13 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        Box::pin(future::err(Error::new(
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let (_, _, _) = (path, args, r);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `stat` operation on the specified path.
@@ -123,11 +126,13 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - `stat` empty path means stat backend's root path.
     /// - `stat` a path endswith "/" means stating a dir.
     /// - `mode` and `content_length` must be set.
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        Box::pin(future::err(Error::new(
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `delete` operation on the specified path.
@@ -136,11 +141,13 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
     /// - `delete` SHOULD return `Ok(())` if the path is deleted successfully or not exist.
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        Box::pin(future::err(Error::new(
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `list` operation on the specified path.
@@ -149,11 +156,13 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        Box::pin(future::err(Error::new(
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `presign` operation on the specified path.
@@ -175,15 +184,17 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
-        Box::pin(future::err(Error::new(
+    ) -> Result<RpCreateMultipart> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `write_multipart` operation on the specified path.
@@ -191,16 +202,18 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
-        Box::pin(future::err(Error::new(
+    ) -> Result<RpWriteMultipart> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `complete_multipart` operation on the specified path.
@@ -208,15 +221,17 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
-        Box::pin(future::err(Error::new(
+    ) -> Result<RpCompleteMultipart> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `abort_multipart` operation on the specified path.
@@ -224,15 +239,17 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - Require capability: `Multipart`
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
-        Box::pin(future::err(Error::new(
+    ) -> Result<RpAbortMultipart> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
-        )))
+        ))
     }
 
     /// Invoke the `blocking_create` operation on the specified path.
@@ -243,6 +260,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        let (_, _) = (path, args);
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -257,6 +276,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        let (_, _) = (path, args);
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -276,6 +297,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         args: OpWrite,
         r: input::BlockingReader,
     ) -> Result<RpWrite> {
+        let (_, _, _) = (path, args, r);
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -290,6 +313,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let (_, _) = (path, args);
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -304,6 +329,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        let (_, _) = (path, args);
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -319,6 +346,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+        let (_, _) = (path, args);
+
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",
@@ -337,58 +366,58 @@ impl<T: Accessor> Accessor for Arc<T> {
         self.as_ref().metadata()
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        self.as_ref().create(path, args)
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.as_ref().create(path, args).await
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        self.as_ref().read(path, args)
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.as_ref().read(path, args).await
     }
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        self.as_ref().write(path, args, r)
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        self.as_ref().write(path, args, r).await
     }
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        self.as_ref().stat(path, args)
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.as_ref().stat(path, args).await
     }
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        self.as_ref().delete(path, args)
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        self.as_ref().delete(path, args).await
     }
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        self.as_ref().list(path, args)
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        self.as_ref().list(path, args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.as_ref().presign(path, args)
     }
 
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
-        self.as_ref().create_multipart(path, args)
+    ) -> Result<RpCreateMultipart> {
+        self.as_ref().create_multipart(path, args).await
     }
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
-        self.as_ref().write_multipart(path, args, r)
+    ) -> Result<RpWriteMultipart> {
+        self.as_ref().write_multipart(path, args, r).await
     }
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
-        self.as_ref().complete_multipart(path, args)
+    ) -> Result<RpCompleteMultipart> {
+        self.as_ref().complete_multipart(path, args).await
     }
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
-        self.as_ref().abort_multipart(path, args)
+    ) -> Result<RpAbortMultipart> {
+        self.as_ref().abort_multipart(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -530,36 +559,4 @@ flags! {
         /// It's better to use stream to reading data.
         ReadIsStreamable,
     }
-}
-
-// #[derive(Clone, Debug)]
-// pub struct OperatorNext<A: AccessorNext> {
-//     pub accessor: A,
-// }
-
-// impl<A> OperatorNext<A>
-// where
-//     A: AccessorNext,
-// {
-//     pub fn layer<L: LayerNext<A>>(self, layer: L) -> OperatorNext<L::LayeredAccessor> {
-//         OperatorNext {
-//             accessor: layer.layer(self.accessor),
-//         }
-//     }
-
-//     pub fn blocking_reader(&self, path: &str) -> Result<A::BlockingReader> {
-//         let (_, r) = self.accessor.blocking_read(path, OpRead::default())?;
-//         Ok(r)
-//     }
-
-//     // pub fn blocking_reader(&self, path: &str) -> Result<BlockingObjectReader> {
-//     //     let (_, r) = self.accessor.blocking_read(path, OpRead::default())?;
-//     //     Ok(BlockingObjectReader { inner: Box::new(r) })
-//     // }
-// }
-
-#[async_trait]
-impl Accessor for () {
-    type Reader = ();
-    type BlockingReader = ();
 }

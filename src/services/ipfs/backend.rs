@@ -175,20 +175,18 @@ impl Accessor for Backend {
         ma
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(async {
-            let resp = self.ipfs_get(path, args.range()).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.ipfs_get(path, args.range()).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                    let meta = parse_into_object_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_object_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
     /// IPFS's stat behavior highly depends on its implementation.
@@ -293,58 +291,56 @@ impl Accessor for Backend {
     /// - HTTP Status Code == 302 => directory
     /// - HTTP Status Code == 200 && ETag starts with `"DirIndex` => directory
     /// - HTTP Status Code == 200 && ETag not starts with `"DirIndex` => file
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        Box::pin(async {
-            // Stat root always returns a DIR.
-            if path == "/" {
-                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
-            }
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+        }
 
-            let resp = self.ipfs_head(path).await?;
+        let resp = self.ipfs_head(path).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::OK => {
-                    let mut m = ObjectMetadata::new(ObjectMode::Unknown);
+        match status {
+            StatusCode::OK => {
+                let mut m = ObjectMetadata::new(ObjectMode::Unknown);
 
-                    if let Some(v) = parse_content_length(resp.headers())? {
-                        m.set_content_length(v);
-                    }
+                if let Some(v) = parse_content_length(resp.headers())? {
+                    m.set_content_length(v);
+                }
 
-                    if let Some(v) = parse_content_type(resp.headers())? {
-                        m.set_content_type(v);
-                    }
+                if let Some(v) = parse_content_type(resp.headers())? {
+                    m.set_content_type(v);
+                }
 
-                    if let Some(v) = parse_etag(resp.headers())? {
-                        m.set_etag(v);
+                if let Some(v) = parse_etag(resp.headers())? {
+                    m.set_etag(v);
 
-                        if v.starts_with("\"DirIndex") {
-                            m.set_mode(ObjectMode::DIR);
-                        } else {
-                            m.set_mode(ObjectMode::FILE);
-                        }
-                    } else {
-                        // Some service will stream the output of DirIndex.
-                        // If we don't have an etag, it's highly to be a dir.
+                    if v.starts_with("\"DirIndex") {
                         m.set_mode(ObjectMode::DIR);
+                    } else {
+                        m.set_mode(ObjectMode::FILE);
                     }
+                } else {
+                    // Some service will stream the output of DirIndex.
+                    // If we don't have an etag, it's highly to be a dir.
+                    m.set_mode(ObjectMode::DIR);
+                }
 
-                    Ok(RpStat::new(m))
-                }
-                StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
-                    Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
-                }
-                _ => Err(parse_error(resp).await?),
+                Ok(RpStat::new(m))
             }
-        })
+            StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
+                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn list(&self, path: &str, _: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        Box::pin(future::ok((
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        Ok((
             RpList::default(),
             Box::new(DirStream::new(Arc::new(self.clone()), path)) as ObjectPager,
-        )))
+        ))
     }
 }
 

@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
+
+use async_trait::async_trait;
+
 use crate::raw::*;
 use crate::*;
-use std::fmt::Debug;
 
 /// Layer is used to intercept the operations on the underlying storage.
 ///
@@ -67,6 +70,7 @@ pub trait Layer<A: Accessor> {
     fn layer(&self, inner: A) -> Self::LayeredAccessor;
 }
 
+#[async_trait]
 pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
     type Reader: output::Read;
@@ -78,63 +82,63 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().metadata()
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        self.inner().create(path, args)
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        self.inner().create(path, args).await
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)>;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)>;
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        self.inner().write(path, args, r)
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        self.inner().write(path, args, r).await
     }
 
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        self.inner().stat(path, args)
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner().stat(path, args).await
     }
 
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        self.inner().delete(path, args)
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        self.inner().delete(path, args).await
     }
 
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        self.inner().list(path, args)
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        self.inner().list(path, args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner().presign(path, args)
     }
 
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
-        self.inner().create_multipart(path, args)
+    ) -> Result<RpCreateMultipart> {
+        self.inner().create_multipart(path, args).await
     }
 
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
-        self.inner().write_multipart(path, args, r)
+    ) -> Result<RpWriteMultipart> {
+        self.inner().write_multipart(path, args, r).await
     }
 
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
-        self.inner().complete_multipart(path, args)
+    ) -> Result<RpCompleteMultipart> {
+        self.inner().complete_multipart(path, args).await
     }
 
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
-        self.inner().abort_multipart(path, args)
+    ) -> Result<RpAbortMultipart> {
+        self.inner().abort_multipart(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -165,6 +169,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     }
 }
 
+#[async_trait]
 impl<L: LayeredAccessor> Accessor for L {
     type Reader = L::Reader;
     type BlockingReader = L::BlockingReader;
@@ -173,65 +178,65 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).metadata()
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
-        (self as &L).create(path, args)
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        (self as &L).create(path, args).await
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        (self as &L).read(path, args)
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        (self as &L).read(path, args).await
     }
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
-        (self as &L).write(path, args, r)
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        (self as &L).write(path, args, r).await
     }
 
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
-        (self as &L).stat(path, args)
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        (self as &L).stat(path, args).await
     }
 
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
-        (self as &L).delete(path, args)
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
+        (self as &L).delete(path, args).await
     }
 
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
-        (self as &L).list(path, args)
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+        (self as &L).list(path, args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         (self as &L).presign(path, args)
     }
 
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
-        (self as &L).create_multipart(path, args)
+    ) -> Result<RpCreateMultipart> {
+        (self as &L).create_multipart(path, args).await
     }
 
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
-        (self as &L).write_multipart(path, args, r)
+    ) -> Result<RpWriteMultipart> {
+        (self as &L).write_multipart(path, args, r).await
     }
 
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
-        (self as &L).complete_multipart(path, args)
+    ) -> Result<RpCompleteMultipart> {
+        (self as &L).complete_multipart(path, args).await
     }
 
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
-        (self as &L).abort_multipart(path, args)
+    ) -> Result<RpAbortMultipart> {
+        (self as &L).abort_multipart(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -268,10 +273,10 @@ impl<L: LayeredAccessor> Accessor for L {
 mod tests {
     use std::sync::Arc;
 
-    use crate::services::fs;
     use futures::lock::Mutex;
 
     use super::*;
+    use crate::services::fs;
     use crate::*;
 
     #[derive(Debug)]
@@ -297,18 +302,14 @@ mod tests {
         type Reader = ();
         type BlockingReader = ();
 
-        fn delete(&self, _: &str, _: OpDelete) -> FutureResult<RpDelete> {
-            let fut = async {
-                let mut x = self.deleted.lock().await;
-                *x = true;
+        async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
+            let mut x = self.deleted.lock().await;
+            *x = true;
 
-                assert!(self.inner.is_some());
+            assert!(self.inner.is_some());
 
-                // We will not call anything here to test the layer.
-                Ok(RpDelete::default())
-            };
-
-            Box::pin(fut)
+            // We will not call anything here to test the layer.
+            Ok(RpDelete::default())
         }
     }
 

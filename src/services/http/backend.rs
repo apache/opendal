@@ -162,43 +162,39 @@ impl Accessor for Backend {
         ma
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(async {
-            let resp = self.http_get(path, args.range()).await?;
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let resp = self.http_get(path, args.range()).await?;
 
-            let status = resp.status();
+        let status = resp.status();
 
-            match status {
-                StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                    let meta = parse_into_object_metadata(path, resp.headers())?;
-                    Ok((RpRead::with_metadata(meta), resp.into_body()))
-                }
-                _ => Err(parse_error(resp).await?),
+        match status {
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let meta = parse_into_object_metadata(path, resp.headers())?;
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 
-    fn stat(&self, path: &str, _: OpStat) -> FutureResult<RpStat> {
-        Box::pin(async {
-            // Stat root always returns a DIR.
-            if path == "/" {
-                return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        // Stat root always returns a DIR.
+        if path == "/" {
+            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+        }
+
+        let resp = self.http_head(path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
+            // HTTP Server like nginx could return FORBIDDEN if auto-index
+            // is not enabled, we should ignore them.
+            StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
+                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
             }
-
-            let resp = self.http_head(path).await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
-                // HTTP Server like nginx could return FORBIDDEN if auto-index
-                // is not enabled, we should ignore them.
-                StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                    Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
-                }
-                _ => Err(parse_error(resp).await?),
-            }
-        })
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }
 

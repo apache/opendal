@@ -16,6 +16,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use futures::TryFutureExt;
 
 use crate::raw::*;
@@ -94,12 +95,13 @@ impl<A: Accessor> TypeEraser<A> {
     }
 }
 
+#[async_trait]
 impl<A: Accessor> Accessor for TypeEraser<A> {
     type Reader = output::Reader;
     type BlockingReader = output::BlockingReader;
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
-        Box::pin(async { self.erase_reader(path, args).await })
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.erase_reader(path, args).await
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {

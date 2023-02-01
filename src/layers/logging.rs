@@ -115,7 +115,7 @@ impl<A: Accessor> Layer<A> for LoggingLayer {
 }
 
 #[derive(Clone, Debug)]
-struct LoggingAccessor<A: Accessor> {
+pub struct LoggingAccessor<A: Accessor> {
     scheme: Scheme,
     inner: A,
 
@@ -174,7 +174,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         result
     }
 
-    fn create(&self, path: &str, args: OpCreate) -> FutureResult<RpCreate> {
+    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -183,17 +183,20 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             path
         );
 
-        Box::pin(self.inner.create(path, args).inspect(|v| match v {
-            Ok(_) => {
+        self.inner
+            .create(path, args)
+            .await
+            .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished",
                     self.scheme,
                     Operation::Create,
                     path
-                )
-            }
-            Err(err) => {
+                );
+                v
+            })
+            .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
@@ -204,12 +207,12 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         path,
                         self.err_status(&err)
                     )
-                }
-            }
-        }))
+                };
+                err
+            })
     }
 
-    fn read(&self, path: &str, args: OpRead) -> FutureResult<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} range={} -> started",
@@ -219,29 +222,33 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             args.range()
         );
 
-        Box::pin(self.inner.read(path, args).map(|v| match v {
-            Ok((rp, r)) => {
+        let range = args.range();
+
+        self.inner
+            .read(path, args)
+            .await
+            .map(|(rp, r)| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} range={} -> got reader",
                     self.scheme,
                     Operation::Read,
                     path,
-                    args.range()
+                    range
                 );
-                Ok((
+                (
                     rp,
                     LoggingReader::new(
                         self.scheme,
                         Operation::Read,
                         path,
-                        args.range().size(),
+                        range.size(),
                         r,
                         self.failure_level,
                     ),
-                ))
-            }
-            Err(err) => {
+                )
+            })
+            .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
@@ -250,16 +257,15 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.scheme,
                         Operation::Read,
                         path,
-                        args.range(),
+                        range,
                         self.err_status(&err)
                     )
                 }
-                Err(err)
-            }
-        }))
+                err
+            })
     }
 
-    fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> FutureResult<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} size={:?} -> started",
@@ -268,6 +274,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             path,
             args.size()
         );
+
+        let size = args.size();
 
         let reader = LoggingReader::new(
             self.scheme,
@@ -279,18 +287,21 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         );
         let r = Box::new(reader) as input::Reader;
 
-        Box::pin(self.inner.write(path, args, r).inspect(|v| match v {
-            Ok(_) => {
+        self.inner
+            .write(path, args, r)
+            .await
+            .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} size={:?} -> written",
                     self.scheme,
                     Operation::Write,
                     path,
-                    args.size()
+                    size
                 );
-            }
-            Err(err) => {
+                v
+            })
+            .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
@@ -299,15 +310,15 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.scheme,
                         Operation::Write,
                         path,
-                        args.size(),
+                        size,
                         self.err_status(&err)
                     )
-                }
-            }
-        }))
+                };
+                err
+            })
     }
 
-    fn stat(&self, path: &str, args: OpStat) -> FutureResult<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -316,8 +327,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             path
         );
 
-        Box::pin(self.inner.stat(path, args).inspect(|v| match v {
-            Ok(_) => {
+        self.inner
+            .stat(path, args)
+            .await
+            .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
                     "service={} operation={} path={} -> finished: {v:?}",
@@ -325,8 +338,9 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     Operation::Stat,
                     path
                 );
-            }
-            Err(err) => {
+                v
+            })
+            .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
                     log!(
                         target: LOGGING_TARGET,
@@ -337,12 +351,12 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         path,
                         self.err_status(&err)
                     );
-                }
-            }
-        }))
+                };
+                err
+            })
     }
 
-    fn delete(&self, path: &str, args: OpDelete) -> FutureResult<RpDelete> {
+    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -351,33 +365,36 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             path
         );
 
-        Box::pin(self.inner.delete(path, args.clone()).inspect(|v| match v {
-            Ok(_) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> finished",
-                    self.scheme,
-                    Operation::Delete,
-                    path
-                );
-            }
-            Err(err) => {
-                if let Some(lvl) = self.err_level(&err) {
-                    log!(
+        self.inner
+            .delete(path, args.clone())
+            .inspect(|v| match v {
+                Ok(_) => {
+                    debug!(
                         target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
+                        "service={} operation={} path={} -> finished",
                         self.scheme,
                         Operation::Delete,
-                        path,
-                        self.err_status(&err)
+                        path
                     );
                 }
-            }
-        }))
+                Err(err) => {
+                    if let Some(lvl) = self.err_level(&err) {
+                        log!(
+                            target: LOGGING_TARGET,
+                            lvl,
+                            "service={} operation={} path={} -> {}: {err:?}",
+                            self.scheme,
+                            Operation::Delete,
+                            path,
+                            self.err_status(&err)
+                        );
+                    }
+                }
+            })
+            .await
     }
 
-    fn list(&self, path: &str, args: OpList) -> FutureResult<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -386,34 +403,42 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             path
         );
 
-        Box::pin(self.inner.list(path, args).map(|v| match v {
-            Ok((rp, v)) => {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} -> start listing dir",
-                    self.scheme,
-                    Operation::List,
-                    path
-                );
-                let streamer =
-                    LoggingPager::new(self.scheme, path, v, self.error_level, self.failure_level);
-                Ok((rp, Box::new(streamer) as ObjectPager))
-            }
-            Err(err) => {
-                if let Some(lvl) = self.err_level(&err) {
-                    log!(
+        self.inner
+            .list(path, args)
+            .map(|v| match v {
+                Ok((rp, v)) => {
+                    debug!(
                         target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} -> {}: {err:?}",
+                        "service={} operation={} path={} -> start listing dir",
                         self.scheme,
                         Operation::List,
-                        path,
-                        self.err_status(&err)
+                        path
                     );
+                    let streamer = LoggingPager::new(
+                        self.scheme,
+                        path,
+                        v,
+                        self.error_level,
+                        self.failure_level,
+                    );
+                    Ok((rp, Box::new(streamer) as ObjectPager))
                 }
-                Err(err)
-            }
-        }))
+                Err(err) => {
+                    if let Some(lvl) = self.err_level(&err) {
+                        log!(
+                            target: LOGGING_TARGET,
+                            lvl,
+                            "service={} operation={} path={} -> {}: {err:?}",
+                            self.scheme,
+                            Operation::List,
+                            path,
+                            self.err_status(&err)
+                        );
+                    }
+                    Err(err)
+                }
+            })
+            .await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -453,11 +478,11 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    fn create_multipart(
+    async fn create_multipart(
         &self,
         path: &str,
         args: OpCreateMultipart,
-    ) -> FutureResult<RpCreateMultipart> {
+    ) -> Result<RpCreateMultipart> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -466,42 +491,41 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             path
         );
 
-        Box::pin(
-            self.inner
-                .create_multipart(path, args.clone())
-                .inspect(|v| match v {
-                    Ok(_) => {
-                        debug!(
+        self.inner
+            .create_multipart(path, args.clone())
+            .inspect(|v| match v {
+                Ok(_) => {
+                    debug!(
+                        target: LOGGING_TARGET,
+                        "service={} operation={} path={} -> finished",
+                        self.scheme,
+                        Operation::CreateMultipart,
+                        path
+                    );
+                }
+                Err(err) => {
+                    if let Some(lvl) = self.err_level(&err) {
+                        log!(
                             target: LOGGING_TARGET,
-                            "service={} operation={} path={} -> finished",
+                            lvl,
+                            "service={} operation={} path={} -> {}: {err:?}",
                             self.scheme,
                             Operation::CreateMultipart,
-                            path
+                            path,
+                            self.err_status(&err)
                         );
                     }
-                    Err(err) => {
-                        if let Some(lvl) = self.err_level(&err) {
-                            log!(
-                                target: LOGGING_TARGET,
-                                lvl,
-                                "service={} operation={} path={} -> {}: {err:?}",
-                                self.scheme,
-                                Operation::CreateMultipart,
-                                path,
-                                self.err_status(&err)
-                            );
-                        }
-                    }
-                }),
-        )
+                }
+            })
+            .await
     }
 
-    fn write_multipart(
+    async fn write_multipart(
         &self,
         path: &str,
         args: OpWriteMultipart,
         r: input::Reader,
-    ) -> FutureResult<RpWriteMultipart> {
+    ) -> Result<RpWriteMultipart> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",
@@ -523,7 +547,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
         );
         let r = Box::new(r);
 
-        Box::pin( self.inner
+        self.inner
             .write_multipart(path, args.clone(), r)
             .inspect_ok(|v| {
                 debug!(
@@ -552,14 +576,14 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.err_status(&err)
                     );
                 }
-            }))
+            }).await
     }
 
-    fn complete_multipart(
+    async fn complete_multipart(
         &self,
         path: &str,
         args: OpCompleteMultipart,
-    ) -> FutureResult<RpCompleteMultipart> {
+    ) -> Result<RpCompleteMultipart> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} upload_id={} -> started",
@@ -569,41 +593,40 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             args.upload_id(),
         );
 
-        Box::pin(
-            self.inner
-                .complete_multipart(path, args.clone())
-                .inspect_ok(|v| {
-                    debug!(
+        self.inner
+            .complete_multipart(path, args.clone())
+            .inspect_ok(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} upload_id={} -> finished",
+                    self.scheme,
+                    Operation::CompleteMultipart,
+                    path,
+                    args.upload_id()
+                );
+            })
+            .inspect_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} upload_id={} -> finished",
+                        lvl,
+                        "service={} operation={} path={} upload_id={} -> {}: {err:?}",
                         self.scheme,
                         Operation::CompleteMultipart,
                         path,
-                        args.upload_id()
+                        args.upload_id(),
+                        self.err_status(&err)
                     );
-                })
-                .inspect_err(|err| {
-                    if let Some(lvl) = self.err_level(&err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} upload_id={} -> {}: {err:?}",
-                            self.scheme,
-                            Operation::CompleteMultipart,
-                            path,
-                            args.upload_id(),
-                            self.err_status(&err)
-                        );
-                    }
-                }),
-        )
+                }
+            })
+            .await
     }
 
-    fn abort_multipart(
+    async fn abort_multipart(
         &self,
         path: &str,
         args: OpAbortMultipart,
-    ) -> FutureResult<RpAbortMultipart> {
+    ) -> Result<RpAbortMultipart> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} upload_id={} -> started",
@@ -613,34 +636,33 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             args.upload_id()
         );
 
-        Box::pin(
-            self.inner
-                .abort_multipart(path, args.clone())
-                .inspect_ok(|v| {
-                    debug!(
+        self.inner
+            .abort_multipart(path, args.clone())
+            .inspect_ok(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} upload_id={} -> finished",
+                    self.scheme,
+                    Operation::AbortMultipart,
+                    path,
+                    args.upload_id()
+                );
+            })
+            .inspect_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
                         target: LOGGING_TARGET,
-                        "service={} operation={} path={} upload_id={} -> finished",
+                        lvl,
+                        "service={} operation={} path={} upload_id={} -> {}: {err:?}",
                         self.scheme,
                         Operation::AbortMultipart,
                         path,
-                        args.upload_id()
+                        args.upload_id(),
+                        self.err_status(&err)
                     );
-                })
-                .inspect_err(|err| {
-                    if let Some(lvl) = self.err_level(&err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} upload_id={} -> {}: {err:?}",
-                            self.scheme,
-                            Operation::AbortMultipart,
-                            path,
-                            args.upload_id(),
-                            self.err_status(&err)
-                        );
-                    }
-                }),
-        )
+                }
+            })
+            .await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -902,7 +924,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 }
 
 /// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
-struct LoggingReader<R> {
+pub struct LoggingReader<R> {
     scheme: Scheme,
     path: String,
     op: Operation,

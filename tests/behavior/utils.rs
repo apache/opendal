@@ -20,10 +20,12 @@ use std::usize;
 use backon::ExponentialBackoff;
 use bytes::Bytes;
 use log::debug;
+use opendal::OperatorBuilder;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::Operator;
 use opendal::Scheme;
+use opendal::services::*;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
@@ -60,6 +62,36 @@ pub fn init_service(scheme: Scheme, random_root: bool) -> Option<Operator> {
         );
         cfg.insert("root".to_string(), root);
     }
+
+    let layers = |v: OperatorBuilder<_> | {
+        v.layer(LoggingLayer::default())
+        .layer(RetryLayer::new(ExponentialBackoff::default()))
+    };
+
+    let op = match scheme {
+        Scheme::Azblob => Operator::from_map::<AzblobBuilder>(cfg).expect("must succeed").map(layers).finish(),
+        Scheme::Azdfs => Operator::from_map::<AzdfsBuilder>(cfg).expect("must succeed").map(layers).finish(),
+        Scheme::Fs => todo!(),
+        Scheme::Gcs => todo!(),
+        Scheme::Ghac => todo!(),
+        Scheme::Hdfs => todo!(),
+        Scheme::Http => todo!(),
+        Scheme::Ftp => todo!(),
+        Scheme::Ipfs => todo!(),
+        Scheme::Ipmfs => todo!(),
+        Scheme::Memcached => todo!(),
+        Scheme::Memory => todo!(),
+        Scheme::Moka => todo!(),
+        Scheme::Obs => todo!(),
+        Scheme::Oss => todo!(),
+        Scheme::Redis => todo!(),
+        Scheme::Rocksdb => todo!(),
+        Scheme::S3 => todo!(),
+        Scheme::Webdav => todo!(),
+        Scheme::Custom(_) => todo!(),
+        _ => todo!(),
+    }
+
 
     let op = Operator::from_iter(scheme, cfg.into_iter())
         .expect("init service must succeed")

@@ -13,11 +13,13 @@
 // limitations under the License.
 
 use napi_derive::napi;
+use opendal::services;
 use opendal::Operator;
-use opendal::Scheme;
 
 #[napi]
 pub fn debug() -> String {
-    let op = Operator::from_env(Scheme::Fs).unwrap();
+    let op = Operator::from_env::<services::FsBuilder>()
+        .unwrap()
+        .finish();
     format!("{:?}", op.metadata())
 }

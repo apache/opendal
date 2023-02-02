@@ -180,7 +180,7 @@ impl Debug for Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Gcs;
+    const SCHEME: Scheme = Scheme::Gcs;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

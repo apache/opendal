@@ -217,13 +217,15 @@ mod tests {
 
     use object_store::path::Path;
     use object_store::ObjectStore;
-    use opendal::Scheme;
+    use opendal::services;
 
     use super::*;
 
     #[tokio::test]
     async fn test_basic() {
-        let op = Operator::from_env(Scheme::Memory).unwrap();
+        let op = Operator::from_env::<services::MemoryBuilder>()
+            .unwrap()
+            .finish();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
         // Retrieve a specific file

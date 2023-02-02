@@ -219,22 +219,6 @@ impl Stream for ObjectReader {
     }
 }
 
-/// get_total_size will get total size via stat.
-async fn get_total_size(
-    acc: FusedAccessor,
-    path: &str,
-    meta: Arc<Mutex<ObjectMetadata>>,
-) -> Result<u64> {
-    if let Some(v) = meta.lock().content_length_raw() {
-        return Ok(v);
-    }
-
-    let om = acc.stat(path, OpStat::new()).await?.into_metadata();
-    let size = om.content_length();
-    *(meta.lock()) = om;
-    Ok(size)
-}
-
 #[cfg(test)]
 mod tests {
     use rand::rngs::ThreadRng;
@@ -243,6 +227,7 @@ mod tests {
     use tokio::io::AsyncReadExt;
     use tokio::io::AsyncSeekExt;
 
+    use crate::services;
     use crate::Operator;
     use crate::Scheme;
 
@@ -257,7 +242,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_read() {
-        let op = Operator::from_env(Scheme::MemoryType).unwrap().finish();
+        let op = Operator::new(services::MemoryBuilder::default())
+            .unwrap()
+            .finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
@@ -277,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_seek() {
-        let op = Operator::from_env(crate::scheme::Scheme::AzblobType)
+        let op = Operator::new(services::MemoryBuilder::default())
             .unwrap()
             .finish();
         let obj = op.object("test_file");

@@ -581,7 +581,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::S3;
+    const SCHEME: Scheme = Scheme::S3;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

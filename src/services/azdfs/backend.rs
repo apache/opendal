@@ -154,7 +154,7 @@ impl Builder {
 
 impl AccessorBuilder for Builder {
     type Accessor = Backend;
-    const Scheme: Scheme = Scheme::Azdfs;
+    const SCHEME: Scheme = Scheme::Azdfs;
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);

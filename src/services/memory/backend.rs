@@ -29,7 +29,7 @@ use crate::Scheme;
 pub struct Builder {}
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Memory;
+    const SCHEME: Scheme = Scheme::Memory;
     type Accessor = Backend;
 
     fn from_map(_: HashMap<String, String>) -> Self {

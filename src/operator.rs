@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::env;
 use std::sync::Arc;
 
@@ -65,93 +66,26 @@ impl Operator {
         Ok(OperatorBuilder::new(ab)?)
     }
 
+    /// Create a new operator from env.
+    pub fn from_map<AB: AccessorBuilder>(
+        map: HashMap<String, String>,
+    ) -> Result<OperatorBuilder<AB::Accessor>> {
+        let builder = AB::from_map(map);
+        Ok(OperatorBuilder::new(builder)?)
+    }
+
     /// Create a new operator from iter.
-    ///
-    /// Please refer different backends for detailed config options.
-    ///
-    /// # Behavior
-    ///
-    /// - All input key must be `lower_case`
-    /// - Boolean values will be checked by its existences and non-empty value.
-    ///   `on`, `yes`, `true`, `off`, `no`, `false` will all be treated as `true`
-    ///   To disable a flag, please set value to empty.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::Object;
-    /// # use opendal::Operator;
-    /// # use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op: Operator = Operator::from_iter(
-    ///         Scheme::Fs,
-    ///         [("root".to_string(), "/tmp".to_string())].into_iter(),
-    ///     )?;
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _: Object = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_iter<AB: AccessorBuilder<Accessor = A>, A: Accessor>(
-        _: SchemeType<AB>,
-        it: impl Iterator<Item = (String, String)>,
-    ) -> Result<OperatorBuilder<A>> {
-        OperatorBuilder::new(AB::from_iter(it))
+    pub fn from_iter<AB: AccessorBuilder>(
+        iter: impl Iterator<Item = (String, String)>,
+    ) -> Result<OperatorBuilder<AB::Accessor>> {
+        let builder = AB::from_iter(iter);
+        Ok(OperatorBuilder::new(builder)?)
     }
 
     /// Create a new operator from env.
-    ///
-    /// # Behavior
-    ///
-    /// - Environment keys are case-insensitive, they will be converted to lower case internally.
-    /// - Environment values are case-sensitive, no sanity will be executed on them.
-    /// - Boolean values will be checked by its existences and non-empty value.
-    ///   `on`, `yes`, `true`, `off`, `no`, `false` will all be treated as `true`
-    ///   To disable a flag, please set value to empty.
-    ///
-    /// # Examples
-    ///
-    /// Setting environment:
-    ///
-    /// ```shell
-    /// export OPENDAL_FS_ROOT=/tmp
-    /// ```
-    ///
-    /// Please refer different backends for detailed config options.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::Object;
-    /// # use opendal::Operator;
-    /// # use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     // Build an Operator to start operating the storage
-    ///     let op: Operator = Operator::from_env(Scheme::Fs)?;
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _: Object = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_env<AB: AccessorBuilder<Accessor = A>, A: Accessor>(
-        scheme: SchemeType<AB>,
-    ) -> Result<OperatorBuilder<A>> {
-        let prefix = format!("opendal_{}_", AB::Scheme);
-        let envs = env::vars().filter_map(move |(k, v)| {
-            k.to_lowercase()
-                .strip_prefix(&prefix)
-                .map(|k| (k.to_string(), v))
-        });
-
-        Self::from_iter(scheme, envs)
+    pub fn from_env<AB: AccessorBuilder>() -> Result<OperatorBuilder<AB::Accessor>> {
+        let builder = AB::from_env();
+        Ok(OperatorBuilder::new(builder)?)
     }
 
     /// Get inner accessor.

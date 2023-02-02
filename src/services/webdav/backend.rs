@@ -84,7 +84,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Webdav;
+    const SCHEME: Scheme = Scheme::Webdav;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

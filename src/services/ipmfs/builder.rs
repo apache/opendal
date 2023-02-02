@@ -66,7 +66,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Ipmfs;
+    const SCHEME: Scheme = Scheme::Ipmfs;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

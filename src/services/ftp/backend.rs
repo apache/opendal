@@ -107,7 +107,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Ftp;
+    const SCHEME: Scheme = Scheme::Ftp;
     type Accessor = Backend;
 
     fn build(&mut self) -> Result<Self::Accessor> {

@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use ::opendal::services;
 use ::opendal::Operator;
-use ::opendal::Scheme;
 use pyo3::prelude::*;
 
 #[pyfunction]
 fn debug() -> PyResult<String> {
-    let op = Operator::from_env(Scheme::Fs).unwrap();
+    let op = Operator::from_env::<services::FsBuilder>()
+        .unwrap()
+        .finish();
     Ok(format!("{:?}", op.metadata()))
 }
 

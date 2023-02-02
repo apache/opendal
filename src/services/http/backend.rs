@@ -82,7 +82,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Http;
+    const SCHEME: Scheme = Scheme::Http;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

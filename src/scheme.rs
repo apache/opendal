@@ -95,39 +95,6 @@ pub enum Scheme {
     Custom(&'static str),
 }
 
-enum SchemedService<A: Accessor> {
-    Azblob(A),
-}
-
-impl Scheme {
-    pub const AzblobType: SchemeType<services::azblob::Builder> = SchemeType::default();
-    pub const AzdfsType: SchemeType<services::azdfs::Builder> = SchemeType::default();
-    pub const FsType: SchemeType<services::fs::Builder> = SchemeType::default();
-    pub const GcsType: SchemeType<services::gcs::Builder> = SchemeType::default();
-    pub const GhacType: SchemeType<services::ghac::Builder> = SchemeType::default();
-    #[cfg(feature = "services-hdfs")]
-    pub const HdfsType: SchemeType<services::hdfs::Builder> = SchemeType::default();
-    pub const HttpType: SchemeType<services::http::Builder> = SchemeType::default();
-    #[cfg(feature = "services-ftp")]
-    pub const FtpType: SchemeType<services::ftp::Builder> = SchemeType::default();
-    #[cfg(feature = "services-ipfs")]
-    pub const IpfsType: SchemeType<services::ipfs::Builder> = SchemeType::default();
-    pub const IpmfsType: SchemeType<services::ipmfs::Builder> = SchemeType::default();
-    #[cfg(feature = "services-memcached")]
-    pub const MemcachedType: SchemeType<services::memcached::Builder> = SchemeType::default();
-    pub const MemoryType: SchemeType<services::memory::Builder> = SchemeType::default();
-    #[cfg(feature = "services-moka")]
-    pub const MokaType: SchemeType<services::moka::Builder> = SchemeType::default();
-    pub const ObsType: SchemeType<services::obs::Builder> = SchemeType::default();
-    pub const OssType: SchemeType<services::oss::Builder> = SchemeType::default();
-    #[cfg(feature = "services-redis")]
-    pub const RedisType: SchemeType<services::redis::Builder> = SchemeType::default();
-    #[cfg(feature = "services-rocksdb")]
-    pub const RocksdbType: SchemeType<services::rocksdb::Builder> = SchemeType::default();
-    pub const S3Type: SchemeType<services::s3::Builder> = SchemeType::default();
-    pub const Webdav: SchemeType<services::webdav::Builder> = SchemeType::default();
-}
-
 impl Scheme {
     /// Convert self into static str.
     pub fn into_static(self) -> &'static str {

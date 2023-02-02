@@ -152,6 +152,7 @@
 mod operator;
 pub use operator::BatchOperator;
 pub use operator::Operator;
+pub use operator::OperatorBuilder;
 pub use operator::OperatorMetadata;
 
 mod object;

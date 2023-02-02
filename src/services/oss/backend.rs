@@ -194,7 +194,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Oss;
+    const SCHEME: Scheme = Scheme::Oss;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -457,7 +458,9 @@ pub type FusedAccessor =
 
 /// AccessorBuilder will build an accessor;
 pub trait AccessorBuilder: Default {
-    const Scheme: Scheme;
+    /// Associated scheme for this builder.
+    const SCHEME: Scheme;
+    /// The accessor that built by this builder.
     type Accessor: Accessor;
 
     /// Construct a builder from given map.
@@ -469,6 +472,23 @@ pub trait AccessorBuilder: Default {
         Self: Sized,
     {
         Self::from_map(iter.collect())
+    }
+
+    /// Construct a builder from envs.
+    fn from_env() -> Self
+    where
+        Self: Sized,
+    {
+        let prefix = format!("opendal_{}_", Self::SCHEME);
+        let envs = env::vars()
+            .filter_map(move |(k, v)| {
+                k.to_lowercase()
+                    .strip_prefix(&prefix)
+                    .map(|k| (k.to_string(), v))
+            })
+            .collect();
+
+        Self::from_map(envs)
     }
 
     /// Consume the accessoer builder to build a service.
@@ -587,6 +607,3 @@ flags! {
         ReadIsStreamable,
     }
 }
-
-#[async_trait]
-impl Accessor for () {}

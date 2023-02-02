@@ -18,6 +18,8 @@ use std::io::Result;
 use opendal::Operator;
 use opendal::Scheme;
 
+use crate::services;
+
 pub static OAY_ADDR: &str = "OAY_ADDR";
 pub static OAY_BACKEND_TYPE: &str = "OAY_BACKEND_TYPE";
 
@@ -41,7 +43,22 @@ pub async fn get_oay_operator() -> Result<Operator> {
             .map(|k| (k.to_string(), v))
     });
 
-    let op = Operator::from_iter(scheme, envs)?;
+    let op = match scheme {
+        Scheme::Azblob => Operator::from_iter::<opendal::services::azblob::Builder>(envs)?.finish(),
+        Scheme::Azdfs => todo!(),
+        Scheme::Fs => todo!(),
+        Scheme::Gcs => todo!(),
+        Scheme::Ghac => todo!(),
+        Scheme::Http => todo!(),
+        Scheme::Ipmfs => todo!(),
+        Scheme::Memory => todo!(),
+        Scheme::Obs => todo!(),
+        Scheme::Oss => todo!(),
+        Scheme::S3 => todo!(),
+        Scheme::Webdav => todo!(),
+        Scheme::Custom(_) => todo!(),
+        _ => todo!(),
+    };
 
     Ok(op)
 }

@@ -115,7 +115,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Ghac;
+    const SCHEME: Scheme = Scheme::Ghac;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

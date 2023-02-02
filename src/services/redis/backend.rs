@@ -146,7 +146,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Redis;
+    const SCHEME: Scheme = Scheme::Redis;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

@@ -87,7 +87,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Ipfs;
+    const SCHEME: Scheme = Scheme::Ipfs;
     type Accessor = Backend;
     fn from_map(map: HashMap<String, String>) -> Self {
         let mut builder = Builder::default();

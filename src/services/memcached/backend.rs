@@ -72,7 +72,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Memcached;
+    const SCHEME: Scheme = Scheme::Memcached;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

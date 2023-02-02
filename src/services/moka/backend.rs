@@ -111,7 +111,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Moka;
+    const SCHEME: Scheme = Scheme::Moka;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

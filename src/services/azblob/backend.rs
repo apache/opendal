@@ -241,7 +241,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Azblob;
+    const SCHEME: Scheme = Scheme::Azblob;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

@@ -55,7 +55,7 @@ impl Builder {
 }
 
 impl AccessorBuilder for Builder {
-    const Scheme: Scheme = Scheme::Rocksdb;
+    const SCHEME: Scheme = Scheme::Rocksdb;
     type Accessor = Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {

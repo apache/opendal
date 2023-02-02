@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -38,21 +39,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of ipfs backend.
     ///
     /// Root must be a valid ipfs address like the following:
@@ -98,9 +84,21 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Consume builder to build an ipfs backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Ipfs;
+    type Accessor = Backend;
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -134,11 +132,11 @@ impl Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             endpoint,
             client,
-        }))
+        })
     }
 }
 

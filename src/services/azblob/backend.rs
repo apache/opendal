@@ -20,7 +20,6 @@ use std::mem;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -156,25 +155,6 @@ impl Builder {
         self
     }
 
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "container" => builder.container(v),
-                "endpoint" => builder.endpoint(v),
-                "account_name" => builder.account_name(v),
-                "account_key" => builder.account_key(v),
-                "sas_token" => builder.sas_token(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// from_connection_string will make a builder from connection string
     ///
     /// connection string looks like:
@@ -258,9 +238,26 @@ impl Builder {
 
         Ok(builder)
     }
+}
 
-    /// Consume builder to build an azblob backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Azblob;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("container").map(|v| builder.container(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("account_name").map(|v| builder.account_name(v));
+        map.get("account_key").map(|v| builder.account_key(v));
+        map.get("sas_token").map(|v| builder.sas_token(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -313,14 +310,14 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
             container: self.container.clone(),
             client,
             _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
-        }))
+        })
     }
 }
 

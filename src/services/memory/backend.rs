@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -27,14 +28,20 @@ use crate::Scheme;
 #[derive(Default)]
 pub struct Builder {}
 
-impl Builder {
-    /// Consume builder to build a memory backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Memory;
+    type Accessor = Backend;
+
+    fn from_map(_: HashMap<String, String>) -> Self {
+        Self::default()
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(apply_wrapper(Backend::new(adapter)))
+        Ok(Backend::new(adapter))
     }
 }
 

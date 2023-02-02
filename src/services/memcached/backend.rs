@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use async_compat::Compat;
@@ -43,19 +44,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
     /// set the network address of memcached service.
     ///
     /// For example: "tcp://localhost:11211"
@@ -81,9 +69,22 @@ impl Builder {
         self.default_ttl = Some(ttl);
         self
     }
+}
 
-    /// Establish connection to memcached.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Memcached;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let endpoint = self.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Memcached)
@@ -142,14 +143,12 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(apply_wrapper(
-            Backend::new(Adapter {
-                endpoint,
-                conn,
-                default_ttl: self.default_ttl,
-            })
-            .with_root(&root),
-        ))
+        Ok(Backend::new(Adapter {
+            endpoint,
+            conn,
+            default_ttl: self.default_ttl,
+        })
+        .with_root(&root))
     }
 }
 

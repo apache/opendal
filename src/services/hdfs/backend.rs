@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io;
 use std::io::SeekFrom;
@@ -36,21 +37,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "name_node" => builder.name_node(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -78,9 +64,22 @@ impl Builder {
 
         self
     }
+}
 
-    /// Finish the building and create hdfs backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Hdfs;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("name_node").map(|v| builder.name_node(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let name_node = match &self.name_node {
@@ -108,10 +107,10 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             client: Arc::new(client),
-        }))
+        })
     }
 }
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+
 use log::debug;
 
 use super::backend::Backend;
@@ -28,21 +30,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (key, val) in it {
-            let val = val.as_str();
-            match key.as_ref() {
-                "root" => builder.root(val),
-                "endpoint" => builder.endpoint(val),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root for ipfs.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -76,9 +63,22 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Consume builder to build an ipfs::Backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Ipmfs;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
@@ -97,6 +97,6 @@ impl Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend::new(root, client, endpoint)))
+        Ok(Backend::new(root, client, endpoint))
     }
 }

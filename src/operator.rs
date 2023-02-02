@@ -20,13 +20,7 @@ use futures::TryStreamExt;
 
 use crate::object::ObjectLister;
 use crate::raw::*;
-use crate::services;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Object;
-use crate::ObjectMode;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// User-facing APIs for object and object streams.
 #[derive(Clone, Debug)]
@@ -65,8 +59,10 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new<A: Accessor>(accessor: A) -> OperatorBuilder<A> {
-        OperatorBuilder { accessor }
+    pub fn new<AB: AccessorBuilder<Accessor = A>, A: Accessor>(
+        ab: AB,
+    ) -> Result<OperatorBuilder<A>> {
+        Ok(OperatorBuilder::new(ab)?)
     }
 
     /// Create a new operator from iter.
@@ -102,11 +98,11 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn from_iter(
-        scheme: Scheme,
-        it: impl Iterator<Item = (String, String)> + 'static,
-    ) -> Result<Self> {
-        todo!()
+    pub fn from_iter<AB: AccessorBuilder<Accessor = A>, A: Accessor>(
+        _: SchemeType<AB>,
+        it: impl Iterator<Item = (String, String)>,
+    ) -> Result<OperatorBuilder<A>> {
+        OperatorBuilder::new(AB::from_iter(it))
     }
 
     /// Create a new operator from env.
@@ -145,8 +141,10 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn from_env(scheme: Scheme) -> Result<Self> {
-        let prefix = format!("opendal_{scheme}_");
+    pub fn from_env<AB: AccessorBuilder<Accessor = A>, A: Accessor>(
+        scheme: SchemeType<AB>,
+    ) -> Result<OperatorBuilder<A>> {
+        let prefix = format!("opendal_{}_", AB::Scheme);
         let envs = env::vars().filter_map(move |(k, v)| {
             k.to_lowercase()
                 .strip_prefix(&prefix)
@@ -263,6 +261,13 @@ pub struct OperatorBuilder<A: Accessor> {
 }
 
 impl<A: Accessor> OperatorBuilder<A> {
+    pub fn new<AB: AccessorBuilder<Accessor = A>>(mut ab: AB) -> Result<Self> {
+        Ok(Self {
+            // TODO: apply error wrapper here.
+            accessor: ab.build()?,
+        })
+    }
+
     pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
         OperatorBuilder {
             accessor: layer.layer(self.accessor),

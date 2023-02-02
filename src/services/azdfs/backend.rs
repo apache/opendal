@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -19,7 +20,6 @@ use std::mem;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -150,9 +150,13 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Consume builder to build an azblob backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    type Accessor = Backend;
+    const Scheme: Scheme = Scheme::Azdfs;
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -203,14 +207,26 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
             filesystem: self.filesystem.clone(),
             client,
             _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
-        }))
+        })
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("filesystem").map(|v| builder.filesystem(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("account_name").map(|v| builder.account_name(v));
+        map.get("account_key").map(|v| builder.account_key(v));
+
+        builder
     }
 }
 

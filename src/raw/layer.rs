@@ -323,7 +323,8 @@ mod tests {
             deleted: Arc::new(Mutex::new(false)),
         };
 
-        let op = Operator::new(fs::Builder::default().build().unwrap())
+        let op = Operator::new(fs::Builder::default())
+            .unwrap()
             .layer(&test)
             .finish();
 

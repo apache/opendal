@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::collections::HashMap;
 use std::io;
 use std::io::SeekFrom;
 use std::path::PathBuf;
@@ -40,21 +41,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "atomic_write_dir" => builder.atomic_write_dir(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root for backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -88,8 +74,13 @@ impl Builder {
 
         self
     }
+}
 
-    pub fn build_next(&mut self) -> Result<Backend> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Fs;
+    type Accessor = Backend;
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -129,45 +120,14 @@ impl Builder {
         })
     }
 
-    /// Consume current builder to build a fs backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
-        debug!("backend build started: {:?}", &self);
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
-        let atomic_write_dir = self.atomic_write_dir.as_deref().map(normalize_root);
+        map.get("root").map(|v| builder.root(v));
+        map.get("atomic_write_dir")
+            .map(|v| builder.atomic_write_dir(v));
 
-        // If root dir is not exist, we must create it.
-        if let Err(e) = std::fs::metadata(&root) {
-            if e.kind() == io::ErrorKind::NotFound {
-                std::fs::create_dir_all(&root).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "create root dir failed")
-                        .with_operation("Builder::build")
-                        .with_context("root", &root)
-                        .set_source(e)
-                })?;
-            }
-        }
-
-        // If atomic write dir is not exist, we must create it.
-        if let Some(d) = &atomic_write_dir {
-            if let Err(e) = std::fs::metadata(d) {
-                if e.kind() == io::ErrorKind::NotFound {
-                    std::fs::create_dir_all(d).map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
-                            .with_operation("Builder::build")
-                            .with_context("atomic_write_dir", d)
-                            .set_source(e)
-                    })?;
-                }
-            }
-        }
-
-        debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
-            root,
-            atomic_write_dir,
-            enable_path_check: self.enable_path_check,
-        }))
+        builder
     }
 }
 

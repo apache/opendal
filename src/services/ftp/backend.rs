@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
@@ -60,23 +61,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "user" => builder.user(v),
-                "password" => builder.password(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// set endpoint for ftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
@@ -120,9 +104,13 @@ impl Builder {
 
         self
     }
+}
 
-    /// Build a ftp backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Ftp;
+    type Accessor = Backend;
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
             None => {
@@ -179,14 +167,25 @@ impl Builder {
 
         debug!("ftp backend finished: {:?}", &self);
 
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             endpoint,
             root,
             user,
             password,
             enable_secure,
             pool: OnceCell::new(),
-        }))
+        })
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("user").map(|v| builder.user(v));
+        map.get("password").map(|v| builder.password(v));
+
+        builder
     }
 }
 
@@ -475,6 +474,7 @@ impl Backend {
 #[cfg(test)]
 mod build_test {
     use super::Builder;
+    use crate::raw::*;
     use crate::ErrorKind;
 
     #[test]

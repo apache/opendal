@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -44,21 +45,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
@@ -93,9 +79,22 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Build a HTTP backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Http;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
@@ -121,11 +120,11 @@ impl Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             endpoint: endpoint.to_string(),
             root,
             client,
-        }))
+        })
     }
 }
 
@@ -258,7 +257,7 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder.build()?).finish();
+        let op = Operator::new(builder)?.finish();
 
         let bs = op.object("hello").read().await?;
 
@@ -280,7 +279,7 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder.build()?).finish();
+        let op = Operator::new(builder)?.finish();
 
         let bs = op.object("hello").metadata().await?;
 

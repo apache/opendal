@@ -257,7 +257,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_read() {
-        let op = Operator::from_env(Scheme::Memory).unwrap();
+        let op = Operator::from_env(Scheme::MemoryType).unwrap().finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
@@ -277,7 +277,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_seek() {
-        let op = Operator::from_env(Scheme::Memory).unwrap();
+        let op = Operator::from_env(crate::scheme::Scheme::AzblobType)
+            .unwrap()
+            .finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();

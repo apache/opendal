@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::env;
 
 use async_trait::async_trait;
@@ -66,20 +67,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "version" => builder.version(v),
-                "enable_create_simulation" if !v.is_empty() => builder.enable_create_simulation(),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
@@ -125,9 +112,27 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Build a github action cache runner.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const Scheme: Scheme = Scheme::Ghac;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("version").map(|v| builder.version(v));
+        map.get("enable_create_simulation").map(|v| {
+            if v == "on" || v == "true" {
+                builder.enable_create_simulation();
+            }
+        });
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -175,7 +180,7 @@ impl Builder {
             client,
         };
 
-        Ok(apply_wrapper(backend))
+        Ok(backend)
     }
 }
 

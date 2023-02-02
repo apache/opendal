@@ -16,7 +16,19 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
+use crate::raw::AccessorBuilder;
+use crate::services;
 use crate::Error;
+
+/// SchemeType is the typed scheme which carries the related accessor builder's
+/// type.
+pub struct SchemeType<AB: AccessorBuilder>(fn(&AB));
+
+impl<AB: AccessorBuilder> SchemeType<AB> {
+    const fn default() -> Self {
+        SchemeType(|_| {})
+    }
+}
 
 /// Services that OpenDAL supports
 ///
@@ -28,50 +40,50 @@ use crate::Error;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Scheme {
-    /// [azblob][crate::services::azblob]: Azure Storage Blob services.
+    /// [azblob][services::azblob]: Azure Storage Blob services.
     Azblob,
-    /// [azdfs][crate::services::azdfs]: Azure Data Lake Storage Gen2.
+    /// [azdfs][services::azdfs]: Azure Data Lake Storage Gen2.
     Azdfs,
-    /// [fs][crate::services::fs]: POSIX alike file system.
+    /// [fs][services::fs]: POSIX alike file system.
     Fs,
-    /// [gcs][crate::services::gcs]: Google Cloud Storage backend.
+    /// [gcs][services::gcs]: Google Cloud Storage backend.
     Gcs,
-    /// [ghac][crate::services::ghac]: Github Action Cache services.
+    /// [ghac][services::ghac]: Github Action Cache services.
     Ghac,
-    /// [hdfs][crate::services::hdfs]: Hadoop Distributed File System.
+    /// [hdfs][services::hdfs]: Hadoop Distributed File System.
     #[cfg(feature = "services-hdfs")]
     Hdfs,
-    /// [http][crate::services::http]: HTTP backend.
+    /// [http][services::http]: HTTP backend.
     Http,
-    /// [ftp][crate::services::ftp]: FTP backend.
+    /// [ftp][services::ftp]: FTP backend.
     #[cfg(feature = "services-ftp")]
     Ftp,
-    /// [ipmfs][crate::services::ipfs]: IPFS HTTP Gateway
+    /// [ipmfs][services::ipfs]: IPFS HTTP Gateway
     #[cfg(feature = "services-ipfs")]
     Ipfs,
-    /// [ipmfs][crate::services::ipmfs]: IPFS mutable file system
+    /// [ipmfs][services::ipmfs]: IPFS mutable file system
     Ipmfs,
-    /// [memcached][crate::services::memcached]: Memcached service support.
+    /// [memcached][services::memcached]: Memcached service support.
     #[cfg(feature = "services-memcached")]
     Memcached,
-    /// [memory][crate::services::memory]: In memory backend support.
+    /// [memory][services::memory]: In memory backend support.
     Memory,
-    /// [moka][crate::services::moka]: moka backend support.
+    /// [moka][services::moka]: moka backend support.
     #[cfg(feature = "services-moka")]
     Moka,
-    /// [obs][crate::services::obs]: Huawei Cloud OBS services.
+    /// [obs][services::obs]: Huawei Cloud OBS services.
     Obs,
-    /// [redis][crate::services::redis]: Redis services
+    /// [oss][services::oss]: Aliyun Object Storage Services
+    Oss,
+    /// [redis][services::redis]: Redis services
     #[cfg(feature = "services-redis")]
     Redis,
-    /// [rocksdb][crate::services::rocksdb]: RocksDB services
+    /// [rocksdb][services::rocksdb]: RocksDB services
     #[cfg(feature = "services-rocksdb")]
     Rocksdb,
-    /// [s3][crate::services::s3]: AWS S3 alike services.
+    /// [s3][services::s3]: AWS S3 alike services.
     S3,
-    /// [oss][crate::services::oss]: Aliyun Object Storage Services
-    Oss,
-    /// [webdav][crate::services::webdav]: WebDAV support.
+    /// [webdav][services::webdav]: WebDAV support.
     Webdav,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///
@@ -80,6 +92,35 @@ pub enum Scheme {
     /// - Custom must not overwrite any existing services name.
     /// - Custom must be lowed cases.
     Custom(&'static str),
+}
+
+impl Scheme {
+    pub const AzblobType: SchemeType<services::azblob::Builder> = SchemeType::default();
+    pub const AzdfsType: SchemeType<services::azdfs::Builder> = SchemeType::default();
+    pub const FsType: SchemeType<services::fs::Builder> = SchemeType::default();
+    pub const GcsType: SchemeType<services::gcs::Builder> = SchemeType::default();
+    pub const GhacType: SchemeType<services::ghac::Builder> = SchemeType::default();
+    #[cfg(feature = "services-hdfs")]
+    pub const HdfsType: SchemeType<services::hdfs::Builder> = SchemeType::default();
+    pub const HttpType: SchemeType<services::http::Builder> = SchemeType::default();
+    #[cfg(feature = "services-ftp")]
+    pub const FtpType: SchemeType<services::ftp::Builder> = SchemeType::default();
+    #[cfg(feature = "services-ipfs")]
+    pub const IpfsType: SchemeType<services::ipfs::Builder> = SchemeType::default();
+    pub const IpmfsType: SchemeType<services::ipmfs::Builder> = SchemeType::default();
+    #[cfg(feature = "services-memcached")]
+    pub const MemcachedType: SchemeType<services::memcached::Builder> = SchemeType::default();
+    pub const MemoryType: SchemeType<services::memory::Builder> = SchemeType::default();
+    #[cfg(feature = "services-moka")]
+    pub const MokaType: SchemeType<services::moka::Builder> = SchemeType::default();
+    pub const ObsType: SchemeType<services::obs::Builder> = SchemeType::default();
+    pub const OssType: SchemeType<services::oss::Builder> = SchemeType::default();
+    #[cfg(feature = "services-redis")]
+    pub const RedisType: SchemeType<services::redis::Builder> = SchemeType::default();
+    #[cfg(feature = "services-rocksdb")]
+    pub const RocksdbType: SchemeType<services::rocksdb::Builder> = SchemeType::default();
+    pub const S3Type: SchemeType<services::s3::Builder> = SchemeType::default();
+    pub const Webdav: SchemeType<services::webdav::Builder> = SchemeType::default();
 }
 
 impl Scheme {

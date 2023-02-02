@@ -241,12 +241,9 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(
-            http::Builder::from_iter(
-                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-            )
-            .build()?,
-        )
+        let op = Operator::new(http::Builder::from_iter(
+            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+        ))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -278,12 +275,9 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(
-            http::Builder::from_iter(
-                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-            )
-            .build()?,
-        )
+        let op = Operator::new(http::Builder::from_iter(
+            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+        ))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -322,12 +316,9 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(
-            http::Builder::from_iter(
-                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-            )
-            .build()?,
-        )
+        let op = Operator::new(http::Builder::from_iter(
+            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+        ))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();
@@ -390,12 +381,9 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(
-            http::Builder::from_iter(
-                vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-            )
-            .build()?,
-        )
+        let op = Operator::new(http::Builder::from_iter(
+            vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
+        ))?
         .layer(LoggingLayer::default())
         .layer(iil)
         .finish();

@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bytes::Buf;
+use std::io::Read;
+
+use http::response::Parts;
 use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
-use serde_json::from_reader;
 
+use crate::raw::Body;
 use crate::raw::IncomingAsyncBody;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
+use crate::Scheme;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -42,6 +45,33 @@ struct WebHdfsError {
 pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;
+    let s = String::from_utf8_lossy(&bs);
+    parse_error_msg(parts, &s)
+}
+
+pub(super) fn blocking_parse_error(resp: Response<Body>) -> Result<Error> {
+    let (p, s) = blocking_resp_to_str(resp)?;
+    parse_error_msg(p, &s)
+}
+
+pub(super) fn blocking_resp_to_str(resp: Response<Body>) -> Result<(Parts, String)> {
+    let (parts, mut body) = resp.into_parts();
+
+    let mut s = String::new();
+    body.read_to_string(&mut s).map_err(|e| {
+        Error::new(
+            ErrorKind::Unexpected,
+            &format!("got status {} and unparsable body", parts.status.as_str()),
+        )
+        .with_context("service", Scheme::WebHdfs)
+        .with_context("response", format!("{:?}", parts))
+        .set_temporary()
+        .set_source(e)
+    })?;
+    Ok((parts, s))
+}
+
+fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::ObjectNotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
@@ -55,9 +85,9 @@ pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Err
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match from_reader::<_, WebHdfsErrorWrapper>(bs.clone().reader()) {
+    let message = match serde_json::from_str::<WebHdfsErrorWrapper>(body) {
         Ok(wh_error) => format!("{:?}", wh_error.remote_exception),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        Err(_) => body.to_owned(),
     };
 
     let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
@@ -73,6 +103,7 @@ pub(super) async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Err
 mod tests {
     use bytes::Buf;
     use futures::stream;
+    use serde_json::from_reader;
 
     use super::*;
     use crate::raw::input::Stream;

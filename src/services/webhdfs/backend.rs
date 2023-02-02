@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use core::fmt::Debug;
+use std::io::Read;
 
 use async_trait::async_trait;
 use bytes::Buf;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::response::Parts;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -24,6 +26,8 @@ use log::debug;
 use serde::Deserialize;
 
 use super::dir_stream::DirStream;
+use super::error::blocking_parse_error;
+use super::error::blocking_resp_to_str;
 use super::error::parse_error;
 use super::percent_encode_path;
 use super::signer::Signer;
@@ -36,9 +40,9 @@ use crate::raw::output;
 use crate::raw::parse_into_object_metadata;
 use crate::raw::Accessor;
 use crate::raw::AccessorCapability;
-use crate::raw::AccessorHint;
 use crate::raw::AccessorMetadata;
 use crate::raw::AsyncBody;
+use crate::raw::Body;
 use crate::raw::BytesRange;
 use crate::raw::HttpClient;
 use crate::raw::IncomingAsyncBody;
@@ -65,6 +69,9 @@ use crate::Scheme;
 
 type AsyncReq = Request<AsyncBody>;
 type AsyncResp = Response<IncomingAsyncBody>;
+
+type BlockReq = Request<Body>;
+type BlockResp = Response<Body>;
 
 /// Builder for WebHDFS service
 /// # Note
@@ -227,12 +234,32 @@ impl Builder {
         let client = HttpClient::new()?;
 
         debug!("backend initialized:{:?}", &self);
-        Ok(apply_wrapper(Backend {
+        let backend = apply_wrapper(Backend {
             root,
             endpoint,
             sign,
             client,
-        }))
+        });
+        match backend.blocking_stat("/", OpStat::new()) {
+            Ok(stat) => {
+                let meta = stat.into_metadata();
+                if !meta.mode().is_dir() {
+                    return Err(Error::new(
+                        ErrorKind::BackendConfigInvalid,
+                        "root is occupied and is not a directory",
+                    )
+                    .with_context("service", Scheme::WebHdfs));
+                }
+            }
+            Err(e) => match e.kind() {
+                ErrorKind::ObjectNotFound => {
+                    debug!("root not exist, creating");
+                    backend.blocking_create("/", OpCreate::new(ObjectMode::DIR))?;
+                }
+                _ => return Err(e),
+            },
+        }
+        Ok(backend)
     }
 }
 
@@ -318,7 +345,7 @@ impl Backend {
         Ok(req)
     }
 
-    fn status_object_req(&self, path: &str) -> Result<AsyncReq> {
+    fn status_object_req<B>(&self, path: &str, body: B) -> Result<Request<B>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
@@ -330,7 +357,7 @@ impl Backend {
         }
 
         let req = Request::get(&url);
-        req.body(AsyncBody::Empty).map_err(new_request_build_error)
+        req.body(body).map_err(new_request_build_error)
     }
 
     fn delete_object_req(&self, path: &str) -> Result<AsyncReq> {
@@ -371,6 +398,45 @@ impl Backend {
 }
 
 impl Backend {
+    // blocking create or write object request
+    fn blocking_create_or_write_object_request(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        content_type: Option<&str>,
+        body: Body,
+    ) -> Result<BlockReq> {
+        let p = build_abs_path(&self.root, path);
+        let op = if path.ends_with('/') {
+            "MKDIRS"
+        } else {
+            "CREATE"
+        };
+        let mut url = format!(
+            "{}/webhdfs/v1/{}?op={}&overwrite=true&noredirect=true",
+            self.endpoint,
+            percent_encode_path(&p),
+            op,
+        );
+        if let Some(sign) = &self.sign {
+            url = url + "&" + sign;
+        }
+
+        let req = Request::put(&url)
+            .body(Body::Empty)
+            .map_err(new_request_build_error)?;
+        // mkdir does not redirect
+        if path.ends_with('/') {
+            return Ok(req);
+        }
+
+        let resp = self.client.send(req)?;
+
+        self.blocking_put_along_redirect(resp, size, content_type, body)
+    }
+}
+
+impl Backend {
     /// get object from webhdfs
     /// # Note
     /// looks like webhdfs doesn't support range request from file end.
@@ -391,7 +457,7 @@ impl Backend {
     }
 
     async fn status_object(&self, path: &str) -> Result<AsyncResp> {
-        let req = self.status_object_req(path)?;
+        let req = self.status_object_req(path, AsyncBody::Empty)?;
         self.client.send_async(req).await
     }
 
@@ -418,7 +484,36 @@ impl Backend {
 
         Ok(loc)
     }
+}
 
+impl Backend {
+    fn blocking_status_object(&self, path: &str) -> Result<BlockResp> {
+        let req = self.status_object_req(path, Body::Empty)?;
+        self.client.send(req)
+    }
+
+    fn blocking_follow_redirect(&self, resp: BlockResp) -> Result<String> {
+        let mut s = String::new();
+        resp.into_body().read_to_string(&mut s).map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "redirection fail")
+                .with_context("service", Scheme::WebHdfs)
+                .set_permanent()
+                .set_source(e)
+        })?;
+        let loc = serde_json::from_str::<Redirection>(&s)
+            .map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "redirection fail")
+                    .with_context("service", Scheme::WebHdfs)
+                    .set_permanent()
+                    .set_source(e)
+            })?
+            .location;
+
+        Ok(loc)
+    }
+}
+
+impl Backend {
     async fn get_along_redirect(&self, redirection: AsyncResp) -> Result<AsyncReq> {
         let redirect = self.follow_redirect(redirection).await?;
 
@@ -446,36 +541,44 @@ impl Backend {
         req.body(body).map_err(new_request_build_error)
     }
 
-    async fn consume_success_create(&self, path: &str, resp: AsyncResp) -> Result<RpCreate> {
-        if path.ends_with('/') {
-            let bs = resp.into_body().bytes().await?;
-            let mkdir_rsp =
-                serde_json::from_reader::<_, BooleanResp>(bs.reader()).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "cannot parse mkdir response")
-                        .with_context("service", Scheme::WebHdfs)
-                        .set_source(e)
-                })?;
+    fn consume_success_mkdir(&self, path: &str, parts: Parts, body: &str) -> Result<RpCreate> {
+        let mkdir_rsp = serde_json::from_str::<BooleanResp>(body).map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "cannot parse mkdir response")
+                .set_temporary()
+                .with_context("service", Scheme::WebHdfs)
+                .with_context("response", format!("{:?}", parts))
+                .set_source(e)
+        })?;
 
-            if mkdir_rsp.boolean {
-                return Ok(RpCreate::default());
-            } else {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    &format!("mkdir failed: {}", path),
-                ));
-            }
+        if mkdir_rsp.boolean {
+            return Ok(RpCreate::default());
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                &format!("mkdir failed: {}", path),
+            ));
         }
-        resp.into_body().consume().await?;
-        Ok(RpCreate::default())
     }
+}
 
-    /// consume 200 OK delete response
-    /// # NOTE
-    /// deleting a non-exist object is tolerated by OpenDAL
-    /// so the response will just be consumed
-    async fn consume_success_delete(&self, resp: AsyncResp) -> Result<RpDelete> {
-        resp.into_body().consume().await?;
-        Ok(RpDelete::default())
+impl Backend {
+    fn blocking_put_along_redirect(
+        &self,
+        resp: BlockResp,
+        size: Option<u64>,
+        content_type: Option<&str>,
+        body: Body,
+    ) -> Result<BlockReq> {
+        let redirect = self.blocking_follow_redirect(resp)?;
+
+        let mut req = Request::put(redirect);
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size.to_string());
+        }
+        if let Some(content_type) = content_type {
+            req = req.header(CONTENT_TYPE, content_type);
+        }
+        req.body(body).map_err(new_request_build_error)
     }
 }
 
@@ -487,9 +590,70 @@ impl Accessor for Backend {
             .set_root(&self.root)
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadIsSeekable);
+            );
         am
+    }
+
+    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let resp = self.blocking_status_object(path)?;
+        let status = resp.status();
+        match status {
+            StatusCode::OK => {
+                let mut meta = parse_into_object_metadata(path, resp.headers())?;
+
+                let (_, s) = blocking_resp_to_str(resp)?;
+
+                let file_status = serde_json::from_str::<FileStatusWrapper>(&s)
+                    .map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "cannot parse returned json")
+                            .with_context("service", Scheme::WebHdfs)
+                            .set_source(e)
+                    })?
+                    .file_status;
+                let status_meta: ObjectMetadata = file_status.try_into()?;
+
+                // is ok to unwrap here
+                // all metadata field of status meta is present and checked by `TryFrom`
+                meta.set_last_modified(status_meta.last_modified().unwrap())
+                    .set_content_length(status_meta.content_length());
+                Ok(RpStat::new(meta))
+            }
+            _ => Err(blocking_parse_error(resp)?),
+        }
+    }
+
+    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
+        // if the path ends with '/', it will be treated as a directory
+        // otherwise, it will be treated as a file
+        let path = if args.mode().is_file() && path.ends_with('/') {
+            path.trim_end_matches('/').to_owned()
+        } else if args.mode().is_dir() && !path.ends_with('/') {
+            path.to_owned() + "/"
+        } else {
+            path.to_owned()
+        };
+
+        let req = self.blocking_create_or_write_object_request(&path, None, None, Body::Empty)?;
+        let resp = self.client.send(req)?;
+
+        let status = resp.status();
+
+        // WebHDFS's has a two-step create/append to prevent clients to send out
+        // data before creating it.
+        // According to the redirect policy of `reqwest` HTTP Client we are using,
+        // the redirection should be done automatically.
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                if !path.ends_with('/') {
+                    // create a file, body contains no useful message
+                    resp.into_body().consume()?;
+                    return Ok(RpCreate::default());
+                }
+                let (parts, body) = blocking_resp_to_str(resp)?;
+                self.consume_success_mkdir(&path, parts, &body)
+            }
+            _ => Err(blocking_parse_error(resp)?),
+        }
     }
 
     /// Create a file or directory
@@ -517,7 +681,17 @@ impl Accessor for Backend {
         // According to the redirect policy of `reqwest` HTTP Client we are using,
         // the redirection should be done automatically.
         match status {
-            StatusCode::CREATED | StatusCode::OK => self.consume_success_create(&path, resp).await,
+            StatusCode::CREATED | StatusCode::OK => {
+                if !path.ends_with('/') {
+                    // create file's http resp could be ignored
+                    resp.into_body().consume().await?;
+                    return Ok(RpCreate::default());
+                }
+                let (parts, body) = resp.into_parts();
+                let bs = body.bytes().await?;
+                let s = String::from_utf8_lossy(&bs);
+                self.consume_success_mkdir(&path, parts, &s)
+            }
             _ => Err(parse_error(resp).await?),
         }
     }
@@ -575,6 +749,7 @@ impl Accessor for Backend {
             StatusCode::OK => {
                 let mut meta = parse_into_object_metadata(path, resp.headers())?;
                 let body_bs = resp.into_body().bytes().await?;
+
                 let file_status = serde_json::from_reader::<_, FileStatusWrapper>(body_bs.reader())
                     .map_err(|e| {
                         Error::new(ErrorKind::Unexpected, "cannot parse returned json")
@@ -582,19 +757,12 @@ impl Accessor for Backend {
                             .set_source(e)
                     })?
                     .file_status;
+                let status_meta: ObjectMetadata = file_status.try_into()?;
 
-                let last_modi = file_status.modification_time;
-                if last_modi != -1 {
-                    let till_now = time::Duration::milliseconds(last_modi);
-                    let last_modified = time::OffsetDateTime::UNIX_EPOCH
-                        .checked_add(till_now)
-                        .ok_or(Error::new(
-                            ErrorKind::Unexpected,
-                            "last modification overflowed!",
-                        ))?;
-                    meta.set_last_modified(last_modified);
-                }
-                meta.set_content_length(file_status.length);
+                // is ok to unwrap here
+                // all metadata field of status meta is present and checked by `TryFrom`
+                meta.set_last_modified(status_meta.last_modified().unwrap())
+                    .set_content_length(status_meta.content_length());
                 Ok(RpStat::new(meta))
             }
 
@@ -605,19 +773,9 @@ impl Accessor for Backend {
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
         let resp = self.delete_object(path).await?;
         match resp.status() {
-            StatusCode::OK => self.consume_success_delete(resp).await,
-            StatusCode::TEMPORARY_REDIRECT => {
-                debug!("got 307 redirect, following...");
-                let req = self
-                    .put_along_redirect(resp, None, None, AsyncBody::Empty)
-                    .await?;
-                let resp = self.client.send_async(req).await?;
-
-                if resp.status() == StatusCode::OK {
-                    self.consume_success_delete(resp).await
-                } else {
-                    Err(parse_error(resp).await?)
-                }
+            StatusCode::OK => {
+                resp.into_body().consume().await?;
+                Ok(RpDelete::default())
             }
             _ => Err(parse_error(resp).await?),
         }

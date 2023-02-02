@@ -16,6 +16,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
+use crate::raw::Accessor;
 use crate::raw::AccessorBuilder;
 use crate::services;
 use crate::Error;
@@ -92,6 +93,10 @@ pub enum Scheme {
     /// - Custom must not overwrite any existing services name.
     /// - Custom must be lowed cases.
     Custom(&'static str),
+}
+
+enum SchemedService<A: Accessor> {
+    Azblob(A),
 }
 
 impl Scheme {

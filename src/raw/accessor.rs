@@ -587,3 +587,6 @@ flags! {
         ReadIsStreamable,
     }
 }
+
+#[async_trait]
+impl Accessor for () {}

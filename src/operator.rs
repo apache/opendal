@@ -154,36 +154,6 @@ impl Operator {
         Self::from_iter(scheme, envs)
     }
 
-    /// Create a new layer.
-    ///
-    /// # Examples
-    ///
-    /// This examples needs feature `retry` enabled.
-    ///
-    /// ```no_build
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
-    /// use opendal::Operator;
-    /// use opendal::Layer;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let accessor = fs::Backend::build().finish().await?;
-    /// let op = Operator::new(accessor).layer(new_layer);
-    /// // All operations will go through the new_layer
-    /// let _ = op.object("test_file").read();
-    /// # Ok(())
-    /// # }
-    /// ```
-    // #[must_use]
-    // pub fn layer(self, layer: impl Layer) -> Self {
-    //     Operator {
-    //         accessor: layer.layer(self.accessor.clone()),
-    //     }
-    // }
-
     /// Get inner accessor.
     ///
     /// This function should only be used by developers to implement layers.
@@ -268,6 +238,30 @@ impl<A: Accessor> OperatorBuilder<A> {
         })
     }
 
+    /// Create a new layer.
+    ///
+    /// # Examples
+    ///
+    /// This examples needs feature `retry` enabled.
+    ///
+    /// ```no_build
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// # use opendal::services::fs;
+    /// # use opendal::services::fs::Builder;
+    /// use opendal::Operator;
+    /// use opendal::Layer;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let accessor = fs::Backend::build().finish().await?;
+    /// let op = Operator::new(accessor).layer(new_layer);
+    /// // All operations will go through the new_layer
+    /// let _ = op.object("test_file").read();
+    /// # Ok(())
+    /// # }
+    /// ```
+    // #[must_use]
     pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
         OperatorBuilder {
             accessor: layer.layer(self.accessor),

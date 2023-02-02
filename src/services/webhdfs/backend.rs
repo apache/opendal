@@ -324,10 +324,10 @@ impl Backend {
 
         match (offset, size) {
             (Some(offset), Some(size)) => {
-                url = format!("{}&offset={}&length={}", url, offset, size);
+                url = format!("{url}&offset={offset}&length={size}");
             }
             (Some(offset), None) => {
-                url = format!("{}&offset={}", url, offset);
+                url = format!("{url}&offset={offset}");
             }
             (None, None) => {
                 // read all, do nothing
@@ -546,16 +546,16 @@ impl Backend {
             Error::new(ErrorKind::Unexpected, "cannot parse mkdir response")
                 .set_temporary()
                 .with_context("service", Scheme::WebHdfs)
-                .with_context("response", format!("{:?}", parts))
+                .with_context("response", format!("{parts:?}"))
                 .set_source(e)
         })?;
 
         if mkdir_rsp.boolean {
-            return Ok(RpCreate::default());
+            Ok(RpCreate::default())
         } else {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                &format!("mkdir failed: {}", path),
+                &format!("mkdir failed: {path}"),
             ));
         }
     }

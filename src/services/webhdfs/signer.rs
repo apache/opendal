@@ -49,13 +49,13 @@ impl Signer {
     pub fn sign_str(&self) -> String {
         match self {
             Self::Token(token) => {
-                format!("delegation={}", token)
+                format!("delegation={token}")
             }
             Self::User(username, doas) => {
                 if !doas.is_empty() {
-                    format!("user.name={}&doas={}", username, doas)
+                    format!("user.name={username}&doas={doas}")
                 } else {
-                    format!("user.name={}", username)
+                    format!("user.name={username}")
                 }
             }
         }

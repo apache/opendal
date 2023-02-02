@@ -64,7 +64,7 @@ pub(super) fn blocking_resp_to_str(resp: Response<Body>) -> Result<(Parts, Strin
             &format!("got status {} and unparsable body", parts.status.as_str()),
         )
         .with_context("service", Scheme::WebHdfs)
-        .with_context("response", format!("{:?}", parts))
+        .with_context("response", format!("{parts:?}"))
         .set_temporary()
         .set_source(e)
     })?;
@@ -90,7 +90,7 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         Err(_) => body.to_owned(),
     };
 
-    let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
+    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
 
     if retryable {
         err = err.set_temporary();

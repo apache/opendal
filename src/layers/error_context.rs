@@ -46,9 +46,14 @@ impl<A: Accessor> Debug for ErrorContextAccessor<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> Accessor for ErrorContextAccessor<A> {
+impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
+    type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
 
     fn metadata(&self) -> AccessorMetadata {
         self.meta.clone()

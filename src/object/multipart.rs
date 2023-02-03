@@ -50,7 +50,7 @@ impl ObjectMultipart {
 
     /// Fetch the operator that used by this object.
     pub fn operator(&self) -> Operator {
-        todo!()
+        self.acc.clone().into()
     }
 
     /// Write a new [`ObjectPart`] with specified part number.

@@ -250,7 +250,11 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/hello"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("Hello, World!"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "13")
+                    .set_body_string("Hello, World!"),
+            )
             .mount(&mock_server)
             .await;
 

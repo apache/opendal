@@ -69,35 +69,36 @@ impl Operator {
     /// ```
     #[allow(clippy::new_ret_no_self)]
     pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<impl Accessor> {
-        OperatorBuilder::new(ErrorContextLayer.layer(acc))
+        OperatorBuilder::new(acc)
     }
 
     /// Create a new operator
-    pub fn create<AB: AccessorBuilder>(ab: AB) -> Result<OperatorBuilder<AB::Accessor>> {
-        OperatorBuilder::create(ab)
+    pub fn create<AB: AccessorBuilder>(mut ab: AB) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = ab.build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Create a new operator from env.
     pub fn from_map<AB: AccessorBuilder>(
         map: HashMap<String, String>,
-    ) -> Result<OperatorBuilder<AB::Accessor>> {
-        let builder = AB::from_map(map);
-        OperatorBuilder::create(builder)
+    ) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = AB::from_map(map).build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Create a new operator from iter.
     #[allow(clippy::should_implement_trait)]
     pub fn from_iter<AB: AccessorBuilder>(
         iter: impl Iterator<Item = (String, String)>,
-    ) -> Result<OperatorBuilder<AB::Accessor>> {
-        let builder = AB::from_iter(iter);
-        OperatorBuilder::create(builder)
+    ) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = AB::from_iter(iter).build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Create a new operator from env.
-    pub fn from_env<AB: AccessorBuilder>() -> Result<OperatorBuilder<AB::Accessor>> {
-        let builder = AB::from_env();
-        OperatorBuilder::create(builder)
+    pub fn from_env<AB: AccessorBuilder>() -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = AB::from_env().build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Get inner accessor.
@@ -184,15 +185,10 @@ pub struct OperatorBuilder<A: Accessor> {
 impl<A: Accessor> OperatorBuilder<A> {
     /// Create a new operator builder.
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(accessor: A) -> Self {
-        // TODO: apply error wrapper here.
-        Self { accessor }
-    }
-
-    /// Create a new operator builder.
-    pub fn create<AB: AccessorBuilder<Accessor = A>>(mut ab: AB) -> Result<Self> {
-        let acc = ab.build()?;
-        Ok(Self::new(acc))
+    pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
+        OperatorBuilder {
+            accessor: ErrorContextLayer.layer(accessor),
+        }
     }
 
     /// Create a new layer.

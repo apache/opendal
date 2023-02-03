@@ -21,28 +21,32 @@ use futures::TryFutureExt;
 use crate::raw::*;
 use crate::*;
 
+/// ErrorContextLayer will add error context into all layers.
+pub struct ErrorContextLayer;
+
+impl<A: Accessor> Layer<A> for ErrorContextLayer {
+    type LayeredAccessor = ErrorContextAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        let meta = inner.metadata();
+        ErrorContextAccessor { meta, inner }
+    }
+}
+
 /// Provide error context wrapper for backend.
-pub struct ErrorContextWrapper<A: Accessor> {
+pub struct ErrorContextAccessor<A: Accessor> {
     meta: AccessorMetadata,
     inner: A,
 }
 
-impl<A: Accessor> Debug for ErrorContextWrapper<A> {
+impl<A: Accessor> Debug for ErrorContextAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> ErrorContextWrapper<A> {
-    /// Create a new error context wrapper
-    pub fn new(inner: A) -> Self {
-        let meta = inner.metadata();
-        Self { meta, inner }
-    }
-}
-
 #[async_trait]
-impl<A: Accessor> Accessor for ErrorContextWrapper<A> {
+impl<A: Accessor> Accessor for ErrorContextAccessor<A> {
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
 

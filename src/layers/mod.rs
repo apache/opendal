@@ -38,3 +38,9 @@ pub use subdir::SubdirLayer;
 mod tracing;
 #[cfg(feature = "layers-tracing")]
 pub use self::tracing::TracingLayer;
+
+mod type_eraser;
+pub(crate) use type_eraser::TypeEraseLayer;
+
+mod error_context;
+pub(crate) use error_context::ErrorContextLayer;

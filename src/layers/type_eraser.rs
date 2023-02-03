@@ -21,19 +21,34 @@ use async_trait::async_trait;
 use crate::raw::*;
 use crate::*;
 
+/// TypeEraseLayer will erase the types on internal accesoor.
+pub struct TypeEraseLayer;
+
+impl<A: Accessor> Layer<A> for TypeEraseLayer {
+    type LayeredAccessor = TypeEraseAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        let meta = inner.metadata();
+        TypeEraseAccessor {
+            meta,
+            inner: Arc::new(inner),
+        }
+    }
+}
+
 /// Provide reader wrapper for backend.
-pub struct TypeEraser<A: Accessor> {
+pub struct TypeEraseAccessor<A: Accessor> {
     meta: AccessorMetadata,
     inner: Arc<A>,
 }
 
-impl<A: Accessor> Debug for TypeEraser<A> {
+impl<A: Accessor> Debug for TypeEraseAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<A: Accessor> TypeEraser<A> {
+impl<A: Accessor> TypeEraseAccessor<A> {
     async fn erase_reader(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
         let (seekable, streamable) = (
             self.meta.hints().contains(AccessorHint::ReadIsSeekable),
@@ -114,9 +129,14 @@ impl<A: Accessor> TypeEraser<A> {
 }
 
 #[async_trait]
-impl<A: Accessor> Accessor for TypeEraser<A> {
+impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
+    type Inner = A;
     type Reader = output::Reader;
     type BlockingReader = output::BlockingReader;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.erase_reader(path, args).await

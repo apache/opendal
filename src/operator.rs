@@ -13,10 +13,13 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use futures::StreamExt;
 use futures::TryStreamExt;
 
+use crate::layers::ErrorContextLayer;
+use crate::layers::TypeEraseLayer;
 use crate::object::ObjectLister;
 use crate::raw::*;
 use crate::*;
@@ -65,8 +68,8 @@ impl Operator {
     /// }
     /// ```
     #[allow(clippy::new_ret_no_self)]
-    pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<A> {
-        OperatorBuilder::new(acc)
+    pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<impl Accessor> {
+        OperatorBuilder::new(ErrorContextLayer.layer(acc))
     }
 
     /// Create a new operator
@@ -224,7 +227,11 @@ impl<A: Accessor> OperatorBuilder<A> {
 
     /// Finish the building to construct an Operator.
     pub fn finish(self) -> Operator {
-        todo!()
+        let ob = self.layer(TypeEraseLayer);
+
+        Operator {
+            accessor: Arc::new(ob.accessor),
+        }
     }
 }
 

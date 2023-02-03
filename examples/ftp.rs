@@ -52,7 +52,7 @@ Available Environment Values:
     builder.password(&env::var("OPENDAL_FTP_PASSWORD").unwrap_or_else(|_| "".to_string()));
 
     // Use `Operator` normally.
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::create(builder)?.finish();
 
     let path = uuid::Uuid::new_v4().to_string();
 

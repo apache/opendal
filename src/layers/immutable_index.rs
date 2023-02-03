@@ -241,7 +241,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(http::Builder::from_iter(
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -275,7 +275,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(http::Builder::from_iter(
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -316,7 +316,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(http::Builder::from_iter(
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -381,7 +381,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::new(http::Builder::from_iter(
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())

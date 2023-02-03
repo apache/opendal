@@ -72,7 +72,7 @@ Available Environment Values:
     );
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::create(builder)?.finish();
 
     let path = uuid::Uuid::new_v4().to_string();
 

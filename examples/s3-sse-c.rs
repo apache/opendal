@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     // Enable SSE-C
     builder.server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::create(builder)?.finish();
     info!("operator: {:?}", op);
 
     // Writing your testing code here.

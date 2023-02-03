@@ -46,7 +46,7 @@ Available Environment Values:
     builder.root(&env::var("OPENDAL_FS_ROOT").unwrap_or_else(|_| "/tmp".to_string()));
 
     // Use `Operator` normally.
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::create(builder)?.finish();
 
     let path = uuid::Uuid::new_v4().to_string();
 

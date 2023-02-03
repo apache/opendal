@@ -257,7 +257,7 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder)?.finish();
+        let op = Operator::create(builder)?.finish();
 
         let bs = op.object("hello").read().await?;
 
@@ -279,7 +279,7 @@ mod tests {
         let mut builder = Builder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder)?.finish();
+        let op = Operator::create(builder)?.finish();
 
         let bs = op.object("hello").metadata().await?;
 

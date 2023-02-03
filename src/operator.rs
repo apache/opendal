@@ -64,8 +64,13 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new<AB: AccessorBuilder>(ab: AB) -> Result<OperatorBuilder<AB::Accessor>> {
-        Ok(OperatorBuilder::new(ab)?)
+    pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<A> {
+        OperatorBuilder::new(acc)
+    }
+
+    /// Create a new operator
+    pub fn create<AB: AccessorBuilder>(ab: AB) -> Result<OperatorBuilder<AB::Accessor>> {
+        OperatorBuilder::create(ab)
     }
 
     /// Create a new operator from env.
@@ -73,7 +78,7 @@ impl Operator {
         map: HashMap<String, String>,
     ) -> Result<OperatorBuilder<AB::Accessor>> {
         let builder = AB::from_map(map);
-        Ok(OperatorBuilder::new(builder)?)
+        OperatorBuilder::create(builder)
     }
 
     /// Create a new operator from iter.
@@ -81,13 +86,13 @@ impl Operator {
         iter: impl Iterator<Item = (String, String)>,
     ) -> Result<OperatorBuilder<AB::Accessor>> {
         let builder = AB::from_iter(iter);
-        Ok(OperatorBuilder::new(builder)?)
+        OperatorBuilder::create(builder)
     }
 
     /// Create a new operator from env.
     pub fn from_env<AB: AccessorBuilder>() -> Result<OperatorBuilder<AB::Accessor>> {
         let builder = AB::from_env();
-        Ok(OperatorBuilder::new(builder)?)
+        OperatorBuilder::create(builder)
     }
 
     /// Get inner accessor.
@@ -173,11 +178,15 @@ pub struct OperatorBuilder<A: Accessor> {
 
 impl<A: Accessor> OperatorBuilder<A> {
     /// Create a new operator builder.
-    pub fn new<AB: AccessorBuilder<Accessor = A>>(mut ab: AB) -> Result<Self> {
-        Ok(Self {
-            // TODO: apply error wrapper here.
-            accessor: ab.build()?,
-        })
+    pub fn new(accessor: A) -> Self {
+        // TODO: apply error wrapper here.
+        Self { accessor }
+    }
+
+    /// Create a new operator builder.
+    pub fn create<AB: AccessorBuilder<Accessor = A>>(mut ab: AB) -> Result<Self> {
+        let acc = ab.build()?;
+        Ok(Self::new(acc))
     }
 
     /// Create a new layer.

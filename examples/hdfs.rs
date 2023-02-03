@@ -51,7 +51,7 @@ Available Environment Values:
         .name_node(&env::var("OPENDAL_HDFS_NAME_NODE").unwrap_or_else(|_| "default".to_string()));
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::create(builder)?.finish();
 
     let path = uuid::Uuid::new_v4().to_string();
 

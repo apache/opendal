@@ -237,7 +237,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_read() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::create(services::Memory::default())
+            .unwrap()
+            .finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
@@ -257,7 +259,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_seek() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::create(services::Memory::default())
+            .unwrap()
+            .finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();

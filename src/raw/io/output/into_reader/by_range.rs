@@ -312,6 +312,15 @@ mod tests {
             Pin::new(&mut self.inner).poll_read(cx, buf)
         }
 
+        fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<io::Result<u64>> {
+            let (_, _) = (cx, pos);
+
+            Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "output reader doesn't support seeking",
+            )))
+        }
+
         fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
             let mut bs = vec![0; 4 * 1024];
             let n = ready!(Pin::new(&mut self.inner).poll_read(cx, &mut bs)?);

@@ -238,6 +238,15 @@ impl output::Read for IncomingAsyncBody {
         Poll::Ready(Ok(amt))
     }
 
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+        let (_, _) = (cx, pos);
+
+        Poll::Ready(Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "output reader doesn't support seeking",
+        )))
+    }
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
         if let Some(bs) = self.chunk.take() {
             return Poll::Ready(Some(Ok(bs)));

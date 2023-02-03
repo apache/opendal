@@ -40,15 +40,30 @@ pub type Reader = Box<dyn Read>;
 /// is optional. We use `Read` to make users life easier.
 pub trait Read: Unpin + Send + Sync {
     /// Read bytes asynchronously.
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>>;
+
+    /// Seek asynchronously.
+    ///
+    /// Returns `Unsupported` error if underlying reader doesn't support seek.
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>>;
+
+    /// Stream [`Bytes`] from underlying reader.
+    ///
+    /// Returns `Unsupported` error if underlying reader doesn't support stream.
+    ///
+    /// This API exists for avoiding bytes copying inside async runtime.
+    /// Users can poll bytes from underlying reader and decide when to
+    /// read/consume them.
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>>;
+}
+
+impl Read for () {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let (_, _) = (cx, buf);
 
         unimplemented!("poll_read is required to be implemented for output::Read")
     }
 
-    /// Seek asynchronously.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support seek.
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         let (_, _) = (cx, pos);
 
@@ -58,13 +73,6 @@ pub trait Read: Unpin + Send + Sync {
         )))
     }
 
-    /// Stream [`Bytes`] from underlying reader.
-    ///
-    /// Returns `Unsupported` error if underlying reader doesn't support stream.
-    ///
-    /// This API exists for avoiding bytes copying inside async runtime.
-    /// Users can poll bytes from underlying reader and decide when to
-    /// read/consume them.
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         let _ = cx;
 
@@ -74,8 +82,6 @@ pub trait Read: Unpin + Send + Sync {
         ))))
     }
 }
-
-impl Read for () {}
 
 /// `Box<dyn Read>` won't implement `Read` automanticly. To make Reader
 /// work as expected, we must add this impl.

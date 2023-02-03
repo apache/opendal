@@ -15,6 +15,7 @@
 use std::env;
 use std::io::Result;
 
+use opendal::services;
 use opendal::Operator;
 use opendal::Scheme;
 
@@ -42,20 +43,19 @@ pub async fn get_oay_operator() -> Result<Operator> {
     });
 
     let op = match scheme {
-        Scheme::Azblob => Operator::from_iter::<opendal::services::azblob::Builder>(envs)?.finish(),
-        Scheme::Azdfs => todo!(),
-        Scheme::Fs => todo!(),
-        Scheme::Gcs => todo!(),
-        Scheme::Ghac => todo!(),
-        Scheme::Http => todo!(),
-        Scheme::Ipmfs => todo!(),
-        Scheme::Memory => todo!(),
-        Scheme::Obs => todo!(),
-        Scheme::Oss => todo!(),
-        Scheme::S3 => todo!(),
-        Scheme::Webdav => todo!(),
-        Scheme::Custom(_) => todo!(),
-        _ => todo!(),
+        Scheme::Azblob => Operator::from_iter::<services::Azblob>(envs)?.finish(),
+        Scheme::Azdfs => Operator::from_iter::<services::Azdfs>(envs)?.finish(),
+        Scheme::Fs => Operator::from_iter::<services::Fs>(envs)?.finish(),
+        Scheme::Gcs => Operator::from_iter::<services::Gcs>(envs)?.finish(),
+        Scheme::Ghac => Operator::from_iter::<services::Ghac>(envs)?.finish(),
+        Scheme::Http => Operator::from_iter::<services::Http>(envs)?.finish(),
+        Scheme::Ipmfs => Operator::from_iter::<services::Ipmfs>(envs)?.finish(),
+        Scheme::Memory => Operator::from_iter::<services::Memory>(envs)?.finish(),
+        Scheme::Obs => Operator::from_iter::<services::Obs>(envs)?.finish(),
+        Scheme::Oss => Operator::from_iter::<services::Oss>(envs)?.finish(),
+        Scheme::S3 => Operator::from_iter::<services::S3>(envs)?.finish(),
+        Scheme::Webdav => Operator::from_iter::<services::Webdav>(envs)?.finish(),
+        _ => unimplemented!("not supported services"),
     };
 
     Ok(op)

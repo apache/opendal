@@ -34,15 +34,22 @@ pub type BlockingReader = Box<dyn BlockingRead>;
 /// is optional. We use `Read` to make users life easier.
 pub trait BlockingRead: Send + Sync + 'static {
     /// Read synchronously.
-    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
+
+    /// Seek synchronously.
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64>;
+
+    /// Iterating [`Bytes`] from underlying reader.
+    fn next(&mut self) -> Option<Result<Bytes>>;
+}
+
+impl BlockingRead for () {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let _ = buf;
 
         unimplemented!("read is required to be implemented for output::BlockingRead")
     }
 
-    /// Seek synchronously.
-    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let _ = pos;
 
@@ -52,8 +59,6 @@ pub trait BlockingRead: Send + Sync + 'static {
         ))
     }
 
-    /// Iterating [`Bytes`] from underlying reader.
-    #[inline]
     fn next(&mut self) -> Option<Result<Bytes>> {
         Some(Err(Error::new(
             ErrorKind::Unsupported,
@@ -61,8 +66,6 @@ pub trait BlockingRead: Send + Sync + 'static {
         )))
     }
 }
-
-impl BlockingRead for () {}
 
 /// `Box<dyn BlockingRead>` won't implement `BlockingRead` automanticly.
 /// To make BlockingReader work as expected, we must add this impl.

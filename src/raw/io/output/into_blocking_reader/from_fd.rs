@@ -20,6 +20,8 @@ use std::io::Result;
 use std::io::Seek;
 use std::io::SeekFrom;
 
+use bytes::Bytes;
+
 use crate::raw::*;
 
 /// Convert given fd into [`output::BlockingRead`].
@@ -97,5 +99,12 @@ where
                 "invalid seek to a negative or overflowing position",
             )),
         }
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support iterating",
+        )))
     }
 }

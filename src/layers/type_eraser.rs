@@ -65,13 +65,8 @@ impl<A: Accessor> TypeEraseAccessor<A> {
             }
             (false, true) => {
                match (range.offset(), range.size()) {
-                    (Some(offset), Some(size)) => {
-                       let r= output::into_reader::by_range(self.inner.clone(), path, r, offset, size);
-
-                         Ok((rp, Box::new(r)))
-                    }
                     (Some(offset), _) => {
-                        let r = output::into_reader::by_range(self.inner.clone(), path,r, offset, content_length - offset);
+                       let r= output::into_reader::by_range(self.inner.clone(), path, r, offset, content_length);
 
                          Ok((rp, Box::new(r)))
                     }

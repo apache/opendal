@@ -115,14 +115,10 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Fs)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op.metadata();
     /// # Ok(())
     /// # }
@@ -151,14 +147,10 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Fs)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// op.check().await?;
     /// # Ok(())
     /// # }

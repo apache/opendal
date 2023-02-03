@@ -87,13 +87,10 @@ impl Object {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let id = op.object("test").id();
     ///
     ///     Ok(())
@@ -113,13 +110,10 @@ impl Object {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let path = op.object("test").path();
     ///
     ///     Ok(())
@@ -141,13 +135,10 @@ impl Object {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let name = op.object("test").name();
     ///
     ///     Ok(())
@@ -210,14 +201,11 @@ impl Object {
     /// ## Create an empty file
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// let _ = o.create().await?;
     /// # Ok(())
@@ -227,14 +215,11 @@ impl Object {
     /// ## Create a dir
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let _ = o.create().await?;
     /// # Ok(())
@@ -269,13 +254,10 @@ impl Object {
     /// ## Create an empty file
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// let _ = o.blocking_create()?;
     /// # Ok(())
@@ -285,13 +267,10 @@ impl Object {
     /// ## Create a dir
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let _ = o.blocking_create()?;
     /// # Ok(())
@@ -317,14 +296,11 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.read().await?;
@@ -343,13 +319,10 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// #
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// # o.blocking_write(vec![0; 4096])?;
     /// let bs = o.blocking_read()?;
@@ -372,14 +345,11 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.range_read(1024..2048).await?;
@@ -440,13 +410,11 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// # o.blocking_write(vec![0; 4096])?;
     /// let bs = o.blocking_range_read(1024..2048)?;
@@ -485,17 +453,14 @@ impl Object {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use opendal::services::memory;
+    /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
-    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.reader().await?;
     /// # Ok(())
     /// # }
@@ -509,15 +474,11 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
-    /// # o.blocking_write(vec![0; 4096])?;
     /// let r = o.blocking_reader()?;
     /// # Ok(())
     /// # }
@@ -534,17 +495,13 @@ impl Object {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use opendal::services::memory;
+    /// ```no_run
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
-    /// # o.write(vec![0; 4096]).await?;
     /// let r = o.range_reader(1024..2048).await?;
     /// # Ok(())
     /// # }
@@ -569,15 +526,11 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
-    /// # o.blocking_write(vec![0; 4096])?;
     /// let r = o.blocking_range_reader(1024..2048)?;
     /// # Ok(())
     /// # }
@@ -611,14 +564,11 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file.gz");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.decompress_read().await?.expect("must read succeed");
@@ -646,14 +596,11 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file.gz");
     /// # o.write(vec![0; 4096]).await?;
     /// let r = o.decompress_reader().await?;
@@ -681,15 +628,12 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # use opendal::raw::CompressAlgorithm;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file.gz");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.decompress_read_with(CompressAlgorithm::Gzip).await?;
@@ -721,15 +665,12 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # use opendal::raw::CompressAlgorithm;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file.gz");
     /// # o.write(vec![0; 4096]).await?;
     /// let r = o.decompress_reader_with(CompressAlgorithm::Gzip).await?;
@@ -755,17 +696,14 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
     /// use bytes::Bytes;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// let _ = o.write(vec![0; 4096]).await?;
     /// # Ok(())
@@ -786,18 +724,15 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::s3;
     /// # use opendal::OpWrite;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
     /// use bytes::Bytes;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::S3)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// let bs = b"hello, world!".to_vec();
     /// let args = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
@@ -837,16 +772,13 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
     /// use bytes::Bytes;
     ///
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// let _ = o.blocking_write(vec![0; 4096])?;
     /// # Ok(())
@@ -867,7 +799,6 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::s3;
     /// # use opendal::OpWrite;
     /// # use std::io::Result;
     /// # use opendal::Operator;
@@ -876,8 +807,7 @@ impl Object {
     /// # use opendal::Scheme;
     /// use bytes::Bytes;
     ///
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::S3)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("hello.txt");
     /// let bs = b"hello, world!".to_vec();
     /// let ow = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
@@ -916,18 +846,15 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
     /// use bytes::Bytes;
     /// use futures::io::Cursor;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// let r = Cursor::new(vec![0; 4096]);
     /// let _ = o.write_from(4096, r).await?;
@@ -960,18 +887,15 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use std::io::Result;
     /// # use opendal::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
     /// use std::io::Cursor;
     ///
     /// use bytes::Bytes;
     ///
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/file");
     /// let r = Cursor::new(vec![0; 4096]);
     /// let _ = o.blocking_write_from(4096, r)?;
@@ -1007,14 +931,11 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// op.object("test").delete().await?;
     /// # Ok(())
     /// # }
@@ -1039,13 +960,10 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # fn test(op: Operator) -> Result<()> {
     /// op.object("test").blocking_delete()?;
     /// # Ok(())
     /// # }
@@ -1070,16 +988,13 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::ObjectMode;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.list().await?;
     /// // ObjectStreamer implements `futures::Stream`
@@ -1122,15 +1037,11 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
-    /// # use anyhow::Result;
+    /// # use opendal::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
     /// # use opendal::ObjectMode;
-    /// # use opendal::Scheme;
-    /// # fn main() -> Result<()> {
-    /// use anyhow::anyhow;
-    /// let op = Operator::from_env(Scheme::Memory)?;
+    /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.blocking_list()?;
     /// while let Some(de) = ds.next() {
@@ -1240,16 +1151,13 @@ impl Object {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::services::memory;
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// use opendal::ErrorKind;
     /// #
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.object("test").metadata().await {
     ///     if e.kind() == ErrorKind::ObjectNotFound {
     ///         println!("object not exist")
@@ -1353,15 +1261,12 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::services::memory;
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// use opendal::ErrorKind;
     /// #
-    /// # fn main() -> Result<()> {
-    /// # let op = Operator::from_env(Scheme::Memory)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.object("test").blocking_metadata() {
     ///     if e.kind() == ErrorKind::ObjectNotFound {
     ///         println!("object not exist")
@@ -1397,13 +1302,10 @@ impl Object {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let _ = op.object("test").is_exist().await?;
     ///
     ///     Ok(())
@@ -1426,11 +1328,8 @@ impl Object {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
-    /// fn main() -> Result<()> {
-    ///     let op = Operator::from_env(Scheme::Memory)?;
+    /// fn test(op: Operator) -> Result<()> {
     ///     let _ = op.object("test").blocking_is_exist()?;
     ///
     ///     Ok(())
@@ -1453,14 +1352,11 @@ impl Object {
     /// ```no_run
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
     /// use time::Duration;
-    /// # use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    /// #    let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op.object("test").presign_stat(Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
@@ -1484,14 +1380,11 @@ impl Object {
     /// ```no_run
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
     /// use time::Duration;
-    /// # use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    /// #    let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op.object("test").presign_read(Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
@@ -1515,14 +1408,11 @@ impl Object {
     /// ```no_run
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::Operator;
     /// use time::Duration;
-    /// use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    /// #    let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op.object("test").presign_write(Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
@@ -1545,15 +1435,12 @@ impl Object {
     /// ```no_run
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::services::memory;
     /// use opendal::OpWrite;
     /// use opendal::Operator;
     /// use time::Duration;
-    /// use opendal::Scheme;
     ///
     /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    /// #    let op = Operator::from_env(Scheme::Memory)?;
+    /// async fn test(op: Operator) -> Result<()> {
     ///     let args = OpWrite::new(0).with_content_type("text/csv");
     ///     let signed_req = op.object("test").presign_write_with(args, Duration::hours(1))?;
     ///     let req = http::Request::builder()

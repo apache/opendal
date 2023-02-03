@@ -24,7 +24,6 @@ use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
 use opendal::raw::AccessorBuilder;
 use opendal::Operator;
-
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;

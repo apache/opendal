@@ -39,7 +39,7 @@
 //!     let mut builder = redis::Builder::default();
 //!
 //!     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
-//!     let op: Operator = Operator::new(builder.build());
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!     let _: Object = op.object("test_file");
 //!     Ok(())
 //! }

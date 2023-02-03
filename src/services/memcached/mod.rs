@@ -36,9 +36,9 @@
 //! async fn main() -> Result<()> {
 //!     let mut builder = memcached::Builder::default();
 //!
-//!     builder.endpoint("tcp://127.0.0.1:11211")
+//!     builder.endpoint("tcp://127.0.0.1:11211");
 //!
-//!     let op: Operator = Operator::new(builder.build());
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!     let _: Object = op.object("test_file");
 //!     Ok(())
 //! }

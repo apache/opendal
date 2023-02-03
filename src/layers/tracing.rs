@@ -36,11 +36,11 @@ use crate::*;
 /// use anyhow::Result;
 /// use opendal::layers::TracingLayer;
 /// use opendal::Operator;
-/// use opendal::Scheme;
+/// use opendal::services;
 ///
-/// let _ = Operator::from_env(Scheme::Fs)
+/// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(TracingLayer);
+///     .layer(TracingLayer).finish();
 /// ```
 pub struct TracingLayer;
 

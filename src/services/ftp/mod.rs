@@ -40,7 +40,7 @@
 //!
 //!     builder.endpoint("127.0.0.1");
 //!
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!     let _obj: Object = op.object("test_file");
 //!     Ok(())
 //! }

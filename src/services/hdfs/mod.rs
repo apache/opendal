@@ -67,7 +67,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::hdfs;
-//! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
@@ -83,7 +82,7 @@
 //!     builder.root("/tmp");
 //!
 //!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

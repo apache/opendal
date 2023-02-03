@@ -90,11 +90,11 @@ static LABEL_ERROR: &str = "error";
 /// use anyhow::Result;
 /// use opendal::layers::MetricsLayer;
 /// use opendal::Operator;
-/// use opendal::Scheme;
+/// use opendal::services;
 ///
-/// let _ = Operator::from_env(Scheme::Fs)
+/// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(MetricsLayer);
+///     .layer(MetricsLayer).finish();
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct MetricsLayer;

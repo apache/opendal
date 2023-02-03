@@ -70,7 +70,7 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                          Ok((RpRead::new(0), Box::new(r)))
                     }
                     (Some(offset), _) => {
-                        let r = output::into_reader::by_offset(self.inner.clone(), path, offset);
+                        let r = output::into_reader::by_offset(self.inner.clone(), path,r, offset);
 
                          Ok((RpRead::new(0), Box::new(r)))
                     }
@@ -89,7 +89,7 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                          Ok((RpRead::new(0), Box::new(r)))
                     },
                     (None, None) => {
-                        let r = output::into_reader::by_offset(self.inner.clone(), path, 0);
+                        let r = output::into_reader::by_offset(self.inner.clone(), path, r,0);
 
                          Ok((RpRead::new(0), Box::new(r)))
                     }

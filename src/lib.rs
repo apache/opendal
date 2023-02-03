@@ -53,7 +53,6 @@
 //! | Layers | Description |
 //! | -------- | ----------- |
 //! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
-//! | [CacheLayer][layers::CacheLayer] | Cache supports. |
 //! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
 //! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
 //! | [MetricsLayer][layers::MetricsLayer] | Metrics for every operations. |

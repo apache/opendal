@@ -28,50 +28,50 @@ use crate::Error;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Scheme {
-    /// [azblob][services::azblob]: Azure Storage Blob services.
+    /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
     Azblob,
-    /// [azdfs][services::azdfs]: Azure Data Lake Storage Gen2.
+    /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
     Azdfs,
-    /// [fs][services::fs]: POSIX alike file system.
+    /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
-    /// [gcs][services::gcs]: Google Cloud Storage backend.
+    /// [gcs][crate::services::Gcs]: Google Cloud Storage backend.
     Gcs,
-    /// [ghac][services::ghac]: Github Action Cache services.
+    /// [ghac][crate::services::Ghac]: Github Action Cache services.
     Ghac,
-    /// [hdfs][services::hdfs]: Hadoop Distributed File System.
+    /// [hdfs][crate::services::Hdfs]: Hadoop Distributed File System.
     #[cfg(feature = "services-hdfs")]
     Hdfs,
-    /// [http][services::http]: HTTP backend.
+    /// [http][crate::services::Http]: HTTP backend.
     Http,
-    /// [ftp][services::ftp]: FTP backend.
+    /// [ftp][crate::services::Ftp]: FTP backend.
     #[cfg(feature = "services-ftp")]
     Ftp,
-    /// [ipmfs][services::ipfs]: IPFS HTTP Gateway
+    /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
     #[cfg(feature = "services-ipfs")]
     Ipfs,
-    /// [ipmfs][services::ipmfs]: IPFS mutable file system
+    /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
     Ipmfs,
-    /// [memcached][services::memcached]: Memcached service support.
+    /// [memcached][crate::services::Memcached]: Memcached service support.
     #[cfg(feature = "services-memcached")]
     Memcached,
-    /// [memory][services::memory]: In memory backend support.
+    /// [memory][crate::services::Memory]: In memory backend support.
     Memory,
-    /// [moka][services::moka]: moka backend support.
+    /// [moka][crate::services::Moka]: moka backend support.
     #[cfg(feature = "services-moka")]
     Moka,
-    /// [obs][services::obs]: Huawei Cloud OBS services.
+    /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
     Obs,
-    /// [oss][services::oss]: Aliyun Object Storage Services
+    /// [oss][crate::services::Oss]: Aliyun Object Storage Services
     Oss,
-    /// [redis][services::redis]: Redis services
+    /// [redis][crate::services::Redis]: Redis services
     #[cfg(feature = "services-redis")]
     Redis,
-    /// [rocksdb][services::rocksdb]: RocksDB services
+    /// [rocksdb][crate::services::Rocksdb]: RocksDB services
     #[cfg(feature = "services-rocksdb")]
     Rocksdb,
-    /// [s3][services::s3]: AWS S3 alike services.
+    /// [s3][crate::services::S3]: AWS S3 alike services.
     S3,
-    /// [webdav][services::webdav]: WebDAV support.
+    /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///

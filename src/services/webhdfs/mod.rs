@@ -77,9 +77,9 @@
 //!     // if the root exists and is a directory, the builder will continue working
 //!     // if the root exists and is a folder, the builder will fail on building backend
 //!     builder.root("/path/to/dir");
-//!     // set the endpoint of webhdfs namenode
-//!     // default is http://127.0.0.1:50070
-//!     builder.endpoint("http://127.0.0.1:50070");
+//!     // set the endpoint of webhdfs namenode, controled by dfs.namenode.http-address
+//!     // default is http://127.0.0.1:9870
+//!     builder.endpoint("http://127.0.0.1:9870");
 
 //!     // set the delegation_token for builder
 //!     builder.delegation("delegation_token");

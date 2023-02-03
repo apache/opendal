@@ -53,4 +53,3 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           OPENDAL_WEBHDFS_TEST: on
           OPENDAL_WEBHDFS_ROOT: /
-          OPENDAL_WEBHDFS_ENDPOINT: http://${{ env.HDFS_NAMENODE_ADDR }}

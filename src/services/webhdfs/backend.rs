@@ -23,6 +23,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use log::warn;
 use serde::Deserialize;
 
 use super::auth::WebHdfsAuth;
@@ -66,6 +67,8 @@ use crate::OpStat;
 use crate::OpWrite;
 use crate::Result;
 use crate::Scheme;
+
+const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
 type AsyncReq = Request<AsyncBody>;
 type AsyncResp = Response<IncomingAsyncBody>;
@@ -143,18 +146,18 @@ impl Builder {
     }
 
     /// Set the remote address of this backend
-    /// default to `http://127.0.0.1:50070`
+    /// default to `http://127.0.0.1:9870`
     ///
     /// Endpoints should be full uri, e.g.
     ///
-    /// - `https://webhdfs.example.com:50070`
-    /// - `http://192.168.66.88:50070`
+    /// - `https://webhdfs.example.com:9870`
+    /// - `http://192.168.66.88:9870`
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `http://` to it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
-            // trim tailing slash so we can accept `http://127.0.0.1:50070/`
+            // trim tailing slash so we can accept `http://127.0.0.1:9870/`
             self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }
         self
@@ -224,7 +227,7 @@ impl Builder {
 
         let endpoint = match self.endpoint.take() {
             Some(e) => e,
-            None => "http://127.0.0.1:9870".to_string(),
+            None => WEBHDFS_DEFAULT_ENDPOINT.to_string(),
         };
         debug!("backend use endpoint {}", endpoint);
 
@@ -252,33 +255,35 @@ impl Builder {
 
         let client = HttpClient::new()?;
 
-        debug!("backend initialized:{:?}", &self);
         let backend = apply_wrapper(Backend {
-            root,
+            root: root.clone(),
             endpoint,
             auth: auth_str,
             client,
             csrf,
         });
+
+        debug!("checking working directory: {}", root);
         match backend.blocking_stat("/", OpStat::new()) {
             Ok(stat) => {
                 let meta = stat.into_metadata();
                 if !meta.mode().is_dir() {
-                    return Err(Error::new(
-                        ErrorKind::BackendConfigInvalid,
-                        "root is occupied and is not a directory",
-                    )
-                    .with_context("service", Scheme::WebHdfs));
+                    warn!("working directory is occupied!");
+                    return Err(
+                        Error::new(ErrorKind::BackendConfigInvalid, "root is occupied!")
+                            .with_context("service", Scheme::WebHdfs),
+                    );
                 }
             }
             Err(e) => match e.kind() {
                 ErrorKind::ObjectNotFound => {
-                    debug!("root not exist, creating");
+                    debug!("working directory does not exist, creating...");
                     backend.blocking_create("/", OpCreate::new(ObjectMode::DIR))?;
                 }
                 _ => return Err(e),
             },
         }
+        debug!("working directory is ready.");
         Ok(backend)
     }
 }

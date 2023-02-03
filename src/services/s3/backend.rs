@@ -606,16 +606,12 @@ impl AccessorBuilder for Builder {
             .map(|v| builder.server_side_encryption_customer_key(v));
         map.get("server_side_encryption_customer_key_md5")
             .map(|v| builder.server_side_encryption_customer_key_md5(v));
-        map.get("disable_config_load").map(|v| {
-            if v == "on" || v == "true" {
-                builder.disable_config_load();
-            }
-        });
-        map.get("enable_virtual_host_style").map(|v| {
-            if v == "on" || v == "true" {
-                builder.enable_virtual_host_style();
-            }
-        });
+        map.get("disable_config_load")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.disable_config_load());
+        map.get("enable_virtual_host_style")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.enable_virtual_host_style());
 
         builder
     }

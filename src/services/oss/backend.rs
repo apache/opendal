@@ -207,11 +207,9 @@ impl AccessorBuilder for Builder {
         map.get("access_key_id").map(|v| builder.access_key_id(v));
         map.get("access_key_secret")
             .map(|v| builder.access_key_secret(v));
-        map.get("allow_anonymous").map(|v| {
-            if v == "on" || v == "true" {
-                builder.allow_anonymous();
-            }
-        });
+        map.get("allow_anonymous")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.allow_anonymous());
 
         builder
     }

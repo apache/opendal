@@ -43,19 +43,19 @@ impl<A: Accessor> TypeEraser<A> {
         match (seekable, streamable) {
             (true, true) => {
                 let (rp, r) = self.inner.read(path, args).await?;
-                return Ok((rp, Box::new(r)));
+                Ok((rp, Box::new(r)))
             }
             (false, true) => {
                match (args.range().offset(), args.range().size()) {
                     (Some(offset), Some(size)) => {
                        let r= output::into_reader::by_range(self.inner.clone(), path, offset, size);
 
-                        return Ok((RpRead::new(0), Box::new(r)));
+                         Ok((RpRead::new(0), Box::new(r)))
                     }
                     (Some(offset), _) => {
                         let r = output::into_reader::by_offset(self.inner.clone(), path, offset);
 
-                        return Ok((RpRead::new(0), Box::new(r)));
+                         Ok((RpRead::new(0), Box::new(r)))
                     }
                     (None, Some(size)) => {
                         let om = self.inner.stat(path, OpStat::new()).await?.into_metadata();
@@ -67,19 +67,19 @@ impl<A: Accessor> TypeEraser<A> {
                         };
                         let r= output::into_reader::by_range(self.inner.clone(), path, offset, size);
 
-                        return Ok((RpRead::new(0), Box::new(r)));
+                         Ok((RpRead::new(0), Box::new(r)))
                     },
                     (None, None) => {
                         let r = output::into_reader::by_offset(self.inner.clone(), path, 0);
 
-                        return Ok((RpRead::new(0), Box::new(r)));
+                         Ok((RpRead::new(0), Box::new(r)))
                     }
                }
             }
             (true, false) => {
                 let (rp, r) = self.inner.read(path, args).await?;
                 let r = output::into_reader::as_streamable(r, 256 * 1024);
-                return Ok((rp, Box::new(r)));
+                 Ok((rp, Box::new(r)))
             }
             (false, false) => unreachable!("reader is neither seekable nor streamable, please check if service {} implemented correctly", self.meta.scheme()),
         }
@@ -98,19 +98,17 @@ impl<A: Accessor> TypeEraser<A> {
         match (seekable, streamable) {
             (true, true) => {
                 let (rp, r) = self.inner.blocking_read(path, args)?;
-                return Ok((rp, Box::new(r)));
+                Ok((rp, Box::new(r)))
             }
             (true, false) => {
                 let (rp, r) = self.inner.blocking_read(path, args)?;
                 let r = output::into_blocking_reader::as_iterable(r, 256 * 1024);
-                return Ok((rp, Box::new(r)));
+                Ok((rp, Box::new(r)))
             }
-            (false, _) => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "non seekable blocking reader is not supported",
-                ));
-            }
+            (false, _) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "non seekable blocking reader is not supported",
+            )),
         }
     }
 }

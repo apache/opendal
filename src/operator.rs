@@ -64,6 +64,7 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
+    #[allow(clippy::new_ret_no_self)]
     pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<A> {
         OperatorBuilder::new(acc)
     }
@@ -82,6 +83,7 @@ impl Operator {
     }
 
     /// Create a new operator from iter.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_iter<AB: AccessorBuilder>(
         iter: impl Iterator<Item = (String, String)>,
     ) -> Result<OperatorBuilder<AB::Accessor>> {
@@ -178,6 +180,7 @@ pub struct OperatorBuilder<A: Accessor> {
 
 impl<A: Accessor> OperatorBuilder<A> {
     /// Create a new operator builder.
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(accessor: A) -> Self {
         // TODO: apply error wrapper here.
         Self { accessor }

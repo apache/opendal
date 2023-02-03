@@ -377,7 +377,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     );
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.err_level(&err) {
+                    if let Some(lvl) = self.err_level(err) {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
@@ -385,7 +385,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                             self.scheme,
                             Operation::Delete,
                             path,
-                            self.err_status(&err)
+                            self.err_status(err)
                         );
                     }
                 }
@@ -503,7 +503,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     );
                 }
                 Err(err) => {
-                    if let Some(lvl) = self.err_level(&err) {
+                    if let Some(lvl) = self.err_level(err) {
                         log!(
                             target: LOGGING_TARGET,
                             lvl,
@@ -511,7 +511,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                             self.scheme,
                             Operation::CreateMultipart,
                             path,
-                            self.err_status(&err)
+                            self.err_status(err)
                         );
                     }
                 }
@@ -561,7 +561,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 );
             })
             .inspect_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.err_level(err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
@@ -572,7 +572,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         args.upload_id(),
                         args.part_number(),
                         args.size(),
-                        self.err_status(&err)
+                        self.err_status(err)
                     );
                 }
             }).await
@@ -605,7 +605,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 );
             })
             .inspect_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.err_level(err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
@@ -614,7 +614,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         Operation::CompleteMultipart,
                         path,
                         args.upload_id(),
-                        self.err_status(&err)
+                        self.err_status(err)
                     );
                 }
             })
@@ -648,7 +648,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                 );
             })
             .inspect_err(|err| {
-                if let Some(lvl) = self.err_level(&err) {
+                if let Some(lvl) = self.err_level(err) {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
@@ -657,7 +657,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         Operation::AbortMultipart,
                         path,
                         args.upload_id(),
-                        self.err_status(&err)
+                        self.err_status(err)
                     );
                 }
             })

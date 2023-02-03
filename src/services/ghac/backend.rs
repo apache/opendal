@@ -123,11 +123,9 @@ impl AccessorBuilder for Builder {
 
         map.get("root").map(|v| builder.root(v));
         map.get("version").map(|v| builder.version(v));
-        map.get("enable_create_simulation").map(|v| {
-            if v == "on" || v == "true" {
-                builder.enable_create_simulation();
-            }
-        });
+        map.get("enable_create_simulation")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.enable_create_simulation());
 
         builder
     }

@@ -186,9 +186,8 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// Create a new operator builder.
     #[allow(clippy::new_ret_no_self)]
     pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
-        OperatorBuilder {
-            accessor: ErrorContextLayer.layer(accessor),
-        }
+        // Make sure error context layer hass been attached.
+        OperatorBuilder { accessor }.layer(ErrorContextLayer)
     }
 
     /// Create a new layer.

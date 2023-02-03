@@ -53,11 +53,11 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     };
 
     let message = match de::from_reader::<_, ObsError>(bs.clone().reader()) {
-        Ok(obs_error) => format!("{:?}", obs_error),
+        Ok(obs_error) => format!("{obs_error:?}"),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 
-    let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
+    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
 
     if retryable {
         err = err.set_temporary();
@@ -86,7 +86,7 @@ mod tests {
         );
 
         let out: ObsError = de::from_reader(bs.reader()).expect("must success");
-        println!("{:?}", out);
+        println!("{out:?}");
 
         assert_eq!(out.code, "NoSuchKey");
         assert_eq!(out.message, "The resource you requested does not exist");

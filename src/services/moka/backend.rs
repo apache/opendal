@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::time::Duration;
 
@@ -53,38 +54,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "name" => builder.name(v),
-                "max_capacity" => match v.parse::<u64>() {
-                    Ok(v) => builder.max_capacity(v),
-                    _ => continue,
-                },
-                "time_to_live" => match v.parse::<u64>() {
-                    Ok(v) => builder.time_to_live(Duration::from_secs(v)),
-                    _ => continue,
-                },
-                "time_to_idle" => match v.parse::<u64>() {
-                    Ok(v) => builder.time_to_idle(Duration::from_secs(v)),
-                    _ => continue,
-                },
-                "num_segments" => match v.parse::<usize>() {
-                    Ok(v) => builder.segments(v),
-                    _ => continue,
-                },
-                "thread_pool_enabled" => match v.parse::<bool>() {
-                    Ok(v) => builder.thread_pool_enabled(v),
-                    _ => continue,
-                },
-                _ => continue,
-            };
-        }
-        builder
-    }
-
     /// Name for this cache instance.
     pub fn name(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
@@ -139,9 +108,35 @@ impl Builder {
         self.thread_pool_enabled = Some(v);
         self
     }
+}
 
-    /// Consume builder to build a moka backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Moka;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("name").map(|v| builder.name(v));
+        map.get("max_capacity")
+            .map(|v| v.parse::<u64>().map(|v| builder.max_capacity(v)));
+        map.get("time_to_live").map(|v| {
+            v.parse::<u64>()
+                .map(|v| builder.time_to_live(Duration::from_secs(v)))
+        });
+        map.get("time_to_idle").map(|v| {
+            v.parse::<u64>()
+                .map(|v| builder.time_to_idle(Duration::from_secs(v)))
+        });
+        map.get("num_segments")
+            .map(|v| v.parse::<usize>().map(|v| builder.segments(v)));
+        map.get("thread_pool_enabled")
+            .map(|v| v.parse::<bool>().map(|v| builder.thread_pool_enabled(v)));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let mut builder: CacheBuilder<String, Vec<u8>, _> =
@@ -163,9 +158,9 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend::new(Adapter {
+        Ok(Backend::new(Adapter {
             inner: builder.build(),
-        })))
+        }))
     }
 }
 

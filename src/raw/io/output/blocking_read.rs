@@ -32,44 +32,54 @@ pub type BlockingReader = Box<dyn BlockingRead>;
 ///
 /// `Read` is required to be implemented, `Seek` and `Iterator`
 /// is optional. We use `Read` to make users life easier.
-pub trait BlockingRead: Send + Sync {
-    /// Return the inner output bytes reader if there is one.
-    #[inline]
-    fn inner(&mut self) -> Option<&mut BlockingReader> {
-        None
-    }
-
+pub trait BlockingRead: Send + Sync + 'static {
     /// Read synchronously.
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self.inner() {
-            Some(v) => v.read(buf),
-            None => unimplemented!("read is required to be implemented for output::BlockingRead"),
-        }
-    }
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
 
     /// Seek synchronously.
-    #[inline]
-    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        match self.inner() {
-            Some(v) => v.seek(pos),
-            None => Err(Error::new(
-                ErrorKind::Unsupported,
-                "output blocking reader doesn't support seeking",
-            )),
-        }
-    }
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64>;
 
     /// Iterating [`Bytes`] from underlying reader.
-    #[inline]
+    fn next(&mut self) -> Option<Result<Bytes>>;
+}
+
+impl BlockingRead for () {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let _ = buf;
+
+        unimplemented!("read is required to be implemented for output::BlockingRead")
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        let _ = pos;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output blocking reader doesn't support seeking",
+        ))
+    }
+
     fn next(&mut self) -> Option<Result<Bytes>> {
-        match self.inner() {
-            Some(v) => v.next(),
-            None => Some(Err(Error::new(
-                ErrorKind::Unsupported,
-                "output reader doesn't support iterating",
-            ))),
-        }
+        Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support iterating",
+        )))
+    }
+}
+
+/// `Box<dyn BlockingRead>` won't implement `BlockingRead` automanticly.
+/// To make BlockingReader work as expected, we must add this impl.
+impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        (**self).read(buf)
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        (**self).seek(pos)
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        (**self).next()
     }
 }
 

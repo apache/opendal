@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::Arc;
-
 use futures::io::Cursor;
 use time::Duration;
 
@@ -35,7 +33,7 @@ use crate::*;
 ///
 /// Before [`ObjectMultipart::complete`] has been called, we can't read any content from this multipart object.
 pub struct ObjectMultipart {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     path: String,
     upload_id: String,
 }
@@ -51,7 +49,7 @@ impl ObjectMultipart {
     }
 
     /// Fetch the operator that used by this object.
-    pub fn operatoer(&self) -> Operator {
+    pub fn operator(&self) -> Operator {
         self.acc.clone().into()
     }
 
@@ -79,7 +77,7 @@ impl ObjectMultipart {
         let op = OpCompleteMultipart::new(self.upload_id.clone(), parts);
         self.acc.complete_multipart(&self.path, op).await?;
 
-        Ok(Object::new(self.acc.clone().into(), &self.path))
+        Ok(Object::new(self.operator(), &self.path))
     }
 
     /// Abort multipart uploads.

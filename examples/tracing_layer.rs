@@ -16,8 +16,8 @@ use std::error::Error;
 
 use anyhow::Result;
 use opendal::layers::TracingLayer;
+use opendal::services;
 use opendal::Operator;
-use opendal::Scheme;
 use opentelemetry::global;
 use tracing::span;
 use tracing_subscriber::prelude::*;
@@ -40,9 +40,10 @@ fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
         let _enter = root.enter();
 
         let _ = dotenvy::dotenv();
-        let op = Operator::from_env(Scheme::S3)
+        let op = Operator::from_env::<services::S3>()
             .expect("init operator must succeed")
-            .layer(TracingLayer);
+            .layer(TracingLayer)
+            .finish();
 
         op.object("test")
             .write("0".repeat(16 * 1024 * 1024).into_bytes())

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::env;
 
 use async_trait::async_trait;
@@ -66,20 +67,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "version" => builder.version(v),
-                "enable_create_simulation" if !v.is_empty() => builder.enable_create_simulation(),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
@@ -125,9 +112,25 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Build a github action cache runner.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Ghac;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("version").map(|v| builder.version(v));
+        map.get("enable_create_simulation")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.enable_create_simulation());
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -175,7 +178,7 @@ impl Builder {
             client,
         };
 
-        Ok(apply_wrapper(backend))
+        Ok(backend)
     }
 }
 
@@ -199,6 +202,9 @@ pub struct Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Ghac)
@@ -267,7 +273,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let req = self.ghac_query(path).await?;
 
         let resp = self.client.send_async(req).await?;
@@ -288,7 +294,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }

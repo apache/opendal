@@ -46,10 +46,10 @@ where
 }
 
 #[async_trait]
-impl<S> Accessor for Backend<S>
-where
-    S: Adapter,
-{
+impl<S: Adapter> Accessor for Backend<S> {
+    type Reader = output::Cursor;
+    type BlockingReader = output::Cursor;
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am: AccessorMetadata = self.kv.metadata().into();
         am.set_root(&self.root)
@@ -74,8 +74,10 @@ where
         Ok(RpCreate::default())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        let bs = match self.kv.get(path).await? {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let path = path.to_string();
+
+        let bs = match self.kv.get(&path).await? {
             Some(bs) => bs,
             None => {
                 return Err(Error::new(
@@ -88,13 +90,10 @@ where
         let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
-        Ok((
-            RpRead::new(length as u64),
-            Box::new(output::Cursor::from(bs)),
-        ))
+        Ok((RpRead::new(length as u64), output::Cursor::from(bs)))
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let bs = match self.kv.blocking_get(path)? {
             Some(bs) => bs,
             None => {
@@ -106,10 +105,7 @@ where
         };
 
         let bs = self.apply_range(bs, args.range());
-        Ok((
-            RpRead::new(bs.len() as u64),
-            Box::new(output::Cursor::from(bs)),
-        ))
+        Ok((RpRead::new(bs.len() as u64), output::Cursor::from(bs)))
     }
 
     async fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {

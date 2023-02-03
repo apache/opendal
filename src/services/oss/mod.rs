@@ -28,50 +28,7 @@
 //!
 //! Refer to [`Builder`]'s public API docs for more information.
 //!
-//! # Environment
-//!
-//! - `OPENDAL_OSS_ROOT`
-//! - `OPENDAL_OSS_BUCKET`
-//! - `OPENDAL_OSS_ENDPOINT`
-//! - `OPENDAL_OSS_PRESIGN_ENDPOINT`
-//! - `OPENDAL_OSS_ACCESS_KEY_ID`
-//! - `OPENDAL_OSS_ACCESS_KEY_SECRET`
-//! - `OPENDAL_OSS_ROLE_ARN`
-//! - `OPENDAL_OSS_OIDC_TOKEN`
-//! - `OPENDAL_OSS_ALLOW_ANONYMOUS`
-//!
 //! # Example
-//!
-//! ## Via Environment
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_OSS_ROOT=/path/to/dir/
-//! export OPENDAL_OSS_BUCKET=test
-//! export OPENDAL_OSS_ENDPOINT=https://oss-cn-beijing.aliyuncs.com
-//! export OPENDAL_OSS_ACCESS_KEY_ID=access_key_id
-//! export OPENDAL_OSS_ACCESS_KEY_SECRET=access_key_secret
-//! ```
-//!
-//! ```no_run
-//! use std::sync::Arc;
-//!
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Oss)?;
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!
@@ -107,7 +64,7 @@
 //!     builder.access_key_id("access_key_id");
 //!     builder.access_key_secret("access_key_secret");
 //!
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

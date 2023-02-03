@@ -40,7 +40,7 @@ macro_rules! behavior_list_test {
                         #[$meta]
                     )*
                     async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service(opendal::Scheme::$service, true);
+                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
                         match op {
                             Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_list() => $crate::list::$test(op).await,
                             Some(_) => {
@@ -130,7 +130,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     op.object("test_list_rich_dir/").create().await?;
 
     let mut expected: Vec<String> = (0..=1000)
-        .map(|num| format!("test_list_rich_dir/file-{}", num))
+        .map(|num| format!("test_list_rich_dir/file-{num}"))
         .collect();
 
     expected

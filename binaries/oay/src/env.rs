@@ -15,6 +15,7 @@
 use std::env;
 use std::io::Result;
 
+use opendal::services;
 use opendal::Operator;
 use opendal::Scheme;
 
@@ -41,7 +42,21 @@ pub async fn get_oay_operator() -> Result<Operator> {
             .map(|k| (k.to_string(), v))
     });
 
-    let op = Operator::from_iter(scheme, envs)?;
+    let op = match scheme {
+        Scheme::Azblob => Operator::from_iter::<services::Azblob>(envs)?.finish(),
+        Scheme::Azdfs => Operator::from_iter::<services::Azdfs>(envs)?.finish(),
+        Scheme::Fs => Operator::from_iter::<services::Fs>(envs)?.finish(),
+        Scheme::Gcs => Operator::from_iter::<services::Gcs>(envs)?.finish(),
+        Scheme::Ghac => Operator::from_iter::<services::Ghac>(envs)?.finish(),
+        Scheme::Http => Operator::from_iter::<services::Http>(envs)?.finish(),
+        Scheme::Ipmfs => Operator::from_iter::<services::Ipmfs>(envs)?.finish(),
+        Scheme::Memory => Operator::from_iter::<services::Memory>(envs)?.finish(),
+        Scheme::Obs => Operator::from_iter::<services::Obs>(envs)?.finish(),
+        Scheme::Oss => Operator::from_iter::<services::Oss>(envs)?.finish(),
+        Scheme::S3 => Operator::from_iter::<services::S3>(envs)?.finish(),
+        Scheme::Webdav => Operator::from_iter::<services::Webdav>(envs)?.finish(),
+        _ => unimplemented!("not supported services"),
+    };
 
     Ok(op)
 }

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io;
 use std::io::SeekFrom;
@@ -36,21 +37,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "name_node" => builder.name_node(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -78,9 +64,22 @@ impl Builder {
 
         self
     }
+}
 
-    /// Finish the building and create hdfs backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Hdfs;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("name_node").map(|v| builder.name_node(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let name_node = match &self.name_node {
@@ -108,10 +107,10 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             client: Arc::new(client),
-        }))
+        })
     }
 }
 
@@ -128,6 +127,9 @@ unsafe impl Sync for Backend {}
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = output::into_reader::FdReader<hdrs::AsyncFile>;
+    type BlockingReader = output::into_blocking_reader::FdReader<hdrs::File>;
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Hdfs)
@@ -182,7 +184,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         use output::ReadExt;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -214,7 +216,7 @@ impl Accessor for Backend {
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
 
-        Ok((RpRead::new(end - start), Box::new(r)))
+        Ok((RpRead::new(end - start), r))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
@@ -302,7 +304,7 @@ impl Accessor for Backend {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(EmptyObjectPager)))
+                    Ok((RpList::default(), Box::new(()) as ObjectPager))
                 } else {
                     Err(parse_io_error(e))
                 }
@@ -353,7 +355,7 @@ impl Accessor for Backend {
         }
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         use output::BlockingRead;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -384,7 +386,7 @@ impl Accessor for Backend {
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
 
-        Ok((RpRead::new(end - start), Box::new(r)))
+        Ok((RpRead::new(end - start), r))
     }
 
     fn blocking_write(
@@ -476,7 +478,7 @@ impl Accessor for Backend {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(EmptyBlockingObjectPager)))
+                    Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
                 } else {
                     Err(parse_io_error(e))
                 }

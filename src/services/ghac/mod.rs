@@ -58,38 +58,7 @@
 //!
 //! Refer to [`Builder`]'s public API docs for more information.
 //!
-//! # Environment
-//!
-//! - `OPENDAL_GHAC_ROOT`
-//!
 //! # Example
-//!
-//! ## Via Environment
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_GHAC_ROOT=/path/to/dir/
-//! ```
-//!
-//! ```no_run
-//! use std::sync::Arc;
-//!
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Ghac)?;
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!
@@ -110,7 +79,7 @@
 //!     // NOTE: the root must be absolute path.
 //!     builder.root("/path/to/dir");
 //!
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

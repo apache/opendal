@@ -25,7 +25,7 @@ use tokio::io::ReadBuf;
 use crate::raw::*;
 
 /// as_streamable is used to make [`output::Read`] streamable.
-pub fn as_streamable(r: output::Reader, capacity: usize) -> IntoStream {
+pub fn as_streamable<R: output::Read>(r: R, capacity: usize) -> IntoStream<R> {
     IntoStream {
         r,
         cap: capacity,
@@ -33,13 +33,13 @@ pub fn as_streamable(r: output::Reader, capacity: usize) -> IntoStream {
     }
 }
 
-pub struct IntoStream {
-    r: output::Reader,
+pub struct IntoStream<R: output::Read> {
+    r: R,
     cap: usize,
     buf: Vec<u8>,
 }
 
-impl output::Read for IntoStream {
+impl<R: output::Read> output::Read for IntoStream<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         Pin::new(&mut self.r).poll_read(cx, buf)
     }

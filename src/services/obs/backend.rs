@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
@@ -55,24 +56,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "access_key_id" => builder.access_key_id(v),
-                "secret_access_key" => builder.secret_access_key(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -142,9 +125,26 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Consume builder to build an OBS backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Obs;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("access_key_id").map(|v| builder.access_key_id(v));
+        map.get("secret_access_key")
+            .map(|v| builder.secret_access_key(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -179,7 +179,7 @@ impl Builder {
         let (endpoint, is_obs_default) = {
             let host = uri.host().unwrap_or_default().to_string();
             if host.starts_with("obs.") && host.ends_with(".myhuaweicloud.com") {
-                (format!("{}.{}", bucket, host), true)
+                (format!("{bucket}.{host}"), true)
             } else {
                 (host, false)
             }
@@ -224,13 +224,13 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             client,
             root,
             endpoint: format!("{}://{}", &scheme, &endpoint),
             signer: Arc::new(signer),
             bucket,
-        }))
+        })
     }
 }
 
@@ -246,6 +246,9 @@ pub struct Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Obs)
@@ -277,7 +280,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.obs_get_object(path, args.range()).await?;
 
         let status = resp.status();
@@ -285,7 +288,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -350,7 +353,7 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 }

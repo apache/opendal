@@ -25,9 +25,15 @@
 
 mod accessor;
 pub use accessor::Accessor;
+pub use accessor::AccessorBuilder;
 pub use accessor::AccessorCapability;
 pub use accessor::AccessorHint;
 pub use accessor::AccessorMetadata;
+pub use accessor::FusedAccessor;
+
+mod layer;
+pub use layer::Layer;
+pub use layer::LayeredAccessor;
 
 mod io;
 pub use io::*;
@@ -42,17 +48,12 @@ pub use path::normalize_path;
 pub use path::normalize_root;
 pub use path::validate_path;
 
-mod wrappers;
-pub use wrappers::apply_wrapper;
-
 mod object_entry;
 pub use object_entry::ObjectEntry;
 
 mod object_page;
 pub use object_page::BlockingObjectPage;
 pub use object_page::BlockingObjectPager;
-pub use object_page::EmptyBlockingObjectPager;
-pub use object_page::EmptyObjectPager;
 pub use object_page::ObjectPage;
 pub use object_page::ObjectPager;
 

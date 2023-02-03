@@ -20,12 +20,9 @@
 //! # use anyhow::Result;
 //! # use opendal::ObjectMode;
 //! # use opendal::Operator;
-//! # use opendal::Scheme;
 //! use opendal::ErrorKind;
-//! # use opendal::services::fs;
 //! # #[tokio::main]
-//! # async fn main() -> Result<()> {
-//! let op = Operator::from_env(Scheme::Fs)?;
+//! # async fn test(op: Operator) -> Result<()> {
 //! if let Err(e) = op.object("test_file").metadata().await {
 //!     if e.kind() == ErrorKind::ObjectNotFound {
 //!         println!("object not exist")
@@ -166,7 +163,7 @@ impl Display for Error {
         }
 
         if let Some(source) = &self.source {
-            write!(f, ", source: {}", source)?;
+            write!(f, ", source: {source}")?;
         }
 
         Ok(())
@@ -202,7 +199,7 @@ impl Debug for Error {
         }
         if let Some(source) = &self.source {
             writeln!(f)?;
-            writeln!(f, "Source: {:?}", source)?;
+            writeln!(f, "Source: {source:?}")?;
         }
 
         Ok(())

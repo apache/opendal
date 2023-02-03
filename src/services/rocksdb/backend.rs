@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -36,18 +37,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "datadir" => builder.datadir(v),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
     /// Set the path to the rocksdb data directory. Will create if not exists.
     pub fn datadir(&mut self, path: &str) -> &mut Self {
         self.datadir = Some(path.into());
@@ -63,9 +52,21 @@ impl Builder {
         }
         self
     }
+}
 
-    /// Consumes the builder and returns a `Rocksdb` instance.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Rocksdb;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("datadir").map(|v| builder.datadir(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let path = self.datadir.take().ok_or_else(|| {
             Error::new(
                 ErrorKind::BackendConfigInvalid,
@@ -83,7 +84,7 @@ impl Builder {
             .set_source(e)
         })?;
 
-        Ok(apply_wrapper(Backend::new(Adapter { db: Arc::new(db) })))
+        Ok(Backend::new(Adapter { db: Arc::new(db) }))
     }
 }
 

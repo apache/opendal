@@ -53,7 +53,6 @@
 //! | Layers | Description |
 //! | -------- | ----------- |
 //! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
-//! | [CacheLayer][layers::CacheLayer] | Cache supports. |
 //! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
 //! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
 //! | [MetricsLayer][layers::MetricsLayer] | Metrics for every operations. |
@@ -96,6 +95,7 @@
 //! use futures::TryStreamExt;
 //! use opendal::layers::LoggingLayer;
 //! use opendal::layers::RetryLayer;
+//! use opendal::services;
 //! use opendal::Object;
 //! use opendal::ObjectMetadata;
 //! use opendal::ObjectMode;
@@ -105,11 +105,12 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Init a fs operator
-//!     let op = Operator::from_env(Scheme::Fs)?
+//!     let op = Operator::from_env::<services::Fs>()?
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer::default())
 //!         // Init with retry layer enabled.
-//!         .layer(RetryLayer::new(ExponentialBackoff::default()));
+//!         .layer(RetryLayer::new(ExponentialBackoff::default()))
+//!         .finish();
 //!
 //!     // Create object handler.
 //!     let o = op.object("test_file");
@@ -152,6 +153,7 @@
 mod operator;
 pub use operator::BatchOperator;
 pub use operator::Operator;
+pub use operator::OperatorBuilder;
 pub use operator::OperatorMetadata;
 
 mod object;
@@ -187,7 +189,6 @@ pub use ops::PresignOperation;
 
 // Public modules, they will be accessed via `opendal::layers::Xxxx`
 pub mod layers;
-pub use layers::Layer;
 pub mod raw;
 pub mod services;
 

@@ -103,4 +103,13 @@ where
             ))),
         }
     }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
+        let _ = cx;
+
+        Poll::Ready(Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support seeking",
+        ))))
+    }
 }

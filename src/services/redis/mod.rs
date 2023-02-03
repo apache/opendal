@@ -24,43 +24,7 @@
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
-//! # Environment
-//!
-//! - `OPENDAL_REDIS_ROOT` optional
-//! - `OPENDAL_REDIS_ENDPOINT` optional
-//! - `OPENDAL_REDIS_USERNAME` optional
-//! - `OPENDAL_REDIS_PASSWORD` optional
-//! - `OPENDAL_REDIS_DB` optional
-//!
 //! # Example
-//!
-//! ## Initiate via environment variables:
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_REDIS_ENDPOINT=tcp://example.com
-//! export OPENDAL_REDIS_ROOT=/path/to/dir
-//! export OPENDAL_REDIS_USERNAME=opendal
-//! export OPENDAL_REDIS_PASSWORD=example_password
-//! ```
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op = Operator::from_env(Scheme::Redis);
-//!
-//!     // create an object handler to start operation on redis!
-//!
-//!     let _op: Object = op.object("hello_redis!");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!
@@ -75,7 +39,7 @@
 //!     let mut builder = redis::Builder::default();
 //!
 //!     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
-//!     let op: Operator = Operator::new(builder.build());
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!     let _: Object = op.object("test_file");
 //!     Ok(())
 //! }

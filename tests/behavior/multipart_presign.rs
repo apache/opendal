@@ -41,7 +41,7 @@ macro_rules! behavior_multipart_presign_test {
                         #[$meta]
                     )*
                     async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service(opendal::Scheme::$service, true);
+                        let op = $crate::utils::init_service::<opendal::services::$service>(true);
                         match op {
                             Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_multipart() && op.metadata().can_presign() => $crate::multipart_presign::$test(op).await,
                             Some(_) => {

@@ -15,7 +15,6 @@
 use std::collections::VecDeque;
 use std::mem;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
@@ -32,7 +31,7 @@ use crate::*;
 /// User can use object lister as `Stream<Item = Result<Object>>` or
 /// call `next_page` directly.
 pub struct ObjectLister {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     pager: Option<ObjectPager>,
 
     buf: VecDeque<ObjectEntry>,
@@ -135,14 +134,14 @@ impl Stream for ObjectLister {
 }
 
 pub struct BlockingObjectLister {
-    acc: Arc<dyn Accessor>,
+    acc: FusedAccessor,
     pager: BlockingObjectPager,
     buf: VecDeque<ObjectEntry>,
 }
 
 impl BlockingObjectLister {
     /// Create a new object lister.
-    pub fn new(acc: Arc<dyn Accessor>, pager: BlockingObjectPager) -> Self {
+    pub fn new(acc: FusedAccessor, pager: BlockingObjectPager) -> Self {
         Self {
             acc,
             pager,

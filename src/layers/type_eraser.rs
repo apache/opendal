@@ -67,12 +67,12 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                     (Some(offset), Some(size)) => {
                        let r= output::into_reader::by_range(self.inner.clone(), path, r, offset, size);
 
-                         Ok((RpRead::new(0), Box::new(r)))
+                         Ok((rp, Box::new(r)))
                     }
                     (Some(offset), _) => {
                         let r = output::into_reader::by_offset(self.inner.clone(), path,r, offset);
 
-                         Ok((RpRead::new(0), Box::new(r)))
+                         Ok((rp, Box::new(r)))
                     }
                     (None, Some(size)) => {
                         // TODO: we can read content range to calculate
@@ -86,12 +86,12 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                         };
                         let r= output::into_reader::by_range(self.inner.clone(), path,r, offset, size);
 
-                         Ok((RpRead::new(0), Box::new(r)))
+                         Ok((rp, Box::new(r)))
                     },
                     (None, None) => {
                         let r = output::into_reader::by_offset(self.inner.clone(), path, r,0);
 
-                         Ok((RpRead::new(0), Box::new(r)))
+                         Ok((rp, Box::new(r)))
                     }
                }
             }

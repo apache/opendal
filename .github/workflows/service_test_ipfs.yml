@@ -24,6 +24,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: IPFS Add testdata
         run: |
+          docker ps
           docker run $(docker ps -q) ipfs add -r ./tests/data --to-files /opendal-testdata
           docker run $(docker ps -q) ipfs files ls /opendal-testdata -l
       - uses: Swatinem/rust-cache@v2

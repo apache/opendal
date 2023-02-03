@@ -438,7 +438,7 @@ mod tests {
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
         let r = MockReader {
-            inner: futures::io::Cursor::new(bs.to_vec()),
+            inner: futures::io::Cursor::new(bs[4096..].to_vec()),
         };
         let mut r = Box::new(by_offset(acc, "x", r, 4096)) as output::Reader;
 

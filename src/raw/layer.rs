@@ -305,6 +305,12 @@ mod tests {
         type Reader = ();
         type BlockingReader = ();
 
+        fn metadata(&self) -> AccessorMetadata {
+            let mut am = AccessorMetadata::default();
+            am.set_scheme(Scheme::Custom("test"));
+            am
+        }
+
         async fn delete(&self, _: &str, _: OpDelete) -> Result<RpDelete> {
             let mut x = self.deleted.lock().await;
             *x = true;

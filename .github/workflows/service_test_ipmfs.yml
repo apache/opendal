@@ -17,14 +17,13 @@ concurrency:
 jobs:
   ipmfs:
     runs-on: ubuntu-latest
+    services:
+      ipfs:
+        image: ipfs/go-ipfs:v0.14.0
+        ports:
+          - 5001:5001
     steps:
       - uses: actions/checkout@v3
-      - name: Set up IPFS ${{ matrix.ipfs }}
-        uses: ibnesayeed/setup-ipfs@b9b9f7d73db5f77d462225bb37dbd51153351dd9
-        id: ipfs_setup
-        with:
-          ipfs_version: "v0.14.0"
-          run_daemon: true
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash

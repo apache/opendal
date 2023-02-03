@@ -15,19 +15,19 @@
 //! This module contains some naive utilities
 //! for WebHDFS authentication.
 
-/// a naive WebHDFS signer implementation
+/// a naive WebHDFS auth implementation
 /// # Note
 /// WebHDFS supports using delegation token, or user and proxy user, for authentication.
 /// So we use an enum to represent the signer.
 #[derive(Clone, Debug)]
-pub(super) enum Signer {
+pub(super) enum WebHdfsAuth {
     /// Delegation token authentication
     Token(String),
     /// User name and proxy user authentication
     User(String, String),
 }
 
-impl Signer {
+impl WebHdfsAuth {
     /// create a new signer with delegation token
     pub fn new_delegation(delegation_token: &str) -> Self {
         Self::Token(delegation_token.to_string())
@@ -46,7 +46,7 @@ impl Signer {
     }
 
     /// sign a request
-    pub fn sign_str(&self) -> String {
+    pub fn auth_str(&self) -> String {
         match self {
             Self::Token(token) => {
                 format!("delegation={token}")

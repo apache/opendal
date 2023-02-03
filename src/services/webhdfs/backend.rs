@@ -25,12 +25,12 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
+use super::auth::WebHdfsAuth;
 use super::dir_stream::DirStream;
 use super::error::blocking_parse_error;
 use super::error::blocking_resp_to_str;
 use super::error::parse_error;
 use super::percent_encode_path;
-use super::signer::Signer;
 use crate::raw::apply_wrapper;
 use crate::raw::build_abs_path;
 use crate::raw::input;
@@ -84,6 +84,8 @@ pub struct Builder {
     user: Option<String>,
     // proxy user
     doas: Option<String>,
+    // custom CSRF prevention header name
+    csrf: Option<String>,
 }
 
 impl Debug for Builder {
@@ -99,6 +101,9 @@ impl Debug for Builder {
         }
         if self.doas.is_some() {
             ds.field("doas", &"<redacted>");
+        }
+        if self.csrf.is_some() {
+            ds.field("csrf", &"<redacted>");
         }
         ds.finish()
     }
@@ -116,6 +121,7 @@ impl Builder {
                 "delegation" => builder.delegation(v),
                 "user" => builder.user(v),
                 "doas" => builder.doas(v),
+                "csrf" => builder.csrf(v),
                 _ => continue,
             };
         }
@@ -126,30 +132,31 @@ impl Builder {
     /// Set the working directory of this backend
     ///
     /// All operations will happen under this root
+    /// # Note
+    /// The root will be automatically created if not exists.
+    /// If the root is ocupied by a file, building of directory will fail
     pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
-            None
-        } else {
-            Some(root.to_string())
-        };
+        if !root.is_empty() {
+            self.root = Some(root.to_string());
+        }
         self
     }
 
     /// Set the remote address of this backend
+    /// default to `http://127.0.0.1:50070`
     ///
     /// Endpoints should be full uri, e.g.
     ///
-    /// - `https://webhdfs.example.com:9870`
-    /// - `http://192.168.66.88:9870`
+    /// - `https://webhdfs.example.com:50070`
+    /// - `http://192.168.66.88:50070`
     ///
     /// If user inputs endpoint without scheme, we will
     /// prepend `http://` to it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
-            None
-        } else {
-            Some(endpoint.to_string())
-        };
+        if !endpoint.is_empty() {
+            // trim tailing slash so we can accept `http://127.0.0.1:50070/`
+            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+        }
         self
     }
 
@@ -159,11 +166,9 @@ impl Builder {
     /// The builder prefers using delegation token over username.
     /// If both are set, delegation token will be used.
     pub fn delegation(&mut self, delegation: &str) -> &mut Self {
-        self.delegation = if delegation.is_empty() {
-            None
-        } else {
-            Some(delegation.to_string())
-        };
+        if !delegation.is_empty() {
+            self.delegation = Some(delegation.to_string());
+        }
         self
     }
 
@@ -174,11 +179,9 @@ impl Builder {
     /// If both are set, delegation token will be used. And username
     /// will be ignored.
     pub fn user(&mut self, user: &str) -> &mut Self {
-        self.user = if user.is_empty() {
-            None
-        } else {
-            Some(user.to_string())
-        };
+        if user.is_empty() {
+            self.user = Some(user.to_string());
+        }
         self
     }
 
@@ -188,15 +191,31 @@ impl Builder {
     /// If both are set, delegation token will be used. And do_as
     /// will be ignored
     pub fn doas(&mut self, doas: &str) -> &mut Self {
-        self.doas = if doas.is_empty() {
-            None
-        } else {
-            Some(doas.to_string())
-        };
+        if !doas.is_empty() {
+            self.doas = Some(doas.to_string());
+        }
+        self
+    }
+
+    /// Set th CSRF prevention header name
+    /// refer to [CSRF prevention](https://hadoop.apache.org/docs/r3.3.3/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Cross-Site_Request_Forgery_Prevention) for detail
+    ///
+    /// # Note:
+    /// If not set, the default value is `X-XSRF-HEADER`
+    pub fn csrf(&mut self, csrf: &str) -> &mut Self {
+        if !csrf.is_empty() {
+            self.csrf = Some(csrf.to_string());
+        }
         self
     }
 
     /// build the backend
+    ///
+    /// # Note:
+    /// when building backend, the built backend will check if the root directory
+    /// exits.
+    /// if the directory does not exits, the directory will be automatically created
+    /// if the root path is occupied by a file, a failure will be returned
     pub fn build(&mut self) -> Result<impl Accessor> {
         debug!("building backend: {:?}", self);
 
@@ -205,31 +224,31 @@ impl Builder {
 
         let endpoint = match self.endpoint.take() {
             Some(e) => e,
-            None => {
-                return Err(
-                    Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                        .with_context("service", Scheme::WebHdfs),
-                )
-            }
+            None => "http://127.0.0.1:9870".to_string(),
         };
         debug!("backend use endpoint {}", endpoint);
 
-        let signer = {
+        let csrf = match self.csrf.take() {
+            Some(c) => c,
+            None => "X-XSRF-HEADER".to_string(),
+        };
+
+        let auth = {
             if let Some(token) = self.delegation.take() {
-                Some(Signer::new_delegation(&token))
+                Some(WebHdfsAuth::new_delegation(&token))
             } else if let Some(username) = self.user.take() {
                 let doas = if let Some(doas) = self.doas.take() {
                     doas
                 } else {
                     String::new()
                 };
-                Some(Signer::new_user(&username, &doas))
+                Some(WebHdfsAuth::new_user(&username, &doas))
             } else {
                 debug!("neither delegation token nor username is set");
                 None
             }
         };
-        let sign = signer.map(|s| s.sign_str());
+        let auth_str = auth.map(|s| s.auth_str());
 
         let client = HttpClient::new()?;
 
@@ -237,8 +256,9 @@ impl Builder {
         let backend = apply_wrapper(Backend {
             root,
             endpoint,
-            sign,
+            auth: auth_str,
             client,
+            csrf,
         });
         match backend.blocking_stat("/", OpStat::new()) {
             Ok(stat) => {
@@ -269,7 +289,8 @@ pub struct Backend {
     root: String,
     endpoint: String,
     client: HttpClient,
-    sign: Option<String>,
+    auth: Option<String>,
+    csrf: String,
 }
 
 impl Backend {
@@ -292,11 +313,12 @@ impl Backend {
             percent_encode_path(&p),
             op,
         );
-        if let Some(sign) = &self.sign {
-            url = url + "&" + sign;
+        if let Some(auth) = &self.auth {
+            url = url + "&" + auth;
         }
 
         let req = Request::put(&url)
+            .header(self.csrf.as_str(), "")
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         // mkdir does not redirect
@@ -317,8 +339,8 @@ impl Backend {
             self.endpoint,
             percent_encode_path(&p),
         );
-        if let Some(sign) = &self.sign {
-            url = url + "&" + sign;
+        if let Some(auth) = &self.auth {
+            url = url + "&" + auth;
         }
         let (offset, size) = (range.offset(), range.size());
 
@@ -339,6 +361,7 @@ impl Backend {
         }
 
         let req = Request::get(&url)
+            .header(self.csrf.as_str(), "")
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
@@ -352,12 +375,14 @@ impl Backend {
             self.endpoint,
             percent_encode_path(&p),
         );
-        if let Some(sign) = &self.sign {
-            url = url + "&" + sign;
+        if let Some(auth) = &self.auth {
+            url = url + "&" + auth;
         }
 
         let req = Request::get(&url);
-        req.body(body).map_err(new_request_build_error)
+        req.header(self.csrf.as_str(), "")
+            .body(body)
+            .map_err(new_request_build_error)
     }
 
     fn delete_object_req(&self, path: &str) -> Result<AsyncReq> {
@@ -367,12 +392,13 @@ impl Backend {
             self.endpoint,
             percent_encode_path(&p),
         );
-        if let Some(sign) = &self.sign {
-            url = url + "&" + sign;
+        if let Some(auth) = &self.auth {
+            url = url + "&" + auth;
         }
 
         let req = Request::delete(&url);
         let req = req
+            .header(self.csrf.as_str(), "")
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         Ok(req)
@@ -385,12 +411,13 @@ impl Backend {
             self.endpoint,
             percent_encode_path(&p),
         );
-        if let Some(sign) = &self.sign {
-            url = url + "&" + sign;
+        if let Some(auth) = &self.auth {
+            url = url + "&" + auth;
         }
 
         let req = Request::get(&url);
         let req = req
+            .header(self.csrf.as_str(), "")
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
         Ok(req)
@@ -418,11 +445,12 @@ impl Backend {
             percent_encode_path(&p),
             op,
         );
-        if let Some(sign) = &self.sign {
-            url = url + "&" + sign;
+        if let Some(auth) = &self.auth {
+            url = url + "&" + auth;
         }
 
         let req = Request::put(&url)
+            .header(self.csrf.as_str(), "")
             .body(Body::Empty)
             .map_err(new_request_build_error)?;
         // mkdir does not redirect
@@ -518,6 +546,7 @@ impl Backend {
         let redirect = self.follow_redirect(redirection).await?;
 
         Request::get(redirect)
+            .header(self.csrf.as_str(), "")
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)
     }
@@ -538,7 +567,9 @@ impl Backend {
         if let Some(content_type) = content_type {
             req = req.header(CONTENT_TYPE, content_type);
         }
-        req.body(body).map_err(new_request_build_error)
+        req.header(self.csrf.as_str(), "")
+            .body(body)
+            .map_err(new_request_build_error)
     }
 
     fn consume_success_mkdir(&self, path: &str, parts: Parts, body: &str) -> Result<RpCreate> {
@@ -578,7 +609,9 @@ impl Backend {
         if let Some(content_type) = content_type {
             req = req.header(CONTENT_TYPE, content_type);
         }
-        req.body(body).map_err(new_request_build_error)
+        req.header(self.csrf.as_str(), "")
+            .body(body)
+            .map_err(new_request_build_error)
     }
 }
 

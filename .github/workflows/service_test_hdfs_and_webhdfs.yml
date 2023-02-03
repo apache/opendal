@@ -1,4 +1,4 @@
-name: Service Test HDFS
+name: Service Test HDFS and WebHDFS
 
 on:
   push:
@@ -41,7 +41,9 @@ jobs:
       - name: Test
         shell: bash
         continue-on-error: true
-        run: cargo test hdfs --features compress,services-hdfs -- --show-output
+        run:
+          # this command will test both hdfs and webhdfs, make use of it
+          cargo test hdfs --features compress,services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug
@@ -49,3 +51,6 @@ jobs:
           OPENDAL_HDFS_ROOT: /
           OPENDAL_HDFS_NAME_NODE: hdfs://${{ env.HDFS_NAMENODE_ADDR }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+          OPENDAL_WEBHDFS_TEST: on
+          OPENDAL_WEBHDFS_ROOT: /
+          OPENDAL_WEBHDFS_ENDPOINT: http://${{ env.HDFS_NAMENODE_ADDR }}

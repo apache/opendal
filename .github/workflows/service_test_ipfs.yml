@@ -17,16 +17,18 @@ concurrency:
 jobs:
   ipfs-daemon:
     runs-on: ubuntu-latest
-    services:
-      ipfs:
-        image: ipfs/go-ipfs:v0.16.0
     steps:
       - uses: actions/checkout@v3
+      - name: Set up IPFS ${{ matrix.ipfs }}
+        uses: ibnesayeed/setup-ipfs@b9b9f7d73db5f77d462225bb37dbd51153351dd9
+        id: ipfs_setup
+        with:
+          ipfs_version: "v0.16.0"
+          run_daemon: true
       - name: IPFS Add testdata
         run: |
-          docker ps
-          docker run $(docker ps -q) ipfs add -r ./tests/data --to-files /opendal-testdata
-          docker run $(docker ps -q) ipfs files ls /opendal-testdata -l
+          ipfs add -r ./tests/data --to-files /opendal-testdata
+          ipfs files ls /opendal-testdata -l
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash

@@ -20,9 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v2
-      - name: Install rocksdb-dev first to reduce compilation time
-        run: |
-            sudo apt-get install -y librocksdb-dev
       - name: Test
         shell: bash
         run: cargo test rocksdb --features compress,services-rocksdb -- --show-output --test-threads=1

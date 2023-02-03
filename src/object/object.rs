@@ -65,7 +65,7 @@ impl Object {
 
     /// Fetch the operator that used by this object.
     pub fn operator(&self) -> Operator {
-        todo!()
+        self.acc.clone().into()
     }
 
     pub(crate) fn accessor(&self) -> FusedAccessor {

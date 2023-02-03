@@ -57,6 +57,7 @@ impl<A: Accessor> TypeEraseAccessor<A> {
 
         let range = args.range();
         let (rp, r) = self.inner.read(path, args).await?;
+        let content_length = rp.metadata().content_length();
 
         match (seekable, streamable) {
             (true, true) => {
@@ -70,7 +71,7 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                          Ok((rp, Box::new(r)))
                     }
                     (Some(offset), _) => {
-                        let r = output::into_reader::by_offset(self.inner.clone(), path,r, offset);
+                        let r = output::into_reader::by_range(self.inner.clone(), path,r, offset, content_length - offset);
 
                          Ok((rp, Box::new(r)))
                     }
@@ -89,7 +90,7 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                          Ok((rp, Box::new(r)))
                     },
                     (None, None) => {
-                        let r = output::into_reader::by_offset(self.inner.clone(), path, r,0);
+                        let r = output::into_reader::by_range(self.inner.clone(), path, r,0, content_length);
 
                          Ok((rp, Box::new(r)))
                     }

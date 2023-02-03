@@ -37,9 +37,6 @@
 mod by_range;
 pub use by_range::by_range;
 
-mod by_offset;
-pub use by_offset::by_offset;
-
 mod from_fd;
 pub use from_fd::from_fd;
 pub use from_fd::FdReader;

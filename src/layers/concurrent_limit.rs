@@ -34,11 +34,13 @@ use crate::*;
 /// use anyhow::Result;
 /// use opendal::layers::ConcurrentLimitLayer;
 /// use opendal::Operator;
+/// use opendal::services;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::from_env(Scheme::Fs)
+/// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(ConcurrentLimitLayer::new(1024));
+///     .layer(ConcurrentLimitLayer::new(1024))
+///     .finish();
 /// ```
 pub struct ConcurrentLimitLayer {
     permits: usize,

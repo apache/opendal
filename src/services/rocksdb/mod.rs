@@ -27,37 +27,7 @@
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
-//! # Environment
-//!
-//! - `OPENDAL_ROCKSDB_ROOT` optional
-//! - `OPENDAL_ROCKSDB_DATADIR` required
-//!
 //! # Example
-//!
-//! ## Initiate via environment variables:
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_ROCKSDB_ROOT=/path/to/root
-//! export OPENDAL_ROCKSDB_DATADIR=/path/to/data
-//! ```
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op = Operator::from_env(Scheme::Rocksdb)?;
-//!
-//!     // create an object handler to start operation on rocksdb!
-//!     let _op: Object = op.object("hello_rocksdb!");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!

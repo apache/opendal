@@ -28,48 +28,9 @@
 //!
 //! Refer to [`Builder`]'s public API docs for more information.
 //!
-//! # Environment
-//!
-//! - `OPENDAL_AZDFS_ROOT`
-//! - `OPENDAL_AZDFS_FILESYSTEM`
-//! - `OPENDAL_AZDFS_ENDPOINT`
-//! - `OPENDAL_AZDFS_ACCOUNT_NAME`
-//! - `OPENDAL_AZDFS_ACCOUNT_KEY`
-//!
 //! # Example
 //!
 //! ## Init OpenDAL Operator
-//!
-//! ### Via Environment
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_AZDFS_ROOT=/path/to/dir/
-//! export OPENDAL_AZDFS_FILESYSTEM=test
-//! export OPENDAL_AZDFS_ENDPOINT=https://accountname.dfs.core.windows.net
-//! export OPENDAL_AZDFS_ACCOUNT_KEY=accountname
-//! export OPENDAL_AZDFS_ACCOUNT_KEY=accountkey
-//! ```
-//!
-//! ```no_run
-//! use std::sync::Arc;
-//!
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Azdfs)?;
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ### Via Builder
 //!
@@ -105,7 +66,7 @@
 //!     builder.account_key("account_key");
 //!
 //!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

@@ -101,15 +101,16 @@
 //! use opendal::ObjectMode;
 //! use opendal::Operator;
 //! use opendal::Scheme;
+//! use opendal::services;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Init a fs operator
-//!     let op = Operator::from_env(Scheme::Fs)?
+//!     let op = Operator::from_env::<services::Fs>()?
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer::default())
 //!         // Init with retry layer enabled.
-//!         .layer(RetryLayer::new(ExponentialBackoff::default()));
+//!         .layer(RetryLayer::new(ExponentialBackoff::default())).finish();
 //!
 //!     // Create object handler.
 //!     let o = op.object("test_file");

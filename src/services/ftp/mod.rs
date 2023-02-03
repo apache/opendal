@@ -23,42 +23,7 @@
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
-//! # Environment
-//!
-//! - `OPENDAL_FTP_ENDPOINT`    optional
-//! - `OPENDAL_FTP_ROOT`    required
-//! - `OPENDAL_FTP_USER`  optional
-//! - `OPENDAL_FTP_PASSWORD`    optional
-//!
 //! # Example
-//!
-//! ## Initiate via environment variables
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_FTP_ENDPOINT=endpoint    # required
-//! export OPENDAL_FTP_ROOT=/path/to/dir/   # if not set, will be seen as "/"
-//! export OPENDAL_FTP_USER=name            # default with empty string ""
-//! export OPENDAL_FTP_PASSWORD=password    # default with empty string ""
-//! ```
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Ftp)?;
-//!
-//!     // create an object handler to start operation on it.
-//!     let _op: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!

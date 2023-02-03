@@ -21,38 +21,7 @@
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
-//! # Environment
-//!
-//! - `OPENDAL_IPFS_ROOT`    optional
-//! - `OPENDAL_IPFS_ENDPOINT`  optional
-//!
 //! # Example
-//!
-//! ## Initiate via environment variables
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_IPFS_ROOT=/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ
-//! export OPENDAL_IPFS_ENDPOINT=https://ipfs.io
-//! ```
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Ipfs)?;
-//!
-//!     // create an object handler to start operation on it.
-//!     let _op: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!

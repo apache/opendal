@@ -22,39 +22,7 @@
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
-//! # Environment
-//!
-//! - `OPENDAL_MEMCACHED_ROOT` optional
-//! - `OPENDAL_MEMCACHED_ENDPOINT` optional
-//!
 //! # Example
-//!
-//! ## Initiate via environment variables:
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_MEMCACHED_ENDPOINT=tcp://example.com
-//! export OPENDAL_MEMCACHED_ROOT=/path/to/dir
-//! ```
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op = Operator::from_env(Scheme::Memcached);
-//!
-//!     // create an object handler to start operation on redis!
-//!
-//!     let _op: Object = op.object("hello_redis!");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!

@@ -33,7 +33,7 @@ use crate::*;
 /// ```rust, no_run
 /// use opendal::layers::ImmutableIndexLayer;
 /// use opendal::Operator;
-/// use opendal::Scheme;
+/// use opendal::services;
 ///
 /// let mut iil = ImmutableIndexLayer::default();
 ///
@@ -41,7 +41,7 @@ use crate::*;
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_env(Scheme::Http).unwrap().layer(iil);
+/// let op = Operator::from_env::<services::Http>().unwrap().layer(iil).finish();
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct ImmutableIndexLayer {

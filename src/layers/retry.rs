@@ -35,10 +35,11 @@ use crate::*;
 /// use opendal::layers::RetryLayer;
 /// use opendal::Operator;
 /// use opendal::Scheme;
+/// use opendal::services;
 ///
-/// let _ = Operator::from_env(Scheme::Fs)
+/// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(RetryLayer::new(ExponentialBackoff::default()));
+///     .layer(RetryLayer::new(ExponentialBackoff::default())).finish();
 /// ```
 pub struct RetryLayer<B: Backoff + Send + Sync + Debug + Unpin + 'static>(B);
 
@@ -55,8 +56,9 @@ where
     /// use opendal::layers::RetryLayer;
     /// use opendal::Operator;
     /// use opendal::Scheme;
+    /// use opendal::services;
     ///
-    /// let _ = Operator::from_env(Scheme::Fs)
+    /// let _ = Operator::from_env::<services::Fs>()
     ///     .expect("must init")
     ///     .layer(RetryLayer::new(ExponentialBackoff::default()));
     /// ```

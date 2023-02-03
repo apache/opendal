@@ -56,10 +56,11 @@ use crate::*;
 /// use opendal::layers::LoggingLayer;
 /// use opendal::Operator;
 /// use opendal::Scheme;
+/// use opendal::services;
 ///
-/// let _ = Operator::from_env(Scheme::Fs)
+/// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(LoggingLayer::default());
+///     .layer(LoggingLayer::default()).finish();
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct LoggingLayer {

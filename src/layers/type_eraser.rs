@@ -60,16 +60,15 @@ impl<A: Accessor> TypeEraseAccessor<A> {
         let content_length = rp.metadata().content_length();
 
         match (seekable, streamable) {
-            (true, true) => {
+            (true, true) => Ok((rp, Box::new(r))),
+            (true, false) => {
+                let r = output::into_reader::as_streamable(r, 256 * 1024);
                 Ok((rp, Box::new(r)))
             }
-            (false, true) => {
-               match (range.offset(), range.size()) {
-                    (Some(offset), _) => {
-                       let r= output::into_reader::by_range(self.inner.clone(), path, r, offset, content_length);
-
-                         Ok((rp, Box::new(r)))
-                    }
+            _ => {
+                let (offset, size) = match (range.offset(), range.size()) {
+                    (Some(offset), _) => (offset, content_length),
+                    (None, None) => (0, content_length),
                     (None, Some(size)) => {
                         // TODO: we can read content range to calculate
                         // the total content length.
@@ -80,22 +79,19 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                         } else {
                             (total_size - size, size)
                         };
-                        let r= output::into_reader::by_range(self.inner.clone(), path,r, offset, size);
 
-                         Ok((rp, Box::new(r)))
-                    },
-                    (None, None) => {
-                        let r = output::into_reader::by_range(self.inner.clone(), path, r,0, content_length);
-
-                         Ok((rp, Box::new(r)))
+                        (offset, size)
                     }
-               }
+                };
+                let r = output::into_reader::by_range(self.inner.clone(), path, r, offset, size);
+
+                if streamable {
+                    Ok((rp, Box::new(r)))
+                } else {
+                    let r = output::into_reader::as_streamable(r, 256 * 1024);
+                    Ok((rp, Box::new(r)))
+                }
             }
-            (true, false) => {
-                let r = output::into_reader::as_streamable(r, 256 * 1024);
-                 Ok((rp, Box::new(r)))
-            }
-            (false, false) => unreachable!("reader is neither seekable nor streamable, please check if service {} implemented correctly", self.meta.scheme()),
         }
     }
 

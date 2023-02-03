@@ -22,7 +22,6 @@ jobs:
         image: ipfs/go-ipfs:v0.16.0
     steps:
       - uses: actions/checkout@v3
-      - name: Set up IPFS ${{ matrix.ipfs }}
       - name: IPFS Add testdata
         run: |
           ipfs add -r ./tests/data --to-files /opendal-testdata

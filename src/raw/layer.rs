@@ -41,25 +41,46 @@ use crate::*;
 /// ```
 /// use std::sync::Arc;
 ///
-/// use opendal::raw::Accessor;
-/// use opendal::Layer;
+/// use async_trait::async_trait;
+/// use opendal::raw::*;
+/// use opendal::*;
 ///
 /// /// Implement the real accessor logic here.
 /// #[derive(Debug)]
-/// struct TraceAccessor {
-///     inner: Arc<dyn Accessor>,
+/// struct TraceAccessor<A: Accessor> {
+///     inner: A,
 /// }
 ///
-/// impl Accessor for TraceAccessor {}
+/// #[async_trait]
+/// impl<A: Accessor> LayeredAccessor for TraceAccessor<A> {
+///     type Inner = A;
+///     type Reader = A::Reader;
+///     type BlockingReader = A::BlockingReader;
+///
+///     fn inner(&self) -> &Self::Inner {
+///         &self.inner
+///     }
+///
+///      async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+///         self.inner.read(path, args).await
+///     }
+///
+///     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+///             self.inner
+///            .blocking_read(path, args)
+///     }
+/// }
 ///
 /// /// The public struct that exposed to users.
 /// ///
 /// /// Will be used like `op.layer(TraceLayer)`
 /// struct TraceLayer;
 ///
-/// impl Layer for TraceLayer {
-///     fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-///         Arc::new(TraceAccessor { inner })
+/// impl<A: Accessor> Layer<A> for TraceLayer {
+///     type LayeredAccessor =  TraceAccessor<A>;
+///
+///     fn layer(&self, inner: A) -> Self::LayeredAccessor {
+///         TraceAccessor { inner }
 ///     }
 /// }
 /// ```

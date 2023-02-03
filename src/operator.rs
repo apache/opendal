@@ -59,7 +59,7 @@ impl Operator {
     ///     builder.root("/tmp");
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::new(builder.build()?);
+    ///     let op: Operator = Operator::create(builder)?.finish();
     ///
     ///     // Create an object handle to start operation on object.
     ///     let _: Object = op.object("test_file");

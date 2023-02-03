@@ -42,7 +42,7 @@ pub use ghac::Builder as Ghac;
 #[cfg(feature = "services-hdfs")]
 pub mod hdfs;
 #[cfg(feature = "services-hdfs")]
-pub use ghac::Builder as Hdfs;
+pub use hdfs::Builder as Hdfs;
 
 pub mod http;
 pub use self::http::Builder as Http;

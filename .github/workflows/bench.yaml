@@ -23,6 +23,7 @@ jobs:
           OPENDAL_FS_ROOT: /tmp/opendal/
 
       - name: Store benchmark result
+        if: github.repository_owner == 'datafuselabs'
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Rust Benchmark

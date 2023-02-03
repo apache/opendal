@@ -30,7 +30,7 @@ use crate::*;
 pub struct Builder {
     /// The path to the rocksdb data directory.
     datadir: Option<String>,
-    /// the working directory of the Redis service. Can be "/path/to/dir"
+    /// the working directory of the service. Can be "/path/to/dir"
     ///
     /// default is "/"
     root: Option<String>,

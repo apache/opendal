@@ -17,11 +17,13 @@ concurrency:
 jobs:
   redis:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v3
-      - uses: shogo82148/actions-setup-redis@v1
-        with:
-          redis-version: "6.x"
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash

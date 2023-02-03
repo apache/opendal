@@ -36,7 +36,7 @@ jobs:
           cp -r ./target/doc/* ./target/book
 
       - name: Deploy to vercel
-        if: github.ref_name == 'main'
+        if: github.repository_owner == 'datafuselabs' && github.ref_name == 'main'
         uses: amondnet/vercel-action@v25.1.1
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -48,7 +48,7 @@ jobs:
           working-directory: ./target/book
 
       - name: Deploy to vercel (preview)
-        if: github.ref_name != 'main'
+        if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
         uses: amondnet/vercel-action@v25.1.1
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}

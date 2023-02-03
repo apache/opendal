@@ -30,38 +30,7 @@
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
-//! # Environment
-//!
-//! - `OPENDAL_WEBDAV_ENDPOINT`
-//! - `OPENDAL_WEBDAV_ROOT`
-//!
 //! # Example
-//!
-//! ## Initiate via environment variables
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_WEBDAV_ENDPOINT=endpoint
-//! export OPENDAL_WEBDAV_ROOT=/path/to/dir/
-//! ```
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Webdav)?;
-//!
-//!     // create an object handler to start operation on it.
-//!     let _op: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!
@@ -78,7 +47,7 @@
 //!
 //!     builder.endpoint("127.0.0.1");
 //!
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!     let _obj: Object = op.object("test_file");
 //!     Ok(())
 //! }

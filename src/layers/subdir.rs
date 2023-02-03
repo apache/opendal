@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::FutureExt;
 
 use crate::raw::*;
 use crate::*;
@@ -27,12 +27,14 @@ use crate::*;
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::SubdirLayer;
+/// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::from_env(Scheme::Fs)
+/// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(SubdirLayer::new("path/to/subdir"));
+///     .layer(SubdirLayer::new("path/to/subdir"))
+///     .finish();
 /// ```
 #[derive(Debug, Clone)]
 pub struct SubdirLayer {
@@ -51,23 +53,25 @@ impl SubdirLayer {
     }
 }
 
-impl Layer for SubdirLayer {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(SubdirAccessor {
+impl<A: Accessor> Layer<A> for SubdirLayer {
+    type LayeredAccessor = SubdirAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        SubdirAccessor {
             subdir: self.subdir.clone(),
             inner,
-        })
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-struct SubdirAccessor {
+pub struct SubdirAccessor<A: Accessor> {
     /// Subdir must be like `abc/`
     subdir: String,
-    inner: Arc<dyn Accessor>,
+    inner: A,
 }
 
-impl SubdirAccessor {
+impl<A: Accessor> SubdirAccessor<A> {
     fn prepend_subdir(&self, path: &str) -> String {
         if path == "/" {
             self.subdir.clone()
@@ -78,9 +82,13 @@ impl SubdirAccessor {
 }
 
 #[async_trait]
-impl Accessor for SubdirAccessor {
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
-        Some(self.inner.clone())
+impl<A: Accessor> LayeredAccessor for SubdirAccessor<A> {
+    type Inner = A;
+    type Reader = A::Reader;
+    type BlockingReader = A::BlockingReader;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     fn metadata(&self) -> AccessorMetadata {
@@ -95,7 +103,7 @@ impl Accessor for SubdirAccessor {
         self.inner.create(&path, args).await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.read(&path, args).await
@@ -121,9 +129,18 @@ impl Accessor for SubdirAccessor {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         let path = self.prepend_subdir(path);
-        let (rp, pager) = self.inner.list(&path, args).await?;
 
-        Ok((rp, Box::new(SubdirPager::new(&self.subdir, pager))))
+        self.inner
+            .list(&path, args)
+            .map(|v| {
+                v.map(|(rp, p)| {
+                    (
+                        rp,
+                        Box::new(SubdirPager::new(&self.subdir, p)) as ObjectPager,
+                    )
+                })
+            })
+            .await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -179,7 +196,7 @@ impl Accessor for SubdirAccessor {
         self.inner.blocking_create(&path, args)
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let path = self.prepend_subdir(path);
 
         self.inner.blocking_read(&path, args)

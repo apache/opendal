@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
@@ -60,23 +61,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "user" => builder.user(v),
-                "password" => builder.password(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// set endpoint for ftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
@@ -120,9 +104,13 @@ impl Builder {
 
         self
     }
+}
 
-    /// Build a ftp backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Ftp;
+    type Accessor = Backend;
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
             None => {
@@ -148,7 +136,7 @@ impl Builder {
         let host = endpoint_uri.host().unwrap_or("127.0.0.1");
         let port = endpoint_uri.port_u16().unwrap_or(21);
 
-        let endpoint = format!("{}:{}", host, port);
+        let endpoint = format!("{host}:{port}");
 
         let enable_secure = match endpoint_uri.scheme_str() {
             Some("ftp") => false,
@@ -179,14 +167,25 @@ impl Builder {
 
         debug!("ftp backend finished: {:?}", &self);
 
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             endpoint,
             root,
             user,
             password,
             enable_secure,
             pool: OnceCell::new(),
-        }))
+        })
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("user").map(|v| builder.user(v));
+        map.get("password").map(|v| builder.password(v));
+
+        builder
     }
 }
 
@@ -267,6 +266,9 @@ impl Debug for Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = FtpReader;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Ftp)
@@ -309,7 +311,7 @@ impl Accessor for Backend {
         return Ok(RpCreate::default());
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         let meta = self.ftp_stat(path).await?;
@@ -339,10 +341,7 @@ impl Accessor for Backend {
             }
         };
 
-        Ok((
-            RpRead::new(size),
-            Box::new(FtpReader::new(r, ftp_stream)) as output::Reader,
-        ))
+        Ok((RpRead::new(size), FtpReader::new(r, ftp_stream)))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
@@ -414,7 +413,7 @@ impl Accessor for Backend {
 
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)),
+            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)) as ObjectPager,
         ))
     }
 }
@@ -475,6 +474,7 @@ impl Backend {
 #[cfg(test)]
 mod build_test {
     use super::Builder;
+    use crate::raw::*;
     use crate::ErrorKind;
 
     #[test]

@@ -40,11 +40,8 @@ impl ObjectPage for ObjectPager {
     }
 }
 
-/// EmptyObjectPager will always returns `Ok(None)`
-pub struct EmptyObjectPager;
-
 #[async_trait]
-impl ObjectPage for EmptyObjectPager {
+impl ObjectPage for () {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         Ok(None)
     }
@@ -68,10 +65,7 @@ impl BlockingObjectPage for BlockingObjectPager {
     }
 }
 
-/// EmptyBlockingObjectPager will always returns `Ok(None)`
-pub struct EmptyBlockingObjectPager;
-
-impl BlockingObjectPage for EmptyBlockingObjectPager {
+impl BlockingObjectPage for () {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         Ok(None)
     }

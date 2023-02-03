@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::PathBuf;
@@ -65,26 +66,25 @@ pub struct Builder {
     default_ttl: Option<Duration>,
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "username" => builder.username(v),
-                "password" => builder.password(v),
-                "db" => match v.parse::<i64>() {
-                    Ok(num) => builder.db(num),
-                    _ => continue,
-                },
-                _ => continue,
-            };
+impl Debug for Builder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+        ds.field("db", &self.db.to_string());
+        ds.field("root", &self.root);
+        if let Some(endpoint) = self.endpoint.clone() {
+            ds.field("endpoint", &endpoint);
         }
-        builder
+        if let Some(username) = self.username.clone() {
+            ds.field("username", &username);
+        }
+        if self.password.is_some() {
+            ds.field("password", &"<redacted>");
+        }
+        ds.finish()
     }
+}
 
+impl Builder {
     /// set the network address of redis service.
     ///
     /// currently supported schemes:
@@ -143,9 +143,26 @@ impl Builder {
         }
         self
     }
+}
 
-    /// Establish connection to Redis and finish making Redis endpoint
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Redis;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("username").map(|v| builder.username(v));
+        map.get("password").map(|v| builder.password(v));
+        map.get("db")
+            .map(|v| v.parse::<i64>().map(|v| builder.db(v)));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let endpoint = self
             .endpoint
             .clone()
@@ -212,35 +229,14 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(apply_wrapper(
-            Backend::new(Adapter {
-                client,
-                conn,
-                default_ttl: self.default_ttl,
-            })
-            .with_root(&root),
-        ))
+        Ok(Backend::new(Adapter {
+            client,
+            conn,
+            default_ttl: self.default_ttl,
+        })
+        .with_root(&root))
     }
 }
-
-impl Debug for Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-        ds.field("db", &self.db.to_string());
-        ds.field("root", &self.root);
-        if let Some(endpoint) = self.endpoint.clone() {
-            ds.field("endpoint", &endpoint);
-        }
-        if let Some(username) = self.username.clone() {
-            ds.field("username", &username);
-        }
-        if self.password.is_some() {
-            ds.field("password", &"<redacted>");
-        }
-        ds.finish()
-    }
-}
-
 /// Backend for redis services.
 pub type Backend = kv::Backend<Adapter>;
 

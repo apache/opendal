@@ -12,41 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::env;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::StreamExt;
 use futures::TryStreamExt;
 
+use crate::layers::ErrorContextLayer;
+use crate::layers::TypeEraseLayer;
 use crate::object::ObjectLister;
 use crate::raw::*;
-use crate::services;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Layer;
-use crate::Object;
-use crate::ObjectMode;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// User-facing APIs for object and object streams.
 #[derive(Clone, Debug)]
 pub struct Operator {
-    accessor: Arc<dyn Accessor>,
+    accessor: FusedAccessor,
 }
 
-impl<A> From<A> for Operator
-where
-    A: Accessor,
-{
-    fn from(accessor: A) -> Self {
-        Operator::new(accessor)
-    }
-}
-
-impl From<Arc<dyn Accessor>> for Operator {
-    fn from(accessor: Arc<dyn Accessor>) -> Self {
-        Operator { accessor }
+impl From<FusedAccessor> for Operator {
+    fn from(accessor: FusedAccessor) -> Self {
+        Self { accessor }
     }
 }
 
@@ -73,7 +59,7 @@ impl Operator {
     ///     builder.root("/tmp");
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::new(builder.build()?);
+    ///     let op: Operator = Operator::create(builder)?.finish();
     ///
     ///     // Create an object handle to start operation on object.
     ///     let _: Object = op.object("test_file");
@@ -81,168 +67,44 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(accessor: impl Accessor) -> Self {
-        Self {
-            accessor: Arc::new(accessor),
-        }
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<impl Accessor> {
+        OperatorBuilder::new(acc)
     }
 
-    /// Create a new operator from iter.
-    ///
-    /// Please refer different backends for detailed config options.
-    ///
-    /// # Behavior
-    ///
-    /// - All input key must be `lower_case`
-    /// - Boolean values will be checked by its existences and non-empty value.
-    ///   `on`, `yes`, `true`, `off`, `no`, `false` will all be treated as `true`
-    ///   To disable a flag, please set value to empty.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::Object;
-    /// # use opendal::Operator;
-    /// # use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op: Operator = Operator::from_iter(
-    ///         Scheme::Fs,
-    ///         [("root".to_string(), "/tmp".to_string())].into_iter(),
-    ///     )?;
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _: Object = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_iter(
-        scheme: Scheme,
-        it: impl Iterator<Item = (String, String)> + 'static,
-    ) -> Result<Self> {
-        let op = match scheme {
-            Scheme::Azblob => services::azblob::Builder::from_iter(it).build()?.into(),
-            Scheme::Azdfs => services::azdfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Fs => services::fs::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-ftp")]
-            Scheme::Ftp => services::ftp::Builder::from_iter(it).build()?.into(),
-            Scheme::Gcs => services::gcs::Builder::from_iter(it).build()?.into(),
-            Scheme::Ghac => services::ghac::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => services::hdfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Http => services::http::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-ipfs")]
-            Scheme::Ipfs => services::ipfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Ipmfs => services::ipmfs::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-memcached")]
-            Scheme::Memcached => services::memcached::Builder::from_iter(it).build()?.into(),
-            Scheme::Memory => services::memory::Builder::default().build()?.into(),
-            #[cfg(feature = "services-moka")]
-            Scheme::Moka => services::moka::Builder::from_iter(it).build()?.into(),
-            Scheme::Obs => services::obs::Builder::from_iter(it).build()?.into(),
-            Scheme::Oss => services::oss::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-redis")]
-            Scheme::Redis => services::redis::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-rocksdb")]
-            Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
-            Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
-            Scheme::Webdav => services::webdav::Builder::from_iter(it).build()?.into(),
-            Scheme::Custom(v) => {
-                return Err(
-                    Error::new(ErrorKind::Unsupported, "custom service  is not supported")
-                        .with_context("service", v),
-                )
-            }
-        };
-
-        Ok(op)
+    /// Create a new operator
+    pub fn create<AB: AccessorBuilder>(mut ab: AB) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = ab.build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Create a new operator from env.
-    ///
-    /// # Behavior
-    ///
-    /// - Environment keys are case-insensitive, they will be converted to lower case internally.
-    /// - Environment values are case-sensitive, no sanity will be executed on them.
-    /// - Boolean values will be checked by its existences and non-empty value.
-    ///   `on`, `yes`, `true`, `off`, `no`, `false` will all be treated as `true`
-    ///   To disable a flag, please set value to empty.
-    ///
-    /// # Examples
-    ///
-    /// Setting environment:
-    ///
-    /// ```shell
-    /// export OPENDAL_FS_ROOT=/tmp
-    /// ```
-    ///
-    /// Please refer different backends for detailed config options.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::Object;
-    /// # use opendal::Operator;
-    /// # use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     // Build an Operator to start operating the storage
-    ///     let op: Operator = Operator::from_env(Scheme::Fs)?;
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _: Object = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_env(scheme: Scheme) -> Result<Self> {
-        let prefix = format!("opendal_{scheme}_");
-        let envs = env::vars().filter_map(move |(k, v)| {
-            k.to_lowercase()
-                .strip_prefix(&prefix)
-                .map(|k| (k.to_string(), v))
-        });
-
-        Self::from_iter(scheme, envs)
+    pub fn from_map<AB: AccessorBuilder>(
+        map: HashMap<String, String>,
+    ) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = AB::from_map(map).build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
-    /// Create a new layer.
-    ///
-    /// # Examples
-    ///
-    /// This examples needs feature `retry` enabled.
-    ///
-    /// ```no_build
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
-    /// use opendal::Operator;
-    /// use opendal::Layer;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let accessor = fs::Backend::build().finish().await?;
-    /// let op = Operator::new(accessor).layer(new_layer);
-    /// // All operations will go through the new_layer
-    /// let _ = op.object("test_file").read();
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[must_use]
-    pub fn layer(self, layer: impl Layer) -> Self {
-        Operator {
-            accessor: layer.layer(self.accessor.clone()),
-        }
+    /// Create a new operator from iter.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_iter<AB: AccessorBuilder>(
+        iter: impl Iterator<Item = (String, String)>,
+    ) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = AB::from_iter(iter).build()?;
+        Ok(OperatorBuilder::new(acc))
+    }
+
+    /// Create a new operator from env.
+    pub fn from_env<AB: AccessorBuilder>() -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = AB::from_env().build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Get inner accessor.
     ///
     /// This function should only be used by developers to implement layers.
-    pub fn inner(&self) -> Arc<dyn Accessor> {
+    pub fn inner(&self) -> FusedAccessor {
         self.accessor.clone()
     }
 
@@ -253,14 +115,10 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Fs)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op.metadata();
     /// # Ok(())
     /// # }
@@ -289,14 +147,10 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Fs)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// op.check().await?;
     /// # Ok(())
     /// # }
@@ -307,6 +161,63 @@ impl Operator {
         match ds.next().await {
             Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
             _ => Ok(()),
+        }
+    }
+}
+
+/// OperatorBuilder is a typed builder to builder an Operator.
+///
+/// # NOTES
+///
+/// It's required to call `finish` after the operator built.
+pub struct OperatorBuilder<A: Accessor> {
+    accessor: A,
+}
+
+impl<A: Accessor> OperatorBuilder<A> {
+    /// Create a new operator builder.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
+        // Make sure error context layer hass been attached.
+        OperatorBuilder { accessor }.layer(ErrorContextLayer)
+    }
+
+    /// Create a new layer.
+    ///
+    /// # Examples
+    ///
+    /// This examples needs feature `retry` enabled.
+    ///
+    /// ```no_build
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// # use opendal::services::fs;
+    /// # use opendal::services::fs::Builder;
+    /// use opendal::Operator;
+    /// use opendal::Layer;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let accessor = fs::Backend::build().finish().await?;
+    /// let op = Operator::new(accessor).layer(new_layer);
+    /// // All operations will go through the new_layer
+    /// let _ = op.object("test_file").read();
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
+        OperatorBuilder {
+            accessor: layer.layer(self.accessor),
+        }
+    }
+
+    /// Finish the building to construct an Operator.
+    pub fn finish(self) -> Operator {
+        let ob = self.layer(TypeEraseLayer);
+
+        Operator {
+            accessor: Arc::new(ob.accessor),
         }
     }
 }

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::collections::HashMap;
 use std::io;
 use std::io::SeekFrom;
 use std::path::PathBuf;
@@ -40,21 +41,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "atomic_write_dir" => builder.atomic_write_dir(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root for backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -88,9 +74,13 @@ impl Builder {
 
         self
     }
+}
 
-    /// Consume current builder to build a fs backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Fs;
+    type Accessor = Backend;
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -123,11 +113,21 @@ impl Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             atomic_write_dir,
             enable_path_check: self.enable_path_check,
-        }))
+        })
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("atomic_write_dir")
+            .map(|v| builder.atomic_write_dir(v));
+
+        builder
     }
 }
 
@@ -203,6 +203,9 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = output::into_reader::FdReader<Compat<tokio::fs::File>>;
+    type BlockingReader = output::into_blocking_reader::FdReader<std::fs::File>;
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Fs)
@@ -264,7 +267,7 @@ impl Accessor for Backend {
     /// - open file first, and than use `seek`. (100ns)
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         use output::ReadExt;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -324,7 +327,7 @@ impl Accessor for Backend {
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
 
-        Ok((RpRead::new(end - start), Box::new(r)))
+        Ok((RpRead::new(end - start), r))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
@@ -426,7 +429,7 @@ impl Accessor for Backend {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(EmptyObjectPager)))
+                    Ok((RpList::default(), Box::new(()) as ObjectPager))
                 } else {
                     Err(parse_io_error(e))
                 }
@@ -473,7 +476,7 @@ impl Accessor for Backend {
         unreachable!()
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         use output::BlockingRead;
 
         let p = build_rooted_abs_path(&self.root, path);
@@ -530,7 +533,7 @@ impl Accessor for Backend {
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
 
-        Ok((RpRead::new(end - start), Box::new(r)))
+        Ok((RpRead::new(end - start), r))
     }
 
     fn blocking_write(
@@ -629,10 +632,7 @@ impl Accessor for Backend {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((
-                        RpList::default(),
-                        Box::new(EmptyBlockingObjectPager) as BlockingObjectPager,
-                    ))
+                    Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
                 } else {
                     Err(parse_io_error(e))
                 }

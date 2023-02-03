@@ -20,3 +20,4 @@ pub use as_iterable::as_iterable;
 
 mod from_fd;
 pub use from_fd::from_fd;
+pub use from_fd::FdReader;

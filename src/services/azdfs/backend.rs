@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -64,24 +65,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "filesystem" => builder.filesystem(v),
-                "endpoint" => builder.endpoint(v),
-                "account_name" => builder.account_name(v),
-                "account_key" => builder.account_key(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -149,9 +132,13 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Consume builder to build an azblob backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    type Accessor = Backend;
+    const SCHEME: Scheme = Scheme::Azdfs;
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -202,14 +189,26 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
             filesystem: self.filesystem.clone(),
             client,
             _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
-        }))
+        })
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("filesystem").map(|v| builder.filesystem(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("account_name").map(|v| builder.account_name(v));
+        map.get("account_key").map(|v| builder.account_key(v));
+
+        builder
     }
 }
 
@@ -226,6 +225,9 @@ pub struct Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Azdfs)
@@ -263,7 +265,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.azdfs_read(path, args.range()).await?;
 
         let status = resp.status();
@@ -271,7 +273,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -352,7 +354,7 @@ impl Accessor for Backend {
             path.to_string(),
         ));
 
-        Ok((RpList::default(), op))
+        Ok((RpList::default(), op as ObjectPager))
     }
 }
 

@@ -33,22 +33,6 @@
 //!
 //! Refer to [`Builder`]'s public API docs for more information.
 //!
-//! # Environment
-//!
-//! - `OPENDAL_S3_ROOT`
-//! - `OPENDAL_S3_BUCKET`
-//! - `OPENDAL_S3_ENDPOINT`
-//! - `OPENDAL_S3_REGION`
-//! - `OPENDAL_S3_ACCESS_KEY_ID`
-//! - `OPENDAL_S3_SECRET_ACCESS_KEY`
-//! - `OPENDAL_S3_SECURITY_TOKEN`
-//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION`
-//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM`
-//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY`
-//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5`
-//! - `OPENDAL_S3_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID`
-//! - `OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE`
-//!
 //! # Temporary security credentials
 //!
 //! OpenDAL now provides support for S3 temporary security credentials in IAM.
@@ -88,37 +72,6 @@
 //!
 //! # Example
 //!
-//! ## Via Environment
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_S3_ROOT=/path/to/dir/
-//! export OPENDAL_S3_BUCKET=test
-//! export OPENDAL_S3_ENDPOINT=https://s3.amazonaws.com
-//! export OPENDAL_S3_ACCESS_KEY_ID=access_key_id
-//! export OPENDAL_S3_SECRET_ACCESS_KEY=secret_access_key
-//! ```
-//!
-//! ```no_run
-//! use std::sync::Arc;
-//!
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::S3)?;
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
 //! ## Via Builder
 //!
 //! ```no_run
@@ -157,7 +110,7 @@
 //!     builder.access_key_id("access_key_id");
 //!     builder.secret_access_key("secret_access_key");
 //!
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

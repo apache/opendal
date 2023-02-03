@@ -23,41 +23,7 @@
 //!
 //! You can refer to [`Builder`]'s docs for more information
 //!
-//! # Environment
-//!
-//! - `OPENDAL_GCS_ENDPOINT`    optional
-//! - `OPENDAL_GCS_BUCKET`  required
-//! - `OPENDAL_GCS_ROOT`    optional
-//! - `OPENDAL_GCS_CREDENTIAL`  required
-//!
 //! # Example
-//!
-//! ## Initiate via environment variables
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_GCS_ENDPOINT=https://storage.googleapis.com  # by default
-//! export OPENDAL_GCS_BUCKET=test
-//! export OPENDAL_GCS_ROOT=/path/to/dir/   # if not set, will be seen as "/"
-//! export OPENDAL_GCS_CREDENTIAL=secret_oauth2_credential
-//! ```
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Gcs)?;
-//!
-//!     // create an object handler to start operation on it.
-//!     let _op: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
 //!
 //! ## Via Builder
 //!
@@ -80,7 +46,7 @@
 //!     // set the credentials for GCS OAUTH2 authentication
 //!     builder.credential("authentication token");
 //!
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!     let _: Object = op.object("test_file");
 //!     Ok(())
 //! }

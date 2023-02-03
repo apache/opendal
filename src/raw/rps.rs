@@ -172,6 +172,11 @@ impl RpRead {
         RpRead { meta }
     }
 
+    /// Get a ref of object metadata.
+    pub fn metadata(&self) -> &ObjectMetadata {
+        &self.meta
+    }
+
     /// Consume reply to get the object meta.
     pub fn into_metadata(self) -> ObjectMetadata {
         self.meta

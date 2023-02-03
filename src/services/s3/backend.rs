@@ -145,43 +145,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "region" => builder.region(v),
-                "access_key_id" => builder.access_key_id(v),
-                "secret_access_key" => builder.secret_access_key(v),
-                "security_token" => builder.security_token(v),
-                "role_arn" => builder.role_arn(v),
-                "external_id" => builder.external_id(v),
-                "server_side_encryption" => builder.server_side_encryption(v),
-                "server_side_encryption_aws_kms_key_id" => {
-                    builder.server_side_encryption_aws_kms_key_id(v)
-                }
-                "server_side_encryption_customer_algorithm" => {
-                    builder.server_side_encryption_customer_algorithm(v)
-                }
-                "server_side_encryption_customer_key" => {
-                    builder.server_side_encryption_customer_key(v)
-                }
-                "server_side_encryption_customer_key_md5" => {
-                    builder.server_side_encryption_customer_key_md5(v)
-                }
-                "disable_config_load" if !v.is_empty() => builder.disable_config_load(),
-                "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -506,7 +469,7 @@ impl Builder {
                     endpoint.to_string()
                 } else {
                     // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{}", endpoint)
+                    format!("https://{endpoint}")
                 }
             }
             None => "https://s3.amazonaws.com".to_string(),
@@ -587,7 +550,7 @@ impl Builder {
                     endpoint.to_string()
                 } else {
                     // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{}", endpoint)
+                    format!("https://{endpoint}")
                 }
             }
             None => "https://s3.amazonaws.com".to_string(),
@@ -614,9 +577,46 @@ impl Builder {
 
         endpoint
     }
+}
 
-    /// Finish the build process and create a new accessor.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::S3;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("region").map(|v| builder.region(v));
+        map.get("access_key_id").map(|v| builder.access_key_id(v));
+        map.get("secret_access_key")
+            .map(|v| builder.secret_access_key(v));
+        map.get("security_token").map(|v| builder.security_token(v));
+        map.get("role_arn").map(|v| builder.role_arn(v));
+        map.get("external_id").map(|v| builder.external_id(v));
+        map.get("server_side_encryption")
+            .map(|v| builder.server_side_encryption(v));
+        map.get("server_side_encryption_aws_kms_key_id")
+            .map(|v| builder.server_side_encryption_aws_kms_key_id(v));
+        map.get("server_side_encryption_customer_algorithm")
+            .map(|v| builder.server_side_encryption_customer_algorithm(v));
+        map.get("server_side_encryption_customer_key")
+            .map(|v| builder.server_side_encryption_customer_key(v));
+        map.get("server_side_encryption_customer_key_md5")
+            .map(|v| builder.server_side_encryption_customer_key_md5(v));
+        map.get("disable_config_load")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.disable_config_load());
+        map.get("enable_virtual_host_style")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.enable_virtual_host_style());
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -783,7 +783,7 @@ impl Builder {
             .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
@@ -795,7 +795,7 @@ impl Builder {
             server_side_encryption_customer_algorithm,
             server_side_encryption_customer_key,
             server_side_encryption_customer_key_md5,
-        }))
+        })
     }
 }
 
@@ -881,6 +881,9 @@ impl Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::S3)
@@ -916,7 +919,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.s3_get_object(path, args.range()).await?;
 
         let status = resp.status();
@@ -924,7 +927,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -986,7 +989,7 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 

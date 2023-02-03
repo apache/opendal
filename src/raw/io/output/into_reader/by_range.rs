@@ -25,7 +25,6 @@ use std::task::Poll;
 
 use futures::future::BoxFuture;
 use futures::ready;
-use futures::AsyncRead;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
@@ -37,28 +36,34 @@ use crate::*;
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn by_range(acc: Arc<dyn Accessor>, path: &str, offset: u64, size: u64) -> RangeReader {
+pub fn by_range<A: Accessor>(
+    acc: Arc<A>,
+    path: &str,
+    reader: A::Reader,
+    offset: u64,
+    size: u64,
+) -> RangeReader<A> {
     RangeReader {
         acc,
         path: path.to_string(),
         offset,
         size,
         cur: 0,
-        state: State::Idle,
+        state: State::Reading(reader),
         last_seek_pos: None,
         sink: Vec::new(),
     }
 }
 
 /// RangeReader that can do seek on non-seekable reader.
-pub struct RangeReader {
-    acc: Arc<dyn Accessor>,
+pub struct RangeReader<A: Accessor> {
+    acc: Arc<A>,
     path: String,
 
     offset: u64,
     size: u64,
     cur: u64,
-    state: State,
+    state: State<A::Reader>,
 
     /// Seek operation could return Pending which may lead
     /// `SeekFrom::Current(off)` been input multiple times.
@@ -70,17 +75,17 @@ pub struct RangeReader {
     sink: Vec<u8>,
 }
 
-enum State {
+enum State<R: output::Read> {
     Idle,
-    Sending(BoxFuture<'static, Result<(RpRead, output::Reader)>>),
-    Reading(output::Reader),
+    Sending(BoxFuture<'static, Result<(RpRead, R)>>),
+    Reading(R),
 }
 
 /// Safety: State will only be accessed under &mut.
-unsafe impl Sync for State {}
+unsafe impl<R: output::Read> Sync for State<R> {}
 
-impl RangeReader {
-    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, output::Reader)>> {
+impl<A: Accessor> RangeReader<A> {
+    fn read_future(&self) -> BoxFuture<'static, Result<(RpRead, A::Reader)>> {
         let acc = self.acc.clone();
         let path = self.path.clone();
         let op = OpRead::default().with_range(BytesRange::new(
@@ -88,9 +93,7 @@ impl RangeReader {
             Some(self.size - self.cur),
         ));
 
-        let fut = async move { acc.read(&path, op).await };
-
-        Box::pin(fut)
+        Box::pin(async move { acc.read(&path, op).await })
     }
 
     /// calculate the seek postion.
@@ -120,7 +123,7 @@ impl RangeReader {
     }
 }
 
-impl output::Read for RangeReader {
+impl<A: Accessor> output::Read for RangeReader<A> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         match &mut self.state {
             State::Idle => {
@@ -290,14 +293,17 @@ mod tests {
 
     #[async_trait]
     impl Accessor for MockReadService {
-        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+        type Reader = MockReader;
+        type BlockingReader = ();
+
+        async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());
 
             Ok((
                 RpRead::new(bs.len() as u64),
-                Box::new(MockReader {
+                MockReader {
                     inner: futures::io::Cursor::new(bs.into()),
-                }) as output::Reader,
+                },
             ))
         }
     }
@@ -310,6 +316,15 @@ mod tests {
     impl output::Read for MockReader {
         fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
             Pin::new(&mut self.inner).poll_read(cx, buf)
+        }
+
+        fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<io::Result<u64>> {
+            let (_, _) = (cx, pos);
+
+            Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "output reader doesn't support seeking",
+            )))
         }
 
         fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
@@ -328,7 +343,10 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_range(acc, "x", 0, bs.len() as u64)) as output::Reader;
+        let r = MockReader {
+            inner: futures::io::Cursor::new(bs.to_vec()),
+        };
+        let mut r = Box::new(by_range(acc, "x", r, 0, bs.len() as u64)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -359,7 +377,10 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_range(acc, "x", 4096, 4096)) as output::Reader;
+        let r = MockReader {
+            inner: futures::io::Cursor::new(bs[4096..4096 + 4096].to_vec()),
+        };
+        let mut r = Box::new(by_range(acc, "x", r, 4096, 4096)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;

@@ -70,13 +70,13 @@ Available Environment Values:
     );
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(builder.build()?);
+    let op: Operator = Operator::create(builder)?.finish();
     info!("operator: {:?}", op);
 
     let dir = uuid::Uuid::new_v4().to_string();
     let p = uuid::Uuid::new_v4().to_string();
 
-    let path = format!("{}/{}", dir, p);
+    let path = format!("{dir}/{p}");
 
     // Create an object handle to start operation on object.
     info!("try to write file: {}", &path);
@@ -93,14 +93,14 @@ Available Environment Values:
     info!("try to create a rich number of files");
 
     let files: Vec<String> = (0..=500)
-        .map(|num| format!("{}/{}/file-{}", dir, dir, num))
+        .map(|num| format!("{dir}/{dir}/file-{num}"))
         .collect();
     for file in files {
         op.object(&file).create().await?;
     }
 
     info!("try to list file under: {}/{}", &dir, &dir);
-    let mut s = op.object(&format!("{}/{}/", dir, dir)).list().await?;
+    let mut s = op.object(&format!("{dir}/{dir}/")).list().await?;
     let mut counter = 0;
     while let Some(p) = s.next().await {
         info!("listed file: {}", p.unwrap().path());

@@ -16,7 +16,6 @@ use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::mem;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -33,8 +32,8 @@ use crate::*;
 ///
 /// ```rust, no_run
 /// use opendal::layers::ImmutableIndexLayer;
+/// use opendal::services;
 /// use opendal::Operator;
-/// use opendal::Scheme;
 ///
 /// let mut iil = ImmutableIndexLayer::default();
 ///
@@ -42,7 +41,10 @@ use crate::*;
 ///     iil.insert(i.to_string())
 /// }
 ///
-/// let op = Operator::from_env(Scheme::Http).unwrap().layer(iil);
+/// let op = Operator::from_env::<services::Http>()
+///     .unwrap()
+///     .layer(iil)
+///     .finish();
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct ImmutableIndexLayer {
@@ -64,23 +66,25 @@ impl ImmutableIndexLayer {
     }
 }
 
-impl Layer for ImmutableIndexLayer {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(ImmutableIndexAccessor {
+impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
+    type LayeredAccessor = ImmutableIndexAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        ImmutableIndexAccessor {
             set: self.set.clone(),
             inner,
-        })
+        }
     }
 }
 
 #[derive(Debug, Clone)]
-struct ImmutableIndexAccessor {
-    inner: Arc<dyn Accessor>,
+pub struct ImmutableIndexAccessor<A: Accessor> {
+    inner: A,
     /// TODO: we can introduce trie here to lower the memory footprint.
     set: BTreeSet<String>,
 }
 
-impl ImmutableIndexAccessor {
+impl<A: Accessor> ImmutableIndexAccessor<A> {
     fn children(&self, path: &str) -> Vec<String> {
         let mut res = HashSet::new();
 
@@ -121,9 +125,13 @@ impl ImmutableIndexAccessor {
 }
 
 #[async_trait]
-impl Accessor for ImmutableIndexAccessor {
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
-        Some(self.inner.clone())
+impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
+    type Inner = A;
+    type Reader = A::Reader;
+    type BlockingReader = A::BlockingReader;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     /// Add list capabilities for underlying storage services.
@@ -134,6 +142,10 @@ impl Accessor for ImmutableIndexAccessor {
         meta
     }
 
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        self.inner.read(path, args).await
+    }
+
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let mut path = path;
         if path == "/" {
@@ -142,8 +154,12 @@ impl Accessor for ImmutableIndexAccessor {
 
         Ok((
             RpList::default(),
-            Box::new(ImmutableDir::new(self.children(path))),
+            Box::new(ImmutableDir::new(self.children(path))) as ObjectPager,
         ))
+    }
+
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
+        self.inner.blocking_read(path, args)
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
@@ -215,9 +231,9 @@ mod tests {
 
     use super::*;
     use crate::layers::LoggingLayer;
+    use crate::services::http;
     use crate::ObjectMode;
     use crate::Operator;
-    use crate::Scheme;
 
     #[tokio::test]
     async fn test_list() -> Result<()> {
@@ -228,12 +244,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        ))?
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
@@ -262,12 +278,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        ))?
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         let mut ds = op.batch().walk_top_down("/")?;
         let mut set = HashSet::new();
@@ -303,12 +319,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        ))?
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         //  List /
         let mut map = HashMap::new();
@@ -368,12 +384,12 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::from_iter(
-            Scheme::Http,
+        let op = Operator::create(http::Builder::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
-        )?
+        ))?
         .layer(LoggingLayer::default())
-        .layer(iil);
+        .layer(iil)
+        .finish();
 
         let mut ds = op.batch().walk_top_down("/")?;
 

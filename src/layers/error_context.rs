@@ -16,84 +16,111 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use futures::TryFutureExt;
 
 use crate::raw::*;
 use crate::*;
 
-/// Provide a zero cost error context wrapper for backend.
-#[derive(Clone)]
-pub struct ErrorContextWrapper<T: Accessor + 'static> {
-    meta: AccessorMetadata,
-    inner: T,
+/// ErrorContextLayer will add error context into all layers.
+pub struct ErrorContextLayer;
+
+impl<A: Accessor> Layer<A> for ErrorContextLayer {
+    type LayeredAccessor = ErrorContextAccessor<A>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        let meta = inner.metadata();
+        ErrorContextAccessor { meta, inner }
+    }
 }
 
-impl<T: Accessor + 'static> Debug for ErrorContextWrapper<T> {
+/// Provide error context wrapper for backend.
+pub struct ErrorContextAccessor<A: Accessor> {
+    meta: AccessorMetadata,
+    inner: A,
+}
+
+impl<A: Accessor> Debug for ErrorContextAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl<T: Accessor + 'static> ErrorContextWrapper<T> {
-    /// Create a new error context wrapper
-    pub fn new(inner: T) -> Self {
-        let meta = inner.metadata();
-        Self { meta, inner }
-    }
-}
-
 #[async_trait]
-impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
+impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
+    type Inner = A;
+    type Reader = A::Reader;
+    type BlockingReader = A::BlockingReader;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
+
     fn metadata(&self) -> AccessorMetadata {
-        self.inner.metadata()
+        self.meta.clone()
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.inner.create(path, args).await.map_err(|err| {
-            err.with_operation(Operation::Create.into_static())
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+        self.inner
+            .create(path, args)
+            .map_err(|err| {
+                err.with_operation(Operation::Create.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+            .await
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let br = args.range();
-        self.inner.read(path, args).await.map_err(|err| {
-            err.with_operation(Operation::Read.into_static())
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-                .with_context("range", br.to_string())
-        })
+
+        self.inner
+            .read(path, args)
+            .map_err(|err| {
+                err.with_operation(Operation::Read.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+                    .with_context("range", br.to_string())
+            })
+            .await
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.inner.write(path, args, r).await.map_err(|err| {
-            err.with_operation(Operation::Write.into_static())
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+        self.inner
+            .write(path, args, r)
+            .map_err(|err| {
+                err.with_operation(Operation::Write.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+            .await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner.stat(path, args).await.map_err(|err| {
-            err.with_operation(Operation::Stat.into_static())
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+        self.inner
+            .stat(path, args)
+            .map_err(|err| {
+                err.with_operation(Operation::Stat.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+            .await
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.inner.delete(path, args).await.map_err(|err| {
-            err.with_operation(Operation::Delete.into_static())
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+        self.inner
+            .delete(path, args)
+            .map_err(|err| {
+                err.with_operation(Operation::Delete.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+            .await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         self.inner
             .list(path, args)
-            .await
-            .map(|(rp, os)| {
+            .map_ok(|(rp, os)| {
                 (
                     rp,
                     Box::new(ObjectStreamErrorContextWrapper {
@@ -114,6 +141,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
+            .await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -131,12 +159,12 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
     ) -> Result<RpCreateMultipart> {
         self.inner
             .create_multipart(path, args)
-            .await
             .map_err(|err| {
                 err.with_operation(Operation::CreateMultipart.into_static())
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
+            .await
     }
 
     async fn write_multipart(
@@ -147,12 +175,12 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
     ) -> Result<RpWriteMultipart> {
         self.inner
             .write_multipart(path, args, r)
-            .await
             .map_err(|err| {
                 err.with_operation(Operation::WriteMultipart.into_static())
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
+            .await
     }
 
     async fn complete_multipart(
@@ -162,12 +190,12 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
     ) -> Result<RpCompleteMultipart> {
         self.inner
             .complete_multipart(path, args)
-            .await
             .map_err(|err| {
                 err.with_operation(Operation::CompleteMultipart.into_static())
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
+            .await
     }
 
     async fn abort_multipart(
@@ -175,11 +203,14 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         path: &str,
         args: OpAbortMultipart,
     ) -> Result<RpAbortMultipart> {
-        self.inner.abort_multipart(path, args).await.map_err(|err| {
-            err.with_operation(Operation::AbortMultipart.into_static())
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+        self.inner
+            .abort_multipart(path, args)
+            .map_err(|err| {
+                err.with_operation(Operation::AbortMultipart.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
+            .await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -190,7 +221,7 @@ impl<T: Accessor + 'static> Accessor for ErrorContextWrapper<T> {
         })
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner.blocking_read(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingRead.into_static())
                 .with_context("service", self.meta.scheme())
@@ -242,7 +273,7 @@ struct ObjectStreamErrorContextWrapper<T: ObjectPage> {
     inner: T,
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<T: ObjectPage> ObjectPage for ObjectStreamErrorContextWrapper<T> {
     async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
         self.inner.next_page().await.map_err(|err| {

@@ -261,7 +261,7 @@ mod tests {
             </EnumerationResults>"#,
         );
         let out: Output = de::from_reader(bs.reader()).expect("must success");
-        println!("{:?}", out);
+        println!("{out:?}");
 
         assert_eq!(
             out.blobs

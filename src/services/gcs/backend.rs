@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -67,22 +68,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "credential" => builder.credential(v),
-                "scope" => builder.scope(v),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
@@ -177,9 +162,39 @@ impl Builder {
         self.signer = Some(Arc::new(signer));
         self
     }
+}
 
-    /// Establish connection to GCS and finish making GCS backend
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Debug for Builder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+
+        ds.field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("endpoint", &self.endpoint);
+        if self.credential.is_some() {
+            ds.field("credentials", &"<redacted>");
+        }
+        ds.finish()
+    }
+}
+
+impl AccessorBuilder for Builder {
+    const SCHEME: Scheme = Scheme::Gcs;
+    type Accessor = Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("credential").map(|v| builder.credential(v));
+        map.get("scope").map(|v| builder.scope(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -251,21 +266,7 @@ impl Builder {
             client,
         };
 
-        Ok(apply_wrapper(backend))
-    }
-}
-
-impl Debug for Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint);
-        if self.credential.is_some() {
-            ds.field("credentials", &"<redacted>");
-        }
-        ds.finish()
+        Ok(backend)
     }
 }
 
@@ -295,6 +296,9 @@ impl Debug for Backend {
 
 #[async_trait]
 impl Accessor for Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Gcs)
@@ -322,12 +326,12 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
             let meta = parse_into_object_metadata(path, resp.headers())?;
-            Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+            Ok((RpRead::with_metadata(meta), resp.into_body()))
         } else {
             Err(parse_error(resp).await?)
         }
@@ -413,7 +417,7 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 }

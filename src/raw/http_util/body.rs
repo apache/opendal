@@ -119,6 +119,13 @@ impl From<AsyncBody> for reqwest::Body {
 ///
 /// Client SHOULD NEVER construct this body.
 pub struct IncomingAsyncBody {
+    /// # TODO
+    ///
+    /// hyper returns `impl Stream<Item = crate::Result<Bytes>>` but we can't
+    /// write the types in stable. So we will box here.
+    ///
+    /// After [TAIT](https://rust-lang.github.io/rfcs/2515-type_alias_impl_trait.html)
+    /// has been stable, we can change `IncomingAsyncBody` into `IncomingAsyncBody<S>`.
     inner: input::Streamer,
     size: Option<u64>,
     consumed: u64,
@@ -189,11 +196,6 @@ impl IncomingAsyncBody {
         Ok(vec.into())
     }
 
-    /// Consume the response to build a reader.
-    pub fn reader(self) -> output::Reader {
-        Box::new(self)
-    }
-
     #[inline]
     fn check(expect: u64, actual: u64) -> io::Result<()> {
         match actual.cmp(&expect) {
@@ -234,6 +236,15 @@ impl output::Read for IncomingAsyncBody {
         }
 
         Poll::Ready(Ok(amt))
+    }
+
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+        let (_, _) = (cx, pos);
+
+        Poll::Ready(Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "output reader doesn't support seeking",
+        )))
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {

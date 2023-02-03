@@ -249,6 +249,7 @@ impl HttpClient {
                 err,
             )
         });
+
         let body = IncomingAsyncBody::new(Box::new(stream), content_length);
 
         let resp = hr.body(body).expect("response must build succeed");

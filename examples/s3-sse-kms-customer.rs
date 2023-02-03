@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     // Enable SSE-KMS with customer managed kms key
     builder.server_side_encryption_with_customer_managed_kms_key("aws_kms_key_id");
 
-    let op = Operator::new(builder.build()?);
+    let op = Operator::create(builder)?.finish();
     info!("operator: {:?}", op);
 
     // Writing your testing code here.

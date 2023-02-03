@@ -29,10 +29,7 @@
 //!
 //! # Environment
 //!
-//! - `OPENDAL_HDFS_ROOT`
-//! - `OPENDAL_HDFS_NAME_NODE`
-//!
-//! HDFS also needs some environment set correctly.
+//! HDFS needs some environment set correctly.
 //!
 //! - `JAVA_HOME`: the path to java home, could be found via `java -XshowSettings:properties -version`
 //! - `HADOOP_HOME`: the path to hadoop home, opendal relays on this env to discover hadoop jars and set `CLASSPATH` automatically.
@@ -63,34 +60,6 @@
 //!
 //! # Example
 //!
-//! ### Via Environment
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_HDFS_ROOT=/path/to/dir/
-//! export OPENDAL_HDFS_NAME_NODE=hdfs://127.0.0.1:9000
-//! ```
-//!
-//! ```no_run
-//! use std::sync::Arc;
-//!
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Hdfs)?;
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
 //! ### Via Builder
 //!
 //! ```no_run
@@ -98,7 +67,6 @@
 //!
 //! use anyhow::Result;
 //! use opendal::services::hdfs;
-//! use opendal::Accessor;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
@@ -114,7 +82,7 @@
 //!     builder.root("/tmp");
 //!
 //!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-//!     let op: Operator = Operator::new(builder.build()?);
+//!     let op: Operator = Operator::create(builder)?.finish();
 //!
 //!     // Create an object handle to start operation on object.
 //!     let _: Object = op.object("test_file");

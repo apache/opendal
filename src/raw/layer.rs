@@ -61,13 +61,16 @@ use crate::*;
 ///         &self.inner
 ///     }
 ///
-///      async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+///     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
 ///         self.inner.read(path, args).await
 ///     }
 ///
-///     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-///             self.inner
-///            .blocking_read(path, args)
+///     fn blocking_read(
+///         &self,
+///         path: &str,
+///         args: OpRead,
+///     ) -> Result<(RpRead, Self::BlockingReader)> {
+///         self.inner.blocking_read(path, args)
 ///     }
 /// }
 ///
@@ -77,7 +80,7 @@ use crate::*;
 /// struct TraceLayer;
 ///
 /// impl<A: Accessor> Layer<A> for TraceLayer {
-///     type LayeredAccessor =  TraceAccessor<A>;
+///     type LayeredAccessor = TraceAccessor<A>;
 ///
 ///     fn layer(&self, inner: A) -> Self::LayeredAccessor {
 ///         TraceAccessor { inner }

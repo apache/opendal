@@ -27,13 +27,14 @@ use crate::*;
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::SubdirLayer;
+/// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Scheme;
-/// use opendal::services;
 ///
 /// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(SubdirLayer::new("path/to/subdir")).finish();
+///     .layer(SubdirLayer::new("path/to/subdir"))
+///     .finish();
 /// ```
 #[derive(Debug, Clone)]
 pub struct SubdirLayer {

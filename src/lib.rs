@@ -96,12 +96,12 @@
 //! use futures::TryStreamExt;
 //! use opendal::layers::LoggingLayer;
 //! use opendal::layers::RetryLayer;
+//! use opendal::services;
 //! use opendal::Object;
 //! use opendal::ObjectMetadata;
 //! use opendal::ObjectMode;
 //! use opendal::Operator;
 //! use opendal::Scheme;
-//! use opendal::services;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
@@ -110,7 +110,8 @@
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer::default())
 //!         // Init with retry layer enabled.
-//!         .layer(RetryLayer::new(ExponentialBackoff::default())).finish();
+//!         .layer(RetryLayer::new(ExponentialBackoff::default()))
+//!         .finish();
 //!
 //!     // Create object handler.
 //!     let o = op.object("test_file");

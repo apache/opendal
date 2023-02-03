@@ -54,13 +54,14 @@ use crate::*;
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::LoggingLayer;
+/// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Scheme;
-/// use opendal::services;
 ///
 /// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(LoggingLayer::default()).finish();
+///     .layer(LoggingLayer::default())
+///     .finish();
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct LoggingLayer {

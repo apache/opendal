@@ -33,8 +33,8 @@ use crate::*;
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::ConcurrentLimitLayer;
-/// use opendal::Operator;
 /// use opendal::services;
+/// use opendal::Operator;
 /// use opendal::Scheme;
 ///
 /// let _ = Operator::from_env::<services::Fs>()

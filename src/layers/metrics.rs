@@ -89,12 +89,13 @@ static LABEL_ERROR: &str = "error";
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::MetricsLayer;
-/// use opendal::Operator;
 /// use opendal::services;
+/// use opendal::Operator;
 ///
 /// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(MetricsLayer).finish();
+///     .layer(MetricsLayer)
+///     .finish();
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct MetricsLayer;

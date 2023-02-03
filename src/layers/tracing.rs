@@ -35,12 +35,13 @@ use crate::*;
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::TracingLayer;
-/// use opendal::Operator;
 /// use opendal::services;
+/// use opendal::Operator;
 ///
 /// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(TracingLayer).finish();
+///     .layer(TracingLayer)
+///     .finish();
 /// ```
 pub struct TracingLayer;
 

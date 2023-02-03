@@ -40,7 +40,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     let mut builder = rocksdb::Builder::default();
-//!         builder.datadir("/tmp/opendal/rocksdb");
+//!     builder.datadir("/tmp/opendal/rocksdb");
 //!
 //!     let op: Operator = Operator::create(builder)?.finish();
 //!     let _: Object = op.object("test_file");

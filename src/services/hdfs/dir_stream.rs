@@ -59,7 +59,7 @@ impl ObjectPage for DirStream {
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
                 ObjectEntry::new(
-                    &format!("{}/", path),
+                    &format!("{path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
@@ -93,7 +93,7 @@ impl BlockingObjectPage for DirStream {
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
                 ObjectEntry::new(
-                    &format!("{}/", path),
+                    &format!("{path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {

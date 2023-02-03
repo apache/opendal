@@ -469,7 +469,7 @@ impl Builder {
                     endpoint.to_string()
                 } else {
                     // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{}", endpoint)
+                    format!("https://{endpoint}")
                 }
             }
             None => "https://s3.amazonaws.com".to_string(),
@@ -550,7 +550,7 @@ impl Builder {
                     endpoint.to_string()
                 } else {
                     // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{}", endpoint)
+                    format!("https://{endpoint}")
                 }
             }
             None => "https://s3.amazonaws.com".to_string(),

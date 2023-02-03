@@ -179,7 +179,7 @@ impl AccessorBuilder for Builder {
         let (endpoint, is_obs_default) = {
             let host = uri.host().unwrap_or_default().to_string();
             if host.starts_with("obs.") && host.ends_with(".myhuaweicloud.com") {
-                (format!("{}.{}", bucket, host), true)
+                (format!("{bucket}.{host}"), true)
             } else {
                 (host, false)
             }

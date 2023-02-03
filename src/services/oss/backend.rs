@@ -177,8 +177,8 @@ impl Builder {
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
-                let full_host = format!("{}.{}", bucket, host);
-                let endpoint = format!("https://{}", full_host);
+                let full_host = format!("{bucket}.{host}");
+                let endpoint = format!("https://{full_host}");
                 (endpoint, full_host)
             }
             None => {

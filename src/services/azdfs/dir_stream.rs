@@ -166,7 +166,7 @@ mod tests {
             r#"{"paths":[{"contentLength":"1977097","etag":"0x8DACF9B0061305F","group":"$superuser","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725","owner":"$superuser","permissions":"rw-r-----"}]}"#,
         );
         let out: Output = de::from_slice(&bs).expect("must success");
-        println!("{:?}", out);
+        println!("{out:?}");
 
         assert_eq!(
             out.paths[0],

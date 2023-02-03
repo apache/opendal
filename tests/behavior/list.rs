@@ -130,7 +130,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     op.object("test_list_rich_dir/").create().await?;
 
     let mut expected: Vec<String> = (0..=1000)
-        .map(|num| format!("test_list_rich_dir/file-{}", num))
+        .map(|num| format!("test_list_rich_dir/file-{num}"))
         .collect();
 
     expected

@@ -163,7 +163,7 @@ impl Display for Error {
         }
 
         if let Some(source) = &self.source {
-            write!(f, ", source: {}", source)?;
+            write!(f, ", source: {source}")?;
         }
 
         Ok(())
@@ -199,7 +199,7 @@ impl Debug for Error {
         }
         if let Some(source) = &self.source {
             writeln!(f)?;
-            writeln!(f, "Source: {:?}", source)?;
+            writeln!(f, "Source: {source:?}")?;
         }
 
         Ok(())

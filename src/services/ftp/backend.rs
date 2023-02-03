@@ -136,7 +136,7 @@ impl AccessorBuilder for Builder {
         let host = endpoint_uri.host().unwrap_or("127.0.0.1");
         let port = endpoint_uri.port_u16().unwrap_or(21);
 
-        let endpoint = format!("{}:{}", host, port);
+        let endpoint = format!("{host}:{port}");
 
         let enable_secure = match endpoint_uri.scheme_str() {
             Some("ftp") => false,

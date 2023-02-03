@@ -65,24 +65,6 @@ impl Debug for Builder {
 }
 
 impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "filesystem" => builder.filesystem(v),
-                "endpoint" => builder.endpoint(v),
-                "account_name" => builder.account_name(v),
-                "account_key" => builder.account_key(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.

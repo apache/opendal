@@ -23,7 +23,6 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
-use futures::future;
 use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;

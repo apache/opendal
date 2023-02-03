@@ -18,9 +18,7 @@ use pyo3::prelude::*;
 
 #[pyfunction]
 fn debug() -> PyResult<String> {
-    let op = Operator::from_env::<services::FsBuilder>()
-        .unwrap()
-        .finish();
+    let op = Operator::from_env::<services::Fs>().unwrap().finish();
     Ok(format!("{:?}", op.metadata()))
 }
 

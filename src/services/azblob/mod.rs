@@ -120,7 +120,6 @@
 //! }
 //! ```
 mod backend;
-pub(crate) use backend::Backend;
 pub use backend::Builder;
 
 mod dir_stream;

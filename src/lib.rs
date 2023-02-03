@@ -166,7 +166,6 @@ pub use object::ObjectReader;
 
 mod scheme;
 pub use scheme::Scheme;
-pub use scheme::SchemeType;
 
 mod error;
 pub use error::Error;

@@ -55,7 +55,7 @@ impl ObjectLister {
 
     /// Fetch the operator that used by this object.
     pub fn operator(&self) -> Operator {
-        todo!()
+        self.acc.clone().into()
     }
 
     /// next_page can be used to fetch a new object page.
@@ -151,7 +151,7 @@ impl BlockingObjectLister {
 
     /// Fetch the operator that used by this object.
     pub fn operator(&self) -> Operator {
-        todo!()
+        self.acc.clone().into()
     }
 
     /// next_page can be used to fetch a new object page.

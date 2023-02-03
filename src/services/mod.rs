@@ -20,72 +20,72 @@
 //! - Backend: the service backend which implements the [`Accessor`][crate::raw::Accessor] trait.
 
 pub mod azblob;
-pub use azblob::Builder as AzblobBuilder;
+pub use azblob::Builder as Azblob;
 
 pub mod azdfs;
-pub use azdfs::Builder as AzdfsBuilder;
+pub use azdfs::Builder as Azdfs;
 
 pub mod fs;
-pub use fs::Builder as FsBuilder;
+pub use fs::Builder as Fs;
 
 #[cfg(feature = "services-ftp")]
 pub mod ftp;
 #[cfg(feature = "services-ftp")]
-pub use ftp::Builder as FtpBuilder;
+pub use ftp::Builder as Ftp;
 
 pub mod gcs;
-pub use gcs::Builder as GcsBuilder;
+pub use gcs::Builder as Gcs;
 
 pub mod ghac;
-pub use ghac::Builder as GhacBuilder;
+pub use ghac::Builder as Ghac;
 
 #[cfg(feature = "services-hdfs")]
 pub mod hdfs;
 #[cfg(feature = "services-hdfs")]
-pub use ghac::Builder as HdfsBuilder;
+pub use ghac::Builder as Hdfs;
 
 pub mod http;
-pub use self::http::Builder as HttpBuilder;
+pub use self::http::Builder as Http;
 
 #[cfg(feature = "services-ipfs")]
 pub mod ipfs;
 #[cfg(feature = "services-ipfs")]
-pub use self::ipfs::Builder as IpfsBuilder;
+pub use self::ipfs::Builder as Ipfs;
 
 pub mod ipmfs;
-pub use ipmfs::Builder as IpmfsBuilder;
+pub use ipmfs::Builder as Ipmfs;
 
 #[cfg(feature = "services-memcached")]
 pub mod memcached;
 #[cfg(feature = "services-memcached")]
-pub use memcached::Builder as MemcachedBuilder;
+pub use memcached::Builder as Memcached;
 
 pub mod memory;
-pub use memory::Builder as MemoryBuilder;
+pub use memory::Builder as Memory;
 
 #[cfg(feature = "services-moka")]
 pub mod moka;
 #[cfg(feature = "services-moka")]
-pub use self::moka::Builder as MokaBuilder;
+pub use self::moka::Builder as Moka;
 
 pub mod obs;
-pub use obs::Builder as ObsBuilder;
+pub use obs::Builder as Obs;
 
 pub mod oss;
-pub use oss::Builder as OssBuilder;
+pub use oss::Builder as Oss;
 
 #[cfg(feature = "services-redis")]
 pub mod redis;
 #[cfg(feature = "services-redis")]
-pub use self::redis::Builder as RedisBuilder;
+pub use self::redis::Builder as Redis;
 
 #[cfg(feature = "services-rocksdb")]
 pub mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
-pub use self::rocksdb::Builder as RocksdbBuilder;
+pub use self::rocksdb::Builder as Rocksdb;
 
 pub mod s3;
-pub use s3::Builder as S3Builder;
+pub use s3::Builder as S3;
 
 pub mod webdav;
-pub use webdav::Builder as WebdavBuilder;
+pub use webdav::Builder as Webdav;

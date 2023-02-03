@@ -18,8 +18,6 @@ use std::io::Result;
 use opendal::Operator;
 use opendal::Scheme;
 
-use crate::services;
-
 pub static OAY_ADDR: &str = "OAY_ADDR";
 pub static OAY_BACKEND_TYPE: &str = "OAY_BACKEND_TYPE";
 

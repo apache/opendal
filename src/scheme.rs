@@ -16,20 +16,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-use crate::raw::Accessor;
-use crate::raw::AccessorBuilder;
-use crate::services;
 use crate::Error;
-
-/// SchemeType is the typed scheme which carries the related accessor builder's
-/// type.
-pub struct SchemeType<AB: AccessorBuilder>(fn(&AB));
-
-impl<AB: AccessorBuilder> SchemeType<AB> {
-    const fn default() -> Self {
-        SchemeType(|_| {})
-    }
-}
 
 /// Services that OpenDAL supports
 ///

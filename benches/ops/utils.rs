@@ -19,21 +19,20 @@ use once_cell::sync::Lazy;
 use opendal::raw::AccessorBuilder;
 use opendal::services;
 use opendal::Operator;
-use opendal::Scheme;
 use rand::prelude::*;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
 fn service<AB: AccessorBuilder>() -> Option<Operator> {
-    let test_key = format!("opendal_{scheme}_test").to_uppercase();
+    let test_key = format!("opendal_{}_test", AB::SCHEME).to_uppercase();
     if env::var(test_key).unwrap_or_default() != "on" {
         return None;
     }
 
     Some(
         Operator::from_env::<AB>()
-            .unwrap_or_else(|_| panic!("init {scheme} must succeed"))
+            .unwrap_or_else(|_| panic!("init {} must succeed", AB::SCHEME))
             .finish(),
     )
 }
@@ -42,9 +41,9 @@ pub fn services() -> Vec<(&'static str, Option<Operator>)> {
     let _ = dotenvy::dotenv();
 
     vec![
-        ("fs", service<services::fs::Builder>()),
-        ("s3", service<services::s3::Builder>()),
-        ("memory", service<services::memory::Builder>()),
+        ("fs", service::<services::Fs>()),
+        ("s3", service::<services::S3>()),
+        ("memory", service::<services::Memory>()),
     ]
 }
 

@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
         &env::var("OPENDAL_GCS_CREDENTIAL").expect("env OPENDAL_GCS_CREDENTIAL not set"),
     );
 
-    let op = Operator::new(builder.build()?);
+    let op = Operator::new(builder)?.finish();
     info!("operator: {:?}", op);
 
     let path = uuid::Uuid::new_v4().to_string();

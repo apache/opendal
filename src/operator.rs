@@ -13,8 +13,6 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::env;
-use std::sync::Arc;
 
 use futures::StreamExt;
 use futures::TryStreamExt;
@@ -27,6 +25,12 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct Operator {
     accessor: FusedAccessor,
+}
+
+impl From<FusedAccessor> for Operator {
+    fn from(accessor: FusedAccessor) -> Self {
+        Self { accessor }
+    }
 }
 
 impl Operator {
@@ -60,9 +64,7 @@ impl Operator {
     ///     Ok(())
     /// }
     /// ```
-    pub fn new<AB: AccessorBuilder<Accessor = A>, A: Accessor>(
-        ab: AB,
-    ) -> Result<OperatorBuilder<A>> {
+    pub fn new<AB: AccessorBuilder>(ab: AB) -> Result<OperatorBuilder<AB::Accessor>> {
         Ok(OperatorBuilder::new(ab)?)
     }
 
@@ -160,11 +162,17 @@ impl Operator {
     }
 }
 
+/// OperatorBuilder is a typed builder to builder an Operator.
+///
+/// # NOTES
+///
+/// It's required to call `finish` after the operator built.
 pub struct OperatorBuilder<A: Accessor> {
     accessor: A,
 }
 
 impl<A: Accessor> OperatorBuilder<A> {
+    /// Create a new operator builder.
     pub fn new<AB: AccessorBuilder<Accessor = A>>(mut ab: AB) -> Result<Self> {
         Ok(Self {
             // TODO: apply error wrapper here.
@@ -195,13 +203,14 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// # Ok(())
     /// # }
     /// ```
-    // #[must_use]
+    #[must_use]
     pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
         OperatorBuilder {
             accessor: layer.layer(self.accessor),
         }
     }
 
+    /// Finish the building to construct an Operator.
     pub fn finish(self) -> Operator {
         todo!()
     }

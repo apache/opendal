@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     // Enable SSE-S3
     builder.server_side_encryption_with_s3_key();
 
-    let op = Operator::new(builder.build()?);
+    let op = Operator::new(builder)?.finish();
     info!("operator: {:?}", op);
 
     // Writing your testing code here.

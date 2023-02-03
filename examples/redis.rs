@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| 0));
 
     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-    let op: Operator = Operator::new(builder.build()?);
+    let op: Operator = Operator::new(builder)?.finish();
 
     let path = uuid::Uuid::new_v4().to_string();
 

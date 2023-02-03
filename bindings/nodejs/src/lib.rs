@@ -18,8 +18,6 @@ use opendal::Operator;
 
 #[napi]
 pub fn debug() -> String {
-    let op = Operator::from_env::<services::FsBuilder>()
-        .unwrap()
-        .finish();
+    let op = Operator::from_env::<services::Fs>().unwrap().finish();
     format!("{:?}", op.metadata())
 }

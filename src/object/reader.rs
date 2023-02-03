@@ -14,7 +14,6 @@
 
 use std::io;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
@@ -23,13 +22,10 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
-use parking_lot::Mutex;
 
 use crate::error::Result;
 use crate::raw::*;
-use crate::ObjectMetadata;
 use crate::OpRead;
-use crate::OpStat;
 
 /// ObjectReader is the public API for users.
 ///
@@ -229,7 +225,6 @@ mod tests {
 
     use crate::services;
     use crate::Operator;
-    use crate::Scheme;
 
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = ThreadRng::default();
@@ -242,9 +237,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_read() {
-        let op = Operator::new(services::MemoryBuilder::default())
-            .unwrap()
-            .finish();
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
@@ -264,9 +257,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_seek() {
-        let op = Operator::new(services::MemoryBuilder::default())
-            .unwrap()
-            .finish();
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();

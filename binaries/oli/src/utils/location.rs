@@ -22,7 +22,7 @@ use std::str::FromStr;
 /// Parse `s3://abc/def` into `op` and `location`.
 pub fn parse_location(s: &str) -> Result<(Operator, &str)> {
     if !s.contains("://") {
-        return Ok((Operator::new(services::FsBuilder::default())?.finish(), s));
+        return Ok((Operator::new(services::Fs::default())?.finish(), s));
     }
 
     let s = s.splitn(2, "://").collect::<Vec<_>>();
@@ -51,7 +51,7 @@ pub fn parse_profile(name: &str) -> Result<Operator> {
     let scheme = Scheme::from_str(typ)?;
 
     let op = match scheme {
-        Scheme::Fs => Operator::from_iter::<services::FsBuilder>(cfg.into_iter())?.finish(),
+        Scheme::Fs => Operator::from_iter::<services::Fs>(cfg.into_iter())?.finish(),
         _ => unimplemented!(),
     };
 

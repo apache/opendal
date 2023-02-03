@@ -41,8 +41,6 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
 
-use futures::future::BoxFuture;
-
 /// Result that is a wrapper of `Reustl<T, opendal::Error>`
 pub type Result<T> = std::result::Result<T, Error>;
 

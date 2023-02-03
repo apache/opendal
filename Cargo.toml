@@ -101,6 +101,10 @@ name = "tracing_layer"
 required-features = ["layers-all"]
 
 [dependencies]
+match-template = "0.0.1"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "1", features = ["full", "extra-traits", "fold"] }
 anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"
 # Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.

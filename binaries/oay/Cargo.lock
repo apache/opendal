@@ -1009,6 +1009,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "match-template"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c334ac67725febd94c067736ac46ef1c7cacf1c743ca14b9f917c2df2c20acd8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "md-5"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1138,16 +1149,20 @@ dependencies = [
  "http",
  "hyper",
  "log",
+ "match-template",
  "md-5",
  "once_cell",
  "parking_lot",
  "percent-encoding",
  "pin-project",
+ "proc-macro2",
  "quick-xml",
+ "quote",
  "reqsign",
  "reqwest",
  "serde",
  "serde_json",
+ "syn",
  "time",
  "tokio",
  "ureq",

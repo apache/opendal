@@ -36,14 +36,20 @@ use crate::*;
 ///
 /// This operation is not zero cost. If the accessor already returns a
 /// seekable reader, please don't use this.
-pub fn by_range<A: Accessor>(acc: Arc<A>, path: &str, offset: u64, size: u64) -> RangeReader<A> {
+pub fn by_range<A: Accessor>(
+    acc: Arc<A>,
+    path: &str,
+    reader: A::Reader,
+    offset: u64,
+    size: u64,
+) -> RangeReader<A> {
     RangeReader {
         acc,
         path: path.to_string(),
         offset,
         size,
         cur: 0,
-        state: State::Idle,
+        state: State::Reading(reader),
         last_seek_pos: None,
         sink: Vec::new(),
     }
@@ -337,7 +343,10 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_range(acc, "x", 0, bs.len() as u64)) as output::Reader;
+        let r = MockReader {
+            inner: futures::io::Cursor::new(bs.to_vec()),
+        };
+        let mut r = Box::new(by_range(acc, "x", r, 0, bs.len() as u64)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;
@@ -368,7 +377,10 @@ mod tests {
         let (bs, _) = gen_bytes();
         let acc = Arc::new(MockReadService::new(bs.clone()));
 
-        let mut r = Box::new(by_range(acc, "x", 4096, 4096)) as output::Reader;
+        let r = MockReader {
+            inner: futures::io::Cursor::new(bs.to_vec()),
+        };
+        let mut r = Box::new(by_range(acc, "x", r, 4096, 4096)) as output::Reader;
 
         let mut buf = Vec::new();
         r.read_to_end(&mut buf).await?;

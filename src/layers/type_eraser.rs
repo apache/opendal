@@ -55,15 +55,17 @@ impl<A: Accessor> TypeEraseAccessor<A> {
             self.meta.hints().contains(AccessorHint::ReadIsStreamable),
         );
 
+        let range = args.range();
+        let (rp, r) = self.inner.read(path, args).await?;
+
         match (seekable, streamable) {
             (true, true) => {
-                let (rp, r) = self.inner.read(path, args).await?;
                 Ok((rp, Box::new(r)))
             }
             (false, true) => {
-               match (args.range().offset(), args.range().size()) {
+               match (range.offset(), range.size()) {
                     (Some(offset), Some(size)) => {
-                       let r= output::into_reader::by_range(self.inner.clone(), path, offset, size);
+                       let r= output::into_reader::by_range(self.inner.clone(), path, r, offset, size);
 
                          Ok((RpRead::new(0), Box::new(r)))
                     }
@@ -73,6 +75,8 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                          Ok((RpRead::new(0), Box::new(r)))
                     }
                     (None, Some(size)) => {
+                        // TODO: we can read content range to calculate
+                        // the total content length.
                         let om = self.inner.stat(path, OpStat::new()).await?.into_metadata();
                         let total_size = om.content_length();
                         let (offset, size) = if size > total_size {
@@ -80,7 +84,7 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                         } else {
                             (total_size - size, size)
                         };
-                        let r= output::into_reader::by_range(self.inner.clone(), path, offset, size);
+                        let r= output::into_reader::by_range(self.inner.clone(), path,r, offset, size);
 
                          Ok((RpRead::new(0), Box::new(r)))
                     },
@@ -92,7 +96,6 @@ impl<A: Accessor> TypeEraseAccessor<A> {
                }
             }
             (true, false) => {
-                let (rp, r) = self.inner.read(path, args).await?;
                 let r = output::into_reader::as_streamable(r, 256 * 1024);
                  Ok((rp, Box::new(r)))
             }
@@ -110,13 +113,11 @@ impl<A: Accessor> TypeEraseAccessor<A> {
             self.meta.hints().contains(AccessorHint::ReadIsStreamable),
         );
 
+        let (rp, r) = self.inner.blocking_read(path, args)?;
+
         match (seekable, streamable) {
-            (true, true) => {
-                let (rp, r) = self.inner.blocking_read(path, args)?;
-                Ok((rp, Box::new(r)))
-            }
+            (true, true) => Ok((rp, Box::new(r))),
             (true, false) => {
-                let (rp, r) = self.inner.blocking_read(path, args)?;
                 let r = output::into_blocking_reader::as_iterable(r, 256 * 1024);
                 Ok((rp, Box::new(r)))
             }

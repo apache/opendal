@@ -178,7 +178,7 @@ impl Debug for GcsBuilder {
     }
 }
 
-impl AccessorBuilder for GcsBuilder {
+impl Builder for GcsBuilder {
     const SCHEME: Scheme = Scheme::Gcs;
     type Accessor = GcsBackend;
 

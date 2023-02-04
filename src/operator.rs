@@ -73,13 +73,13 @@ impl Operator {
     }
 
     /// Create a new operator
-    pub fn create<AB: AccessorBuilder>(mut ab: AB) -> Result<OperatorBuilder<impl Accessor>> {
+    pub fn create<AB: Builder>(mut ab: AB) -> Result<OperatorBuilder<impl Accessor>> {
         let acc = ab.build()?;
         Ok(OperatorBuilder::new(acc))
     }
 
     /// Create a new operator from env.
-    pub fn from_map<AB: AccessorBuilder>(
+    pub fn from_map<AB: Builder>(
         map: HashMap<String, String>,
     ) -> Result<OperatorBuilder<impl Accessor>> {
         let acc = AB::from_map(map).build()?;
@@ -88,7 +88,7 @@ impl Operator {
 
     /// Create a new operator from iter.
     #[allow(clippy::should_implement_trait)]
-    pub fn from_iter<AB: AccessorBuilder>(
+    pub fn from_iter<AB: Builder>(
         iter: impl Iterator<Item = (String, String)>,
     ) -> Result<OperatorBuilder<impl Accessor>> {
         let acc = AB::from_iter(iter).build()?;
@@ -96,7 +96,7 @@ impl Operator {
     }
 
     /// Create a new operator from env.
-    pub fn from_env<AB: AccessorBuilder>() -> Result<OperatorBuilder<impl Accessor>> {
+    pub fn from_env<AB: Builder>() -> Result<OperatorBuilder<impl Accessor>> {
         let acc = AB::from_env().build()?;
         Ok(OperatorBuilder::new(acc))
     }

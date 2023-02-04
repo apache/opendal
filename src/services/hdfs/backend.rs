@@ -66,7 +66,7 @@ impl HdfsBuilder {
     }
 }
 
-impl AccessorBuilder for HdfsBuilder {
+impl Builder for HdfsBuilder {
     const SCHEME: Scheme = Scheme::Hdfs;
     type Accessor = HdfsBackend;
 

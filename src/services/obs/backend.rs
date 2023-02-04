@@ -127,7 +127,7 @@ impl ObsBuilder {
     }
 }
 
-impl AccessorBuilder for ObsBuilder {
+impl Builder for ObsBuilder {
     const SCHEME: Scheme = Scheme::Obs;
     type Accessor = ObsBackend;
 

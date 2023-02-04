@@ -76,7 +76,7 @@ impl FsBuilder {
     }
 }
 
-impl AccessorBuilder for FsBuilder {
+impl Builder for FsBuilder {
     const SCHEME: Scheme = Scheme::Fs;
     type Accessor = FsBackend;
 

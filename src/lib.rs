@@ -151,7 +151,7 @@
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod builder;
-pub use builder::AccessorBuilder;
+pub use builder::Builder;
 
 mod operator;
 pub use operator::BatchOperator;

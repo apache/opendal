@@ -134,7 +134,7 @@ impl AzdfsBuilder {
     }
 }
 
-impl AccessorBuilder for AzdfsBuilder {
+impl Builder for AzdfsBuilder {
     type Accessor = AzdfsBackend;
     const SCHEME: Scheme = Scheme::Azdfs;
 

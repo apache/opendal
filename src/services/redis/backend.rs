@@ -142,7 +142,7 @@ impl RedisBuilder {
     }
 }
 
-impl AccessorBuilder for RedisBuilder {
+impl Builder for RedisBuilder {
     const SCHEME: Scheme = Scheme::Redis;
     type Accessor = RedisBackend;
 

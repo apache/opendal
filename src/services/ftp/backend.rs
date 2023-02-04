@@ -106,7 +106,7 @@ impl FtpBuilder {
     }
 }
 
-impl AccessorBuilder for FtpBuilder {
+impl Builder for FtpBuilder {
     const SCHEME: Scheme = Scheme::Ftp;
     type Accessor = FtpBackend;
 

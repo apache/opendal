@@ -192,7 +192,7 @@ impl OssBuilder {
     }
 }
 
-impl AccessorBuilder for OssBuilder {
+impl Builder for OssBuilder {
     const SCHEME: Scheme = Scheme::Oss;
     type Accessor = OssBackend;
 

@@ -240,7 +240,7 @@ impl AzblobBuilder {
     }
 }
 
-impl AccessorBuilder for AzblobBuilder {
+impl Builder for AzblobBuilder {
     const SCHEME: Scheme = Scheme::Azblob;
     type Accessor = AzblobBackend;
 

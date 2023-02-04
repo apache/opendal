@@ -109,7 +109,7 @@ impl MokaBuilder {
     }
 }
 
-impl AccessorBuilder for MokaBuilder {
+impl Builder for MokaBuilder {
     const SCHEME: Scheme = Scheme::Moka;
     type Accessor = MokaBackend;
 

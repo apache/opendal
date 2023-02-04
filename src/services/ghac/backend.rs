@@ -114,7 +114,7 @@ impl GhacBuilder {
     }
 }
 
-impl AccessorBuilder for GhacBuilder {
+impl Builder for GhacBuilder {
     const SCHEME: Scheme = Scheme::Ghac;
     type Accessor = GhacBackend;
 

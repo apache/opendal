@@ -579,7 +579,7 @@ impl S3Builder {
     }
 }
 
-impl AccessorBuilder for S3Builder {
+impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
     type Accessor = S3Backend;
 

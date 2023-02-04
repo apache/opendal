@@ -27,7 +27,7 @@ use crate::*;
 #[derive(Default)]
 pub struct MemoryBuilder {}
 
-impl AccessorBuilder for MemoryBuilder {
+impl Builder for MemoryBuilder {
     const SCHEME: Scheme = Scheme::Memory;
     type Accessor = MemoryBackend;
 

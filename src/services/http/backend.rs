@@ -81,7 +81,7 @@ impl HttpBuilder {
     }
 }
 
-impl AccessorBuilder for HttpBuilder {
+impl Builder for HttpBuilder {
     const SCHEME: Scheme = Scheme::Http;
     type Accessor = HttpBackend;
 

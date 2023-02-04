@@ -31,7 +31,7 @@ use sha2::Sha256;
 ///
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
-pub fn init_service<AB: AccessorBuilder>(random_root: bool) -> Option<Operator> {
+pub fn init_service<AB: Builder>(random_root: bool) -> Option<Operator> {
     let _ = env_logger::builder().is_test(true).try_init();
     let _ = dotenvy::dotenv();
 

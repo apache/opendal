@@ -68,7 +68,7 @@ impl MemcachedBuilder {
     }
 }
 
-impl AccessorBuilder for MemcachedBuilder {
+impl Builder for MemcachedBuilder {
     const SCHEME: Scheme = Scheme::Memcached;
     type Accessor = MemcachedBackend;
 

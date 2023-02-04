@@ -54,7 +54,7 @@ impl RocksdbBuilder {
     }
 }
 
-impl AccessorBuilder for RocksdbBuilder {
+impl Builder for RocksdbBuilder {
     const SCHEME: Scheme = Scheme::Rocksdb;
     type Accessor = RocksdbBackend;
 

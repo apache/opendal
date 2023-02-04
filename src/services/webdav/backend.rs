@@ -83,7 +83,7 @@ impl WebdavBuilder {
     }
 }
 
-impl AccessorBuilder for WebdavBuilder {
+impl Builder for WebdavBuilder {
     const SCHEME: Scheme = Scheme::Webdav;
     type Accessor = WebdavBackend;
 

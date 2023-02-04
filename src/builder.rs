@@ -18,8 +18,8 @@ use std::env;
 use crate::raw::*;
 use crate::*;
 
-/// AccessorBuilder will build an accessor;
-pub trait AccessorBuilder: Default {
+/// Builder will build an accessor;
+pub trait Builder: Default {
     /// Associated scheme for this builder.
     const SCHEME: Scheme;
     /// The accessor that built by this builder.

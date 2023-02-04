@@ -85,7 +85,7 @@ impl IpfsBuilder {
     }
 }
 
-impl AccessorBuilder for IpfsBuilder {
+impl Builder for IpfsBuilder {
     const SCHEME: Scheme = Scheme::Ipfs;
     type Accessor = IpfsBackend;
     fn from_map(map: HashMap<String, String>) -> Self {

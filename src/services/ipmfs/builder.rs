@@ -64,7 +64,7 @@ impl IpmfsBuilder {
     }
 }
 
-impl AccessorBuilder for IpmfsBuilder {
+impl Builder for IpmfsBuilder {
     const SCHEME: Scheme = Scheme::Ipmfs;
     type Accessor = IpmfsBackend;
 

@@ -27,7 +27,7 @@ use crate::*;
 
 /// Rocksdb backend builder
 #[derive(Clone, Default, Debug)]
-pub struct Builder {
+pub struct RocksdbBuilder {
     /// The path to the rocksdb data directory.
     datadir: Option<String>,
     /// the working directory of the service. Can be "/path/to/dir"
@@ -36,7 +36,7 @@ pub struct Builder {
     root: Option<String>,
 }
 
-impl Builder {
+impl RocksdbBuilder {
     /// Set the path to the rocksdb data directory. Will create if not exists.
     pub fn datadir(&mut self, path: &str) -> &mut Self {
         self.datadir = Some(path.into());
@@ -54,12 +54,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for RocksdbBuilder {
     const SCHEME: Scheme = Scheme::Rocksdb;
-    type Accessor = Backend;
+    type Accessor = RocksdbBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = RocksdbBuilder::default();
 
         map.get("datadir").map(|v| builder.datadir(v));
 
@@ -84,12 +84,12 @@ impl AccessorBuilder for Builder {
             .set_source(e)
         })?;
 
-        Ok(Backend::new(Adapter { db: Arc::new(db) }))
+        Ok(RocksdbBackend::new(Adapter { db: Arc::new(db) }))
     }
 }
 
 /// Backend for rocksdb services.
-pub type Backend = kv::Backend<Adapter>;
+pub type RocksdbBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {

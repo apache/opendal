@@ -47,7 +47,7 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::FtpBuilder;
 
 mod dir_stream;
 mod err;

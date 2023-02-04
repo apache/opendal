@@ -44,14 +44,14 @@ use crate::*;
 
 /// Builder for ftp backend.
 #[derive(Default)]
-pub struct Builder {
+pub struct FtpBuilder {
     endpoint: Option<String>,
     root: Option<String>,
     user: Option<String>,
     password: Option<String>,
 }
 
-impl Debug for Builder {
+impl Debug for FtpBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Builder")
             .field("endpoint", &self.endpoint)
@@ -60,7 +60,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl FtpBuilder {
     /// set endpoint for ftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
@@ -106,9 +106,9 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for FtpBuilder {
     const SCHEME: Scheme = Scheme::Ftp;
-    type Accessor = Backend;
+    type Accessor = FtpBackend;
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
@@ -167,7 +167,7 @@ impl AccessorBuilder for Builder {
 
         debug!("ftp backend finished: {:?}", &self);
 
-        Ok(Backend {
+        Ok(FtpBackend {
             endpoint,
             root,
             user,
@@ -178,7 +178,7 @@ impl AccessorBuilder for Builder {
     }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
@@ -249,7 +249,7 @@ impl bb8::ManageConnection for Manager {
 
 /// Backend is used to serve `Accessor` support for ftp.
 #[derive(Clone)]
-pub struct Backend {
+pub struct FtpBackend {
     endpoint: String,
     root: String,
     user: String,
@@ -258,14 +258,14 @@ pub struct Backend {
     pool: OnceCell<bb8::Pool<Manager>>,
 }
 
-impl Debug for Backend {
+impl Debug for FtpBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish()
     }
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for FtpBackend {
     type Reader = FtpReader;
     type BlockingReader = ();
 
@@ -418,7 +418,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl FtpBackend {
     async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
         let pool = self
             .pool
@@ -473,32 +473,31 @@ impl Backend {
 
 #[cfg(test)]
 mod build_test {
-    use super::Builder;
-    use crate::raw::*;
-    use crate::ErrorKind;
+    use super::FtpBuilder;
+    use crate::*;
 
     #[test]
     fn test_build() {
         // ftps scheme, should suffix with default port 21
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("ftps://ftp_server.local");
         let b = builder.build();
         assert!(b.is_ok());
 
         // ftp scheme
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("ftp://ftp_server.local:1234");
         let b = builder.build();
         assert!(b.is_ok());
 
         // no scheme
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("ftp_server.local:8765");
         let b = builder.build();
         assert!(b.is_ok());
 
         // invalid scheme
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("invalidscheme://ftp_server.local:8765");
         let b = builder.build();
         assert!(b.is_err());

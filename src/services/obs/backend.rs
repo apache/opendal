@@ -34,7 +34,7 @@ use crate::*;
 
 /// Builder for Huaweicloud OBS services
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct ObsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     access_key_id: Option<String>,
@@ -43,7 +43,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for ObsBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Builder")
             .field("root", &self.root)
@@ -55,7 +55,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl ObsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -127,12 +127,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for ObsBuilder {
     const SCHEME: Scheme = Scheme::Obs;
-    type Accessor = Backend;
+    type Accessor = ObsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = ObsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("bucket").map(|v| builder.bucket(v));
@@ -224,7 +224,7 @@ impl AccessorBuilder for Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(ObsBackend {
             client,
             root,
             endpoint: format!("{}://{}", &scheme, &endpoint),
@@ -236,7 +236,7 @@ impl AccessorBuilder for Builder {
 
 /// Backend for Huaweicloud OBS services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct ObsBackend {
     client: HttpClient,
     root: String,
     endpoint: String,
@@ -245,7 +245,7 @@ pub struct Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -358,7 +358,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl ObsBackend {
     async fn obs_get_object(
         &self,
         path: &str,

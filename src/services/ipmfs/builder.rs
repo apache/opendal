@@ -16,20 +16,19 @@ use std::collections::HashMap;
 
 use log::debug;
 
-use super::backend::Backend;
+use super::backend::IpmfsBackend;
 use crate::raw::*;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for service ipfs.
 #[derive(Default, Debug)]
-pub struct Builder {
+pub struct IpmfsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     http_client: Option<HttpClient>,
 }
 
-impl Builder {
+impl IpmfsBuilder {
     /// Set root for ipfs.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -65,12 +64,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for IpmfsBuilder {
     const SCHEME: Scheme = Scheme::Ipmfs;
-    type Accessor = Backend;
+    type Accessor = IpmfsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = IpmfsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
@@ -97,6 +96,6 @@ impl AccessorBuilder for Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend::new(root, client, endpoint))
+        Ok(IpmfsBackend::new(root, client, endpoint))
     }
 }

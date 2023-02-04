@@ -120,7 +120,7 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::S3Builder;
 
 mod dir_stream;
 mod error;

@@ -23,12 +23,11 @@ use moka::sync::SegmentedCache;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for moka backend
 #[derive(Default, Debug)]
-pub struct Builder {
+pub struct MokaBuilder {
     /// Name for this cache instance.
     name: Option<String>,
     /// Sets the max capacity of the cache.
@@ -53,7 +52,7 @@ pub struct Builder {
     thread_pool_enabled: Option<bool>,
 }
 
-impl Builder {
+impl MokaBuilder {
     /// Name for this cache instance.
     pub fn name(&mut self, v: &str) -> &mut Self {
         if !v.is_empty() {
@@ -110,12 +109,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for MokaBuilder {
     const SCHEME: Scheme = Scheme::Moka;
-    type Accessor = Backend;
+    type Accessor = MokaBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = MokaBuilder::default();
 
         map.get("name").map(|v| builder.name(v));
         map.get("max_capacity")
@@ -158,14 +157,14 @@ impl AccessorBuilder for Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend::new(Adapter {
+        Ok(MokaBackend::new(Adapter {
             inner: builder.build(),
         }))
     }
 }
 
 /// Backend is used to serve `Accessor` support in moka.
-pub type Backend = kv::Backend<Adapter>;
+pub type MokaBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {

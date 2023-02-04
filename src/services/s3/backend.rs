@@ -75,7 +75,7 @@ mod constants {
 
 /// Builder for s3 services
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct S3Builder {
     root: Option<String>,
 
     bucket: String,
@@ -101,7 +101,7 @@ pub struct Builder {
     customed_credential_load: Option<Arc<dyn AwsCredentialLoad>>,
 }
 
-impl Debug for Builder {
+impl Debug for S3Builder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("Builder");
 
@@ -144,7 +144,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl S3Builder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -579,12 +579,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for S3Builder {
     const SCHEME: Scheme = Scheme::S3;
-    type Accessor = Backend;
+    type Accessor = S3Backend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = S3Builder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("bucket").map(|v| builder.bucket(v));
@@ -783,7 +783,7 @@ impl AccessorBuilder for Builder {
             .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(S3Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
@@ -801,7 +801,7 @@ impl AccessorBuilder for Builder {
 
 /// Backend for s3 services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct S3Backend {
     bucket: String,
     endpoint: String,
     signer: Arc<AwsV4Signer>,
@@ -816,7 +816,7 @@ pub struct Backend {
     server_side_encryption_customer_key_md5: Option<HeaderValue>,
 }
 
-impl Backend {
+impl S3Backend {
     /// # Note
     ///
     /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
@@ -880,7 +880,7 @@ impl Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -1128,7 +1128,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl S3Backend {
     fn s3_head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -1473,7 +1473,7 @@ mod tests {
         ];
 
         for endpoint in endpoint_cases {
-            let mut b = Builder::default();
+            let mut b = S3Builder::default();
             b.bucket("test");
             if let Some(endpoint) = endpoint {
                 b.endpoint(endpoint);
@@ -1498,7 +1498,7 @@ mod tests {
         ];
 
         for endpoint in &endpoint_cases {
-            let mut b = Builder::default();
+            let mut b = S3Builder::default();
             b.bucket("test");
             if let Some(endpoint) = endpoint {
                 b.endpoint(endpoint);
@@ -1509,7 +1509,7 @@ mod tests {
         }
 
         for endpoint in &endpoint_cases {
-            let mut b = Builder::default();
+            let mut b = S3Builder::default();
             b.bucket("test");
             b.enable_virtual_host_style();
             if let Some(endpoint) = endpoint {

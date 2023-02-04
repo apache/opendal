@@ -53,7 +53,7 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::GcsBuilder;
 
 mod dir_stream;
 mod error;

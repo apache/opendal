@@ -81,7 +81,7 @@
 //! }
 //! ```
 mod backend;
-pub use backend::Builder;
+pub use backend::AzblobBuilder;
 
 mod dir_stream;
 mod error;

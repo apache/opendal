@@ -31,12 +31,12 @@ use crate::*;
 
 /// Builder for hdfs services
 #[derive(Debug, Default)]
-pub struct Builder {
+pub struct HdfsBuilder {
     root: Option<String>,
     name_node: Option<String>,
 }
 
-impl Builder {
+impl HdfsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -66,12 +66,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for HdfsBuilder {
     const SCHEME: Scheme = Scheme::Hdfs;
-    type Accessor = Backend;
+    type Accessor = HdfsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = HdfsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("name_node").map(|v| builder.name_node(v));
@@ -107,7 +107,7 @@ impl AccessorBuilder for Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(HdfsBackend {
             root,
             client: Arc::new(client),
         })
@@ -116,17 +116,17 @@ impl AccessorBuilder for Builder {
 
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct HdfsBackend {
     root: String,
     client: Arc<hdrs::Client>,
 }
 
 /// hdrs::Client is thread-safe.
-unsafe impl Send for Backend {}
-unsafe impl Sync for Backend {}
+unsafe impl Send for HdfsBackend {}
+unsafe impl Sync for HdfsBackend {}
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for HdfsBackend {
     type Reader = output::into_reader::FdReader<hdrs::AsyncFile>;
     type BlockingReader = output::into_blocking_reader::FdReader<hdrs::File>;
 

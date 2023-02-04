@@ -22,8 +22,7 @@ use bytes::Bytes;
 use log::debug;
 use opendal::layers::LoggingLayer;
 use opendal::layers::RetryLayer;
-use opendal::raw::AccessorBuilder;
-use opendal::Operator;
+use opendal::*;
 use rand::prelude::*;
 use sha2::Digest;
 use sha2::Sha256;
@@ -32,11 +31,11 @@ use sha2::Sha256;
 ///
 /// - If `opendal_{schema}_test` is on, construct a new Operator with given root.
 /// - Else, returns a `None` to represent no valid config for operator.
-pub fn init_service<AB: AccessorBuilder>(random_root: bool) -> Option<Operator> {
+pub fn init_service<B: Builder>(random_root: bool) -> Option<Operator> {
     let _ = env_logger::builder().is_test(true).try_init();
     let _ = dotenvy::dotenv();
 
-    let prefix = format!("opendal_{}_", AB::SCHEME);
+    let prefix = format!("opendal_{}_", B::SCHEME);
 
     let mut cfg = env::vars()
         .filter_map(|(k, v)| {
@@ -61,7 +60,7 @@ pub fn init_service<AB: AccessorBuilder>(random_root: bool) -> Option<Operator> 
         cfg.insert("root".to_string(), root);
     }
 
-    let op = Operator::from_map::<AB>(cfg)
+    let op = Operator::from_map::<B>(cfg)
         .expect("must succeed")
         .layer(LoggingLayer::default())
         .layer(RetryLayer::new(ExponentialBackoff::default()))

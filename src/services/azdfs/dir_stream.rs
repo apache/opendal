@@ -19,13 +19,13 @@ use serde_json::de;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::backend::Backend;
+use super::backend::AzdfsBackend;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct DirStream {
-    backend: Arc<Backend>,
+    backend: Arc<AzdfsBackend>,
     root: String,
     path: String,
 
@@ -34,7 +34,7 @@ pub struct DirStream {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: String, path: String) -> Self {
+    pub fn new(backend: Arc<AzdfsBackend>, root: String, path: String) -> Self {
         Self {
             backend,
             root,

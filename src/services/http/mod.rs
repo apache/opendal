@@ -50,6 +50,6 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::HttpBuilder;
 
 mod error;

@@ -52,7 +52,7 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::FsBuilder;
 
 mod dir_stream;
 mod error;

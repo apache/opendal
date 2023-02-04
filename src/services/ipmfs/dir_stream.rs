@@ -18,7 +18,7 @@ use async_trait::async_trait;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::backend::Backend;
+use super::backend::IpmfsBackend;
 use super::error::parse_error;
 use super::error::parse_json_deserialize_error;
 use crate::raw::*;
@@ -27,14 +27,14 @@ use crate::ObjectMode;
 use crate::Result;
 
 pub struct DirStream {
-    backend: Arc<Backend>,
+    backend: Arc<IpmfsBackend>,
     root: String,
     path: String,
     consumed: bool,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<IpmfsBackend>, root: &str, path: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),

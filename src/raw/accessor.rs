@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
-use std::env;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -455,45 +453,6 @@ impl<T: Accessor> Accessor for Arc<T> {
 /// FusedAccessor is the type erased accessor with `Box<dyn Reader>`.
 pub type FusedAccessor =
     Arc<dyn Accessor<Reader = output::Reader, BlockingReader = output::BlockingReader>>;
-
-/// AccessorBuilder will build an accessor;
-pub trait AccessorBuilder: Default {
-    /// Associated scheme for this builder.
-    const SCHEME: Scheme;
-    /// The accessor that built by this builder.
-    type Accessor: Accessor;
-
-    /// Construct a builder from given map.
-    fn from_map(map: HashMap<String, String>) -> Self;
-
-    /// Construct a builder from given iterator.
-    fn from_iter(iter: impl Iterator<Item = (String, String)>) -> Self
-    where
-        Self: Sized,
-    {
-        Self::from_map(iter.collect())
-    }
-
-    /// Construct a builder from envs.
-    fn from_env() -> Self
-    where
-        Self: Sized,
-    {
-        let prefix = format!("opendal_{}_", Self::SCHEME);
-        let envs = env::vars()
-            .filter_map(move |(k, v)| {
-                k.to_lowercase()
-                    .strip_prefix(&prefix)
-                    .map(|k| (k.to_string(), v))
-            })
-            .collect();
-
-        Self::from_map(envs)
-    }
-
-    /// Consume the accessoer builder to build a service.
-    fn build(&mut self) -> Result<Self::Accessor>;
-}
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]

@@ -16,15 +16,13 @@ use std::env;
 
 use bytes::Bytes;
 use once_cell::sync::Lazy;
-use opendal::raw::AccessorBuilder;
-use opendal::services;
-use opendal::Operator;
+use opendal::*;
 use rand::prelude::*;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("build tokio runtime"));
 
-fn service<AB: AccessorBuilder>() -> Option<Operator> {
+fn service<AB: Builder>() -> Option<Operator> {
     let test_key = format!("opendal_{}_test", AB::SCHEME).to_uppercase();
     if env::var(test_key).unwrap_or_default() != "on" {
         return None;

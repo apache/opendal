@@ -50,7 +50,7 @@
 
 mod backend;
 mod builder;
-pub use builder::Builder;
+pub use builder::IpmfsBuilder;
 
 mod dir_stream;
 mod error;

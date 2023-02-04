@@ -45,7 +45,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 
 /// GCS storage backend builder
 #[derive(Clone, Default)]
-pub struct Builder {
+pub struct GcsBuilder {
     /// root URI, all operations happens under `root`
     root: Option<String>,
     /// bucket name
@@ -67,7 +67,7 @@ pub struct Builder {
     signer: Option<Arc<GoogleSigner>>,
 }
 
-impl Builder {
+impl GcsBuilder {
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
@@ -164,7 +164,7 @@ impl Builder {
     }
 }
 
-impl Debug for Builder {
+impl Debug for GcsBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
 
@@ -178,12 +178,12 @@ impl Debug for Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for GcsBuilder {
     const SCHEME: Scheme = Scheme::Gcs;
-    type Accessor = Backend;
+    type Accessor = GcsBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = GcsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("bucket").map(|v| builder.bucket(v));
@@ -258,7 +258,7 @@ impl AccessorBuilder for Builder {
             Arc::new(signer)
         };
 
-        let backend = Backend {
+        let backend = GcsBackend {
             root,
             endpoint,
             bucket: bucket.clone(),
@@ -272,7 +272,7 @@ impl AccessorBuilder for Builder {
 
 /// GCS storage backend
 #[derive(Clone)]
-pub struct Backend {
+pub struct GcsBackend {
     endpoint: String,
     bucket: String,
     // root should end with "/"
@@ -282,7 +282,7 @@ pub struct Backend {
     signer: Arc<GoogleSigner>,
 }
 
-impl Debug for Backend {
+impl Debug for GcsBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("Backend");
         de.field("endpoint", &self.endpoint)
@@ -295,7 +295,7 @@ impl Debug for Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -422,7 +422,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl GcsBackend {
     fn gcs_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 

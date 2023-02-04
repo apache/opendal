@@ -15,4 +15,4 @@
 //! In memory backend support.
 
 mod backend;
-pub use backend::Builder;
+pub use backend::MemoryBuilder;

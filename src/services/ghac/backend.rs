@@ -58,7 +58,7 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 
 /// Builder for github action cache services.
 #[derive(Debug, Default)]
-pub struct Builder {
+pub struct GhacBuilder {
     root: Option<String>,
     version: Option<String>,
     enable_create_simulation: bool,
@@ -66,7 +66,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Builder {
+impl GhacBuilder {
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
@@ -114,12 +114,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for GhacBuilder {
     const SCHEME: Scheme = Scheme::Ghac;
-    type Accessor = Backend;
+    type Accessor = GhacBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = GhacBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("version").map(|v| builder.version(v));
@@ -145,7 +145,7 @@ impl AccessorBuilder for Builder {
             })?
         };
 
-        let backend = Backend {
+        let backend = GhacBackend {
             root,
             enable_create_simulation: self.enable_create_simulation,
 
@@ -184,7 +184,7 @@ impl AccessorBuilder for Builder {
 
 /// Backend for github action cache services.
 #[derive(Debug)]
-pub struct Backend {
+pub struct GhacBackend {
     // root should end with "/"
     root: String,
     enable_create_simulation: bool,
@@ -201,7 +201,7 @@ pub struct Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for GhacBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -402,7 +402,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl GhacBackend {
     async fn ghac_query(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 

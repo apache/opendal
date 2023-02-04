@@ -23,14 +23,11 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Memcached backend builder
 #[derive(Clone, Default)]
-pub struct Builder {
+pub struct MemcachedBuilder {
     /// network address of the memcached service.
     ///
     /// For example: "tcp://localhost:11211"
@@ -43,7 +40,7 @@ pub struct Builder {
     default_ttl: Option<Duration>,
 }
 
-impl Builder {
+impl MemcachedBuilder {
     /// set the network address of memcached service.
     ///
     /// For example: "tcp://localhost:11211"
@@ -71,12 +68,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for MemcachedBuilder {
     const SCHEME: Scheme = Scheme::Memcached;
-    type Accessor = Backend;
+    type Accessor = MemcachedBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = MemcachedBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
@@ -143,7 +140,7 @@ impl AccessorBuilder for Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(Backend::new(Adapter {
+        Ok(MemcachedBackend::new(Adapter {
             endpoint,
             conn,
             default_ttl: self.default_ttl,
@@ -153,7 +150,7 @@ impl AccessorBuilder for Builder {
 }
 
 /// Backend for memcached services.
-pub type Backend = kv::Backend<Adapter>;
+pub type MemcachedBackend = kv::Backend<Adapter>;
 
 #[derive(Clone, Debug)]
 pub struct Adapter {

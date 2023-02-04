@@ -36,7 +36,7 @@ use crate::*;
 
 /// Builder for azblob services
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct AzdfsBuilder {
     root: Option<String>,
     filesystem: String,
     endpoint: Option<String>,
@@ -45,7 +45,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for AzdfsBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
 
@@ -64,7 +64,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl AzdfsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -134,8 +134,8 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
-    type Accessor = Backend;
+impl Builder for AzdfsBuilder {
+    type Accessor = AzdfsBackend;
     const SCHEME: Scheme = Scheme::Azdfs;
 
     fn build(&mut self) -> Result<Self::Accessor> {
@@ -189,7 +189,7 @@ impl AccessorBuilder for Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(AzdfsBackend {
             root,
             endpoint,
             signer: Arc::new(signer),
@@ -200,7 +200,7 @@ impl AccessorBuilder for Builder {
     }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = AzdfsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("filesystem").map(|v| builder.filesystem(v));
@@ -214,7 +214,7 @@ impl AccessorBuilder for Builder {
 
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct AzdfsBackend {
     filesystem: String,
     client: HttpClient,
     root: String, // root will be "/" or /abc/
@@ -224,7 +224,7 @@ pub struct Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for AzdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -358,7 +358,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl AzdfsBackend {
     async fn azdfs_read(
         &self,
         path: &str,

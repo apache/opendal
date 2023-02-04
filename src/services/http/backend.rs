@@ -28,13 +28,13 @@ use crate::*;
 
 /// Builder for http backend.
 #[derive(Default)]
-pub struct Builder {
+pub struct HttpBuilder {
     endpoint: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for HttpBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("Builder");
         de.field("endpoint", &self.endpoint);
@@ -44,7 +44,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl HttpBuilder {
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
@@ -81,12 +81,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl Builder for HttpBuilder {
     const SCHEME: Scheme = Scheme::Http;
-    type Accessor = Backend;
+    type Accessor = HttpBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = HttpBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
@@ -120,7 +120,7 @@ impl AccessorBuilder for Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(HttpBackend {
             endpoint: endpoint.to_string(),
             root,
             client,
@@ -130,13 +130,13 @@ impl AccessorBuilder for Builder {
 
 /// Backend is used to serve `Accessor` support for http.
 #[derive(Clone)]
-pub struct Backend {
+pub struct HttpBackend {
     endpoint: String,
     root: String,
     client: HttpClient,
 }
 
-impl Debug for Backend {
+impl Debug for HttpBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
             .field("endpoint", &self.endpoint)
@@ -147,7 +147,7 @@ impl Debug for Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for HttpBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -197,7 +197,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl HttpBackend {
     async fn http_get(&self, path: &str, range: BytesRange) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -258,7 +258,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let mut builder = Builder::default();
+        let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         let op = Operator::create(builder)?.finish();
@@ -280,7 +280,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let mut builder = Builder::default();
+        let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
         let op = Operator::create(builder)?.finish();

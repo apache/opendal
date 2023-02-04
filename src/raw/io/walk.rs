@@ -251,7 +251,7 @@ mod tests {
 
     use super::*;
     use crate::layers::LoggingLayer;
-    use crate::services::fs::Builder;
+    use crate::services::Fs;
     use crate::Operator;
 
     fn get_position(vs: &[String], s: &str) -> usize {
@@ -264,7 +264,7 @@ mod tests {
     async fn test_walk_top_down() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let mut builder = Builder::default();
+        let mut builder = Fs::default();
         builder.root(&format!(
             "{}/{}",
             env::temp_dir().display(),
@@ -311,7 +311,7 @@ mod tests {
     async fn test_walk_top_down_same_level() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let mut builder = Builder::default();
+        let mut builder = Fs::default();
         builder.root(&format!(
             "{}/{}",
             env::temp_dir().display(),
@@ -356,7 +356,7 @@ mod tests {
     async fn test_walk_bottom_up() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let mut builder = Builder::default();
+        let mut builder = Fs::default();
         builder.root(&format!(
             "{}/{}",
             env::temp_dir().display(),

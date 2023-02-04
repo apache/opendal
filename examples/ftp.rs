@@ -18,8 +18,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::ftp;
-use opendal::services::ftp::Builder;
+use opendal::services::Ftp;
 use opendal::Operator;
 
 #[tokio::main]
@@ -41,7 +40,7 @@ Available Environment Values:
     );
 
     // Create fs backend builder.
-    let mut builder: Builder = ftp::Builder::default();
+    let mut builder = Ftp::default();
     builder.root(&env::var("OPENDAL_FTP_ROOT").unwrap_or_else(|_| "/".to_string()));
     // Set the root for ftp, all operations will happen under this root.
 

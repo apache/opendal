@@ -18,8 +18,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::redis;
-use opendal::services::redis::Builder;
+use opendal::services::Redis;
 use opendal::Operator;
 
 #[tokio::main]
@@ -43,7 +42,7 @@ async fn main() -> Result<()> {
     );
 
     // Create redis backend builder
-    let mut builder: Builder = redis::Builder::default();
+    let mut builder = Redis::default();
 
     // Set the root, all operations will happen under this directory, or prefix, more accurately.
     //

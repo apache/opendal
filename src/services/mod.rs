@@ -19,24 +19,24 @@
 //! - Builder: responsible for building the service backend.
 //! - Backend: the service backend which implements the [`Accessor`][crate::raw::Accessor] trait.
 
-pub mod azblob;
+mod azblob;
 pub use azblob::Builder as Azblob;
 
-pub mod azdfs;
+mod azdfs;
 pub use azdfs::Builder as Azdfs;
 
-pub mod fs;
+mod fs;
 pub use fs::Builder as Fs;
 
 #[cfg(feature = "services-ftp")]
-pub mod ftp;
+mod ftp;
 #[cfg(feature = "services-ftp")]
 pub use ftp::Builder as Ftp;
 
-pub mod gcs;
+mod gcs;
 pub use gcs::Builder as Gcs;
 
-pub mod ghac;
+mod ghac;
 pub use ghac::Builder as Ghac;
 
 #[cfg(feature = "services-hdfs")]
@@ -44,15 +44,15 @@ pub mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use hdfs::Builder as Hdfs;
 
-pub mod http;
+mod http;
 pub use self::http::Builder as Http;
 
 #[cfg(feature = "services-ipfs")]
-pub mod ipfs;
+mod ipfs;
 #[cfg(feature = "services-ipfs")]
 pub use self::ipfs::Builder as Ipfs;
 
-pub mod ipmfs;
+mod ipmfs;
 pub use ipmfs::Builder as Ipmfs;
 
 #[cfg(feature = "services-memcached")]
@@ -60,32 +60,32 @@ pub mod memcached;
 #[cfg(feature = "services-memcached")]
 pub use memcached::Builder as Memcached;
 
-pub mod memory;
+mod memory;
 pub use memory::Builder as Memory;
 
 #[cfg(feature = "services-moka")]
-pub mod moka;
+mod moka;
 #[cfg(feature = "services-moka")]
 pub use self::moka::Builder as Moka;
 
-pub mod obs;
+mod obs;
 pub use obs::Builder as Obs;
 
-pub mod oss;
+mod oss;
 pub use oss::Builder as Oss;
 
 #[cfg(feature = "services-redis")]
-pub mod redis;
+mod redis;
 #[cfg(feature = "services-redis")]
 pub use self::redis::Builder as Redis;
 
 #[cfg(feature = "services-rocksdb")]
-pub mod rocksdb;
+mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::Builder as Rocksdb;
 
-pub mod s3;
+mod s3;
 pub use s3::Builder as S3;
 
-pub mod webdav;
+mod webdav;
 pub use webdav::Builder as Webdav;

@@ -27,14 +27,14 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::ipmfs;
+//! use opendal::services::Ipmfs;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = ipmfs::Builder::default();
+//!     let mut builder = Ipmfs::default();
 //!
 //!     // set the storage bucket for OpenDAL
 //!     builder.endpoint("http://127.0.0.1:5001");

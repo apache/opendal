@@ -78,14 +78,14 @@
 //! use std::sync::Arc;
 //!
 //! use anyhow::Result;
-//! use opendal::services::s3;
+//! use opendal::services::S3;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create s3 backend builder.
-//!     let mut builder = s3::Builder::default();
+//!     let mut builder = S3::default();
 //!     // Set the root for s3, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.

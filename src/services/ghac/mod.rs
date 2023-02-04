@@ -66,14 +66,14 @@
 //! use std::sync::Arc;
 //!
 //! use anyhow::Result;
-//! use opendal::services::ghac;
+//! use opendal::services::Ghac;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create ghac backend builder.
-//!     let mut builder = ghac::Builder::default();
+//!     let mut builder = Ghac::default();
 //!     // Set the root for ghac, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.

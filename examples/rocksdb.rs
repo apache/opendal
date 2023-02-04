@@ -18,8 +18,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::rocksdb;
-use opendal::services::rocksdb::Builder;
+use opendal::services::Rocksdb;
 use opendal::Operator;
 
 #[tokio::main]
@@ -40,7 +39,7 @@ async fn main() -> Result<()> {
     );
 
     // Create rocksdb backend builder
-    let mut builder: Builder = rocksdb::Builder::default();
+    let mut builder = Rocksdb::default();
 
     // Set the root, all operations will happen under this directory, or prefix, more accurately.
     //

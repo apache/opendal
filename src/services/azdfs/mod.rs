@@ -38,14 +38,14 @@
 //! use std::sync::Arc;
 //!
 //! use anyhow::Result;
-//! use opendal::services::azdfs;
+//! use opendal::services::Azdfs;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create azblob backend builder.
-//!     let mut builder = azdfs::Builder::default();
+//!     let mut builder = Azdfs::default();
 //!     // Set the root for azblob, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.

@@ -17,8 +17,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::s3;
-use opendal::services::s3::Builder;
+use opendal::services::S3;
 use opendal::Operator;
 
 #[tokio::main]
@@ -44,7 +43,7 @@ Available Environment Values:
     );
 
     // Create s3 backend builder.
-    let mut builder: Builder = s3::Builder::default();
+    let mut builder = S3::default();
     // Set the root for s3, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.

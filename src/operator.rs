@@ -46,13 +46,13 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
+    /// # use opendal::services::Fs;
     /// # use opendal::Object;
     /// # use opendal::Operator;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
     ///     // Create fs backend builder.
-    ///     let mut builder = fs::Builder::default();
+    ///     let mut builder = Fs::default();
     ///     // Set the root for fs, all operations will happen under this root.
     ///     //
     ///     // NOTE: the root must be absolute path.

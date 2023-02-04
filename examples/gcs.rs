@@ -17,7 +17,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::gcs::Builder;
+use opendal::services::Gcs;
 use opendal::Operator;
 
 #[tokio::main]
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     );
 
     // create builder
-    let mut builder = Builder::default();
+    let mut builder = Gcs::default();
 
     // set the endpoint for GCS or GCS alike services
     builder.endpoint(&env::var("OPENDAL_GCS_ENDPOINT").unwrap_or_else(|_| "".to_string()));

@@ -172,6 +172,42 @@ impl Operator {
         self.accessor.clone()
     }
 
+    /// Create a new layer with dynamic dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `OperatorBuilder::layer()` is using static dispatch which is zero
+    /// cost. `Operator::layer()` is using dynamic dispatch which has a
+    /// bit runtime overhead with an extra vtable lookup and unable to
+    /// inline.
+    ///
+    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// use opendal::services::Fs;
+    /// use opendal::Operator;
+    /// use opendal::layers::LoggingLayer;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::create(Fs::default())?.finish();
+    /// let op = op.layer(LoggingLayer::default());
+    /// // All operations will go through the new_layer
+    /// let _ = op.object("test_file").read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn layer<L: Layer<FusedAccessor>>(self, layer: L) -> Self {
+        Self {
+            accessor: Arc::new(TypeEraseLayer.layer(layer.layer(self.accessor))),
+        }
+    }
+
     /// Get metadata of underlying accessor.
     ///
     /// # Examples
@@ -286,11 +322,18 @@ impl<A: Accessor> OperatorBuilder<A> {
         OperatorBuilder { accessor }.layer(ErrorContextLayer)
     }
 
-    /// Create a new layer.
+    /// Create a new layer with static dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `OperatorBuilder::layer()` is using static dispatch which is zero
+    /// cost. `Operator::layer()` is using dynamic dispatch which has a
+    /// bit runtime overhead with an extra vtable lookup and unable to
+    /// inline.
+    ///
+    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
     ///
     /// # Examples
-    ///
-    /// This examples needs feature `retry` enabled.
     ///
     /// ```no_run
     /// # use std::sync::Arc;

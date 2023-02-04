@@ -2,7 +2,76 @@
 
 This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
 
-## Upgrade t0 v0.25
+## Upgrade to v0.26
+
+In v0.26 we have replaced all internal dynamic dispatch usage with static dispatch. With this change, we can ensure that all operations performed inside OpenDAL are zero cost.
+
+Due to this change, we have to refactor the logic of `Operator`'s init logic. In v0.26, we added `opendal::Builder` trait and `opendal::OperatorBuilder`. For the first glance, the only change to existing code will be like:
+
+```diff
+- let op = Operator::new(builder.build()?);
++ let op = Operator::new(builder.build()?).finish();
+```
+
+By adding a `finish()` call, we will erase all generic types so that `Operator` can still be easily to used everywhere as before.
+
+### Accessor
+
+In v0.26, `Accessor` has been changed into trait with associated types.
+
+All services need to decalare the types returned as `Reader` or `BlockingReader`:
+
+```rust
+pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
+    type Reader: output::Read;
+    type BlockingReader: output::BlockingRead;
+}
+```
+
+If your service doesn't support `read` or `blocking_read`, we can use `()` to represent an dummy reader:
+
+```rust
+impl Accessor for MyDummyAccessor {
+    type Reader = ();
+    type BlockingReader = ();
+}
+```
+
+### Layer
+
+As described before, OpenDAL prefer to use static dispatch. Layers are required to implement the new `Layer` and `LayeredAccessor` trait:
+
+```rust
+pub trait Layer<A: Accessor> {
+    type LayeredAccessor: Accessor;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor;
+}
+
+#[async_trait]
+pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
+    type Inner: Accessor;
+    type Reader: output::Read;
+    type BlockingReader: output::BlockingRead;
+}
+```
+
+`LayeredAccessor` is a wrapper of `Accessor` with the typed `Innder`. All methods that not implemented will be forward to inner instead.
+
+### Builder
+
+Since v0.26, we implement `opendal::Builder` for all services, and services' mod will not be exported.
+
+```diff
+- use opendal::services::s3::Builder;
++ use opendal::services::S3;
+```
+
+### Conclusion
+
+Sorry again for the big changes in this release. It's a big step for OpenDAL to work in more critical systems.
+
+## Upgrade to v0.25
 
 In v0.25, we bring the same feature sets from `ObjectReader` to `BlockingObjectReader`.
 

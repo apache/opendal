@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = "2"
 napi-derive = "2"
-opendal = { version = "0.25", path = "../../" }
+opendal = { version = "0.26", path = "../../" }
 
 [build-dependencies]
 napi-build = "2"

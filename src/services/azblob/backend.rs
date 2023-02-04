@@ -39,7 +39,7 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
 /// Builder for azblob services
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct AzblobBuilder {
     root: Option<String>,
     container: String,
     endpoint: Option<String>,
@@ -49,7 +49,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for AzblobBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
 
@@ -71,7 +71,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl AzblobBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -195,7 +195,7 @@ impl Builder {
             conn_map.insert(entry[0], entry[1]);
         }
 
-        let mut builder = Builder::default();
+        let mut builder = AzblobBuilder::default();
 
         if let Some(sas_token) = conn_map.get("SharedAccessSignature") {
             builder.sas_token(sas_token);
@@ -240,12 +240,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl AccessorBuilder for AzblobBuilder {
     const SCHEME: Scheme = Scheme::Azblob;
-    type Accessor = Backend;
+    type Accessor = AzblobBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = AzblobBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("container").map(|v| builder.container(v));
@@ -310,7 +310,7 @@ impl AccessorBuilder for Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(AzblobBackend {
             root,
             endpoint,
             signer: Arc::new(signer),
@@ -323,7 +323,7 @@ impl AccessorBuilder for Builder {
 
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct AzblobBackend {
     container: String,
     client: HttpClient,
     root: String, // root will be "/" or /abc/
@@ -333,7 +333,7 @@ pub struct Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -447,7 +447,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl AzblobBackend {
     async fn azblob_get_blob(
         &self,
         path: &str,
@@ -594,11 +594,11 @@ impl Backend {
 
 #[cfg(test)]
 mod tests {
-    use super::Builder;
+    use super::AzblobBuilder;
 
     #[test]
     fn test_builder_from_connection_string() {
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;
 AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;
@@ -616,7 +616,7 @@ TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
         assert_eq!(builder.account_name.unwrap(), "devstoreaccount1");
         assert_eq!(builder.account_key.unwrap(), "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
 
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 DefaultEndpointsProtocol=https;
 AccountName=storagesample;
@@ -637,7 +637,7 @@ EndpointSuffix=core.chinacloudapi.cn;
     #[test]
     fn test_sas_from_connection_string() {
         // Note, not a correct HMAC
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
 QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;
@@ -658,7 +658,7 @@ SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:0
 
     #[test]
     pub fn test_sas_preferred() {
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
 AccountName=storagesample;

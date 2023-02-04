@@ -19,7 +19,7 @@ use bytes::Buf;
 use quick_xml::de;
 use serde::Deserialize;
 
-use super::backend::Backend;
+use super::backend::ObsBackend;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::Error;
@@ -29,7 +29,7 @@ use crate::ObjectMode;
 use crate::Result;
 
 pub struct DirStream {
-    backend: Arc<Backend>,
+    backend: Arc<ObsBackend>,
     root: String,
     path: String,
 
@@ -38,7 +38,7 @@ pub struct DirStream {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<ObsBackend>, root: &str, path: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),

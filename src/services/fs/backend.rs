@@ -34,13 +34,13 @@ use crate::*;
 
 /// Builder for fs backend.
 #[derive(Default, Debug)]
-pub struct Builder {
+pub struct FsBuilder {
     root: Option<String>,
     atomic_write_dir: Option<String>,
     enable_path_check: bool,
 }
 
-impl Builder {
+impl FsBuilder {
     /// Set root for backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -76,9 +76,9 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl AccessorBuilder for FsBuilder {
     const SCHEME: Scheme = Scheme::Fs;
-    type Accessor = Backend;
+    type Accessor = FsBackend;
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
@@ -113,7 +113,7 @@ impl AccessorBuilder for Builder {
         }
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(FsBackend {
             root,
             atomic_write_dir,
             enable_path_check: self.enable_path_check,
@@ -121,7 +121,7 @@ impl AccessorBuilder for Builder {
     }
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = FsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("atomic_write_dir")
@@ -133,7 +133,7 @@ impl AccessorBuilder for Builder {
 
 /// Backend is used to serve `Accessor` support for posix alike fs.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct FsBackend {
     root: String,
     atomic_write_dir: Option<String>,
     enable_path_check: bool,
@@ -147,7 +147,7 @@ fn tmp_file_of(path: &str) -> String {
     format!("{name}.{uuid}")
 }
 
-impl Backend {
+impl FsBackend {
     // Synchronously build write path and ensure the parent dirs created
     fn blocking_ensure_write_abs_path(parent: &str, path: &str) -> Result<String> {
         let p = build_rooted_abs_path(parent, path);
@@ -202,7 +202,7 @@ impl Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for FsBackend {
     type Reader = output::into_reader::FdReader<Compat<tokio::fs::File>>;
     type BlockingReader = output::into_blocking_reader::FdReader<std::fs::File>;
 

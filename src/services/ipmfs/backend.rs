@@ -31,13 +31,13 @@ use crate::*;
 
 /// Backend for IPFS service
 #[derive(Clone)]
-pub struct Backend {
+pub struct IpmfsBackend {
     root: String,
     endpoint: String,
     client: HttpClient,
 }
 
-impl fmt::Debug for Backend {
+impl fmt::Debug for IpmfsBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Backend")
             .field("root", &self.root)
@@ -46,7 +46,7 @@ impl fmt::Debug for Backend {
     }
 }
 
-impl Backend {
+impl IpmfsBackend {
     pub(crate) fn new(root: String, client: HttpClient, endpoint: String) -> Self {
         Self {
             root,
@@ -57,7 +57,7 @@ impl Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for IpmfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -175,7 +175,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl IpmfsBackend {
     async fn ipmfs_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 

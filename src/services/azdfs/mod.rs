@@ -75,7 +75,7 @@
 //! }
 //! ```
 mod backend;
-pub use backend::Builder;
+pub use backend::AzdfsBuilder;
 
 mod dir_stream;
 mod error;

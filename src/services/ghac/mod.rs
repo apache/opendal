@@ -89,6 +89,6 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::GhacBuilder;
 
 mod error;

@@ -74,7 +74,7 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::OssBuilder;
 
 mod dir_stream;
 mod error;

@@ -17,8 +17,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::hdfs;
-use opendal::services::hdfs::Builder;
+use opendal::services::Hdfs;
 use opendal::Operator;
 
 #[tokio::main]
@@ -39,7 +38,7 @@ Available Environment Values:
     );
 
     // Create fs backend builder.
-    let mut builder: Builder = hdfs::Builder::default();
+    let mut builder = Hdfs::default();
     // Set the root for hdfs, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.

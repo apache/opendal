@@ -38,7 +38,7 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 
 /// Redis backend builder
 #[derive(Clone, Default)]
-pub struct Builder {
+pub struct RedisBuilder {
     /// network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.
     ///
     /// default is "tcp://127.0.0.1:6379"
@@ -63,7 +63,7 @@ pub struct Builder {
     default_ttl: Option<Duration>,
 }
 
-impl Debug for Builder {
+impl Debug for RedisBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
         ds.field("db", &self.db.to_string());
@@ -81,7 +81,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl RedisBuilder {
     /// set the network address of redis service.
     ///
     /// currently supported schemes:
@@ -142,12 +142,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl AccessorBuilder for RedisBuilder {
     const SCHEME: Scheme = Scheme::Redis;
-    type Accessor = Backend;
+    type Accessor = RedisBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = RedisBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
@@ -226,7 +226,7 @@ impl AccessorBuilder for Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(Backend::new(Adapter {
+        Ok(RedisBackend::new(Adapter {
             client,
             conn,
             default_ttl: self.default_ttl,
@@ -234,8 +234,9 @@ impl AccessorBuilder for Builder {
         .with_root(&root))
     }
 }
+
 /// Backend for redis services.
-pub type Backend = kv::Backend<Adapter>;
+pub type RedisBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {

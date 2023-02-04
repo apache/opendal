@@ -59,7 +59,7 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::ObsBuilder;
 
 mod dir_stream;
 mod error;

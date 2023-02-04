@@ -15,5 +15,5 @@
 //! [moka](https://github.com/moka-rs/moka) backend support.
 
 mod backend;
-pub use backend::Backend;
-pub use backend::Builder;
+pub use backend::MokaBackend;
+pub use backend::MokaBuilder;

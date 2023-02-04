@@ -31,13 +31,13 @@ use crate::*;
 
 /// Builder for ipfs backend.
 #[derive(Default, Clone, Debug)]
-pub struct Builder {
+pub struct IpfsBuilder {
     endpoint: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
 
-impl Builder {
+impl IpfsBuilder {
     /// Set root of ipfs backend.
     ///
     /// Root must be a valid ipfs address like the following:
@@ -85,11 +85,11 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl AccessorBuilder for IpfsBuilder {
     const SCHEME: Scheme = Scheme::Ipfs;
-    type Accessor = Backend;
+    type Accessor = IpfsBackend;
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = IpfsBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
@@ -131,7 +131,7 @@ impl AccessorBuilder for Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(Backend {
+        Ok(IpfsBackend {
             root,
             endpoint,
             client,
@@ -141,13 +141,13 @@ impl AccessorBuilder for Builder {
 
 /// Backend for IPFS.
 #[derive(Clone)]
-pub struct Backend {
+pub struct IpfsBackend {
     endpoint: String,
     root: String,
     client: HttpClient,
 }
 
-impl Debug for Backend {
+impl Debug for IpfsBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
             .field("endpoint", &self.endpoint)
@@ -158,7 +158,7 @@ impl Debug for Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for IpfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -341,7 +341,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl IpfsBackend {
     async fn ipfs_get(&self, path: &str, range: BytesRange) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -396,13 +396,13 @@ impl Backend {
 }
 
 struct DirStream {
-    backend: Arc<Backend>,
+    backend: Arc<IpfsBackend>,
     path: String,
     consumed: bool,
 }
 
 impl DirStream {
-    fn new(backend: Arc<Backend>, path: &str) -> Self {
+    fn new(backend: Arc<IpfsBackend>, path: &str) -> Self {
         Self {
             backend,
             path: path.to_string(),

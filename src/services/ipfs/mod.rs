@@ -51,7 +51,7 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::IpfsBuilder;
 
 mod error;
 mod ipld;

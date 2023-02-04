@@ -20,72 +20,72 @@
 //! - Backend: the service backend which implements the [`Accessor`][crate::raw::Accessor] trait.
 
 mod azblob;
-pub use azblob::Builder as Azblob;
+pub use azblob::AzblobBuilder as Azblob;
 
 mod azdfs;
-pub use azdfs::Builder as Azdfs;
+pub use azdfs::AzdfsBuilder as Azdfs;
 
 mod fs;
-pub use fs::Builder as Fs;
+pub use fs::FsBuilder as Fs;
 
 #[cfg(feature = "services-ftp")]
 mod ftp;
 #[cfg(feature = "services-ftp")]
-pub use ftp::Builder as Ftp;
+pub use ftp::FtpBuilder as Ftp;
 
 mod gcs;
-pub use gcs::Builder as Gcs;
+pub use gcs::GcsBuilder as Gcs;
 
 mod ghac;
-pub use ghac::Builder as Ghac;
+pub use ghac::GhacBuilder as Ghac;
 
 #[cfg(feature = "services-hdfs")]
-pub mod hdfs;
+mod hdfs;
 #[cfg(feature = "services-hdfs")]
-pub use hdfs::Builder as Hdfs;
+pub use hdfs::HdfsBuilder as Hdfs;
 
 mod http;
-pub use self::http::Builder as Http;
+pub use self::http::HttpBuilder as Http;
 
 #[cfg(feature = "services-ipfs")]
 mod ipfs;
 #[cfg(feature = "services-ipfs")]
-pub use self::ipfs::Builder as Ipfs;
+pub use self::ipfs::IpfsBuilder as Ipfs;
 
 mod ipmfs;
-pub use ipmfs::Builder as Ipmfs;
+pub use ipmfs::IpmfsBuilder as Ipmfs;
 
 #[cfg(feature = "services-memcached")]
-pub mod memcached;
+mod memcached;
 #[cfg(feature = "services-memcached")]
-pub use memcached::Builder as Memcached;
+pub use memcached::MemcachedBuilder as Memcached;
 
 mod memory;
-pub use memory::Builder as Memory;
+pub use memory::MemoryBuilder as Memory;
 
 #[cfg(feature = "services-moka")]
 mod moka;
 #[cfg(feature = "services-moka")]
-pub use self::moka::Builder as Moka;
+pub use self::moka::MokaBuilder as Moka;
 
 mod obs;
-pub use obs::Builder as Obs;
+pub use obs::ObsBuilder as Obs;
 
 mod oss;
-pub use oss::Builder as Oss;
+pub use oss::OssBuilder as Oss;
 
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
-pub use self::redis::Builder as Redis;
+pub use self::redis::RedisBuilder as Redis;
 
 #[cfg(feature = "services-rocksdb")]
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
-pub use self::rocksdb::Builder as Rocksdb;
+pub use self::rocksdb::RocksdbBuilder as Rocksdb;
 
 mod s3;
-pub use s3::Builder as S3;
+pub use s3::S3Builder as S3;
 
 mod webdav;
-pub use webdav::Builder as Webdav;
+pub use webdav::WebdavBuilder as Webdav;

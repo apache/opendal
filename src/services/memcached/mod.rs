@@ -45,4 +45,4 @@
 //! ```
 
 mod backend;
-pub use backend::Builder;
+pub use backend::MemcachedBuilder;

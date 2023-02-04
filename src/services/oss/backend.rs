@@ -36,7 +36,7 @@ use crate::*;
 
 /// Builder for Aliyun Object Storage Service
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct OssBuilder {
     root: Option<String>,
 
     endpoint: Option<String>,
@@ -52,7 +52,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for OssBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("Builder");
         d.field("root", &self.root)
@@ -73,7 +73,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl OssBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -192,12 +192,12 @@ impl Builder {
     }
 }
 
-impl AccessorBuilder for Builder {
+impl AccessorBuilder for OssBuilder {
     const SCHEME: Scheme = Scheme::Oss;
-    type Accessor = Backend;
+    type Accessor = OssBackend;
 
     fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = Builder::default();
+        let mut builder = OssBuilder::default();
 
         map.get("root").map(|v| builder.root(v));
         map.get("bucket").map(|v| builder.bucket(v));
@@ -273,7 +273,7 @@ impl AccessorBuilder for Builder {
 
         debug!("Backend build finished: {:?}", &self);
 
-        Ok(Backend {
+        Ok(OssBackend {
             root,
             endpoint,
             presign_endpoint,
@@ -287,7 +287,7 @@ impl AccessorBuilder for Builder {
 
 #[derive(Clone)]
 /// Aliyun Object Storage Service backend
-pub struct Backend {
+pub struct OssBackend {
     client: HttpClient,
 
     root: String,
@@ -301,7 +301,7 @@ pub struct Backend {
     signer: Arc<AliyunOssSigner>,
 }
 
-impl Debug for Backend {
+impl Debug for OssBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
             .field("root", &self.root)
@@ -313,7 +313,7 @@ impl Debug for Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
 
@@ -452,7 +452,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl OssBackend {
     fn oss_put_object_request(
         &self,
         path: &str,

@@ -231,7 +231,7 @@ mod tests {
 
     use super::*;
     use crate::layers::LoggingLayer;
-    use crate::services::http;
+    use crate::services::Http;
     use crate::ObjectMode;
     use crate::Operator;
 
@@ -244,7 +244,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(http::Builder::from_iter(
+        let op = Operator::create(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -278,7 +278,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(http::Builder::from_iter(
+        let op = Operator::create(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -319,7 +319,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(http::Builder::from_iter(
+        let op = Operator::create(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())
@@ -384,7 +384,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = Operator::create(http::Builder::from_iter(
+        let op = Operator::create(Http::from_iter(
             vec![("endpoint".to_string(), "https://xuanwo.io".to_string())].into_iter(),
         ))?
         .layer(LoggingLayer::default())

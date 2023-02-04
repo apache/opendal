@@ -15,13 +15,12 @@
 //! Example for initiating a s3 backend with SSE-C.
 use anyhow::Result;
 use log::info;
-use opendal::services::s3;
-use opendal::services::s3::Builder;
+use opendal::services::S3;
 use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder: Builder = s3::Builder::default();
+    let mut builder = S3::default();
 
     // Setup builders
 

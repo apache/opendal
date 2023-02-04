@@ -18,8 +18,7 @@ use std::env;
 use anyhow::Result;
 use futures::StreamExt;
 use log::info;
-use opendal::services::oss;
-use opendal::services::oss::Builder;
+use opendal::services::Oss;
 use opendal::Operator;
 
 #[tokio::main]
@@ -43,7 +42,7 @@ Available Environment Values:
     );
 
     // Create oss backend builder.
-    let mut builder: Builder = oss::Builder::default();
+    let mut builder = Oss::default();
     // Set the root for oss, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.

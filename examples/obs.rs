@@ -17,7 +17,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::obs;
+use opendal::services::Obs;
 use opendal::Operator;
 
 #[tokio::main]
@@ -41,7 +41,7 @@ Available Environment Values:
     );
 
     // Create s3 backend builder.
-    let mut builder = obs::Builder::default();
+    let mut builder = Obs::default();
     // Set the root for obs, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.

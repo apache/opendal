@@ -18,8 +18,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::azblob;
-use opendal::services::azblob::Builder;
+use opendal::services::Azblob;
 use opendal::Operator;
 
 #[tokio::main]
@@ -44,7 +43,7 @@ Available Environment Values:
     );
 
     // Create fs backend builder.
-    let mut builder: Builder = azblob::Builder::default();
+    let mut builder = Azblob::default();
     // Set the root, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.

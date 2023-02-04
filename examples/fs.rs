@@ -18,8 +18,7 @@ use std::env;
 
 use anyhow::Result;
 use log::info;
-use opendal::services::fs;
-use opendal::services::fs::Builder;
+use opendal::services::Fs;
 use opendal::Operator;
 
 #[tokio::main]
@@ -39,7 +38,7 @@ Available Environment Values:
     );
 
     // Create fs backend builder.
-    let mut builder: Builder = fs::Builder::default();
+    let mut builder = Fs::default();
     // Set the root for fs, all operations will happen under this root.
     //
     // NOTE: the root must be absolute path.

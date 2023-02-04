@@ -24,7 +24,9 @@ use crate::object::ObjectLister;
 use crate::raw::*;
 use crate::*;
 
-/// User-facing APIs for object and object streams.
+/// Operator is the user-facing APIs for object and object streams.
+///
+/// Operator needs to be built with [`Builder`].
 #[derive(Clone, Debug)]
 pub struct Operator {
     accessor: FusedAccessor,

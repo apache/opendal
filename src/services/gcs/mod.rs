@@ -29,14 +29,14 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::gcs;
+//! use opendal::services::Gcs;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = gcs::Builder::default();
+//!     let mut builder = Gcs::default();
 //!
 //!     // set the storage bucket for OpenDAL
 //!     builder.bucket("test");

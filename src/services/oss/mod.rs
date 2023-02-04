@@ -36,14 +36,14 @@
 //! use std::sync::Arc;
 //!
 //! use anyhow::Result;
-//! use opendal::services::oss;
+//! use opendal::services::Oss;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create OSS backend builder.
-//!     let mut builder = oss::Builder::default();
+//!     let mut builder = Oss::default();
 //!     // Set the root for oss, all operations will happen under this root.
 //!     //
 //!     // NOTE: the root must be absolute path.

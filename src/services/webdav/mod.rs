@@ -36,14 +36,14 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::webdav;
+//! use opendal::services::Webdav;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = webdav::Builder::default();
+//!     let mut builder = Webdav::default();
 //!
 //!     builder.endpoint("127.0.0.1");
 //!

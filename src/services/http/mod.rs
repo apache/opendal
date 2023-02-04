@@ -32,14 +32,14 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::http;
+//! use opendal::services::Http;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = http::Builder::default();
+//!     let mut builder = Http::default();
 //!
 //!     builder.endpoint("127.0.0.1");
 //!

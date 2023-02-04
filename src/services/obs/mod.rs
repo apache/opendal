@@ -30,14 +30,14 @@
 //!
 //! ```no_run
 //! use anyhow::Result;
-//! use opendal::services::obs;
+//! use opendal::services::Obs;
 //! use opendal::Object;
 //! use opendal::Operator;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // create backend builder
-//!     let mut builder = obs::Builder::default();
+//!     let mut builder = Obs::default();
 //!
 //!     // set the storage bucket for OpenDAL
 //!     builder.bucket("test");

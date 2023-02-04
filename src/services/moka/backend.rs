@@ -23,8 +23,7 @@ use moka::sync::SegmentedCache;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for moka backend
 #[derive(Default, Debug)]

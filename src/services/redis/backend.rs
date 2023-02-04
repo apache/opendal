@@ -31,10 +31,7 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;

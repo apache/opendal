@@ -23,10 +23,7 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Memcached backend builder
 #[derive(Clone, Default)]

@@ -474,8 +474,7 @@ impl Backend {
 #[cfg(test)]
 mod build_test {
     use super::Builder;
-    use crate::raw::*;
-    use crate::ErrorKind;
+    use crate::*;
 
     #[test]
     fn test_build() {

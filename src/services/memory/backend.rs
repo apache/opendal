@@ -21,8 +21,7 @@ use parking_lot::Mutex;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for memory backend
 #[derive(Default)]

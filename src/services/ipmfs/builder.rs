@@ -18,8 +18,7 @@ use log::debug;
 
 use super::backend::Backend;
 use crate::raw::*;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 /// Builder for service ipfs.
 #[derive(Default, Debug)]

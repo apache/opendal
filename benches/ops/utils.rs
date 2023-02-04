@@ -16,9 +16,7 @@ use std::env;
 
 use bytes::Bytes;
 use once_cell::sync::Lazy;
-use opendal::raw::AccessorBuilder;
-use opendal::services;
-use opendal::Operator;
+use opendal::*;
 use rand::prelude::*;
 
 pub static TOKIO: Lazy<tokio::runtime::Runtime> =

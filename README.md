@@ -71,12 +71,12 @@ use opendal::Object;
 use opendal::ObjectMetadata;
 use opendal::ObjectMode;
 use opendal::Operator;
-use opendal::Scheme;
+use opendal::services;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Init Operator
-    let op = Operator::from_env(Scheme::Fs)?;
+    let op = Operator::create(services::Fs::default())?.finish();
 
     // Create object handler.
     let o = op.object("/tmp/test_file");

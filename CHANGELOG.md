@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.26.0] - 2023-02-04
+
+## Added
+
+- feat: Add benchmarks for blocking_seek operations (#1258)
+- feat: add dev container (#1261)
+- feat: Zero Cost OpenDAL (#1260)
+- feat: Allow dynamic dispatch layer (#1273)
+
+## Changed
+
+- refactor: remove the duplicated dependency in dev-dependencies (#1257)
+- refactor: some code in GitHub Actions (#1269)
+- refactor: Don't expose services mod directly (#1271)
+- refactor: Polish Builder API (#1272)
+
 ## [v0.25.2] - 2023-01-30
 
 ### Added
@@ -1258,6 +1274,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.26.0]: https://github.com/datafuselabs/opendal/compare/v0.25.2...v0.26.0
 [v0.25.2]: https://github.com/datafuselabs/opendal/compare/v0.25.1...v0.25.2
 [v0.25.1]: https://github.com/datafuselabs/opendal/compare/v0.25.0...v0.25.1
 [v0.25.0]: https://github.com/datafuselabs/opendal/compare/v0.24.6...v0.25.0

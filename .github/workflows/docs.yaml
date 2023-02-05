@@ -26,6 +26,9 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
+      - name: Copy vercel.json
+        run: cp ./vercel.json ./target/doc
+
       - name: Deploy to vercel
         if: github.repository_owner == 'datafuselabs' && github.ref_name == 'main'
         uses: amondnet/vercel-action@v25.1.1

@@ -17,7 +17,12 @@
 //! It's highly recommand to start with reading [`concepts`] first.
 
 pub mod comparisons;
+
 pub mod concepts;
+
+#[doc = include_str!("../../CHANGELOG.md")]
+pub mod changelog {}
+
 #[cfg(not(doctest))]
 pub mod rfcs;
 

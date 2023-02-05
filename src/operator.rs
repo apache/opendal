@@ -190,9 +190,9 @@ impl Operator {
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
+    /// use opendal::layers::LoggingLayer;
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// use opendal::layers::LoggingLayer;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -340,13 +340,15 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
+    /// use opendal::layers::LoggingLayer;
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// use opendal::layers::LoggingLayer;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// let op = Operator::create(Fs::default())?.layer(LoggingLayer::default()).finish();
+    /// let op = Operator::create(Fs::default())?
+    ///     .layer(LoggingLayer::default())
+    ///     .finish();
     /// // All operations will go through the new_layer
     /// let _ = op.object("test_file").read().await?;
     /// # Ok(())

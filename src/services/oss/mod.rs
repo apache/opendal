@@ -26,7 +26,7 @@
 //! - `oidc_token`: Set the oidc_token for backend.
 //! - `allow_anonymous`: Set the backend access OSS in anonymous way.
 //!
-//! Refer to [`Builder`]'s public API docs for more information.
+//! Refer to [`OssBuilder`]'s public API docs for more information.
 //!
 //! # Example
 //!

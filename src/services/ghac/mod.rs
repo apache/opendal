@@ -56,7 +56,7 @@
 //!
 //! - `root`: Set the work dir for backend.
 //!
-//! Refer to [`Builder`]'s public API docs for more information.
+//! Refer to [`GhacBuilder`]'s public API docs for more information.
 //!
 //! # Example
 //!

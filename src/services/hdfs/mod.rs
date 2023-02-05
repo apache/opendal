@@ -25,7 +25,7 @@
 //! - `root`: Set the work dir for backend.
 //! - `name_node`: Set the name node for backend.
 //!
-//! Refer to [`Builder`]'s public API docs for more information.
+//! Refer to [`HdfsBuilder`]'s public API docs for more information.
 //!
 //! # Environment
 //!

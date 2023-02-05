@@ -20,7 +20,7 @@
 //! - `endpoint`: Set the network address of memcached server
 //! - `default_ttl`: Set the ttl for memcached service.
 //!
-//! You can refer to [`Builder`]'s docs for more information
+//! You can refer to [`MemcachedBuilder`]'s docs for more information
 //!
 //! # Example
 //!

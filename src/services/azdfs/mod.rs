@@ -26,7 +26,7 @@
 //! - `account_name`: Set the account_name for backend.
 //! - `account_key`: Set the account_key for backend.
 //!
-//! Refer to [`Builder`]'s public API docs for more information.
+//! Refer to [`AzdfsBuilder`]'s public API docs for more information.
 //!
 //! # Example
 //!

@@ -99,7 +99,7 @@ impl From<ErrorKind> for &'static str {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ErrorStatus {
-    /// Permenent means without external changes, the error never changes.
+    /// Permanent means without external changes, the error never changes.
     ///
     /// For example, underlying services returns a not found error.
     ///
@@ -107,7 +107,7 @@ enum ErrorStatus {
     Permanent,
     /// Temporary means this error is returned for temporary.
     ///
-    /// For example, underlying services is rate limited or unailable for temporary.
+    /// For example, underlying services is rate limited or unavailable for temporary.
     ///
     /// Users CAN retry the operation to resolve it.
     Temporary,
@@ -115,7 +115,7 @@ enum ErrorStatus {
     ///
     /// For example, underlying services kept returning network errors.
     ///
-    /// Users MAY retry this opration but it's highly possible to error again.
+    /// Users MAY retry this operation but it's highly possible to error again.
     Persistent,
 }
 
@@ -267,7 +267,7 @@ impl Error {
         f(self)
     }
 
-    /// Set permenent status for error.
+    /// Set permanent status for error.
     pub fn set_permanent(mut self) -> Self {
         self.status = ErrorStatus::Permanent;
         self
@@ -281,7 +281,7 @@ impl Error {
         self
     }
 
-    /// Set perisistent status for error.
+    /// Set persistent status for error.
     ///
     /// By setting persistent, we indicate the retry should be stopped.
     pub fn set_persistent(mut self) -> Self {

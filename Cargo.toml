@@ -6,7 +6,6 @@ edition = "2021"
 exclude = [
   ".github/",
   "bindings/",
-  "docs/",
   "profiles/",
   "oay/",
   "oli/",

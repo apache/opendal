@@ -22,18 +22,9 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --no-deps --all-features
+          args: --no-deps --all-features -p opendal
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-
-      - name: Setup mdBook
-        uses: peaceiris/actions-mdbook@v1
-        with:
-          mdbook-version: 'latest'
-
-      - run: |
-          mdbook build
-          cp -r ./target/doc/* ./target/book
 
       - name: Deploy to vercel
         if: github.repository_owner == 'datafuselabs' && github.ref_name == 'main'
@@ -45,7 +36,7 @@ jobs:
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
           vercel-args: '--prod'
           scope: databend
-          working-directory: ./target/book
+          working-directory: ./target/doc
 
       - name: Deploy to vercel (preview)
         if: github.repository_owner == 'datafuselabs' && github.ref_name != 'main'
@@ -58,4 +49,4 @@ jobs:
           alias-domains: |
             opendal-git-{{BRANCH}}.vercel.app
           scope: databend
-          working-directory: ./target/book
+          working-directory: ./target/doc

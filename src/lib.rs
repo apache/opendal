@@ -142,6 +142,12 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! # Documentation
+//!
+//! OpenDAL carries all it's documentation in crate itself.
+//!
+//! More docs about OpenDAL could be found at [`docs`].
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]

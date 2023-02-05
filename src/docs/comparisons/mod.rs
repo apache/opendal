@@ -12,13 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! This module holds documentation for OpenDAL.
+//! Compare opendal with other projects to find out the differences and areas that opendal can improve.
 //!
-//! It's highly recommand to start with reading [`concepts`] first.
+//! All documents listed should be treated as highly biased. Because:
+//!
+//! - OpenDAL's maintainers and contributors write them.
+//! - Writers may not be familiar with the compared projects (at least not as //!familiar as with OpenDAL)
+//!
+//! Let's see OpenDAL:
+//!
+//! - [vs `object_store`][`vs_object_store`]
 
-pub mod concepts;
-pub mod rfcs;
-pub mod comparisons;
-
-#[doc = include_str!("upgrade.md")]
-pub mod upgrade {}
+#[doc = include_str!("vs_object_store.md")]
+pub mod vs_object_store {}

@@ -97,6 +97,24 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
+///
+/// # Output
+///
+/// OpenDAL is using [`tracing`](https://docs.rs/tracing/latest/tracing/) for tracing internally.
+///
+/// To enable tracing output, please init one of the subscribers that `tracing` supports.
+///
+/// For example:
+///
+/// ```rust
+/// extern crate tracing;
+///
+/// let my_subscriber = FooSubscriber::new();
+/// tracing::subscriber::set_global_default(my_subscriber)
+///     .expect("setting tracing default failed");
+/// ```
+///
+/// For real-world usage, please take a look at [`tracing-opentelemetry`](https://crates.io/crates/tracing-opentelemetry).
 pub struct TracingLayer;
 
 impl<A: Accessor> Layer<A> for TracingLayer {

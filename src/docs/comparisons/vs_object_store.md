@@ -62,13 +62,9 @@ let stream = object_store
     .into_stream();
 ```
 
-`opendal` has a similar trait called [`Accessor`](https://opendal.databend.rs/opendal/raw/trait.Accessor.html).
+`opendal` has a similar trait called [`Accessor`][crate::raw::Accessor]
 
-![](https://opendal.databend.rs/assets/accessor.png)
-
-But `opendal` don't expose this trait to end users directly. Instead, `opendal` expose a new struct called [`Operator`](https://opendal.databend.rs/opendal/struct.Operator.html) and builds public API on it.
-
-![](https://opendal.databend.rs/assets/operator.png)
+But `opendal` don't expose this trait to end users directly. Instead, `opendal` expose a new struct called [`Operator`][crate::Operator] and builds public API on it.
 
 ```Rust
 let op: Operator = Operator::from_env(Scheme::S3)?;
@@ -85,7 +81,7 @@ Both `object_store` and `opendal` provide a mechanism to intercept operations.
 let object_store = ThrottledStore::new(get_object_store(), ThrottleConfig::default())
 ```
 
-`opendal` called [`Layer`](https://opendal.databend.rs/opendal/trait.Layer.html):
+`opendal` called [`Layer`](crate::raw::Layer):
 
 ```Rust
 let op = op.layer(TracingLayer).layer(MetricsLayer);
@@ -127,7 +123,7 @@ opendal supports:
 | obs     | Y               | N                                       |
 | s3      | Y               | Y                                       |
 
-opendal has an idea called [`AccessorCapability`](https://opendal.databend.rs/rfcs/0409-accessor-capabilities.html), so it's services may have different capability sets. For example, opendal's `http` and `ipfs` are read only.
+opendal has an idea called [`AccessorCapability`](crate::raw::AccessorCapability), so it's services may have different capability sets. For example, opendal's `http` and `ipfs` are read only.
 
 ### Features
 

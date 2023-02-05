@@ -22,7 +22,29 @@ Adding this feature in OpenDAL will make users' lives easier to generate presign
 
 The whole process would be:
 
-![](../assets/rfcs/0413-presign/process.png)
+```text
+            ┌────────────┐
+            │    User    ├─────────────────────┐
+            └──┬─────▲───┘                     │
+               │     │      4. Send Request to S3 Directly
+1. Request Resource  │                         │
+               │     │                         │
+               │     │                         │
+               │     │                         ▼
+               │  3. Return Request     ┌────────────┐
+               │     │                  │            │
+               │     │                  │     S3     │
+            ┌──▼─────┴───┐              │            │
+            │            │              └────────────┘
+            │     App    │
+            │ ┌────────┐ │
+            │ │ OpenDAL│ │
+            │ ├────────┤ │
+            └─┴──┼─────┴─┘
+                 │      ▲
+                 └──────┘
+          2. Generate Request
+```
 
 # Guide-level explanation
 
@@ -33,7 +55,7 @@ With this feature, our users can:
 ```rust
 let req = op.presign_read("path/to/file")?;
 // req.method: GET
-// req.url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>  
+// req.url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>
 ```
 
 Users can download this object directly from the s3 bucket. For example:
@@ -47,7 +69,7 @@ curl <generated_url> -O test.txt
 ```rust
 let req = op.presign_write("path/to/file")?;
 // req.method: PUT
-// req.url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>  
+// req.url: https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>
 ```
 
 Users can upload content directly to the s3 bucket. For example:

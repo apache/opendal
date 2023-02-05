@@ -22,7 +22,7 @@
 //! - `access_key_id`: Set the access_key_id for backend.
 //! - `secret_access_key`: Set the secret_access_key for backend.
 //!
-//! You can refer to [`Builder`]'s docs for more information
+//! You can refer to [`ObsBuilder`]'s docs for more information
 //!
 //! # Example
 //!

@@ -31,7 +31,7 @@
 //! - `disable_config_load`: Disable aws config load from env
 //! - `enable_virtual_host_style`: Enable virtual host style.
 //!
-//! Refer to [`Builder`]'s public API docs for more information.
+//! Refer to [`S3Builder`]'s public API docs for more information.
 //!
 //! # Temporary security credentials
 //!

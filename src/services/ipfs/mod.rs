@@ -19,7 +19,7 @@
 //! - `root`: Set the work directory for backend
 //! - `endpoint`: Customizable endpoint setting
 //!
-//! You can refer to [`Builder`]'s docs for more information
+//! You can refer to [`IpfsBuilder`]'s docs for more information
 //!
 //! # Example
 //!

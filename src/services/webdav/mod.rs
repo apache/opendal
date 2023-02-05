@@ -28,7 +28,7 @@
 //! - `endpoint`: set the endpoint for webdav
 //! - `root`: Set the work directory for backend
 //!
-//! You can refer to [`Builder`]'s docs for more information
+//! You can refer to [`WebdavBuilder`]'s docs for more information
 //!
 //! # Example
 //!

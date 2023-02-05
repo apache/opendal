@@ -31,9 +31,6 @@ pub use self::metrics::MetricsLayer;
 mod retry;
 pub use self::retry::RetryLayer;
 
-mod subdir;
-pub use subdir::SubdirLayer;
-
 #[cfg(feature = "layers-tracing")]
 mod tracing;
 #[cfg(feature = "layers-tracing")]

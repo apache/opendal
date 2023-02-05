@@ -25,7 +25,7 @@
 //! - `root`: Set the working directory of `OpenDAL`
 //! - `datadir`: Set the path to the rocksdb data directory
 //!
-//! You can refer to [`Builder`]'s docs for more information
+//! You can refer to [`RocksdbBuilder`]'s docs for more information
 //!
 //! # Example
 //!

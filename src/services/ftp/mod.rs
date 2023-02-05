@@ -21,7 +21,7 @@
 //! - `credential`:  login credentials
 //! - `tls`: tls mode
 //!
-//! You can refer to [`Builder`]'s docs for more information
+//! You can refer to [`FtpBuilder`]'s docs for more information
 //!
 //! # Example
 //!

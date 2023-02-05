@@ -12,12 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing specific services support.
+//! Services will provide builders to build underlying backends.
 //!
-//! In order to implement a service, we need the following things:
+//! # Capabilities
 //!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::raw::Accessor] trait.
+//! | services      | read | write | list | presign | multipart | blocking |
+//! |---------------|------|-------|------|---------|-----------|----------|
+//! | [`Azblob`]    | Y    | Y     | Y    | N       | N         | N        |
+//! | [`Azdfs`]     | Y    | Y     | Y    | N       | N         | N        |
+//! | [`Fs`]        | Y    | Y     | Y    | X       | X         | Y        |
+//! | [`Ftp`]       | Y    | Y     | Y    | X       | X         | N        |
+//! | [`Gcs`]       | Y    | Y     | Y    | N       | N         | N        |
+//! | [`Ghac`]      | Y    | Y     | N    | X       | X         | N        |
+//! | [`Hdfs`]      | Y    | Y     | Y    | X       | X         | Y        |
+//! | [`Http`]      | Y    | Y     | N    | N       | X         | N        |
+//! | [`Ipfs`]      | Y    | Y     | Y    | Y       | X         | N        |
+//! | [`Ipmfs`]     | Y    | Y     | Y    | Y       | X         | N        |
+//! | [`Memcached`] | Y    | Y     | X    | X       | X         | N        |
+//! | [`Memory`]    | Y    | Y     | X    | X       | X         | N        |
+//! | [`Moka`]      | Y    | Y     | X    | X       | X         | N        |
+//! | [`Obs`]       | Y    | Y     | Y    | N       | N         | N        |
+//! | [`Oss`]       | Y    | Y     | Y    | N       | N         | N        |
+//! | [`Redis`]     | Y    | Y     | X    | X       | X         | N        |
+//! | [`Rocksdb`]   | Y    | Y     | X    | X       | X         | N        |
+//! | [`S3`]        | Y    | Y     | Y    | Y       | Y         | N        |
+//! | [`Webdav`]    | Y    | Y     | Y    | X       | X         | N        |
+//!
+//! - `Y` means the feature has been implemented.
+//! - `N` means the feature is not implemented for now. Please feel free to open an issue to request it.
+//! - `X` means the feature can't be implemented. Please report an issue if you think it's wrong.
 
 mod azblob;
 pub use azblob::AzblobBuilder as Azblob;

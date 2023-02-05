@@ -183,7 +183,7 @@ impl Operator {
     /// bit runtime overhead with an extra vtable lookup and unable to
     /// inline.
     ///
-    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
+    /// It's always recommended to use `OperatorBuilder::layer()` instead.
     ///
     /// # Examples
     ///
@@ -279,7 +279,7 @@ impl Operator {
 ///
 /// # Examples
 ///
-/// For users who want to support many services, we can build a helper fucntion like the following:
+/// For users who want to support many services, we can build a helper function like the following:
 ///
 /// ```
 /// use std::collections::HashMap;
@@ -320,7 +320,7 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// Create a new operator builder.
     #[allow(clippy::new_ret_no_self)]
     pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
-        // Make sure error context layer hass been attached.
+        // Make sure error context layer has been attached.
         OperatorBuilder { accessor }.layer(ErrorContextLayer)
     }
 
@@ -333,7 +333,7 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// bit runtime overhead with an extra vtable lookup and unable to
     /// inline.
     ///
-    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
+    /// It's always recommended to use `OperatorBuilder::layer()` instead.
     ///
     /// # Examples
     ///

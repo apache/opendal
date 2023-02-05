@@ -53,6 +53,6 @@ pub trait Builder: Default {
         Self::from_map(envs)
     }
 
-    /// Consume the accessoer builder to build a service.
+    /// Consume the accessor builder to build a service.
     fn build(&mut self) -> Result<Self::Accessor>;
 }

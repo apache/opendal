@@ -25,7 +25,7 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for moka backend
+/// [moka](https://github.com/moka-rs/moka) backend support.
 #[derive(Default, Debug)]
 pub struct MokaBuilder {
     /// Name for this cache instance.

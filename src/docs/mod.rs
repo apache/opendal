@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,25 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Example for initiating a s3 backend with SSE-C.
-use anyhow::Result;
-use log::info;
-use opendal::services::S3;
-use opendal::Operator;
+//! This module holds documentation for OpenDAL.
+//!
+//! It's highly recommand to start with reading [`concepts`] first.
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let mut builder = S3::default();
+pub mod concepts;
 
-    // Setup builders
-
-    // Enable SSE-C
-    builder.server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
-
-    let op = Operator::create(builder)?.finish();
-    info!("operator: {:?}", op);
-
-    // Writing your testing code here.
-
-    Ok(())
-}
+#[doc = include_str!("upgrade.md")]
+pub mod upgrade {}

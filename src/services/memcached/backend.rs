@@ -25,7 +25,37 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Memcached backend builder
+/// Memcached support for OpenDAL
+///
+/// # Configuration
+///
+/// - `root`: Set the working directory of `OpenDAL`
+/// - `endpoint`: Set the network address of memcached server
+/// - `default_ttl`: Set the ttl for memcached service.
+///
+/// You can refer to [`MemcachedBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::memcached;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = memcached::Builder::default();
+///
+///     builder.endpoint("tcp://127.0.0.1:11211");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default)]
 pub struct MemcachedBuilder {
     /// network address of the memcached service.

@@ -12,41 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Rocksdb support for OpenDAL
-//!
-//! # Note
-//!
-//! The storage format for this service is not **stable** yet.
-//!
-//! PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
-//!
-//! # Configuration
-//!
-//! - `root`: Set the working directory of `OpenDAL`
-//! - `datadir`: Set the path to the rocksdb data directory
-//!
-//! You can refer to [`RocksdbBuilder`]'s docs for more information
-//!
-//! # Example
-//!
-//! ## Via Builder
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::services::rocksdb;
-//! use opendal::Object;
-//! use opendal::Operator;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let mut builder = rocksdb::Builder::default();
-//!     builder.datadir("/tmp/opendal/rocksdb");
-//!
-//!     let op: Operator = Operator::create(builder)?.finish();
-//!     let _: Object = op.object("test_file");
-//!     Ok(())
-//! }
-//! ```
-
 mod backend;
-pub use backend::RocksdbBuilder;
+pub use backend::RocksdbBuilder as Rocksdb;

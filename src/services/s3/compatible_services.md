@@ -1,40 +1,12 @@
-# Use s3 as backend
-
-These docs provide a detailed examples for using s3 as backend.
-
-`access_key_id` and `secret_access_key` could be loaded from `~/.aws/config` automatically:
-
-```shell
-OPENDAL_S3_BUCKET=opendal OPENDAL_S3_REGION=test cargo run --example s3
-```
-
-Or specify manually:
-
-```shell
-OPENDAL_S3_BUCKET=opendal OPENDAL_S3_ACCESS_KEY_ID=minioadmin OPENDAL_S3_SECRET_ACCESS_KEY=minioadminx OPENDAL_S3_ENDPOINT=http://127.0.0.1:9900 OPENDAL_S3_REGION=test cargo run --example s3
-```
-
-All config could be passed via environment:
-
-- `OPENDAL_S3_ROOT`: root path, default: /
-- `OPENDAL_S3_BUCKET`: bucket name, required.
-- `OPENDAL_S3_ENDPOINT`: endpoint of s3 service, default: https://s3.amazonaws.com
-- `OPENDAL_S3_REGION`: region of s3 service, could be auto detected.
-- `OPENDAL_S3_ACCESS_KEY_ID`: access key id of s3 service, could be auto detected.
-- `OPENDAL_S3_SECRET_ACCESS_KEY`: secret access key of s3 service, could be auto detected.
-- `OPENDAL_S3_ENABLE_VIRTUAL_HOST_STYLE`: Enable virtual host style for API request.
-
-## Compatible Services
-
-### AWS S3
+## AWS S3
 
 [AWS S3](https://aws.amazon.com/s3/) is the default implementations of s3 services. Only `bucket` is required.
 
-```rust
+```rust,ignore
 builder.bucket("<bucket_name>");
 ```
 
-### Alibaba Object Storage Service (OSS)
+## Alibaba Object Storage Service (OSS)
 
 [OSS](https://www.alibabacloud.com/product/object-storage-service) is a s3 compatible service provided by [Alibaba Cloud](https://www.alibabacloud.com).
 
@@ -59,14 +31,14 @@ To connect to OSS, we need to set:
 >
 > In that case, please enable virtual host style for requesting.
 
-```rust
+```rust,ignore
 builder.endpoint("https://oss-cn-hangzhou.aliyuncs.com");
 builder.region("<region>");
 builder.bucket("<bucket_name>");
 builder.enable_virtual_host_style();
 ```
 
-### Minio
+## Minio
 
 [minio](https://min.io/) is an open-source s3 compatible services.
 
@@ -76,13 +48,13 @@ To connect to minio, we need to set:
 - `region`: The region of minio. If not specified, it could be ignored.
 - `bucket`: The bucket name of minio.
 
-```rust
+```rust,ignore
 builder.endpoint("http://127.0.0.1:9000");
 builder.region("<region>");
 builder.bucket("<bucket_name>");
 ```
 
-### QingStor Object Storage
+## QingStor Object Storage
 
 [QingStor Object Storage](https://www.qingcloud.com/products/qingstor) is a S3-compatible service provided by [QingCloud](https://www.qingcloud.com/).
 
@@ -91,7 +63,7 @@ To connect to QingStor Object Storage, we need to set:
 - `endpoint`: The endpoint of QingStor s3 compatible endpoint, for example: `https://s3.pek3b.qingstor.com`
 - `bucket`: The bucket name.
 
-### Scaleway Object Storage
+## Scaleway Object Storage
 
 [Scaleway Object Storage](https://www.scaleway.com/en/object-storage/) is a S3-compatible and multi-AZ redundant object storage service.
 
@@ -101,7 +73,7 @@ To connect to Scaleway Object Storage, we need to set:
 - `region`: The region of scaleway.
 - `bucket`: The bucket name of scaleway.
 
-### Tencent Cloud Object Storage (COS) 
+## Tencent Cloud Object Storage (COS)
 
 [COS](https://intl.cloud.tencent.com/products/cos) is a s3 compatible service provided by [Tencent Cloud](https://intl.cloud.tencent.com/).
 
@@ -110,7 +82,7 @@ To connect to COS, we need to set:
 - `endpoint`: The endpoint of cos, for example: `https://cos.ap-beijing.myqcloud.com`
 - `bucket`: The bucket name of cos.
 
-### Wasabi Object Storage
+## Wasabi Object Storage
 
 [Wasabi](https://wasabi.com/) is a s3 compatible service.
 
@@ -122,25 +94,3 @@ To connect to wasabi, we need to set:
 - `bucket`: The bucket name of wasabi.
 
 > Refer to [What are the service URLs for Wasabi's different storage regions?](https://wasabi-support.zendesk.com/hc/en-us/articles/360015106031) for more details.
-
-## Example
-
-### Via Environment
-
-```rust
-use anyhow::Result;
-use opendal::Operator;
-use opendal::Scheme;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Init Operator from env.
-    let op = Operator::from_env(Scheme::S3)?;
-}
-```
-
-### Via Builder
-
-```rust
-{{#include ../../examples/s3.rs:15:}}
-```

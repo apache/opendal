@@ -23,7 +23,7 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for memory backend
+/// In memory backend support.
 #[derive(Default)]
 pub struct MemoryBuilder {}
 

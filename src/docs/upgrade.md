@@ -1,8 +1,6 @@
-# Upgrade
+Upgrade and migrate procedures while OpenDAL meets breaking changes.
 
-This document intends to record upgrade and migrate procedures while OpenDAL meets breaking changes.
-
-## Upgrade to v0.26
+# Upgrade to v0.26
 
 In v0.26 we have replaced all internal dynamic dispatch usage with static dispatch. With this change, we can ensure that all operations performed inside OpenDAL are zero cost.
 
@@ -15,7 +13,7 @@ Due to this change, we have to refactor the logic of `Operator`'s init logic. In
 
 By adding a `finish()` call, we will erase all generic types so that `Operator` can still be easily to used everywhere as before.
 
-### Accessor
+## Accessor
 
 In v0.26, `Accessor` has been changed into trait with associated types.
 
@@ -37,7 +35,7 @@ impl Accessor for MyDummyAccessor {
 }
 ```
 
-### Layer
+## Layer
 
 As described before, OpenDAL prefer to use static dispatch. Layers are required to implement the new `Layer` and `LayeredAccessor` trait:
 
@@ -58,7 +56,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
 `LayeredAccessor` is a wrapper of `Accessor` with the typed `Innder`. All methods that not implemented will be forward to inner instead.
 
-### Builder
+## Builder
 
 Since v0.26, we implement `opendal::Builder` for all services, and services' mod will not be exported.
 
@@ -67,11 +65,11 @@ Since v0.26, we implement `opendal::Builder` for all services, and services' mod
 + use opendal::services::S3;
 ```
 
-### Conclusion
+## Conclusion
 
 Sorry again for the big changes in this release. It's a big step for OpenDAL to work in more critical systems.
 
-## Upgrade to v0.25
+# Upgrade to v0.25
 
 In v0.25, we bring the same feature sets from `ObjectReader` to `BlockingObjectReader`.
 
@@ -86,7 +84,7 @@ Apart from this change, we refactored s3 credential loading logic. After this ch
 
 - `builder.disable_credential_loader` => `builder.disable_config_load`
 
-## Upgrade to v0.24
+# Upgrade to v0.24
 
 In v0.24, we made a big refactor on our internal IO-related traits. In this version, we split our IO traits into `input` and `output` versions:
 
@@ -115,13 +113,13 @@ Most changes only happen inside. Users not using `opendal::raw::*` will not be a
 
 Sorry for the inconvenience. I think those changes are required and make OpenDAL better! Welcome any comments at [Discussion](https://github.com/datafuselabs/opendal/discussions).
 
-## Upgrade to v0.21
+# Upgrade to v0.21
 
 v0.21 is an internal refactor version of OpenDAL. In this version, we refactored our error handling and our `Accessor` APIs. Thanks to those internal changes, we added an object-level metadata cache, making it nearly zero cost to reuse existing metadata continuously.
 
 Let's start with our errors.
 
-### Error Handling
+## Error Handling
 
 As described in [RFC-0977: Refactor Error](https://opendal.databend.rs/rfcs/0977-refactor-error.html), we refactor opendal error by a new error
 called [`opendal::Error`](https://opendal.databend.rs/opendal/struct.Error.html).
@@ -142,7 +140,7 @@ And the following error kinds should be updated:
 
 And since v0.21, we will return errors `ObjectIsADirectory` and `ObjectNotADirectory` instead of `anyhow::Error`.
 
-### Accessor API
+## Accessor API
 
 In v0.21, we refactor the whole `Accessor`'s API:
 
@@ -153,7 +151,7 @@ In v0.21, we refactor the whole `Accessor`'s API:
 
 Since v0.21, we will return a reply struct for different operations called `RpWrite` instead of an exact type. We can split OpenDAL's public API and raw API with this change.
 
-### ObjectList and ObjectPage
+## ObjectList and ObjectPage
 
 Since v0.21, `Accessor` will return `ObjectPager` for `List`:
 
@@ -176,7 +174,7 @@ impl ObjectLister {
 }
 ```
 
-### Code Layout
+## Code Layout
 
 Since v0.21, we have categorized all APIs into `public` and `raw`.
 
@@ -188,11 +186,11 @@ Please replace all usage of `opendal::io_util::*` and `opendal::http_util::*` to
 
 With this change, new users of OpenDAL maybe be it easier to get started.
 
-### Summary
+## Summary
 
 Sorry for introducing too much breaking change in a single version. This version can be a solid version for preparing OpenDAL v1.0.
 
-## Upgrade to v0.20
+# Upgrade to v0.20
 
 v0.20 is a big release that we introduce a lot of performance related changes.
 
@@ -220,7 +218,7 @@ To make this happen, we changed our `Accessor` API:
 
 All layers should be updated to meet this change. Also, it's required to return `content_length` while building `ObjectReader`. Please make sure the returning `ObjectMetadata` is used correctly.
 
-## Upgrade to v0.19
+# Upgrade to v0.19
 
 OpenDAL deprecate some features:
 
@@ -230,7 +228,7 @@ OpenDAL deprecate some features:
 
 Deprecated types like `DirEntry` has been removed.
 
-## Upgrade to v0.18
+# Upgrade to v0.18
 
 OpenDAL v0.18 introduces the following breaking changes:
 
@@ -255,7 +253,7 @@ This change means:
 - `metadata` and `blocking_metadata` will not return errors anymore.
 - To retrieve the latest meta, please use `entry.into_object().metadata()` instead.
 
-## Upgrade to v0.17
+# Upgrade to v0.17
 
 OpenDAL v0.17 refactor the `Accessor` to make space for future features.
 
@@ -270,7 +268,7 @@ For more information about this change, please refer to [RFC-0661: Path In Acces
 
 And since OpenDAL v0.17, we will use `rustls` as default tls engine for our underlying http client. Since this release, we will not depend on `openssl` anymore.
 
-## Upgrade to v0.16
+# Upgrade to v0.16
 
 OpenDAL v0.16 refactor the internal implementation of `http` service. Since v0.16, http service can be used directly without enabling `services-http` feature. Accompany by these changes, http service has the following breaking changes:
 
@@ -297,7 +295,7 @@ async fn main() {
 
 For more information about this change, please refer to [RFC-0627: Split Capabilities](https://opendal.databend.rs/rfcs/0627-split-capabilities.html).
 
-## Upgrade to v0.14
+# Upgrade to v0.14
 
 OpenDAL v0.14 removed all deprecated APIs in previous versions, including:
 
@@ -325,7 +323,7 @@ The following APIs have affected by this change:
 
 For more information about this change, please refer to [RFC-0554: Write Refactor](https://opendal.databend.rs/rfcs/0554-write-refactor.html).
 
-## Upgrade to v0.13
+# Upgrade to v0.13
 
 OpenDAL deprecate `Operator::with_backoff` since v0.13.
 
@@ -343,7 +341,7 @@ let _ = Operator::from_env(Scheme::Fs)
     .layer(RetryLayer::new(ExponentialBackoff::default()));
 ```
 
-## Upgrade to v0.12
+# Upgrade to v0.12
 
 OpenDAL introduces breaking changes for services initiation.
 
@@ -375,7 +373,7 @@ The following APIs have been removed:
 
 - public struct `Metadata` (deprecated in v0.8, replaced by `ObjectMetadata`)
 
-## Upgrade to v0.8
+# Upgrade to v0.8
 
 OpenDAL introduces a breaking change of `list` related operations in v0.8.
 
@@ -405,7 +403,7 @@ let o: Object = de.into()
 
 Since `v0.8`, `opendal::Metadata` has been deprecated by `opendal::ObjectMetadata`.
 
-## Upgrade to v0.7
+# Upgrade to v0.7
 
 OpenDAL introduces a breaking change of `decompress_read` related in v0.7.
 
@@ -424,11 +422,11 @@ So users should match and check the `None` case:
 let bs = o.decompress_read().await?.expect("must have valid compress algorithm");
 ```
 
-## Upgrade to v0.4
+# Upgrade to v0.4
 
 OpenDAL introduces many breaking changes in v0.4.
 
-### Object::reader() is not `AsyncSeek` anymore
+## Object::reader() is not `AsyncSeek` anymore
 
 Since v0.4, `Object::reader()` will return `impl BytesRead` instead of `Reader` that implements `AsyncRead` and `AsyncSeek`. Users who want `AsyncSeek` please wrapped with `opendal::io_util::seekable_read`:
 
@@ -442,7 +440,7 @@ let mut bs = vec![0;10];
 r.read(&mut bs).await?;
 ```
 
-### Use RangeBounds instead
+## Use RangeBounds instead
 
 Since v0.4, the following APIs will be removed.
 
@@ -462,7 +460,7 @@ Users can use their familiar rust range syntax:
 let r = o.range_reader(1024..2048).await?;
 ```
 
-### Return io::Result instead
+## Return io::Result instead
 
 Since v0.4, all functions in OpenDAL will return `std::io::Result` instead.
 
@@ -478,7 +476,7 @@ if let Err(e) = op.object("test_file").metadata().await {
 }
 ```
 
-### Removing Credential
+## Removing Credential
 
 Since v0.4, `Credential` has been removed, please use the API provided by `Builder` directly.
 
@@ -487,7 +485,7 @@ builder.access_key_id("access_key_id");
 builder.secret_access_key("secret_access_key");
 ```
 
-### Write returns `BytesWriter` instead
+## Write returns `BytesWriter` instead
 
 Since v0.4, `Accessor::write` will return a `BytesWriter` instead accepting a `BoxedAsyncReader`.
 
@@ -504,7 +502,7 @@ Users can write into an object more easily:
 let _ = op.object("path/to/file").write("Hello, World!").await?;
 ```
 
-### `io_util` replaces `readers`
+## `io_util` replaces `readers`
 
 Since v0.4, mod `io_util` will replace `readers`. In `io_utils`, OpenDAL provides helpful functions like:
 
@@ -515,7 +513,7 @@ Since v0.4, mod `io_util` will replace `readers`. In `io_utils`, OpenDAL provide
 - `observe_read`: Add callback for `BytesReader`
 - `observe_write`: Add callback for `BytesWrite`
 
-### New type alias
+## New type alias
 
 For better naming, types that OpenDAL returns have been renamed:
 

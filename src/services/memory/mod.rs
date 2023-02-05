@@ -12,7 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! In memory backend support.
-
 mod backend;
-pub use backend::MemoryBuilder;
+pub use backend::MemoryBuilder as Memory;

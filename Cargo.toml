@@ -30,6 +30,12 @@ debug = true
 [features]
 default = ["rustls"]
 
+# Build docs or not.
+#
+# This features is used to control whether or not to build opendal's docs.
+# And doesn't have any other effects.
+docs = []
+
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
 # Enable trust-dns for pure rust dns cache.
@@ -74,30 +80,6 @@ name = "ops"
 [[bench]]
 harness = false
 name = "io"
-required-features = ["layers-all"]
-
-[[example]]
-name = "hdfs"
-required-features = ["services-hdfs"]
-
-[[example]]
-name = "ipfs"
-required-features = ["services-ipfs"]
-
-[[example]]
-name = "ftp"
-required-features = ["services-ftp"]
-
-[[example]]
-name = "redis"
-required-features = ["services-redis"]
-
-[[example]]
-name = "rocksdb"
-required-features = ["services-rocksdb"]
-
-[[example]]
-name = "tracing_layer"
 required-features = ["layers-all"]
 
 [dependencies]

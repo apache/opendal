@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod backend;
-pub use backend::OssBuilder as Oss;
+//! This module holds documentation for OpenDAL.
+//!
+//! It's highly recommand to start with reading [`concepts`] first.
 
-mod dir_stream;
-mod error;
+pub mod comparisons;
+pub mod concepts;
+#[cfg(not(doctest))]
+pub mod rfcs;
+
+#[cfg(not(doctest))]
+#[doc = include_str!("upgrade.md")]
+pub mod upgrade {}

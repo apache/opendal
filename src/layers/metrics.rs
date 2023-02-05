@@ -97,6 +97,22 @@ static LABEL_ERROR: &str = "error";
 ///     .layer(MetricsLayer)
 ///     .finish();
 /// ```
+///
+/// # Output
+///
+/// OpenDAL is using [`metrics`](https://docs.rs/metrics/latest/metrics/) for metrics internally.
+///
+/// To enable metrics output, please enable one of the exporters that `metrics` supports.
+///
+/// Take [`metrics_exporter_prometheus`](https://docs.rs/metrics-exporter-prometheus/latest/metrics_exporter_prometheus/) as an example:
+///
+/// ```ignore
+/// let builder = PrometheusBuilder::new();
+/// builder.install().expect("failed to install recorder/exporter");
+/// let handle = builder.install_recorder().expect("failed to install recorder");
+/// let (recorder, exporter) = builder.build().expect("failed to build recorder/exporter");
+/// let recorder = builder.build_recorder().expect("failed to build recorder");
+/// ```
 #[derive(Debug, Copy, Clone)]
 pub struct MetricsLayer;
 

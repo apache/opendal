@@ -12,42 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! FTP support for OpenDAL.
-//!
-//! # Configuration
-//!
-//! - `endpoint`: set the endpoint for connection
-//! - `root`: Set the work directory for backend
-//! - `credential`:  login credentials
-//! - `tls`: tls mode
-//!
-//! You can refer to [`FtpBuilder`]'s docs for more information
-//!
-//! # Example
-//!
-//! ## Via Builder
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::services::ftp;
-//! use opendal::Object;
-//! use opendal::Operator;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     // create backend builder
-//!     let mut builder = ftp::Builder::default();
-//!
-//!     builder.endpoint("127.0.0.1");
-//!
-//!     let op: Operator = Operator::create(builder)?.finish();
-//!     let _obj: Object = op.object("test_file");
-//!     Ok(())
-//! }
-//! ```
-
 mod backend;
-pub use backend::FtpBuilder;
+pub use backend::FtpBuilder as Ftp;
 
 mod dir_stream;
 mod err;

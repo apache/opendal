@@ -41,9 +41,45 @@ use crate::*;
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
-// TODO: Server side encryption support
-
-/// GCS storage backend builder
+/// Google Cloud Storage support for OpenDAL.
+///
+/// # Configuration
+///
+/// - `root`: Set the work directory for backend
+/// - `bucket`: Set the container name for backend
+/// - `endpoint`: Customizable endpoint setting
+/// - `credentials`: Credential string for GCS OAuth2
+///
+/// You can refer to [`GcsBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Gcs;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Gcs::default();
+///
+///     // set the storage bucket for OpenDAL
+///     builder.bucket("test");
+///     // set the working directory root for GCS
+///     // all operations will happen within it
+///     builder.root("/path/to/dir");
+///     // set the credentials for GCS OAUTH2 authentication
+///     builder.credential("authentication token");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default)]
 pub struct GcsBuilder {
     /// root URI, all operations happens under `root`

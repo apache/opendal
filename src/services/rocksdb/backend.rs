@@ -25,7 +25,41 @@ use crate::raw::*;
 use crate::Result;
 use crate::*;
 
-/// Rocksdb backend builder
+/// Rocksdb support for OpenDAL
+///
+/// # Note
+///
+/// The storage format for this service is not **stable** yet.
+///
+/// PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
+///
+/// # Configuration
+///
+/// - `root`: Set the working directory of `OpenDAL`
+/// - `datadir`: Set the path to the rocksdb data directory
+///
+/// You can refer to [`RocksdbBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Rocksdb;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = Rocksdb::default();
+///     builder.datadir("/tmp/opendal/rocksdb");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default, Debug)]
 pub struct RocksdbBuilder {
     /// The path to the rocksdb data directory.

@@ -1,4 +1,4 @@
-// Copyright 2022 Datafuse Labs.
+// Copyright 2023 Datafuse Labs.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod backend;
-pub use backend::OssBuilder as Oss;
+//! Compare opendal with other projects to find out the differences and areas that opendal can improve.
+//!
+//! All documents listed should be treated as highly biased. Because:
+//!
+//! - OpenDAL's maintainers and contributors write them.
+//! - Writers may not be familiar with the compared projects (at least not as //!familiar as with OpenDAL)
+//!
+//! Let's see OpenDAL:
+//!
+//! - [vs `object_store`][`vs_object_store`]
 
-mod dir_stream;
-mod error;
+#[doc = include_str!("vs_object_store.md")]
+pub mod vs_object_store {}

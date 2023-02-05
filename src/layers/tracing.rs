@@ -32,6 +32,8 @@ use crate::*;
 ///
 /// # Examples
 ///
+/// ## Basic Setup
+///
 /// ```
 /// use anyhow::Result;
 /// use opendal::layers::TracingLayer;
@@ -43,6 +45,76 @@ use crate::*;
 ///     .layer(TracingLayer)
 ///     .finish();
 /// ```
+///
+/// ## Real useage
+///
+/// ```no_run
+/// use std::error::Error;
+///
+/// use anyhow::Result;
+/// use opendal::layers::TracingLayer;
+/// use opendal::services;
+/// use opendal::Operator;
+/// use opentelemetry::global;
+/// use tracing::span;
+/// use tracing_subscriber::prelude::*;
+/// use tracing_subscriber::EnvFilter;
+///
+/// fn main() -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+///     let tracer = opentelemetry_jaeger::new_pipeline()
+///         .with_service_name("opendal_example")
+///         .install_simple()?;
+///     let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+///     tracing_subscriber::registry()
+///         .with(EnvFilter::from_default_env())
+///         .with(opentelemetry)
+///         .try_init()?;
+///
+///     let runtime = tokio::runtime::Runtime::new()?;
+///
+///     runtime.block_on(async {
+///         let root = span!(tracing::Level::INFO, "app_start", work_units = 2);
+///         let _enter = root.enter();
+///
+///         let _ = dotenvy::dotenv();
+///         let op = Operator::from_env::<services::S3>()
+///             .expect("init operator must succeed")
+///             .layer(TracingLayer)
+///             .finish();
+///
+///         op.object("test")
+///             .write("0".repeat(16 * 1024 * 1024).into_bytes())
+///             .await
+///             .expect("must succeed");
+///         op.object("test").metadata().await.expect("must succeed");
+///         op.object("test").read().await.expect("must succeed");
+///     });
+///
+///     // Shut down the current tracer provider. This will invoke the shutdown
+///     // method on all span processors. span processors should export remaining
+///     // spans before return.
+///     global::shutdown_tracer_provider();
+///     Ok(())
+/// }
+/// ```
+///
+/// # Output
+///
+/// OpenDAL is using [`tracing`](https://docs.rs/tracing/latest/tracing/) for tracing internally.
+///
+/// To enable tracing output, please init one of the subscribers that `tracing` supports.
+///
+/// For example:
+///
+/// ```ignore
+/// extern crate tracing;
+///
+/// let my_subscriber = FooSubscriber::new();
+/// tracing::subscriber::set_global_default(my_subscriber)
+///     .expect("setting tracing default failed");
+/// ```
+///
+/// For real-world usage, please take a look at [`tracing-opentelemetry`](https://crates.io/crates/tracing-opentelemetry).
 pub struct TracingLayer;
 
 impl<A: Accessor> Layer<A> for TracingLayer {

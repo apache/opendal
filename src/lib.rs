@@ -142,12 +142,17 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! # Documentation
+//!
+//! OpenDAL carries all it's documentation in crate itself.
+//!
+//! More docs about OpenDAL could be found at [`docs`].
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]
 // Deny unused qualifications.
 #![deny(unused_qualifications)]
-// Add options below to allow/deny Clippy lints.
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod builder;
@@ -190,7 +195,9 @@ pub use ops::OpWrite;
 pub use ops::OpWriteMultipart;
 pub use ops::PresignOperation;
 
-// Public modules, they will be accessed via `opendal::layers::Xxxx`
+// Public modules, they will be accessed like `opendal::layers::Xxxx`
+#[cfg(feature = "docs")]
+pub mod docs;
 pub mod layers;
 pub mod raw;
 pub mod services;

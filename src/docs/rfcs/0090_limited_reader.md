@@ -23,7 +23,7 @@ In this implementation, we depend on the HTTP client to drop the request when we
 
 Here is a benchmark around reading the whole file and only reading half:
 
-```rust
+```txt
 s3/read/1c741003-40ef-43a9-b23f-b6a32ed7c4c6
                         time:   [7.2697 ms 7.3521 ms 7.4378 ms]
                         thrpt:  [2.1008 GiB/s 2.1252 GiB/s 2.1493 GiB/s]
@@ -125,7 +125,7 @@ let op = OpRead {
 
 After this change, we will have a similar throughput for `read_all` and `read_half`:
 
-```rust
+```txt
 s3/read/6dd40f8d-7455-451e-b510-3b7ac23e0468
                         time:   [4.9554 ms 5.0888 ms 5.2282 ms]
                         thrpt:  [2.9886 GiB/s 3.0704 GiB/s 3.1532 GiB/s]

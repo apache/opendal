@@ -47,7 +47,7 @@ Redis offers a key-value view, so the path of files could be represented as the 
 
 The content of file will be represented directly as `String`, and metadata will be encoded as [`bincode`](https://github.com/bincode-org/bincode.git) before storing as `String`.
 
-```
+```text
 +------------------------------------------+
 |Object: /home/monika/                     |
 |                                          |           SET
@@ -87,17 +87,19 @@ const VERSION: usize = 0;
 /// meta_key will produce the key to object's metadata
 /// "/path/to/object/" -> "v{VERSION}:m:/path/to/object"
 fn meta_key(path: &str) -> String {
-    format!("v{}:m:{}", VERSION, path);
+    format!("v{}:m:{}", VERSION, path)
 }
 
 /// content_key will produce the key to object's content
 /// "/path/to/object/" -> "v{VERSION}:c:/path/to/object"
 fn content_key(path: &str) -> String {
-    format!("v{}:c:{}", VERSION, path);
+    format!("v{}:c:{}", VERSION, path)
 }
 
-let client = redis::Client::open("redis://localhost:6379")?;
-let con = client.get_async_connection()?;
+fn connect() -> Result<()> {
+    let client = redis::Client::open("redis://localhost:6379")?;
+    let con = client.get_async_connection()?;
+}
 ```
 
 ## Forward Compatibility
@@ -154,7 +156,7 @@ Opendal empowers users to read with the `path` object, `offset` of the cursor an
 // offset: Option<u64>, the offset of reading
 // size: Option<u64>, the size of reading
 let path = get_abs_path(path);
-let c_path = content_key(path); 
+let c_path = content_key(path);
 let (mut start, mut end) = (0, -1);
 if let Some(offset) = offset {
     start = offset;
@@ -291,7 +293,7 @@ None
 
 # Future possibilities
 
-The implementation proposed here is far from perfect. 
+The implementation proposed here is far from perfect.
 
 - The data organization could be optimized to make it acts more like a filesystem
 - Making a customized redis module to calculate metadata on redis side

@@ -114,7 +114,7 @@ pub struct Error {
     kind: ErrorKind,
     message: String,
 
-    status: ErrorStatus,`
+    status: ErrorStatus,
     operation: &'static str,
     context: Vec<(&'static str, String)>,
     source: Option<anyhow::Error>,

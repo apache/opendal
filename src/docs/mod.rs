@@ -17,6 +17,7 @@
 //! It's highly recommand to start with reading [`concepts`] first.
 
 pub mod concepts;
+pub mod rfcs;
 
 #[doc = include_str!("upgrade.md")]
 pub mod upgrade {}

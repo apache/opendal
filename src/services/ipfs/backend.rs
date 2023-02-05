@@ -44,14 +44,14 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::ipfs;
+/// use opendal::services::Ipfs;
 /// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // create backend builder
-///     let mut builder = ipfs::Builder::default();
+///     let mut builder = Ipfs::default();
 ///
 ///     // set the endpoint for OpenDAL
 ///     builder.endpoint("https://ipfs.io");

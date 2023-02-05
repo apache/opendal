@@ -59,14 +59,14 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::ftp;
+/// use opendal::services::Ftp;
 /// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // create backend builder
-///     let mut builder = ftp::Builder::default();
+///     let mut builder = Ftp::default();
 ///
 ///     builder.endpoint("127.0.0.1");
 ///

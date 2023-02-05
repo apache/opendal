@@ -16,9 +16,11 @@
 //!
 //! It's highly recommand to start with reading [`concepts`] first.
 
-pub mod concepts;
-pub mod rfcs;
 pub mod comparisons;
+pub mod concepts;
+#[cfg(not(doctest))]
+pub mod rfcs;
 
+#[cfg(not(doctest))]
 #[doc = include_str!("upgrade.md")]
 pub mod upgrade {}

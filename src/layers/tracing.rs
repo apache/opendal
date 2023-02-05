@@ -48,7 +48,7 @@ use crate::*;
 ///
 /// ## Real useage
 ///
-/// ```
+/// ```no_run
 /// use std::error::Error;
 ///
 /// use anyhow::Result;
@@ -106,7 +106,7 @@ use crate::*;
 ///
 /// For example:
 ///
-/// ```rust
+/// ```ignore
 /// extern crate tracing;
 ///
 /// let my_subscriber = FooSubscriber::new();

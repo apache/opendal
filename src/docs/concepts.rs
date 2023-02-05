@@ -112,7 +112,7 @@
 //! use opendal::services::S3;
 //! use opendal::Operator;
 //!
-//! # fn test() -> Result<()> {
+//! # async fn test() -> Result<()> {
 //! let mut builder = S3::default();
 //! builder.bucket("exmaple");
 //! builder.root("/path/to/file");

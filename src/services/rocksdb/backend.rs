@@ -46,13 +46,13 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::rocksdb;
+/// use opendal::services::Rocksdb;
 /// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = rocksdb::Builder::default();
+///     let mut builder = Rocksdb::default();
 ///     builder.datadir("/tmp/opendal/rocksdb");
 ///
 ///     let op: Operator = Operator::create(builder)?.finish();

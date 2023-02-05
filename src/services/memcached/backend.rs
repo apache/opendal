@@ -41,13 +41,13 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::memcached;
+/// use opendal::services::Memcached;
 /// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = memcached::Builder::default();
+///     let mut builder = Memcached::default();
 ///
 ///     builder.endpoint("tcp://127.0.0.1:11211");
 ///

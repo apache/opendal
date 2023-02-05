@@ -54,13 +54,13 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::redis;
+/// use opendal::services::Redis;
 /// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     let mut builder = redis::Builder::default();
+///     let mut builder = Redis::default();
 ///
 ///     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
 ///     let op: Operator = Operator::create(builder)?.finish();

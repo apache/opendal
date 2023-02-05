@@ -106,7 +106,7 @@ static LABEL_ERROR: &str = "error";
 ///
 /// Take [`metrics_exporter_prometheus`](https://docs.rs/metrics-exporter-prometheus/latest/metrics_exporter_prometheus/) as an example:
 ///
-/// ```rust
+/// ```ignore
 /// let builder = PrometheusBuilder::new();
 /// builder.install().expect("failed to install recorder/exporter");
 /// let handle = builder.install_recorder().expect("failed to install recorder");

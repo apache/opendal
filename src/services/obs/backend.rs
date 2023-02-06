@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
@@ -31,9 +32,53 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for Huaweicloud OBS services
+/// Huawei Cloud OBS services support.
+///
+/// # Configuration
+///
+/// - `root`: Set the work directory for backend
+/// - `bucket`: Set the container name for backend
+/// - `endpoint`: Customizable endpoint setting
+/// - `access_key_id`: Set the access_key_id for backend.
+/// - `secret_access_key`: Set the secret_access_key for backend.
+///
+/// You can refer to [`ObsBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Obs;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Obs::default();
+///
+///     // set the storage bucket for OpenDAL
+///     builder.bucket("test");
+///     // Set the access_key_id and secret_access_key.
+///     //
+///     // OpenDAL will try load credential from the env.
+///     // If credential not set and no valid credential in env, OpenDAL will
+///     // send request without signing like anonymous user.
+///     builder.access_key_id("access_key_id");
+///     builder.secret_access_key("secret_access_key");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct ObsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     access_key_id: Option<String>,
@@ -42,7 +87,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for ObsBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Builder")
             .field("root", &self.root)
@@ -54,25 +99,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "access_key_id" => builder.access_key_id(v),
-                "secret_access_key" => builder.secret_access_key(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
+impl ObsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -142,9 +169,26 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Consume builder to build an OBS backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for ObsBuilder {
+    const SCHEME: Scheme = Scheme::Obs;
+    type Accessor = ObsBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = ObsBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("access_key_id").map(|v| builder.access_key_id(v));
+        map.get("secret_access_key")
+            .map(|v| builder.secret_access_key(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -179,7 +223,7 @@ impl Builder {
         let (endpoint, is_obs_default) = {
             let host = uri.host().unwrap_or_default().to_string();
             if host.starts_with("obs.") && host.ends_with(".myhuaweicloud.com") {
-                (format!("{}.{}", bucket, host), true)
+                (format!("{bucket}.{host}"), true)
             } else {
                 (host, false)
             }
@@ -224,19 +268,19 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(ObsBackend {
             client,
             root,
             endpoint: format!("{}://{}", &scheme, &endpoint),
             signer: Arc::new(signer),
             bucket,
-        }))
+        })
     }
 }
 
 /// Backend for Huaweicloud OBS services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct ObsBackend {
     client: HttpClient,
     root: String,
     endpoint: String,
@@ -245,7 +289,10 @@ pub struct Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for ObsBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Obs)
@@ -277,7 +324,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.obs_get_object(path, args.range()).await?;
 
         let status = resp.status();
@@ -285,7 +332,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -350,12 +397,12 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 }
 
-impl Backend {
+impl ObsBackend {
     async fn obs_get_object(
         &self,
         path: &str,

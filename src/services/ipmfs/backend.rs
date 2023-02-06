@@ -31,13 +31,13 @@ use crate::*;
 
 /// Backend for IPFS service
 #[derive(Clone)]
-pub struct Backend {
+pub struct IpmfsBackend {
     root: String,
     endpoint: String,
     client: HttpClient,
 }
 
-impl fmt::Debug for Backend {
+impl fmt::Debug for IpmfsBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Backend")
             .field("root", &self.root)
@@ -46,7 +46,7 @@ impl fmt::Debug for Backend {
     }
 }
 
-impl Backend {
+impl IpmfsBackend {
     pub(crate) fn new(root: String, client: HttpClient, endpoint: String) -> Self {
         Self {
             root,
@@ -57,7 +57,10 @@ impl Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for IpmfsBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Ipmfs)
@@ -88,7 +91,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.ipmfs_read(path, args.range()).await?;
 
         let status = resp.status();
@@ -96,7 +99,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -167,12 +170,12 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 }
 
-impl Backend {
+impl IpmfsBackend {
     async fn ipmfs_stat(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 

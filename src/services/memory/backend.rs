@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -20,26 +21,31 @@ use parking_lot::Mutex;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
-/// Builder for memory backend
+/// In memory backend support.
 #[derive(Default)]
-pub struct Builder {}
+pub struct MemoryBuilder {}
 
-impl Builder {
-    /// Consume builder to build a memory backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for MemoryBuilder {
+    const SCHEME: Scheme = Scheme::Memory;
+    type Accessor = MemoryBackend;
+
+    fn from_map(_: HashMap<String, String>) -> Self {
+        Self::default()
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let adapter = Adapter {
             inner: Arc::new(Mutex::new(BTreeMap::default())),
         };
 
-        Ok(apply_wrapper(Backend::new(adapter)))
+        Ok(MemoryBackend::new(adapter))
     }
 }
 
 /// Backend is used to serve `Accessor` support in memory.
-pub type Backend = kv::Backend<Adapter>;
+pub type MemoryBackend = kv::Backend<Adapter>;
 
 #[derive(Debug, Clone)]
 pub struct Adapter {
@@ -94,10 +100,10 @@ mod tests {
 
     #[test]
     fn test_accessor_metadata_name() {
-        let b1 = Builder::default().build().unwrap();
+        let b1 = MemoryBuilder::default().build().unwrap();
         assert_eq!(b1.metadata().name(), b1.metadata().name());
 
-        let b2 = Builder::default().build().unwrap();
+        let b2 = MemoryBuilder::default().build().unwrap();
         assert_ne!(b1.metadata().name(), b2.metadata().name())
     }
 }

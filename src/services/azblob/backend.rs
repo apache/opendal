@@ -37,9 +37,76 @@ use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
-/// Builder for azblob services
+/// Azure Storage Blob services support.
+///
+/// # Configuration
+///
+/// - `root`: Set the work dir for backend.
+/// - `container`: Set the container name for backend.
+/// - `endpoint`: Set the endpoint for backend.
+/// - `account_name`: Set the account_name for backend.
+/// - `account_key`: Set the account_key for backend.
+///
+/// Refer to public API docs for more information.
+///
+/// # Example
+///
+/// This example works on [Azurite](https://github.com/Azure/Azurite) for local developments.
+///
+/// ## Start local blob service
+///
+/// ```shell
+/// docker run -p 10000:10000 mcr.microsoft.com/azure-storage/azurite
+/// az storage container create --name test --connection-string "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+/// ```
+///
+/// ## Init OpenDAL Operator
+///
+/// ### Via Builder
+///
+/// ```no_run
+/// use std::sync::Arc;
+///
+/// use anyhow::Result;
+/// use opendal::services::Azblob;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Create azblob backend builder.
+///     let mut builder = Azblob::default();
+///     // Set the root for azblob, all operations will happen under this root.
+///     //
+///     // NOTE: the root must be absolute path.
+///     builder.root("/path/to/dir");
+///     // Set the container name, this is required.
+///     builder.container("test");
+///     // Set the endpoint, this is required.
+///     //
+///     // For examples:
+///     // - "http://127.0.0.1:10000/devstoreaccount1"
+///     // - "https://accountname.blob.core.windows.net"
+///     builder.endpoint("http://127.0.0.1:10000/devstoreaccount1");
+///     // Set the account_name and account_key.
+///     //
+///     // OpenDAL will try load credential from the env.
+///     // If credential not set and no valid credential in env, OpenDAL will
+///     // send request without signing like anonymous user.
+///     builder.account_name("devstoreaccount1");
+///     builder.account_key("Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
+///
+///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct AzblobBuilder {
     root: Option<String>,
     container: String,
     endpoint: Option<String>,
@@ -49,7 +116,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for AzblobBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
 
@@ -71,7 +138,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
+impl AzblobBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -155,25 +222,6 @@ impl Builder {
         self
     }
 
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "container" => builder.container(v),
-                "endpoint" => builder.endpoint(v),
-                "account_name" => builder.account_name(v),
-                "account_key" => builder.account_key(v),
-                "sas_token" => builder.sas_token(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
     /// from_connection_string will make a builder from connection string
     ///
     /// connection string looks like:
@@ -214,7 +262,7 @@ impl Builder {
             conn_map.insert(entry[0], entry[1]);
         }
 
-        let mut builder = Builder::default();
+        let mut builder = AzblobBuilder::default();
 
         if let Some(sas_token) = conn_map.get("SharedAccessSignature") {
             builder.sas_token(sas_token);
@@ -257,9 +305,26 @@ impl Builder {
 
         Ok(builder)
     }
+}
 
-    /// Consume builder to build an azblob backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for AzblobBuilder {
+    const SCHEME: Scheme = Scheme::Azblob;
+    type Accessor = AzblobBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = AzblobBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("container").map(|v| builder.container(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("account_name").map(|v| builder.account_name(v));
+        map.get("account_key").map(|v| builder.account_key(v));
+        map.get("sas_token").map(|v| builder.sas_token(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -312,20 +377,20 @@ impl Builder {
         })?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(AzblobBackend {
             root,
             endpoint,
             signer: Arc::new(signer),
             container: self.container.clone(),
             client,
             _account_name: mem::take(&mut self.account_name).unwrap_or_default(),
-        }))
+        })
     }
 }
 
 /// Backend for azblob services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct AzblobBackend {
     container: String,
     client: HttpClient,
     root: String, // root will be "/" or /abc/
@@ -335,7 +400,10 @@ pub struct Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for AzblobBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Azblob)
@@ -367,7 +435,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.azblob_get_blob(path, args.range()).await?;
 
         let status = resp.status();
@@ -375,7 +443,8 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -441,11 +510,11 @@ impl Accessor for Backend {
             path.to_string(),
         ));
 
-        Ok((RpList::default(), op))
+        Ok((RpList::default(), op as ObjectPager))
     }
 }
 
-impl Backend {
+impl AzblobBackend {
     async fn azblob_get_blob(
         &self,
         path: &str,
@@ -592,11 +661,11 @@ impl Backend {
 
 #[cfg(test)]
 mod tests {
-    use super::Builder;
+    use super::AzblobBuilder;
 
     #[test]
     fn test_builder_from_connection_string() {
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;
 AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;
@@ -614,7 +683,7 @@ TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
         assert_eq!(builder.account_name.unwrap(), "devstoreaccount1");
         assert_eq!(builder.account_key.unwrap(), "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
 
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 DefaultEndpointsProtocol=https;
 AccountName=storagesample;
@@ -635,7 +704,7 @@ EndpointSuffix=core.chinacloudapi.cn;
     #[test]
     fn test_sas_from_connection_string() {
         // Note, not a correct HMAC
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
 QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;
@@ -656,7 +725,7 @@ SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:0
 
     #[test]
     pub fn test_sas_preferred() {
-        let builder = Builder::from_connection_string(
+        let builder = AzblobBuilder::from_connection_string(
             r#"
 BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
 AccountName=storagesample;

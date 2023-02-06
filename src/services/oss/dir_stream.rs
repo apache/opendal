@@ -22,7 +22,7 @@ use serde::Deserialize;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use super::backend::Backend;
+use super::backend::OssBackend;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::Error;
@@ -32,7 +32,7 @@ use crate::ObjectMode;
 use crate::Result;
 
 pub struct DirStream {
-    backend: Arc<Backend>,
+    backend: Arc<OssBackend>,
     root: String,
     path: String,
 
@@ -42,7 +42,7 @@ pub struct DirStream {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<OssBackend>, root: &str, path: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),

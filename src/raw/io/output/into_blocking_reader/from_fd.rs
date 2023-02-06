@@ -20,6 +20,8 @@ use std::io::Result;
 use std::io::Seek;
 use std::io::SeekFrom;
 
+use bytes::Bytes;
+
 use crate::raw::*;
 
 /// Convert given fd into [`output::BlockingRead`].
@@ -57,7 +59,7 @@ where
 
 impl<R> output::BlockingRead for FdReader<R>
 where
-    R: Read + Seek + Send + Sync,
+    R: Read + Seek + Send + Sync + 'static,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         if self.current_size() <= 0 {
@@ -74,7 +76,6 @@ where
     /// TODO: maybe we don't need to do seek really, just call pread instead.
     ///
     /// We need to wait for tokio's pread support.
-    #[inline]
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
         let (base, offset) = match pos {
             SeekFrom::Start(n) => (self.start as i64, n as i64),
@@ -98,5 +99,12 @@ where
                 "invalid seek to a negative or overflowing position",
             )),
         }
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support iterating",
+        )))
     }
 }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
@@ -25,15 +26,50 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for http backend.
+/// HTTP Read-only backend support.
+///
+/// # Notes
+///
+/// Only `read` ans `stat` are supported. We can use this service to visit any
+/// HTTP Server like nginx, caddy.
+///
+/// # Configuration
+///
+/// - `endpoint`: set the endpoint for http
+/// - `root`: Set the work directory for backend
+///
+/// You can refer to [`HttpBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Http;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Http::default();
+///
+///     builder.endpoint("127.0.0.1");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _obj: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Default)]
-pub struct Builder {
+pub struct HttpBuilder {
     endpoint: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for HttpBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("Builder");
         de.field("endpoint", &self.endpoint);
@@ -43,22 +79,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
+impl HttpBuilder {
     /// Set endpoint for http backend.
     ///
     /// For example: `https://example.com`
@@ -93,9 +114,22 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Build a HTTP backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for HttpBuilder {
+    const SCHEME: Scheme = Scheme::Http;
+    type Accessor = HttpBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = HttpBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let endpoint = match &self.endpoint {
@@ -121,23 +155,23 @@ impl Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(HttpBackend {
             endpoint: endpoint.to_string(),
             root,
             client,
-        }))
+        })
     }
 }
 
 /// Backend is used to serve `Accessor` support for http.
 #[derive(Clone)]
-pub struct Backend {
+pub struct HttpBackend {
     endpoint: String,
     root: String,
     client: HttpClient,
 }
 
-impl Debug for Backend {
+impl Debug for HttpBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
             .field("endpoint", &self.endpoint)
@@ -148,7 +182,10 @@ impl Debug for Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for HttpBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Http)
@@ -159,7 +196,7 @@ impl Accessor for Backend {
         ma
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.http_get(path, args.range()).await?;
 
         let status = resp.status();
@@ -167,7 +204,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -195,7 +232,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl HttpBackend {
     async fn http_get(&self, path: &str, range: BytesRange) -> Result<Response<IncomingAsyncBody>> {
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -248,14 +285,18 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/hello"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("Hello, World!"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "13")
+                    .set_body_string("Hello, World!"),
+            )
             .mount(&mock_server)
             .await;
 
-        let mut builder = Builder::default();
+        let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder.build()?);
+        let op = Operator::create(builder)?.finish();
 
         let bs = op.object("hello").read().await?;
 
@@ -274,10 +315,10 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let mut builder = Builder::default();
+        let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
-        let op = Operator::new(builder.build()?);
+        let op = Operator::create(builder)?.finish();
 
         let bs = op.object("hello").metadata().await?;
 

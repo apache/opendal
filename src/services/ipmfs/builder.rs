@@ -12,37 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+
 use log::debug;
 
-use super::backend::Backend;
+use super::backend::IpmfsBackend;
 use crate::raw::*;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
-/// Builder for service ipfs.
+/// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
+///
+/// # Configuration
+///
+/// - `root`: Set the work directory for backend
+/// - `endpoint`: Customizable endpoint setting
+///
+/// You can refer to [`IpmfsBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Ipmfs;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Ipmfs::default();
+///
+///     // set the storage bucket for OpenDAL
+///     builder.endpoint("http://127.0.0.1:5001");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Default, Debug)]
-pub struct Builder {
+pub struct IpmfsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     http_client: Option<HttpClient>,
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (key, val) in it {
-            let val = val.as_str();
-            match key.as_ref() {
-                "root" => builder.root(val),
-                "endpoint" => builder.endpoint(val),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
+impl IpmfsBuilder {
     /// Set root for ipfs.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -76,9 +96,22 @@ impl Builder {
         self.http_client = Some(client);
         self
     }
+}
 
-    /// Consume builder to build an ipfs::Backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for IpmfsBuilder {
+    const SCHEME: Scheme = Scheme::Ipmfs;
+    type Accessor = IpmfsBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = IpmfsBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let root = normalize_root(&self.root.take().unwrap_or_default());
         debug!("backend use root {}", root);
 
@@ -97,6 +130,6 @@ impl Builder {
         };
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend::new(root, client, endpoint)))
+        Ok(IpmfsBackend::new(root, client, endpoint))
     }
 }

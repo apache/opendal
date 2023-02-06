@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -33,9 +34,68 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for Aliyun Object Storage Service
+/// Aliyun Object Storage Sevice support
+///
+/// # Configuration
+///
+/// - `root`: Set the work dir for backend.
+/// - `bucket`: Set the container name for backend.
+/// - `endpoint`: Set the endpoint for backend.
+/// - `presign_endpoint`: Set the endpoint for presign.
+/// - `access_key_id`: Set the access_key_id for backend.
+/// - `access_key_secret`: Set the access_key_secret for backend.
+/// - `role_arn`: Set the role of backend.
+/// - `oidc_token`: Set the oidc_token for backend.
+/// - `allow_anonymous`: Set the backend access OSS in anonymous way.
+///
+/// Refer to [`OssBuilder`]'s public API docs for more information.
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use std::sync::Arc;
+///
+/// use anyhow::Result;
+/// use opendal::services::Oss;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Create OSS backend builder.
+///     let mut builder = Oss::default();
+///     // Set the root for oss, all operations will happen under this root.
+///     //
+///     // NOTE: the root must be absolute path.
+///     builder.root("/path/to/dir");
+///     // Set the bucket name, this is required.
+///     builder.bucket("test");
+///     // Set the endpoint.
+///     //
+///     // For example:
+///     // - "https://oss-ap-northeast-1.aliyuncs.com"
+///     // - "https://oss-hangzhou.aliyuncs.com"
+///     builder.endpoint("https://oss-cn-beijing.aliyuncs.com");
+///     // Set the access_key_id and access_key_secret.
+///     //
+///     // OpenDAL will try load credential from the env.
+///     // If credential not set and no valid credential in env, OpenDAL will
+///     // send request without signing like anonymous user.
+///     builder.access_key_id("access_key_id");
+///     builder.access_key_secret("access_key_secret");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct OssBuilder {
     root: Option<String>,
 
     endpoint: Option<String>,
@@ -51,7 +111,7 @@ pub struct Builder {
     http_client: Option<HttpClient>,
 }
 
-impl Debug for Builder {
+impl Debug for OssBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("Builder");
         d.field("root", &self.root)
@@ -72,26 +132,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "presign_endpoint" => builder.presign_endpoint(v),
-
-                "access_key_id" => builder.access_key_id(v),
-                "access_key_secret" => builder.access_key_secret(v),
-                "allow_anonymous" => builder.allow_anonymous(),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
+impl OssBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -195,8 +236,8 @@ impl Builder {
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
-                let full_host = format!("{}.{}", bucket, host);
-                let endpoint = format!("https://{}", full_host);
+                let full_host = format!("{bucket}.{host}");
+                let endpoint = format!("https://{full_host}");
                 (endpoint, full_host)
             }
             None => {
@@ -208,9 +249,31 @@ impl Builder {
         };
         Ok((endpoint, host))
     }
+}
 
-    /// finish building
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for OssBuilder {
+    const SCHEME: Scheme = Scheme::Oss;
+    type Accessor = OssBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = OssBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("presign_endpoint")
+            .map(|v| builder.presign_endpoint(v));
+        map.get("access_key_id").map(|v| builder.access_key_id(v));
+        map.get("access_key_secret")
+            .map(|v| builder.access_key_secret(v));
+        map.get("allow_anonymous")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.allow_anonymous());
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.clone().unwrap_or_default());
@@ -269,7 +332,7 @@ impl Builder {
 
         debug!("Backend build finished: {:?}", &self);
 
-        Ok(apply_wrapper(Backend {
+        Ok(OssBackend {
             root,
             endpoint,
             presign_endpoint,
@@ -277,13 +340,13 @@ impl Builder {
             client,
             bucket: self.bucket.clone(),
             signer: Arc::new(signer),
-        }))
+        })
     }
 }
 
 #[derive(Clone)]
 /// Aliyun Object Storage Service backend
-pub struct Backend {
+pub struct OssBackend {
     client: HttpClient,
 
     root: String,
@@ -297,7 +360,7 @@ pub struct Backend {
     signer: Arc<AliyunOssSigner>,
 }
 
-impl Debug for Backend {
+impl Debug for OssBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
             .field("root", &self.root)
@@ -309,7 +372,10 @@ impl Debug for Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for OssBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Oss)
@@ -340,7 +406,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.oss_get_object(path, args.range()).await?;
 
         let status = resp.status();
@@ -348,7 +414,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -410,7 +476,7 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 
@@ -445,7 +511,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl OssBackend {
     fn oss_put_object_request(
         &self,
         path: &str,

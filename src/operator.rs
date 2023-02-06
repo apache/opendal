@@ -12,41 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::env;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::StreamExt;
 use futures::TryStreamExt;
 
+use crate::layers::ErrorContextLayer;
+use crate::layers::TypeEraseLayer;
 use crate::object::ObjectLister;
 use crate::raw::*;
-use crate::services;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Layer;
-use crate::Object;
-use crate::ObjectMode;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
-/// User-facing APIs for object and object streams.
+/// Operator is the user-facing APIs for object and object streams.
+///
+/// Operator needs to be built with [`Builder`].
 #[derive(Clone, Debug)]
 pub struct Operator {
-    accessor: Arc<dyn Accessor>,
+    accessor: FusedAccessor,
 }
 
-impl<A> From<A> for Operator
-where
-    A: Accessor,
-{
-    fn from(accessor: A) -> Self {
-        Operator::new(accessor)
-    }
-}
-
-impl From<Arc<dyn Accessor>> for Operator {
-    fn from(accessor: Arc<dyn Accessor>) -> Self {
-        Operator { accessor }
+impl From<FusedAccessor> for Operator {
+    fn from(accessor: FusedAccessor) -> Self {
+        Self { accessor }
     }
 }
 
@@ -58,193 +46,168 @@ impl Operator {
     /// Read more backend init examples in [examples](https://github.com/datafuselabs/opendal/tree/main/examples).
     ///
     /// ```
-    /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::Object;
-    /// # use opendal::Operator;
+    /// use opendal::services::Fs;
+    /// use opendal::Builder;
+    /// use opendal::Operator;
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
     ///     // Create fs backend builder.
-    ///     let mut builder = fs::Builder::default();
+    ///     let mut builder = Fs::default();
     ///     // Set the root for fs, all operations will happen under this root.
     ///     //
     ///     // NOTE: the root must be absolute path.
     ///     builder.root("/tmp");
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::new(builder.build()?);
+    ///     let op: Operator = Operator::new(builder.build()?).finish();
     ///
     ///     // Create an object handle to start operation on object.
-    ///     let _: Object = op.object("test_file");
+    ///     let _ = op.object("test_file");
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub fn new(accessor: impl Accessor) -> Self {
-        Self {
-            accessor: Arc::new(accessor),
-        }
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<impl Accessor> {
+        OperatorBuilder::new(acc)
+    }
+
+    /// Create a new operator with input builder.
+    ///
+    /// OpenDAL will call `builder.build()` internally, so we don't need
+    /// to import `opendal::Builder` trait.
+    ///
+    /// # Examples
+    ///
+    /// Read more backend init examples in [examples](https://github.com/datafuselabs/opendal/tree/main/examples).
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use opendal::services::Fs;
+    /// use opendal::Operator;
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     // Create fs backend builder.
+    ///     let mut builder = Fs::default();
+    ///     // Set the root for fs, all operations will happen under this root.
+    ///     //
+    ///     // NOTE: the root must be absolute path.
+    ///     builder.root("/tmp");
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::create(builder)?.finish();
+    ///
+    ///     // Create an object handle to start operation on object.
+    ///     let _ = op.object("test_file");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn create<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = ab.build()?;
+        Ok(OperatorBuilder::new(acc))
+    }
+
+    /// Create a new operator from given map.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use std::collections::HashMap;
+    ///
+    /// use opendal::services::Fs;
+    /// use opendal::Operator;
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let map = HashMap::from([
+    ///         // Set the root for fs, all operations will happen under this root.
+    ///         //
+    ///         // NOTE: the root must be absolute path.
+    ///         ("root".to_string(), "/tmp".to_string()),
+    ///     ]);
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::from_map::<Fs>(map)?.finish();
+    ///
+    ///     // Create an object handle to start operation on object.
+    ///     let _ = op.object("test_file");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn from_map<B: Builder>(
+        map: HashMap<String, String>,
+    ) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = B::from_map(map).build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Create a new operator from iter.
     ///
-    /// Please refer different backends for detailed config options.
+    /// # WARNING
     ///
-    /// # Behavior
-    ///
-    /// - All input key must be `lower_case`
-    /// - Boolean values will be checked by its existences and non-empty value.
-    ///   `on`, `yes`, `true`, `off`, `no`, `false` will all be treated as `true`
-    ///   To disable a flag, please set value to empty.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::Object;
-    /// # use opendal::Operator;
-    /// # use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let op: Operator = Operator::from_iter(
-    ///         Scheme::Fs,
-    ///         [("root".to_string(), "/tmp".to_string())].into_iter(),
-    ///     )?;
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _: Object = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_iter(
-        scheme: Scheme,
-        it: impl Iterator<Item = (String, String)> + 'static,
-    ) -> Result<Self> {
-        let op = match scheme {
-            Scheme::Azblob => services::azblob::Builder::from_iter(it).build()?.into(),
-            Scheme::Azdfs => services::azdfs::Builder::from_iter(it).build()?.into(),
-            Scheme::WebHdfs => services::webhdfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Fs => services::fs::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-ftp")]
-            Scheme::Ftp => services::ftp::Builder::from_iter(it).build()?.into(),
-            Scheme::Gcs => services::gcs::Builder::from_iter(it).build()?.into(),
-            Scheme::Ghac => services::ghac::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-hdfs")]
-            Scheme::Hdfs => services::hdfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Http => services::http::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-ipfs")]
-            Scheme::Ipfs => services::ipfs::Builder::from_iter(it).build()?.into(),
-            Scheme::Ipmfs => services::ipmfs::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-memcached")]
-            Scheme::Memcached => services::memcached::Builder::from_iter(it).build()?.into(),
-            Scheme::Memory => services::memory::Builder::default().build()?.into(),
-            #[cfg(feature = "services-moka")]
-            Scheme::Moka => services::moka::Builder::from_iter(it).build()?.into(),
-            Scheme::Obs => services::obs::Builder::from_iter(it).build()?.into(),
-            Scheme::Oss => services::oss::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-redis")]
-            Scheme::Redis => services::redis::Builder::from_iter(it).build()?.into(),
-            #[cfg(feature = "services-rocksdb")]
-            Scheme::Rocksdb => services::rocksdb::Builder::from_iter(it).build()?.into(),
-            Scheme::S3 => services::s3::Builder::from_iter(it).build()?.into(),
-            Scheme::Webdav => services::webdav::Builder::from_iter(it).build()?.into(),
-            Scheme::Custom(v) => {
-                return Err(
-                    Error::new(ErrorKind::Unsupported, "custom service  is not supported")
-                        .with_context("service", v),
-                )
-            }
-        };
-
-        Ok(op)
+    /// It's better to use `from_map`. We may remove this API in the
+    /// future.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_iter<B: Builder>(
+        iter: impl Iterator<Item = (String, String)>,
+    ) -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = B::from_iter(iter).build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Create a new operator from env.
     ///
-    /// # Behavior
+    /// # WARNING
     ///
-    /// - Environment keys are case-insensitive, they will be converted to lower case internally.
-    /// - Environment values are case-sensitive, no sanity will be executed on them.
-    /// - Boolean values will be checked by its existences and non-empty value.
-    ///   `on`, `yes`, `true`, `off`, `no`, `false` will all be treated as `true`
-    ///   To disable a flag, please set value to empty.
-    ///
-    /// # Examples
-    ///
-    /// Setting environment:
-    ///
-    /// ```shell
-    /// export OPENDAL_FS_ROOT=/tmp
-    /// ```
-    ///
-    /// Please refer different backends for detailed config options.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use opendal::Object;
-    /// # use opendal::Operator;
-    /// # use opendal::Scheme;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     // Build an Operator to start operating the storage
-    ///     let op: Operator = Operator::from_env(Scheme::Fs)?;
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _: Object = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_env(scheme: Scheme) -> Result<Self> {
-        let prefix = format!("opendal_{scheme}_");
-        let envs = env::vars().filter_map(move |(k, v)| {
-            k.to_lowercase()
-                .strip_prefix(&prefix)
-                .map(|k| (k.to_string(), v))
-        });
-
-        Self::from_iter(scheme, envs)
-    }
-
-    /// Create a new layer.
-    ///
-    /// # Examples
-    ///
-    /// This examples needs feature `retry` enabled.
-    ///
-    /// ```no_build
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
-    /// use opendal::Operator;
-    /// use opendal::Layer;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let accessor = fs::Backend::build().finish().await?;
-    /// let op = Operator::new(accessor).layer(new_layer);
-    /// // All operations will go through the new_layer
-    /// let _ = op.object("test_file").read();
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[must_use]
-    pub fn layer(self, layer: impl Layer) -> Self {
-        Operator {
-            accessor: layer.layer(self.accessor.clone()),
-        }
+    /// It's better to use `from_map`. We may remove this API in the
+    /// future.
+    pub fn from_env<B: Builder>() -> Result<OperatorBuilder<impl Accessor>> {
+        let acc = B::from_env().build()?;
+        Ok(OperatorBuilder::new(acc))
     }
 
     /// Get inner accessor.
     ///
     /// This function should only be used by developers to implement layers.
-    pub fn inner(&self) -> Arc<dyn Accessor> {
+    pub fn inner(&self) -> FusedAccessor {
         self.accessor.clone()
+    }
+
+    /// Create a new layer with dynamic dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `OperatorBuilder::layer()` is using static dispatch which is zero
+    /// cost. `Operator::layer()` is using dynamic dispatch which has a
+    /// bit runtime overhead with an extra vtable lookup and unable to
+    /// inline.
+    ///
+    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// use opendal::layers::LoggingLayer;
+    /// use opendal::services::Fs;
+    /// use opendal::Operator;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::create(Fs::default())?.finish();
+    /// let op = op.layer(LoggingLayer::default());
+    /// // All operations will go through the new_layer
+    /// let _ = op.object("test_file").read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn layer<L: Layer<FusedAccessor>>(self, layer: L) -> Self {
+        Self {
+            accessor: Arc::new(TypeEraseLayer.layer(layer.layer(self.accessor))),
+        }
     }
 
     /// Get metadata of underlying accessor.
@@ -254,14 +217,10 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Fs)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op.metadata();
     /// # Ok(())
     /// # }
@@ -290,14 +249,10 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// # use opendal::services::fs;
-    /// # use opendal::services::fs::Builder;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::from_env(Scheme::Fs)?;
+    /// # async fn test(op: Operator) -> Result<()> {
     /// op.check().await?;
     /// # Ok(())
     /// # }
@@ -308,6 +263,110 @@ impl Operator {
         match ds.next().await {
             Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
             _ => Ok(()),
+        }
+    }
+}
+
+/// OperatorBuilder is a typed builder to builder an Operator.
+///
+/// # Notes
+///
+/// OpenDAL uses static dispatch internally and only perform dynamic
+/// dispatch at the outmost type erase layer. OperatorBuilder is the only
+/// public API provided by OpenDAL come with generic parameters.
+///
+/// It's required to call `finish` after the operator built.
+///
+/// # Examples
+///
+/// For users who want to support many services, we can build a helper fucntion like the following:
+///
+/// ```
+/// use std::collections::HashMap;
+///
+/// use backon::ExponentialBackoff;
+/// use opendal::layers::LoggingLayer;
+/// use opendal::layers::RetryLayer;
+/// use opendal::services;
+/// use opendal::Builder;
+/// use opendal::Operator;
+/// use opendal::Result;
+/// use opendal::Scheme;
+///
+/// fn init_service<B: Builder>(cfg: HashMap<String, String>) -> Result<Operator> {
+///     let op = Operator::from_map::<B>(cfg)?
+///         .layer(LoggingLayer::default())
+///         .layer(RetryLayer::new(ExponentialBackoff::default()))
+///         .finish();
+///
+///     Ok(op)
+/// }
+///
+/// async fn init(scheme: Scheme, cfg: HashMap<String, String>) -> Result<()> {
+///     let _ = match scheme {
+///         Scheme::S3 => init_service::<services::S3>(cfg)?,
+///         Scheme::Fs => init_service::<services::Fs>(cfg)?,
+///         _ => todo!(),
+///     };
+///
+///     Ok(())
+/// }
+/// ```
+pub struct OperatorBuilder<A: Accessor> {
+    accessor: A,
+}
+
+impl<A: Accessor> OperatorBuilder<A> {
+    /// Create a new operator builder.
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
+        // Make sure error context layer hass been attached.
+        OperatorBuilder { accessor }.layer(ErrorContextLayer)
+    }
+
+    /// Create a new layer with static dispatch.
+    ///
+    /// # Notes
+    ///
+    /// `OperatorBuilder::layer()` is using static dispatch which is zero
+    /// cost. `Operator::layer()` is using dynamic dispatch which has a
+    /// bit runtime overhead with an extra vtable lookup and unable to
+    /// inline.
+    ///
+    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use anyhow::Result;
+    /// use opendal::layers::LoggingLayer;
+    /// use opendal::services::Fs;
+    /// use opendal::Operator;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// let op = Operator::create(Fs::default())?
+    ///     .layer(LoggingLayer::default())
+    ///     .finish();
+    /// // All operations will go through the new_layer
+    /// let _ = op.object("test_file").read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
+        OperatorBuilder {
+            accessor: layer.layer(self.accessor),
+        }
+    }
+
+    /// Finish the building to construct an Operator.
+    pub fn finish(self) -> Operator {
+        let ob = self.layer(TypeEraseLayer);
+
+        Operator {
+            accessor: Arc::new(ob.accessor),
         }
     }
 }

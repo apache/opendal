@@ -12,78 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! POSIX file system support.
-//!
-//! # Configuration
-//!
-//! - `root`: Set the work dir for backend.
-//!
-//! Refer to [`Builder`]'s public API docs for more information.
-//!
-//! # Environment
-//!
-//! - `OPENDAL_FS_ROOT`
-//!
-//! # Example
-//!
-//! ## Via Environment
-//!
-//! Set environment correctly:
-//!
-//! ```shell
-//! export OPENDAL_FS_ROOT=/path/to/dir/
-//! ```
-//!
-//! ```no_run
-//! use std::sync::Arc;
-//!
-//! use anyhow::Result;
-//! use opendal::Object;
-//! use opendal::Operator;
-//! use opendal::Scheme;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let op: Operator = Operator::from_env(Scheme::Fs)?;
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
-//!
-//! ## Via Builder
-//!
-//! ```
-//! use std::sync::Arc;
-//!
-//! use anyhow::Result;
-//! use opendal::services::fs;
-//! use opendal::Object;
-//! use opendal::Operator;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     // Create fs backend builder.
-//!     let mut builder = fs::Builder::default();
-//!     // Set the root for fs, all operations will happen under this root.
-//!     //
-//!     // NOTE: the root must be absolute path.
-//!     builder.root("/tmp");
-//!
-//!     // `Accessor` provides the low level APIs, we will use `Operator` normally.
-//!     let op: Operator = Operator::new(builder.build()?);
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
-
 mod backend;
-pub use backend::Builder;
+pub use backend::FsBuilder as Fs;
 
 mod dir_stream;
 mod error;

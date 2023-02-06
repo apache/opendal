@@ -12,8 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! [moka](https://github.com/moka-rs/moka) backend support.
-
 mod backend;
-pub use backend::Backend;
-pub use backend::Builder;
+pub use backend::MokaBuilder as Moka;

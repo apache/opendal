@@ -22,27 +22,28 @@
 //!
 //! | Services | Description |
 //! | -------- | ----------- |
-//! | [azblob][services::azblob] | Azure Storage Blob services. |
-//! | [azdfs][services::azdfs] | Azure Data Lake Storage Gen2 services. |
-//! | [fs][services::fs] | POSIX alike file system. |
-//! | [ftp][services::ftp] | FTP and FTPS support. |
-//! | [gcs][services::gcs] | Google Cloud Storage service. |
-//! | [ghac][services::ghac] | Github Action Cache service. |
-//! | [hdfs][services::hdfs] | Hadoop Distributed File System(HDFS). |
-//! | [http][services::http] | HTTP read-only backend. |
-//! | [ipfs][services::ipfs] | IPFS HTTP Gateway support. |
-//! | [ipmfs][services::ipmfs] | IPFS Mutable File System support. |
-//! | [memcached][services::memcached] | Memcached serivce. |
-//! | [memory][services::memory] | In memory backend support. |
-//! | [moka][services::moka] | [moka](https://github.com/moka-rs/moka) backend support. |
-//! | [obs][services::obs] | Huawei Cloud OBS service. |
-//! | [oss][services::oss] | Aliyun Object Storage Service (OSS).|
-//! | [redis][services::redis] | Redis service. |
-//! | [rocksdb][services::rocksdb] | RocksDB service. |
-//! | [s3][services::s3] | AWS S3 alike services. |
-//! | [webdav][services::webdav] | WebDAV services. |
+//! | [azblob][services::Azblob] | Azure Storage Blob services. |
+//! | [azdfs][services::Azdfs] | Azure Data Lake Storage Gen2 services. |
+//! | [fs][services::Fs] | POSIX alike file system. |
+//! | [ftp][services::Ftp] | FTP and FTPS support. |
+//! | [gcs][services::Gcs] | Google Cloud Storage service. |
+//! | [ghac][services::Ghac] | Github Action Cache service. |
+//! | [hdfs][services::Hdfs] | Hadoop Distributed File System(HDFS). |
+//! | [http][services::Http] | HTTP read-only backend. |
+//! | [ipfs][services::Ipfs] | IPFS HTTP Gateway support. |
+//! | [ipmfs][services::Ipmfs] | IPFS Mutable File System support. |
+//! | [memcached][services::Memcached] | Memcached serivce. |
+//! | [memory][services::Memory] | In memory backend support. |
+//! | [moka][services::Moka] | [moka](https://github.com/moka-rs/moka) backend support. |
+//! | [obs][services::Obs] | Huawei Cloud OBS service. |
+//! | [oss][services::Oss] | Aliyun Object Storage Service (OSS).|
+//! | [redis][services::Redis] | Redis service. |
+//! | [rocksdb][services::Rocksdb] | RocksDB service. |
+//! | [s3][services::S3] | AWS S3 alike services. |
+//! | [webdav][services::Webdav] | WebDAV services. |
 //!
-//! More services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5)
+//! - Different services capabilities could be found at [`services`]
+//! - More services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5)
 //!
 //! # Layers
 //!
@@ -53,12 +54,10 @@
 //! | Layers | Description |
 //! | -------- | ----------- |
 //! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
-//! | [CacheLayer][layers::CacheLayer] | Cache supports. |
 //! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
 //! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
 //! | [MetricsLayer][layers::MetricsLayer] | Metrics for every operations. |
 //! | [RetryLayer][layers::RetryLayer] | Retry for failed operations. |
-//! | [SubdirLayer][layers::SubdirLayer] | Allow switching directory. |
 //! | [TracingLayer][layers::TracingLayer] | Tracing for every operations. |
 //!
 //! # Optional features
@@ -96,6 +95,7 @@
 //! use futures::TryStreamExt;
 //! use opendal::layers::LoggingLayer;
 //! use opendal::layers::RetryLayer;
+//! use opendal::services;
 //! use opendal::Object;
 //! use opendal::ObjectMetadata;
 //! use opendal::ObjectMode;
@@ -105,11 +105,12 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Init a fs operator
-//!     let op = Operator::from_env(Scheme::Fs)?
+//!     let op = Operator::from_env::<services::Fs>()?
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer::default())
 //!         // Init with retry layer enabled.
-//!         .layer(RetryLayer::new(ExponentialBackoff::default()));
+//!         .layer(RetryLayer::new(ExponentialBackoff::default()))
+//!         .finish();
 //!
 //!     // Create object handler.
 //!     let o = op.object("test_file");
@@ -141,17 +142,26 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! # Documentation
+//!
+//! OpenDAL carries all it's documentation in crate itself.
+//!
+//! More docs about OpenDAL could be found at [`docs`].
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]
 // Deny unused qualifications.
 #![deny(unused_qualifications)]
-// Add options below to allow/deny Clippy lints.
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
+mod builder;
+pub use builder::Builder;
+
 mod operator;
 pub use operator::BatchOperator;
 pub use operator::Operator;
+pub use operator::OperatorBuilder;
 pub use operator::OperatorMetadata;
 
 mod object;
@@ -185,9 +195,10 @@ pub use ops::OpWrite;
 pub use ops::OpWriteMultipart;
 pub use ops::PresignOperation;
 
-// Public modules, they will be accessed via `opendal::layers::Xxxx`
+// Public modules, they will be accessed like `opendal::layers::Xxxx`
+#[cfg(feature = "docs")]
+pub mod docs;
 pub mod layers;
-pub use layers::Layer;
 pub mod raw;
 pub mod services;
 

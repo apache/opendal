@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
@@ -40,11 +41,47 @@ use crate::*;
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
-// TODO: Server side encryption support
-
-/// GCS storage backend builder
+/// Google Cloud Storage support for OpenDAL.
+///
+/// # Configuration
+///
+/// - `root`: Set the work directory for backend
+/// - `bucket`: Set the container name for backend
+/// - `endpoint`: Customizable endpoint setting
+/// - `credentials`: Credential string for GCS OAuth2
+///
+/// You can refer to [`GcsBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Gcs;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Gcs::default();
+///
+///     // set the storage bucket for OpenDAL
+///     builder.bucket("test");
+///     // set the working directory root for GCS
+///     // all operations will happen within it
+///     builder.root("/path/to/dir");
+///     // set the credentials for GCS OAUTH2 authentication
+///     builder.credential("authentication token");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default)]
-pub struct Builder {
+pub struct GcsBuilder {
     /// root URI, all operations happens under `root`
     root: Option<String>,
     /// bucket name
@@ -66,23 +103,7 @@ pub struct Builder {
     signer: Option<Arc<GoogleSigner>>,
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "credential" => builder.credential(v),
-                "scope" => builder.scope(v),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
+impl GcsBuilder {
     /// set the working directory root of backend
     pub fn root(&mut self, root: &str) -> &mut Self {
         if !root.is_empty() {
@@ -177,9 +198,39 @@ impl Builder {
         self.signer = Some(Arc::new(signer));
         self
     }
+}
 
-    /// Establish connection to GCS and finish making GCS backend
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Debug for GcsBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+
+        ds.field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("endpoint", &self.endpoint);
+        if self.credential.is_some() {
+            ds.field("credentials", &"<redacted>");
+        }
+        ds.finish()
+    }
+}
+
+impl Builder for GcsBuilder {
+    const SCHEME: Scheme = Scheme::Gcs;
+    type Accessor = GcsBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = GcsBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("credential").map(|v| builder.credential(v));
+        map.get("scope").map(|v| builder.scope(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -243,7 +294,7 @@ impl Builder {
             Arc::new(signer)
         };
 
-        let backend = Backend {
+        let backend = GcsBackend {
             root,
             endpoint,
             bucket: bucket.clone(),
@@ -251,27 +302,13 @@ impl Builder {
             client,
         };
 
-        Ok(apply_wrapper(backend))
-    }
-}
-
-impl Debug for Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("root", &self.root)
-            .field("bucket", &self.bucket)
-            .field("endpoint", &self.endpoint);
-        if self.credential.is_some() {
-            ds.field("credentials", &"<redacted>");
-        }
-        ds.finish()
+        Ok(backend)
     }
 }
 
 /// GCS storage backend
 #[derive(Clone)]
-pub struct Backend {
+pub struct GcsBackend {
     endpoint: String,
     bucket: String,
     // root should end with "/"
@@ -281,7 +318,7 @@ pub struct Backend {
     signer: Arc<GoogleSigner>,
 }
 
-impl Debug for Backend {
+impl Debug for GcsBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("Backend");
         de.field("endpoint", &self.endpoint)
@@ -294,7 +331,10 @@ impl Debug for Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for GcsBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Gcs)
@@ -322,12 +362,12 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.gcs_get_object(path, args.range()).await?;
 
         if resp.status().is_success() {
             let meta = parse_into_object_metadata(path, resp.headers())?;
-            Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+            Ok((RpRead::with_metadata(meta), resp.into_body()))
         } else {
             Err(parse_error(resp).await?)
         }
@@ -413,12 +453,12 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 }
 
-impl Backend {
+impl GcsBackend {
     fn gcs_get_object_request(&self, path: &str, range: BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 

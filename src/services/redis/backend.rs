@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::path::PathBuf;
@@ -30,17 +31,45 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
-/// Redis backend builder
+/// Redis support for OpenDAL
+///
+/// # Configuration
+///
+/// - `root`: Set the working directory of `OpenDAL`
+/// - `endpoint`: Set the network address of redis server
+/// - `username`: Set the username of Redis
+/// - `password`: Set the password for authentication
+/// - `db`: Set the DB of redis
+///
+/// You can refer to [`RedisBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Redis;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = Redis::default();
+///
+///     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default)]
-pub struct Builder {
+pub struct RedisBuilder {
     /// network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.
     ///
     /// default is "tcp://127.0.0.1:6379"
@@ -65,26 +94,25 @@ pub struct Builder {
     default_ttl: Option<Duration>,
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "username" => builder.username(v),
-                "password" => builder.password(v),
-                "db" => match v.parse::<i64>() {
-                    Ok(num) => builder.db(num),
-                    _ => continue,
-                },
-                _ => continue,
-            };
+impl Debug for RedisBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("Builder");
+        ds.field("db", &self.db.to_string());
+        ds.field("root", &self.root);
+        if let Some(endpoint) = self.endpoint.clone() {
+            ds.field("endpoint", &endpoint);
         }
-        builder
+        if let Some(username) = self.username.clone() {
+            ds.field("username", &username);
+        }
+        if self.password.is_some() {
+            ds.field("password", &"<redacted>");
+        }
+        ds.finish()
     }
+}
 
+impl RedisBuilder {
     /// set the network address of redis service.
     ///
     /// currently supported schemes:
@@ -143,9 +171,26 @@ impl Builder {
         }
         self
     }
+}
 
-    /// Establish connection to Redis and finish making Redis endpoint
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for RedisBuilder {
+    const SCHEME: Scheme = Scheme::Redis;
+    type Accessor = RedisBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = RedisBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("username").map(|v| builder.username(v));
+        map.get("password").map(|v| builder.password(v));
+        map.get("db")
+            .map(|v| v.parse::<i64>().map(|v| builder.db(v)));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let endpoint = self
             .endpoint
             .clone()
@@ -212,37 +257,17 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(apply_wrapper(
-            Backend::new(Adapter {
-                client,
-                conn,
-                default_ttl: self.default_ttl,
-            })
-            .with_root(&root),
-        ))
-    }
-}
-
-impl Debug for Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-        ds.field("db", &self.db.to_string());
-        ds.field("root", &self.root);
-        if let Some(endpoint) = self.endpoint.clone() {
-            ds.field("endpoint", &endpoint);
-        }
-        if let Some(username) = self.username.clone() {
-            ds.field("username", &username);
-        }
-        if self.password.is_some() {
-            ds.field("password", &"<redacted>");
-        }
-        ds.finish()
+        Ok(RedisBackend::new(Adapter {
+            client,
+            conn,
+            default_ttl: self.default_ttl,
+        })
+        .with_root(&root))
     }
 }
 
 /// Backend for redis services.
-pub type Backend = kv::Backend<Adapter>;
+pub type RedisBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {

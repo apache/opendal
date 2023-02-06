@@ -6,7 +6,6 @@ edition = "2021"
 exclude = [
   ".github/",
   "bindings/",
-  "docs/",
   "profiles/",
   "oay/",
   "oli/",
@@ -17,7 +16,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.25.2"
+version = "0.26.1"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 
@@ -29,6 +28,12 @@ debug = true
 
 [features]
 default = ["rustls"]
+
+# Build docs or not.
+#
+# This features is used to control whether or not to build opendal's docs.
+# And doesn't have any other effects.
+docs = []
 
 # Enable compress support so that users can decompress while reading.
 compress = ["async-compression"]
@@ -76,30 +81,6 @@ harness = false
 name = "io"
 required-features = ["layers-all"]
 
-[[example]]
-name = "hdfs"
-required-features = ["services-hdfs"]
-
-[[example]]
-name = "ipfs"
-required-features = ["services-ipfs"]
-
-[[example]]
-name = "ftp"
-required-features = ["services-ftp"]
-
-[[example]]
-name = "redis"
-required-features = ["services-redis"]
-
-[[example]]
-name = "rocksdb"
-required-features = ["services-rocksdb"]
-
-[[example]]
-name = "tracing_layer"
-required-features = ["layers-all"]
-
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"
@@ -141,7 +122,7 @@ reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",
 ], default-features = false }
-rocksdb = { version = "0.19", optional = true }
+rocksdb = { version = "0.19", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 suppaftp = { version = "4.5", default-features = false, features = [

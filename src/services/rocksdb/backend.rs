@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,30 +25,52 @@ use crate::raw::*;
 use crate::Result;
 use crate::*;
 
-/// Rocksdb backend builder
+/// Rocksdb support for OpenDAL
+///
+/// # Note
+///
+/// The storage format for this service is not **stable** yet.
+///
+/// PLEASE DON'T USE THIS SERVICE FOR PERSIST DATA.
+///
+/// # Configuration
+///
+/// - `root`: Set the working directory of `OpenDAL`
+/// - `datadir`: Set the path to the rocksdb data directory
+///
+/// You can refer to [`RocksdbBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Rocksdb;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = Rocksdb::default();
+///     builder.datadir("/tmp/opendal/rocksdb");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default, Debug)]
-pub struct Builder {
+pub struct RocksdbBuilder {
     /// The path to the rocksdb data directory.
     datadir: Option<String>,
-    /// the working directory of the Redis service. Can be "/path/to/dir"
+    /// the working directory of the service. Can be "/path/to/dir"
     ///
     /// default is "/"
     root: Option<String>,
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "datadir" => builder.datadir(v),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
+impl RocksdbBuilder {
     /// Set the path to the rocksdb data directory. Will create if not exists.
     pub fn datadir(&mut self, path: &str) -> &mut Self {
         self.datadir = Some(path.into());
@@ -63,9 +86,21 @@ impl Builder {
         }
         self
     }
+}
 
-    /// Consumes the builder and returns a `Rocksdb` instance.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for RocksdbBuilder {
+    const SCHEME: Scheme = Scheme::Rocksdb;
+    type Accessor = RocksdbBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = RocksdbBuilder::default();
+
+        map.get("datadir").map(|v| builder.datadir(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let path = self.datadir.take().ok_or_else(|| {
             Error::new(
                 ErrorKind::BackendConfigInvalid,
@@ -83,12 +118,12 @@ impl Builder {
             .set_source(e)
         })?;
 
-        Ok(apply_wrapper(Backend::new(Adapter { db: Arc::new(db) })))
+        Ok(RocksdbBackend::new(Adapter { db: Arc::new(db) }))
     }
 }
 
 /// Backend for rocksdb services.
-pub type Backend = kv::Backend<Adapter>;
+pub type RocksdbBackend = kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {

@@ -93,4 +93,22 @@ impl output::Read for FtpReader {
             },
         }
     }
+
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+        let (_, _) = (cx, pos);
+
+        Poll::Ready(Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "output reader doesn't support seeking",
+        )))
+    }
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<bytes::Bytes>>> {
+        let _ = cx;
+
+        Poll::Ready(Some(Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "output reader doesn't support seeking",
+        ))))
+    }
 }

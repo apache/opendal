@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod blocking_seek;
 mod into_stream;
 
 use criterion::criterion_group;
 use criterion::criterion_main;
 
-criterion_group!(benches, into_stream::bench, blocking_seek::bench);
+criterion_group!(benches, into_stream::bench);
 criterion_main!(benches);

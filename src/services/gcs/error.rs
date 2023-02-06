@@ -62,11 +62,11 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     };
 
     let message = match de::from_slice::<GcsErrorResponse>(&bs) {
-        Ok(gcs_err) => format!("{:?}", gcs_err),
+        Ok(gcs_err) => format!("{gcs_err:?}"),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 
-    let mut err = Error::new(kind, &message).with_context("response", format!("{:?}", parts));
+    let mut err = Error::new(kind, &message).with_context("response", format!("{parts:?}"));
 
     if retryable {
         err = err.set_temporary();
@@ -106,7 +106,7 @@ mod tests {
         );
 
         let out: GcsErrorResponse = de::from_slice(&bs).expect("must success");
-        println!("{:?}", out);
+        println!("{out:?}");
 
         assert_eq!(out.error.code, 401);
         assert_eq!(out.error.message, "Login Required");

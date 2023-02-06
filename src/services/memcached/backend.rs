@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use async_compat::Compat;
@@ -22,14 +23,41 @@ use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
 use crate::raw::*;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-use crate::Scheme;
+use crate::*;
 
-/// Memcached backend builder
+/// Memcached support for OpenDAL
+///
+/// # Configuration
+///
+/// - `root`: Set the working directory of `OpenDAL`
+/// - `endpoint`: Set the network address of memcached server
+/// - `default_ttl`: Set the ttl for memcached service.
+///
+/// You can refer to [`MemcachedBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Memcached;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = Memcached::default();
+///
+///     builder.endpoint("tcp://127.0.0.1:11211");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default)]
-pub struct Builder {
+pub struct MemcachedBuilder {
     /// network address of the memcached service.
     ///
     /// For example: "tcp://localhost:11211"
@@ -42,20 +70,7 @@ pub struct Builder {
     default_ttl: Option<Duration>,
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                _ => continue,
-            };
-        }
-        builder
-    }
-
+impl MemcachedBuilder {
     /// set the network address of memcached service.
     ///
     /// For example: "tcp://localhost:11211"
@@ -81,9 +96,22 @@ impl Builder {
         self.default_ttl = Some(ttl);
         self
     }
+}
 
-    /// Establish connection to memcached.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for MemcachedBuilder {
+    const SCHEME: Scheme = Scheme::Memcached;
+    type Accessor = MemcachedBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = MemcachedBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         let endpoint = self.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
                 .with_context("service", Scheme::Memcached)
@@ -142,19 +170,17 @@ impl Builder {
         );
 
         let conn = OnceCell::new();
-        Ok(apply_wrapper(
-            Backend::new(Adapter {
-                endpoint,
-                conn,
-                default_ttl: self.default_ttl,
-            })
-            .with_root(&root),
-        ))
+        Ok(MemcachedBackend::new(Adapter {
+            endpoint,
+            conn,
+            default_ttl: self.default_ttl,
+        })
+        .with_root(&root))
     }
 }
 
 /// Backend for memcached services.
-pub type Backend = kv::Backend<Adapter>;
+pub type MemcachedBackend = kv::Backend<Adapter>;
 
 #[derive(Clone, Debug)]
 pub struct Adapter {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::cmp::min;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
@@ -41,16 +42,48 @@ use super::util::FtpReader;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for ftp backend.
+/// FTP support for OpenDAL.
+///
+/// # Configuration
+///
+/// - `endpoint`: set the endpoint for connection
+/// - `root`: Set the work directory for backend
+/// - `credential`:  login credentials
+/// - `tls`: tls mode
+///
+/// You can refer to [`FtpBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Ftp;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Ftp::default();
+///
+///     builder.endpoint("127.0.0.1");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _obj: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Default)]
-pub struct Builder {
+pub struct FtpBuilder {
     endpoint: Option<String>,
     root: Option<String>,
     user: Option<String>,
     password: Option<String>,
 }
 
-impl Debug for Builder {
+impl Debug for FtpBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Builder")
             .field("endpoint", &self.endpoint)
@@ -59,24 +92,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "user" => builder.user(v),
-                "password" => builder.password(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
+impl FtpBuilder {
     /// set endpoint for ftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         self.endpoint = if endpoint.is_empty() {
@@ -120,9 +136,13 @@ impl Builder {
 
         self
     }
+}
 
-    /// Build a ftp backend.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for FtpBuilder {
+    const SCHEME: Scheme = Scheme::Ftp;
+    type Accessor = FtpBackend;
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
         let endpoint = match &self.endpoint {
             None => {
@@ -148,7 +168,7 @@ impl Builder {
         let host = endpoint_uri.host().unwrap_or("127.0.0.1");
         let port = endpoint_uri.port_u16().unwrap_or(21);
 
-        let endpoint = format!("{}:{}", host, port);
+        let endpoint = format!("{host}:{port}");
 
         let enable_secure = match endpoint_uri.scheme_str() {
             Some("ftp") => false,
@@ -179,14 +199,25 @@ impl Builder {
 
         debug!("ftp backend finished: {:?}", &self);
 
-        Ok(apply_wrapper(Backend {
+        Ok(FtpBackend {
             endpoint,
             root,
             user,
             password,
             enable_secure,
             pool: OnceCell::new(),
-        }))
+        })
+    }
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = FtpBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("user").map(|v| builder.user(v));
+        map.get("password").map(|v| builder.password(v));
+
+        builder
     }
 }
 
@@ -250,7 +281,7 @@ impl bb8::ManageConnection for Manager {
 
 /// Backend is used to serve `Accessor` support for ftp.
 #[derive(Clone)]
-pub struct Backend {
+pub struct FtpBackend {
     endpoint: String,
     root: String,
     user: String,
@@ -259,14 +290,17 @@ pub struct Backend {
     pool: OnceCell<bb8::Pool<Manager>>,
 }
 
-impl Debug for Backend {
+impl Debug for FtpBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend").finish()
     }
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for FtpBackend {
+    type Reader = FtpReader;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Ftp)
@@ -309,7 +343,7 @@ impl Accessor for Backend {
         return Ok(RpCreate::default());
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let mut ftp_stream = self.ftp_connect(Operation::Read).await?;
 
         let meta = self.ftp_stat(path).await?;
@@ -339,10 +373,7 @@ impl Accessor for Backend {
             }
         };
 
-        Ok((
-            RpRead::new(size),
-            Box::new(FtpReader::new(r, ftp_stream)) as output::Reader,
-        ))
+        Ok((RpRead::new(size), FtpReader::new(r, ftp_stream)))
     }
 
     async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
@@ -414,12 +445,12 @@ impl Accessor for Backend {
 
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)),
+            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)) as ObjectPager,
         ))
     }
 }
 
-impl Backend {
+impl FtpBackend {
     async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
         let pool = self
             .pool
@@ -474,31 +505,31 @@ impl Backend {
 
 #[cfg(test)]
 mod build_test {
-    use super::Builder;
-    use crate::ErrorKind;
+    use super::FtpBuilder;
+    use crate::*;
 
     #[test]
     fn test_build() {
         // ftps scheme, should suffix with default port 21
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("ftps://ftp_server.local");
         let b = builder.build();
         assert!(b.is_ok());
 
         // ftp scheme
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("ftp://ftp_server.local:1234");
         let b = builder.build();
         assert!(b.is_ok());
 
         // no scheme
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("ftp_server.local:8765");
         let b = builder.build();
         assert!(b.is_ok());
 
         // invalid scheme
-        let mut builder = Builder::default();
+        let mut builder = FtpBuilder::default();
         builder.endpoint("invalidscheme://ftp_server.local:8765");
         let b = builder.build();
         assert!(b.is_err());

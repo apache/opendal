@@ -33,7 +33,7 @@ macro_rules! behavior_list_only_test {
                         #[$meta]
                     )*
                     async fn [< $test >]() -> anyhow::Result<()> {
-                        let op = $crate::utils::init_service(opendal::Scheme::$service, false);
+                        let op = $crate::utils::init_service::<opendal::services::$service>(false);
                         match op {
                             Some(op) if op.metadata().can_list() && !op.metadata().can_write() => $crate::list_only::$test(op).await,
                             Some(_) => {

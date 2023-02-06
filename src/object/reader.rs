@@ -14,7 +14,6 @@
 
 use std::io;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
@@ -23,13 +22,10 @@ use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
-use parking_lot::Mutex;
 
 use crate::error::Result;
 use crate::raw::*;
-use crate::ObjectMetadata;
 use crate::OpRead;
-use crate::OpStat;
 
 /// ObjectReader is the public API for users.
 ///
@@ -111,44 +107,8 @@ impl ObjectReader {
     ///
     /// We don't want to expose those detials to users so keep this fuction
     /// in crate only.
-    pub(crate) async fn create(
-        acc: Arc<dyn Accessor>,
-        path: &str,
-        meta: Arc<Mutex<ObjectMetadata>>,
-        op: OpRead,
-    ) -> Result<Self> {
-        let acc_meta = acc.metadata();
-
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsSeekable) {
-            let (_, r) = acc.read(path, op).await?;
-            r
-        } else {
-            match (op.range().offset(), op.range().size()) {
-                (Some(offset), Some(size)) => {
-                    Box::new(output::into_reader::by_range(acc, path, offset, size))
-                        as output::Reader
-                }
-                (Some(offset), None) => Box::new(output::into_reader::by_offset(acc, path, offset)),
-                (None, Some(size)) => {
-                    let total_size = get_total_size(acc.clone(), path, meta).await?;
-                    let (offset, size) = if size > total_size {
-                        (0, total_size)
-                    } else {
-                        (total_size - size, size)
-                    };
-
-                    Box::new(output::into_reader::by_range(acc, path, offset, size))
-                }
-                (None, None) => Box::new(output::into_reader::by_offset(acc, path, 0)),
-            }
-        };
-
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
-            r
-        } else {
-            // Make this capacity configurable.
-            Box::new(output::into_reader::as_streamable(r, 256 * 1024))
-        };
+    pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
+        let (_, r) = acc.read(path, op).await?;
 
         Ok(ObjectReader {
             inner: r,
@@ -255,22 +215,6 @@ impl Stream for ObjectReader {
     }
 }
 
-/// get_total_size will get total size via stat.
-async fn get_total_size(
-    acc: Arc<dyn Accessor>,
-    path: &str,
-    meta: Arc<Mutex<ObjectMetadata>>,
-) -> Result<u64> {
-    if let Some(v) = meta.lock().content_length_raw() {
-        return Ok(v);
-    }
-
-    let om = acc.stat(path, OpStat::new()).await?.into_metadata();
-    let size = om.content_length();
-    *(meta.lock()) = om;
-    Ok(size)
-}
-
 #[cfg(test)]
 mod tests {
     use rand::rngs::ThreadRng;
@@ -279,8 +223,8 @@ mod tests {
     use tokio::io::AsyncReadExt;
     use tokio::io::AsyncSeekExt;
 
+    use crate::services;
     use crate::Operator;
-    use crate::Scheme;
 
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = ThreadRng::default();
@@ -293,7 +237,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_read() {
-        let op = Operator::from_env(Scheme::Memory).unwrap();
+        let op = Operator::create(services::Memory::default())
+            .unwrap()
+            .finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
@@ -313,7 +259,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_async_seek() {
-        let op = Operator::from_env(Scheme::Memory).unwrap();
+        let op = Operator::create(services::Memory::default())
+            .unwrap()
+            .finish();
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();

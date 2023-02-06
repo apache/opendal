@@ -73,9 +73,221 @@ mod constants {
     pub const X_AMZ_BUCKET_REGION: &str = "x-amz-bucket-region";
 }
 
-/// Builder for s3 services
+/// Aws S3 and compatible services (including minio, digitalocean space and so on) support
+///
+/// # Configuration
+///
+/// - `root`: Set the work dir for backend.
+/// - `bucket`: Set the container name for backend.
+/// - `endpoint`: Set the endpoint for backend.
+/// - `region`: Set the region for backend.
+/// - `access_key_id`: Set the access_key_id for backend.
+/// - `secret_access_key`: Set the secret_access_key for backend.
+/// - `security_token`: Set the security_token for backend.
+/// - `server_side_encryption`: Set the server_side_encryption for backend.
+/// - `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
+/// - `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
+/// - `server_side_encryption_customer_key`: Set the server_side_encryption_customer_key for backend.
+/// - `server_side_encryption_customer_key_md5`: Set the server_side_encryption_customer_key_md5 for backend.
+/// - `disable_config_load`: Disable aws config load from env
+/// - `enable_virtual_host_style`: Enable virtual host style.
+///
+/// Refer to [`S3Builder`]'s public API docs for more information.
+///
+/// # Temporary security credentials
+///
+/// OpenDAL now provides support for S3 temporary security credentials in IAM.
+///
+/// The way to take advantage of this feature is to build your S3 backend with `Builder::security_token`.
+///
+/// But OpenDAL will not refresh the temporary security credentials, please keep in mind to refresh those credentials in time.
+///
+/// # Server Side Encryption
+///
+/// OpenDAL provides full support of S3 Server Side Encryption(SSE) features.
+///
+/// The easiest way to configure them is to use helper functions like
+///
+/// - SSE-KMS: `server_side_encryption_with_aws_managed_kms_key`
+/// - SSE-KMS: `server_side_encryption_with_customer_managed_kms_key`
+/// - SSE-S3: `server_side_encryption_with_s3_key`
+/// - SSE-C: `server_side_encryption_with_customer_key`
+///
+/// If those functions don't fulfill need, low-level options are also provided:
+///
+/// - Use service managed kms key
+///   - `server_side_encryption="aws:kms"`
+/// - Use customer provided kms key
+///   - `server_side_encryption="aws:kms"`
+///   - `server_side_encryption_aws_kms_key_id="your-kms-key"`
+/// - Use S3 managed key
+///   - `server_side_encryption="AES256"`
+/// - Use customer key
+///   - `server_side_encryption_customer_algorithm="AES256"`
+///   - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
+///   - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
+///
+/// After SSE have been configured, all requests send by this backed will attach those headers.
+///
+/// Reference: [Protecting data using server-side encryption](https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html)
+///
+/// # Example
+///
+/// ## Basic Setup
+///
+/// ```no_run
+/// use std::sync::Arc;
+///
+/// use anyhow::Result;
+/// use opendal::services::S3;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Create s3 backend builder.
+///     let mut builder = S3::default();
+///     // Set the root for s3, all operations will happen under this root.
+///     //
+///     // NOTE: the root must be absolute path.
+///     builder.root("/path/to/dir");
+///     // Set the bucket name, this is required.
+///     builder.bucket("test");
+///     // Set the endpoint.
+///     //
+///     // For examples:
+///     // - "https://s3.amazonaws.com"
+///     // - "http://127.0.0.1:9000"
+///     // - "https://oss-ap-northeast-1.aliyuncs.com"
+///     // - "https://cos.ap-seoul.myqcloud.com"
+///     //
+///     // Default to "https://s3.amazonaws.com"
+///     builder.endpoint("https://s3.amazonaws.com");
+///     // Set the access_key_id and secret_access_key.
+///     //
+///     // OpenDAL will try load credential from the env.
+///     // If credential not set and no valid credential in env, OpenDAL will
+///     // send request without signing like anonymous user.
+///     builder.access_key_id("access_key_id");
+///     builder.secret_access_key("secret_access_key");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## S3 with SSE-C
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use log::info;
+/// use opendal::services::S3;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = S3::default();
+///
+///     // Setup builders
+///
+///     // Enable SSE-C
+///     builder.server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
+///
+///     let op = Operator::create(builder)?.finish();
+///     info!("operator: {:?}", op);
+///
+///     // Writing your testing code here.
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## S3 with SSE-KMS and aws managed kms key
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use log::info;
+/// use opendal::services::S3;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = S3::default();
+///
+///     // Setup builders
+///
+///     // Enable SSE-KMS with aws managed kms key
+///     builder.server_side_encryption_with_aws_managed_kms_key();
+///
+///     let op = Operator::create(builder)?.finish();
+///     info!("operator: {:?}", op);
+///
+///     // Writing your testing code here.
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## S3 with SSE-KMS and customer managed kms key
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use log::info;
+/// use opendal::services::S3;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = S3::default();
+///
+///     // Setup builders
+///
+///     // Enable SSE-KMS with customer managed kms key
+///     builder.server_side_encryption_with_customer_managed_kms_key("aws_kms_key_id");
+///
+///     let op = Operator::create(builder)?.finish();
+///     info!("operator: {:?}", op);
+///
+///     // Writing your testing code here.
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## S3 with SSE-S3
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use log::info;
+/// use opendal::services::S3;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = S3::default();
+///
+///     // Setup builders
+///
+///     // Enable SSE-S3
+///     builder.server_side_encryption_with_s3_key();
+///
+///     let op = Operator::create(builder)?.finish();
+///     info!("operator: {:?}", op);
+///
+///     // Writing your testing code here.
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// # Compatible Services
+#[doc = include_str!("compatible_services.md")]
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct S3Builder {
     root: Option<String>,
 
     bucket: String,
@@ -101,7 +313,7 @@ pub struct Builder {
     customed_credential_load: Option<Arc<dyn AwsCredentialLoad>>,
 }
 
-impl Debug for Builder {
+impl Debug for S3Builder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("Builder");
 
@@ -144,44 +356,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Builder::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_ref() {
-                "root" => builder.root(v),
-                "bucket" => builder.bucket(v),
-                "endpoint" => builder.endpoint(v),
-                "region" => builder.region(v),
-                "access_key_id" => builder.access_key_id(v),
-                "secret_access_key" => builder.secret_access_key(v),
-                "security_token" => builder.security_token(v),
-                "role_arn" => builder.role_arn(v),
-                "external_id" => builder.external_id(v),
-                "server_side_encryption" => builder.server_side_encryption(v),
-                "server_side_encryption_aws_kms_key_id" => {
-                    builder.server_side_encryption_aws_kms_key_id(v)
-                }
-                "server_side_encryption_customer_algorithm" => {
-                    builder.server_side_encryption_customer_algorithm(v)
-                }
-                "server_side_encryption_customer_key" => {
-                    builder.server_side_encryption_customer_key(v)
-                }
-                "server_side_encryption_customer_key_md5" => {
-                    builder.server_side_encryption_customer_key_md5(v)
-                }
-                "disable_config_load" if !v.is_empty() => builder.disable_config_load(),
-                "enable_virtual_host_style" if !v.is_empty() => builder.enable_virtual_host_style(),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
+impl S3Builder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -506,7 +681,7 @@ impl Builder {
                     endpoint.to_string()
                 } else {
                     // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{}", endpoint)
+                    format!("https://{endpoint}")
                 }
             }
             None => "https://s3.amazonaws.com".to_string(),
@@ -587,7 +762,7 @@ impl Builder {
                     endpoint.to_string()
                 } else {
                     // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{}", endpoint)
+                    format!("https://{endpoint}")
                 }
             }
             None => "https://s3.amazonaws.com".to_string(),
@@ -614,9 +789,46 @@ impl Builder {
 
         endpoint
     }
+}
 
-    /// Finish the build process and create a new accessor.
-    pub fn build(&mut self) -> Result<impl Accessor> {
+impl Builder for S3Builder {
+    const SCHEME: Scheme = Scheme::S3;
+    type Accessor = S3Backend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = S3Builder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("bucket").map(|v| builder.bucket(v));
+        map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("region").map(|v| builder.region(v));
+        map.get("access_key_id").map(|v| builder.access_key_id(v));
+        map.get("secret_access_key")
+            .map(|v| builder.secret_access_key(v));
+        map.get("security_token").map(|v| builder.security_token(v));
+        map.get("role_arn").map(|v| builder.role_arn(v));
+        map.get("external_id").map(|v| builder.external_id(v));
+        map.get("server_side_encryption")
+            .map(|v| builder.server_side_encryption(v));
+        map.get("server_side_encryption_aws_kms_key_id")
+            .map(|v| builder.server_side_encryption_aws_kms_key_id(v));
+        map.get("server_side_encryption_customer_algorithm")
+            .map(|v| builder.server_side_encryption_customer_algorithm(v));
+        map.get("server_side_encryption_customer_key")
+            .map(|v| builder.server_side_encryption_customer_key(v));
+        map.get("server_side_encryption_customer_key_md5")
+            .map(|v| builder.server_side_encryption_customer_key_md5(v));
+        map.get("disable_config_load")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.disable_config_load());
+        map.get("enable_virtual_host_style")
+            .filter(|v| *v == "on" || *v == "true")
+            .map(|_| builder.enable_virtual_host_style());
+
+        builder
+    }
+
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -783,7 +995,7 @@ impl Builder {
             .map_err(|e| Error::new(ErrorKind::Unexpected, "build AwsV4Signer").set_source(e))?;
 
         debug!("backend build finished: {:?}", &self);
-        Ok(apply_wrapper(Backend {
+        Ok(S3Backend {
             root,
             endpoint,
             signer: Arc::new(signer),
@@ -795,13 +1007,13 @@ impl Builder {
             server_side_encryption_customer_algorithm,
             server_side_encryption_customer_key,
             server_side_encryption_customer_key_md5,
-        }))
+        })
     }
 }
 
 /// Backend for s3 services.
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct S3Backend {
     bucket: String,
     endpoint: String,
     signer: Arc<AwsV4Signer>,
@@ -816,7 +1028,7 @@ pub struct Backend {
     server_side_encryption_customer_key_md5: Option<HeaderValue>,
 }
 
-impl Backend {
+impl S3Backend {
     /// # Note
     ///
     /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
@@ -880,7 +1092,10 @@ impl Backend {
 }
 
 #[async_trait]
-impl Accessor for Backend {
+impl Accessor for S3Backend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::S3)
@@ -916,7 +1131,7 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let resp = self.s3_get_object(path, args.range()).await?;
 
         let status = resp.status();
@@ -924,7 +1139,7 @@ impl Accessor for Backend {
         match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             _ => Err(parse_error(resp).await?),
         }
@@ -986,7 +1201,7 @@ impl Accessor for Backend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)),
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
         ))
     }
 
@@ -1125,7 +1340,7 @@ impl Accessor for Backend {
     }
 }
 
-impl Backend {
+impl S3Backend {
     fn s3_head_object_request(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -1470,7 +1685,7 @@ mod tests {
         ];
 
         for endpoint in endpoint_cases {
-            let mut b = Builder::default();
+            let mut b = S3Builder::default();
             b.bucket("test");
             if let Some(endpoint) = endpoint {
                 b.endpoint(endpoint);
@@ -1495,7 +1710,7 @@ mod tests {
         ];
 
         for endpoint in &endpoint_cases {
-            let mut b = Builder::default();
+            let mut b = S3Builder::default();
             b.bucket("test");
             if let Some(endpoint) = endpoint {
                 b.endpoint(endpoint);
@@ -1506,7 +1721,7 @@ mod tests {
         }
 
         for endpoint in &endpoint_cases {
-            let mut b = Builder::default();
+            let mut b = S3Builder::default();
             b.bucket("test");
             b.enable_virtual_host_style();
             if let Some(endpoint) = endpoint {

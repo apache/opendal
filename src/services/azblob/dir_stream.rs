@@ -20,13 +20,13 @@ use serde::Deserialize;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
-use super::backend::Backend;
+use super::backend::AzblobBackend;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct DirStream {
-    backend: Arc<Backend>,
+    backend: Arc<AzblobBackend>,
     root: String,
     path: String,
 
@@ -35,7 +35,7 @@ pub struct DirStream {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<Backend>, root: String, path: String) -> Self {
+    pub fn new(backend: Arc<AzblobBackend>, root: String, path: String) -> Self {
         Self {
             backend,
             root,
@@ -261,7 +261,7 @@ mod tests {
             </EnumerationResults>"#,
         );
         let out: Output = de::from_reader(bs.reader()).expect("must success");
-        println!("{:?}", out);
+        println!("{out:?}");
 
         assert_eq!(
             out.blobs

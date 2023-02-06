@@ -20,7 +20,7 @@ use serde_json;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use super::backend::Backend;
+use super::backend::GcsBackend;
 use super::error::parse_error;
 use super::error::parse_json_deserialize_error;
 use crate::raw::*;
@@ -29,7 +29,7 @@ use crate::*;
 /// DirStream takes over task of listing objects and
 /// helps walking directory
 pub struct DirStream {
-    backend: Arc<Backend>,
+    backend: Arc<GcsBackend>,
     root: String,
     path: String,
     page_token: String,
@@ -39,7 +39,7 @@ pub struct DirStream {
 
 impl DirStream {
     /// Generate a new directory walker
-    pub fn new(backend: Arc<Backend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<GcsBackend>, root: &str, path: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),

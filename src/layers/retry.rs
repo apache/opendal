@@ -14,12 +14,12 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::sync::Arc;
 use std::thread::sleep;
 
 use async_trait::async_trait;
 use backon::Backoff;
 use backon::Retryable;
+use futures::FutureExt;
 use log::warn;
 
 use crate::raw::*;
@@ -33,18 +33,20 @@ use crate::*;
 /// use anyhow::Result;
 /// use backon::ExponentialBackoff;
 /// use opendal::layers::RetryLayer;
+/// use opendal::services;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::from_env(Scheme::Fs)
+/// let _ = Operator::from_env::<services::Fs>()
 ///     .expect("must init")
-///     .layer(RetryLayer::new(ExponentialBackoff::default()));
+///     .layer(RetryLayer::new(ExponentialBackoff::default()))
+///     .finish();
 /// ```
-pub struct RetryLayer<B: Backoff + Send + Sync + Debug + 'static>(B);
+pub struct RetryLayer<B: Backoff + Send + Sync + Debug + Unpin + 'static>(B);
 
 impl<B> RetryLayer<B>
 where
-    B: Backoff + Send + Sync + Debug + 'static,
+    B: Backoff + Send + Sync + Debug + Unpin + 'static,
 {
     /// Create a new retry layer.
     /// # Examples
@@ -53,10 +55,11 @@ where
     /// use anyhow::Result;
     /// use backon::ExponentialBackoff;
     /// use opendal::layers::RetryLayer;
+    /// use opendal::services;
     /// use opendal::Operator;
     /// use opendal::Scheme;
     ///
-    /// let _ = Operator::from_env(Scheme::Fs)
+    /// let _ = Operator::from_env::<services::Fs>()
     ///     .expect("must init")
     ///     .layer(RetryLayer::new(ExponentialBackoff::default()));
     /// ```
@@ -65,25 +68,28 @@ where
     }
 }
 
-impl<B> Layer for RetryLayer<B>
+impl<A, B> Layer<A> for RetryLayer<B>
 where
-    B: Backoff + Send + Sync + Debug + 'static,
+    A: Accessor,
+    B: Backoff + Send + Sync + Debug + Unpin + 'static,
 {
-    fn layer(&self, inner: Arc<dyn Accessor>) -> Arc<dyn Accessor> {
-        Arc::new(RetryAccessor {
+    type LayeredAccessor = RetryAccessor<A, B>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccessor {
+        RetryAccessor {
             inner,
             backoff: self.0.clone(),
-        })
+        }
     }
 }
 
 #[derive(Clone)]
-struct RetryAccessor<B: Backoff + Debug + Send + Sync> {
-    inner: Arc<dyn Accessor>,
+pub struct RetryAccessor<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> {
+    inner: A,
     backoff: B,
 }
 
-impl<B: Backoff + Debug + Send + Sync> Debug for RetryAccessor<B> {
+impl<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> Debug for RetryAccessor<A, B> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RetryAccessor")
             .field("inner", &self.inner)
@@ -92,12 +98,17 @@ impl<B: Backoff + Debug + Send + Sync> Debug for RetryAccessor<B> {
 }
 
 #[async_trait]
-impl<B> Accessor for RetryAccessor<B>
+impl<A, B> LayeredAccessor for RetryAccessor<A, B>
 where
-    B: Backoff + Debug + Send + Sync + 'static,
+    A: Accessor,
+    B: Backoff + Debug + Send + Sync + Unpin + 'static,
 {
-    fn inner(&self) -> Option<Arc<dyn Accessor>> {
-        Some(self.inner.clone())
+    type Inner = A;
+    type Reader = A::Reader;
+    type BlockingReader = A::BlockingReader;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -110,12 +121,12 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Create, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
-        let (rp, r) = { || self.inner.read(path, args.clone()) }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        { || self.inner.read(path, args.clone()) }
             .retry(self.backoff.clone())
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -124,10 +135,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Read, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())?;
-
-        Ok((rp, r))
     }
 
     /// Return `Interrupted` Error even after retry.
@@ -147,8 +156,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Stat, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())
     }
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
@@ -161,8 +170,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::Delete, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
@@ -175,8 +184,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::List, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())
     }
 
     async fn create_multipart(
@@ -193,8 +202,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::CreateMultipart, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())
     }
 
     async fn write_multipart(
@@ -204,10 +213,7 @@ where
         r: input::Reader,
     ) -> Result<RpWriteMultipart> {
         // Write can't retry, until can reset this reader.
-        self.inner
-            .write_multipart(path, args.clone(), r)
-            .await
-            .map_err(|e| e.set_persistent())
+        self.inner.write_multipart(path, args.clone(), r).await
     }
 
     async fn complete_multipart(
@@ -224,8 +230,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::CompleteMultipart, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())
     }
 
     async fn abort_multipart(
@@ -242,8 +248,8 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::AbortMultipart, dur.as_secs_f64(), err)
             })
+            .map(|v| v.map_err(|e| e.set_persistent()))
             .await
-            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -277,7 +283,7 @@ where
         Err(e.unwrap())
     }
 
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::BlockingReader)> {
+    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let retry = self.backoff.clone();
 
         let mut e = None;

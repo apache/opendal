@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use core::fmt::Debug;
-use std::io::Read;
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 use bytes::Buf;
@@ -32,12 +32,10 @@ use super::error::blocking_parse_error;
 use super::error::blocking_resp_to_str;
 use super::error::parse_error;
 use super::percent_encode_path;
-use crate::raw::apply_wrapper;
 use crate::raw::build_abs_path;
 use crate::raw::input;
 use crate::raw::new_request_build_error;
 use crate::raw::normalize_root;
-use crate::raw::output;
 use crate::raw::parse_into_object_metadata;
 use crate::raw::Accessor;
 use crate::raw::AccessorCapability;
@@ -55,6 +53,7 @@ use crate::raw::RpList;
 use crate::raw::RpRead;
 use crate::raw::RpStat;
 use crate::raw::RpWrite;
+use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::ObjectMetadata;
@@ -76,11 +75,98 @@ type AsyncResp = Response<IncomingAsyncBody>;
 type BlockReq = Request<Body>;
 type BlockResp = Response<Body>;
 
-/// Builder for WebHDFS service
-/// # Note
-/// Builder prefers delegation token to username authentication
+/// WebHDFS's RESTFul API support
+///
+/// # Configurations
+///
+/// - `root`: The root path of the WebHDFS service.
+/// - `endpoint`: The endpoint of the WebHDFS service.
+/// - `username`: The username of the WebHDFS service.
+/// - `delegation`: The delegation token for WebHDFS.
+///
+/// Refer to [`Builder`]'s public API docs for more information
+///
+/// # Environment
+///
+/// - `OPENDAL_WEBHDFS_ROOT`
+/// - `OPENDAL_WEBHDFS_ENDPOINT`
+/// - `OPENDAL_WEBHDFS_USERNAME`
+/// - `OPENDAL_WEBHDFS_DELEGATION`
+/// - `OPENDAL_WEBHDFS_CSRF`
+///
+/// # Examples
+/// ## Via Environment
+///
+/// Set the environment variables and then use [`WebHdfs::try_from_env`]:
+///
+/// ```shell
+/// export OPENDAL_WEBHDFS_ROOT=/path/to/dir
+/// export OPENDAL_WEBHDFS_DELEGATION=<delegation_token>
+/// export OPENDAL_WEBHDFS_USERNAME=<username>
+/// export OPENDAL_WEBHDFS_ENDPOINT=localhost:50070
+/// export OPENDAL_WEBHDFS_CSRF=X-XSRF-HEADER
+/// ```
+/// ```no_run
+/// use std::sync::Arc;
+/// use anyhow::Result;
+/// use opendal::Object;
+/// use opendal::Operator;
+/// use opendal::Scheme;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let op: Operator = Operator::from_env(Scheme::WebHdfs)?;
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
+/// ## Via Builder
+/// ```no_run
+/// use std::sync::Arc;
+///
+/// use anyhow::Result;
+/// use opendal::services::WebHdfs;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = WebHdfs::default();
+///     // set the root for s3, all operations will happend under this root
+///     //
+///     // Note:
+///     // if the root is not exists, the builder will automatically create the
+///     // root directory for you
+///     // if the root exists and is a directory, the builder will continue working
+///     // if the root exists and is a folder, the builder will fail on building backend
+///     builder.root("/path/to/dir");
+///     // set the endpoint of webhdfs namenode, controled by dfs.namenode.http-address
+///     // default is http://127.0.0.1:9870
+///     builder.endpoint("http://127.0.0.1:9870");
+
+///     // set the delegation_token for builder
+///     builder.delegation("delegation_token");
+///     // or set the username for builder
+///     builder.user("username");
+///     // proxy user is also supported
+///     builder.doas("proxy_user");
+///     // if no delegation token, username and proxy user are set
+///     // the backend will query without authentications
+///
+///     // custom CSRF header is also customizable
+///     // default is X-XSRF-HEADER
+///     builder.csrf("X-XSRF-HEADER");
+///
+///     let op: Operator = Operator::new(builder.build()?);
+///
+///     // create an object handler to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Default, Clone)]
-pub struct Builder {
+pub struct WebHdfsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     delegation: Option<String>,
@@ -91,7 +177,7 @@ pub struct Builder {
     csrf: Option<String>,
 }
 
-impl Debug for Builder {
+impl Debug for WebHdfsBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut ds = f.debug_struct("Builder");
         ds.field("root", &self.root)
@@ -112,26 +198,7 @@ impl Debug for Builder {
     }
 }
 
-impl Builder {
-    pub(crate) fn from_iter(it: impl Iterator<Item = (String, String)>) -> Self {
-        let mut builder = Self::default();
-
-        for (k, v) in it {
-            let v = v.as_str();
-            match k.as_str() {
-                "root" => builder.root(v),
-                "endpoint" => builder.endpoint(v),
-                "delegation" => builder.delegation(v),
-                "user" => builder.user(v),
-                "doas" => builder.doas(v),
-                "csrf" => builder.csrf(v),
-                _ => continue,
-            };
-        }
-
-        builder
-    }
-
+impl WebHdfsBuilder {
     /// Set the working directory of this backend
     ///
     /// All operations will happen under this root
@@ -139,9 +206,12 @@ impl Builder {
     /// The root will be automatically created if not exists.
     /// If the root is ocupied by a file, building of directory will fail
     pub fn root(&mut self, root: &str) -> &mut Self {
-        if !root.is_empty() {
-            self.root = Some(root.to_string());
-        }
+        self.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
         self
     }
 
@@ -191,7 +261,7 @@ impl Builder {
     /// Set the proxy user of this backend
     /// # Note
     /// The builder prefers using delegation token,
-    /// If both are set, delegation token will be used. And do_as
+    /// If both are set, delegation token will be used. And doas
     /// will be ignored
     pub fn doas(&mut self, doas: &str) -> &mut Self {
         if !doas.is_empty() {
@@ -211,6 +281,30 @@ impl Builder {
         }
         self
     }
+}
+
+impl Builder for WebHdfsBuilder {
+    const SCHEME: Scheme = Scheme::WebHdfs;
+    type Accessor = WebHdfsBackend;
+
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = WebHdfsBuilder::default();
+
+        for (k, v) in map.iter() {
+            let v = v.as_str();
+            match k.as_str() {
+                "root" => builder.root(v),
+                "endpoint" => builder.endpoint(v),
+                "delegation" => builder.delegation(v),
+                "user" => builder.user(v),
+                "doas" => builder.doas(v),
+                "csrf" => builder.csrf(v),
+                _ => continue,
+            };
+        }
+
+        builder
+    }
 
     /// build the backend
     ///
@@ -219,7 +313,7 @@ impl Builder {
     /// exits.
     /// if the directory does not exits, the directory will be automatically created
     /// if the root path is occupied by a file, a failure will be returned
-    pub fn build(&mut self) -> Result<impl Accessor> {
+    fn build(&mut self) -> Result<Self::Accessor> {
         debug!("building backend: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
@@ -255,42 +349,24 @@ impl Builder {
 
         let client = HttpClient::new()?;
 
-        let backend = apply_wrapper(Backend {
+        let backend = WebHdfsBackend {
             root: root.clone(),
             endpoint,
             auth: auth_str,
             client,
             csrf,
-        });
+        };
 
         debug!("checking working directory: {}", root);
-        match backend.blocking_stat("/", OpStat::new()) {
-            Ok(stat) => {
-                let meta = stat.into_metadata();
-                if !meta.mode().is_dir() {
-                    warn!("working directory is occupied!");
-                    return Err(
-                        Error::new(ErrorKind::BackendConfigInvalid, "root is occupied!")
-                            .with_context("service", Scheme::WebHdfs),
-                    );
-                }
-            }
-            Err(e) => match e.kind() {
-                ErrorKind::ObjectNotFound => {
-                    debug!("working directory does not exist, creating...");
-                    backend.blocking_create("/", OpCreate::new(ObjectMode::DIR))?;
-                }
-                _ => return Err(e),
-            },
-        }
-        debug!("working directory is ready.");
+        backend.check_root()?;
+
         Ok(backend)
     }
 }
 
 /// Backend for WebHDFS service
 #[derive(Debug, Clone)]
-pub struct Backend {
+pub struct WebHdfsBackend {
     root: String,
     endpoint: String,
     client: HttpClient,
@@ -298,7 +374,7 @@ pub struct Backend {
     csrf: String,
 }
 
-impl Backend {
+impl WebHdfsBackend {
     async fn create_or_write_object_req(
         &self,
         path: &str,
@@ -347,6 +423,22 @@ impl Backend {
         if let Some(auth) = &self.auth {
             url = url + "&" + auth;
         }
+
+        // make a WebHdfs compatible bytes range
+        //
+        // WebHdfs does not support read from end
+        // have to solve manually
+        let range = match (range.offset(), range.size()) {
+            // avoiding reading the whole file
+            (None, Some(size)) => {
+                let status = self.stat(path, OpStat::default()).await?;
+                let total_size = status.into_metadata().content_length();
+                let offset = total_size - size;
+                BytesRange::new(Some(offset), Some(size))
+            }
+            _ => *range,
+        };
+
         let (offset, size) = (range.offset(), range.size());
 
         match (offset, size) {
@@ -360,7 +452,7 @@ impl Backend {
                 // read all, do nothing
             }
             (None, Some(_)) => {
-                // handled outside of this function, should never happen
+                // already handled
                 unreachable!()
             }
         }
@@ -429,25 +521,15 @@ impl Backend {
     }
 }
 
-impl Backend {
+impl WebHdfsBackend {
     // blocking create or write object request
-    fn blocking_create_or_write_object_request(
-        &self,
-        path: &str,
-        size: Option<u64>,
-        content_type: Option<&str>,
-        body: Body,
-    ) -> Result<BlockReq> {
-        let p = build_abs_path(&self.root, path);
-        let op = if path.ends_with('/') {
-            "MKDIRS"
-        } else {
-            "CREATE"
-        };
+    fn blocking_create_root_req(&self) -> Result<BlockReq> {
+        let p = &self.root;
+        let op = "MKDIRS";
         let mut url = format!(
             "{}/webhdfs/v1/{}?op={}&overwrite=true&noredirect=true",
             self.endpoint,
-            percent_encode_path(&p),
+            percent_encode_path(p),
             op,
         );
         if let Some(auth) = &self.auth {
@@ -459,17 +541,11 @@ impl Backend {
             .body(Body::Empty)
             .map_err(new_request_build_error)?;
         // mkdir does not redirect
-        if path.ends_with('/') {
-            return Ok(req);
-        }
-
-        let resp = self.client.send(req)?;
-
-        self.blocking_put_along_redirect(resp, size, content_type, body)
+        Ok(req)
     }
 }
 
-impl Backend {
+impl WebHdfsBackend {
     /// get object from webhdfs
     /// # Note
     /// looks like webhdfs doesn't support range request from file end.
@@ -519,34 +595,14 @@ impl Backend {
     }
 }
 
-impl Backend {
+impl WebHdfsBackend {
     fn blocking_status_object(&self, path: &str) -> Result<BlockResp> {
         let req = self.status_object_req(path, Body::Empty)?;
         self.client.send(req)
     }
-
-    fn blocking_follow_redirect(&self, resp: BlockResp) -> Result<String> {
-        let mut s = String::new();
-        resp.into_body().read_to_string(&mut s).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "redirection fail")
-                .with_context("service", Scheme::WebHdfs)
-                .set_permanent()
-                .set_source(e)
-        })?;
-        let loc = serde_json::from_str::<Redirection>(&s)
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "redirection fail")
-                    .with_context("service", Scheme::WebHdfs)
-                    .set_permanent()
-                    .set_source(e)
-            })?
-            .location;
-
-        Ok(loc)
-    }
 }
 
-impl Backend {
+impl WebHdfsBackend {
     async fn get_along_redirect(&self, redirection: AsyncResp) -> Result<AsyncReq> {
         let redirect = self.follow_redirect(redirection).await?;
 
@@ -597,48 +653,12 @@ impl Backend {
     }
 }
 
-impl Backend {
-    fn blocking_put_along_redirect(
-        &self,
-        resp: BlockResp,
-        size: Option<u64>,
-        content_type: Option<&str>,
-        body: Body,
-    ) -> Result<BlockReq> {
-        let redirect = self.blocking_follow_redirect(resp)?;
-
-        let mut req = Request::put(redirect);
-        if let Some(size) = size {
-            req = req.header(CONTENT_LENGTH, size.to_string());
-        }
-        if let Some(content_type) = content_type {
-            req = req.header(CONTENT_TYPE, content_type);
-        }
-        req.header(self.csrf.as_str(), "")
-            .body(body)
-            .map_err(new_request_build_error)
-    }
-}
-
-#[async_trait]
-impl Accessor for Backend {
-    fn metadata(&self) -> AccessorMetadata {
-        let mut am = AccessorMetadata::default();
-        am.set_scheme(Scheme::WebHdfs)
-            .set_root(&self.root)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
-        am
-    }
-
-    fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let resp = self.blocking_status_object(path)?;
+impl WebHdfsBackend {
+    fn stat_root(&self) -> Result<ObjectMode> {
+        let resp = self.blocking_status_object("/")?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_object_metadata(path, resp.headers())?;
-
                 let (_, s) = blocking_resp_to_str(resp)?;
 
                 let file_status = serde_json::from_str::<FileStatusWrapper>(&s)
@@ -650,28 +670,15 @@ impl Accessor for Backend {
                     .file_status;
                 let status_meta: ObjectMetadata = file_status.try_into()?;
 
-                // is ok to unwrap here
-                // all metadata field of status meta is present and checked by `TryFrom`
-                meta.set_last_modified(status_meta.last_modified().unwrap())
-                    .set_content_length(status_meta.content_length());
-                Ok(RpStat::new(meta))
+                Ok(status_meta.mode())
             }
             _ => Err(blocking_parse_error(resp)?),
         }
     }
 
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        // if the path ends with '/', it will be treated as a directory
-        // otherwise, it will be treated as a file
-        let path = if args.mode().is_file() && path.ends_with('/') {
-            path.trim_end_matches('/').to_owned()
-        } else if args.mode().is_dir() && !path.ends_with('/') {
-            path.to_owned() + "/"
-        } else {
-            path.to_owned()
-        };
-
-        let req = self.blocking_create_or_write_object_request(&path, None, None, Body::Empty)?;
+    fn create_root(&self) -> Result<RpCreate> {
+        let path = "/";
+        let req = self.blocking_create_root_req()?;
         let resp = self.client.send(req)?;
 
         let status = resp.status();
@@ -682,16 +689,50 @@ impl Accessor for Backend {
         // the redirection should be done automatically.
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                if !path.ends_with('/') {
-                    // create a file, body contains no useful message
-                    resp.into_body().consume()?;
-                    return Ok(RpCreate::default());
-                }
                 let (parts, body) = blocking_resp_to_str(resp)?;
-                self.consume_success_mkdir(&path, parts, &body)
+                self.consume_success_mkdir(path, parts, &body)
             }
             _ => Err(blocking_parse_error(resp)?),
         }
+    }
+
+    fn check_root(&self) -> Result<()> {
+        match self.stat_root() {
+            Ok(mode) => {
+                if !mode.is_dir() {
+                    warn!("working directory is occupied!");
+                    return Err(
+                        Error::new(ErrorKind::BackendConfigInvalid, "root is occupied!")
+                            .with_context("service", Scheme::WebHdfs),
+                    );
+                }
+            }
+            Err(e) => match e.kind() {
+                ErrorKind::ObjectNotFound => {
+                    debug!("working directory does not exists, creating...");
+                    self.create_root()?;
+                }
+                _ => return Err(e),
+            },
+        }
+        debug!("working directory is ready!");
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl Accessor for WebHdfsBackend {
+    type Reader = IncomingAsyncBody;
+    type BlockingReader = ();
+
+    fn metadata(&self) -> AccessorMetadata {
+        let mut am = AccessorMetadata::default();
+        am.set_scheme(Scheme::WebHdfs)
+            .set_root(&self.root)
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            );
+        am
     }
 
     /// Create a file or directory
@@ -734,24 +775,13 @@ impl Accessor for Backend {
         }
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, output::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let range = args.range();
-        let range = match (range.offset(), range.size()) {
-            // avoiding reading the whole file
-            (None, Some(size)) => {
-                let status = self.stat(path, OpStat::default()).await?;
-                let total_size = status.into_metadata().content_length();
-                let offset = total_size - size;
-                BytesRange::new(Some(offset), Some(size))
-            }
-            _ => range,
-        };
-
         let resp = self.get_object(path, range).await?;
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
-                Ok((RpRead::with_metadata(meta), resp.into_body().reader()))
+                Ok((RpRead::with_metadata(meta), resp.into_body()))
             }
             StatusCode::NOT_FOUND => Err(Error::new(ErrorKind::ObjectNotFound, "object not found")
                 .with_context("service", Scheme::WebHdfs)),

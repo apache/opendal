@@ -102,9 +102,8 @@ mod redis;
 #[cfg(feature = "services-redis")]
 pub use self::redis::Redis;
 
-mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
-pub mod webhdfs;
+mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::Rocksdb;
 
@@ -113,3 +112,6 @@ pub use s3::S3;
 
 mod webdav;
 pub use webdav::Webdav;
+
+mod webhdfs;
+pub use webhdfs::WebHdfs;

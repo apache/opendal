@@ -57,30 +57,6 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 /// - `OPENDAL_WEBHDFS_DELEGATION`
 ///
 /// # Examples
-/// ## Via Environment
-///
-/// Set the environment variables and then use [`Webhdfs::try_from_env`]:
-///
-/// ```shell
-/// export OPENDAL_WEBHDFS_ROOT=/path/to/dir
-/// export OPENDAL_WEBHDFS_DELEGATION=<delegation_token>
-/// export OPENDAL_WEBHDFS_USERNAME=<username>
-/// export OPENDAL_WEBHDFS_ENDPOINT=localhost:50070
-/// ```
-/// ```no_run
-/// use std::sync::Arc;
-/// use anyhow::Result;
-/// use opendal::Object;
-/// use opendal::Operator;
-/// use opendal::Scheme;
-///
-/// #[tokio::main]
-/// async fn main() -> Result<()> {
-///     let op: Operator = Operator::from_env(Scheme::Webhdfs)?;
-///     let _: Object = op.object("test_file");
-///     Ok(())
-/// }
-/// ```
 /// ## Via Builder
 /// ```no_run
 /// use std::sync::Arc;
@@ -93,7 +69,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     let mut builder = Webhdfs::default();
-///     // set the root for s3, all operations will happend under this root
+///     // set the root for WebHDFS, all operations will happend under this root
 ///     //
 ///     // Note:
 ///     // if the root is not exists, the builder will automatically create the
@@ -113,7 +89,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///     // if no delegation token, username and proxy user are set
 ///     // the backend will query without authentications
 ///
-///     let op: Operator = Operator::new(builder.build()?);
+///     let op: Operator = Operator::create(builder)?.finish();
 ///
 ///     // create an object handler to start operation on object.
 ///     let _: Object = op.object("test_file");

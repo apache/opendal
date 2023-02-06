@@ -85,7 +85,17 @@ impl Builder for FsBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = self.root.take().unwrap_or_default();
+        let root = match self.root.take() {
+            Some(root) => root,
+            None => std::env::current_dir().map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "could not determine current directory",
+                )
+                .with_operation("Builder::build")
+                .set_source(e)
+            })?,
+        };
         let atomic_write_dir = self.atomic_write_dir.take();
 
         // If root dir is not exist, we must create it.

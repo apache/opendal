@@ -23,6 +23,11 @@ pub use immutable_index::ImmutableIndexLayer;
 mod logging;
 pub use logging::LoggingLayer;
 
+#[cfg(feature = "layers-chaos")]
+mod chaos;
+#[cfg(feature = "layers-chaos")]
+pub use chaos::ChaosLayer;
+
 #[cfg(feature = "layers-metrics")]
 mod metrics;
 #[cfg(feature = "layers-metrics")]

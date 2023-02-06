@@ -15,9 +15,6 @@
 //! into_blocking_reader will provide different implementations to convert
 //! into [`output::BlockingRead`][crate::raw::output::BlockingRead]
 
-mod as_iterable;
-pub use as_iterable::as_iterable;
-
 mod from_fd;
 pub use from_fd::from_fd;
 pub use from_fd::FdReader;

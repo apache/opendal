@@ -34,7 +34,79 @@ use crate::object::ObjectMetadata;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for azblob services
+/// Azure Data Lake Storage Gen2 Support.
+///
+/// As known as `abfs`, `azdfs` or `azdls`.
+///
+/// This service will visist the [ABFS](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver) URI supported by [Azure Data Lake Storage Gen2](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] multipart
+/// - [ ] blocking
+///
+/// # Configuration
+///
+/// - `root`: Set the work dir for backend.
+/// - `filesystem`: Set the filesystem name for backend.
+/// - `endpoint`: Set the endpoint for backend.
+/// - `account_name`: Set the account_name for backend.
+/// - `account_key`: Set the account_key for backend.
+///
+/// Refer to public API docs for more information.
+///
+/// # Example
+///
+/// ## Init OpenDAL Operator
+///
+/// ### Via Builder
+///
+/// ```no_run
+/// use std::sync::Arc;
+///
+/// use anyhow::Result;
+/// use opendal::services::Azdfs;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Create azblob backend builder.
+///     let mut builder = Azdfs::default();
+///     // Set the root for azblob, all operations will happen under this root.
+///     //
+///     // NOTE: the root must be absolute path.
+///     builder.root("/path/to/dir");
+///     // Set the filesystem name, this is required.
+///     builder.filesystem("test");
+///     // Set the endpoint, this is required.
+///     //
+///     // For examples:
+///     // - "https://accountname.dfs.core.windows.net"
+///     builder.endpoint("https://accountname.dfs.core.windows.net");
+///     // Set the account_name and account_key.
+///     //
+///     // OpenDAL will try load credential from the env.
+///     // If credential not set and no valid credential in env, OpenDAL will
+///     // send request without signing like anonymous user.
+///     builder.account_name("account_name");
+///     builder.account_key("account_key");
+///
+///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Default, Clone)]
 pub struct AzdfsBuilder {
     root: Option<String>,

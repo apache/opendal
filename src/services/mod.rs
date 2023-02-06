@@ -12,80 +12,77 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing specific services support.
+//! Services will provide builders to build underlying backends.
 //!
-//! In order to implement a service, we need the following things:
-//!
-//! - Builder: responsible for building the service backend.
-//! - Backend: the service backend which implements the [`Accessor`][crate::raw::Accessor] trait.
+//! More ongoing services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
 mod azblob;
-pub use azblob::AzblobBuilder as Azblob;
+pub use azblob::Azblob;
 
 mod azdfs;
-pub use azdfs::AzdfsBuilder as Azdfs;
+pub use azdfs::Azdfs;
 
 mod fs;
-pub use fs::FsBuilder as Fs;
+pub use fs::Fs;
 
 #[cfg(feature = "services-ftp")]
 mod ftp;
 #[cfg(feature = "services-ftp")]
-pub use ftp::FtpBuilder as Ftp;
+pub use ftp::Ftp;
 
 mod gcs;
-pub use gcs::GcsBuilder as Gcs;
+pub use gcs::Gcs;
 
 mod ghac;
-pub use ghac::GhacBuilder as Ghac;
+pub use ghac::Ghac;
 
 #[cfg(feature = "services-hdfs")]
 mod hdfs;
 #[cfg(feature = "services-hdfs")]
-pub use hdfs::HdfsBuilder as Hdfs;
+pub use hdfs::Hdfs;
 
 mod http;
-pub use self::http::HttpBuilder as Http;
+pub use self::http::Http;
 
 #[cfg(feature = "services-ipfs")]
 mod ipfs;
 #[cfg(feature = "services-ipfs")]
-pub use self::ipfs::IpfsBuilder as Ipfs;
+pub use self::ipfs::Ipfs;
 
 mod ipmfs;
-pub use ipmfs::IpmfsBuilder as Ipmfs;
+pub use ipmfs::Ipmfs;
 
 #[cfg(feature = "services-memcached")]
 mod memcached;
 #[cfg(feature = "services-memcached")]
-pub use memcached::MemcachedBuilder as Memcached;
+pub use memcached::Memcached;
 
 mod memory;
-pub use memory::MemoryBuilder as Memory;
+pub use memory::Memory;
 
 #[cfg(feature = "services-moka")]
 mod moka;
 #[cfg(feature = "services-moka")]
-pub use self::moka::MokaBuilder as Moka;
+pub use self::moka::Moka;
 
 mod obs;
-pub use obs::ObsBuilder as Obs;
+pub use obs::Obs;
 
 mod oss;
-pub use oss::OssBuilder as Oss;
+pub use oss::Oss;
 
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
-pub use self::redis::RedisBuilder as Redis;
+pub use self::redis::Redis;
 
 #[cfg(feature = "services-rocksdb")]
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
-pub use self::rocksdb::RocksdbBuilder as Rocksdb;
+pub use self::rocksdb::Rocksdb;
 
 mod s3;
-pub use s3::S3Builder as S3;
+pub use s3::S3;
 
 mod webdav;
-pub use webdav::WebdavBuilder as Webdav;
+pub use webdav::Webdav;

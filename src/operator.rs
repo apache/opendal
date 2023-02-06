@@ -18,13 +18,14 @@ use std::sync::Arc;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
-use crate::layers::ErrorContextLayer;
-use crate::layers::TypeEraseLayer;
+use crate::layers::*;
 use crate::object::ObjectLister;
 use crate::raw::*;
 use crate::*;
 
-/// User-facing APIs for object and object streams.
+/// Operator is the user-facing APIs for object and object streams.
+///
+/// Operator needs to be built with [`Builder`].
 #[derive(Clone, Debug)]
 pub struct Operator {
     accessor: FusedAccessor,
@@ -181,16 +182,16 @@ impl Operator {
     /// bit runtime overhead with an extra vtable lookup and unable to
     /// inline.
     ///
-    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
+    /// It's always recommended to use `OperatorBuilder::layer()` instead.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
+    /// use opendal::layers::LoggingLayer;
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// use opendal::layers::LoggingLayer;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -277,7 +278,7 @@ impl Operator {
 ///
 /// # Examples
 ///
-/// For users who want to support many services, we can build a helper fucntion like the following:
+/// For users who want to support many services, we can build a helper function like the following:
 ///
 /// ```
 /// use std::collections::HashMap;
@@ -318,8 +319,10 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// Create a new operator builder.
     #[allow(clippy::new_ret_no_self)]
     pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
-        // Make sure error context layer hass been attached.
-        OperatorBuilder { accessor }.layer(ErrorContextLayer)
+        // Make sure error context layer has been attached.
+        OperatorBuilder { accessor }
+            .layer(ErrorContextLayer)
+            .layer(CompleteReaderLayer)
     }
 
     /// Create a new layer with static dispatch.
@@ -331,20 +334,22 @@ impl<A: Accessor> OperatorBuilder<A> {
     /// bit runtime overhead with an extra vtable lookup and unable to
     /// inline.
     ///
-    /// It's always recommanded to use `OperatorBuilder::layer()` instead.
+    /// It's always recommended to use `OperatorBuilder::layer()` instead.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
+    /// use opendal::layers::LoggingLayer;
     /// use opendal::services::Fs;
     /// use opendal::Operator;
-    /// use opendal::layers::LoggingLayer;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
-    /// let op = Operator::create(Fs::default())?.layer(LoggingLayer::default()).finish();
+    /// let op = Operator::create(Fs::default())?
+    ///     .layer(LoggingLayer::default())
+    ///     .finish();
     /// // All operations will go through the new_layer
     /// let _ = op.object("test_file").read().await?;
     /// # Ok(())

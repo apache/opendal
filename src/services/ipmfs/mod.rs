@@ -12,45 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
-//!
-//! # Configuration
-//!
-//! - `root`: Set the work directory for backend
-//! - `endpoint`: Customizable endpoint setting
-//!
-//! You can refer to [`Builder`]'s docs for more information
-//!
-//! # Example
-//!
-//! ## Via Builder
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::services::Ipmfs;
-//! use opendal::Object;
-//! use opendal::Operator;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     // create backend builder
-//!     let mut builder = Ipmfs::default();
-//!
-//!     // set the storage bucket for OpenDAL
-//!     builder.endpoint("http://127.0.0.1:5001");
-//!
-//!     let op: Operator = Operator::create(builder)?.finish();
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
-
 mod backend;
 mod builder;
-pub use builder::IpmfsBuilder;
+pub use builder::IpmfsBuilder as Ipmfs;
 
 mod dir_stream;
 mod error;

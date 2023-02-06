@@ -28,7 +28,57 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for webdav backend.
+/// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] list
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
+///
+/// # Notes
+///
+/// Bazel Remote Caching and Ccache HTTP Storage is also part of this service.
+/// Users can use `webdav` to connect those services.
+///
+/// # Status
+///
+/// - `list` is not supported so far.
+///
+/// # Configuration
+///
+/// - `endpoint`: set the endpoint for webdav
+/// - `root`: Set the work directory for backend
+///
+/// You can refer to [`WebdavBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Webdav;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Webdav::default();
+///
+///     builder.endpoint("127.0.0.1");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _obj: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Default)]
 pub struct WebdavBuilder {
     endpoint: Option<String>,

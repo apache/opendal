@@ -385,14 +385,6 @@ impl Object {
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
                 .with_context("range", br.to_string())
-                .map(|e| {
-                    use std::io::ErrorKind;
-
-                    match err.kind() {
-                        ErrorKind::Interrupted | ErrorKind::UnexpectedEof => e.set_temporary(),
-                        _ => e,
-                    }
-                })
                 .set_source(err)
         })?;
 
@@ -1385,14 +1377,19 @@ impl Object {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.object("test").presign_read(Duration::hours(1))?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
-    ///
+    ///     let signed_req = op.object("test.txt").presign_read(Duration::hours(1))?;
     /// #    Ok(())
     /// # }
+    /// ```
+    ///
+    /// - `signed_req.method()`: `GET`
+    /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
+    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    ///
+    /// We can download this object via `curl` or other tools without credentials:
+    ///
+    /// ```shell
+    /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -O /tmp/test.txt
     /// ```
     pub fn presign_read(&self, expire: Duration) -> Result<PresignedRequest> {
         let op = OpPresign::new(OpRead::new(), expire);
@@ -1413,14 +1410,19 @@ impl Object {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.object("test").presign_write(Duration::hours(1))?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
-    ///
+    ///     let signed_req = op.object("test.txt").presign_write(Duration::hours(1))?;
     /// #    Ok(())
     /// # }
+    /// ```
+    ///
+    /// - `signed_req.method()`: `PUT`
+    /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
+    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    ///
+    /// We can upload file as this object via `curl` or other tools without credential:
+    ///
+    /// ```shell
+    /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
         self.presign_write_with(OpWrite::new(0), expire)

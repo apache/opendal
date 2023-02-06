@@ -12,46 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
-//!
-//! # Configuration
-//!
-//! - `root`: Set the work directory for backend
-//! - `endpoint`: Customizable endpoint setting
-//!
-//! You can refer to [`Builder`]'s docs for more information
-//!
-//! # Example
-//!
-//! ## Via Builder
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::services::ipfs;
-//! use opendal::Object;
-//! use opendal::Operator;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     // create backend builder
-//!     let mut builder = ipfs::Builder::default();
-//!
-//!     // set the endpoint for OpenDAL
-//!     builder.endpoint("https://ipfs.io");
-//!     // set the root for OpenDAL
-//!     builder.root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ");
-//!
-//!     let op: Operator = Operator::create(builder)?.finish();
-//!
-//!     // Create an object handle to start operation on object.
-//!     let _: Object = op.object("test_file");
-//!
-//!     Ok(())
-//! }
-//! ```
-
 mod backend;
-pub use backend::IpfsBuilder;
+pub use backend::IpfsBuilder as Ipfs;
 
 mod error;
 mod ipld;

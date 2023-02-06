@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing Layer implementations.
+//! `Layer` is the mechanism to intercept operations.
 
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
@@ -23,6 +23,11 @@ pub use immutable_index::ImmutableIndexLayer;
 mod logging;
 pub use logging::LoggingLayer;
 
+#[cfg(feature = "layers-chaos")]
+mod chaos;
+#[cfg(feature = "layers-chaos")]
+pub use chaos::ChaosLayer;
+
 #[cfg(feature = "layers-metrics")]
 mod metrics;
 #[cfg(feature = "layers-metrics")]
@@ -30,9 +35,6 @@ pub use self::metrics::MetricsLayer;
 
 mod retry;
 pub use self::retry::RetryLayer;
-
-mod subdir;
-pub use subdir::SubdirLayer;
 
 #[cfg(feature = "layers-tracing")]
 mod tracing;
@@ -44,3 +46,6 @@ pub(crate) use type_eraser::TypeEraseLayer;
 
 mod error_context;
 pub(crate) use error_context::ErrorContextLayer;
+
+mod complete_reader;
+pub(crate) use complete_reader::CompleteReaderLayer;

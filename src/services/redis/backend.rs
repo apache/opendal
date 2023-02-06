@@ -36,7 +36,49 @@ use crate::*;
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
-/// Redis backend builder
+/// [Redis](https://redis.io/) services support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] ~~list~~
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
+///
+/// # Configuration
+///
+/// - `root`: Set the working directory of `OpenDAL`
+/// - `endpoint`: Set the network address of redis server
+/// - `username`: Set the username of Redis
+/// - `password`: Set the password for authentication
+/// - `db`: Set the DB of redis
+///
+/// You can refer to [`RedisBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Redis;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     let mut builder = Redis::default();
+///
+///     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Default)]
 pub struct RedisBuilder {
     /// network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.

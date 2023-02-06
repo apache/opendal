@@ -12,38 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Redis support for OpenDAL
-//!
-//! # Configuration
-//!
-//! - `root`: Set the working directory of `OpenDAL`
-//! - `endpoint`: Set the network address of redis server
-//! - `username`: Set the username of Redis
-//! - `password`: Set the password for authentication
-//! - `db`: Set the DB of redis
-//!
-//! You can refer to [`Builder`]'s docs for more information
-//!
-//! # Example
-//!
-//! ## Via Builder
-//!
-//! ```no_run
-//! use anyhow::Result;
-//! use opendal::services::redis;
-//! use opendal::Object;
-//! use opendal::Operator;
-//!
-//! #[tokio::main]
-//! async fn main() -> Result<()> {
-//!     let mut builder = redis::Builder::default();
-//!
-//!     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
-//!     let op: Operator = Operator::create(builder)?.finish();
-//!     let _: Object = op.object("test_file");
-//!     Ok(())
-//! }
-//! ```
-
 mod backend;
-pub use backend::RedisBuilder;
+pub use backend::RedisBuilder as Redis;

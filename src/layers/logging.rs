@@ -32,7 +32,7 @@ use log::Level;
 use crate::raw::*;
 use crate::*;
 
-/// LoggingLayer will add logging for OpenDAL.
+/// Add [log](https://docs.rs/log/) for every operations.
 ///
 /// # Logging
 ///
@@ -62,6 +62,22 @@ use crate::*;
 ///     .expect("must init")
 ///     .layer(LoggingLayer::default())
 ///     .finish();
+/// ```
+///
+/// # Output
+///
+/// OpenDAL is using [`log`](https://docs.rs/log/latest/log/) for logging internally.
+///
+/// To enable logging output, please set `RUST_LOG`:
+///
+/// ```shell
+/// RUST_LOG=debug ./app
+/// ```
+///
+/// To config logging output, please refer to [Configure Logging](https://rust-lang-nursery.github.io/rust-cookbook/development_tools/debugging/config_log.html):
+///
+/// ```shell
+/// RUST_LOG="info,opendal::services=debug" ./app
 /// ```
 #[derive(Debug, Copy, Clone)]
 pub struct LoggingLayer {

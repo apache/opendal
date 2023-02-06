@@ -14,102 +14,29 @@
 
 //! OpenDAL is the Open Data Access Layer to **freely**, **painlessly**, and **efficiently** access data.
 //!
-//! # Services
+//! - Documentation: All docs are carried byself, visit [`docs`] for more.
+//! - Services: All supported services could be found at [`services`].
+//! - Layers: All builtin layer could be found at [`layers`].
+//! - Features: All features could be found at [`features`][docs::features].
 //!
-//! `Service` represents a backend scheme that OpenDAL supported.
-//!
-//! OpenDAL supports the following services now:
-//!
-//! | Services | Description |
-//! | -------- | ----------- |
-//! | [azblob][services::azblob] | Azure Storage Blob services. |
-//! | [azdfs][services::azdfs] | Azure Data Lake Storage Gen2 services. |
-//! | [fs][services::fs] | POSIX alike file system. |
-//! | [ftp][services::ftp] | FTP and FTPS support. |
-//! | [gcs][services::gcs] | Google Cloud Storage service. |
-//! | [ghac][services::ghac] | Github Action Cache service. |
-//! | [hdfs][services::hdfs] | Hadoop Distributed File System(HDFS). |
-//! | [http][services::http] | HTTP read-only backend. |
-//! | [ipfs][services::ipfs] | IPFS HTTP Gateway support. |
-//! | [ipmfs][services::ipmfs] | IPFS Mutable File System support. |
-//! | [memcached][services::memcached] | Memcached serivce. |
-//! | [memory][services::memory] | In memory backend support. |
-//! | [moka][services::moka] | [moka](https://github.com/moka-rs/moka) backend support. |
-//! | [obs][services::obs] | Huawei Cloud OBS service. |
-//! | [oss][services::oss] | Aliyun Object Storage Service (OSS).|
-//! | [redis][services::redis] | Redis service. |
-//! | [rocksdb][services::rocksdb] | RocksDB service. |
-//! | [s3][services::s3] | AWS S3 alike services. |
-//! | [webdav][services::webdav] | WebDAV services. |
-//!
-//! More services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5)
-//!
-//! # Layers
-//!
-//! `Layer` is the mechanism to intercept operations.
-//!
-//! OpenDAL supports the following layers now:
-//!
-//! | Layers | Description |
-//! | -------- | ----------- |
-//! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
-//! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
-//! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
-//! | [MetricsLayer][layers::MetricsLayer] | Metrics for every operations. |
-//! | [RetryLayer][layers::RetryLayer] | Retry for failed operations. |
-//! | [SubdirLayer][layers::SubdirLayer] | Allow switching directory. |
-//! | [TracingLayer][layers::TracingLayer] | Tracing for every operations. |
-//!
-//! # Optional features
-//!
-//! ## Layers
-//!
-//! - `layers-all`: Enable all layers support.
-//! - `layers-metrics`: Enable operator metrics support.
-//! - `layers-tracing`: Enable operator tracing support.
-//!
-//! ## Services
-//!
-//! - `services-ftp`: Enable ftp service support.
-//! - `services-hdfs`: Enable hdfs service support.
-//! - `services-moka`: Enable moka service support.
-//! - `services-ipfs`: Enable ipfs service support.
-//! - `services-redis`: Enable redis service support.
-//! - `services-rocksdb`: Enable rocksdb service support.
-//!
-//! ## Dependencies features
-//!
-//! - `compress`: Enable object decompress read support.
-//! - `rustls`: Enable TLS functionality provided by `rustls`, enabled by default
-//! - `native-tls`: Enable TLS functionality provided by `native-tls`
-//! - `native-tls-vendored`: Enable the `vendored` feature of `native-tls`
-//!
-//! # Examples
-//!
-//! More examples could be found at <https://opendal.databend.rs/examples/index.html>
+//! # Quick Start
 //!
 //! ```no_run
-//! use anyhow::Result;
-//! use backon::ExponentialBackoff;
-//! use futures::StreamExt;
-//! use futures::TryStreamExt;
 //! use opendal::layers::LoggingLayer;
-//! use opendal::layers::RetryLayer;
 //! use opendal::services;
-//! use opendal::Object;
-//! use opendal::ObjectMetadata;
-//! use opendal::ObjectMode;
 //! use opendal::Operator;
-//! use opendal::Scheme;
+//! use opendal::Result;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     // Init a fs operator
-//!     let op = Operator::from_env::<services::Fs>()?
+//!     // Pick a builder and configure it.
+//!     let mut builder = services::S3::default();
+//!     builder.bucket("test");
+//!
+//!     // Init an operator
+//!     let op = Operator::create(builder)?
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer::default())
-//!         // Init with retry layer enabled.
-//!         .layer(RetryLayer::new(ExponentialBackoff::default()))
 //!         .finish();
 //!
 //!     // Create object handler.
@@ -122,22 +49,12 @@
 //!     let bs = o.read().await?;
 //!
 //!     // Fetch metadata
-//!     let name = o.name();
-//!     let path = o.path();
 //!     let meta = o.metadata().await?;
 //!     let mode = meta.mode();
 //!     let length = meta.content_length();
 //!
 //!     // Delete
 //!     o.delete().await?;
-//!
-//!     // Readdir
-//!     let o = op.object("test_dir/");
-//!     let mut ds = o.list().await?;
-//!     while let Some(entry) = ds.try_next().await? {
-//!         let path = entry.path();
-//!         let mode = entry.mode().await?;
-//!     }
 //!
 //!     Ok(())
 //! }
@@ -147,7 +64,6 @@
 #![warn(missing_docs)]
 // Deny unused qualifications.
 #![deny(unused_qualifications)]
-// Add options below to allow/deny Clippy lints.
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod builder;
@@ -190,7 +106,9 @@ pub use ops::OpWrite;
 pub use ops::OpWriteMultipart;
 pub use ops::PresignOperation;
 
-// Public modules, they will be accessed via `opendal::layers::Xxxx`
+// Public modules, they will be accessed like `opendal::layers::Xxxx`
+#[cfg(feature = "docs")]
+pub mod docs;
 pub mod layers;
 pub mod raw;
 pub mod services;

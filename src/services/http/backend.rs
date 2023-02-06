@@ -26,7 +26,53 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for http backend.
+/// HTTP Read-only service support like Nginx and Caddy.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [ ] ~~write~~
+/// - [ ] ~~list~~
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
+///
+/// # Notes
+///
+/// Only `read` ans `stat` are supported. We can use this service to visit any
+/// HTTP Server like nginx, caddy.
+///
+/// # Configuration
+///
+/// - `endpoint`: set the endpoint for http
+/// - `root`: Set the work directory for backend
+///
+/// You can refer to [`HttpBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Http;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Http::default();
+///
+///     builder.endpoint("127.0.0.1");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///     let _obj: Object = op.object("test_file");
+///     Ok(())
+/// }
+/// ```
 #[derive(Default)]
 pub struct HttpBuilder {
     endpoint: Option<String>,

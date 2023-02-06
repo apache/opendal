@@ -23,7 +23,18 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for memory backend
+/// In memory service support. (HashMap Based)
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] ~~list~~
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [x] blocking
 #[derive(Default)]
 pub struct MemoryBuilder {}
 

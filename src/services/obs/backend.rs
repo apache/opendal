@@ -32,7 +32,62 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// Builder for Huaweicloud OBS services
+/// Huawei Cloud OBS services support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] multipart
+/// - [ ] blocking
+///
+/// # Configuration
+///
+/// - `root`: Set the work directory for backend
+/// - `bucket`: Set the container name for backend
+/// - `endpoint`: Customizable endpoint setting
+/// - `access_key_id`: Set the access_key_id for backend.
+/// - `secret_access_key`: Set the secret_access_key for backend.
+///
+/// You can refer to [`ObsBuilder`]'s docs for more information
+///
+/// # Example
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use anyhow::Result;
+/// use opendal::services::Obs;
+/// use opendal::Object;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // create backend builder
+///     let mut builder = Obs::default();
+///
+///     // set the storage bucket for OpenDAL
+///     builder.bucket("test");
+///     // Set the access_key_id and secret_access_key.
+///     //
+///     // OpenDAL will try load credential from the env.
+///     // If credential not set and no valid credential in env, OpenDAL will
+///     // send request without signing like anonymous user.
+///     builder.access_key_id("access_key_id");
+///     builder.secret_access_key("secret_access_key");
+///
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _: Object = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Default, Clone)]
 pub struct ObsBuilder {
     root: Option<String>,

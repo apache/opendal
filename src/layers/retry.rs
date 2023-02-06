@@ -110,7 +110,7 @@ where
 {
     type Inner = A;
     type Reader = RetryReader<A::Reader, B>;
-    type BlockingReader = A::BlockingReader;
+    type BlockingReader = RetryReader<A::BlockingReader, B>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -300,7 +300,7 @@ where
             let res = self.inner.blocking_read(path, args.clone());
 
             match res {
-                Ok(v) => return Ok(v),
+                Ok((rp, r)) => return Ok((rp, RetryReader::new(r, path, self.backoff.clone()))),
                 Err(err) => {
                     let retryable = err.is_temporary();
                     e = Some(err);
@@ -488,7 +488,10 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
                 };
 
                 match backoff.next() {
-                    None => Poll::Ready(Err(err)),
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         warn!(
                             target: "opendal::service",
@@ -527,7 +530,10 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
                 };
 
                 match backoff.next() {
-                    None => Poll::Ready(Err(err)),
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Err(err))
+                    }
                     Some(dur) => {
                         warn!(
                             target: "opendal::service",
@@ -570,7 +576,10 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
                 };
 
                 match backoff.next() {
-                    None => Poll::Ready(Some(Err(err))),
+                    None => {
+                        self.current_backoff = None;
+                        Poll::Ready(Some(Err(err)))
+                    }
                     Some(dur) => {
                         warn!(
                             target: "opendal::service",
@@ -582,6 +591,103 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
                 }
             }
         }
+    }
+}
+
+impl<R: output::BlockingRead, B: Backoff + Debug + Send + Sync + Unpin + 'static>
+    output::BlockingRead for RetryReader<R, B>
+{
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.read(buf);
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let retryable = Self::is_retryable_error(&err);
+                    e = Some(err);
+
+                    if retryable {
+                        sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingRead, self.path, dur.as_secs_f64(), e);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
+    }
+
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.seek(pos);
+
+            match res {
+                Ok(v) => return Ok(v),
+                Err(err) => {
+                    let retryable = Self::is_retryable_error(&err);
+                    e = Some(err);
+
+                    if retryable {
+                        sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingRead, self.path, dur.as_secs_f64(), e);
+                        continue;
+                    } else {
+                        return Err(e.unwrap());
+                    }
+                }
+            }
+        }
+
+        Err(e.unwrap())
+    }
+
+    fn next(&mut self) -> Option<io::Result<bytes::Bytes>> {
+        let retry = self.backoff.clone();
+
+        let mut e = None;
+
+        for dur in retry {
+            let res = self.inner.next();
+
+            match res {
+                None => return None,
+                Some(Ok(v)) => return Some(Ok(v)),
+                Some(Err(err)) => {
+                    let retryable = Self::is_retryable_error(&err);
+                    e = Some(err);
+
+                    if retryable {
+                        sleep(dur);
+                        warn!(
+                            target: "opendal::service",
+                            "operation={} path={} -> retry after {}s: error={:?}",
+                            Operation::BlockingRead, self.path, dur.as_secs_f64(), e);
+                        continue;
+                    } else {
+                        return Some(Err(e.unwrap()));
+                    };
+                }
+            }
+        }
+
+        Some(Err(e.unwrap()))
     }
 }
 

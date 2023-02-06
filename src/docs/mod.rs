@@ -20,12 +20,18 @@ pub mod comparisons;
 
 pub mod concepts;
 
+/// Changes log for all OpenDAL released versions.
 #[doc = include_str!("../../CHANGELOG.md")]
 pub mod changelog {}
+
+/// All features that provided by OpenDAL.
+#[doc = include_str!("features.md")]
+pub mod features {}
 
 #[cfg(not(doctest))]
 pub mod rfcs;
 
-#[cfg(not(doctest))]
+/// Upgrade and migrate procedures while OpenDAL meets breaking changes.
 #[doc = include_str!("upgrade.md")]
+#[cfg(not(doctest))]
 pub mod upgrade {}

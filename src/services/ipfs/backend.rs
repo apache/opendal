@@ -31,6 +31,17 @@ use crate::*;
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [ ] ~~write~~
+/// - [x] list
+/// - [ ] presign
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the work directory for backend

@@ -22,6 +22,17 @@ use crate::*;
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the work directory for backend

@@ -26,6 +26,17 @@ use crate::raw::*;
 use crate::*;
 
 /// [moka](https://github.com/moka-rs/moka) backend support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] ~~list~~
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [x] blocking
 #[derive(Default, Debug)]
 pub struct MokaBuilder {
     /// Name for this cache instance.

@@ -34,6 +34,17 @@ use crate::*;
 
 /// Huawei Cloud OBS services support.
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] multipart
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the work directory for backend

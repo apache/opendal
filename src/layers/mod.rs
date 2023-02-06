@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing Layer implementations.
+//! `Layer` is the mechanism to intercept operations.
 
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
@@ -22,6 +22,11 @@ pub use immutable_index::ImmutableIndexLayer;
 
 mod logging;
 pub use logging::LoggingLayer;
+
+#[cfg(feature = "layers-chaos")]
+mod chaos;
+#[cfg(feature = "layers-chaos")]
+pub use chaos::ChaosLayer;
 
 #[cfg(feature = "layers-metrics")]
 mod metrics;

@@ -26,7 +26,18 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// HTTP Read-only backend support.
+/// HTTP Read-only service support like Nginx and Caddy.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [ ] ~~write~~
+/// - [ ] ~~list~~
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
 ///
 /// # Notes
 ///

@@ -16,7 +16,7 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::io;
 use std::io::SeekFrom;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use async_compat::Compat;
 use async_trait::async_trait;
@@ -35,29 +35,31 @@ use crate::*;
 /// Builder for fs backend.
 #[derive(Default, Debug)]
 pub struct FsBuilder {
-    root: Option<String>,
-    atomic_write_dir: Option<String>,
+    root: Option<PathBuf>,
+    atomic_write_dir: Option<PathBuf>,
     enable_path_check: bool,
 }
 
 impl FsBuilder {
     /// Set root for backend.
-    pub fn root(&mut self, root: &str) -> &mut Self {
-        self.root = if root.is_empty() {
+    pub fn root(&mut self, root: impl Into<PathBuf>) -> &mut Self {
+        let root = root.into();
+        self.root = if root.to_string_lossy().is_empty() {
             None
         } else {
-            Some(root.to_string())
+            Some(root)
         };
 
         self
     }
 
     /// Set temp dir for atomic write.
-    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
-        self.atomic_write_dir = if dir.is_empty() {
+    pub fn atomic_write_dir(&mut self, dir: impl Into<PathBuf>) -> &mut Self {
+        let dir = dir.into();
+        self.atomic_write_dir = if dir.to_string_lossy().is_empty() {
             None
         } else {
-            Some(dir.to_string())
+            Some(dir)
         };
 
         self
@@ -83,8 +85,8 @@ impl Builder for FsBuilder {
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.root.take().unwrap_or_default());
-        let atomic_write_dir = self.atomic_write_dir.as_deref().map(normalize_root);
+        let root = self.root.take().unwrap_or_default();
+        let atomic_write_dir = self.atomic_write_dir.take();
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
@@ -92,7 +94,7 @@ impl Builder for FsBuilder {
                 std::fs::create_dir_all(&root).map_err(|e| {
                     Error::new(ErrorKind::Unexpected, "create root dir failed")
                         .with_operation("Builder::build")
-                        .with_context("root", &root)
+                        .with_context("root", root.to_string_lossy())
                         .set_source(e)
                 })?;
             }
@@ -105,12 +107,40 @@ impl Builder for FsBuilder {
                     std::fs::create_dir_all(d).map_err(|e| {
                         Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
                             .with_operation("Builder::build")
-                            .with_context("atomic_write_dir", d)
+                            .with_context("atomic_write_dir", d.to_string_lossy())
                             .set_source(e)
                     })?;
                 }
             }
         }
+
+        // Canonicalize the root directory. This should work since we already know that we can
+        // get the metadata of the path.
+        let root = root.canonicalize().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "canonicalize of root directory failed",
+            )
+            .with_operation("Builder::build")
+            .with_context("root", root.to_string_lossy())
+            .set_source(e)
+        })?;
+
+        // Canonicalize the atomic_write_dir directory. This should work since we already know that
+        // we can get the metadata of the path.
+        let atomic_write_dir = atomic_write_dir
+            .map(|p| {
+                p.canonicalize().map(Some).map_err(|e| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "canonicalize of atomic_write_dir directory failed",
+                    )
+                    .with_operation("Builder::build")
+                    .with_context("root", root.to_string_lossy())
+                    .set_source(e)
+                })
+            })
+            .unwrap_or(Ok(None))?;
 
         debug!("backend build finished: {:?}", &self);
         Ok(FsBackend {
@@ -134,8 +164,8 @@ impl Builder for FsBuilder {
 /// Backend is used to serve `Accessor` support for posix alike fs.
 #[derive(Debug, Clone)]
 pub struct FsBackend {
-    root: String,
-    atomic_write_dir: Option<String>,
+    root: PathBuf,
+    atomic_write_dir: Option<PathBuf>,
     enable_path_check: bool,
 }
 
@@ -149,8 +179,8 @@ fn tmp_file_of(path: &str) -> String {
 
 impl FsBackend {
     // Synchronously build write path and ensure the parent dirs created
-    fn blocking_ensure_write_abs_path(parent: &str, path: &str) -> Result<String> {
-        let p = build_rooted_abs_path(parent, path);
+    fn blocking_ensure_write_abs_path(parent: &Path, path: impl AsRef<Path>) -> Result<PathBuf> {
+        let p = parent.join(path);
 
         // Create dir before write path.
         //
@@ -163,9 +193,9 @@ impl FsBackend {
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
+                    "path should have parent but not, it must be malformed",
                 )
-                .with_context("input", &p)
+                .with_context("input", p.to_string_lossy())
             })?
             .to_path_buf();
 
@@ -175,8 +205,8 @@ impl FsBackend {
     }
 
     // Build write path and ensure the parent dirs created
-    async fn ensure_write_abs_path(parent: &str, path: &str) -> Result<String> {
-        let p = build_rooted_abs_path(parent, path);
+    async fn ensure_write_abs_path(parent: &Path, path: impl AsRef<Path>) -> Result<PathBuf> {
+        let p = parent.join(path);
 
         // Create dir before write path.
         //
@@ -189,9 +219,9 @@ impl FsBackend {
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
+                    "path should have parent but not, it must be malformed",
                 )
-                .with_context("input", &p)
+                .with_context("input", p.to_string_lossy())
             })?
             .to_path_buf();
 
@@ -209,7 +239,7 @@ impl Accessor for FsBackend {
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Fs)
-            .set_root(&self.root)
+            .set_root(&self.root.to_string_lossy())
             .set_capabilities(
                 AccessorCapability::Read
                     | AccessorCapability::Write
@@ -222,17 +252,17 @@ impl Accessor for FsBackend {
     }
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         if args.mode() == ObjectMode::FILE {
-            let parent = PathBuf::from(&p)
+            let parent = p
                 .parent()
                 .ok_or_else(|| {
                     Error::new(
                         ErrorKind::Unexpected,
-                        "path shoud have parent but not, it must be malformed",
+                        "path should have parent but not, it must be malformed",
                     )
-                    .with_context("input", &p)
+                    .with_context("input", p.to_string_lossy())
                 })?
                 .to_path_buf();
 
@@ -270,7 +300,7 @@ impl Accessor for FsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         use output::ReadExt;
 
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let mut f = fs::OpenOptions::new()
             .read(true)
@@ -290,7 +320,7 @@ impl Accessor for FsBackend {
             if meta.is_dir() {
                 return Err(Error::new(
                     ErrorKind::ObjectIsADirectory,
-                    "given path is a directoty",
+                    "given path is a directory",
                 ));
             }
 
@@ -373,7 +403,7 @@ impl Accessor for FsBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let meta = tokio::fs::metadata(&p).await.map_err(parse_io_error)?;
 
@@ -403,7 +433,7 @@ impl Accessor for FsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let meta = tokio::fs::metadata(&p).await;
 
@@ -423,7 +453,7 @@ impl Accessor for FsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
@@ -432,7 +462,7 @@ impl Accessor for FsBackend {
                     Ok((RpList::default(), Box::new(()) as ObjectPager))
                 } else {
                     Err(parse_io_error(e))
-                }
+                };
             }
         };
 
@@ -442,17 +472,17 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         if args.mode() == ObjectMode::FILE {
-            let parent = PathBuf::from(&p)
+            let parent = p
                 .parent()
                 .ok_or_else(|| {
                     Error::new(
                         ErrorKind::Unexpected,
                         "path shoud have parent but not, it must be malformed",
                     )
-                    .with_context("input", &p)
+                    .with_context("input", p.to_string_lossy())
                 })?
                 .to_path_buf();
 
@@ -479,7 +509,7 @@ impl Accessor for FsBackend {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         use output::BlockingRead;
 
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let mut f = std::fs::OpenOptions::new()
             .read(true)
@@ -498,7 +528,7 @@ impl Accessor for FsBackend {
             if meta.is_dir() {
                 return Err(Error::new(
                     ErrorKind::ObjectIsADirectory,
-                    "given path is a directoty",
+                    "given path is a directory",
                 ));
             }
 
@@ -545,7 +575,8 @@ impl Accessor for FsBackend {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =
                 Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
-            let target_path = Self::blocking_ensure_write_abs_path(&self.root, path)?;
+            let target_path =
+                Self::blocking_ensure_write_abs_path(&self.root, path.trim_end_matches('/'))?;
 
             let size = {
                 // Implicitly flush and close temp file
@@ -561,7 +592,7 @@ impl Accessor for FsBackend {
 
             Ok(RpWrite::new(size))
         } else {
-            let p = Self::blocking_ensure_write_abs_path(&self.root, path)?;
+            let p = Self::blocking_ensure_write_abs_path(&self.root, path.trim_end_matches('/'))?;
 
             let mut f = std::fs::OpenOptions::new()
                 .create(true)
@@ -576,7 +607,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let meta = std::fs::metadata(p).map_err(parse_io_error)?;
 
@@ -606,7 +637,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let meta = std::fs::metadata(&p);
 
@@ -626,7 +657,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
@@ -635,7 +666,7 @@ impl Accessor for FsBackend {
                     Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
                 } else {
                     Err(parse_io_error(e))
-                }
+                };
             }
         };
 

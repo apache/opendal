@@ -49,8 +49,10 @@ fn parse_error_msg(parts: Parts, body: &str) -> Result<Error> {
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             (ErrorKind::ObjectPermissionDenied, false)
         }
-        StatusCode::BAD_REQUEST
-        | StatusCode::INTERNAL_SERVER_ERROR
+        // passing invalid arguments will return BAD_REQUEST
+        // should be unretriable
+        StatusCode::BAD_REQUEST => (ErrorKind::Unexpected, false),
+        StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
@@ -105,7 +107,7 @@ mod tests {
             .unwrap();
 
         let err = parse_error(resp).await?;
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
 
         let err_msg: WebHdfsError = from_reader::<_, WebHdfsErrorWrapper>(ill_args.reader())

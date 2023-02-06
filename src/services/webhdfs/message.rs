@@ -188,6 +188,8 @@ mod test {
         while let Some(oes) = pager.next_page().await.expect("must success") {
             entries.extend(oes);
         }
+
+        entries.sort_by(|a, b| a.path().cmp(b.path()));
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].path(), "listing/directory/a.patch");
         assert_eq!(entries[0].mode(), ObjectMode::FILE);

@@ -23,12 +23,13 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use log::warn;
+use log::error;
 use tokio::sync::OnceCell;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::message::BooleanResp;
+use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
 use super::message::Redirection;
@@ -306,7 +307,7 @@ pub struct WebhdfsBackend {
 }
 
 impl WebhdfsBackend {
-    async fn create_or_write_object_req(
+    async fn webhdfs_create_or_write_object_req(
         &self,
         path: &str,
         size: Option<u64>,
@@ -339,11 +340,15 @@ impl WebhdfsBackend {
 
         let resp = self.client.send_async(req).await?;
 
-        self.put_along_redirect(resp, size, content_type, body)
+        self.webhdfs_put_redirect(resp, size, content_type, body)
             .await
     }
 
-    async fn open_object_req(&self, path: &str, range: &BytesRange) -> Result<Request<AsyncBody>> {
+    async fn webhdfs_open_object_req(
+        &self,
+        path: &str,
+        range: &BytesRange,
+    ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN&noredirect=true",
@@ -361,6 +366,7 @@ impl WebhdfsBackend {
         let range = match (range.offset(), range.size()) {
             // avoiding reading the whole file
             (None, Some(size)) => {
+                debug!("converting bytes range to webhdfs compatible");
                 let status = self.stat(path, OpStat::default()).await?;
                 let total_size = status.into_metadata().content_length();
                 let offset = total_size - size;
@@ -394,7 +400,7 @@ impl WebhdfsBackend {
         Ok(req)
     }
 
-    fn list_object_req(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn webhdfs_list_object_req(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
@@ -418,12 +424,12 @@ impl WebhdfsBackend {
     /// # Note
     /// looks like webhdfs doesn't support range request from file end.
     /// so if we want to read the tail of object, the whole object should be transfered.
-    async fn get_object(
+    async fn webhdfs_get_object(
         &self,
         path: &str,
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let req = self.open_object_req(path, &range).await?;
+        let req = self.webhdfs_open_object_req(path, &range).await?;
         let resp = self.client.send_async(req).await?;
 
         // this should be an 200 OK http response
@@ -433,17 +439,18 @@ impl WebhdfsBackend {
             return Ok(resp);
         }
 
-        let redirected = self.get_along_redirect(resp).await?;
+        let redirected = self.webhdfs_get_redirect(resp).await?;
         self.client.send_async(redirected).await
     }
 
-    async fn status_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn webhdfs_status_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
             self.endpoint,
             percent_encode_path(&p),
         );
+        debug!("webhdfs status url: {}", url);
         if let Some(auth) = &self.auth {
             url = url + "&" + auth;
         }
@@ -456,7 +463,7 @@ impl WebhdfsBackend {
         self.client.send_async(req).await
     }
 
-    async fn delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn webhdfs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
@@ -496,7 +503,7 @@ impl WebhdfsBackend {
 }
 
 impl WebhdfsBackend {
-    async fn get_along_redirect(
+    async fn webhdfs_get_redirect(
         &self,
         redirection: Response<IncomingAsyncBody>,
     ) -> Result<Request<AsyncBody>> {
@@ -507,7 +514,7 @@ impl WebhdfsBackend {
             .map_err(new_request_build_error)
     }
 
-    async fn put_along_redirect(
+    async fn webhdfs_put_redirect(
         &self,
         resp: Response<IncomingAsyncBody>,
         size: Option<u64>,
@@ -548,24 +555,40 @@ impl WebhdfsBackend {
 
 impl WebhdfsBackend {
     async fn check_root(&self) -> Result<()> {
-        match self.stat("/", OpStat::default()).await {
-            Ok(rp) => {
-                let mode = rp.into_metadata().mode();
-                if !mode.is_dir() {
-                    warn!("working directory is occupied!");
-                    return Err(
-                        Error::new(ErrorKind::BackendConfigInvalid, "root is occupied!")
-                            .with_context("service", Scheme::Webhdfs),
-                    );
+        let resp = self.webhdfs_status_object("/").await?;
+        match resp.status() {
+            StatusCode::OK => {
+                let body_bs = resp.into_body().bytes().await?;
+
+                let file_status = serde_json::from_reader::<_, FileStatusWrapper>(body_bs.reader())
+                    .map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "cannot parse returned json")
+                            .with_context("service", Scheme::Webhdfs)
+                            .set_source(e)
+                    })?
+                    .file_status;
+
+                match file_status.ty {
+                    FileStatusType::File => {
+                        error!("working directory is occupied!");
+                        return Err(Error::new(
+                            ErrorKind::BackendConfigInvalid,
+                            "root is occupied!",
+                        )
+                        .with_context("service", Scheme::Webhdfs));
+                    }
+                    FileStatusType::Directory => {
+                        debug!("working directory exists, do nothing");
+                    }
                 }
             }
-            Err(e) => match e.kind() {
-                ErrorKind::ObjectNotFound => {
-                    debug!("working directory does not exists, creating...");
-                    self.create("/", OpCreate::new(ObjectMode::DIR)).await?;
-                }
-                _ => return Err(e),
-            },
+
+            StatusCode::NOT_FOUND => {
+                debug!("working directory does not exists, creating...");
+                self.create("/", OpCreate::new(ObjectMode::DIR)).await?;
+            }
+
+            _ => return Err(parse_error(resp).await?),
         }
         debug!("working directory is ready!");
         Ok(())
@@ -600,7 +623,7 @@ impl Accessor for WebhdfsBackend {
         };
 
         let req = self
-            .create_or_write_object_req(&path, Some(0), None, AsyncBody::Empty)
+            .webhdfs_create_or_write_object_req(&path, Some(0), None, AsyncBody::Empty)
             .await?;
 
         let resp = self.client.send_async(req).await?;
@@ -629,7 +652,7 @@ impl Accessor for WebhdfsBackend {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let range = args.range();
-        let resp = self.get_object(path, range).await?;
+        let resp = self.webhdfs_get_object(path, range).await?;
         match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 let meta = parse_into_object_metadata(path, resp.headers())?;
@@ -643,7 +666,7 @@ impl Accessor for WebhdfsBackend {
 
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let req = self
-            .create_or_write_object_req(
+            .webhdfs_create_or_write_object_req(
                 path,
                 Some(args.size()),
                 args.content_type(),
@@ -665,13 +688,17 @@ impl Accessor for WebhdfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // if root exists and is a directory, stat will be ok
         self.root_checker
-            .get_or_try_init(|| async { self.check_root().await })
+            .get_or_try_init(|| async {
+                debug!("checking root existence");
+                self.check_root().await
+            })
             .await?;
 
-        let resp = self.status_object(path).await?;
+        let resp = self.webhdfs_status_object(path).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => {
+                debug!("stat object: {} ok", path);
                 let mut meta = parse_into_object_metadata(path, resp.headers())?;
                 let body_bs = resp.into_body().bytes().await?;
 
@@ -682,6 +709,7 @@ impl Accessor for WebhdfsBackend {
                             .set_source(e)
                     })?
                     .file_status;
+                debug!("file status: {:?}", file_status);
                 let status_meta: ObjectMetadata = file_status.try_into()?;
 
                 // is ok to unwrap here
@@ -696,7 +724,7 @@ impl Accessor for WebhdfsBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.delete_object(path).await?;
+        let resp = self.webhdfs_delete_object(path).await?;
         match resp.status() {
             StatusCode::OK => {
                 resp.into_body().consume().await?;
@@ -708,7 +736,7 @@ impl Accessor for WebhdfsBackend {
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let path = path.trim_end_matches('/');
-        let req = self.list_object_req(path)?;
+        let req = self.webhdfs_list_object_req(path)?;
 
         let resp = self.client.send_async(req).await?;
         match resp.status() {

@@ -18,8 +18,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
-use crate::layers::ErrorContextLayer;
-use crate::layers::TypeEraseLayer;
+use crate::layers::*;
 use crate::object::ObjectLister;
 use crate::raw::*;
 use crate::*;
@@ -321,7 +320,9 @@ impl<A: Accessor> OperatorBuilder<A> {
     #[allow(clippy::new_ret_no_self)]
     pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
         // Make sure error context layer has been attached.
-        OperatorBuilder { accessor }.layer(ErrorContextLayer)
+        OperatorBuilder { accessor }
+            .layer(ErrorContextLayer)
+            .layer(CompleteReaderLayer)
     }
 
     /// Create a new layer with static dispatch.

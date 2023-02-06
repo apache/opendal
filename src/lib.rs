@@ -22,10 +22,10 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! use opendal::Result;
 //! use opendal::layers::LoggingLayer;
 //! use opendal::services;
 //! use opendal::Operator;
+//! use opendal::Result;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {

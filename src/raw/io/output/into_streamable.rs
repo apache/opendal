@@ -14,7 +14,6 @@
 
 use std::io::Result;
 use std::io::SeekFrom;
-use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
@@ -24,28 +23,29 @@ use tokio::io::ReadBuf;
 
 use crate::raw::*;
 
-/// as_streamable is used to make [`output::Read`] streamable.
-pub fn as_streamable<R: output::Read>(r: R, capacity: usize) -> IntoStream<R> {
-    IntoStream {
+/// as_streamable is used to make [`output::Read`] or [`output::BlockingRead`] streamable.
+pub fn into_streamable_reader<R>(r: R, capacity: usize) -> IntoStreamableReader<R> {
+    IntoStreamableReader {
         r,
         cap: capacity,
         buf: Vec::with_capacity(capacity),
     }
 }
 
-pub struct IntoStream<R: output::Read> {
+/// Make given read streamable.
+pub struct IntoStreamableReader<R> {
     r: R,
     cap: usize,
     buf: Vec<u8>,
 }
 
-impl<R: output::Read> output::Read for IntoStream<R> {
+impl<R: output::Read> output::Read for IntoStreamableReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        Pin::new(&mut self.r).poll_read(cx, buf)
+        self.r.poll_read(cx, buf)
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
-        Pin::new(&mut self.r).poll_seek(cx, pos)
+        self.r.poll_seek(cx, pos)
     }
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
@@ -53,7 +53,7 @@ impl<R: output::Read> output::Read for IntoStream<R> {
         let mut buf = ReadBuf::uninit(dst);
         unsafe { buf.assume_init(self.cap) };
 
-        match ready!(Pin::new(&mut self.r).poll_read(cx, buf.initialized_mut())) {
+        match ready!(self.r.poll_read(cx, buf.initialized_mut())) {
             Err(err) => Poll::Ready(Some(Err(err))),
             Ok(0) => Poll::Ready(None),
             Ok(n) => {
@@ -64,18 +64,43 @@ impl<R: output::Read> output::Read for IntoStream<R> {
     }
 }
 
+impl<R: output::BlockingRead> output::BlockingRead for IntoStreamableReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.r.read(buf)
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.r.seek(pos)
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        let dst = self.buf.spare_capacity_mut();
+        let mut buf = ReadBuf::uninit(dst);
+        unsafe { buf.assume_init(self.cap) };
+
+        match self.r.read(buf.initialized_mut()) {
+            Err(err) => Some(Err(err)),
+            Ok(0) => None,
+            Ok(n) => {
+                buf.set_filled(n);
+                Some(Ok(Bytes::from(buf.filled().to_vec())))
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::BufMut;
     use bytes::BytesMut;
-    use futures::io;
-    use futures::StreamExt;
     use rand::prelude::*;
 
     use super::*;
 
     #[tokio::test]
     async fn test_into_stream() {
+        use output::ReadExt;
+
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
         let size = rng.gen_range(1..16 * 1024 * 1024);
@@ -84,11 +109,34 @@ mod tests {
         // Generate cap between 1B..1MB;
         let cap = rng.gen_range(1..1024 * 1024);
 
-        let r = io::Cursor::new(content.clone());
-        let mut s = input::into_stream(r, cap);
+        let r = output::Cursor::from(content.clone());
+        let mut s = into_streamable_reader(Box::new(r) as output::Reader, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next().await {
+            let b = b.expect("read must success");
+            bs.put_slice(&b);
+        }
+        assert_eq!(bs.freeze().to_vec(), content)
+    }
+
+    #[test]
+    fn test_into_stream_blocing() {
+        use output::BlockingRead;
+
+        let mut rng = ThreadRng::default();
+        // Generate size between 1B..16MB.
+        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let mut content = vec![0; size];
+        rng.fill_bytes(&mut content);
+        // Generate cap between 1B..1MB;
+        let cap = rng.gen_range(1..1024 * 1024);
+
+        let r = output::Cursor::from(content.clone());
+        let mut s = into_streamable_reader(Box::new(r) as output::BlockingReader, cap);
+
+        let mut bs = BytesMut::new();
+        while let Some(b) = s.next() {
             let b = b.expect("read must success");
             bs.put_slice(&b);
         }

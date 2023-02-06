@@ -114,4 +114,4 @@ mod webdav;
 pub use webdav::Webdav;
 
 mod webhdfs;
-pub use webhdfs::WebHdfs;
+pub use webhdfs::Webhdfs;

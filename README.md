@@ -32,7 +32,7 @@
 - [rocksdb](https://opendal.databend.rs/opendal/services/struct.Rocksdb.html): [RocksDB](http://rocksdb.org/) services support.
 - [s3](https://opendal.databend.rs/opendal/services/struct.S3.html): [AWS S3](https://aws.amazon.com/s3/) alike services.
 - [webdav](https://opendal.databend.rs/opendal/services/struct.Webdav.html): [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service Support.
-- [Webhdfs](https://opendal.databend.rs/opendal/services/struct.Webhdfs.html): [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service Support.
+- [webhdfs](https://opendal.databend.rs/opendal/services/struct.Webhdfs.html): [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service Support.
 
 ## Features
 

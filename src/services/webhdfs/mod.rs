@@ -13,9 +13,7 @@
 // limitations under the License.
 
 mod backend;
-pub use backend::WebHdfsBuilder as WebHdfs;
-mod auth;
+mod message;
+pub use backend::WebhdfsBuilder as Webhdfs;
 mod dir_stream;
 mod error;
-mod uri;
-use uri::percent_encode_path;

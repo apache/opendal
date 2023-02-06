@@ -86,4 +86,4 @@ cfg_if::cfg_if! { if #[cfg(feature = "services-rocksdb")] { behavior_tests!(Rock
 behavior_tests!(Oss);
 behavior_tests!(S3);
 behavior_tests!(Webdav);
-behavior_tests!(WebHdfs);
+behavior_tests!(Webhdfs);

@@ -12,15 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::VecDeque;
-
 use async_trait::async_trait;
 
-use super::backend::FileStatus;
-use crate::raw::ObjectEntry;
-use crate::raw::ObjectPage;
-use crate::ObjectMetadata;
-use crate::Result;
+use super::message::FileStatus;
+use crate::raw::*;
+use crate::*;
 
 pub(super) struct DirStream {
     path: String,
@@ -42,17 +38,20 @@ impl ObjectPage for DirStream {
         if self.statuses.is_empty() {
             return Ok(None);
         }
-        let mut entries = VecDeque::new();
+
+        let mut entries = Vec::with_capacity(self.statuses.len());
+
         while let Some(status) = self.statuses.pop() {
-            let file_name = status.path_suffix.clone();
-            let mut path = format!("{}/{}", &self.path, file_name);
+            let mut path = format!("{}/{}", &self.path, status.path_suffix);
+
             let meta: ObjectMetadata = status.try_into()?;
             if meta.mode().is_dir() {
-                path = format!("{path}/");
+                path += "/"
             }
             let entry = ObjectEntry::new(&path, meta);
-            entries.push_front(entry);
+            entries.push(entry);
         }
-        Ok(Some(entries.into()))
+
+        Ok(Some(entries))
     }
 }

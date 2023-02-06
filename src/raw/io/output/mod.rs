@@ -38,6 +38,6 @@ pub mod into_blocking_reader;
 mod cursor;
 pub use cursor::Cursor;
 
-mod as_streamable;
-pub use as_streamable::into_streamable_reader;
-pub use as_streamable::IntoStreamableReader;
+mod into_streamable;
+pub use into_streamable::into_streamable_reader;
+pub use into_streamable::IntoStreamableReader;

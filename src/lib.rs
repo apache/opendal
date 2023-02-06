@@ -14,6 +14,12 @@
 
 //! OpenDAL is the Open Data Access Layer to **freely**, **painlessly**, and **efficiently** access data.
 //!
+//! # Documentation
+//!
+//! OpenDAL carries all it's documentation in crate itself.
+//!
+//! More docs about OpenDAL could be found at [`docs`].
+//!
 //! # Services
 //!
 //! `Service` represents a backend scheme that OpenDAL supported.
@@ -53,6 +59,7 @@
 //!
 //! | Layers | Description |
 //! | -------- | ----------- |
+//! | [ChaosLayer][layers::ChaosLayer] | Inject chaos into underlying services. |
 //! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
 //! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
 //! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
@@ -65,8 +72,9 @@
 //! ## Layers
 //!
 //! - `layers-all`: Enable all layers support.
-//! - `layers-metrics`: Enable operator metrics support.
-//! - `layers-tracing`: Enable operator tracing support.
+//! - `layers-metrics`: Enable metrics layer support.
+//! - `layers-tracing`: Enable tracing layer support.
+//! - `layers-chaos`: Enable chaos layer support.
 //!
 //! ## Services
 //!
@@ -85,8 +93,6 @@
 //! - `native-tls-vendored`: Enable the `vendored` feature of `native-tls`
 //!
 //! # Examples
-//!
-//! More examples could be found at <https://opendal.databend.rs/examples/index.html>
 //!
 //! ```no_run
 //! use anyhow::Result;
@@ -142,12 +148,6 @@
 //!     Ok(())
 //! }
 //! ```
-//!
-//! # Documentation
-//!
-//! OpenDAL carries all it's documentation in crate itself.
-//!
-//! More docs about OpenDAL could be found at [`docs`].
 
 // Make sure all our public APIs have docs.
 #![warn(missing_docs)]

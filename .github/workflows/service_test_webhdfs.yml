@@ -47,4 +47,4 @@ jobs:
           RUST_LOG: debug
           OPENDAL_WEBHDFS_TEST: on
           OPENDAL_WEBHDFS_ROOT: /
-          OPENDAL_WEBHDFS_ENDPOINT: http://${{ env.WEBHDFS_NAMENODE_ADDR }}
+          OPENDAL_WEBHDFS_ENDPOINT: http://${{ env.HDFS_NAMENODE_HTTP_ADDR }}

@@ -283,7 +283,8 @@ pub struct WebhdfsBackend {
 }
 
 impl WebhdfsBackend {
-    async fn webhdfs_create_or_write_object_req(
+    // create object or make a directory
+    async fn webhdfs_create_object_req(
         &self,
         path: &str,
         size: Option<u64>,
@@ -303,7 +304,7 @@ impl WebhdfsBackend {
             op,
         );
         if let Some(auth) = &self.auth {
-            url = url + "&" + auth;
+            url += format!("&{auth}").as_str();
         }
 
         let req = Request::put(&url)
@@ -320,11 +321,7 @@ impl WebhdfsBackend {
             .await
     }
 
-    async fn webhdfs_open_object_req(
-        &self,
-        path: &str,
-        range: &BytesRange,
-    ) -> Result<Request<AsyncBody>> {
+    async fn webhdfs_open_req(&self, path: &str, range: &BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN&noredirect=true",
@@ -332,7 +329,7 @@ impl WebhdfsBackend {
             percent_encode_path(&p),
         );
         if let Some(auth) = &self.auth {
-            url = url + "&" + auth;
+            url += format!("&{auth}").as_str();
         }
 
         // make a Webhdfs compatible bytes range
@@ -355,10 +352,10 @@ impl WebhdfsBackend {
 
         match (offset, size) {
             (Some(offset), Some(size)) => {
-                url = format!("{url}&offset={offset}&length={size}");
+                url += format!("&offset={offset}&length={size}").as_str();
             }
             (Some(offset), None) => {
-                url = format!("{url}&offset={offset}");
+                url += format!("&offset={offset}").as_str();
             }
             (None, None) => {
                 // read all, do nothing
@@ -376,7 +373,7 @@ impl WebhdfsBackend {
         Ok(req)
     }
 
-    fn webhdfs_list_object_req(&self, path: &str) -> Result<Request<AsyncBody>> {
+    fn webhdfs_list_status_req(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
@@ -384,7 +381,7 @@ impl WebhdfsBackend {
             percent_encode_path(&p),
         );
         if let Some(auth) = &self.auth {
-            url = url + "&" + auth;
+            url += format!("&{auth}").as_str();
         }
 
         let req = Request::get(&url);
@@ -405,7 +402,7 @@ impl WebhdfsBackend {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let req = self.webhdfs_open_object_req(path, &range).await?;
+        let req = self.webhdfs_open_req(path, &range).await?;
         let resp = self.client.send_async(req).await?;
 
         // this should be an 200 OK http response
@@ -428,7 +425,7 @@ impl WebhdfsBackend {
         );
         debug!("webhdfs status url: {}", url);
         if let Some(auth) = &self.auth {
-            url = url + "&" + auth;
+            url += format!("&{auth}").as_str();
         }
 
         let req = Request::get(&url);
@@ -447,7 +444,7 @@ impl WebhdfsBackend {
             percent_encode_path(&p),
         );
         if let Some(auth) = &self.auth {
-            url = url + "&" + auth;
+            url += format!("&{auth}").as_str();
         }
 
         let req = Request::delete(&url);
@@ -599,7 +596,7 @@ impl Accessor for WebhdfsBackend {
         };
 
         let req = self
-            .webhdfs_create_or_write_object_req(&path, Some(0), None, AsyncBody::Empty)
+            .webhdfs_create_object_req(&path, Some(0), None, AsyncBody::Empty)
             .await?;
 
         let resp = self.client.send_async(req).await?;
@@ -642,7 +639,7 @@ impl Accessor for WebhdfsBackend {
 
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
         let req = self
-            .webhdfs_create_or_write_object_req(
+            .webhdfs_create_object_req(
                 path,
                 Some(args.size()),
                 args.content_type(),
@@ -712,7 +709,7 @@ impl Accessor for WebhdfsBackend {
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
         let path = path.trim_end_matches('/');
-        let req = self.webhdfs_list_object_req(path)?;
+        let req = self.webhdfs_list_status_req(path)?;
 
         let resp = self.client.send_async(req).await?;
         match resp.status() {

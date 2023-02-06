@@ -41,7 +41,7 @@ jobs:
       - name: Test
         shell: bash
         continue-on-error: true
-        run: cargo test hdfs --features compress,services-hdfs -- --show-output
+        run: cargo test webhdfs --features compress,services-hdfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

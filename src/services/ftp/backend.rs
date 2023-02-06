@@ -42,7 +42,18 @@ use super::util::FtpReader;
 use crate::raw::*;
 use crate::*;
 
-/// FTP support for OpenDAL.
+/// FTP and FTPS services support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
 ///
 /// # Configuration
 ///

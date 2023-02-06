@@ -28,7 +28,7 @@ use tracing::Span;
 use crate::raw::*;
 use crate::*;
 
-/// TracingLayer will add tracing for OpenDAL.
+/// Add [tracing](https://docs.rs/tracing/) for every operations.
 ///
 /// # Examples
 ///

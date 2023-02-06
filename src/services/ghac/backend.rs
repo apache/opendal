@@ -58,6 +58,17 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 
 /// Github Action Cache Services support.
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] list
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
+///
 /// # Notes
 ///
 /// This service is mainly provided by github actions.

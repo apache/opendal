@@ -25,7 +25,18 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-/// Memcached support for OpenDAL
+/// [Memcached](https://memcached.org/) service support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] ~~list~~
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [x] blocking
 ///
 /// # Configuration
 ///

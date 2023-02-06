@@ -25,7 +25,7 @@ use log::warn;
 use crate::raw::*;
 use crate::*;
 
-/// RetryLayer will add retry for OpenDAL.
+/// Add retry for temporary failed operations.
 ///
 /// # Examples
 ///

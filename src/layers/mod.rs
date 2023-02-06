@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Providing Layer implementations.
+//! `Layer` is the mechanism to intercept operations.
 
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;

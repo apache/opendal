@@ -40,6 +40,17 @@ use crate::*;
 ///
 /// This service will visist the [ABFS](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver) URI supported by [Azure Data Lake Storage Gen2](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] multipart
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the work dir for backend.

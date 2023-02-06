@@ -61,7 +61,7 @@ static LABEL_OPERATION: &str = "operation";
 /// The error kind of this failed request.
 static LABEL_ERROR: &str = "error";
 
-/// MetricsLayer will add metrics for OpenDAL.
+/// Add [metrics](https://docs.rs/metrics/) for every operations.
 ///
 /// # Metrics
 ///

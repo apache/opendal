@@ -25,7 +25,18 @@ use crate::raw::*;
 use crate::Result;
 use crate::*;
 
-/// Rocksdb support for OpenDAL
+/// Rocksdb service support.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [ ] ~~list~~
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [x] blocking
 ///
 /// # Note
 ///

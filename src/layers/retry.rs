@@ -588,24 +588,17 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use anyhow::Result;
     use async_trait::async_trait;
     use backon::ConstantBackoff;
     use bytes::Bytes;
-    use futures::io::Cursor;
-    use futures::AsyncRead;
     use futures::AsyncReadExt;
     use std::io;
-    use std::pin::Pin;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::task::Context;
     use std::task::Poll;
-    use std::time::Duration;
 
     use super::*;
-    use crate::raw::*;
-    use crate::*;
 
     #[derive(Debug, Clone, Default)]
     struct MockService {
@@ -684,13 +677,14 @@ mod tests {
             let mut bs = vec![0; 1];
             match ready!(self.poll_read(cx, &mut bs)) {
                 Ok(v) if v == 0 => Poll::Ready(None),
-                Ok(v) => Poll::Ready(Some(Ok(Bytes::from(bs)))),
+                Ok(v) => Poll::Ready(Some(Ok(Bytes::from(bs[..v].to_vec())))),
                 Err(err) => Poll::Ready(Some(Err(err))),
             }
         }
     }
 
-    async fn test_retry() -> Result<()> {
+    #[tokio::test]
+    async fn test_retry() {
         let _ = env_logger::try_init();
 
         let srv = Arc::new(MockService::default());
@@ -699,6 +693,15 @@ mod tests {
             .layer(RetryLayer::new(backoff))
             .finish();
 
-        todo!()
+        let mut r = op.object("retryable_error").reader().await.unwrap();
+        let mut content = Vec::new();
+        let size = r
+            .read_to_end(&mut content)
+            .await
+            .expect("read must succeed");
+        assert_eq!(size, 13);
+        assert_eq!(content, "Hello, World!".as_bytes());
+        // The error is retryable, we should request it 1 + 10 times.
+        assert_eq!(*srv.attempt.lock().unwrap(), 5);
     }
 }

@@ -33,6 +33,17 @@ use crate::*;
 ///
 /// A distributed file system that provides high-throughput access to application data.
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [x] blocking
+///
 /// # Features
 ///
 /// HDFS support needs to enable feature `services-hdfs`.

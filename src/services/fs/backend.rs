@@ -34,6 +34,17 @@ use crate::*;
 
 /// POSIX file system support.
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [x] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the work dir for backend.

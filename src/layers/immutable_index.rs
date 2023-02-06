@@ -23,8 +23,7 @@ use crate::object::*;
 use crate::raw::*;
 use crate::*;
 
-/// ImmutableIndexLayer is used to add an immutable in-memory index for
-/// underlying storage services.
+/// Add an immutable in-memory index for underlying storage services.
 ///
 /// Especially useful for services without list capability like HTTP.
 ///

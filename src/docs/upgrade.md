@@ -1,5 +1,3 @@
-Upgrade and migrate procedures while OpenDAL meets breaking changes.
-
 # Upgrade to v0.26
 
 In v0.26 we have replaced all internal dynamic dispatch usage with static dispatch. With this change, we can ensure that all operations performed inside OpenDAL are zero cost.

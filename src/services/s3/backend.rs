@@ -75,6 +75,17 @@ mod constants {
 
 /// Aws S3 and compatible services (including minio, digitalocean space and so on) support
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [x] presign
+/// - [x] multipart
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the work dir for backend.

@@ -34,7 +34,18 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// Aliyun Object Storage Sevice support
+/// Aliyun Object Storage Sevice (OSS) support
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] multipart
+/// - [ ] blocking
 ///
 /// # Configuration
 ///

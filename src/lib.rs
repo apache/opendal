@@ -14,108 +14,29 @@
 
 //! OpenDAL is the Open Data Access Layer to **freely**, **painlessly**, and **efficiently** access data.
 //!
-//! # Documentation
+//! - Documentation: All docs are carried byself, visit [`docs`] for more.
+//! - Services: All supported services could be found at [`services`].
+//! - Layers: All builtin layer could be found at [`layers`].
+//! - Features: All features could be found at [`features`][docs::features].
 //!
-//! OpenDAL carries all it's documentation in crate itself.
-//!
-//! More docs about OpenDAL could be found at [`docs`].
-//!
-//! # Services
-//!
-//! `Service` represents a backend scheme that OpenDAL supported.
-//!
-//! OpenDAL supports the following services now:
-//!
-//! | Services | Description |
-//! | -------- | ----------- |
-//! | [azblob][services::Azblob] | Azure Storage Blob services. |
-//! | [azdfs][services::Azdfs] | Azure Data Lake Storage Gen2 services. |
-//! | [fs][services::Fs] | POSIX alike file system. |
-//! | [ftp][services::Ftp] | FTP and FTPS support. |
-//! | [gcs][services::Gcs] | Google Cloud Storage service. |
-//! | [ghac][services::Ghac] | Github Action Cache service. |
-//! | [hdfs][services::Hdfs] | Hadoop Distributed File System(HDFS). |
-//! | [http][services::Http] | HTTP read-only backend. |
-//! | [ipfs][services::Ipfs] | IPFS HTTP Gateway support. |
-//! | [ipmfs][services::Ipmfs] | IPFS Mutable File System support. |
-//! | [memcached][services::Memcached] | Memcached service. |
-//! | [memory][services::Memory] | In memory backend support. |
-//! | [moka][services::Moka] | [moka](https://github.com/moka-rs/moka) backend support. |
-//! | [obs][services::Obs] | Huawei Cloud OBS service. |
-//! | [oss][services::Oss] | Aliyun Object Storage Service (OSS).|
-//! | [redis][services::Redis] | Redis service. |
-//! | [rocksdb][services::Rocksdb] | RocksDB service. |
-//! | [s3][services::S3] | AWS S3 alike services. |
-//! | [webdav][services::Webdav] | WebDAV services. |
-//!
-//! - Different services capabilities could be found at [`services`]
-//! - More services support is tracked at [opendal#5](https://github.com/datafuselabs/opendal/issues/5)
-//!
-//! # Layers
-//!
-//! `Layer` is the mechanism to intercept operations.
-//!
-//! OpenDAL supports the following layers now:
-//!
-//! | Layers | Description |
-//! | -------- | ----------- |
-//! | [ChaosLayer][layers::ChaosLayer] | Inject chaos into underlying services. |
-//! | [ConcurrentLimitLayer][layers::ConcurrentLimitLayer] | Concurrent request limit. |
-//! | [ImmutableIndexLayer][layers::ImmutableIndexLayer] | Immutable in-memory index. |
-//! | [LoggingLayer][layers::LoggingLayer] | Logging for every operations. |
-//! | [MetricsLayer][layers::MetricsLayer] | Metrics for every operations. |
-//! | [RetryLayer][layers::RetryLayer] | Retry for failed operations. |
-//! | [TracingLayer][layers::TracingLayer] | Tracing for every operations. |
-//!
-//! # Optional features
-//!
-//! ## Layers
-//!
-//! - `layers-all`: Enable all layers support.
-//! - `layers-metrics`: Enable metrics layer support.
-//! - `layers-tracing`: Enable tracing layer support.
-//! - `layers-chaos`: Enable chaos layer support.
-//!
-//! ## Services
-//!
-//! - `services-ftp`: Enable ftp service support.
-//! - `services-hdfs`: Enable hdfs service support.
-//! - `services-moka`: Enable moka service support.
-//! - `services-ipfs`: Enable ipfs service support.
-//! - `services-redis`: Enable redis service support.
-//! - `services-rocksdb`: Enable rocksdb service support.
-//!
-//! ## Dependencies features
-//!
-//! - `compress`: Enable object decompress read support.
-//! - `rustls`: Enable TLS functionality provided by `rustls`, enabled by default
-//! - `native-tls`: Enable TLS functionality provided by `native-tls`
-//! - `native-tls-vendored`: Enable the `vendored` feature of `native-tls`
-//!
-//! # Examples
+//! # Quick Start
 //!
 //! ```no_run
-//! use anyhow::Result;
-//! use backon::ExponentialBackoff;
-//! use futures::StreamExt;
-//! use futures::TryStreamExt;
+//! use opendal::Result;
 //! use opendal::layers::LoggingLayer;
-//! use opendal::layers::RetryLayer;
 //! use opendal::services;
-//! use opendal::Object;
-//! use opendal::ObjectMetadata;
-//! use opendal::ObjectMode;
 //! use opendal::Operator;
-//! use opendal::Scheme;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!     // Init a fs operator
-//!     let op = Operator::from_env::<services::Fs>()?
+//!     // Pick a builder and configure it.
+//!     let mut builder = services::S3::default();
+//!     builder.bucket("test");
+//!
+//!     // Init an operator
+//!     let op = Operator::create(builder)?
 //!         // Init with logging layer enabled.
 //!         .layer(LoggingLayer::default())
-//!         // Init with retry layer enabled.
-//!         .layer(RetryLayer::new(ExponentialBackoff::default()))
 //!         .finish();
 //!
 //!     // Create object handler.
@@ -128,22 +49,12 @@
 //!     let bs = o.read().await?;
 //!
 //!     // Fetch metadata
-//!     let name = o.name();
-//!     let path = o.path();
 //!     let meta = o.metadata().await?;
 //!     let mode = meta.mode();
 //!     let length = meta.content_length();
 //!
 //!     // Delete
 //!     o.delete().await?;
-//!
-//!     // Readdir
-//!     let o = op.object("test_dir/");
-//!     let mut ds = o.list().await?;
-//!     while let Some(entry) = ds.try_next().await? {
-//!         let path = entry.path();
-//!         let mode = entry.mode().await?;
-//!     }
 //!
 //!     Ok(())
 //! }

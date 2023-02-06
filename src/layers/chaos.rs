@@ -25,7 +25,7 @@ use rand::rngs::StdRng;
 use crate::raw::*;
 use crate::*;
 
-/// ChaosLayer will inject chaos into underlying services.
+/// Inject chaos into underlying services for robustness test.
 ///
 /// # Chaos
 ///

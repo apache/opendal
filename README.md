@@ -62,54 +62,39 @@ Access data **efficiently**
 ## Quickstart
 
 ```rust
-use anyhow::Result;
-use futures::StreamExt;
-use futures::TryStreamExt;
-use opendal::ObjectReader;
-use opendal::Object;
-use opendal::ObjectMetadata;
-use opendal::ObjectMode;
-use opendal::Operator;
+use opendal::Result;
+use opendal::layers::LoggingLayer;
 use opendal::services;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Init Operator
-    let op = Operator::create(services::Fs::default())?.finish();
+    // Pick a builder and configure it.
+    let mut builder = services::S3::default();
+    builder.bucket("test");
+
+    // Init an operator
+    let op = Operator::create(builder)?
+        // Init with logging layer enabled.
+        .layer(LoggingLayer::default())
+        .finish();
 
     // Create object handler.
-    let o = op.object("/tmp/test_file");
+    let o = op.object("test_file");
 
-    // Write data info object;
+    // Write data
     o.write("Hello, World!").await?;
 
-    // Read data from object;
+    // Read data
     let bs = o.read().await?;
 
-    // Read range from object;
-    let bs = o.range_read(1..=11).await?;
-
-    // Get object's path
-    let name = o.name();
-    let path = o.path();
-
-    // Fetch more meta about object.
+    // Fetch metadata
     let meta = o.metadata().await?;
     let mode = meta.mode();
     let length = meta.content_length();
-    let content_md5 = meta.content_md5();
-    let etag = meta.etag();
 
-    // Delete object.
+    // Delete
     o.delete().await?;
-
-    // List dir object.
-    let o = op.object("test_dir/");
-    let mut os = o.list().await?;
-    while let Some(entry) = os.try_next().await? {
-        let path = entry.path();
-        let mode = entry.mode().await?;
-    }
 
     Ok(())
 }

@@ -26,7 +26,7 @@ use tokio::sync::Semaphore;
 use crate::raw::*;
 use crate::*;
 
-/// ConcurrentLimitLayer will add concurrent limit for OpenDAL.
+/// Add concurrent request limit.
 ///
 /// # Examples
 ///

@@ -39,6 +39,17 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 
 /// Azure Storage Blob services support.
 ///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] presign
+/// - [ ] multipart
+/// - [ ] blocking
+///
 /// # Configuration
 ///
 /// - `root`: Set the work dir for backend.

@@ -32,7 +32,7 @@ use log::Level;
 use crate::raw::*;
 use crate::*;
 
-/// LoggingLayer will add logging for OpenDAL.
+/// Add [log](https://docs.rs/log/) for every operations.
 ///
 /// # Logging
 ///

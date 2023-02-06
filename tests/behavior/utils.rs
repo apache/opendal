@@ -60,18 +60,18 @@ pub fn init_service<B: Builder>(random_root: bool) -> Option<Operator> {
         cfg.insert("root".to_string(), root);
     }
 
-    let op = Operator::from_map::<B>(cfg).expect("must succeed").finish();
+    let op = Operator::from_map::<B>(cfg).expect("must succeed");
 
-    let op = if cfg!(feature = "layers-chaos") {
+    #[cfg(feature = "layers-chaos")]
+    let op = {
         use opendal::layers::ChaosLayer;
         op.layer(ChaosLayer::new(0.1))
-    } else {
-        op
     };
 
     let op = op
         .layer(LoggingLayer::default())
-        .layer(RetryLayer::new(ExponentialBackoff::default()));
+        .layer(RetryLayer::new(ExponentialBackoff::default()))
+        .finish();
 
     Some(op)
 }

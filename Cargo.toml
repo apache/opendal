@@ -89,7 +89,7 @@ async-compression = { package = "async-compression-issue-150-workaround", versio
   "futures-io",
   "all-algorithms",
 ], optional = true }
-async-tls = { version = "0.11", optional = true }
+async-tls = { version = "0.12", optional = true }
 async-trait = "0.1.50"
 backon = "0.2"
 base64 = "0.21"

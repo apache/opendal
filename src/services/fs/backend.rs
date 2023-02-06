@@ -373,7 +373,7 @@ impl Accessor for FsBackend {
     async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =
-                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
+                Self::ensure_write_abs_path(atomic_write_dir, tmp_file_of(path)).await?;
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
             let f = fs::OpenOptions::new()
                 .create(true)
@@ -584,7 +584,7 @@ impl Accessor for FsBackend {
     ) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =
-                Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
+                Self::blocking_ensure_write_abs_path(atomic_write_dir, tmp_file_of(path))?;
             let target_path =
                 Self::blocking_ensure_write_abs_path(&self.root, path.trim_end_matches('/'))?;
 

@@ -70,7 +70,7 @@ impl ObjectPage for DirPager {
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
                 ObjectEntry::new(
-                    &format!("{}/", rel_path),
+                    &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
@@ -132,7 +132,7 @@ impl BlockingObjectPage for BlockingDirPager {
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
                 ObjectEntry::new(
-                    &format!("{}/", rel_path),
+                    &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {

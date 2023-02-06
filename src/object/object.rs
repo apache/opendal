@@ -385,14 +385,6 @@ impl Object {
                 .with_context("service", self.accessor().metadata().scheme().into_static())
                 .with_context("path", self.path())
                 .with_context("range", br.to_string())
-                .map(|e| {
-                    use std::io::ErrorKind;
-
-                    match err.kind() {
-                        ErrorKind::Interrupted | ErrorKind::UnexpectedEof => e.set_temporary(),
-                        _ => e,
-                    }
-                })
                 .set_source(err)
         })?;
 

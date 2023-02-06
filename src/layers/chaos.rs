@@ -141,13 +141,15 @@ impl<R> ChaosReader<R> {
     /// we need to generate an error.
     fn i_feel_lucky(&mut self) -> bool {
         let point = self.rng.gen_range(0..=100);
-        (self.error_ratio * 100.0) as i32 >= point
+        point >= (self.error_ratio * 100.0) as i32
     }
 
     fn unexpected_eof() -> io::Error {
         io::Error::new(
             io::ErrorKind::UnexpectedEof,
-            Error::new(ErrorKind::Unexpected, "I am your chaos!").set_temporary(),
+            Error::new(ErrorKind::Unexpected, "I am your chaos!")
+                .with_operation("chaos")
+                .set_temporary(),
         )
     }
 }

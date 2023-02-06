@@ -32,7 +32,7 @@
 //! | [http][services::Http] | HTTP read-only backend. |
 //! | [ipfs][services::Ipfs] | IPFS HTTP Gateway support. |
 //! | [ipmfs][services::Ipmfs] | IPFS Mutable File System support. |
-//! | [memcached][services::Memcached] | Memcached serivce. |
+//! | [memcached][services::Memcached] | Memcached service. |
 //! | [memory][services::Memory] | In memory backend support. |
 //! | [moka][services::Moka] | [moka](https://github.com/moka-rs/moka) backend support. |
 //! | [obs][services::Obs] | Huawei Cloud OBS service. |

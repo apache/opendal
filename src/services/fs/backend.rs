@@ -90,24 +90,22 @@ pub struct FsBuilder {
 
 impl FsBuilder {
     /// Set root for backend.
-    pub fn root(&mut self, root: impl Into<PathBuf>) -> &mut Self {
-        let root = root.into();
-        self.root = if root.to_string_lossy().is_empty() {
+    pub fn root(&mut self, root: &str) -> &mut Self {
+        self.root = if root.is_empty() {
             None
         } else {
-            Some(root)
+            Some(PathBuf::from(root))
         };
 
         self
     }
 
     /// Set temp dir for atomic write.
-    pub fn atomic_write_dir(&mut self, dir: impl Into<PathBuf>) -> &mut Self {
-        let dir = dir.into();
-        self.atomic_write_dir = if dir.to_string_lossy().is_empty() {
+    pub fn atomic_write_dir(&mut self, dir: &str) -> &mut Self {
+        self.atomic_write_dir = if dir.is_empty() {
             None
         } else {
-            Some(dir)
+            Some(PathBuf::from(dir))
         };
 
         self
@@ -130,21 +128,27 @@ impl Builder for FsBuilder {
     const SCHEME: Scheme = Scheme::Fs;
     type Accessor = FsBackend;
 
+    fn from_map(map: HashMap<String, String>) -> Self {
+        let mut builder = FsBuilder::default();
+
+        map.get("root").map(|v| builder.root(v));
+        map.get("atomic_write_dir")
+            .map(|v| builder.atomic_write_dir(v));
+
+        builder
+    }
+
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("backend build started: {:?}", &self);
 
         let root = match self.root.take() {
-            Some(root) => root,
-            None => std::env::current_dir().map_err(|e| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "could not determine current directory",
-                )
-                .with_operation("Builder::build")
-                .set_source(e)
-            })?,
-        };
-        let atomic_write_dir = self.atomic_write_dir.take();
+            Some(root) => Ok(root),
+            None => Err(Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "root is not specified",
+            )),
+        }?;
+        debug!("backend use root {}", root.to_string_lossy());
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
@@ -157,6 +161,8 @@ impl Builder for FsBuilder {
                 })?;
             }
         }
+
+        let atomic_write_dir = self.atomic_write_dir.take();
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir {
@@ -207,16 +213,6 @@ impl Builder for FsBuilder {
             enable_path_check: self.enable_path_check,
         })
     }
-
-    fn from_map(map: HashMap<String, String>) -> Self {
-        let mut builder = FsBuilder::default();
-
-        map.get("root").map(|v| builder.root(v));
-        map.get("atomic_write_dir")
-            .map(|v| builder.atomic_write_dir(v));
-
-        builder
-    }
 }
 
 /// Backend is used to serve `Accessor` support for posix alike fs.
@@ -237,7 +233,7 @@ fn tmp_file_of(path: &str) -> String {
 
 impl FsBackend {
     // Synchronously build write path and ensure the parent dirs created
-    fn blocking_ensure_write_abs_path(parent: &Path, path: impl AsRef<Path>) -> Result<PathBuf> {
+    fn blocking_ensure_write_abs_path(parent: &Path, path: &str) -> Result<PathBuf> {
         let p = parent.join(path);
 
         // Create dir before write path.
@@ -263,7 +259,7 @@ impl FsBackend {
     }
 
     // Build write path and ensure the parent dirs created
-    async fn ensure_write_abs_path(parent: &Path, path: impl AsRef<Path>) -> Result<PathBuf> {
+    async fn ensure_write_abs_path(parent: &Path, path: &str) -> Result<PathBuf> {
         let p = parent.join(path);
 
         // Create dir before write path.
@@ -421,7 +417,7 @@ impl Accessor for FsBackend {
     async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =
-                Self::ensure_write_abs_path(atomic_write_dir, tmp_file_of(path)).await?;
+                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
             let f = fs::OpenOptions::new()
                 .create(true)
@@ -632,7 +628,7 @@ impl Accessor for FsBackend {
     ) -> Result<RpWrite> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let temp_path =
-                Self::blocking_ensure_write_abs_path(atomic_write_dir, tmp_file_of(path))?;
+                Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
             let target_path =
                 Self::blocking_ensure_write_abs_path(&self.root, path.trim_end_matches('/'))?;
 

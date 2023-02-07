@@ -53,7 +53,6 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// - `OPENDAL_WEBHDFS_ROOT`
 /// - `OPENDAL_WEBHDFS_ENDPOINT`
-/// - `OPENDAL_WEBHDFS_USER`
 /// - `OPENDAL_WEBHDFS_DELEGATION`
 ///
 /// # Examples
@@ -82,12 +81,6 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///     builder.endpoint("http://127.0.0.1:9870");
 ///     // set the delegation_token for builder
 ///     builder.delegation("delegation_token");
-///     // or set the username for builder
-///     builder.user("username");
-///     // proxy user is also supported
-///     builder.doas("proxy_user");
-///     // if no delegation token, username and proxy user are set
-///     // the backend will query without authentications
 ///
 ///     let op: Operator = Operator::create(builder)?.finish();
 ///
@@ -102,9 +95,6 @@ pub struct WebhdfsBuilder {
     root: Option<String>,
     endpoint: Option<String>,
     delegation: Option<String>,
-    user: Option<String>,
-    // proxy user
-    doas: Option<String>,
 }
 
 impl Debug for WebhdfsBuilder {
@@ -114,12 +104,6 @@ impl Debug for WebhdfsBuilder {
             .field("endpoint", &self.endpoint);
         if self.delegation.is_some() {
             ds.field("delegation", &"<redacted>");
-        }
-        if self.user.is_some() {
-            ds.field("user", &"<redacted>");
-        }
-        if self.doas.is_some() {
-            ds.field("doas", &"<redacted>");
         }
         ds.finish()
     }
@@ -171,44 +155,12 @@ impl WebhdfsBuilder {
         }
         self
     }
-
-    /// Set the username of this backend,
-    /// used for authentication
-    /// # Note
-    /// The builder prefers using delegation token over username.
-    /// If both are set, delegation token will be used. And username
-    /// will be ignored.
-    pub fn user(&mut self, user: &str) -> &mut Self {
-        if user.is_empty() {
-            self.user = Some(user.to_string());
-        }
-        self
-    }
-
-    /// Set the proxy user of this backend
-    /// # Note
-    /// The builder prefers using delegation token,
-    /// If both are set, delegation token will be used. And doas
-    /// will be ignored
-    pub fn doas(&mut self, doas: &str) -> &mut Self {
-        if !doas.is_empty() {
-            self.doas = Some(doas.to_string());
-        }
-        self
-    }
 }
 
 impl WebhdfsBuilder {
     fn auth_str(&mut self) -> Option<String> {
         if let Some(dt) = self.delegation.take() {
             return Some(format!("delegation_token={dt}"));
-        }
-        if let Some(user) = self.user.take() {
-            let token = match self.doas.take() {
-                Some(doas) => format!("user.name={user}&doas={doas}"),
-                None => format!("user.name={user}"),
-            };
-            return Some(token);
         }
         None
     }
@@ -227,8 +179,6 @@ impl Builder for WebhdfsBuilder {
                 "root" => builder.root(v),
                 "endpoint" => builder.endpoint(v),
                 "delegation" => builder.delegation(v),
-                "user" => builder.user(v),
-                "doas" => builder.doas(v),
                 _ => continue,
             };
         }

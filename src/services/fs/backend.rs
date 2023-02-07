@@ -142,17 +142,13 @@ impl Builder for FsBuilder {
         debug!("backend build started: {:?}", &self);
 
         let root = match self.root.take() {
-            Some(root) => root,
-            None => std::env::current_dir().map_err(|e| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "could not determine current directory",
-                )
-                .with_operation("Builder::build")
-                .set_source(e)
-            })?,
-        };
-        let atomic_write_dir = self.atomic_write_dir.take();
+            Some(root) => Ok(root),
+            None => Err(Error::new(
+                ErrorKind::BackendConfigInvalid,
+                "root is not specified",
+            )),
+        }?;
+        debug!("backend use root {}", root.to_string_lossy());
 
         // If root dir is not exist, we must create it.
         if let Err(e) = std::fs::metadata(&root) {
@@ -165,6 +161,8 @@ impl Builder for FsBuilder {
                 })?;
             }
         }
+
+        let atomic_write_dir = self.atomic_write_dir.take();
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir {

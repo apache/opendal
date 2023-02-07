@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use std::path::{Path, PathBuf};
 
 use super::error::parse_io_error;
 use crate::raw::*;
@@ -21,16 +22,16 @@ use crate::ObjectMode;
 use crate::Result;
 
 pub struct DirPager {
-    root: String,
+    root: PathBuf,
 
     size: usize,
     rd: tokio::fs::ReadDir,
 }
 
 impl DirPager {
-    pub fn new(root: &str, rd: tokio::fs::ReadDir) -> Self {
+    pub fn new(root: &Path, rd: tokio::fs::ReadDir) -> Self {
         Self {
-            root: root.to_string(),
+            root: root.to_owned(),
             // TODO: make this a configurable value.
             size: 256,
             rd,
@@ -49,7 +50,14 @@ impl ObjectPage for DirPager {
                 None => break,
             };
 
-            let path = build_rel_path(&self.root, &de.path().to_string_lossy());
+            let entry_path = de.path();
+            let rel_path = normalize_path(
+                &entry_path
+                    .strip_prefix(&self.root)
+                    .expect("cannot fail because the prefix is iterated")
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
 
             // On Windows and most Unix platforms this function is free
             // (no extra system calls needed), but some Unix platforms may
@@ -58,15 +66,15 @@ impl ObjectPage for DirPager {
             let file_type = de.file_type().await.map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
                 ObjectEntry::new(
-                    &format!("{}/", &path),
+                    &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -77,16 +85,16 @@ impl ObjectPage for DirPager {
 }
 
 pub struct BlockingDirPager {
-    root: String,
+    root: PathBuf,
 
     size: usize,
     rd: std::fs::ReadDir,
 }
 
 impl BlockingDirPager {
-    pub fn new(root: &str, rd: std::fs::ReadDir) -> Self {
+    pub fn new(root: &Path, rd: std::fs::ReadDir) -> Self {
         Self {
-            root: root.to_string(),
+            root: root.to_owned(),
             // TODO: make this a configurable value.
             size: 256,
             rd,
@@ -104,7 +112,14 @@ impl BlockingObjectPage for BlockingDirPager {
                 None => break,
             };
 
-            let path = build_rel_path(&self.root, &de.path().to_string_lossy());
+            let entry_path = de.path();
+            let rel_path = normalize_path(
+                &entry_path
+                    .strip_prefix(&self.root)
+                    .expect("cannot fail because the prefix is iterated")
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
 
             // On Windows and most Unix platforms this function is free
             // (no extra system calls needed), but some Unix platforms may
@@ -113,15 +128,15 @@ impl BlockingObjectPage for BlockingDirPager {
             let file_type = de.file_type().map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
                 ObjectEntry::new(
-                    &format!("{}/", &path),
+                    &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

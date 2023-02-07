@@ -22,7 +22,17 @@ use std::str::FromStr;
 /// Parse `s3://abc/def` into `op` and `location`.
 pub fn parse_location(s: &str) -> Result<(Operator, &str)> {
     if !s.contains("://") {
-        return Ok((Operator::create(services::Fs::default())?.finish(), s));
+        let mut fs = services::Fs::default();
+
+        let filename = match s.rsplit_once(['/', '\\']) {
+            Some((base, filename)) => {
+                fs.root(base);
+                filename
+            }
+            None => s,
+        };
+
+        return Ok((Operator::create(fs)?.finish(), filename));
     }
 
     let s = s.splitn(2, "://").collect::<Vec<_>>();

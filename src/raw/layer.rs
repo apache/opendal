@@ -304,7 +304,7 @@ mod tests {
     use futures::lock::Mutex;
 
     use super::*;
-    use crate::services::Fs;
+    use crate::services::Memory;
 
     #[derive(Debug)]
     struct Test<A: Accessor> {
@@ -353,7 +353,7 @@ mod tests {
             deleted: Arc::new(Mutex::new(false)),
         };
 
-        let op = Operator::create(Fs::default())
+        let op = Operator::create(Memory::default())
             .unwrap()
             .layer(&test)
             .finish();

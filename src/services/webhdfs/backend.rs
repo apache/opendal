@@ -44,7 +44,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// - `root`: The root path of the WebHDFS service.
 /// - `endpoint`: The endpoint of the WebHDFS service.
-/// - `username`: The username of the WebHDFS service.
+/// - `user`: The username of the WebHDFS service.
 /// - `delegation`: The delegation token for WebHDFS.
 ///
 /// Refer to [`Builder`]'s public API docs for more information
@@ -53,7 +53,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// - `OPENDAL_WEBHDFS_ROOT`
 /// - `OPENDAL_WEBHDFS_ENDPOINT`
-/// - `OPENDAL_WEBHDFS_USERNAME`
+/// - `OPENDAL_WEBHDFS_USER`
 /// - `OPENDAL_WEBHDFS_DELEGATION`
 ///
 /// # Examples

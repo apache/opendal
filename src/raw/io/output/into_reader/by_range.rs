@@ -203,12 +203,23 @@ impl<A: Accessor> output::Read for RangeReader<A> {
                     let mut buf = ReadBuf::uninit(self.sink.spare_capacity_mut());
                     unsafe { buf.assume_init(consume) };
 
-                    let n = ready!(Pin::new(r).poll_read(cx, buf.initialized_mut()))?;
-                    assert!(n > 0, "consumed bytes must be valid");
-
-                    self.cur += n as u64;
-                    // Make sure the pos is absolute from start.
-                    self.poll_seek(cx, SeekFrom::Start(seek_pos))
+                    match ready!(Pin::new(r).poll_read(cx, buf.initialized_mut())) {
+                        Ok(n) => {
+                            assert!(n > 0, "consumed bytes must be valid");
+                            self.cur += n as u64;
+                            // Make sure the pos is absolute from start.
+                            self.poll_seek(cx, SeekFrom::Start(seek_pos))
+                        }
+                        Err(_) => {
+                            // If we are hitting errors while read ahead.
+                            // It's better to drop this reader and seek to
+                            // correct position directly.
+                            self.state = State::Idle;
+                            self.cur = seek_pos;
+                            self.last_seek_pos = None;
+                            Poll::Ready(Ok(self.cur))
+                        }
+                    }
                 } else {
                     // If we are trying to seek to far more away.
                     // Let's just drop the reader.

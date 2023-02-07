@@ -73,7 +73,7 @@ pub enum Scheme {
     S3,
     /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
-    /// [webhdfs][crate::services::WebHdfs]: WebHDFS RESTful API Services
+    /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
     Webhdfs,
     /// Custom that allow users to implement services outside of OpenDAL.
     ///

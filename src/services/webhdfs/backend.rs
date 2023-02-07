@@ -38,7 +38,27 @@ use crate::*;
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
-/// WebHDFS's RESTFul API support
+/// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
+///
+/// There two implementaions of WebHDFS REST API:
+///
+/// - Native via HDFS Namenode and Datanode, data are transferred between nodes directly.
+/// - [HttpFS](https://hadoop.apache.org/docs/stable/hadoop-hdfs-httpfs/index.html) is a gateway before hdfs nodes, data are proxied.
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [x] write
+/// - [x] list
+/// - [ ] ~~presign~~
+/// - [ ] ~~multipart~~
+/// - [ ] blocking
+///
+/// # Differences with hdfs
+///
+/// [Hdfs][crate::services::Hdfs] is powered by HDFS's native java client. Users need to setup the hdfs services correctly. But webhdfs can access from HTTP API and no extra setup needed.
 ///
 /// # Configurations
 ///
@@ -48,13 +68,8 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// Refer to [`Builder`]'s public API docs for more information
 ///
-/// # Environment
-///
-/// - `OPENDAL_WEBHDFS_ROOT`
-/// - `OPENDAL_WEBHDFS_ENDPOINT`
-/// - `OPENDAL_WEBHDFS_DELEGATION`
-///
 /// # Examples
+///
 /// ## Via Builder
 /// ```no_run
 /// use std::sync::Arc;

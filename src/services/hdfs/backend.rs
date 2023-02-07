@@ -44,6 +44,10 @@ use crate::*;
 /// - [ ] ~~multipart~~
 /// - [x] blocking
 ///
+/// # Differences with webhdfs
+///
+/// [Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.
+///
 /// # Features
 ///
 /// HDFS support needs to enable feature `services-hdfs`.

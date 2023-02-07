@@ -138,7 +138,12 @@ impl<A: Accessor> output::Read for RangeReader<A> {
                 // TODO
                 //
                 // we can use RpRead returned here to correct size.
-                let (_, r) = ready!(Pin::new(fut).poll(cx))?;
+                let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
+                    // If read future retruns an error, we should reset
+                    // state to Idle so that we can retry it.
+                    self.state = State::Idle;
+                    err
+                })?;
 
                 self.state = State::Reading(r);
                 self.poll_read(cx, buf)
@@ -230,7 +235,12 @@ impl<A: Accessor> output::Read for RangeReader<A> {
                 // TODO
                 //
                 // we can use RpRead returned here to correct size.
-                let (_, r) = ready!(Pin::new(fut).poll(cx))?;
+                let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
+                    // If read future retruns an error, we should reset
+                    // state to Idle so that we can retry it.
+                    self.state = State::Idle;
+                    err
+                })?;
 
                 self.state = State::Reading(r);
                 self.poll_next(cx)

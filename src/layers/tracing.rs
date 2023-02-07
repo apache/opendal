@@ -40,7 +40,7 @@ use crate::*;
 /// use opendal::services;
 /// use opendal::Operator;
 ///
-/// let _ = Operator::from_env::<services::Fs>()
+/// let _ = Operator::create(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(TracingLayer)
 ///     .finish();

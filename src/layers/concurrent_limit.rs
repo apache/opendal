@@ -37,7 +37,7 @@ use crate::*;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::from_env::<services::Fs>()
+/// let _ = Operator::create(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(ConcurrentLimitLayer::new(1024))
 ///     .finish();

@@ -42,7 +42,7 @@ use crate::*;
 /// use opendal::Operator;
 /// use opendal::Scheme;
 ///
-/// let _ = Operator::from_env::<services::Fs>()
+/// let _ = Operator::create(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(RetryLayer::new(ExponentialBackoff::default()))
 ///     .finish();
@@ -64,7 +64,7 @@ where
     /// use opendal::Operator;
     /// use opendal::Scheme;
     ///
-    /// let _ = Operator::from_env::<services::Fs>()
+    /// let _ = Operator::create(services::Memory::default())
     ///     .expect("must init")
     ///     .layer(RetryLayer::new(ExponentialBackoff::default()));
     /// ```

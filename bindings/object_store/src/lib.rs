@@ -223,7 +223,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic() {
-        let op = Operator::from_env::<services::Memory>().unwrap().finish();
+        let op = Operator::create(services::Memory::default())
+            .unwrap()
+            .finish();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
         // Retrieve a specific file

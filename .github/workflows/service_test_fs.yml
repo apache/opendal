@@ -21,6 +21,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
+          - windows-latest         
     steps:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v2
@@ -31,4 +32,4 @@ jobs:
           RUST_BACKTRACE: full
           RUST_LOG: debug
           OPENDAL_FS_TEST: on
-          OPENDAL_FS_ROOT: /tmp/
+          OPENDAL_FS_ROOT: ${{ runner.temp }}/

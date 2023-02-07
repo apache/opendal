@@ -86,3 +86,6 @@ pub use s3::S3;
 
 mod webdav;
 pub use webdav::Webdav;
+
+mod webhdfs;
+pub use webhdfs::Webhdfs;

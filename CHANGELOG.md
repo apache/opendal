@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.26.2] - 2023-02-07
+
+### Added
+
+- feat: Add ChaosLayer to inject errors into underlying services (#1287)
+- feat: Implement retry reader (#1291)
+- feat: use std::path::Path for fs backend (#1100)
+- feat: Implement services webhdfs (#1263)
+
+### Changed
+
+- refactor: Split CompleteReaderLayer from TypeEraserLayer (#1290)
+- refactor(services/fs): Remove not needed generic (#1292)
+
+### Docs
+
+- docs: fix typo (#1285)
+- docs: Polish docs for better reading (#1288)
+
+### Fixed
+
+- fix: FsBuilder can't be used with empty root anymore (#1293)
+- fix: Fix retry happened in seek's read ahead logic (#1294)
+
 ## [v0.26.1] - 2023-02-05
 
 ### Changed
@@ -1287,6 +1311,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.26.2]: https://github.com/datafuselabs/opendal/compare/v0.26.1...v0.26.2
 [v0.26.1]: https://github.com/datafuselabs/opendal/compare/v0.26.0...v0.26.1
 [v0.26.0]: https://github.com/datafuselabs/opendal/compare/v0.25.2...v0.26.0
 [v0.25.2]: https://github.com/datafuselabs/opendal/compare/v0.25.1...v0.25.2

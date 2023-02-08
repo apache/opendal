@@ -23,6 +23,7 @@ use bytes::Bytes;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

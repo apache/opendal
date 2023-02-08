@@ -15,6 +15,7 @@
 use futures::io::Cursor;
 use time::Duration;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

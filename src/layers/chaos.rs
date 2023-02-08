@@ -22,6 +22,7 @@ use futures::FutureExt;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

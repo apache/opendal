@@ -26,6 +26,7 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

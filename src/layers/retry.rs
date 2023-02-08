@@ -19,6 +19,7 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 use std::thread::sleep;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use backon::Backoff;
@@ -192,7 +193,14 @@ where
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::List, dur.as_secs_f64(), err)
             })
-            .map(|v| v.map_err(|e| e.set_persistent()))
+            .map(|v| {
+                v.map(|(l, p)| {
+                    let pager = Box::new(RetryPager::new(p, path, self.backoff.clone()))
+                        as Box<dyn ObjectPage>;
+                    (l, pager)
+                })
+                .map_err(|e| e.set_persistent())
+            })
             .await
     }
 
@@ -688,6 +696,140 @@ impl<R: output::BlockingRead, B: Backoff + Debug + Send + Sync + Unpin + 'static
         }
 
         Some(Err(e.unwrap()))
+    }
+}
+
+/// the retriable pager implementation
+pub struct RetryPager<P, B: Backoff + Debug + Send + Sync + Unpin> {
+    // object pager
+    inner: P,
+    // used for logging
+    path: String,
+    // backoff policy of the pager
+    policy: B,
+    // the current backoff chain
+    // Note:
+    // each polling of pages has its own backoff chain
+    // once the poll is success, the backoff chain will be reset.
+    current_backoff: Option<B>,
+    // backoff time to sleep
+    sleep: Option<Duration>,
+}
+
+impl<P, B: Backoff + Debug + Send + Sync + Unpin> RetryPager<P, B> {
+    fn new(inner: P, path: &str, policy: B) -> Self {
+        Self {
+            inner,
+            path: path.to_string(),
+            policy,
+            current_backoff: None,
+            sleep: None,
+        }
+    }
+
+    fn reset_backoff(&mut self) {
+        self.current_backoff = None;
+        self.sleep = None;
+    }
+}
+
+#[async_trait]
+impl<P: ObjectPage, B: Backoff + Debug + Send + Sync + Unpin + 'static> ObjectPage
+    for RetryPager<P, B>
+{
+    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        if let Some(sleep) = self.sleep.take() {
+            tokio::time::sleep(sleep).await;
+        }
+        match self.inner.next_page().await {
+            Ok(v) => {
+                // request successful, reset backoff
+                self.reset_backoff();
+                Ok(v)
+            }
+            Err(e) if !e.is_temporary() => {
+                // is not retryable, reset backoff
+                self.reset_backoff();
+                // return error
+                Err(e)
+            }
+            Err(e) => {
+                // get the mutable reference to current backoff
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(b) => b,
+                    None => {
+                        self.current_backoff = Some(self.policy.clone());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+                // tick current backoff
+                match backoff.next() {
+                    None => {
+                        // backoff exhausted, reset backoff
+                        self.reset_backoff();
+                        // return error
+                        let e = e.set_permanent();
+                        Err(e)
+                    }
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              Operation::List, self.path, dur.as_secs_f64(), e);
+                        self.sleep = Some(dur);
+                        self.next_page().await
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<P: BlockingObjectPage, B: Backoff + Debug + Send + Sync + Unpin + 'static> BlockingObjectPage
+    for RetryPager<P, B>
+{
+    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+        if let Some(sleep) = self.sleep.take() {
+            std::thread::sleep(sleep);
+        }
+        let res = self.inner.next_page();
+        match res {
+            Ok(v) => {
+                // request successful, reset backoff
+                self.reset_backoff();
+                Ok(v)
+            }
+            Err(e) if !e.is_temporary() => {
+                self.reset_backoff();
+                Err(e)
+            }
+            Err(e) => {
+                // get the mutable reference to current backoff
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(b) => b,
+                    None => {
+                        self.current_backoff = Some(self.policy.clone());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+                // tick current backoff
+                match backoff.next() {
+                    None => {
+                        // backoff exhausted, reset backoff
+                        self.reset_backoff();
+                        // return error
+                        let e = e.set_permanent();
+                        Err(e)
+                    }
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              Operation::BlockingList, self.path, dur.as_secs_f64(), e);
+                        self.sleep = Some(dur);
+                        self.next_page()
+                    }
+                }
+            }
+        }
     }
 }
 

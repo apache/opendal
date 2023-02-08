@@ -840,6 +840,7 @@ mod tests {
     use backon::ConstantBackoff;
     use bytes::Bytes;
     use futures::AsyncReadExt;
+    use futures::TryStreamExt;
     use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
@@ -873,6 +874,12 @@ mod tests {
                     pos: 0,
                 },
             ))
+        }
+
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+            let pager = MockPager::default();
+            let pager = Box::new(pager) as Box<dyn ObjectPage>;
+            Ok((RpList::default(), pager))
         }
     }
 
@@ -931,8 +938,48 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Default)]
+    struct MockPager {
+        attempt: usize,
+    }
+    #[async_trait]
+    impl ObjectPage for MockPager {
+        async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+            self.attempt += 1;
+            match self.attempt {
+                1 => Err(Error::new(
+                    ErrorKind::ObjectRateLimited,
+                    "retriable rate limited error from pager",
+                )
+                .set_temporary()),
+                2 => {
+                    let entries = vec![
+                        ObjectEntry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
+                        ObjectEntry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
+                    ];
+                    Ok(Some(entries))
+                }
+                3 => Err(
+                    Error::new(ErrorKind::Unexpected, "retriable internal server error")
+                        .set_temporary(),
+                ),
+                4 => {
+                    let entries = vec![
+                        ObjectEntry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
+                        ObjectEntry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
+                    ];
+                    Ok(Some(entries))
+                }
+                5 => Ok(None),
+                _ => {
+                    unreachable!()
+                }
+            }
+        }
+    }
+
     #[tokio::test]
-    async fn test_retry() {
+    async fn test_retry_read() {
         let _ = env_logger::try_init();
 
         let srv = Arc::new(MockService::default());
@@ -951,5 +998,29 @@ mod tests {
         assert_eq!(content, "Hello, World!".as_bytes());
         // The error is retryable, we should request it 1 + 10 times.
         assert_eq!(*srv.attempt.lock().unwrap(), 5);
+    }
+    #[tokio::test]
+    async fn test_retry_list() {
+        let _ = env_logger::try_init();
+
+        let srv = Arc::new(MockService::default());
+        let backoff = ConstantBackoff::default();
+        let op = Operator::new(srv.clone())
+            .layer(RetryLayer::new(backoff))
+            .finish();
+
+        let expected = vec!["hello", "world", "2023/", "0208/"];
+
+        let mut lister = op
+            .object("retryable_error/")
+            .list()
+            .await
+            .expect("service must support list");
+        let mut actual = Vec::new();
+        while let Some(obj) = lister.try_next().await.expect("must success") {
+            actual.push(obj.name().to_owned());
+        }
+
+        assert_eq!(actual, expected);
     }
 }

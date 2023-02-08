@@ -719,7 +719,7 @@ impl<P: ObjectPage> ObjectPage for RetryPager<P> {
                         // backoff exhausted, reset backoff
                         self.reset_backoff();
                         // return error
-                        let e = e.set_permanent();
+                        let e = e.set_persistent();
                         Err(e)
                     }
                     Some(dur) => {
@@ -737,48 +737,17 @@ impl<P: ObjectPage> ObjectPage for RetryPager<P> {
 
 impl<P: BlockingObjectPage> BlockingObjectPage for RetryPager<P> {
     fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        if let Some(sleep) = self.sleep.take() {
-            std::thread::sleep(sleep);
-        }
-        let res = self.inner.next_page();
-        match res {
-            Ok(v) => {
-                // request successful, reset backoff
-                self.reset_backoff();
-                Ok(v)
-            }
-            Err(e) if !e.is_temporary() => {
-                self.reset_backoff();
-                Err(e)
-            }
-            Err(e) => {
-                // get the mutable reference to current backoff
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(b) => b,
-                    None => {
-                        self.current_backoff = Some(self.policy.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
-                // tick current backoff
-                match backoff.next() {
-                    None => {
-                        // backoff exhausted, reset backoff
-                        self.reset_backoff();
-                        // return error
-                        let e = e.set_permanent();
-                        Err(e)
-                    }
-                    Some(dur) => {
-                        warn!(target: "opendal::service",
-                              "operation={} path={} -> pager retry after {}s: error={:?}",
-                              Operation::BlockingList, self.path, dur.as_secs_f64(), e);
-                        self.sleep = Some(dur);
-                        self.next_page()
-                    }
-                }
-            }
-        }
+        { || self.inner.next_page() }
+            .retry(&self.policy)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+                Operation::List, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
     }
 }
 

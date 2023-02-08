@@ -33,6 +33,7 @@ use metrics::register_histogram;
 use metrics::Counter;
 use metrics::Histogram;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

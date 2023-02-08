@@ -29,6 +29,7 @@ use log::log;
 use log::trace;
 use log::Level;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

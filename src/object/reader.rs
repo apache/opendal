@@ -24,8 +24,8 @@ use futures::AsyncSeek;
 use futures::Stream;
 
 use crate::error::Result;
+use crate::ops::OpRead;
 use crate::raw::*;
-use crate::OpRead;
 
 /// ObjectReader is the public API for users.
 ///

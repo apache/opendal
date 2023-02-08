@@ -33,6 +33,7 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
 use super::message::Redirection;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

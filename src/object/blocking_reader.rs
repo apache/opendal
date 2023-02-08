@@ -21,10 +21,10 @@ use parking_lot::Mutex;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::ops::OpRead;
 use crate::raw::*;
 use crate::ErrorKind;
 use crate::ObjectMetadata;
-use crate::OpRead;
 
 /// BlockingObjectReader is the public API for users.
 pub struct BlockingObjectReader {

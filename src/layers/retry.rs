@@ -31,6 +31,7 @@ use futures::ready;
 use futures::FutureExt;
 use log::warn;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -640,15 +641,16 @@ impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::anyhow;
-    use async_trait::async_trait;
-    use bytes::Bytes;
-    use futures::AsyncReadExt;
     use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::task::Context;
     use std::task::Poll;
+
+    use anyhow::anyhow;
+    use async_trait::async_trait;
+    use bytes::Bytes;
+    use futures::AsyncReadExt;
 
     use super::*;
 

@@ -39,6 +39,7 @@ use tokio::sync::OnceCell;
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

@@ -40,7 +40,6 @@ use crate::*;
 ///
 /// ```
 /// use anyhow::Result;
-/// use backon::ExponentialBuilder;
 /// use opendal::layers::RetryLayer;
 /// use opendal::services;
 /// use opendal::Operator;

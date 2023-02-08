@@ -283,7 +283,6 @@ impl Operator {
 /// ```
 /// use std::collections::HashMap;
 ///
-/// use backon::ExponentialBackoff;
 /// use opendal::layers::LoggingLayer;
 /// use opendal::layers::RetryLayer;
 /// use opendal::services;
@@ -295,7 +294,7 @@ impl Operator {
 /// fn init_service<B: Builder>(cfg: HashMap<String, String>) -> Result<Operator> {
 ///     let op = Operator::from_map::<B>(cfg)?
 ///         .layer(LoggingLayer::default())
-///         .layer(RetryLayer::new(ExponentialBackoff::default()))
+///         .layer(RetryLayer::new())
 ///         .finish();
 ///
 ///     Ok(op)

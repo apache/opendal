@@ -19,9 +19,13 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 use std::thread::sleep;
+use std::time::Duration;
 
 use async_trait::async_trait;
-use backon::Backoff;
+use backon::BackoffBuilder;
+use backon::BlockingRetryable;
+use backon::ExponentialBackoff;
+use backon::ExponentialBuilder;
 use backon::Retryable;
 use futures::ready;
 use futures::FutureExt;
@@ -36,7 +40,6 @@ use crate::*;
 ///
 /// ```
 /// use anyhow::Result;
-/// use backon::ExponentialBackoff;
 /// use opendal::layers::RetryLayer;
 /// use opendal::services;
 /// use opendal::Operator;
@@ -44,21 +47,18 @@ use crate::*;
 ///
 /// let _ = Operator::create(services::Memory::default())
 ///     .expect("must init")
-///     .layer(RetryLayer::new(ExponentialBackoff::default()))
+///     .layer(RetryLayer::new())
 ///     .finish();
 /// ```
-pub struct RetryLayer<B: Backoff + Send + Sync + Debug + Unpin + 'static>(B);
+#[derive(Default)]
+pub struct RetryLayer(ExponentialBuilder);
 
-impl<B> RetryLayer<B>
-where
-    B: Backoff + Send + Sync + Debug + Unpin + 'static,
-{
+impl RetryLayer {
     /// Create a new retry layer.
     /// # Examples
     ///
     /// ```
     /// use anyhow::Result;
-    /// use backon::ExponentialBackoff;
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
     /// use opendal::Operator;
@@ -66,35 +66,72 @@ where
     ///
     /// let _ = Operator::create(services::Memory::default())
     ///     .expect("must init")
-    ///     .layer(RetryLayer::new(ExponentialBackoff::default()));
+    ///     .layer(RetryLayer::new());
     /// ```
-    pub fn new(b: B) -> Self {
-        Self(b)
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set jitter of current backoff.
+    ///
+    /// If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)
+    /// to current delay.
+    pub fn with_jitter(mut self) -> Self {
+        self.0 = self.0.with_jitter();
+        self
+    }
+
+    /// Set factor of current backoff.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if input factor smaller than `1.0`.
+    pub fn with_factor(mut self, factor: f32) -> Self {
+        self.0 = self.0.with_factor(factor);
+        self
+    }
+
+    /// Set min_delay of current backoff.
+    pub fn with_min_delay(mut self, min_delay: Duration) -> Self {
+        self.0 = self.0.with_min_delay(min_delay);
+        self
+    }
+
+    /// Set max_delay of current backoff.
+    ///
+    /// Delay will not increasing if current delay is larger than max_delay.
+    pub fn with_max_delay(mut self, max_delay: Duration) -> Self {
+        self.0 = self.0.with_max_delay(max_delay);
+        self
+    }
+
+    /// Set max_times of current backoff.
+    ///
+    /// Backoff will return `None` if max times is reaching.
+    pub fn with_max_times(mut self, max_times: usize) -> Self {
+        self.0 = self.0.with_max_times(max_times);
+        self
     }
 }
 
-impl<A, B> Layer<A> for RetryLayer<B>
-where
-    A: Accessor,
-    B: Backoff + Send + Sync + Debug + Unpin + 'static,
-{
-    type LayeredAccessor = RetryAccessor<A, B>;
+impl<A: Accessor> Layer<A> for RetryLayer {
+    type LayeredAccessor = RetryAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
         RetryAccessor {
             inner,
-            backoff: self.0.clone(),
+            builder: self.0.clone(),
         }
     }
 }
 
 #[derive(Clone)]
-pub struct RetryAccessor<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> {
+pub struct RetryAccessor<A: Accessor> {
     inner: A,
-    backoff: B,
+    builder: ExponentialBuilder,
 }
 
-impl<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> Debug for RetryAccessor<A, B> {
+impl<A: Accessor> Debug for RetryAccessor<A> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RetryAccessor")
             .field("inner", &self.inner)
@@ -103,14 +140,10 @@ impl<A: Accessor, B: Backoff + Debug + Send + Sync + Unpin> Debug for RetryAcces
 }
 
 #[async_trait]
-impl<A, B> LayeredAccessor for RetryAccessor<A, B>
-where
-    A: Accessor,
-    B: Backoff + Debug + Send + Sync + Unpin + 'static,
-{
+impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type Inner = A;
-    type Reader = RetryReader<A::Reader, B>;
-    type BlockingReader = RetryReader<A::BlockingReader, B>;
+    type Reader = RetryReader<A::Reader>;
+    type BlockingReader = RetryReader<A::BlockingReader>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -118,7 +151,7 @@ where
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         { || self.inner.create(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -132,7 +165,7 @@ where
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         { || self.inner.read(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -141,7 +174,7 @@ where
                     Operation::Read, dur.as_secs_f64(), err)
             })
             .map(|v| {
-                v.map(|(rp, r)| (rp, RetryReader::new(r, path, self.backoff.clone())))
+                v.map(|(rp, r)| (rp, RetryReader::new(r, path, self.builder.clone())))
                     .map_err(|e| e.set_persistent())
             })
             .await
@@ -156,7 +189,7 @@ where
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         { || self.inner.stat(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -170,7 +203,7 @@ where
 
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         { || self.inner.delete(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -184,7 +217,7 @@ where
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
         { || self.inner.list(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -202,7 +235,7 @@ where
         args: OpCreateMultipart,
     ) -> Result<RpCreateMultipart> {
         { || self.inner.create_multipart(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -230,7 +263,7 @@ where
         args: OpCompleteMultipart,
     ) -> Result<RpCompleteMultipart> {
         { || self.inner.complete_multipart(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -248,7 +281,7 @@ where
         args: OpAbortMultipart,
     ) -> Result<RpAbortMultipart> {
         { || self.inner.abort_multipart(path, args.clone()) }
-            .retry(self.backoff.clone())
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 warn!(
@@ -261,65 +294,32 @@ where
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        let retry = self.backoff.clone();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.blocking_create(path, args.clone());
-
-            match res {
-                Ok(v) => return Ok(v),
-                Err(err) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingCreate, path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Err(e.unwrap());
-                    }
-                }
-            }
-        }
-
-        Err(e.unwrap())
+        { || self.inner.blocking_create(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::BlockingCreate, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        let retry = self.backoff.clone();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.blocking_read(path, args.clone());
-
-            match res {
-                Ok((rp, r)) => return Ok((rp, RetryReader::new(r, path, self.backoff.clone()))),
-                Err(err) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingRead, path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Err(e.unwrap());
-                    }
-                }
-            }
-        }
-
-        Err(e.unwrap())
+        { || self.inner.blocking_read(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::BlockingRead, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map(|(rp, r)| (rp, RetryReader::new(r, path, self.builder.clone())))
+            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_write(
@@ -332,114 +332,63 @@ where
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let retry = self.backoff.clone();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.blocking_stat(path, args.clone());
-
-            match res {
-                Ok(v) => return Ok(v),
-                Err(err) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingStat, path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Err(e.unwrap());
-                    }
-                }
-            }
-        }
-
-        Err(e.unwrap())
+        { || self.inner.blocking_stat(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::BlockingStat, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        let retry = self.backoff.clone();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.blocking_delete(path, args.clone());
-
-            match res {
-                Ok(v) => return Ok(v),
-                Err(err) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingDelete, path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Err(e.unwrap());
-                    }
-                }
-            }
-        }
-
-        Err(e.unwrap())
+        { || self.inner.blocking_delete(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::BlockingDelete, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        let retry = self.backoff.clone();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.blocking_list(path, args.clone());
-
-            match res {
-                Ok(v) => return Ok(v),
-                Err(err) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingList, path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Err(e.unwrap());
-                    }
-                }
-            }
-        }
-
-        Err(e.unwrap())
+        { || self.inner.blocking_list(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::BlockingList, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
     }
 }
 
 /// TODO: Refactor me to replace duplicated code.
-pub struct RetryReader<R, B: Backoff + Debug + Send + Sync + Unpin> {
+pub struct RetryReader<R> {
     inner: R,
     path: String,
-    backoff: B,
-    current_backoff: Option<B>,
+    builder: ExponentialBuilder,
+    current_backoff: Option<ExponentialBackoff>,
     sleep: Option<Pin<Box<tokio::time::Sleep>>>,
 }
 
-impl<R, B: Backoff + Debug + Send + Sync + Unpin> RetryReader<R, B> {
-    fn new(inner: R, path: &str, backoff: B) -> Self {
+impl<R> RetryReader<R> {
+    fn new(inner: R, path: &str, backoff: ExponentialBuilder) -> Self {
         Self {
             inner,
             path: path.to_string(),
-            backoff,
+            builder: backoff,
             current_backoff: None,
             sleep: None,
         }
@@ -462,7 +411,7 @@ impl<R, B: Backoff + Debug + Send + Sync + Unpin> RetryReader<R, B> {
     }
 }
 
-impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for RetryReader<R, B> {
+impl<R: output::Read> output::Read for RetryReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
@@ -482,7 +431,7 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
                 let backoff = match self.current_backoff.as_mut() {
                     Some(backoff) => backoff,
                     None => {
-                        self.current_backoff = Some(self.backoff.clone());
+                        self.current_backoff = Some(self.builder.build());
                         self.current_backoff.as_mut().unwrap()
                     }
                 };
@@ -524,7 +473,7 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
                 let backoff = match self.current_backoff.as_mut() {
                     Some(backoff) => backoff,
                     None => {
-                        self.current_backoff = Some(self.backoff.clone());
+                        self.current_backoff = Some(self.builder.build());
                         self.current_backoff.as_mut().unwrap()
                     }
                 };
@@ -570,7 +519,7 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
                 let backoff = match self.current_backoff.as_mut() {
                     Some(backoff) => backoff,
                     None => {
-                        self.current_backoff = Some(self.backoff.clone());
+                        self.current_backoff = Some(self.builder.build());
                         self.current_backoff.as_mut().unwrap()
                     }
                 };
@@ -594,11 +543,9 @@ impl<R: output::Read, B: Backoff + Debug + Send + Sync + Unpin> output::Read for
     }
 }
 
-impl<R: output::BlockingRead, B: Backoff + Debug + Send + Sync + Unpin + 'static>
-    output::BlockingRead for RetryReader<R, B>
-{
+impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let retry = self.backoff.clone();
+        let retry = self.builder.build();
 
         let mut e = None;
 
@@ -628,7 +575,7 @@ impl<R: output::BlockingRead, B: Backoff + Debug + Send + Sync + Unpin + 'static
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        let retry = self.backoff.clone();
+        let retry = self.builder.build();
 
         let mut e = None;
 
@@ -659,7 +606,7 @@ impl<R: output::BlockingRead, B: Backoff + Debug + Send + Sync + Unpin + 'static
     }
 
     fn next(&mut self) -> Option<io::Result<bytes::Bytes>> {
-        let retry = self.backoff.clone();
+        let retry = self.builder.build();
 
         let mut e = None;
 
@@ -695,7 +642,6 @@ impl<R: output::BlockingRead, B: Backoff + Debug + Send + Sync + Unpin + 'static
 mod tests {
     use anyhow::anyhow;
     use async_trait::async_trait;
-    use backon::ConstantBackoff;
     use bytes::Bytes;
     use futures::AsyncReadExt;
     use std::io;
@@ -794,10 +740,7 @@ mod tests {
         let _ = env_logger::try_init();
 
         let srv = Arc::new(MockService::default());
-        let backoff = ConstantBackoff::default();
-        let op = Operator::new(srv.clone())
-            .layer(RetryLayer::new(backoff))
-            .finish();
+        let op = Operator::new(srv.clone()).layer(RetryLayer::new()).finish();
 
         let mut r = op.object("retryable_error").reader().await.unwrap();
         let mut content = Vec::new();

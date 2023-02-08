@@ -86,7 +86,7 @@ async-compression = { package = "async-compression-issue-150-workaround", versio
 ], optional = true }
 async-tls = { version = "0.11", optional = true }
 async-trait = "0.1.50"
-backon = "0.2"
+backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bincode = { version = "2.0.0-rc.2", features = ["serde"] }
@@ -113,7 +113,7 @@ redis = { version = "0.22", features = [
   "tokio-comp",
   "connection-manager",
 ], optional = true }
-reqsign = "0.8.1"
+reqsign = "0.8.2"
 reqwest = { version = "0.11.13", features = [
   "multipart",
   "stream",

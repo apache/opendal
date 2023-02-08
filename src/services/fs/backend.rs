@@ -16,7 +16,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::io;
 use std::io::SeekFrom;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
@@ -29,6 +30,7 @@ use super::dir_stream::BlockingDirPager;
 use super::dir_stream::DirPager;
 use super::error::parse_io_error;
 use crate::object::*;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 

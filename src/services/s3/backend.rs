@@ -46,6 +46,7 @@ use serde::Serialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_xml_deserialize_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -1677,6 +1678,8 @@ struct CompleteMultipartUploadRequestPart {
 
 #[cfg(test)]
 mod tests {
+    use backon::BlockingRetryable;
+    use backon::ExponentialBuilder;
     use bytes::Buf;
     use bytes::Bytes;
 
@@ -1702,8 +1705,9 @@ mod tests {
                 b.endpoint(endpoint);
             }
 
-            let region = b
-                .detect_region(&client)
+            let region = { || b.detect_region(&client) }
+                .retry(&ExponentialBuilder::default())
+                .call()
                 .expect("detect region must success");
             assert_eq!(region, "us-east-2");
         }

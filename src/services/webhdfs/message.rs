@@ -84,9 +84,10 @@ pub(super) enum FileStatusType {
 
 #[cfg(test)]
 mod test {
-    use crate::{raw::ObjectPage, services::webhdfs::dir_stream::DirStream, ObjectMode};
-
     use super::*;
+    use crate::raw::ObjectPage;
+    use crate::services::webhdfs::dir_stream::DirStream;
+    use crate::ObjectMode;
 
     #[test]
     fn test_file_statuses() {

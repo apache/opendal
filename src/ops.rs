@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Ops provides the operation args struct like [`OpRead`] for user.
+//!
+//! By using ops, users can add more context for operation.
+
 use time::Duration;
 
 use crate::raw::*;

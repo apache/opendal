@@ -28,6 +28,7 @@ use tokio::io::ReadBuf;
 use super::BlockingObjectLister;
 use super::BlockingObjectReader;
 use super::ObjectLister;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -716,12 +717,10 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::OpWrite;
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
     /// use bytes::Bytes;
+    /// use opendal::ops::OpWrite;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -791,13 +790,10 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::OpWrite;
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
     /// use bytes::Bytes;
+    /// use opendal::ops::OpWrite;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("hello.txt");
@@ -1437,7 +1433,7 @@ impl Object {
     /// ```no_run
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::OpWrite;
+    /// use opendal::ops::OpWrite;
     /// use opendal::Operator;
     /// use time::Duration;
     ///

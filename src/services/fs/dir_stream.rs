@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::path::Path;
+use std::path::PathBuf;
+
 use async_trait::async_trait;
-use std::path::{Path, PathBuf};
 
 use super::error::parse_io_error;
 use crate::raw::*;

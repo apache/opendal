@@ -32,20 +32,22 @@ pub struct DirStream {
     backend: Arc<GcsBackend>,
     root: String,
     path: String,
-    page_token: String,
+    delimeter: String,
 
+    page_token: String,
     done: bool,
 }
 
 impl DirStream {
     /// Generate a new directory walker
-    pub fn new(backend: Arc<GcsBackend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<GcsBackend>, root: &str, path: &str, delimeter: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),
             path: path.to_string(),
-            page_token: "".to_string(),
+            delimeter: delimeter.to_string(),
 
+            page_token: "".to_string(),
             done: false,
         }
     }
@@ -60,7 +62,7 @@ impl output::Page for DirStream {
 
         let resp = self
             .backend
-            .gcs_list_objects(&self.path, &self.page_token)
+            .gcs_list_objects(&self.path, &self.page_token, &self.delimeter)
             .await?;
 
         if !resp.status().is_success() {

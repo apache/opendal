@@ -661,7 +661,7 @@ impl AzblobBackend {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/{}?restype=container&comp=list&delimiter=/",
+            "{}/{}?restype=container&comp=list",
             self.endpoint, self.container
         );
         if !p.is_empty() {

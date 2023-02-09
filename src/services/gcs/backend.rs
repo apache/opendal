@@ -357,7 +357,9 @@ impl Accessor for GcsBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_hints(
+                AccessorHint::ReadStreamable | AccessorHint::ListFlat | AccessorHint::ListHierarchy,
+            );
         am
     }
 
@@ -464,10 +466,15 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let delimeter = match args.style() {
+            ListStyle::Flat => "",
+            ListStyle::Hierarchy => "/",
+        };
+
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, delimeter),
         ))
     }
 }
@@ -584,15 +591,19 @@ impl GcsBackend {
         &self,
         path: &str,
         page_token: &str,
+        delimeter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/storage/v1/b/{}/o?delimiter=/&prefix={}",
+            "{}/storage/v1/b/{}/o?prefix={}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
+        if !delimeter.is_empty() {
+            write!(url, "&delimiter={delimeter}").expect("write into string must succeed");
+        }
         if !page_token.is_empty() {
             // NOTE:
             //

@@ -426,7 +426,9 @@ impl Accessor for AzblobBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_hints(
+                AccessorHint::ReadStreamable | AccessorHint::ListFlat | AccessorHint::ListHierarchy,
+            );
 
         am
     }

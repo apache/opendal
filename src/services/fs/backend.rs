@@ -508,14 +508,14 @@ impl Accessor for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::ObjectPager)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as ObjectPager))
+                    Ok((RpList::default(), Box::new(()) as output::ObjectPager))
                 } else {
                     Err(parse_io_error(e))
                 };
@@ -712,14 +712,21 @@ impl Accessor for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(
+        &self,
+        path: &str,
+        _: OpList,
+    ) -> Result<(RpList, output::BlockingObjectPager)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
+                    Ok((
+                        RpList::default(),
+                        Box::new(()) as output::BlockingObjectPager,
+                    ))
                 } else {
                     Err(parse_io_error(e))
                 };

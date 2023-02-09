@@ -168,10 +168,11 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path))
+                as output::ObjectPager,
         ))
     }
 }

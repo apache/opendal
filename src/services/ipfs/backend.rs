@@ -381,10 +381,10 @@ impl Accessor for IpfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::ObjectPager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), path)) as ObjectPager,
+            Box::new(DirStream::new(Arc::new(self.clone()), path)) as output::ObjectPager,
         ))
     }
 }
@@ -460,8 +460,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::ObjectPage for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
         if self.consumed {
             return Ok(None);
         }
@@ -496,7 +496,7 @@ impl ObjectPage for DirStream {
                 name += "/";
             }
 
-            oes.push(ObjectEntry::new(&name, meta.with_complete()))
+            oes.push(output::ObjectEntry::new(&name, meta.with_complete()))
         }
 
         self.consumed = true;

@@ -42,9 +42,9 @@ impl DirPager {
 }
 
 #[async_trait]
-impl ObjectPage for DirPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+impl output::ObjectPage for DirPager {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+        let mut oes: Vec<output::ObjectEntry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next_entry().await.map_err(parse_io_error)? {
@@ -68,15 +68,15 @@ impl ObjectPage for DirPager {
             let file_type = de.file_type().await.map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                ObjectEntry::new(
+                output::ObjectEntry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -104,9 +104,9 @@ impl BlockingDirPager {
     }
 }
 
-impl BlockingObjectPage for BlockingDirPager {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+impl output::BlockingObjectPage for BlockingDirPager {
+    fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+        let mut oes: Vec<output::ObjectEntry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -130,15 +130,15 @@ impl BlockingObjectPage for BlockingDirPager {
             let file_type = de.file_type().map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                ObjectEntry::new(
+                output::ObjectEntry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

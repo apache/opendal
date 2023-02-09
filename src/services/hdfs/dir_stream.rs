@@ -39,9 +39,9 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+impl output::ObjectPage for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+        let mut oes: Vec<output::ObjectEntry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -55,15 +55,15 @@ impl ObjectPage for DirStream {
                 let meta = ObjectMetadata::new(ObjectMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
-                ObjectEntry::new(&path, meta)
+                output::ObjectEntry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                ObjectEntry::new(
+                output::ObjectEntry::new(
                     &format!("{path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -73,9 +73,9 @@ impl ObjectPage for DirStream {
     }
 }
 
-impl BlockingObjectPage for DirStream {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+impl output::BlockingObjectPage for DirStream {
+    fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+        let mut oes: Vec<output::ObjectEntry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -89,15 +89,15 @@ impl BlockingObjectPage for DirStream {
                 let meta = ObjectMetadata::new(ObjectMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
-                ObjectEntry::new(&path, meta)
+                output::ObjectEntry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                ObjectEntry::new(
+                output::ObjectEntry::new(
                     &format!("{path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::ObjectEntry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

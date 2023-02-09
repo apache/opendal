@@ -41,3 +41,12 @@ pub use cursor::Cursor;
 mod into_streamable;
 pub use into_streamable::into_streamable_reader;
 pub use into_streamable::IntoStreamableReader;
+
+mod object_entry;
+pub use object_entry::ObjectEntry;
+
+mod object_page;
+pub use object_page::BlockingObjectPage;
+pub use object_page::BlockingObjectPager;
+pub use object_page::ObjectPage;
+pub use object_page::ObjectPager;

@@ -1183,7 +1183,7 @@ impl Object {
     /// `content_md5` is a prefetched metadata field in `ObjectEntry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::ObjectEntry::metadata()` to get the metadata you want.
     pub async fn content_md5(&self) -> Result<Option<String>> {
         {
             let guard = self.meta.lock();
@@ -1205,7 +1205,7 @@ impl Object {
     /// `last_modified` is a prefetched metadata field in `ObjectEntry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::ObjectEntry::metadata()` to get the metadata you want.
     pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
         {
             let guard = self.meta.lock();
@@ -1227,7 +1227,7 @@ impl Object {
     /// `etag` is a prefetched metadata field in `ObjectEntry`.
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::ObjectEntry::metadata()` to get the metadata you want.
     pub async fn etag(&self) -> Result<Option<String>> {
         {
             let guard = self.meta.lock();

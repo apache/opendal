@@ -118,7 +118,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)> {
         self.inner
             .list(path, args)
             .map_ok(|(rp, os)| {
@@ -134,7 +134,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                         //
                         // ref: https://github.com/rust-lang/rust/issues/80437
                         inner: os,
-                    }) as ObjectPager,
+                    }) as output::ObjectPager,
                 )
             })
             .map_err(|err| {
@@ -259,7 +259,11 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(
+        &self,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, output::BlockingObjectPager)> {
         self.inner.blocking_list(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingList.into_static())
                 .with_context("service", self.meta.scheme())
@@ -268,15 +272,15 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     }
 }
 
-struct ObjectStreamErrorContextWrapper<T: ObjectPage> {
+struct ObjectStreamErrorContextWrapper<T: output::ObjectPage> {
     scheme: Scheme,
     path: String,
     inner: T,
 }
 
 #[async_trait::async_trait]
-impl<T: ObjectPage> ObjectPage for ObjectStreamErrorContextWrapper<T> {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<T: output::ObjectPage> output::ObjectPage for ObjectStreamErrorContextWrapper<T> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
         self.inner.next_page().await.map_err(|err| {
             err.with_operation("ObjectPage::next_page")
                 .with_context("service", self.scheme)

@@ -14,7 +14,7 @@
 
 use async_trait::async_trait;
 
-use crate::raw::*;
+use super::ObjectEntry;
 use crate::*;
 
 /// ObjectPage trait is used by [`Accessor`] to implement `list` operation.

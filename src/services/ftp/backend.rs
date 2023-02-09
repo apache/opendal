@@ -447,7 +447,7 @@ impl Accessor for FtpBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::ObjectPager)> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
@@ -457,7 +457,8 @@ impl Accessor for FtpBackend {
 
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)) as ObjectPager,
+            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd))
+                as output::ObjectPager,
         ))
     }
 }

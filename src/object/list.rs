@@ -32,19 +32,27 @@ use crate::*;
 /// call `next_page` directly.
 pub struct ObjectLister {
     acc: FusedAccessor,
-    pager: Option<ObjectPager>,
+    pager: Option<output::ObjectPager>,
 
-    buf: VecDeque<ObjectEntry>,
+    buf: VecDeque<output::ObjectEntry>,
     /// We will move `pager` inside future and return it back while future is ready.
     /// Thus, we should not allow calling other function while we already have
     /// a future.
     #[allow(clippy::type_complexity)]
-    fut: Option<BoxFuture<'static, (ObjectPager, Result<Option<Vec<ObjectEntry>>>)>>,
+    fut: Option<
+        BoxFuture<
+            'static,
+            (
+                output::ObjectPager,
+                Result<Option<Vec<output::ObjectEntry>>>,
+            ),
+        >,
+    >,
 }
 
 impl ObjectLister {
     /// Create a new object lister.
-    pub fn new(op: Operator, pager: ObjectPager) -> Self {
+    pub fn new(op: Operator, pager: output::ObjectPager) -> Self {
         Self {
             acc: op.inner(),
             pager: Some(pager),
@@ -135,13 +143,13 @@ impl Stream for ObjectLister {
 
 pub struct BlockingObjectLister {
     acc: FusedAccessor,
-    pager: BlockingObjectPager,
-    buf: VecDeque<ObjectEntry>,
+    pager: output::BlockingObjectPager,
+    buf: VecDeque<output::ObjectEntry>,
 }
 
 impl BlockingObjectLister {
     /// Create a new object lister.
-    pub fn new(acc: FusedAccessor, pager: BlockingObjectPager) -> Self {
+    pub fn new(acc: FusedAccessor, pager: output::BlockingObjectPager) -> Self {
         Self {
             acc,
             pager,

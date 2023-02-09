@@ -155,7 +155,7 @@ Since v0.21, `Accessor` will return `ObjectPager` for `List`:
 
 ```diff
 - async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer>
-+ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)>
++ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)>
 ```
 
 And `Object` will return an `ObjectLister` which is built upon `ObjectPage`:

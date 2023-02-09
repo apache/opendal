@@ -593,7 +593,7 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)> {
         self.handle.requests_total_list.increment(1);
 
         let start = Instant::now();
@@ -851,7 +851,11 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(
+        &self,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, output::BlockingObjectPager)> {
         self.handle.requests_total_blocking_list.increment(1);
 
         let start = Instant::now();

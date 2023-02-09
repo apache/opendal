@@ -17,7 +17,7 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Operator;
 
-/// Entry is returned by `ObjectPage` or `BlockingObjectPage`
+/// Entry is returned by `Page` or `BlockingPage`
 /// during list operations.
 #[derive(Debug, Clone)]
 pub struct Entry {

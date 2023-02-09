@@ -149,16 +149,16 @@ In v0.21, we refactor the whole `Accessor`'s API:
 
 Since v0.21, we will return a reply struct for different operations called `RpWrite` instead of an exact type. We can split OpenDAL's public API and raw API with this change.
 
-## ObjectList and ObjectPage
+## ObjectList and Page
 
-Since v0.21, `Accessor` will return `ObjectPager` for `List`:
+Since v0.21, `Accessor` will return `Pager` for `List`:
 
 ```diff
 - async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer>
-+ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)>
++ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)>
 ```
 
-And `Object` will return an `ObjectLister` which is built upon `ObjectPage`:
+And `Object` will return an `ObjectLister` which is built upon `Page`:
 
 ```rust
 pub async fn list(&self) -> Result<ObjectLister> { ... }

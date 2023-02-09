@@ -160,7 +160,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -351,11 +351,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
-    fn blocking_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, output::BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -392,7 +388,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().delete(path, args).await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         self.as_ref().list(path, args).await
     }
 
@@ -450,11 +446,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().blocking_delete(path, args)
     }
-    fn blocking_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, output::BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         self.as_ref().blocking_list(path, args)
     }
 }
@@ -488,7 +480,7 @@ impl Accessor for FusedAccessor {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().delete(path, args).await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         self.as_ref().list(path, args).await
     }
 
@@ -546,11 +538,7 @@ impl Accessor for FusedAccessor {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().blocking_delete(path, args)
     }
-    fn blocking_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, output::BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         self.as_ref().blocking_list(path, args)
     }
 }

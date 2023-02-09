@@ -118,7 +118,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         self.inner
             .list(path, args)
             .map_ok(|(rp, os)| {
@@ -134,7 +134,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                         //
                         // ref: https://github.com/rust-lang/rust/issues/80437
                         inner: os,
-                    }) as output::ObjectPager,
+                    }) as output::Pager,
                 )
             })
             .map_err(|err| {
@@ -259,11 +259,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         })
     }
 
-    fn blocking_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, output::BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         self.inner.blocking_list(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingList.into_static())
                 .with_context("service", self.meta.scheme())
@@ -272,17 +268,17 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     }
 }
 
-struct ObjectStreamErrorContextWrapper<T: output::ObjectPage> {
+struct ObjectStreamErrorContextWrapper<T: output::Page> {
     scheme: Scheme,
     path: String,
     inner: T,
 }
 
 #[async_trait::async_trait]
-impl<T: output::ObjectPage> output::ObjectPage for ObjectStreamErrorContextWrapper<T> {
+impl<T: output::Page> output::Page for ObjectStreamErrorContextWrapper<T> {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page().await.map_err(|err| {
-            err.with_operation("ObjectPage::next_page")
+            err.with_operation("Page::next_page")
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

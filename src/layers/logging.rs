@@ -412,7 +412,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -439,7 +439,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.error_level,
                         self.failure_level,
                     );
-                    Ok((rp, Box::new(streamer) as output::ObjectPager))
+                    Ok((rp, Box::new(streamer) as output::Pager))
                 }
                 Err(err) => {
                     if let Some(lvl) = self.err_level(&err) {
@@ -896,11 +896,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    fn blocking_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, output::BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -926,7 +922,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     self.error_level,
                     self.failure_level,
                 );
-                (rp, Box::new(li) as output::BlockingObjectPager)
+                (rp, Box::new(li) as output::BlockingPager)
             })
             .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
@@ -1273,7 +1269,7 @@ struct LoggingPager {
     scheme: Scheme,
     path: String,
     finished: bool,
-    inner: output::ObjectPager,
+    inner: output::Pager,
     error_level: Option<Level>,
     failure_level: Option<Level>,
 }
@@ -1282,7 +1278,7 @@ impl LoggingPager {
     fn new(
         scheme: Scheme,
         path: &str,
-        inner: output::ObjectPager,
+        inner: output::Pager,
         error_level: Option<Level>,
         failure_level: Option<Level>,
     ) -> Self {
@@ -1340,7 +1336,7 @@ impl LoggingPager {
 }
 
 #[async_trait]
-impl output::ObjectPage for LoggingPager {
+impl output::Page for LoggingPager {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let res = self.inner.next_page().await;
 
@@ -1388,7 +1384,7 @@ struct BlockingLoggingPager {
     scheme: Scheme,
     path: String,
     finished: bool,
-    inner: output::BlockingObjectPager,
+    inner: output::BlockingPager,
     error_level: Option<Level>,
     failure_level: Option<Level>,
 }
@@ -1397,7 +1393,7 @@ impl BlockingLoggingPager {
     fn new(
         scheme: Scheme,
         path: &str,
-        inner: output::BlockingObjectPager,
+        inner: output::BlockingPager,
         error_level: Option<Level>,
         failure_level: Option<Level>,
     ) -> Self {
@@ -1454,7 +1450,7 @@ impl BlockingLoggingPager {
     }
 }
 
-impl output::BlockingObjectPage for BlockingLoggingPager {
+impl output::BlockingPage for BlockingLoggingPager {
     fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let res = self.inner.next_page();
 

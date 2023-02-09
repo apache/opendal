@@ -672,7 +672,7 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::Pager)> {
         let path = path.trim_end_matches('/');
         let req = self.webhdfs_list_status_req(path)?;
 
@@ -693,14 +693,14 @@ impl Accessor for WebhdfsBackend {
                 let objects = DirStream::new(path, file_statuses);
                 Ok((
                     RpList::default(),
-                    Box::new(objects) as Box<dyn output::ObjectPage>,
+                    Box::new(objects) as Box<dyn output::Page>,
                 ))
             }
             StatusCode::NOT_FOUND => {
                 let objects = DirStream::new(path, vec![]);
                 Ok((
                     RpList::default(),
-                    Box::new(objects) as Box<dyn output::ObjectPage>,
+                    Box::new(objects) as Box<dyn output::Page>,
                 ))
             }
             _ => Err(parse_error(resp).await?),

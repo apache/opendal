@@ -48,7 +48,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::ObjectPage for DirStream {
+impl output::Page for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);

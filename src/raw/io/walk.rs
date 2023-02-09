@@ -59,7 +59,7 @@ const WALK_BUFFER_SIZE: usize = 256;
 pub struct TopDownWalker {
     acc: FusedAccessor,
     dirs: VecDeque<output::Entry>,
-    pagers: Vec<(output::ObjectPager, Vec<output::Entry>)>,
+    pagers: Vec<(output::Pager, Vec<output::Entry>)>,
     res: Vec<output::Entry>,
 }
 
@@ -80,7 +80,7 @@ impl TopDownWalker {
 }
 
 #[async_trait]
-impl output::ObjectPage for TopDownWalker {
+impl output::Page for TopDownWalker {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_front() {
@@ -172,7 +172,7 @@ impl output::ObjectPage for TopDownWalker {
 pub struct BottomUpWalker {
     acc: FusedAccessor,
     dirs: VecDeque<output::Entry>,
-    pagers: Vec<(output::ObjectPager, output::Entry, Vec<output::Entry>)>,
+    pagers: Vec<(output::Pager, output::Entry, Vec<output::Entry>)>,
     res: Vec<output::Entry>,
 }
 
@@ -192,7 +192,7 @@ impl BottomUpWalker {
 }
 
 #[async_trait]
-impl output::ObjectPage for BottomUpWalker {
+impl output::Page for BottomUpWalker {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {

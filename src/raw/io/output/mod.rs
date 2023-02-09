@@ -46,7 +46,7 @@ mod entry;
 pub use entry::Entry;
 
 mod page;
-pub use page::BlockingObjectPage;
-pub use page::BlockingObjectPager;
-pub use page::ObjectPage;
-pub use page::ObjectPager;
+pub use page::BlockingPage;
+pub use page::BlockingPager;
+pub use page::Page;
+pub use page::Pager;

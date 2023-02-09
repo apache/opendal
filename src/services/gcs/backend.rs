@@ -462,11 +462,10 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path))
-                as output::ObjectPager,
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as output::Pager,
         ))
     }
 }

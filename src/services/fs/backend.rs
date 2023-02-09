@@ -304,7 +304,7 @@ impl Accessor for FsBackend {
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )
-            .set_hints(AccessorHint::ReadSeekable);
+            .set_hints(AccessorHint::ReadSeekable | AccessorHint::ListHierarchy);
 
         am
     }
@@ -510,7 +510,14 @@ impl Accessor for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if !matches!(args.style(), ListStyle::Hierarchy) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "list with flat style is not supported",
+            ));
+        }
+
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
@@ -714,7 +721,14 @@ impl Accessor for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        if !matches!(args.style(), ListStyle::Hierarchy) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "list with flat style is not supported",
+            ));
+        }
+
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {

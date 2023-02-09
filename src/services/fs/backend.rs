@@ -304,7 +304,7 @@ impl Accessor for FsBackend {
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )
-            .set_hints(AccessorHint::ReadIsSeekable);
+            .set_hints(AccessorHint::ReadSeekable);
 
         am
     }

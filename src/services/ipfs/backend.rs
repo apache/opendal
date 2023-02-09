@@ -217,7 +217,7 @@ impl Accessor for IpfsBackend {
         ma.set_scheme(Scheme::Ipfs)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read | AccessorCapability::List)
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         ma
     }

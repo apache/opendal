@@ -781,7 +781,7 @@ mod tests {
 
         fn metadata(&self) -> AccessorMetadata {
             let mut am = AccessorMetadata::default();
-            am.set_hints(AccessorHint::ReadIsStreamable);
+            am.set_hints(AccessorHint::ReadStreamable);
 
             am
         }

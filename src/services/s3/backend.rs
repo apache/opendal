@@ -1122,7 +1122,7 @@ impl Accessor for S3Backend {
                     | AccessorCapability::Presign
                     | AccessorCapability::Multipart,
             )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         am
     }

@@ -35,6 +35,6 @@ pub use compress::DecompressReader;
 #[cfg(feature = "compress")]
 pub use compress::DecompressState;
 
-mod walk;
-pub use walk::BottomUpWalker;
-pub use walk::TopDownWalker;
+// mod walk;
+// pub use walk::BottomUpWalker;
+// pub use walk::TopDownWalker;

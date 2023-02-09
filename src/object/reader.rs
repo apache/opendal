@@ -62,10 +62,10 @@ use crate::raw::*;
 ///
 /// ## Read is Seekable
 ///
-/// We use internal `AccessorHint::ReadIsSeekable` to decide the most
+/// We use internal `AccessorHint::ReadSeekable` to decide the most
 /// suitable implementations.
 ///
-/// If there is a hint that `ReadIsSeekable`, we will open it with given args
+/// If there is a hint that `ReadSeekable`, we will open it with given args
 /// directy. Otherwise, we will pick a seekable reader implementation based
 /// on input range for it.
 ///
@@ -78,10 +78,10 @@ use crate::raw::*;
 ///
 /// ## Read is Streamable
 ///
-/// We use internal `AccessorHint::ReadIsStreamable` to decide the most
+/// We use internal `AccessorHint::ReadStreamable` to decide the most
 /// suitable implementations.
 ///
-/// If there is a hint that `ReadIsStreamable`, we will use existing reader
+/// If there is a hint that `ReadStreamable`, we will use existing reader
 /// directly. Otherwise, we will use transform this reader as a stream.
 ///
 /// ## Consume instead of Drop

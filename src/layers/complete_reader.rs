@@ -74,8 +74,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A>)> {
         let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadIsSeekable),
-            self.meta.hints().contains(AccessorHint::ReadIsStreamable),
+            self.meta.hints().contains(AccessorHint::ReadSeekable),
+            self.meta.hints().contains(AccessorHint::ReadStreamable),
         );
 
         let range = args.range();
@@ -124,8 +124,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         args: OpRead,
     ) -> Result<(RpRead, CompleteBlockingReader<A>)> {
         let (seekable, streamable) = (
-            self.meta.hints().contains(AccessorHint::ReadIsSeekable),
-            self.meta.hints().contains(AccessorHint::ReadIsStreamable),
+            self.meta.hints().contains(AccessorHint::ReadSeekable),
+            self.meta.hints().contains(AccessorHint::ReadStreamable),
         );
 
         let (rp, r) = self.inner.blocking_read(path, args)?;

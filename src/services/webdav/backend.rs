@@ -210,7 +210,7 @@ impl Accessor for WebdavBackend {
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read | AccessorCapability::Write)
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         ma
     }

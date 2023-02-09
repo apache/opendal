@@ -401,7 +401,7 @@ impl Accessor for OssBackend {
                     | AccessorCapability::List
                     | AccessorCapability::Presign,
             )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
         am
     }
 

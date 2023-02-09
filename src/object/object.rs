@@ -1011,7 +1011,10 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
+        let (_, pager) = self
+            .acc
+            .list(self.path(), OpList::new(ListStyle::Hierarchy))
+            .await?;
 
         Ok(ObjectLister::new(self.operator(), pager))
     }
@@ -1058,7 +1061,9 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
+        let (_, pager) = self
+            .acc
+            .blocking_list(self.path(), OpList::new(ListStyle::Hierarchy))?;
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 

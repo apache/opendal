@@ -47,6 +47,16 @@ impl Page for () {
     }
 }
 
+#[async_trait]
+impl<P: Page> Page for Option<P> {
+    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+        match self {
+            Some(p) => p.next_page().await,
+            None => Ok(None),
+        }
+    }
+}
+
 /// BlockingPage is the blocking version of [`Page`].
 pub trait BlockingPage: 'static {
     /// Fetch a new page of [`Entry`]
@@ -68,5 +78,15 @@ impl BlockingPage for BlockingPager {
 impl BlockingPage for () {
     fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         Ok(None)
+    }
+}
+
+#[async_trait]
+impl<P: BlockingPage> BlockingPage for Option<P> {
+    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+        match self {
+            Some(p) => p.next_page(),
+            None => Ok(None),
+        }
     }
 }

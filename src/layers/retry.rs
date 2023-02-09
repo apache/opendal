@@ -145,6 +145,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type Inner = A;
     type Reader = RetryReader<A::Reader>;
     type BlockingReader = RetryReader<A::BlockingReader>;
+    type Pager = RetryPager<A::Pager>;
+    type BlockingPager = RetryPager<A::BlockingPager>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -216,7 +218,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         { || self.inner.list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -228,8 +230,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             })
             .map(|v| {
                 v.map(|(l, p)| {
-                    let pager = Box::new(RetryPager::new(p, path, self.builder.clone()))
-                        as Box<dyn output::Page>;
+                    let pager = RetryPager::new(p, path, self.builder.clone());
                     (l, pager)
                 })
                 .map_err(|e| e.set_persistent())
@@ -367,7 +368,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         { || self.inner.blocking_list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -380,7 +381,6 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .call()
             .map(|(rp, p)| {
                 let p = RetryPager::new(p, path, self.builder.clone());
-                let p = Box::new(p) as Box<dyn output::BlockingPage>;
                 (rp, p)
             })
             .map_err(|e| e.set_persistent())
@@ -776,6 +776,8 @@ mod tests {
     impl Accessor for MockService {
         type Reader = MockReader;
         type BlockingReader = ();
+        type Pager = MockPager;
+        type BlockingPager = ();
 
         fn metadata(&self) -> AccessorMetadata {
             let mut am = AccessorMetadata::default();
@@ -794,9 +796,8 @@ mod tests {
             ))
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, output::Pager)> {
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
             let pager = MockPager::default();
-            let pager = Box::new(pager) as Box<dyn output::Page>;
             Ok((RpList::default(), pager))
         }
     }

@@ -290,6 +290,8 @@ pub struct GhacBackend {
 impl Accessor for GhacBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = ();
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();

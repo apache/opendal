@@ -197,6 +197,8 @@ impl Debug for HttpBackend {
 impl Accessor for HttpBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = ();
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();

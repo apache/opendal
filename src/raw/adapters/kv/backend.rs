@@ -50,6 +50,8 @@ where
 impl<S: Adapter> Accessor for Backend<S> {
     type Reader = output::Cursor;
     type BlockingReader = output::Cursor;
+    type Pager = ();
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am: AccessorMetadata = self.kv.metadata().into();

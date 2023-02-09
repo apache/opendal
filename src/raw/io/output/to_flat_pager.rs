@@ -22,7 +22,7 @@ use crate::raw::*;
 use crate::*;
 
 /// to_flat_pager is used to make a hierarchy pager flat.
-pub fn to_flat_pager<A: Accessor>(acc: A, path: &str, size: usize) -> ToFlatPager<A> {
+pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatPager<A, P> {
     #[cfg(debug_assertions)]
     {
         let meta = acc.metadata();
@@ -84,16 +84,20 @@ pub fn to_flat_pager<A: Accessor>(acc: A, path: &str, size: usize) -> ToFlatPage
 /// Especially, for storage services that can't return dirs first, ToFlatPager
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
-pub struct ToFlatPager<A: Accessor> {
+pub struct ToFlatPager<A: Accessor, P> {
     acc: A,
     size: usize,
     dirs: VecDeque<output::Entry>,
-    pagers: Vec<(A::Pager, output::Entry, Vec<output::Entry>)>,
+    pagers: Vec<(P, output::Entry, Vec<output::Entry>)>,
     res: Vec<output::Entry>,
 }
 
 #[async_trait]
-impl<A: Accessor> output::Page for ToFlatPager<A> {
+impl<A, P> output::Page for ToFlatPager<A, P>
+where
+    A: Accessor<Pager = P>,
+    P: output::Page,
+{
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
@@ -148,3 +152,65 @@ impl<A: Accessor> output::Page for ToFlatPager<A> {
         }
     }
 }
+
+impl<A, P> output::BlockingPage for ToFlatPager<A, P>
+where
+    A: Accessor<BlockingPager = P>,
+    P: output::BlockingPage,
+{
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        loop {
+            if let Some(de) = self.dirs.pop_back() {
+                let (_, op) = self
+                    .acc
+                    .blocking_list(de.path(), OpList::new(ListStyle::Hierarchy))?;
+                self.pagers.push((op, de, vec![]))
+            }
+
+            let (mut pager, de, mut buf) = match self.pagers.pop() {
+                Some((pager, de, buf)) => (pager, de, buf),
+                None => {
+                    if !self.res.is_empty() {
+                        return Ok(Some(mem::take(&mut self.res)));
+                    }
+                    return Ok(None);
+                }
+            };
+
+            if buf.is_empty() {
+                match pager.next_page()? {
+                    Some(v) => {
+                        buf = v;
+                    }
+                    None => {
+                        self.res.push(de);
+                        continue;
+                    }
+                }
+            }
+
+            let mut buf = VecDeque::from(buf);
+            loop {
+                if let Some(oe) = buf.pop_front() {
+                    if oe.mode().is_dir() {
+                        self.dirs.push_back(oe);
+                        self.pagers.push((pager, de, buf.into()));
+                        break;
+                    } else {
+                        self.res.push(oe)
+                    }
+                } else {
+                    self.pagers.push((pager, de, vec![]));
+                    break;
+                }
+            }
+
+            if self.res.len() >= self.size {
+                return Ok(Some(mem::take(&mut self.res)));
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {}

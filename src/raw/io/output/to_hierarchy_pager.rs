@@ -18,7 +18,7 @@ use crate::raw::*;
 use crate::*;
 
 /// to_hierarchy_pager is used to make a hierarchy pager flat.
-pub fn to_hierarchy_pager<P: output::Page>(pager: P, path: &str) -> ToHierarchyPager<P> {
+pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
     ToHierarchyPager {
         pager,
         path: path.to_string(),
@@ -35,7 +35,7 @@ pub fn to_hierarchy_pager<P: output::Page>(pager: P, path: &str) -> ToHierarchyP
 /// returned.
 ///
 /// Please keep calling next_page until we returned `Ok(None)`
-pub struct ToHierarchyPager<P: output::Page> {
+pub struct ToHierarchyPager<P> {
     pager: P,
     path: String,
 }
@@ -44,6 +44,44 @@ pub struct ToHierarchyPager<P: output::Page> {
 impl<P: output::Page> output::Page for ToHierarchyPager<P> {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let page = self.pager.next_page().await?;
+
+        let mut entries = if let Some(entries) = page {
+            entries
+        } else {
+            return Ok(None);
+        };
+
+        entries.retain(|e| {
+            let path = if let Some(path) = e.path().strip_prefix(&self.path) {
+                path
+            } else {
+                // If path is not started with prefix, drop it.
+                //
+                // Idealy, it should never happen. But we just tolerate
+                // this state.
+                return false;
+            };
+
+            let idx = if let Some(idx) = path.find('/') {
+                idx
+            } else {
+                // If there is no `/` in path, it's a normal file, we
+                // can return it directly.
+                return true;
+            };
+
+            // idx == path.len() means it's contain only one `/` at the
+            // end of path.
+            idx == path.len()
+        });
+
+        Ok(Some(entries))
+    }
+}
+
+impl<P: output::BlockingPage> output::BlockingPage for ToHierarchyPager<P> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let page = self.pager.next_page()?;
 
         let mut entries = if let Some(entries) = page {
             entries

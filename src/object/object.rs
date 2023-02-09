@@ -1160,9 +1160,9 @@ impl Object {
         Ok(guard.clone())
     }
 
-    /// The size of `ObjectEntry`'s corresponding object
+    /// The size of `Entry`'s corresponding object
     ///
-    /// `content_length` is a prefetched metadata field in `ObjectEntry`.
+    /// `content_length` is a prefetched metadata field in `Entry`.
     pub async fn content_length(&self) -> Result<u64> {
         {
             let guard = self.meta.lock();
@@ -1178,12 +1178,12 @@ impl Object {
         Ok(guard.content_length())
     }
 
-    /// The MD5 message digest of `ObjectEntry`'s corresponding object
+    /// The MD5 message digest of `Entry`'s corresponding object
     ///
-    /// `content_md5` is a prefetched metadata field in `ObjectEntry`
+    /// `content_md5` is a prefetched metadata field in `Entry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
     pub async fn content_md5(&self) -> Result<Option<String>> {
         {
             let guard = self.meta.lock();
@@ -1200,12 +1200,12 @@ impl Object {
         Ok(guard.content_md5().map(|v| v.to_string()))
     }
 
-    /// The last modified UTC datetime of `ObjectEntry`'s corresponding object
+    /// The last modified UTC datetime of `Entry`'s corresponding object
     ///
-    /// `last_modified` is a prefetched metadata field in `ObjectEntry`
+    /// `last_modified` is a prefetched metadata field in `Entry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
     pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
         {
             let guard = self.meta.lock();
@@ -1222,12 +1222,12 @@ impl Object {
         Ok(guard.last_modified())
     }
 
-    /// The ETag string of `ObjectEntry`'s corresponding object
+    /// The ETag string of `Entry`'s corresponding object
     ///
-    /// `etag` is a prefetched metadata field in `ObjectEntry`.
+    /// `etag` is a prefetched metadata field in `Entry`.
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
     pub async fn etag(&self) -> Result<Option<String>> {
         {
             let guard = self.meta.lock();

@@ -130,7 +130,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         self.inner().list(path, args).await
     }
 
@@ -194,7 +194,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         self.inner().blocking_list(path, args)
     }
 }
@@ -228,7 +228,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         (self as &L).list(path, args).await
     }
 
@@ -294,7 +294,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         (self as &L).blocking_list(path, args)
     }
 }

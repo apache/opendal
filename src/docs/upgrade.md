@@ -149,16 +149,16 @@ In v0.21, we refactor the whole `Accessor`'s API:
 
 Since v0.21, we will return a reply struct for different operations called `RpWrite` instead of an exact type. We can split OpenDAL's public API and raw API with this change.
 
-## ObjectList and ObjectPage
+## ObjectList and Page
 
-Since v0.21, `Accessor` will return `ObjectPager` for `List`:
+Since v0.21, `Accessor` will return `Pager` for `List`:
 
 ```diff
 - async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer>
-+ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)>
++ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)>
 ```
 
-And `Object` will return an `ObjectLister` which is built upon `ObjectPage`:
+And `Object` will return an `ObjectLister` which is built upon `Page`:
 
 ```rust
 pub async fn list(&self) -> Result<ObjectLister> { ... }
@@ -232,13 +232,13 @@ OpenDAL v0.18 introduces the following breaking changes:
 
 - Deprecated feature flag `services-http` has been removed.
 - All `DirXxx` items have been renamed to `ObjectXxx` to make them more consistent.
-  - `DirEntry` -> `ObjectEntry`
+  - `DirEntry` -> `Entry`
   - `DirStream` -> `ObjectStream`
   - `DirStreamer` -> `ObjectStream`
   - `DirIterate` -> `ObjectIterate`
   - `DirIterator` -> `ObjectIterator`
 
-Besides, we also make a big change to our `ObjectEntry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
+Besides, we also make a big change to our `Entry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
 
 - If `content_lenght` is already known, we will return directly.
 - If not, we will check if the object entry is `complete`:

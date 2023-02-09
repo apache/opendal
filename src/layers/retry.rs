@@ -216,7 +216,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)> {
         { || self.inner.list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -229,7 +229,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .map(|v| {
                 v.map(|(l, p)| {
                     let pager = Box::new(RetryPager::new(p, path, self.builder.clone()))
-                        as Box<dyn ObjectPage>;
+                        as Box<dyn output::Page>;
                     (l, pager)
                 })
                 .map_err(|e| e.set_persistent())
@@ -367,7 +367,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, output::BlockingPager)> {
         { || self.inner.blocking_list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -380,7 +380,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .call()
             .map(|(rp, p)| {
                 let p = RetryPager::new(p, path, self.builder.clone());
-                let p = Box::new(p) as Box<dyn BlockingObjectPage>;
+                let p = Box::new(p) as Box<dyn output::BlockingPage>;
                 (rp, p)
             })
             .map_err(|e| e.set_persistent())
@@ -687,8 +687,8 @@ impl<P> RetryPager<P> {
 }
 
 #[async_trait]
-impl<P: ObjectPage> ObjectPage for RetryPager<P> {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<P: output::Page> output::Page for RetryPager<P> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if let Some(sleep) = self.sleep.take() {
             tokio::time::sleep(sleep).await;
         }
@@ -735,8 +735,8 @@ impl<P: ObjectPage> ObjectPage for RetryPager<P> {
     }
 }
 
-impl<P: BlockingObjectPage> BlockingObjectPage for RetryPager<P> {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<P: output::BlockingPage> output::BlockingPage for RetryPager<P> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         { || self.inner.next_page() }
             .retry(&self.policy)
             .when(|e| e.is_temporary())
@@ -794,9 +794,9 @@ mod tests {
             ))
         }
 
-        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, output::Pager)> {
             let pager = MockPager::default();
-            let pager = Box::new(pager) as Box<dyn ObjectPage>;
+            let pager = Box::new(pager) as Box<dyn output::Page>;
             Ok((RpList::default(), pager))
         }
     }
@@ -861,8 +861,8 @@ mod tests {
         attempt: usize,
     }
     #[async_trait]
-    impl ObjectPage for MockPager {
-        async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+    impl output::Page for MockPager {
+        async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
             self.attempt += 1;
             match self.attempt {
                 1 => Err(Error::new(
@@ -872,8 +872,8 @@ mod tests {
                 .set_temporary()),
                 2 => {
                     let entries = vec![
-                        ObjectEntry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
-                        ObjectEntry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
+                        output::Entry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
+                        output::Entry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
                     ];
                     Ok(Some(entries))
                 }
@@ -883,8 +883,8 @@ mod tests {
                 ),
                 4 => {
                     let entries = vec![
-                        ObjectEntry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
-                        ObjectEntry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
+                        output::Entry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
+                        output::Entry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
                     ];
                     Ok(Some(entries))
                 }

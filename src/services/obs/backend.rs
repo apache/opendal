@@ -406,10 +406,10 @@ impl Accessor for ObsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as output::Pager,
         ))
     }
 }

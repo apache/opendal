@@ -420,14 +420,14 @@ impl Accessor for AzdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::Pager)> {
         let op = Box::new(DirStream::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
         ));
 
-        Ok((RpList::default(), op as ObjectPager))
+        Ok((RpList::default(), op as output::Pager))
     }
 }
 

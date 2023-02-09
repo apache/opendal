@@ -23,7 +23,7 @@ use crate::*;
 ///
 /// mode and content_length are required metadata that all services
 /// should provide during `stat` operation. But in `list` operation,
-/// a.k.a., `ObjectEntry`'s content length could be `None`.
+/// a.k.a., `Entry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ObjectMetadata {
     /// Mark if this metadata is complete or not.

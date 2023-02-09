@@ -47,8 +47,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -118,7 +118,7 @@ impl ObjectPage for DirStream {
                 path += "/"
             };
 
-            let de = ObjectEntry::new(&path, meta);
+            let de = output::Entry::new(&path, meta);
 
             entries.push(de);
         }

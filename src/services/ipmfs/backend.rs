@@ -71,7 +71,7 @@ impl Accessor for IpmfsBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_hints(AccessorHint::ReadStreamable | AccessorHint::ListHierarchy);
 
         am
     }
@@ -170,7 +170,14 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if !matches!(args.style(), ListStyle::Hierarchy) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "list with flat style is not supported",
+            ));
+        }
+
         Ok((
             RpList::default(),
             DirStream::new(Arc::new(self.clone()), &self.root, path),

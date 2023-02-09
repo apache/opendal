@@ -49,7 +49,7 @@ pub(super) struct FileStatuses {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct FileStatus {
+pub struct FileStatus {
     pub length: u64,
     pub modification_time: i64,
 
@@ -77,7 +77,7 @@ impl TryFrom<FileStatus> for ObjectMetadata {
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
-pub(super) enum FileStatusType {
+pub enum FileStatusType {
     Directory,
     File,
 }

@@ -129,6 +129,8 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
+    type Pager = ImmutableDir;
+    type BlockingPager = ImmutableDir;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -146,36 +148,30 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.read(path, args).await
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::Pager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok((
-            RpList::default(),
-            Box::new(ImmutableDir::new(self.children(path))) as output::Pager,
-        ))
+        Ok((RpList::default(), ImmutableDir::new(self.children(path))))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner.blocking_read(path, args)
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, output::BlockingPager)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok((
-            RpList::default(),
-            Box::new(ImmutableDir::new(self.children(path))) as output::BlockingPager,
-        ))
+        Ok((RpList::default(), ImmutableDir::new(self.children(path))))
     }
 }
 
-struct ImmutableDir {
+pub struct ImmutableDir {
     idx: Vec<String>,
 }
 

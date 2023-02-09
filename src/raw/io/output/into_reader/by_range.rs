@@ -317,6 +317,8 @@ mod tests {
     impl Accessor for MockReadService {
         type Reader = MockReader;
         type BlockingReader = ();
+        type Pager = ();
+        type BlockingPager = ();
 
         async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());

@@ -209,6 +209,8 @@ impl Debug for IpfsBackend {
 impl Accessor for IpfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
@@ -381,10 +383,10 @@ impl Accessor for IpfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, output::Pager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), path)) as output::Pager,
+            DirStream::new(Arc::new(self.clone()), path),
         ))
     }
 }
@@ -443,7 +445,7 @@ impl IpfsBackend {
     }
 }
 
-struct DirStream {
+pub struct DirStream {
     backend: Arc<IpfsBackend>,
     path: String,
     consumed: bool,

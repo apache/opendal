@@ -18,7 +18,7 @@ use super::message::FileStatus;
 use crate::raw::*;
 use crate::*;
 
-pub(super) struct DirStream {
+pub struct DirStream {
     path: String,
     statuses: Vec<FileStatus>,
 }

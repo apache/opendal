@@ -321,7 +321,7 @@ impl<A: Accessor> OperatorBuilder<A> {
         // Make sure error context layer has been attached.
         OperatorBuilder { accessor }
             .layer(ErrorContextLayer)
-            .layer(CompleteReaderLayer)
+            .layer(CompleteLayer)
     }
 
     /// Create a new layer with static dispatch.

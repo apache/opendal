@@ -25,25 +25,43 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Complete underlying services reader support.
+/// Complete underlying services features so that users can use them in
+/// the same way.
+///
+/// So far CompleteLayer will do two completion:
+///
+/// ## Read
 ///
 /// OpenDAL requires all reader implements [`output::Read`] and
 /// [`output::BlockingRead`]. However, not all services have the
-/// capabilities. CompleteReaderLayer is uesd to add those capabilities in
+/// capabilities. CompleteLayer will add those capabilities in
 /// a zero cost way.
 ///
 /// Underlying services will return [`AccessorHint`] to indicate the
 /// features that returning readers support.
 ///
-/// - If both `seekable` and `streamable`, we will return directly.
-/// - If not `streamable`, we will wrap with [`output::into_streamable_reader`].
-/// - If not `seekable`, we will wrap with [`output::into_reader::by_range`]
-/// - If neither not supported, we will wrap both by_range and into_streamable.
+/// - If both `seekable` and `streamable`, return directly.
+/// - If not `streamable`, with [`output::into_streamable_reader`].
+/// - If not `seekable`, with [`output::into_reader::by_range`]
+/// - If neither not supported, wrap both by_range and into_streamable.
+///
+/// ## List
+///
+/// There are two styles of list, but not all services support both of
+/// them. CompleteLayer will add those capabilities in a zero cost way.
+///
+/// Underlying services will return [`AccessorHint`] to indicate the
+/// features that returning pagers support.
+///
+/// - If both `flat` and `hierarchy`, return directly.
+/// - If only `flat`, with [`output::to_flat_pager`].
+/// - if only `hierarchy`, with [`output::to_hierarchy_pager`].
+/// - If neither not supported, something must be wrong.
 ///
 /// [`AccessorHint`]: crate::raw::AccessorHint
-pub struct CompleteReaderLayer;
+pub struct CompleteLayer;
 
-impl<A: Accessor> Layer<A> for CompleteReaderLayer {
+impl<A: Accessor> Layer<A> for CompleteLayer {
     type LayeredAccessor = CompleteReaderAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {

@@ -47,5 +47,5 @@ pub(crate) use type_eraser::TypeEraseLayer;
 mod error_context;
 pub(crate) use error_context::ErrorContextLayer;
 
-mod complete_reader;
-pub(crate) use complete_reader::CompleteReaderLayer;
+mod complete;
+pub(crate) use complete::CompleteLayer;

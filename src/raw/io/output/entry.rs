@@ -19,7 +19,7 @@ use crate::Operator;
 
 /// Entry is returned by `Page` or `BlockingPage`
 /// during list operations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     path: String,
     meta: ObjectMetadata,

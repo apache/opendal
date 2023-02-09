@@ -213,4 +213,103 @@ where
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::collections::HashMap;
+    use std::vec;
+
+    use io::output::BlockingPage;
+    use log::debug;
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct MockService {
+        map: HashMap<&'static str, Vec<&'static str>>,
+    }
+
+    impl MockService {
+        fn new() -> Self {
+            let mut map = HashMap::default();
+            map.insert("x/", vec!["x/x/"]);
+            map.insert("x/x/", vec!["x/x/x/"]);
+            map.insert("x/x/x/", vec!["x/x/x/x"]);
+
+            Self { map }
+        }
+
+        fn get(&self, path: &str) -> MockPager {
+            let inner = self.map.get(path).expect("must have value").to_vec();
+
+            MockPager { inner, done: false }
+        }
+    }
+
+    #[async_trait]
+    impl Accessor for MockService {
+        type Reader = ();
+        type BlockingReader = ();
+        type Pager = ();
+        type BlockingPager = MockPager;
+
+        fn metadata(&self) -> AccessorMetadata {
+            let mut am = AccessorMetadata::default();
+            am.set_hints(AccessorHint::ListHierarchy);
+
+            am
+        }
+
+        fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
+            debug!("visit path: {path}");
+            Ok((RpList::default(), self.get(path)))
+        }
+    }
+
+    struct MockPager {
+        inner: Vec<&'static str>,
+        done: bool,
+    }
+
+    impl BlockingPage for MockPager {
+        fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+            if self.done {
+                return Ok(None);
+            }
+            self.done = true;
+
+            let entries = self
+                .inner
+                .iter()
+                .map(|path| {
+                    if path.ends_with('/') {
+                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))
+                    } else {
+                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::FILE))
+                    }
+                })
+                .collect();
+
+            Ok(Some(entries))
+        }
+    }
+
+    #[test]
+    fn test_blocking_list() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let acc = MockService::new();
+        let mut pager = to_flat_pager(acc, "x/", 10);
+
+        let mut entries = Vec::default();
+
+        while let Some(e) = pager.next_page()? {
+            entries.extend_from_slice(&e)
+        }
+
+        assert_eq!(
+            entries[0],
+            output::Entry::new("x/x/x/x", ObjectMetadata::new(ObjectMode::FILE))
+        );
+
+        Ok(())
+    }
+}

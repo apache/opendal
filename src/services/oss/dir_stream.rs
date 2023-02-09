@@ -57,7 +57,7 @@ impl DirStream {
 
 #[async_trait]
 impl output::ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -82,7 +82,7 @@ impl output::ObjectPage for DirStream {
         let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
 
         for prefix in output.common_prefixes {
-            let de = output::ObjectEntry::new(
+            let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
                 ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
@@ -111,7 +111,7 @@ impl output::ObjectPage for DirStream {
             let rel = build_rel_path(&self.root, &object.key);
             let path = unescape(&rel)
                 .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
-            let de = output::ObjectEntry::new(&path, meta);
+            let de = output::Entry::new(&path, meta);
             entries.push(de);
         }
 

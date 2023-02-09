@@ -43,8 +43,8 @@ impl DirPager {
 
 #[async_trait]
 impl output::ObjectPage for DirPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
-        let mut oes: Vec<output::ObjectEntry> = Vec::with_capacity(self.size);
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next_entry().await.map_err(parse_io_error)? {
@@ -68,15 +68,15 @@ impl output::ObjectPage for DirPager {
             let file_type = de.file_type().await.map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                output::ObjectEntry::new(
+                output::Entry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -105,8 +105,8 @@ impl BlockingDirPager {
 }
 
 impl output::BlockingObjectPage for BlockingDirPager {
-    fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
-        let mut oes: Vec<output::ObjectEntry> = Vec::with_capacity(self.size);
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -130,15 +130,15 @@ impl output::BlockingObjectPage for BlockingDirPager {
             let file_type = de.file_type().map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                output::ObjectEntry::new(
+                output::Entry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                output::ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

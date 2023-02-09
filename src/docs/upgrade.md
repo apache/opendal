@@ -232,13 +232,13 @@ OpenDAL v0.18 introduces the following breaking changes:
 
 - Deprecated feature flag `services-http` has been removed.
 - All `DirXxx` items have been renamed to `ObjectXxx` to make them more consistent.
-  - `DirEntry` -> `ObjectEntry`
+  - `DirEntry` -> `Entry`
   - `DirStream` -> `ObjectStream`
   - `DirStreamer` -> `ObjectStream`
   - `DirIterate` -> `ObjectIterate`
   - `DirIterator` -> `ObjectIterator`
 
-Besides, we also make a big change to our `ObjectEntry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
+Besides, we also make a big change to our `Entry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
 
 - If `content_lenght` is already known, we will return directly.
 - If not, we will check if the object entry is `complete`:

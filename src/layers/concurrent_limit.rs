@@ -344,7 +344,7 @@ impl ConcurrentLimitPager {
 
 #[async_trait]
 impl output::ObjectPage for ConcurrentLimitPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page().await
     }
 }
@@ -366,7 +366,7 @@ impl BlockingConcurrentLimitPager {
 }
 
 impl output::BlockingObjectPage for BlockingConcurrentLimitPager {
-    fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page()
     }
 }

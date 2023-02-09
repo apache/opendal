@@ -34,7 +34,7 @@ impl DirStream {
 
 #[async_trait]
 impl output::ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.statuses.is_empty() {
             return Ok(None);
         }
@@ -48,7 +48,7 @@ impl output::ObjectPage for DirStream {
             if meta.mode().is_dir() {
                 path += "/"
             }
-            let entry = output::ObjectEntry::new(&path, meta);
+            let entry = output::Entry::new(&path, meta);
             entries.push(entry);
         }
 

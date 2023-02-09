@@ -370,7 +370,7 @@ impl TracingPager {
 #[async_trait]
 impl output::ObjectPage for TracingPager {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page().await
     }
 }
@@ -388,7 +388,7 @@ impl BlockingTracingPager {
 
 impl output::BlockingObjectPage for BlockingTracingPager {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page()
     }
 }

@@ -46,7 +46,7 @@ impl DirStream {
 
 #[async_trait]
 impl output::ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.consumed {
             return Ok(None);
         }
@@ -82,7 +82,7 @@ impl output::ObjectPage for DirStream {
 
                     let path = build_rel_path(&self.root, &path);
 
-                    output::ObjectEntry::new(
+                    output::Entry::new(
                         &path,
                         ObjectMetadata::new(object.mode())
                             .with_content_length(object.size)

@@ -14,20 +14,20 @@
 
 use async_trait::async_trait;
 
-use super::ObjectEntry;
+use super::Entry;
 use crate::*;
 
 /// ObjectPage trait is used by [`Accessor`] to implement `list` operation.
 ///
 /// `list` will return a boxed `ObjectPage` which allow users to call `next_page`
-/// to fecth a new page of [`ObjectEntry`].
+/// to fecth a new page of [`Entry`].
 #[async_trait]
 pub trait ObjectPage: Send + Sync + 'static {
-    /// Fetch a new page of [`ObjectEntry`]
+    /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all object pages have been returned. Any following call
     /// to `next_page` will always get the same result.
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
+    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>>;
 }
 
 /// The boxed version of [`ObjectPage`]
@@ -35,38 +35,38 @@ pub type ObjectPager = Box<dyn ObjectPage>;
 
 #[async_trait]
 impl ObjectPage for ObjectPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         self.as_mut().next_page().await
     }
 }
 
 #[async_trait]
 impl ObjectPage for () {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         Ok(None)
     }
 }
 
 /// BlockingObjectPage is the blocking version of [`ObjectPage`].
 pub trait BlockingObjectPage: 'static {
-    /// Fetch a new page of [`ObjectEntry`]
+    /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all object pages have been returned. Any following call
     /// to `next_page` will always get the same result.
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>>;
+    fn next_page(&mut self) -> Result<Option<Vec<Entry>>>;
 }
 
 /// BlockingObjectPager is a boxed [`BlockingObjectPage`]
 pub type BlockingObjectPager = Box<dyn BlockingObjectPage>;
 
 impl BlockingObjectPage for BlockingObjectPager {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         self.as_mut().next_page()
     }
 }
 
 impl BlockingObjectPage for () {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
         Ok(None)
     }
 }

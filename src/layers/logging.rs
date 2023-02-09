@@ -1341,7 +1341,7 @@ impl LoggingPager {
 
 #[async_trait]
 impl output::ObjectPage for LoggingPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let res = self.inner.next_page().await;
 
         match &res {
@@ -1455,7 +1455,7 @@ impl BlockingLoggingPager {
 }
 
 impl output::BlockingObjectPage for BlockingLoggingPager {
-    fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let res = self.inner.next_page();
 
         match &res {

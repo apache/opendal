@@ -692,7 +692,7 @@ impl<P> RetryPager<P> {
 
 #[async_trait]
 impl<P: output::ObjectPage> output::ObjectPage for RetryPager<P> {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if let Some(sleep) = self.sleep.take() {
             tokio::time::sleep(sleep).await;
         }
@@ -740,7 +740,7 @@ impl<P: output::ObjectPage> output::ObjectPage for RetryPager<P> {
 }
 
 impl<P: output::BlockingObjectPage> output::BlockingObjectPage for RetryPager<P> {
-    fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         { || self.inner.next_page() }
             .retry(&self.policy)
             .when(|e| e.is_temporary())
@@ -866,7 +866,7 @@ mod tests {
     }
     #[async_trait]
     impl output::ObjectPage for MockPager {
-        async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+        async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
             self.attempt += 1;
             match self.attempt {
                 1 => Err(Error::new(
@@ -876,8 +876,8 @@ mod tests {
                 .set_temporary()),
                 2 => {
                     let entries = vec![
-                        output::ObjectEntry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
-                        output::ObjectEntry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
+                        output::Entry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
+                        output::Entry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
                     ];
                     Ok(Some(entries))
                 }
@@ -887,8 +887,8 @@ mod tests {
                 ),
                 4 => {
                     let entries = vec![
-                        output::ObjectEntry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
-                        output::ObjectEntry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
+                        output::Entry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
+                        output::Entry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
                     ];
                     Ok(Some(entries))
                 }

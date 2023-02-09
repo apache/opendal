@@ -71,8 +71,8 @@ impl DirStream {
 
 #[async_trait]
 impl output::ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
-        let mut oes: Vec<output::ObjectEntry> = Vec::with_capacity(self.size);
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -83,7 +83,7 @@ impl output::ObjectPage for DirStream {
             let path = self.path.to_string() + de.name();
 
             let d = if de.is_file() {
-                output::ObjectEntry::new(
+                output::Entry::new(
                     &path,
                     ObjectMetadata::new(ObjectMode::FILE)
                         .with_content_length(de.size() as u64)
@@ -91,12 +91,12 @@ impl output::ObjectPage for DirStream {
                         .with_complete(),
                 )
             } else if de.is_directory() {
-                output::ObjectEntry::new(
+                output::Entry::new(
                     &format!("{}/", &path),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                output::ObjectEntry::new(
+                output::Entry::new(
                     &path,
                     ObjectMetadata::new(ObjectMode::Unknown).with_complete(),
                 )

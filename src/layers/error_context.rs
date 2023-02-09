@@ -280,7 +280,7 @@ struct ObjectStreamErrorContextWrapper<T: output::ObjectPage> {
 
 #[async_trait::async_trait]
 impl<T: output::ObjectPage> output::ObjectPage for ObjectStreamErrorContextWrapper<T> {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::ObjectEntry>>> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page().await.map_err(|err| {
             err.with_operation("ObjectPage::next_page")
                 .with_context("service", self.scheme)

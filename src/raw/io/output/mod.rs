@@ -43,7 +43,7 @@ pub use into_streamable::into_streamable_reader;
 pub use into_streamable::IntoStreamableReader;
 
 mod entry;
-pub use entry::ObjectEntry;
+pub use entry::Entry;
 
 mod page;
 pub use page::BlockingObjectPage;

@@ -11,3 +11,140 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+use std::collections::VecDeque;
+use std::mem;
+
+use async_trait::async_trait;
+
+use crate::ops::*;
+use crate::raw::*;
+use crate::*;
+
+/// to_flat_pager is used to make a hierarchy pager flat.
+pub fn to_flat_pager<A: Accessor>(acc: A, path: &str, size: usize) -> ToFlatPager<A> {
+    #[cfg(debug_assertions)]
+    {
+        let meta = acc.metadata();
+        debug_assert!(
+            !meta.hints().contains(AccessorHint::ListFlat),
+            "service already supports list flat, call to_flat_pager must be a mistake"
+        );
+        debug_assert!(
+            meta.hints().contains(AccessorHint::ListHierarchy),
+            "service doesn't support list hierarchy, it must be a bug"
+        );
+    }
+
+    ToFlatPager {
+        acc,
+        size,
+        dirs: VecDeque::from([output::Entry::new(
+            path,
+            ObjectMetadata::new(ObjectMode::DIR),
+        )]),
+        pagers: vec![],
+        res: Vec::with_capacity(size),
+    }
+}
+
+/// ToFlatPager will walk dir in bottom up way:
+///
+/// - List nested dir first
+/// - Go back into parent dirs one by one
+///
+/// Given the following file tree:
+///
+/// ```txt
+/// .
+/// ├── dir_x/
+/// │   ├── dir_y/
+/// │   │   ├── dir_z/
+/// │   │   └── file_c
+/// │   └── file_b
+/// └── file_a
+/// ```
+///
+/// ToFlatPager will output entries like:
+///
+/// ```txt
+/// dir_x/dir_y/dir_z/file_c
+/// dir_x/dir_y/dir_z/
+/// dir_x/dir_y/file_b
+/// dir_x/dir_y/
+/// dir_x/file_a
+/// dir_x/
+/// ```
+///
+/// # Note
+///
+/// There is no guarantee about the order between files and dirs at the same level.
+/// We only make sure the nested dirs will show up before parent dirs.
+///
+/// Especially, for storage services that can't return dirs first, ToFlatPager
+/// may output parent dirs' files before nested dirs, this is expected because files
+/// always output directly while listing.
+pub struct ToFlatPager<A: Accessor> {
+    acc: A,
+    size: usize,
+    dirs: VecDeque<output::Entry>,
+    pagers: Vec<(A::Pager, output::Entry, Vec<output::Entry>)>,
+    res: Vec<output::Entry>,
+}
+
+#[async_trait]
+impl<A: Accessor> output::Page for ToFlatPager<A> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        loop {
+            if let Some(de) = self.dirs.pop_back() {
+                let (_, op) = self
+                    .acc
+                    .list(de.path(), OpList::new(ListStyle::Hierarchy))
+                    .await?;
+                self.pagers.push((op, de, vec![]))
+            }
+
+            let (mut pager, de, mut buf) = match self.pagers.pop() {
+                Some((pager, de, buf)) => (pager, de, buf),
+                None => {
+                    if !self.res.is_empty() {
+                        return Ok(Some(mem::take(&mut self.res)));
+                    }
+                    return Ok(None);
+                }
+            };
+
+            if buf.is_empty() {
+                match pager.next_page().await? {
+                    Some(v) => {
+                        buf = v;
+                    }
+                    None => {
+                        self.res.push(de);
+                        continue;
+                    }
+                }
+            }
+
+            let mut buf = VecDeque::from(buf);
+            loop {
+                if let Some(oe) = buf.pop_front() {
+                    if oe.mode().is_dir() {
+                        self.dirs.push_back(oe);
+                        self.pagers.push((pager, de, buf.into()));
+                        break;
+                    } else {
+                        self.res.push(oe)
+                    }
+                } else {
+                    self.pagers.push((pager, de, vec![]));
+                    break;
+                }
+            }
+
+            if self.res.len() >= self.size {
+                return Ok(Some(mem::take(&mut self.res)));
+            }
+        }
+    }
+}

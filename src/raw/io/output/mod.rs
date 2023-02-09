@@ -50,3 +50,11 @@ pub use page::BlockingPage;
 pub use page::BlockingPager;
 pub use page::Page;
 pub use page::Pager;
+
+mod to_flat_pager;
+pub use to_flat_pager::to_flat_pager;
+pub use to_flat_pager::ToFlatPager;
+
+mod to_hierarchy_pager;
+pub use to_hierarchy_pager::to_hierarchy_pager;
+pub use to_hierarchy_pager::ToHierarchyPager;

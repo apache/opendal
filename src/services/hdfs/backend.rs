@@ -222,6 +222,8 @@ unsafe impl Sync for HdfsBackend {}
 impl Accessor for HdfsBackend {
     type Reader = output::into_reader::FdReader<hdrs::AsyncFile>;
     type BlockingReader = output::into_blocking_reader::FdReader<hdrs::File>;
+    type Pager = Option<DirStream>;
+    type BlockingPager = Option<DirStream>;
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -390,14 +392,14 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as ObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 }
@@ -406,7 +408,7 @@ impl Accessor for HdfsBackend {
 
         let rd = DirStream::new(&self.root, f);
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -564,14 +566,14 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 }
@@ -580,6 +582,6 @@ impl Accessor for HdfsBackend {
 
         let rd = DirStream::new(&self.root, f);
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 }

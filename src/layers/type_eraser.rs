@@ -48,6 +48,8 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
     type Inner = A;
     type Reader = output::Reader;
     type BlockingReader = output::BlockingReader;
+    type Pager = output::Pager;
+    type BlockingPager = output::BlockingPager;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -64,5 +66,18 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
         self.inner
             .blocking_read(path, args)
             .map(|(rp, r)| (rp, Box::new(r) as output::BlockingReader))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        self.inner
+            .list(path, args)
+            .await
+            .map(|(rp, p)| (rp, Box::new(p) as output::Pager))
+    }
+
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        self.inner
+            .blocking_list(path, args)
+            .map(|(rp, p)| (rp, Box::new(p) as output::BlockingPager))
     }
 }

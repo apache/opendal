@@ -209,6 +209,8 @@ impl Debug for IpfsBackend {
 impl Accessor for IpfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
@@ -381,10 +383,10 @@ impl Accessor for IpfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), path)) as ObjectPager,
+            DirStream::new(Arc::new(self.clone()), path),
         ))
     }
 }
@@ -443,7 +445,7 @@ impl IpfsBackend {
     }
 }
 
-struct DirStream {
+pub struct DirStream {
     backend: Arc<IpfsBackend>,
     path: String,
     consumed: bool,
@@ -460,8 +462,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.consumed {
             return Ok(None);
         }
@@ -496,7 +498,7 @@ impl ObjectPage for DirStream {
                 name += "/";
             }
 
-            oes.push(ObjectEntry::new(&name, meta.with_complete()))
+            oes.push(output::Entry::new(&name, meta.with_complete()))
         }
 
         self.consumed = true;

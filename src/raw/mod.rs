@@ -47,15 +47,6 @@ pub use path::normalize_path;
 pub use path::normalize_root;
 pub use path::validate_path;
 
-mod object_entry;
-pub use object_entry::ObjectEntry;
-
-mod object_page;
-pub use object_page::BlockingObjectPage;
-pub use object_page::BlockingObjectPager;
-pub use object_page::ObjectPage;
-pub use object_page::ObjectPager;
-
 mod operation;
 pub use operation::Operation;
 

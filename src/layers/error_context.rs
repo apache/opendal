@@ -51,6 +51,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
+    type Pager = ErrorContextWrapper<A::Pager>;
+    type BlockingPager = ErrorContextWrapper<A::BlockingPager>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -118,23 +120,17 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
             .map_ok(|(rp, os)| {
                 (
                     rp,
-                    Box::new(ObjectStreamErrorContextWrapper {
+                    ErrorContextWrapper {
                         scheme: self.meta.scheme(),
                         path: path.to_string(),
-                        // TODO
-                        //
-                        // after `box_into_inner` has been stablized, we can use
-                        // `Box::into_inner` to avoid extra boxing.
-                        //
-                        // ref: https://github.com/rust-lang/rust/issues/80437
                         inner: os,
-                    }) as ObjectPager,
+                    },
                 )
             })
             .map_err(|err| {
@@ -259,26 +255,48 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        self.inner.blocking_list(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingList.into_static())
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        self.inner
+            .blocking_list(path, args)
+            .map(|(rp, os)| {
+                (
+                    rp,
+                    ErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        inner: os,
+                    },
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::BlockingList.into_static())
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
     }
 }
 
-struct ObjectStreamErrorContextWrapper<T: ObjectPage> {
+pub struct ErrorContextWrapper<T> {
     scheme: Scheme,
     path: String,
     inner: T,
 }
 
 #[async_trait::async_trait]
-impl<T: ObjectPage> ObjectPage for ObjectStreamErrorContextWrapper<T> {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<T: output::Page> output::Page for ErrorContextWrapper<T> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page().await.map_err(|err| {
-            err.with_operation("ObjectPage::next_page")
+            err.with_operation("Page::next_page")
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+}
+
+impl<T: output::BlockingPage> output::BlockingPage for ErrorContextWrapper<T> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        self.inner.next_page().map_err(|err| {
+            err.with_operation("Page::next_page")
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

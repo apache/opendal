@@ -145,6 +145,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type Inner = A;
     type Reader = RetryReader<A::Reader>;
     type BlockingReader = RetryReader<A::BlockingReader>;
+    type Pager = RetryPager<A::Pager>;
+    type BlockingPager = RetryPager<A::BlockingPager>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -216,7 +218,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         { || self.inner.list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -226,7 +228,13 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::List, dur.as_secs_f64(), err)
             })
-            .map(|v| v.map_err(|e| e.set_persistent()))
+            .map(|v| {
+                v.map(|(l, p)| {
+                    let pager = RetryPager::new(p, path, self.builder.clone());
+                    (l, pager)
+                })
+                .map_err(|e| e.set_persistent())
+            })
             .await
     }
 
@@ -360,7 +368,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         { || self.inner.blocking_list(path, args.clone()) }
             .retry(&self.builder)
             .when(|e| e.is_temporary())
@@ -371,6 +379,10 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     Operation::BlockingList, dur.as_secs_f64(), err)
             })
             .call()
+            .map(|(rp, p)| {
+                let p = RetryPager::new(p, path, self.builder.clone());
+                (rp, p)
+            })
             .map_err(|e| e.set_persistent())
     }
 }
@@ -639,6 +651,106 @@ impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
     }
 }
 
+/// the retriable pager implementation
+#[derive(Debug)]
+pub struct RetryPager<P> {
+    // object pager
+    inner: P,
+    // used for logging
+    path: String,
+    // backoff policy of the pager
+    policy: ExponentialBuilder,
+    // the current backoff chain
+    // Note:
+    // each polling of pages has its own backoff chain
+    // once the poll is success, the backoff chain will be reset.
+    current_backoff: Option<ExponentialBackoff>,
+    // backoff time to sleep
+    sleep: Option<Duration>,
+}
+
+impl<P> RetryPager<P> {
+    fn new(inner: P, path: &str, policy: ExponentialBuilder) -> Self {
+        Self {
+            inner,
+            path: path.to_string(),
+            policy,
+            current_backoff: None,
+            sleep: None,
+        }
+    }
+
+    fn reset_backoff(&mut self) {
+        self.current_backoff = None;
+        self.sleep = None;
+    }
+}
+
+#[async_trait]
+impl<P: output::Page> output::Page for RetryPager<P> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        if let Some(sleep) = self.sleep.take() {
+            tokio::time::sleep(sleep).await;
+        }
+        match self.inner.next_page().await {
+            Ok(v) => {
+                // request successful, reset backoff
+                self.reset_backoff();
+                Ok(v)
+            }
+            Err(e) if !e.is_temporary() => {
+                // is not retryable, reset backoff
+                self.reset_backoff();
+                // return error
+                Err(e)
+            }
+            Err(e) => {
+                // get the mutable reference to current backoff
+                let backoff = match self.current_backoff.as_mut() {
+                    Some(b) => b,
+                    None => {
+                        self.current_backoff = Some(self.policy.build());
+                        self.current_backoff.as_mut().unwrap()
+                    }
+                };
+                // tick current backoff
+                match backoff.next() {
+                    None => {
+                        // backoff exhausted, reset backoff
+                        self.reset_backoff();
+                        // return error
+                        let e = e.set_persistent();
+                        Err(e)
+                    }
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              Operation::List, self.path, dur.as_secs_f64(), e);
+                        self.sleep = Some(dur);
+                        self.next_page().await
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<P: output::BlockingPage> output::BlockingPage for RetryPager<P> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        { || self.inner.next_page() }
+            .retry(&self.policy)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+                Operation::List, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io;
@@ -651,6 +763,7 @@ mod tests {
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::AsyncReadExt;
+    use futures::TryStreamExt;
 
     use super::*;
 
@@ -663,6 +776,8 @@ mod tests {
     impl Accessor for MockService {
         type Reader = MockReader;
         type BlockingReader = ();
+        type Pager = MockPager;
+        type BlockingPager = ();
 
         fn metadata(&self) -> AccessorMetadata {
             let mut am = AccessorMetadata::default();
@@ -679,6 +794,11 @@ mod tests {
                     pos: 0,
                 },
             ))
+        }
+
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+            let pager = MockPager::default();
+            Ok((RpList::default(), pager))
         }
     }
 
@@ -737,8 +857,48 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Default)]
+    struct MockPager {
+        attempt: usize,
+    }
+    #[async_trait]
+    impl output::Page for MockPager {
+        async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+            self.attempt += 1;
+            match self.attempt {
+                1 => Err(Error::new(
+                    ErrorKind::ObjectRateLimited,
+                    "retriable rate limited error from pager",
+                )
+                .set_temporary()),
+                2 => {
+                    let entries = vec![
+                        output::Entry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
+                        output::Entry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
+                    ];
+                    Ok(Some(entries))
+                }
+                3 => Err(
+                    Error::new(ErrorKind::Unexpected, "retriable internal server error")
+                        .set_temporary(),
+                ),
+                4 => {
+                    let entries = vec![
+                        output::Entry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
+                        output::Entry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
+                    ];
+                    Ok(Some(entries))
+                }
+                5 => Ok(None),
+                _ => {
+                    unreachable!()
+                }
+            }
+        }
+    }
+
     #[tokio::test]
-    async fn test_retry() {
+    async fn test_retry_read() {
         let _ = env_logger::try_init();
 
         let srv = Arc::new(MockService::default());
@@ -754,5 +914,27 @@ mod tests {
         assert_eq!(content, "Hello, World!".as_bytes());
         // The error is retryable, we should request it 1 + 10 times.
         assert_eq!(*srv.attempt.lock().unwrap(), 5);
+    }
+
+    #[tokio::test]
+    async fn test_retry_list() {
+        let _ = env_logger::try_init();
+
+        let srv = Arc::new(MockService::default());
+        let op = Operator::new(srv.clone()).layer(RetryLayer::new()).finish();
+
+        let expected = vec!["hello", "world", "2023/", "0208/"];
+
+        let mut lister = op
+            .object("retryable_error/")
+            .list()
+            .await
+            .expect("service must support list");
+        let mut actual = Vec::new();
+        while let Some(obj) = lister.try_next().await.expect("must success") {
+            actual.push(obj.name().to_owned());
+        }
+
+        assert_eq!(actual, expected);
     }
 }

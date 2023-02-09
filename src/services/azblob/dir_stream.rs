@@ -48,8 +48,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -81,7 +81,7 @@ impl ObjectPage for DirStream {
         let mut entries = Vec::with_capacity(prefixes.len() + output.blobs.blob.len());
 
         for prefix in prefixes {
-            let de = ObjectEntry::new(
+            let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix.name),
                 ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
@@ -115,7 +115,7 @@ impl ObjectPage for DirStream {
                 )
                 .with_complete();
 
-            let de = ObjectEntry::new(&build_rel_path(&self.root, &object.name), meta);
+            let de = output::Entry::new(&build_rel_path(&self.root, &object.name), meta);
 
             entries.push(de);
         }

@@ -58,9 +58,9 @@ const WALK_BUFFER_SIZE: usize = 256;
 /// We only make sure the parent dirs will show up before nest dirs.
 pub struct TopDownWalker {
     acc: FusedAccessor,
-    dirs: VecDeque<ObjectEntry>,
-    pagers: Vec<(ObjectPager, Vec<ObjectEntry>)>,
-    res: Vec<ObjectEntry>,
+    dirs: VecDeque<output::Entry>,
+    pagers: Vec<(output::Pager, Vec<output::Entry>)>,
+    res: Vec<output::Entry>,
 }
 
 impl TopDownWalker {
@@ -69,7 +69,7 @@ impl TopDownWalker {
         let path = normalize_path(path);
         TopDownWalker {
             acc,
-            dirs: VecDeque::from([ObjectEntry::with(
+            dirs: VecDeque::from([output::Entry::with(
                 path,
                 ObjectMetadata::new(ObjectMode::DIR),
             )]),
@@ -80,8 +80,8 @@ impl TopDownWalker {
 }
 
 #[async_trait]
-impl ObjectPage for TopDownWalker {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for TopDownWalker {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_front() {
                 let (_, op) = self.acc.list(de.path(), OpList::default()).await?;
@@ -171,9 +171,9 @@ impl ObjectPage for TopDownWalker {
 /// always output directly while listing.
 pub struct BottomUpWalker {
     acc: FusedAccessor,
-    dirs: VecDeque<ObjectEntry>,
-    pagers: Vec<(ObjectPager, ObjectEntry, Vec<ObjectEntry>)>,
-    res: Vec<ObjectEntry>,
+    dirs: VecDeque<output::Entry>,
+    pagers: Vec<(output::Pager, output::Entry, Vec<output::Entry>)>,
+    res: Vec<output::Entry>,
 }
 
 impl BottomUpWalker {
@@ -181,7 +181,10 @@ impl BottomUpWalker {
     pub fn new(acc: FusedAccessor, path: &str) -> Self {
         BottomUpWalker {
             acc,
-            dirs: VecDeque::from([ObjectEntry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),
+            dirs: VecDeque::from([output::Entry::new(
+                path,
+                ObjectMetadata::new(ObjectMode::DIR),
+            )]),
             pagers: vec![],
             res: Vec::with_capacity(WALK_BUFFER_SIZE),
         }
@@ -189,8 +192,8 @@ impl BottomUpWalker {
 }
 
 #[async_trait]
-impl ObjectPage for BottomUpWalker {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for BottomUpWalker {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.list(de.path(), OpList::default()).await?;

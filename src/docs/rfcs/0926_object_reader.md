@@ -31,7 +31,7 @@ We can avoid extra `HeadObject` calls by reusing that meta wisely, which could t
 + pub async fn reader(&self) -> Result<ObjectReader> {}
 ```
 
-`ObjectReader` impls `BytesRead` too, so existing code will keep working. And `ObjectReader` will provide similiar APIs to `ObjectEntry`, for example:
+`ObjectReader` impls `BytesRead` too, so existing code will keep working. And `ObjectReader` will provide similiar APIs to `Entry`, for example:
 
 ```rust
 pub async fn content_length(&self) -> Option<u64> {}

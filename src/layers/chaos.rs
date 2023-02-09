@@ -102,6 +102,8 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
     type Inner = A;
     type Reader = ChaosReader<A::Reader>;
     type BlockingReader = ChaosReader<A::BlockingReader>;
+    type Pager = A::Pager;
+    type BlockingPager = A::BlockingPager;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -118,6 +120,14 @@ impl<A: Accessor> LayeredAccessor for ChaosAccessor<A> {
         self.inner
             .blocking_read(path, args)
             .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        self.inner.list(path, args).await
+    }
+
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        self.inner.blocking_list(path, args)
     }
 }
 

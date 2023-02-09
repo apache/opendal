@@ -202,6 +202,8 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = ();
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();

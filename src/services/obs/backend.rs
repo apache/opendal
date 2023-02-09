@@ -304,6 +304,8 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -406,10 +408,10 @@ impl Accessor for ObsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            DirStream::new(Arc::new(self.clone()), &self.root, path),
         ))
     }
 }

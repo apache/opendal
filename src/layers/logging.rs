@@ -168,6 +168,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;
+    type Pager = LoggingPager<A::Pager>;
+    type BlockingPager = LoggingPager<A::BlockingPager>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -412,7 +414,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -439,7 +441,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         self.error_level,
                         self.failure_level,
                     );
-                    Ok((rp, Box::new(streamer) as ObjectPager))
+                    Ok((rp, streamer))
                 }
                 Err(err) => {
                     if let Some(lvl) = self.err_level(&err) {
@@ -896,7 +898,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} -> started",
@@ -915,14 +917,9 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     Operation::BlockingList,
                     path
                 );
-                let li = BlockingLoggingPager::new(
-                    self.scheme,
-                    path,
-                    v,
-                    self.error_level,
-                    self.failure_level,
-                );
-                (rp, Box::new(li) as BlockingObjectPager)
+                let li =
+                    LoggingPager::new(self.scheme, path, v, self.error_level, self.failure_level);
+                (rp, li)
             })
             .map_err(|err| {
                 if let Some(lvl) = self.err_level(&err) {
@@ -1265,20 +1262,20 @@ impl<R: input::BlockingRead> Read for LoggingReader<R> {
     }
 }
 
-struct LoggingPager {
+pub struct LoggingPager<P> {
     scheme: Scheme,
     path: String,
     finished: bool,
-    inner: ObjectPager,
+    inner: P,
     error_level: Option<Level>,
     failure_level: Option<Level>,
 }
 
-impl LoggingPager {
+impl<P> LoggingPager<P> {
     fn new(
         scheme: Scheme,
         path: &str,
-        inner: ObjectPager,
+        inner: P,
         error_level: Option<Level>,
         failure_level: Option<Level>,
     ) -> Self {
@@ -1293,7 +1290,7 @@ impl LoggingPager {
     }
 }
 
-impl Drop for LoggingPager {
+impl<P> Drop for LoggingPager<P> {
     fn drop(&mut self) {
         if self.finished {
             debug!(
@@ -1315,7 +1312,7 @@ impl Drop for LoggingPager {
     }
 }
 
-impl LoggingPager {
+impl<P> LoggingPager<P> {
     #[inline]
     fn err_status(&self, err: &Error) -> &'static str {
         if err.kind() == ErrorKind::Unexpected {
@@ -1336,8 +1333,8 @@ impl LoggingPager {
 }
 
 #[async_trait]
-impl ObjectPage for LoggingPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<P: output::Page> output::Page for LoggingPager<P> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let res = self.inner.next_page().await;
 
         match &res {
@@ -1380,78 +1377,8 @@ impl ObjectPage for LoggingPager {
     }
 }
 
-struct BlockingLoggingPager {
-    scheme: Scheme,
-    path: String,
-    finished: bool,
-    inner: BlockingObjectPager,
-    error_level: Option<Level>,
-    failure_level: Option<Level>,
-}
-
-impl BlockingLoggingPager {
-    fn new(
-        scheme: Scheme,
-        path: &str,
-        inner: BlockingObjectPager,
-        error_level: Option<Level>,
-        failure_level: Option<Level>,
-    ) -> Self {
-        Self {
-            scheme,
-            path: path.to_string(),
-            finished: false,
-            inner,
-            error_level,
-            failure_level,
-        }
-    }
-}
-
-impl Drop for BlockingLoggingPager {
-    fn drop(&mut self) {
-        if self.finished {
-            debug!(
-                target: LOGGING_TARGET,
-                "service={} operation={} path={} -> consumed dir fully",
-                self.scheme,
-                Operation::BlockingList,
-                self.path
-            );
-        } else {
-            debug!(
-                target: LOGGING_TARGET,
-                "service={} operation={} path={} -> dropped dir",
-                self.scheme,
-                Operation::BlockingList,
-                self.path
-            );
-        }
-    }
-}
-
-impl BlockingLoggingPager {
-    #[inline]
-    fn err_status(&self, err: &Error) -> &'static str {
-        if err.kind() == ErrorKind::Unexpected {
-            "failed"
-        } else {
-            "errored"
-        }
-    }
-
-    #[inline]
-    fn err_level(&self, err: &Error) -> Option<Level> {
-        if err.kind() == ErrorKind::Unexpected {
-            self.failure_level
-        } else {
-            self.error_level
-        }
-    }
-}
-
-impl BlockingObjectPage for BlockingLoggingPager {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<P: output::BlockingPage> output::BlockingPage for LoggingPager<P> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let res = self.inner.next_page();
 
         match &res {

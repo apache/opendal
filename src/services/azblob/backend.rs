@@ -415,6 +415,8 @@ pub struct AzblobBackend {
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -515,14 +517,10 @@ impl Accessor for AzblobBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
-        let op = Box::new(DirStream::new(
-            Arc::new(self.clone()),
-            self.root.clone(),
-            path.to_string(),
-        ));
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+        let op = DirStream::new(Arc::new(self.clone()), self.root.clone(), path.to_string());
 
-        Ok((RpList::default(), op as ObjectPager))
+        Ok((RpList::default(), op))
     }
 }
 

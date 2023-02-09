@@ -70,6 +70,11 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: output::BlockingRead;
+    /// Pager is the associated page that return in `list` operation.
+    type Pager: output::Page;
+    /// BlockingPager is the associated pager that could return in
+    /// `blocking_list` operation.
+    type BlockingPager: output::BlockingPage;
 
     /// Invoke the `metadata` operation to get metadata of accessor.
     fn metadata(&self) -> AccessorMetadata {
@@ -160,7 +165,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -351,7 +356,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -364,9 +369,11 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
-impl<T: Accessor> Accessor for Arc<T> {
+impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type Reader = T::Reader;
     type BlockingReader = T::BlockingReader;
+    type Pager = T::Pager;
+    type BlockingPager = T::BlockingPager;
 
     fn metadata(&self) -> AccessorMetadata {
         self.as_ref().metadata()
@@ -388,7 +395,7 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().delete(path, args).await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.as_ref().list(path, args).await
     }
 
@@ -446,102 +453,20 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().blocking_delete(path, args)
     }
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.as_ref().blocking_list(path, args)
     }
 }
 
 /// FusedAccessor is the type erased accessor with `Box<dyn Reader>`.
-pub type FusedAccessor =
-    Arc<dyn Accessor<Reader = output::Reader, BlockingReader = output::BlockingReader>>;
-
-#[async_trait]
-impl Accessor for FusedAccessor {
-    type Reader = output::Reader;
-    type BlockingReader = output::BlockingReader;
-
-    fn metadata(&self) -> AccessorMetadata {
-        self.as_ref().metadata()
-    }
-
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().create(path, args).await
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.as_ref().read(path, args).await
-    }
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.as_ref().write(path, args, r).await
-    }
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().stat(path, args).await
-    }
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.as_ref().delete(path, args).await
-    }
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-        self.as_ref().list(path, args).await
-    }
-
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.as_ref().presign(path, args)
-    }
-
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.as_ref().create_multipart(path, args).await
-    }
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        self.as_ref().write_multipart(path, args, r).await
-    }
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.as_ref().complete_multipart(path, args).await
-    }
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.as_ref().abort_multipart(path, args).await
-    }
-
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().blocking_create(path, args)
-    }
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.as_ref().blocking_read(path, args)
-    }
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.as_ref().blocking_write(path, args, r)
-    }
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().blocking_stat(path, args)
-    }
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.as_ref().blocking_delete(path, args)
-    }
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        self.as_ref().blocking_list(path, args)
-    }
-}
+pub type FusedAccessor = Arc<
+    dyn Accessor<
+        Reader = output::Reader,
+        BlockingReader = output::BlockingReader,
+        Pager = output::Pager,
+        BlockingPager = output::BlockingPager,
+    >,
+>;
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]

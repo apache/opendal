@@ -41,3 +41,12 @@ pub use cursor::Cursor;
 mod into_streamable;
 pub use into_streamable::into_streamable_reader;
 pub use into_streamable::IntoStreamableReader;
+
+mod entry;
+pub use entry::Entry;
+
+mod page;
+pub use page::BlockingPage;
+pub use page::BlockingPager;
+pub use page::Page;
+pub use page::Pager;

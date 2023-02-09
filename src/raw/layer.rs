@@ -58,6 +58,8 @@ use crate::*;
 ///     type Inner = A;
 ///     type Reader = A::Reader;
 ///     type BlockingReader = A::BlockingReader;
+///     type Pager = A::Pager;
+///     type BlockingPager = A::BlockingPager;
 ///
 ///     fn inner(&self) -> &Self::Inner {
 ///         &self.inner
@@ -73,6 +75,14 @@ use crate::*;
 ///         args: OpRead,
 ///     ) -> Result<(RpRead, Self::BlockingReader)> {
 ///         self.inner.blocking_read(path, args)
+///     }
+///
+///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+///         self.inner.list(path, args).await
+///     }
+///
+///     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+///         self.inner.blocking_list(path, args)
 ///     }
 /// }
 ///
@@ -105,6 +115,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
     type Reader: output::Read;
     type BlockingReader: output::BlockingRead;
+    type Pager: output::Page;
+    type BlockingPager: output::BlockingPage;
 
     fn inner(&self) -> &Self::Inner;
 
@@ -130,9 +142,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-        self.inner().list(path, args).await
-    }
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)>;
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner().presign(path, args)
@@ -194,15 +204,15 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        self.inner().blocking_list(path, args)
-    }
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)>;
 }
 
 #[async_trait]
 impl<L: LayeredAccessor> Accessor for L {
     type Reader = L::Reader;
     type BlockingReader = L::BlockingReader;
+    type Pager = L::Pager;
+    type BlockingPager = L::BlockingPager;
 
     fn metadata(&self) -> AccessorMetadata {
         (self as &L).metadata()
@@ -228,7 +238,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         (self as &L).list(path, args).await
     }
 
@@ -294,7 +304,7 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         (self as &L).blocking_list(path, args)
     }
 }
@@ -330,6 +340,8 @@ mod tests {
     impl<A: Accessor> Accessor for Test<A> {
         type Reader = ();
         type BlockingReader = ();
+        type Pager = ();
+        type BlockingPager = ();
 
         fn metadata(&self) -> AccessorMetadata {
             let mut am = AccessorMetadata::default();

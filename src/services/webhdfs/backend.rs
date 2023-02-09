@@ -537,6 +537,8 @@ impl WebhdfsBackend {
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -672,7 +674,7 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         let path = path.trim_end_matches('/');
         let req = self.webhdfs_list_status_req(path)?;
 
@@ -691,11 +693,11 @@ impl Accessor for WebhdfsBackend {
                         .file_status;
 
                 let objects = DirStream::new(path, file_statuses);
-                Ok((RpList::default(), Box::new(objects) as Box<dyn ObjectPage>))
+                Ok((RpList::default(), objects))
             }
             StatusCode::NOT_FOUND => {
                 let objects = DirStream::new(path, vec![]);
-                Ok((RpList::default(), Box::new(objects) as Box<dyn ObjectPage>))
+                Ok((RpList::default(), objects))
             }
             _ => Err(parse_error(resp).await?),
         }

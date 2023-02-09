@@ -291,6 +291,8 @@ impl FsBackend {
 impl Accessor for FsBackend {
     type Reader = output::into_reader::FdReader<Compat<tokio::fs::File>>;
     type BlockingReader = output::into_blocking_reader::FdReader<std::fs::File>;
+    type Pager = Option<DirPager>;
+    type BlockingPager = Option<BlockingDirPager>;
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -508,14 +510,14 @@ impl Accessor for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as ObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 };
@@ -524,7 +526,7 @@ impl Accessor for FsBackend {
 
         let rd = DirPager::new(&self.root, f);
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -712,14 +714,14 @@ impl Accessor for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 };
@@ -728,7 +730,7 @@ impl Accessor for FsBackend {
 
         let rd = BlockingDirPager::new(&self.root, f);
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 }
 

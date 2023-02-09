@@ -149,6 +149,8 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A>;
     type BlockingReader = CompleteBlockingReader<A>;
+    type Pager = A::Pager;
+    type BlockingPager = A::BlockingPager;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -160,6 +162,14 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.complete_blokcing_reader(path, args)
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        self.inner.list(path, args).await
+    }
+
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        self.inner.blocking_list(path, args)
     }
 }
 

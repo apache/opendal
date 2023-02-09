@@ -401,7 +401,9 @@ impl Accessor for OssBackend {
                     | AccessorCapability::List
                     | AccessorCapability::Presign,
             )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_hints(
+                AccessorHint::ReadStreamable | AccessorHint::ListFlat | AccessorHint::ListHierarchy,
+            );
         am
     }
 
@@ -487,10 +489,15 @@ impl Accessor for OssBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let delimeter = match args.style() {
+            ListStyle::Flat => "",
+            ListStyle::Hierarchy => "/",
+        };
+
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, delimeter),
         ))
     }
 
@@ -606,17 +613,18 @@ impl OssBackend {
     fn oss_list_object_request(
         &self,
         path: &str,
-        token: Option<String>,
+        token: Option<&str>,
+        delimeter: &str,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
         let url = format!(
-            "{}/?list-type=2&delimiter=/&prefix={}{}",
+            "{}/?list-type=2&delimiter={delimeter}&prefix={}{}",
             endpoint,
             percent_encode_path(&p),
             token
-                .map(|t| format!("&continuation-token={}", percent_encode_path(&t)))
+                .map(|t| format!("&continuation-token={}", percent_encode_path(t)))
                 .unwrap_or_default(),
         );
 
@@ -660,9 +668,10 @@ impl OssBackend {
     pub(super) async fn oss_list_object(
         &self,
         path: &str,
-        token: Option<String>,
+        token: Option<&str>,
+        delimeter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_list_object_request(path, token)?;
+        let mut req = self.oss_list_object_request(path, token, delimeter)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await

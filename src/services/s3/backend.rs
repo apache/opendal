@@ -1122,7 +1122,9 @@ impl Accessor for S3Backend {
                     | AccessorCapability::Presign
                     | AccessorCapability::Multipart,
             )
-            .set_hints(AccessorHint::ReadStreamable);
+            .set_hints(
+                AccessorHint::ReadStreamable | AccessorHint::ListFlat | AccessorHint::ListHierarchy,
+            );
 
         am
     }
@@ -1212,10 +1214,15 @@ impl Accessor for S3Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let delimeter = match args.style() {
+            ListStyle::Flat => "",
+            ListStyle::Hierarchy => "/",
+        };
+
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, delimeter),
         ))
     }
 
@@ -1474,11 +1481,12 @@ impl S3Backend {
         &self,
         path: &str,
         continuation_token: &str,
+        delimeter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}?list-type=2&delimiter=/&prefix={}",
+            "{}?list-type=2&delimiter={delimeter}&prefix={}",
             self.endpoint,
             percent_encode_path(&p)
         );

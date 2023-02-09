@@ -32,17 +32,20 @@ pub struct DirStream {
     backend: Arc<ObsBackend>,
     root: String,
     path: String,
+    delimeter: String,
 
     next_marker: String,
     done: bool,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<ObsBackend>, root: &str, path: &str) -> Self {
+    pub fn new(backend: Arc<ObsBackend>, root: &str, path: &str, delimeter: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),
             path: path.to_string(),
+            delimeter: delimeter.to_string(),
+
             next_marker: "".to_string(),
             done: false,
         }
@@ -58,7 +61,7 @@ impl output::Page for DirStream {
 
         let resp = self
             .backend
-            .obs_list_objects(&self.path, &self.next_marker)
+            .obs_list_objects(&self.path, &self.next_marker, &self.delimeter)
             .await?;
 
         if resp.status() != http::StatusCode::OK {

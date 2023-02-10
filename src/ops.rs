@@ -58,17 +58,29 @@ impl OpDelete {
 #[derive(Debug, Clone)]
 pub struct OpList {
     style: ListStyle,
+    limit: usize,
 }
 
 impl OpList {
     /// Create a new `OpList`.
     pub fn new(style: ListStyle) -> Self {
-        Self { style }
+        Self { style, limit: 1000 }
     }
 
     /// Get the style from list.
     pub fn style(&self) -> ListStyle {
         self.style
+    }
+
+    /// Change the limit of this list operation.
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+
+    /// Get the limit of list operation.
+    pub fn limit(&self) -> usize {
+        self.limit
     }
 }
 

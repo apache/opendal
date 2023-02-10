@@ -530,6 +530,7 @@ impl Accessor for AzblobBackend {
             self.root.clone(),
             path.to_string(),
             delimiter,
+            args.limit(),
         );
 
         Ok((RpList::default(), op))
@@ -657,11 +658,12 @@ impl AzblobBackend {
         path: &str,
         next_marker: &str,
         delimiter: &str,
+        limit: usize,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/{}?restype=container&comp=list",
+            "{}/{}?restype=container&comp=list&maxresults={limit}",
             self.endpoint, self.container
         );
         if !p.is_empty() {

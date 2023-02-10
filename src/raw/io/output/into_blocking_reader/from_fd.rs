@@ -37,7 +37,7 @@ where
     }
 }
 
-/// FdReader is a wrapper of input fd to implment [`output::Read`].
+/// FdReader is a wrapper of input fd to implement [`output::Read`].
 pub struct FdReader<R: Read + Seek + Send + Sync> {
     inner: R,
 

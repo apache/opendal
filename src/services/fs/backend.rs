@@ -545,7 +545,7 @@ impl Accessor for FsBackend {
                 .ok_or_else(|| {
                     Error::new(
                         ErrorKind::Unexpected,
-                        "path shoud have parent but not, it must be malformed",
+                        "path should have parent but not, it must be malformed",
                     )
                     .with_context("input", p.to_string_lossy())
                 })?

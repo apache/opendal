@@ -46,7 +46,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[non_exhaustive]
 pub enum ErrorKind {
     /// OpenDAL don't know what happened here, and no actions other than just
-    /// returning it back. For example, s3 returns an internal servie error.
+    /// returning it back. For example, s3 returns an internal service error.
     Unexpected,
     /// Underlying service doesn't support this operation.
     Unsupported,

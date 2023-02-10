@@ -39,7 +39,7 @@ use crate::Result;
 ///
 /// # Notes
 ///
-/// BytesRange support constuct via rust native range syntex like `..`, `1024..`, `..2048`.
+/// BytesRange support construct via rust native range syntex like `..`, `1024..`, `..2048`.
 /// But it's has different symantic on `RangeTo`: `..<end>`.
 /// In rust, `..<end>` means all items that `< end`, but in BytesRange, `..<end>` means the
 /// tailing part of content, a.k.a, the last `<end>` bytes of content.

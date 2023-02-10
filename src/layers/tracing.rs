@@ -47,7 +47,7 @@ use crate::*;
 ///     .finish();
 /// ```
 ///
-/// ## Real useage
+/// ## Real usage
 ///
 /// ```no_run
 /// use std::error::Error;

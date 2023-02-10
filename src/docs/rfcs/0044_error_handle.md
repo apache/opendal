@@ -12,7 +12,7 @@ Enhanced error handling for OpenDAL.
 OpenDAL didn't handle errors correctly.
 
 ```rust
-fn parse_unexpect_error<E>(_: SdkError<E>, path: &str) -> Error {
+fn parse_unexpected_error<E>(_: SdkError<E>, path: &str) -> Error {
     Error::Unexpected(path.to_string())
 }
 ```

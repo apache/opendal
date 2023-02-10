@@ -141,7 +141,7 @@ impl HttpClient {
             Err(err_resp) => match err_resp {
                 ureq::Error::Status(_code, resp) => resp,
                 ureq::Error::Transport(transport) => {
-                    let is_temperary = matches!(
+                    let is_temporary = matches!(
                         transport.kind(),
                         ureq::ErrorKind::Dns
                             | ureq::ErrorKind::ConnectionFailed
@@ -151,7 +151,7 @@ impl HttpClient {
                     let mut err = Error::new(ErrorKind::Unexpected, "send blocking request")
                         .with_operation("http_util::Client::send")
                         .set_source(transport);
-                    if is_temperary {
+                    if is_temporary {
                         err = err.set_temporary();
                     }
 
@@ -199,7 +199,7 @@ impl HttpClient {
         };
 
         let resp = req_builder.send().await.map_err(|err| {
-            let is_temperary = !(
+            let is_temporary = !(
                 // Builder related error should not be retried.
                 err.is_builder() ||
                 // Error returned by RedirectPolicy.
@@ -215,7 +215,7 @@ impl HttpClient {
             let mut oerr = Error::new(ErrorKind::Unexpected, "send async request")
                 .with_operation("http_util::Client::send_async")
                 .set_source(err);
-            if is_temperary {
+            if is_temporary {
                 oerr = oerr.set_temporary();
             }
 

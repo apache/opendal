@@ -315,7 +315,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- refactor: Use seperate Error instead of std::io::Error to avoid confusing (#976)
+- refactor: Use separate Error instead of std::io::Error to avoid confusing (#976)
 - refactor: Return ReplyCreate for create operation (#981)
 - refactor: Add ReplyRead for read operation (#982)
 - refactor: Add RpWrite for write operation (#983)
@@ -329,7 +329,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: Move io to raw (#996)
 - refactor: Move {path,wrapper,http_util,io_util} into raw modules (#998)
 - refactor: Move ObjectEntry and ObjectPage into raw (#999)
-- refactor: Accept Operator intead of `Arc<dyn Accessor>` (#1001)
+- refactor: Accept Operator instead of `Arc<dyn Accessor>` (#1001)
 
 ### Fixed
 
@@ -371,7 +371,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: Return ObjectReader in Accessor::read (#929)
 - refactor(oay,oli): drop unnecessary patch.crates-io from `Cargo.toml`
 - refactor: Polish bytes range (#950)
-- refactor: Use simplifed kv adapter instead (#959)
+- refactor: Use simplified kv adapter instead (#959)
 
 ### Fixed
 
@@ -472,7 +472,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- fix: ObjectEntry returned in batch operator doesn't have corrent accessor (#839)
+- fix: ObjectEntry returned in batch operator doesn't have correct accessor (#839)
 - fix: Accessor in layers not set correctly (#840)
 
 ## [v0.19.0] - 2022-10-08
@@ -626,7 +626,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- fix: Immutable Index Layer could return duplicated pathes (#671)
+- fix: Immutable Index Layer could return duplicated paths (#671)
 - fix: Remove not needed type parameter for immutable_layer (#677)
 - fix: Don't trace buf field in poll_read (#682)
 - fix: List non-exist dir should return empty (#683)
@@ -924,7 +924,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- refactor: Rename Metadata to ObjectMetadata for clearify (#339)
+- refactor: Rename Metadata to ObjectMetadata for clarify (#339)
 
 ### Others
 

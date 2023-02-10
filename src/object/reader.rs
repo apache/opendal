@@ -38,7 +38,7 @@ use crate::raw::*;
 /// - `Stream<Item = <io::Result<Bytes>>>`
 ///
 /// For reading data, we can use `AsyncRead` and `Stream`. The mainly
-/// different is where the `copy` happend.
+/// different is where the `copy` happens.
 ///
 /// `AsyncRead` requires user to prepare a buffer for `ObjectReader` to fill.
 /// And `Stream` will stream out a `Bytes` for user to decide when to copy
@@ -53,7 +53,7 @@ use crate::raw::*;
 ///
 /// # Notes
 ///
-/// All implementions of ObjectReader should be `zero cost`. In our cases,
+/// All implementations of ObjectReader should be `zero cost`. In our cases,
 /// which means others must pay the same cost for the same feature provide
 /// by us.
 ///
@@ -66,7 +66,7 @@ use crate::raw::*;
 /// suitable implementations.
 ///
 /// If there is a hint that `ReadSeekable`, we will open it with given args
-/// directy. Otherwise, we will pick a seekable reader implementation based
+/// directly. Otherwise, we will pick a seekable reader implementation based
 /// on input range for it.
 ///
 /// - `Some(offset), Some(size)` => `RangeReader`
@@ -103,9 +103,9 @@ impl ObjectReader {
     /// Create a new object reader.
     ///
     /// Create will use internal information to decide the most suitable
-    /// implementaion for users.
+    /// implementation for users.
     ///
-    /// We don't want to expose those detials to users so keep this fuction
+    /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
         let (_, r) = acc.read(path, op).await?;

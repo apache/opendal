@@ -15,7 +15,7 @@ By adding a `finish()` call, we will erase all generic types so that `Operator` 
 
 In v0.26, `Accessor` has been changed into trait with associated types.
 
-All services need to decalare the types returned as `Reader` or `BlockingReader`:
+All services need to declare the types returned as `Reader` or `BlockingReader`:
 
 ```rust
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
@@ -240,7 +240,7 @@ OpenDAL v0.18 introduces the following breaking changes:
 
 Besides, we also make a big change to our `Entry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
 
-- If `content_lenght` is already known, we will return directly.
+- If `content_length` is already known, we will return directly.
 - If not, we will check if the object entry is `complete`:
   - If `complete`, the entry already fetched all metadata that it could have, return directly.
   - If not, we will send a `stat` call to get the `metadata` and refresh our cache.

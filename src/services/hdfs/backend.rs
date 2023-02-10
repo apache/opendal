@@ -145,7 +145,7 @@ impl HdfsBuilder {
 
     /// Set name_node of this backend.
     ///
-    /// Vaild format including:
+    /// Valid format including:
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
@@ -250,7 +250,7 @@ impl Accessor for HdfsBackend {
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            "path shoud have parent but not, it must be malformed",
+                            "path should have parent but not, it must be malformed",
                         )
                         .with_context("input", &p)
                     })?
@@ -322,7 +322,7 @@ impl Accessor for HdfsBackend {
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
+                    "path should have parent but not, it must be malformed",
                 )
                 .with_context("input", &p)
             })?
@@ -428,7 +428,7 @@ impl Accessor for HdfsBackend {
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            "path shoud have parent but not, it must be malformed",
+                            "path should have parent but not, it must be malformed",
                         )
                         .with_context("input", &p)
                     })?
@@ -504,7 +504,7 @@ impl Accessor for HdfsBackend {
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
+                    "path should have parent but not, it must be malformed",
                 )
                 .with_context("input", &p)
             })?

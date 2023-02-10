@@ -44,7 +44,7 @@
 //! use opendal::services::S3;
 //!
 //! let mut builder = S3::default();
-//! builder.bucket("exmaple");
+//! builder.bucket("example");
 //! builder.root("/path/to/file");
 //! ```
 //!
@@ -69,7 +69,7 @@
 //!
 //! # fn test() -> Result<()> {
 //! let mut builder = S3::default();
-//! builder.bucket("exmaple");
+//! builder.bucket("example");
 //! builder.root("/path/to/file");
 //!
 //! let op = Operator::create(builder)?.finish();
@@ -114,7 +114,7 @@
 //!
 //! # async fn test() -> Result<()> {
 //! let mut builder = S3::default();
-//! builder.bucket("exmaple");
+//! builder.bucket("example");
 //! builder.root("/path/to/file");
 //!
 //! let op = Operator::create(builder)?.finish();

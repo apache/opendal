@@ -20,7 +20,7 @@ use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 
-/// Parse error respons into Error.
+/// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
 

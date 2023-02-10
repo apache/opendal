@@ -106,7 +106,7 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
 
 /// ObjectReaderFuzzer is the fuzzer for object readers.
 ///
-/// We will generate random read/seek/next operations to operate on obejct
+/// We will generate random read/seek/next operations to operate on object
 /// reader to check if the output is expected.
 ///
 /// # TODO

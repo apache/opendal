@@ -84,6 +84,11 @@ pub use self::rocksdb::Rocksdb;
 mod s3;
 pub use s3::S3;
 
+#[cfg(feature = "services-sled")]
+mod sled;
+#[cfg(feature = "services-sled")]
+pub use self::sled::Sled;
+
 mod webdav;
 pub use webdav::Webdav;
 

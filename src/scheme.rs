@@ -71,6 +71,9 @@ pub enum Scheme {
     Rocksdb,
     /// [s3][crate::services::S3]: AWS S3 alike services.
     S3,
+    /// [sled][crate::services::Sled]: Sled services
+    #[cfg(feature = "services-sled")]
+    Sled,
     /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
@@ -133,6 +136,8 @@ impl FromStr for Scheme {
             #[cfg(feature = "services-rocksdb")]
             "rocksdb" => Ok(Scheme::Rocksdb),
             "s3" => Ok(Scheme::S3),
+            #[cfg(feature = "services-sled")]
+            "sled" => Ok(Scheme::Sled),
             "oss" => Ok(Scheme::Oss),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
@@ -168,6 +173,8 @@ impl From<Scheme> for &'static str {
             #[cfg(feature = "services-rocksdb")]
             Scheme::Rocksdb => "rocksdb",
             Scheme::S3 => "s3",
+            #[cfg(feature = "services-sled")]
+            Scheme::Sled => "sled",
             Scheme::Oss => "oss",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",

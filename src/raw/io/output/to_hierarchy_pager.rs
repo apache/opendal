@@ -15,7 +15,6 @@
 use std::collections::HashSet;
 
 use async_trait::async_trait;
-use log::debug;
 
 use crate::raw::*;
 use crate::*;
@@ -46,59 +45,60 @@ pub struct ToHierarchyPager<P> {
 }
 
 impl<P> ToHierarchyPager<P> {
-    fn filter_entries(&mut self, entries: &mut Vec<output::Entry>) {
-        debug!("got entry in before filter: {:?}", entries);
-
-        entries.retain_mut(|e| {
-            // If path is not started with prefix, drop it.
-            //
-            // Idealy, it should never happen. But we just tolerate
-            // this state.
-            if !e.path().starts_with(&self.path) {
-                return false;
-            }
-
-            let prefix_len = self.path.len();
-
-            let idx = if let Some(idx) = e.path()[prefix_len..].find('/') {
-                idx + prefix_len + 1
-            } else {
-                // If there is no `/` in path, it's a normal file, we
-                // can return it directly.
-                return true;
-            };
-
-            // idx == path.len() means it's contain only one `/` at the
-            // end of path.
-            if idx == e.path().len() {
-                if !self.visited.contains(e.path()) {
-                    self.visited.insert(e.path().to_string());
+    /// TODO: use retain_mut instead after we bump MSRV to 1.61.
+    fn filter_entries(&mut self, entries: Vec<output::Entry>) -> Vec<output::Entry> {
+        entries
+            .into_iter()
+            .filter_map(|mut e| {
+                // If path is not started with prefix, drop it.
+                //
+                // Idealy, it should never happen. But we just tolerate
+                // this state.
+                if !e.path().starts_with(&self.path) {
+                    return None;
                 }
-                return true;
-            }
 
-            // If idx < path.len() means that are more levels to come.
-            // We should check the first dir path.
-            let has = {
-                let path = &e.path()[..idx];
-                self.visited.contains(path)
-            };
-            if !has {
-                let path = {
-                    let path = &e.path()[..idx];
-                    path.to_string()
+                let prefix_len = self.path.len();
+
+                let idx = if let Some(idx) = e.path()[prefix_len..].find('/') {
+                    idx + prefix_len + 1
+                } else {
+                    // If there is no `/` in path, it's a normal file, we
+                    // can return it directly.
+                    return Some(e);
                 };
 
-                e.set_path(&path);
-                e.set_mode(ObjectMode::DIR);
+                // idx == path.len() means it's contain only one `/` at the
+                // end of path.
+                if idx == e.path().len() {
+                    if !self.visited.contains(e.path()) {
+                        self.visited.insert(e.path().to_string());
+                    }
+                    return Some(e);
+                }
 
-                self.visited.insert(path);
+                // If idx < path.len() means that are more levels to come.
+                // We should check the first dir path.
+                let has = {
+                    let path = &e.path()[..idx];
+                    self.visited.contains(path)
+                };
+                if !has {
+                    let path = {
+                        let path = &e.path()[..idx];
+                        path.to_string()
+                    };
 
-                return true;
-            }
+                    e.set_path(&path);
+                    e.set_mode(ObjectMode::DIR);
+                    self.visited.insert(path);
 
-            false
-        })
+                    return Some(e);
+                }
+
+                None
+            })
+            .collect()
     }
 }
 
@@ -107,13 +107,13 @@ impl<P: output::Page> output::Page for ToHierarchyPager<P> {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let page = self.pager.next_page().await?;
 
-        let mut entries = if let Some(entries) = page {
+        let entries = if let Some(entries) = page {
             entries
         } else {
             return Ok(None);
         };
 
-        self.filter_entries(&mut entries);
+        let entries = self.filter_entries(entries);
 
         Ok(Some(entries))
     }
@@ -123,13 +123,13 @@ impl<P: output::BlockingPage> output::BlockingPage for ToHierarchyPager<P> {
     fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let page = self.pager.next_page()?;
 
-        let mut entries = if let Some(entries) = page {
+        let entries = if let Some(entries) = page {
             entries
         } else {
             return Ok(None);
         };
 
-        self.filter_entries(&mut entries);
+        let entries = self.filter_entries(entries);
 
         Ok(Some(entries))
     }

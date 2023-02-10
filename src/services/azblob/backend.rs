@@ -520,7 +520,7 @@ impl Accessor for AzblobBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let delimeter = match args.style() {
+        let delimiter = match args.style() {
             ListStyle::Flat => "".to_string(),
             ListStyle::Hierarchy => "/".to_string(),
         };
@@ -529,7 +529,7 @@ impl Accessor for AzblobBackend {
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
-            delimeter,
+            delimiter,
         );
 
         Ok((RpList::default(), op))
@@ -656,7 +656,7 @@ impl AzblobBackend {
         &self,
         path: &str,
         next_marker: &str,
-        delimeter: &str,
+        delimiter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -668,8 +668,8 @@ impl AzblobBackend {
             write!(url, "&prefix={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
         }
-        if !delimeter.is_empty() {
-            write!(url, "&delimiter={delimeter}").expect("write into string must succeed");
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
         }
         if !next_marker.is_empty() {
             write!(url, "&marker={next_marker}").expect("write into string must succeed");

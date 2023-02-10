@@ -467,14 +467,14 @@ impl Accessor for GcsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let delimeter = match args.style() {
+        let delimiter = match args.style() {
             ListStyle::Flat => "",
             ListStyle::Hierarchy => "/",
         };
 
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, delimeter),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, delimiter),
         ))
     }
 }
@@ -591,7 +591,7 @@ impl GcsBackend {
         &self,
         path: &str,
         page_token: &str,
-        delimeter: &str,
+        delimiter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -601,8 +601,8 @@ impl GcsBackend {
             self.bucket,
             percent_encode_path(&p)
         );
-        if !delimeter.is_empty() {
-            write!(url, "&delimiter={delimeter}").expect("write into string must succeed");
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
         }
         if !page_token.is_empty() {
             // NOTE:

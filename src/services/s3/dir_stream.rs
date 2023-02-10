@@ -35,19 +35,19 @@ pub struct DirStream {
     backend: Arc<S3Backend>,
     root: String,
     path: String,
-    delimeter: String,
+    delimiter: String,
 
     token: String,
     done: bool,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<S3Backend>, root: &str, path: &str, delimeter: &str) -> Self {
+    pub fn new(backend: Arc<S3Backend>, root: &str, path: &str, delimiter: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),
             path: path.to_string(),
-            delimeter: delimeter.to_string(),
+            delimiter: delimiter.to_string(),
 
             token: "".to_string(),
             done: false,
@@ -64,7 +64,7 @@ impl output::Page for DirStream {
 
         let resp = self
             .backend
-            .s3_list_objects(&self.path, &self.token, &self.delimeter)
+            .s3_list_objects(&self.path, &self.token, &self.delimiter)
             .await?;
 
         if resp.status() != http::StatusCode::OK {

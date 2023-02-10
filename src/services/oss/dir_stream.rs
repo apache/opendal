@@ -35,7 +35,7 @@ pub struct DirStream {
     backend: Arc<OssBackend>,
     root: String,
     path: String,
-    delimeter: String,
+    delimiter: String,
 
     token: Option<String>,
 
@@ -43,12 +43,12 @@ pub struct DirStream {
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<OssBackend>, root: &str, path: &str, delimeter: &str) -> Self {
+    pub fn new(backend: Arc<OssBackend>, root: &str, path: &str, delimiter: &str) -> Self {
         Self {
             backend,
             root: root.to_string(),
             path: path.to_string(),
-            delimeter: delimeter.to_string(),
+            delimiter: delimiter.to_string(),
 
             token: None,
 
@@ -66,7 +66,7 @@ impl output::Page for DirStream {
 
         let resp = self
             .backend
-            .oss_list_object(&self.path, self.token.as_deref(), &self.delimeter)
+            .oss_list_object(&self.path, self.token.as_deref(), &self.delimiter)
             .await?;
 
         if resp.status() != http::StatusCode::OK {

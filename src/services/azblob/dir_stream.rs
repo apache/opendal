@@ -29,19 +29,19 @@ pub struct DirStream {
     backend: Arc<AzblobBackend>,
     root: String,
     path: String,
-    delimeter: String,
+    delimiter: String,
 
     next_marker: String,
     done: bool,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<AzblobBackend>, root: String, path: String, delimeter: String) -> Self {
+    pub fn new(backend: Arc<AzblobBackend>, root: String, path: String, delimiter: String) -> Self {
         Self {
             backend,
             root,
             path,
-            delimeter,
+            delimiter,
 
             next_marker: "".to_string(),
             done: false,
@@ -58,7 +58,7 @@ impl output::Page for DirStream {
 
         let resp = self
             .backend
-            .azblob_list_blobs(&self.path, &self.next_marker, &self.delimeter)
+            .azblob_list_blobs(&self.path, &self.next_marker, &self.delimiter)
             .await?;
 
         if resp.status() != http::StatusCode::OK {

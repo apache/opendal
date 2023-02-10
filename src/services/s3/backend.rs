@@ -1215,14 +1215,14 @@ impl Accessor for S3Backend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let delimeter = match args.style() {
+        let delimiter = match args.style() {
             ListStyle::Flat => "",
             ListStyle::Hierarchy => "/",
         };
 
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, delimeter),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, delimiter),
         ))
     }
 
@@ -1481,12 +1481,12 @@ impl S3Backend {
         &self,
         path: &str,
         continuation_token: &str,
-        delimeter: &str,
+        delimiter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}?list-type=2&delimiter={delimeter}&prefix={}",
+            "{}?list-type=2&delimiter={delimiter}&prefix={}",
             self.endpoint,
             percent_encode_path(&p)
         );

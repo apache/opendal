@@ -266,7 +266,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_walk_top_down() -> Result<()> {
+    async fn test_scan() -> Result<()> {
         let _ = env_logger::try_init();
 
         let mut iil = ImmutableIndexLayer::default();
@@ -281,7 +281,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.batch().walk_top_down("/")?;
+        let mut ds = op.object("/").scan().await?;
         let mut set = HashSet::new();
         let mut map = HashMap::new();
         while let Some(entry) = ds.try_next().await? {
@@ -387,7 +387,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.batch().walk_top_down("/")?;
+        let mut ds = op.object("/").scan().await?;
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();

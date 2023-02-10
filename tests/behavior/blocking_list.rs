@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use anyhow::Result;
 use log::debug;
@@ -67,6 +68,7 @@ macro_rules! behavior_blocking_list_tests {
 
                 test_list_dir,
                 test_list_non_exist_dir,
+                test_scan,
             );
         )*
     };
@@ -115,5 +117,29 @@ pub fn test_list_non_exist_dir(op: Operator) -> Result<()> {
     debug!("got objects: {:?}", objects);
 
     assert_eq!(objects.len(), 0, "dir should only return empty");
+    Ok(())
+}
+
+// Walk top down should output as expected
+pub fn test_scan(op: Operator) -> Result<()> {
+    let expected = vec![
+        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
+    ];
+    for path in expected.iter() {
+        op.object(path).blocking_create()?;
+    }
+
+    let w = op.object("x/").blocking_scan()?;
+    let actual = w
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|v| v.unwrap().path().to_string())
+        .collect::<HashSet<_>>();
+
+    debug!("walk top down: {:?}", actual);
+
+    assert!(actual.contains("x/y"));
+    assert!(actual.contains("x/x/y"));
+    assert!(actual.contains("x/x/x/y"));
     Ok(())
 }

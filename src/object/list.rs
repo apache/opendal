@@ -44,9 +44,9 @@ pub struct ObjectLister {
 
 impl ObjectLister {
     /// Create a new object lister.
-    pub fn new(op: Operator, pager: output::Pager) -> Self {
+    pub(crate) fn new(acc: FusedAccessor, pager: output::Pager) -> Self {
         Self {
-            acc: op.inner(),
+            acc,
             pager: Some(pager),
             buf: VecDeque::default(),
             fut: None,
@@ -54,7 +54,7 @@ impl ObjectLister {
     }
 
     /// Fetch the operator that used by this object.
-    pub fn operator(&self) -> Operator {
+    pub(crate) fn operator(&self) -> Operator {
         self.acc.clone().into()
     }
 
@@ -141,7 +141,7 @@ pub struct BlockingObjectLister {
 
 impl BlockingObjectLister {
     /// Create a new object lister.
-    pub fn new(acc: FusedAccessor, pager: output::BlockingPager) -> Self {
+    pub(crate) fn new(acc: FusedAccessor, pager: output::BlockingPager) -> Self {
         Self {
             acc,
             pager,
@@ -150,7 +150,7 @@ impl BlockingObjectLister {
     }
 
     /// Fetch the operator that used by this object.
-    pub fn operator(&self) -> Operator {
+    pub(crate) fn operator(&self) -> Operator {
         self.acc.clone().into()
     }
 

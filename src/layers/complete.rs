@@ -90,7 +90,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         &self,
         path: &str,
         args: OpRead,
-    ) -> Result<(RpRead, CompleteReader<A>)> {
+    ) -> Result<(RpRead, CompleteReader<A, A::Reader>)> {
         let (seekable, streamable) = (
             self.meta.hints().contains(AccessorHint::ReadSeekable),
             self.meta.hints().contains(AccessorHint::ReadStreamable),
@@ -140,7 +140,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         &self,
         path: &str,
         args: OpRead,
-    ) -> Result<(RpRead, CompleteBlockingReader<A>)> {
+    ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
         let (seekable, streamable) = (
             self.meta.hints().contains(AccessorHint::ReadSeekable),
             self.meta.hints().contains(AccessorHint::ReadStreamable),
@@ -149,10 +149,10 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         let (rp, r) = self.inner.blocking_read(path, args)?;
 
         match (seekable, streamable) {
-            (true, true) => Ok((rp, CompleteBlockingReader::AlreadyComplete(r))),
+            (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
             (true, false) => {
                 let r = output::into_streamable_reader(r, 256 * 1024);
-                Ok((rp, CompleteBlockingReader::NeedStreamable(r)))
+                Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             (false, _) => Err(Error::new(
                 ErrorKind::Unsupported,
@@ -165,8 +165,8 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
-    type Reader = CompleteReader<A>;
-    type BlockingReader = CompleteBlockingReader<A>;
+    type Reader = CompleteReader<A, A::Reader>;
+    type BlockingReader = CompleteReader<A, A::BlockingReader>;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -191,14 +191,18 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 }
 
-pub enum CompleteReader<A: Accessor> {
-    AlreadyComplete(A::Reader),
+pub enum CompleteReader<A: Accessor, R> {
+    AlreadyComplete(R),
     NeedSeekable(output::into_reader::RangeReader<A>),
-    NeedStreamable(output::IntoStreamableReader<A::Reader>),
+    NeedStreamable(output::IntoStreamableReader<R>),
     NeedBoth(output::IntoStreamableReader<output::into_reader::RangeReader<A>>),
 }
 
-impl<A: Accessor> output::Read for CompleteReader<A> {
+impl<A, R> output::Read for CompleteReader<A, R>
+where
+    A: Accessor<Reader = R>,
+    R: output::Read,
+{
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         use CompleteReader::*;
 
@@ -233,36 +237,38 @@ impl<A: Accessor> output::Read for CompleteReader<A> {
     }
 }
 
-pub enum CompleteBlockingReader<A: Accessor> {
-    AlreadyComplete(A::BlockingReader),
-    NeedStreamable(output::IntoStreamableReader<A::BlockingReader>),
-}
-
-impl<A: Accessor> output::BlockingRead for CompleteBlockingReader<A> {
+impl<A, R> output::BlockingRead for CompleteReader<A, R>
+where
+    A: Accessor<BlockingReader = R>,
+    R: output::BlockingRead,
+{
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        use CompleteBlockingReader::*;
+        use CompleteReader::*;
 
         match self {
             AlreadyComplete(r) => r.read(buf),
             NeedStreamable(r) => r.read(buf),
+            _ => unreachable!("not supported types of complete reader"),
         }
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        use CompleteBlockingReader::*;
+        use CompleteReader::*;
 
         match self {
             AlreadyComplete(r) => r.seek(pos),
             NeedStreamable(r) => r.seek(pos),
+            _ => unreachable!("not supported types of complete reader"),
         }
     }
 
     fn next(&mut self) -> Option<io::Result<bytes::Bytes>> {
-        use CompleteBlockingReader::*;
+        use CompleteReader::*;
 
         match self {
             AlreadyComplete(r) => r.next(),
             NeedStreamable(r) => r.next(),
+            _ => unreachable!("not supported types of complete reader"),
         }
     }
 }

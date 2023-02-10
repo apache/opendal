@@ -110,9 +110,87 @@ impl<P: output::BlockingPage> output::BlockingPage for ToHierarchyPager<P> {
 
             // idx == path.len() means it's contain only one `/` at the
             // end of path.
-            idx == path.len()
+            idx + 1 == path.len()
         });
 
         Ok(Some(entries))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use io::output::BlockingPage;
+
+    use super::*;
+
+    struct MockPager {
+        inner: Vec<&'static str>,
+        done: bool,
+    }
+
+    impl MockPager {
+        fn new(inner: &[&'static str]) -> Self {
+            Self {
+                inner: inner.to_vec(),
+                done: false,
+            }
+        }
+    }
+
+    impl BlockingPage for MockPager {
+        fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+            if self.done {
+                return Ok(None);
+            }
+            self.done = true;
+
+            let entries = self
+                .inner
+                .iter()
+                .map(|path| {
+                    if path.ends_with('/') {
+                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))
+                    } else {
+                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::FILE))
+                    }
+                })
+                .collect();
+
+            Ok(Some(entries))
+        }
+    }
+
+    #[test]
+    fn test_blocking_list() -> Result<()> {
+        let _ = env_logger::try_init();
+
+        let pager = MockPager::new(&["x/", "y/", "x/x/", "x/x/x", "y/y", "xy/", "z"]);
+        let mut pager = to_hierarchy_pager(pager, "");
+
+        let mut entries = Vec::default();
+
+        while let Some(e) = pager.next_page()? {
+            entries.extend_from_slice(&e)
+        }
+
+        assert_eq!(
+            entries[0],
+            output::Entry::new("x/", ObjectMetadata::new(ObjectMode::DIR))
+        );
+        assert_eq!(
+            entries[1],
+            output::Entry::new("y/", ObjectMetadata::new(ObjectMode::DIR))
+        );
+        assert_eq!(
+            entries[2],
+            output::Entry::new("xy/", ObjectMetadata::new(ObjectMode::DIR))
+        );
+        assert_eq!(
+            entries[3],
+            output::Entry::new("z", ObjectMetadata::new(ObjectMode::FILE))
+        );
+
+        Ok(())
     }
 }

@@ -30,7 +30,7 @@ pub struct DirStream {
     root: String,
     path: String,
     delimiter: String,
-    limit: usize,
+    limit: Option<usize>,
 
     next_marker: String,
     done: bool,
@@ -42,7 +42,7 @@ impl DirStream {
         root: String,
         path: String,
         delimiter: String,
-        limit: usize,
+        limit: Option<usize>,
     ) -> Self {
         Self {
             backend,

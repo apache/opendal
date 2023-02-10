@@ -658,17 +658,20 @@ impl AzblobBackend {
         path: &str,
         next_marker: &str,
         delimiter: &str,
-        limit: usize,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/{}?restype=container&comp=list&maxresults={limit}",
+            "{}/{}?restype=container&comp=list",
             self.endpoint, self.container
         );
         if !p.is_empty() {
             write!(url, "&prefix={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&maxresults={limit}").expect("write into string must succeed");
         }
         if !delimiter.is_empty() {
             write!(url, "&delimiter={delimiter}").expect("write into string must succeed");

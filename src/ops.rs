@@ -57,14 +57,17 @@ impl OpDelete {
 /// Args for `list` operation.
 #[derive(Debug, Clone)]
 pub struct OpList {
+    /// The style passed to underlying services to specify the list style.
     style: ListStyle,
-    limit: usize,
+    /// The limit passed to underlying service to specify the max results
+    /// that coudl return.
+    limit: Option<usize>,
 }
 
 impl OpList {
     /// Create a new `OpList`.
     pub fn new(style: ListStyle) -> Self {
-        Self { style, limit: 1000 }
+        Self { style, limit: None }
     }
 
     /// Get the style from list.
@@ -74,12 +77,12 @@ impl OpList {
 
     /// Change the limit of this list operation.
     pub fn with_limit(mut self, limit: usize) -> Self {
-        self.limit = limit;
+        self.limit = Some(limit);
         self
     }
 
     /// Get the limit of list operation.
-    pub fn limit(&self) -> usize {
+    pub fn limit(&self) -> Option<usize> {
         self.limit
     }
 }

@@ -31,11 +31,10 @@ pub struct DirPager {
 }
 
 impl DirPager {
-    pub fn new(root: &Path, rd: tokio::fs::ReadDir) -> Self {
+    pub fn new(root: &Path, rd: tokio::fs::ReadDir, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
-            // TODO: make this a configurable value.
-            size: 256,
+            size: limit.unwrap_or(1000),
             rd,
         }
     }
@@ -94,11 +93,10 @@ pub struct BlockingDirPager {
 }
 
 impl BlockingDirPager {
-    pub fn new(root: &Path, rd: std::fs::ReadDir) -> Self {
+    pub fn new(root: &Path, rd: std::fs::ReadDir, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
-            // TODO: make this a configurable value.
-            size: 256,
+            size: limit.unwrap_or(1000),
             rd,
         }
     }

@@ -27,12 +27,11 @@ pub struct DirStream {
 }
 
 impl DirStream {
-    pub fn new(root: &str, rd: hdrs::Readdir) -> Self {
+    pub fn new(root: &str, rd: hdrs::Readdir, limit: Option<usize>) -> Self {
         Self {
             root: root.to_string(),
 
-            // TODO: make this a configurable value.
-            size: 256,
+            size: limit.unwrap_or(1000),
             rd,
         }
     }

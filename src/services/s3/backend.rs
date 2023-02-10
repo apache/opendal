@@ -1222,7 +1222,13 @@ impl Accessor for S3Backend {
 
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, delimiter),
+            DirStream::new(
+                Arc::new(self.clone()),
+                &self.root,
+                path,
+                delimiter,
+                args.limit(),
+            ),
         ))
     }
 
@@ -1482,6 +1488,7 @@ impl S3Backend {
         path: &str,
         continuation_token: &str,
         delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -1490,6 +1497,9 @@ impl S3Backend {
             self.endpoint,
             percent_encode_path(&p)
         );
+        if let Some(limit) = limit {
+            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+        }
         if !continuation_token.is_empty() {
             // AWS S3 could return continuation-token that contains `=`
             // which could lead `reqsign` parse query wrongly.

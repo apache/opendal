@@ -530,6 +530,7 @@ impl Accessor for AzblobBackend {
             self.root.clone(),
             path.to_string(),
             delimiter,
+            args.limit(),
         );
 
         Ok((RpList::default(), op))
@@ -657,6 +658,7 @@ impl AzblobBackend {
         path: &str,
         next_marker: &str,
         delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -667,6 +669,9 @@ impl AzblobBackend {
         if !p.is_empty() {
             write!(url, "&prefix={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&maxresults={limit}").expect("write into string must succeed");
         }
         if !delimiter.is_empty() {
             write!(url, "&delimiter={delimiter}").expect("write into string must succeed");

@@ -430,7 +430,12 @@ impl Accessor for AzdfsBackend {
             ));
         }
 
-        let op = DirStream::new(Arc::new(self.clone()), self.root.clone(), path.to_string());
+        let op = DirStream::new(
+            Arc::new(self.clone()),
+            self.root.clone(),
+            path.to_string(),
+            args.limit(),
+        );
 
         Ok((RpList::default(), op))
     }
@@ -592,6 +597,7 @@ impl AzdfsBackend {
         &self,
         path: &str,
         continuation: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -604,6 +610,9 @@ impl AzdfsBackend {
         if !p.is_empty() {
             write!(url, "&directory={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&maxresults={limit}").expect("write into string must succeed");
         }
         if !continuation.is_empty() {
             write!(url, "&continuation={continuation}").expect("write into string must succeed");

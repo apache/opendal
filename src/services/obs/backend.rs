@@ -417,7 +417,13 @@ impl Accessor for ObsBackend {
 
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, delimiter),
+            DirStream::new(
+                Arc::new(self.clone()),
+                &self.root,
+                path,
+                delimiter,
+                args.limit(),
+            ),
         ))
     }
 }
@@ -513,6 +519,7 @@ impl ObsBackend {
         path: &str,
         next_marker: &str,
         delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -522,6 +529,9 @@ impl ObsBackend {
         }
         if !delimiter.is_empty() {
             queries.push(format!("delimiter={delimiter}"));
+        }
+        if let Some(limit) = limit {
+            queries.push(format!("max-keys={limit}"));
         }
         if !next_marker.is_empty() {
             queries.push(format!("marker={next_marker}"));

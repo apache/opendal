@@ -531,7 +531,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = DirPager::new(&self.root, f);
+        let rd = DirPager::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -742,7 +742,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = BlockingDirPager::new(&self.root, f);
+        let rd = BlockingDirPager::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }

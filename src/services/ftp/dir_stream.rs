@@ -59,11 +59,10 @@ pub struct DirStream {
 }
 
 impl DirStream {
-    pub fn new(path: &str, rd: ReadDir) -> Self {
+    pub fn new(path: &str, rd: ReadDir, limit: Option<usize>) -> Self {
         Self {
             path: path.to_string(),
-            // TODO: Make this a config
-            size: 256,
+            size: limit.unwrap_or(1000),
             rd,
         }
     }

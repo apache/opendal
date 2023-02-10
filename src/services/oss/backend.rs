@@ -497,7 +497,13 @@ impl Accessor for OssBackend {
 
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, delimiter),
+            DirStream::new(
+                Arc::new(self.clone()),
+                &self.root,
+                path,
+                delimiter,
+                args.limit(),
+            ),
         ))
     }
 
@@ -615,14 +621,16 @@ impl OssBackend {
         path: &str,
         token: Option<&str>,
         delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
         let url = format!(
-            "{}/?list-type=2&delimiter={delimiter}&prefix={}{}",
+            "{}/?list-type=2&delimiter={delimiter}&prefix={}{}{}",
             endpoint,
             percent_encode_path(&p),
+            limit.map(|t| format!("&max-keys={t}")).unwrap_or_default(),
             token
                 .map(|t| format!("&continuation-token={}", percent_encode_path(t)))
                 .unwrap_or_default(),
@@ -670,8 +678,9 @@ impl OssBackend {
         path: &str,
         token: Option<&str>,
         delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_list_object_request(path, token, delimiter)?;
+        let mut req = self.oss_list_object_request(path, token, delimiter, limit)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await

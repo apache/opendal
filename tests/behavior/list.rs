@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use anyhow::Result;
 use futures::stream::FuturesUnordered;
@@ -75,9 +76,7 @@ macro_rules! behavior_list_tests {
                 test_list_sub_dir,
                 test_list_nested_dir,
                 test_list_dir_with_file_path,
-                test_walk_top_down,
-                test_walk_top_down_within_empty_dir,
-                test_walk_bottom_up,
+                test_scan,
                 test_remove_all,
             );
         )*
@@ -314,103 +313,27 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 }
 
 // Walk top down should output as expected
-pub async fn test_walk_top_down(op: Operator) -> Result<()> {
-    let mut expected = vec![
+pub async fn test_scan(op: Operator) -> Result<()> {
+    let expected = vec![
         "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
     ];
     for path in expected.iter() {
         op.object(path).create().await?;
     }
 
-    let w = op.batch().walk_top_down("x/")?;
-    let mut actual = w
+    let w = op.object("x/").scan().await?;
+    let actual = w
         .try_collect::<Vec<_>>()
         .await?
         .into_iter()
         .map(|v| v.path().to_string())
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
 
     debug!("walk top down: {:?}", actual);
 
-    fn get_position(vs: &[String], s: &str) -> usize {
-        vs.iter()
-            .position(|v| v == s)
-            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
-    }
-
-    assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/x/x/"));
-    assert!(get_position(&actual, "x/x/x/") > get_position(&actual, "x/x/"));
-    assert!(get_position(&actual, "x/x/") > get_position(&actual, "x/"));
-
-    expected.sort_unstable();
-    actual.sort_unstable();
-    assert_eq!(actual, expected);
-    Ok(())
-}
-
-// Walk top down within empty dir should output as expected
-pub async fn test_walk_top_down_within_empty_dir(op: Operator) -> Result<()> {
-    let mut expected = vec!["x/", "x/x/x/x/"];
-    for path in expected.iter() {
-        op.object(path).create().await?;
-    }
-
-    let w = op.batch().walk_top_down("x/")?;
-    let mut actual = w
-        .try_collect::<Vec<_>>()
-        .await?
-        .into_iter()
-        .map(|v| v.path().to_string())
-        .collect::<Vec<_>>();
-
-    debug!("walk top down: {:?}", actual);
-
-    fn get_position(vs: &[String], s: &str) -> usize {
-        vs.iter()
-            .position(|v| v == s)
-            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
-    }
-
-    assert!(get_position(&actual, "x/x/x/x/") > get_position(&actual, "x/"));
-
-    expected.sort_unstable();
-    actual.sort_unstable();
-    assert_eq!(actual, vec!["x/", "x/x/", "x/x/x/", "x/x/x/x/"]);
-    Ok(())
-}
-
-// Walk bottom up should output as expected
-pub async fn test_walk_bottom_up(op: Operator) -> Result<()> {
-    let mut expected = vec![
-        "x/", "x/y", "x/x/", "x/x/y", "x/x/x/", "x/x/x/y", "x/x/x/x/",
-    ];
-    for path in expected.iter() {
-        op.object(path).create().await?;
-    }
-
-    let w = op.batch().walk_bottom_up("x/")?;
-    let mut actual = w
-        .try_collect::<Vec<_>>()
-        .await?
-        .into_iter()
-        .map(|v| v.path().to_string())
-        .collect::<Vec<_>>();
-
-    debug!("walk bottom up: {:?}", actual);
-
-    fn get_position(vs: &[String], s: &str) -> usize {
-        vs.iter()
-            .position(|v| v == s)
-            .unwrap_or_else(|| panic!("{s} is not found in {vs:?}"))
-    }
-
-    assert!(get_position(&actual, "x/x/x/x/") < get_position(&actual, "x/x/x/"));
-    assert!(get_position(&actual, "x/x/x/") < get_position(&actual, "x/x/"));
-    assert!(get_position(&actual, "x/x/") < get_position(&actual, "x/"));
-
-    expected.sort_unstable();
-    actual.sort_unstable();
-    assert_eq!(actual, expected);
+    assert!(actual.contains("x/y"));
+    assert!(actual.contains("x/x/y"));
+    assert!(actual.contains("x/x/x/y"));
     Ok(())
 }
 

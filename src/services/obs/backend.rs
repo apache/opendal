@@ -14,7 +14,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -315,7 +314,9 @@ impl Accessor for ObsBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(
+                AccessorHint::ReadStreamable | AccessorHint::ListFlat | AccessorHint::ListHierarchy,
+            );
 
         am
     }
@@ -408,10 +409,15 @@ impl Accessor for ObsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let delimiter = match args.style() {
+            ListStyle::Flat => "",
+            ListStyle::Hierarchy => "/",
+        };
+
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, delimiter),
         ))
     }
 }
@@ -506,17 +512,26 @@ impl ObsBackend {
         &self,
         path: &str,
         next_marker: &str,
+        delimiter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!("{}?delimiter=/", self.endpoint);
+        let mut queries = vec![];
         if !path.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            queries.push(format!("prefix={}", percent_encode_path(&p)));
+        }
+        if !delimiter.is_empty() {
+            queries.push(format!("delimiter={delimiter}"));
         }
         if !next_marker.is_empty() {
-            write!(url, "&marker={next_marker}").expect("write into string must succeed");
+            queries.push(format!("marker={next_marker}"));
         }
+
+        let url = if queries.is_empty() {
+            self.endpoint.to_string()
+        } else {
+            format!("{}?{}", self.endpoint, queries.join("&"))
+        };
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)

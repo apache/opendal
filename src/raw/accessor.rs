@@ -570,13 +570,17 @@ flags! {
     ///
     /// All hints are internal used only and will not be exposed to users.
     pub enum AccessorHint: u64 {
-        /// Read is seekable means the underlying read is seekable.
+        /// Read seekable means the underlying read is seekable.
         ///
         /// We can reuse the same reader instead of always creating new one.
-        ReadIsSeekable,
-        /// Read is seekable means the underlying read is streamable.
+        ReadSeekable,
+        /// Read streamable means the underlying read is streamable.
         ///
         /// It's better to use stream to reading data.
-        ReadIsStreamable,
+        ReadStreamable,
+        /// List flat means this underlying can list with flat style.
+        ListFlat,
+        /// List hierarchy means this underlying can list with hierarchy style.
+        ListHierarchy,
     }
 }

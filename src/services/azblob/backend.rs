@@ -426,7 +426,9 @@ impl Accessor for AzblobBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(
+                AccessorHint::ReadStreamable | AccessorHint::ListFlat | AccessorHint::ListHierarchy,
+            );
 
         am
     }
@@ -517,8 +519,18 @@ impl Accessor for AzblobBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = DirStream::new(Arc::new(self.clone()), self.root.clone(), path.to_string());
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let delimiter = match args.style() {
+            ListStyle::Flat => "".to_string(),
+            ListStyle::Hierarchy => "/".to_string(),
+        };
+
+        let op = DirStream::new(
+            Arc::new(self.clone()),
+            self.root.clone(),
+            path.to_string(),
+            delimiter,
+        );
 
         Ok((RpList::default(), op))
     }
@@ -644,16 +656,20 @@ impl AzblobBackend {
         &self,
         path: &str,
         next_marker: &str,
+        delimiter: &str,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/{}?restype=container&comp=list&delimiter=/",
+            "{}/{}?restype=container&comp=list",
             self.endpoint, self.container
         );
         if !p.is_empty() {
             write!(url, "&prefix={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
+        }
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
         }
         if !next_marker.is_empty() {
             write!(url, "&marker={next_marker}").expect("write into string must succeed");

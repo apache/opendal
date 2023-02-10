@@ -311,7 +311,7 @@ impl Accessor for AzdfsBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable | AccessorHint::ListHierarchy);
 
         am
     }
@@ -422,7 +422,14 @@ impl Accessor for AzdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        if !matches!(args.style(), ListStyle::Hierarchy) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "list with flat style is not supported",
+            ));
+        }
+
         let op = DirStream::new(Arc::new(self.clone()), self.root.clone(), path.to_string());
 
         Ok((RpList::default(), op))

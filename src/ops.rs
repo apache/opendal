@@ -55,14 +55,30 @@ impl OpDelete {
 }
 
 /// Args for `list` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpList {}
+#[derive(Debug, Clone)]
+pub struct OpList {
+    style: ListStyle,
+}
 
 impl OpList {
     /// Create a new `OpList`.
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(style: ListStyle) -> Self {
+        Self { style }
     }
+
+    /// Get the style from list.
+    pub fn style(&self) -> ListStyle {
+        self.style
+    }
+}
+
+/// List style define the style that underlying services used for list.
+#[derive(Debug, Clone, Copy)]
+pub enum ListStyle {
+    /// List in flat style. As known as list prefix or readdir recursively.
+    Flat,
+    /// List in hierarchy style. As known as list dir.
+    Hierarchy,
 }
 
 /// Args for `create_multipart` operation.

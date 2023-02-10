@@ -47,7 +47,7 @@ impl BlockingObjectReader {
     ) -> Result<Self> {
         let acc_meta = acc.metadata();
 
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsSeekable) {
+        let r = if acc_meta.hints().contains(AccessorHint::ReadSeekable) {
             let (_, r) = acc.blocking_read(path, op)?;
             r
         } else {
@@ -57,7 +57,7 @@ impl BlockingObjectReader {
             ));
         };
 
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
+        let r = if acc_meta.hints().contains(AccessorHint::ReadStreamable) {
             r
         } else {
             // Make this capacity configurable.

@@ -205,7 +205,7 @@ impl Accessor for HttpBackend {
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read)
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         ma
     }

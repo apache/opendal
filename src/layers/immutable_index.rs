@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::mem;
@@ -48,13 +47,13 @@ use crate::*;
 /// ```
 #[derive(Default, Debug, Clone)]
 pub struct ImmutableIndexLayer {
-    set: BTreeSet<String>,
+    vec: Vec<String>,
 }
 
 impl ImmutableIndexLayer {
     /// Insert a key into index.
     pub fn insert(&mut self, key: String) {
-        self.set.insert(key);
+        self.vec.push(key);
     }
 
     /// Insert keys from iter.
@@ -62,7 +61,7 @@ impl ImmutableIndexLayer {
     where
         I: IntoIterator<Item = String>,
     {
-        self.set.extend(iter);
+        self.vec.extend(iter);
     }
 }
 
@@ -71,7 +70,7 @@ impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
 
     fn layer(&self, inner: A) -> Self::LayeredAccessor {
         ImmutableIndexAccessor {
-            set: self.set.clone(),
+            vec: self.vec.clone(),
             inner,
         }
     }
@@ -80,15 +79,22 @@ impl<A: Accessor> Layer<A> for ImmutableIndexLayer {
 #[derive(Debug, Clone)]
 pub struct ImmutableIndexAccessor<A: Accessor> {
     inner: A,
-    /// TODO: we can introduce trie here to lower the memory footprint.
-    set: BTreeSet<String>,
+    vec: Vec<String>,
 }
 
 impl<A: Accessor> ImmutableIndexAccessor<A> {
-    fn children(&self, path: &str) -> Vec<String> {
+    fn children_flat(&self, path: &str) -> Vec<String> {
+        self.vec
+            .iter()
+            .filter(|v| v.starts_with(path) && v.as_str() != path)
+            .cloned()
+            .collect()
+    }
+
+    fn children_hierarchy(&self, path: &str) -> Vec<String> {
         let mut res = HashSet::new();
 
-        for i in self.set.iter() {
+        for i in self.vec.iter() {
             // `/xyz` should not belong to `/abc`
             if !i.starts_with(path) {
                 continue;
@@ -140,6 +146,7 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     fn metadata(&self) -> AccessorMetadata {
         let mut meta = self.inner.metadata();
         meta.set_capabilities(meta.capabilities() | AccessorCapability::List);
+        meta.set_hints(meta.hints() | AccessorHint::ListFlat | AccessorHint::ListHierarchy);
 
         meta
     }
@@ -148,26 +155,36 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.read(path, args).await
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok((RpList::default(), ImmutableDir::new(self.children(path))))
+        let childen = match args.style() {
+            ListStyle::Flat => self.children_flat(path),
+            ListStyle::Hierarchy => self.children_hierarchy(path),
+        };
+
+        Ok((RpList::default(), ImmutableDir::new(childen)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner.blocking_read(path, args)
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        Ok((RpList::default(), ImmutableDir::new(self.children(path))))
+        let childen = match args.style() {
+            ListStyle::Flat => self.children_flat(path),
+            ListStyle::Hierarchy => self.children_hierarchy(path),
+        };
+
+        Ok((RpList::default(), ImmutableDir::new(childen)))
     }
 }
 
@@ -251,6 +268,7 @@ mod tests {
         let mut set = HashSet::new();
         let mut ds = op.object("").list().await?;
         while let Some(entry) = ds.try_next().await? {
+            debug!("got entry: {}", entry.path());
             assert!(
                 set.insert(entry.path().to_string()),
                 "duplicated value: {}",
@@ -266,7 +284,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_walk_top_down() -> Result<()> {
+    async fn test_scan() -> Result<()> {
         let _ = env_logger::try_init();
 
         let mut iil = ImmutableIndexLayer::default();
@@ -281,10 +299,11 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.batch().walk_top_down("/")?;
+        let mut ds = op.object("/").scan().await?;
         let mut set = HashSet::new();
         let mut map = HashMap::new();
         while let Some(entry) = ds.try_next().await? {
+            debug!("got entry: {}", entry.path());
             assert!(
                 set.insert(entry.path().to_string()),
                 "duplicated value: {}",
@@ -295,10 +314,9 @@ mod tests {
 
         debug!("current files: {:?}", map);
 
-        assert_eq!(map.len(), 6);
         assert_eq!(map["file"], ObjectMode::FILE);
         assert_eq!(map["dir/"], ObjectMode::DIR);
-        assert_eq!(map["dir_without_prefix/"], ObjectMode::DIR);
+        assert_eq!(map["dir_without_prefix/file"], ObjectMode::FILE);
         Ok(())
     }
 
@@ -351,7 +369,6 @@ mod tests {
             map.insert(entry.path().to_string(), entry.mode().await?);
         }
 
-        assert_eq!(map.len(), 3);
         assert_eq!(
             map["dataset/stateful/ontime_2007_200.csv"],
             ObjectMode::FILE
@@ -387,7 +404,7 @@ mod tests {
         .layer(iil)
         .finish();
 
-        let mut ds = op.batch().walk_top_down("/")?;
+        let mut ds = op.object("/").scan().await?;
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
@@ -402,7 +419,6 @@ mod tests {
 
         debug!("current files: {:?}", map);
 
-        assert_eq!(map.len(), 6);
         assert_eq!(
             map["dataset/stateful/ontime_2007_200.csv"],
             ObjectMode::FILE

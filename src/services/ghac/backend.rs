@@ -299,7 +299,7 @@ impl Accessor for GhacBackend {
             .set_root(&self.root)
             .set_name(&self.version)
             .set_capabilities(AccessorCapability::Read | AccessorCapability::Write)
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
         am
     }
 

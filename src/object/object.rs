@@ -1011,9 +1011,12 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
+        let (_, pager) = self
+            .acc
+            .list(self.path(), OpList::new(ListStyle::Hierarchy))
+            .await?;
 
-        Ok(ObjectLister::new(self.operator(), pager))
+        Ok(ObjectLister::new(self.acc.clone(), pager))
     }
 
     /// List current dir object.
@@ -1058,7 +1061,109 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
+        let (_, pager) = self
+            .acc
+            .blocking_list(self.path(), OpList::new(ListStyle::Hierarchy))?;
+        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
+    }
+
+    /// List dir in flat way.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.scan().await?;
+    /// // ObjectStreamer implements `futures::Stream`
+    /// while let Some(de) = ds.try_next().await? {
+    ///     match de.mode().await? {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn scan(&self) -> Result<ObjectLister> {
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::list")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
+        }
+
+        let (_, pager) = self
+            .acc
+            .list(self.path(), OpList::new(ListStyle::Flat))
+            .await?;
+
+        Ok(ObjectLister::new(self.acc.clone(), pager))
+    }
+
+    /// List dir in flat way.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.blocking_list()?;
+    /// while let Some(de) = ds.next() {
+    ///     let de = de?;
+    ///     match de.blocking_mode()? {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_scan(&self) -> Result<BlockingObjectLister> {
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::blocking_list")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
+        }
+
+        let (_, pager) = self
+            .acc
+            .blocking_list(self.path(), OpList::new(ListStyle::Flat))?;
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 

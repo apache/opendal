@@ -56,7 +56,7 @@ impl<S: Adapter> Accessor for Backend<S> {
     fn metadata(&self) -> AccessorMetadata {
         let mut am: AccessorMetadata = self.kv.metadata().into();
         am.set_root(&self.root)
-            .set_hints(AccessorHint::ReadIsStreamable | AccessorHint::ReadIsSeekable);
+            .set_hints(AccessorHint::ReadStreamable | AccessorHint::ReadSeekable);
 
         am
     }

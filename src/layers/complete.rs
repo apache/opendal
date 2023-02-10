@@ -22,6 +22,13 @@ use std::task::Poll;
 use async_trait::async_trait;
 
 use crate::ops::*;
+use crate::raw::output::into_reader::RangeReader;
+use crate::raw::output::to_flat_pager;
+use crate::raw::output::to_hierarchy_pager;
+use crate::raw::output::Entry;
+use crate::raw::output::IntoStreamableReader;
+use crate::raw::output::ToFlatPager;
+use crate::raw::output::ToHierarchyPager;
 use crate::raw::*;
 use crate::*;
 
@@ -141,6 +148,13 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
+        if !self.meta.capabilities().contains(AccessorCapability::List) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ));
+        }
+
         let (seekable, streamable) = (
             self.meta.hints().contains(AccessorHint::ReadSeekable),
             self.meta.hints().contains(AccessorHint::ReadStreamable),
@@ -160,6 +174,83 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
             )),
         }
     }
+
+    async fn complete_pager(
+        &self,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
+        if !self.meta.capabilities().contains(AccessorCapability::List) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ));
+        }
+
+        let (can_flat, can_hierarchy) = (
+            self.meta.hints().contains(AccessorHint::ListFlat),
+            self.meta.hints().contains(AccessorHint::ListHierarchy),
+        );
+
+        match args.style() {
+            ListStyle::Flat => {
+                if can_flat {
+                    let (rp, p) = self.inner.list(path, args).await?;
+                    Ok((rp, CompletePager::AlreadyComplete(p)))
+                } else {
+                    // TODO: Make this size configure.
+                    let p = to_flat_pager(self.inner.clone(), path, 256);
+                    Ok((RpList::default(), CompletePager::NeedFlat(p)))
+                }
+            }
+            ListStyle::Hierarchy => {
+                if can_hierarchy {
+                    let (rp, p) = self.inner.list(path, args).await?;
+                    Ok((rp, CompletePager::AlreadyComplete(p)))
+                } else {
+                    let (rp, p) = self.inner.list(path, OpList::new(ListStyle::Flat)).await?;
+                    let p = to_hierarchy_pager(p, path);
+                    Ok((rp, CompletePager::NeedHierarchy(p)))
+                }
+            }
+        }
+    }
+
+    fn complete_blocking_pager(
+        &self,
+        path: &str,
+        args: OpList,
+    ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
+        let (can_flat, can_hierarchy) = (
+            self.meta.hints().contains(AccessorHint::ListFlat),
+            self.meta.hints().contains(AccessorHint::ListHierarchy),
+        );
+
+        match args.style() {
+            ListStyle::Flat => {
+                if can_flat {
+                    let (rp, p) = self.inner.blocking_list(path, args)?;
+                    Ok((rp, CompletePager::AlreadyComplete(p)))
+                } else {
+                    // TODO: Make this size configure.
+                    let p = to_flat_pager(self.inner.clone(), path, 256);
+                    Ok((RpList::default(), CompletePager::NeedFlat(p)))
+                }
+            }
+            ListStyle::Hierarchy => {
+                if can_hierarchy {
+                    let (rp, p) = self.inner.blocking_list(path, args)?;
+                    Ok((rp, CompletePager::AlreadyComplete(p)))
+                } else {
+                    let (rp, p) = self
+                        .inner
+                        .blocking_list(path, OpList::new(ListStyle::Flat))?;
+                    let p = to_hierarchy_pager(p, path);
+                    Ok((rp, CompletePager::NeedHierarchy(p)))
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -167,8 +258,8 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A, A::Reader>;
     type BlockingReader = CompleteReader<A, A::BlockingReader>;
-    type Pager = A::Pager;
-    type BlockingPager = A::BlockingPager;
+    type Pager = CompletePager<A, A::Pager>;
+    type BlockingPager = CompletePager<A, A::BlockingPager>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -183,19 +274,19 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        self.inner.list(path, args).await
+        self.complete_pager(path, args).await
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        self.inner.blocking_list(path, args)
+        self.complete_blocking_pager(path, args)
     }
 }
 
 pub enum CompleteReader<A: Accessor, R> {
     AlreadyComplete(R),
-    NeedSeekable(output::into_reader::RangeReader<A>),
-    NeedStreamable(output::IntoStreamableReader<R>),
-    NeedBoth(output::IntoStreamableReader<output::into_reader::RangeReader<A>>),
+    NeedSeekable(RangeReader<A>),
+    NeedStreamable(IntoStreamableReader<R>),
+    NeedBoth(IntoStreamableReader<RangeReader<A>>),
 }
 
 impl<A, R> output::Read for CompleteReader<A, R>
@@ -269,6 +360,45 @@ where
             AlreadyComplete(r) => r.next(),
             NeedStreamable(r) => r.next(),
             _ => unreachable!("not supported types of complete reader"),
+        }
+    }
+}
+
+pub enum CompletePager<A: Accessor, P> {
+    AlreadyComplete(P),
+    NeedFlat(ToFlatPager<Arc<A>, P>),
+    NeedHierarchy(ToHierarchyPager<P>),
+}
+
+#[async_trait]
+impl<A, P> output::Page for CompletePager<A, P>
+where
+    A: Accessor<Pager = P>,
+    P: output::Page,
+{
+    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+        use CompletePager::*;
+
+        match self {
+            AlreadyComplete(p) => p.next_page().await,
+            NeedFlat(p) => p.next_page().await,
+            NeedHierarchy(p) => p.next_page().await,
+        }
+    }
+}
+
+impl<A, P> output::BlockingPage for CompletePager<A, P>
+where
+    A: Accessor<BlockingPager = P>,
+    P: output::BlockingPage,
+{
+    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+        use CompletePager::*;
+
+        match self {
+            AlreadyComplete(p) => p.next_page(),
+            NeedFlat(p) => p.next_page(),
+            NeedHierarchy(p) => p.next_page(),
         }
     }
 }

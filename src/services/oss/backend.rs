@@ -476,7 +476,7 @@ impl Accessor for OssBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.obs_delete_object(path).await?;
+        let resp = self.oss_delete_object(path).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
@@ -668,7 +668,7 @@ impl OssBackend {
         self.client.send_async(req).await
     }
 
-    async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn oss_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_delete_object_request(path)?;
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await

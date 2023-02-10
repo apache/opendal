@@ -474,7 +474,13 @@ impl Accessor for GcsBackend {
 
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, delimiter),
+            DirStream::new(
+                Arc::new(self.clone()),
+                &self.root,
+                path,
+                delimiter,
+                args.limit(),
+            ),
         ))
     }
 }
@@ -592,6 +598,7 @@ impl GcsBackend {
         path: &str,
         page_token: &str,
         delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -603,6 +610,9 @@ impl GcsBackend {
         );
         if !delimiter.is_empty() {
             write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&maxResults={limit}").expect("write into string must succeed");
         }
         if !page_token.is_empty() {
             // NOTE:

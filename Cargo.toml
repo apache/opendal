@@ -91,7 +91,6 @@ async-trait = "0.1.50"
 backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
-bincode = { version = "2.0.0-rc.2", features = ["serde"] }
 bytes = "1.2"
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }

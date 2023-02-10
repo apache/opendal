@@ -60,7 +60,7 @@ pub struct OpList {
     /// The style passed to underlying services to specify the list style.
     style: ListStyle,
     /// The limit passed to underlying service to specify the max results
-    /// that coudl return.
+    /// that could return.
     limit: Option<usize>,
 }
 

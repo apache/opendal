@@ -97,7 +97,7 @@ impl<A: Accessor> RangeReader<A> {
         Box::pin(async move { acc.read(&path, op).await })
     }
 
-    /// calculate the seek postion.
+    /// calculate the seek position.
     ///
     /// This operation will not update the `self.cur`.
     fn seek_pos(&self, pos: SeekFrom) -> io::Result<u64> {
@@ -140,7 +140,7 @@ impl<A: Accessor> output::Read for RangeReader<A> {
                 //
                 // we can use RpRead returned here to correct size.
                 let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
-                    // If read future retruns an error, we should reset
+                    // If read future returns an error, we should reset
                     // state to Idle so that we can retry it.
                     self.state = State::Idle;
                     err
@@ -190,7 +190,7 @@ impl<A: Accessor> output::Read for RangeReader<A> {
                 }
 
                 // If the next seek pos is close enough, we can just
-                // read the cnt instead of droping the reader.
+                // read the cnt instead of dropping the reader.
                 //
                 // TODO: make this value configurable
                 if seek_pos > self.cur && seek_pos - self.cur < 1024 * 1024 {
@@ -248,7 +248,7 @@ impl<A: Accessor> output::Read for RangeReader<A> {
                 //
                 // we can use RpRead returned here to correct size.
                 let (_, r) = ready!(Pin::new(fut).poll(cx)).map_err(|err| {
-                    // If read future retruns an error, we should reset
+                    // If read future returns an error, we should reset
                     // state to Idle so that we can retry it.
                     self.state = State::Idle;
                     err

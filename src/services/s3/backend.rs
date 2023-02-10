@@ -754,7 +754,7 @@ impl S3Builder {
             // Unexpected status code, fallback to default region "us-east-1"
             code => Err(Error::new(
                 ErrorKind::Unexpected,
-                "can't detect region automatically, unexpect status code got",
+                "can't detect region automatically, unexpected status code got",
             )
             .with_context("status", code.as_str())),
         }

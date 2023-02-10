@@ -225,7 +225,7 @@ impl Accessor for WebdavBackend {
         match status {
             StatusCode::CREATED
             | StatusCode::OK
-            // create existing dir will retrun conflict
+            // create existing dir will return conflict
             | StatusCode::CONFLICT
             // create existing file will return no_content
             | StatusCode::NO_CONTENT => {

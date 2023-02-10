@@ -135,7 +135,7 @@ impl GcsBuilder {
     ///
     /// If not set, we will use `https://www.googleapis.com/auth/devstorage.read_write`.
     ///
-    /// # Valid scope exmaples
+    /// # Valid scope examples
     ///
     /// - read-only: `https://www.googleapis.com/auth/devstorage.read_only`
     /// - read-write: `https://www.googleapis.com/auth/devstorage.read_write`

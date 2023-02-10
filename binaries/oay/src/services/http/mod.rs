@@ -91,8 +91,8 @@ impl Service {
             let bcr = BytesContentRange::from_bytes_range(meta.content_length(), br);
 
             (
-                bcr.len().expect("range must be specifed"),
-                o.range_reader(bcr.range().expect("range must be specifed"))
+                bcr.len().expect("range must be specified"),
+                o.range_reader(bcr.range().expect("range must be specified"))
                     .await?,
             )
         } else {

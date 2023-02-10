@@ -143,7 +143,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         }
     }
 
-    fn complete_blokcing_reader(
+    fn complete_blocking_reader(
         &self,
         path: &str,
         args: OpRead,
@@ -276,7 +276,7 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.complete_blokcing_reader(path, args)
+        self.complete_blocking_reader(path, args)
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {

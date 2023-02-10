@@ -29,7 +29,7 @@ pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
 }
 
 /// ToHierarchyPager will convert a flat page to hierarchy by filter
-/// not needed entires.
+/// not needed entries.
 ///
 /// # Notes
 ///

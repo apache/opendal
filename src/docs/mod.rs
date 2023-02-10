@@ -14,7 +14,7 @@
 
 //! This module holds documentation for OpenDAL.
 //!
-//! It's highly recommand to start with reading [`concepts`] first.
+//! It's highly recommend to start with reading [`concepts`] first.
 
 pub mod comparisons;
 

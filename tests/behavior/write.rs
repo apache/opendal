@@ -70,7 +70,7 @@ macro_rules! behavior_write_tests {
                 test_create_file_existing,
                 test_create_file_with_special_chars,
                 test_create_dir,
-                test_create_dir_exising,
+                test_create_dir_existing,
                 test_write,
                 test_write_with_dir_path,
                 test_write_with_special_chars,
@@ -183,7 +183,7 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
 }
 
 /// Create dir on existing dir should succeed.
-pub async fn test_create_dir_exising(op: Operator) -> Result<()> {
+pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     let o = op.object(&path);

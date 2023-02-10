@@ -161,12 +161,12 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
             path = ""
         }
 
-        let childen = match args.style() {
+        let children = match args.style() {
             ListStyle::Flat => self.children_flat(path),
             ListStyle::Hierarchy => self.children_hierarchy(path),
         };
 
-        Ok((RpList::default(), ImmutableDir::new(childen)))
+        Ok((RpList::default(), ImmutableDir::new(children)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -179,12 +179,12 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
             path = ""
         }
 
-        let childen = match args.style() {
+        let children = match args.style() {
             ListStyle::Flat => self.children_flat(path),
             ListStyle::Hierarchy => self.children_hierarchy(path),
         };
 
-        Ok((RpList::default(), ImmutableDir::new(childen)))
+        Ok((RpList::default(), ImmutableDir::new(children)))
     }
 }
 

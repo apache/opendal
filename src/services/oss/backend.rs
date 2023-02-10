@@ -35,7 +35,7 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Aliyun Object Storage Sevice (OSS) support
+/// Aliyun Object Storage Service (OSS) support
 ///
 /// # Capabilities
 ///

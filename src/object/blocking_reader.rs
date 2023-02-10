@@ -35,9 +35,9 @@ impl BlockingObjectReader {
     /// Create a new blocking object reader.
     ///
     /// Create will use internal information to decide the most suitable
-    /// implementaion for users.
+    /// implementation for users.
     ///
-    /// We don't want to expose those detials to users so keep this fuction
+    /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) fn create(
         acc: FusedAccessor,

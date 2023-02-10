@@ -74,7 +74,7 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 ///
 /// This service is mainly provided by github actions.
 ///
-/// Refer to [Caching dependencies to speed up workflows](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) for more informatio.
+/// Refer to [Caching dependencies to speed up workflows](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) for more information.
 ///
 /// To make this service work as expected, please make sure the following
 /// environment has been setup correctly:
@@ -348,7 +348,7 @@ impl Accessor for GhacBackend {
                 .map(|err| err.with_operation("Backend::ghac_upload"))?);
         }
 
-        let req = self.ghac_commmit(cache_id, 1).await?;
+        let req = self.ghac_commit(cache_id, 1).await?;
         let resp = self.client.send_async(req).await?;
 
         if resp.status().is_success() {
@@ -357,7 +357,7 @@ impl Accessor for GhacBackend {
         } else {
             Err(parse_error(resp)
                 .await
-                .map(|err| err.with_operation("Backend::ghac_commmit"))?)
+                .map(|err| err.with_operation("Backend::ghac_commit"))?)
         }
     }
 
@@ -418,7 +418,7 @@ impl Accessor for GhacBackend {
                 .map(|err| err.with_operation("Backend::ghac_upload"))?);
         }
 
-        let req = self.ghac_commmit(cache_id, args.size()).await?;
+        let req = self.ghac_commit(cache_id, args.size()).await?;
         let resp = self.client.send_async(req).await?;
 
         if resp.status().is_success() {
@@ -427,7 +427,7 @@ impl Accessor for GhacBackend {
         } else {
             Err(parse_error(resp)
                 .await
-                .map(|err| err.with_operation("Backend::ghac_commmit"))?)
+                .map(|err| err.with_operation("Backend::ghac_commit"))?)
         }
     }
 
@@ -475,7 +475,7 @@ impl Accessor for GhacBackend {
         if self.api_token.is_empty() {
             return Err(Error::new(
                 ErrorKind::ObjectPermissionDenied,
-                "github token is not configued, delete is permission denied",
+                "github token is not configured, delete is permission denied",
             ));
         }
 
@@ -593,7 +593,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_commmit(&self, cache_id: i64, size: u64) -> Result<Request<AsyncBody>> {
+    async fn ghac_commit(&self, cache_id: i64, size: u64) -> Result<Request<AsyncBody>> {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
 
         let bs =

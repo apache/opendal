@@ -59,7 +59,7 @@ pub struct BytesContentRange(
 impl BytesContentRange {
     /// Update BytesContentRange with range.
     ///
-    /// The range is inclusive: `[start..=end]` as decribed in `content-range`.
+    /// The range is inclusive: `[start..=end]` as described in `content-range`.
     pub fn with_range(mut self, start: u64, end: u64) -> Self {
         self.0 = Some(start);
         self.1 = Some(end);
@@ -72,7 +72,7 @@ impl BytesContentRange {
         self
     }
 
-    /// Get the length that specifed by this BytesContentRange, return `None` if range is not known.
+    /// Get the length that specified by this BytesContentRange, return `None` if range is not known.
     pub fn len(&self) -> Option<u64> {
         if let (Some(start), Some(end)) = (self.0, self.1) {
             Some(end - start + 1)
@@ -109,7 +109,7 @@ impl BytesContentRange {
         format!("bytes {self}")
     }
 
-    /// Calculate bytes content range from size and specfied range.
+    /// Calculate bytes content range from size and specified range.
     pub fn from_bytes_range(total_size: u64, range: BytesRange) -> Self {
         let (start, end) = match (range.offset(), range.size()) {
             (Some(offset), Some(size)) => (offset, offset + size - 1),

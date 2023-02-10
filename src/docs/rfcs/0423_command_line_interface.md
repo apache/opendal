@@ -94,7 +94,7 @@ Besides, `oil` will read profile from env like `cargo`:
 - `OIL_PROFILE_TEST_TYPE=s3`
 - `OIL_PROFILE_TEST_ENDPOINT=http://127.0.0.1:1090`
 - `OIL_PROFILE_TEST_BUCKET=test_bucket`
-- `OIL_PROFILE_TEST_ACCESS_KET_ID=access_key_id`
+- `OIL_PROFILE_TEST_ACCESS_KEPT_ID=access_key_id`
 - `OIL_PROFILE_TEST_SECRET_ACCESS_KEY=secret_access_key`
 
 With those environments, we can:

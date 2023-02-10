@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashSet;
+
 use async_trait::async_trait;
+use log::debug;
 
 use crate::raw::*;
 use crate::*;
@@ -22,6 +25,7 @@ pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
     ToHierarchyPager {
         pager,
         path: path.to_string(),
+        visited: HashSet::default(),
     }
 }
 
@@ -38,6 +42,64 @@ pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
 pub struct ToHierarchyPager<P> {
     pager: P,
     path: String,
+    visited: HashSet<String>,
+}
+
+impl<P> ToHierarchyPager<P> {
+    fn filter_entries(&mut self, entries: &mut Vec<output::Entry>) {
+        debug!("got entry in before filter: {:?}", entries);
+
+        entries.retain_mut(|e| {
+            // If path is not started with prefix, drop it.
+            //
+            // Idealy, it should never happen. But we just tolerate
+            // this state.
+            if !e.path().starts_with(&self.path) {
+                return false;
+            }
+
+            let prefix_len = self.path.len();
+
+            let idx = if let Some(idx) = e.path()[prefix_len..].find('/') {
+                idx + prefix_len + 1
+            } else {
+                // If there is no `/` in path, it's a normal file, we
+                // can return it directly.
+                return true;
+            };
+
+            // idx == path.len() means it's contain only one `/` at the
+            // end of path.
+            if idx == e.path().len() {
+                if !self.visited.contains(e.path()) {
+                    self.visited.insert(e.path().to_string());
+                }
+                return true;
+            }
+
+            // If idx < path.len() means that are more levels to come.
+            // We should check the first dir path.
+            let has = {
+                let path = &e.path()[..idx];
+                self.visited.contains(path)
+            };
+            if !has {
+                let path = {
+                    let path = &e.path()[..idx];
+                    path.to_string()
+                };
+
+                e.set_path(&path);
+                e.set_mode(ObjectMode::DIR);
+
+                self.visited.insert(path);
+
+                return true;
+            }
+
+            false
+        })
+    }
 }
 
 #[async_trait]
@@ -51,29 +113,7 @@ impl<P: output::Page> output::Page for ToHierarchyPager<P> {
             return Ok(None);
         };
 
-        entries.retain(|e| {
-            let path = if let Some(path) = e.path().strip_prefix(&self.path) {
-                path
-            } else {
-                // If path is not started with prefix, drop it.
-                //
-                // Idealy, it should never happen. But we just tolerate
-                // this state.
-                return false;
-            };
-
-            let idx = if let Some(idx) = path.find('/') {
-                idx
-            } else {
-                // If there is no `/` in path, it's a normal file, we
-                // can return it directly.
-                return true;
-            };
-
-            // idx == path.len() means it's contain only one `/` at the
-            // end of path.
-            idx == path.len()
-        });
+        self.filter_entries(&mut entries);
 
         Ok(Some(entries))
     }
@@ -89,29 +129,7 @@ impl<P: output::BlockingPage> output::BlockingPage for ToHierarchyPager<P> {
             return Ok(None);
         };
 
-        entries.retain(|e| {
-            let path = if let Some(path) = e.path().strip_prefix(&self.path) {
-                path
-            } else {
-                // If path is not started with prefix, drop it.
-                //
-                // Idealy, it should never happen. But we just tolerate
-                // this state.
-                return false;
-            };
-
-            let idx = if let Some(idx) = path.find('/') {
-                idx
-            } else {
-                // If there is no `/` in path, it's a normal file, we
-                // can return it directly.
-                return true;
-            };
-
-            // idx == path.len() means it's contain only one `/` at the
-            // end of path.
-            idx + 1 == path.len()
-        });
+        self.filter_entries(&mut entries);
 
         Ok(Some(entries))
     }
@@ -120,7 +138,10 @@ impl<P: output::BlockingPage> output::BlockingPage for ToHierarchyPager<P> {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashSet;
+
     use io::output::BlockingPage;
+    use log::debug;
 
     use super::*;
 
@@ -165,12 +186,21 @@ mod tests {
     fn test_blocking_list() -> Result<()> {
         let _ = env_logger::try_init();
 
-        let pager = MockPager::new(&["x/", "y/", "x/x/", "x/x/x", "y/y", "xy/", "z"]);
+        let pager = MockPager::new(&["x/x/", "x/y/", "y/", "x/x/x", "y/y", "xy/", "z", "y/a"]);
         let mut pager = to_hierarchy_pager(pager, "");
 
         let mut entries = Vec::default();
 
+        let mut set = HashSet::new();
         while let Some(e) = pager.next_page()? {
+            for i in &e {
+                debug!("got path {}", i.path());
+                assert!(
+                    set.insert(i.path().to_string()),
+                    "duplicated value: {}",
+                    i.path()
+                );
+            }
             entries.extend_from_slice(&e)
         }
 

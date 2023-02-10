@@ -197,20 +197,24 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                 if can_flat {
                     let (rp, p) = self.inner.list(path, args).await?;
                     Ok((rp, CompletePager::AlreadyComplete(p)))
-                } else {
+                } else if can_hierarchy {
                     // TODO: Make this size configure.
                     let p = to_flat_pager(self.inner.clone(), path, 256);
                     Ok((RpList::default(), CompletePager::NeedFlat(p)))
+                } else {
+                    unreachable!("service that support list can't neither can flat nor can hierarchy, must be a bug")
                 }
             }
             ListStyle::Hierarchy => {
                 if can_hierarchy {
                     let (rp, p) = self.inner.list(path, args).await?;
                     Ok((rp, CompletePager::AlreadyComplete(p)))
-                } else {
+                } else if can_flat {
                     let (rp, p) = self.inner.list(path, OpList::new(ListStyle::Flat)).await?;
                     let p = to_hierarchy_pager(p, path);
                     Ok((rp, CompletePager::NeedHierarchy(p)))
+                } else {
+                    unreachable!("service that support list can't neither can flat nor can hierarchy, must be a bug")
                 }
             }
         }

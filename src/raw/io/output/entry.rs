@@ -54,6 +54,16 @@ impl Entry {
         &self.path
     }
 
+    /// Set mode for object entry.
+    ///
+    /// # Note
+    ///
+    /// Please use this function carefully.
+    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+        self.meta.set_mode(mode);
+        self
+    }
+
     /// Get entry's object mode.
     pub fn mode(&self) -> ObjectMode {
         self.meta.mode()

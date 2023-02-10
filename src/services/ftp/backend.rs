@@ -467,7 +467,7 @@ impl Accessor for FtpBackend {
 
         Ok((
             RpList::default(),
-            DirStream::new(if path == "/" { "" } else { path }, rd),
+            DirStream::new(if path == "/" { "" } else { path }, rd, args.limit()),
         ))
     }
 }

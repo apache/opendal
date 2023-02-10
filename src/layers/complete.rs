@@ -148,13 +148,6 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpRead,
     ) -> Result<(RpRead, CompleteReader<A, A::BlockingReader>)> {
-        if !self.meta.capabilities().contains(AccessorCapability::List) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ));
-        }
-
         let (seekable, streamable) = (
             self.meta.hints().contains(AccessorHint::ReadSeekable),
             self.meta.hints().contains(AccessorHint::ReadStreamable),
@@ -181,10 +174,11 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
         if !self.meta.capabilities().contains(AccessorCapability::List) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ));
+            return Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_context("service", self.meta.scheme())
+                    .with_operation("list"),
+            );
         }
 
         let (can_flat, can_hierarchy) = (
@@ -225,6 +219,14 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
+        if !self.meta.capabilities().contains(AccessorCapability::List) {
+            return Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_context("service", self.meta.scheme())
+                    .with_operation("blocking_list"),
+            );
+        }
+
         let (can_flat, can_hierarchy) = (
             self.meta.hints().contains(AccessorHint::ListFlat),
             self.meta.hints().contains(AccessorHint::ListHierarchy),

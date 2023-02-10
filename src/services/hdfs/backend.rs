@@ -413,7 +413,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = DirStream::new(&self.root, f);
+        let rd = DirStream::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -573,7 +573,14 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        if !matches!(args.style(), ListStyle::Hierarchy) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "list with flat style is not supported",
+            ));
+        }
+
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -587,7 +594,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = DirStream::new(&self.root, f);
+        let rd = DirStream::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }

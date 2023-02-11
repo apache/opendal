@@ -206,7 +206,7 @@ impl Builder for WebdavBuilder {
             (Some(username), Some(password)) => {
                 format!(
                     "Basic {}",
-                    general_purpose::STANDARD.encode(format!("{}:{}", username, password))
+                    general_purpose::STANDARD.encode(format!("{username}:{password}"))
                 )
             }
             (Some(username), None) => {

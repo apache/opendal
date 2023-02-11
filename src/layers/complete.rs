@@ -186,11 +186,11 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
             let p = to_hierarchy_pager(p, path);
             Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
         } else {
-            return Err(
+            Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
                     .with_context("service", self.meta.scheme())
                     .with_operation("list"),
-            );
+            )
         }
     }
 
@@ -212,11 +212,11 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
             let p = to_hierarchy_pager(p, path);
             Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
         } else {
-            return Err(
+            Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
                     .with_context("service", self.meta.scheme())
                     .with_operation("list"),
-            );
+            )
         }
     }
 
@@ -237,11 +237,11 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
             let p = to_flat_pager(self.inner.clone(), path, args.limit().unwrap_or(1000));
             Ok((RpScan::default(), CompletePager::NeedFlat(p)))
         } else {
-            return Err(
+            Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
                     .with_context("service", self.meta.scheme())
                     .with_operation("scan"),
-            );
+            )
         }
     }
 
@@ -262,11 +262,11 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
             let p = to_flat_pager(self.inner.clone(), path, args.limit().unwrap_or(1000));
             Ok((RpScan::default(), CompletePager::NeedFlat(p)))
         } else {
-            return Err(
+            Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
                     .with_context("service", self.meta.scheme())
                     .with_operation("scan"),
-            );
+            )
         }
     }
 }

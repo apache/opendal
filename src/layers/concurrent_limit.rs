@@ -151,6 +151,20 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
             .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
     }
 
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let permit = self
+            .semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("semaphore must be valid");
+
+        self.inner
+            .scan(path, args)
+            .await
+            .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
+    }
+
     async fn create_multipart(
         &self,
         path: &str,
@@ -270,6 +284,18 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
 
         self.inner
             .blocking_list(path, args)
+            .map(|(rp, it)| (rp, ConcurrentLimitWrapper::new(it, permit)))
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        let permit = self
+            .semaphore
+            .clone()
+            .try_acquire_owned()
+            .expect("semaphore must be valid");
+
+        self.inner
+            .blocking_scan(path, args)
             .map(|(rp, it)| (rp, ConcurrentLimitWrapper::new(it, permit)))
     }
 }

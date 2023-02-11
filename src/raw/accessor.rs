@@ -376,7 +376,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `blocking_scan` operation on the specified path.
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -480,7 +480,7 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().blocking_list(path, args)
     }
 
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         self.as_ref().blocking_scan(path, args)
     }
 }

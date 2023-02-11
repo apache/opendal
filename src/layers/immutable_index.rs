@@ -169,6 +169,18 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         Ok((RpList::default(), ImmutableDir::new(children)))
     }
 
+    async fn scan(&self, path: &str, _: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let mut path = path;
+        if path == "/" {
+            path = ""
+        }
+
+        Ok((
+            RpScan::default(),
+            ImmutableDir::new(self.children_flat(path)),
+        ))
+    }
+
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner.blocking_read(path, args)
     }
@@ -185,6 +197,18 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         };
 
         Ok((RpList::default(), ImmutableDir::new(children)))
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        let mut path = path;
+        if path == "/" {
+            path = ""
+        }
+
+        Ok((
+            RpScan::default(),
+            ImmutableDir::new(self.children_flat(path)),
+        ))
     }
 }
 

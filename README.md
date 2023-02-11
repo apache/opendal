@@ -110,6 +110,7 @@ More examples could be found at [Documentation](https://opendal.databend.rs).
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
 - [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
 - [mozilla/sccache](https://github.com/mozilla/sccache/): sccache is ccache with cloud storage
+- [risingwave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 
 ## Contributing
 

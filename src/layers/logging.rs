@@ -461,6 +461,53 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::Scan,
+            path
+        );
+
+        self.inner
+            .scan(path, args)
+            .map(|v| match v {
+                Ok((rp, v)) => {
+                    debug!(
+                        target: LOGGING_TARGET,
+                        "service={} operation={} path={} -> start scanning",
+                        self.scheme,
+                        Operation::Scan,
+                        path
+                    );
+                    let streamer = LoggingPager::new(
+                        self.scheme,
+                        path,
+                        v,
+                        self.error_level,
+                        self.failure_level,
+                    );
+                    Ok((rp, streamer))
+                }
+                Err(err) => {
+                    if let Some(lvl) = self.err_level(&err) {
+                        log!(
+                            target: LOGGING_TARGET,
+                            lvl,
+                            "service={} operation={} path={} -> {}: {err:?}",
+                            self.scheme,
+                            Operation::Scan,
+                            path,
+                            self.err_status(&err)
+                        );
+                    }
+                    Err(err)
+                }
+            })
+            .await
+    }
+
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         debug!(
             target: LOGGING_TARGET,
@@ -929,6 +976,45 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                         "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingList,
+                        path,
+                        self.err_status(&err)
+                    );
+                }
+                err
+            })
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={} path={} -> started",
+            self.scheme,
+            Operation::BlockingScan,
+            path
+        );
+
+        self.inner
+            .blocking_scan(path, args)
+            .map(|(rp, v)| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={} path={} -> start scanning",
+                    self.scheme,
+                    Operation::BlockingScan,
+                    path
+                );
+                let li =
+                    LoggingPager::new(self.scheme, path, v, self.error_level, self.failure_level);
+                (rp, li)
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={} path={} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::BlockingScan,
                         path,
                         self.err_status(&err)
                     );

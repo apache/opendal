@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-    raw::{adapters::kv, *},
-    Builder, Error, ErrorKind, Scheme, *,
-};
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use async_trait::async_trait;
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-};
+
+use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::Builder;
+use crate::Error;
+use crate::ErrorKind;
+use crate::Scheme;
+use crate::*;
 
 /// Sled service support.
 ///

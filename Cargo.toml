@@ -9,7 +9,7 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 license = "Apache-2.0"
 name = "opendal"
 repository = "https://github.com/datafuselabs/opendal"
-version = "0.26.2"
+version = "0.27.0"
 # MSRV of OpenDAL. Please update this field while bump.
 rust-version = "1.60"
 
@@ -122,7 +122,7 @@ reqwest = { version = "0.11.13", features = [
 rocksdb = { version = "0.19", default-features = false, optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sled = {version = "0.34.7", optional = true }
+sled = { version = "0.34.7", optional = true }
 suppaftp = { version = "4.5", default-features = false, features = [
   "async-secure",
   "async-rustls",

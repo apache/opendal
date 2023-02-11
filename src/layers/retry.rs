@@ -238,6 +238,26 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        { || self.inner.scan(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Scan, dur.as_secs_f64(), err)
+            })
+            .map(|v| {
+                v.map(|(l, p)| {
+                    let pager = RetryPager::new(p, path, self.builder.clone());
+                    (l, pager)
+                })
+                .map_err(|e| e.set_persistent())
+            })
+            .await
+    }
+
     async fn create_multipart(
         &self,
         path: &str,
@@ -377,6 +397,24 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     target: "opendal::service",
                     "operation={} -> retry after {}s: error={:?}",
                     Operation::BlockingList, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map(|(rp, p)| {
+                let p = RetryPager::new(p, path, self.builder.clone());
+                (rp, p)
+            })
+            .map_err(|e| e.set_persistent())
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        { || self.inner.blocking_scan(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::BlockingScan, dur.as_secs_f64(), err)
             })
             .call()
             .map(|(rp, p)| {
@@ -782,7 +820,7 @@ mod tests {
         fn metadata(&self) -> AccessorMetadata {
             let mut am = AccessorMetadata::default();
             am.set_capabilities(AccessorCapability::List);
-            am.set_hints(AccessorHint::ReadStreamable | AccessorHint::ListHierarchy);
+            am.set_hints(AccessorHint::ReadStreamable);
 
             am
         }

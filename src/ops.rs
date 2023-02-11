@@ -55,10 +55,8 @@ impl OpDelete {
 }
 
 /// Args for `list` operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct OpList {
-    /// The style passed to underlying services to specify the list style.
-    style: ListStyle,
     /// The limit passed to underlying service to specify the max results
     /// that could return.
     limit: Option<usize>,
@@ -66,13 +64,8 @@ pub struct OpList {
 
 impl OpList {
     /// Create a new `OpList`.
-    pub fn new(style: ListStyle) -> Self {
-        Self { style, limit: None }
-    }
-
-    /// Get the style from list.
-    pub fn style(&self) -> ListStyle {
-        self.style
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Change the limit of this list operation.
@@ -94,6 +87,32 @@ pub enum ListStyle {
     Flat,
     /// List in hierarchy style. As known as list dir.
     Hierarchy,
+}
+
+/// Args for `scan` operation.
+#[derive(Debug, Default, Clone)]
+pub struct OpScan {
+    /// The limit passed to underlying service to specify the max results
+    /// that could return.
+    limit: Option<usize>,
+}
+
+impl OpScan {
+    /// Create a new `OpList`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Change the limit of this list operation.
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Get the limit of list operation.
+    pub fn limit(&self) -> Option<usize> {
+        self.limit
+    }
 }
 
 /// Args for `create_multipart` operation.

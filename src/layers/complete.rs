@@ -168,93 +168,105 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         }
     }
 
-    async fn complete_pager(
+    async fn complete_list(
         &self,
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::Pager>)> {
-        if !self.meta.capabilities().contains(AccessorCapability::List) {
-            return Err(
+        let (can_list, can_scan) = (
+            self.meta.capabilities().contains(AccessorCapability::List),
+            self.meta.capabilities().contains(AccessorCapability::Scan),
+        );
+
+        if can_list {
+            let (rp, p) = self.inner.list(path, args).await?;
+            Ok((rp, CompletePager::AlreadyComplete(p)))
+        } else if can_scan {
+            let (_, p) = self.inner.scan(path, OpScan::new()).await?;
+            let p = to_hierarchy_pager(p, path);
+            Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
+        } else {
+            Err(
                 Error::new(ErrorKind::Unsupported, "operation is not supported")
                     .with_context("service", self.meta.scheme())
                     .with_operation("list"),
-            );
-        }
-
-        let (can_flat, can_hierarchy) = (
-            self.meta.hints().contains(AccessorHint::ListFlat),
-            self.meta.hints().contains(AccessorHint::ListHierarchy),
-        );
-
-        match args.style() {
-            ListStyle::Flat => {
-                if can_flat {
-                    let (rp, p) = self.inner.list(path, args).await?;
-                    Ok((rp, CompletePager::AlreadyComplete(p)))
-                } else if can_hierarchy {
-                    // TODO: Make this size configure.
-                    let p = to_flat_pager(self.inner.clone(), path, 256);
-                    Ok((RpList::default(), CompletePager::NeedFlat(p)))
-                } else {
-                    unreachable!("service that support list can't neither can flat nor can hierarchy, must be a bug")
-                }
-            }
-            ListStyle::Hierarchy => {
-                if can_hierarchy {
-                    let (rp, p) = self.inner.list(path, args).await?;
-                    Ok((rp, CompletePager::AlreadyComplete(p)))
-                } else if can_flat {
-                    let (rp, p) = self.inner.list(path, OpList::new(ListStyle::Flat)).await?;
-                    let p = to_hierarchy_pager(p, path);
-                    Ok((rp, CompletePager::NeedHierarchy(p)))
-                } else {
-                    unreachable!("service that support list can't neither can flat nor can hierarchy, must be a bug")
-                }
-            }
+            )
         }
     }
 
-    fn complete_blocking_pager(
+    fn complete_blocking_list(
         &self,
         path: &str,
         args: OpList,
     ) -> Result<(RpList, CompletePager<A, A::BlockingPager>)> {
-        if !self.meta.capabilities().contains(AccessorCapability::List) {
-            return Err(
-                Error::new(ErrorKind::Unsupported, "operation is not supported")
-                    .with_context("service", self.meta.scheme())
-                    .with_operation("blocking_list"),
-            );
-        }
-
-        let (can_flat, can_hierarchy) = (
-            self.meta.hints().contains(AccessorHint::ListFlat),
-            self.meta.hints().contains(AccessorHint::ListHierarchy),
+        let (can_list, can_scan) = (
+            self.meta.capabilities().contains(AccessorCapability::List),
+            self.meta.capabilities().contains(AccessorCapability::Scan),
         );
 
-        match args.style() {
-            ListStyle::Flat => {
-                if can_flat {
-                    let (rp, p) = self.inner.blocking_list(path, args)?;
-                    Ok((rp, CompletePager::AlreadyComplete(p)))
-                } else {
-                    // TODO: Make this size configure.
-                    let p = to_flat_pager(self.inner.clone(), path, 256);
-                    Ok((RpList::default(), CompletePager::NeedFlat(p)))
-                }
-            }
-            ListStyle::Hierarchy => {
-                if can_hierarchy {
-                    let (rp, p) = self.inner.blocking_list(path, args)?;
-                    Ok((rp, CompletePager::AlreadyComplete(p)))
-                } else {
-                    let (rp, p) = self
-                        .inner
-                        .blocking_list(path, OpList::new(ListStyle::Flat))?;
-                    let p = to_hierarchy_pager(p, path);
-                    Ok((rp, CompletePager::NeedHierarchy(p)))
-                }
-            }
+        if can_list {
+            let (rp, p) = self.inner.blocking_list(path, args)?;
+            Ok((rp, CompletePager::AlreadyComplete(p)))
+        } else if can_scan {
+            let (_, p) = self.inner.blocking_scan(path, OpScan::new())?;
+            let p = to_hierarchy_pager(p, path);
+            Ok((RpList::default(), CompletePager::NeedHierarchy(p)))
+        } else {
+            Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_context("service", self.meta.scheme())
+                    .with_operation("list"),
+            )
+        }
+    }
+
+    async fn complete_scan(
+        &self,
+        path: &str,
+        args: OpScan,
+    ) -> Result<(RpScan, CompletePager<A, A::Pager>)> {
+        let (can_list, can_scan) = (
+            self.meta.capabilities().contains(AccessorCapability::List),
+            self.meta.capabilities().contains(AccessorCapability::Scan),
+        );
+
+        if can_scan {
+            let (rp, p) = self.inner.scan(path, args).await?;
+            Ok((rp, CompletePager::AlreadyComplete(p)))
+        } else if can_list {
+            let p = to_flat_pager(self.inner.clone(), path, args.limit().unwrap_or(1000));
+            Ok((RpScan::default(), CompletePager::NeedFlat(p)))
+        } else {
+            Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_context("service", self.meta.scheme())
+                    .with_operation("scan"),
+            )
+        }
+    }
+
+    fn complete_blocking_scan(
+        &self,
+        path: &str,
+        args: OpScan,
+    ) -> Result<(RpScan, CompletePager<A, A::BlockingPager>)> {
+        let (can_list, can_scan) = (
+            self.meta.capabilities().contains(AccessorCapability::List),
+            self.meta.capabilities().contains(AccessorCapability::Scan),
+        );
+
+        if can_scan {
+            let (rp, p) = self.inner.blocking_scan(path, args)?;
+            Ok((rp, CompletePager::AlreadyComplete(p)))
+        } else if can_list {
+            let p = to_flat_pager(self.inner.clone(), path, args.limit().unwrap_or(1000));
+            Ok((RpScan::default(), CompletePager::NeedFlat(p)))
+        } else {
+            Err(
+                Error::new(ErrorKind::Unsupported, "operation is not supported")
+                    .with_context("service", self.meta.scheme())
+                    .with_operation("scan"),
+            )
         }
     }
 }
@@ -280,11 +292,19 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        self.complete_pager(path, args).await
+        self.complete_list(path, args).await
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        self.complete_blocking_pager(path, args)
+        self.complete_blocking_list(path, args)
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        self.complete_scan(path, args).await
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        self.complete_blocking_scan(path, args)
     }
 }
 

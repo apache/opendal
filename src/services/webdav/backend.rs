@@ -17,6 +17,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use base64::Engine;
+use base64::engine::general_purpose;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -73,7 +75,9 @@ use crate::*;
 ///     // create backend builder
 ///     let mut builder = Webdav::default();
 ///
-///     builder.endpoint("127.0.0.1");
+///     builder.endpoint("127.0.0.1")
+///     .username("xxx")
+///     .password("xxx");
 ///
 ///     let op: Operator = Operator::create(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");
@@ -83,6 +87,8 @@ use crate::*;
 #[derive(Default)]
 pub struct WebdavBuilder {
     endpoint: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -108,6 +114,26 @@ impl WebdavBuilder {
             Some(endpoint.to_string())
         };
 
+        self
+    }
+
+    /// set the password for Webdav
+    ///
+    /// default: no password
+    pub fn username(&mut self, username: &str) -> &mut Self {
+        if !username.is_empty() {
+            self.username = Some(username.to_owned());
+        }
+        self
+    }
+
+    /// set the password for Webdav
+    ///
+    /// default: no password
+    pub fn password(&mut self, password: &str) -> &mut Self {
+        if !password.is_empty() {
+            self.password = Some(password.to_owned());
+        }
         self
     }
 
@@ -143,6 +169,8 @@ impl Builder for WebdavBuilder {
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("username").map(|v| builder.username(v));
+        map.get("password").map(|v| builder.password(v));
 
         builder
     }
@@ -172,9 +200,18 @@ impl Builder for WebdavBuilder {
             })?
         };
 
+        let auth = match(&self.username, &self.password) {
+            (Some(username), Some(password)) => {
+                // base64 encode
+                general_purpose::STANDARD.encode(format!("{}:{}", username, password))
+            },
+            _ => { String::default() }
+        };
+
         debug!("backend build finished: {:?}", &self);
         Ok(WebdavBackend {
             endpoint: endpoint.to_string(),
+            authorization: auth,
             root,
             client,
         })
@@ -184,6 +221,7 @@ impl Builder for WebdavBuilder {
 #[derive(Clone)]
 pub struct WebdavBackend {
     endpoint: String,
+    authorization: String,
     root: String,
     client: HttpClient,
 }
@@ -314,7 +352,7 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::get(&url);
+        let mut req = self.auth(Request::get(&url));
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
@@ -338,7 +376,7 @@ impl WebdavBackend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::put(&url);
+        let mut req = self.auth(Request::put(&url));
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -359,7 +397,7 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::head(&url);
+        let req = self.auth(Request::head(&url));
 
         let req = req
             .body(AsyncBody::Empty)
@@ -373,10 +411,14 @@ impl WebdavBackend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::delete(&url)
+        let req = self.auth(Request::delete(&url))
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
+    }
+
+    fn auth(&self, builder: http::request::Builder) -> http::request::Builder {
+        builder.header(http::header::AUTHORIZATION, format!("Basic {}", self.authorization))
     }
 }

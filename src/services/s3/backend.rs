@@ -1219,7 +1219,7 @@ impl Accessor for S3Backend {
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 

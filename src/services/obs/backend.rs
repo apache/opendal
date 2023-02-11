@@ -411,7 +411,7 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
         ))
     }
 

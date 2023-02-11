@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.27.0] - 2023-02-11
+
+### Added
+
+- feat: Add Retryable Pager Support (#1304)
+- feat: Add Sled support (#1305)
+- feat: Add Object::scan() support (#1314)
+- feat: Add object page size support (#1318)
+
+### Changed
+
+- refactor: Hide backon from our public API (#1302)
+- refactor: Don't expose ops structs to users directly (#1303)
+- refactor: Move and rename ObjectPager and ObjectEntry for more clear semantics (#1308)
+- refactor: Implement strong typed pager (#1311)
+- deps: remove unused deps (#1321)
+- refactor: Extract scan as a new API and remove ListStyle (#1324)
+
+### Docs
+
+- docs: Add risingwave in projects (#1322)
+
+### Fixed
+
+- ci: Fix dev container Dockerfile (#1298)
+- fix: Rocksdb's scheme not output correctly (#1300)
+- chore: fix name typo in oss backend (#1316)
+- chore: Add typos-cli and fix typos (#1320)
+
 ## [v0.26.2] - 2023-02-07
 
 ### Added
@@ -1311,6 +1340,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.27.0]: https://github.com/datafuselabs/opendal/compare/v0.26.2...v0.27.0
 [v0.26.2]: https://github.com/datafuselabs/opendal/compare/v0.26.1...v0.26.2
 [v0.26.1]: https://github.com/datafuselabs/opendal/compare/v0.26.0...v0.26.1
 [v0.26.0]: https://github.com/datafuselabs/opendal/compare/v0.25.2...v0.26.0

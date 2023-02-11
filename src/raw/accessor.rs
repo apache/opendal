@@ -174,6 +174,16 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
+    /// Invoke the `scan` operation on the specified path.
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// Invoke the `presign` operation on the specified path.
     ///
     /// # Behavior
@@ -364,6 +374,16 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
             "operation is not supported",
         ))
     }
+
+    /// Invoke the `blocking_scan` operation on the specified path.
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
 }
 
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
@@ -397,6 +417,9 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.as_ref().list(path, args).await
+    }
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        self.as_ref().scan(path, args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -455,6 +478,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     }
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.as_ref().blocking_list(path, args)
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        self.as_ref().blocking_scan(path, args)
     }
 }
 

@@ -160,6 +160,9 @@ struct MetricsHandler {
     requests_total_list: Counter,
     requests_duration_seconds_list: Histogram,
 
+    requests_total_scan: Counter,
+    requests_duration_seconds_scan: Histogram,
+
     requests_total_presign: Counter,
     requests_duration_seconds_presign: Histogram,
 
@@ -195,6 +198,9 @@ struct MetricsHandler {
 
     requests_total_blocking_list: Counter,
     requests_duration_seconds_blocking_list: Histogram,
+
+    requests_total_blocking_scan: Counter,
+    requests_duration_seconds_blocking_scan: Histogram,
 }
 
 impl MetricsHandler {
@@ -287,6 +293,17 @@ impl MetricsHandler {
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::List.into_static(),
+            ),
+
+            requests_total_scan: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Scan.into_static(),
+            ),
+            requests_duration_seconds_scan: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Scan.into_static(),
             ),
 
             requests_total_presign: register_counter!(
@@ -424,6 +441,17 @@ impl MetricsHandler {
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::BlockingList.into_static(),
+            ),
+
+            requests_total_blocking_scan: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingScan.into_static(),
+            ),
+            requests_duration_seconds_blocking_scan: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::BlockingScan.into_static(),
             ),
         }
     }
@@ -610,6 +638,25 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .inspect_err(|e| {
                 self.handle
                     .increment_errors_total(Operation::List, e.kind());
+            })
+            .await
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        self.handle.requests_total_scan.increment(1);
+
+        let start = Instant::now();
+
+        self.inner
+            .scan(path, args)
+            .inspect_ok(|_| {
+                let dur = start.elapsed().as_secs_f64();
+
+                self.handle.requests_duration_seconds_scan.record(dur);
+            })
+            .inspect_err(|e| {
+                self.handle
+                    .increment_errors_total(Operation::Scan, e.kind());
             })
             .await
     }
@@ -867,6 +914,24 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         result.map_err(|e| {
             self.handle
                 .increment_errors_total(Operation::BlockingList, e.kind());
+            e
+        })
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        self.handle.requests_total_blocking_scan.increment(1);
+
+        let start = Instant::now();
+        let result = self.inner.blocking_scan(path, args);
+        let dur = start.elapsed().as_secs_f64();
+
+        self.handle
+            .requests_duration_seconds_blocking_scan
+            .record(dur);
+
+        result.map_err(|e| {
+            self.handle
+                .increment_errors_total(Operation::BlockingScan, e.kind());
             e
         })
     }

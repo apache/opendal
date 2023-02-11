@@ -27,11 +27,11 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
     {
         let meta = acc.metadata();
         debug_assert!(
-            !meta.hints().contains(AccessorHint::ListFlat),
-            "service already supports list flat, call to_flat_pager must be a mistake"
+            !meta.capabilities().contains(AccessorCapability::Scan),
+            "service already supports scan, call to_flat_pager must be a mistake"
         );
         debug_assert!(
-            meta.hints().contains(AccessorHint::ListHierarchy),
+            meta.capabilities().contains(AccessorCapability::List),
             "service doesn't support list hierarchy, it must be a bug"
         );
     }
@@ -101,10 +101,7 @@ where
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
-                let (_, op) = self
-                    .acc
-                    .list(de.path(), OpList::new(ListStyle::Hierarchy))
-                    .await?;
+                let (_, op) = self.acc.list(de.path(), OpList::new()).await?;
                 self.pagers.push((op, de, vec![]))
             }
 
@@ -161,9 +158,7 @@ where
     fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
-                let (_, op) = self
-                    .acc
-                    .blocking_list(de.path(), OpList::new(ListStyle::Hierarchy))?;
+                let (_, op) = self.acc.blocking_list(de.path(), OpList::new())?;
                 self.pagers.push((op, de, vec![]))
             }
 
@@ -253,7 +248,7 @@ mod tests {
 
         fn metadata(&self) -> AccessorMetadata {
             let mut am = AccessorMetadata::default();
-            am.set_hints(AccessorHint::ListHierarchy);
+            am.set_capabilities(AccessorCapability::List);
 
             am
         }

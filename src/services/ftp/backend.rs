@@ -321,8 +321,7 @@ impl Accessor for FtpBackend {
             .set_root(&self.root)
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ListHierarchy);
+            );
 
         am
     }
@@ -451,13 +450,6 @@ impl Accessor for FtpBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        if !matches!(args.style(), ListStyle::Hierarchy) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "list with flat style is not supported",
-            ));
-        }
-
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };

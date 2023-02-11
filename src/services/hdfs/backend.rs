@@ -235,7 +235,7 @@ impl Accessor for HdfsBackend {
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )
-            .set_hints(AccessorHint::ReadSeekable | AccessorHint::ListHierarchy);
+            .set_hints(AccessorHint::ReadSeekable);
 
         am
     }
@@ -393,13 +393,6 @@ impl Accessor for HdfsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        if !matches!(args.style(), ListStyle::Hierarchy) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "list with flat style is not supported",
-            ));
-        }
-
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
@@ -574,13 +567,6 @@ impl Accessor for HdfsBackend {
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
-        if !matches!(args.style(), ListStyle::Hierarchy) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "list with flat style is not supported",
-            ));
-        }
-
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {

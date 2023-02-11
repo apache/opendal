@@ -17,10 +17,8 @@ use async_trait::async_trait;
 use super::Entry;
 use crate::*;
 
-/// Page trait is used by [`Accessor`] to implement `list` operation.
-///
-/// `list` will return a boxed `Page` which allow users to call `next_page`
-/// to fecth a new page of [`Entry`].
+/// Page trait is used by [`crate::raw::Accessor`] to implement `list`
+/// or `scan` operation.
 #[async_trait]
 pub trait Page: Send + Sync + 'static {
     /// Fetch a new page of [`Entry`]

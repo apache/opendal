@@ -32,25 +32,6 @@ use crate::*;
 ///
 /// # Operations
 ///
-/// | Name | Capability |
-/// | ---- | ---------- |
-/// | [`metadata`][Accessor::metadata] | - |
-/// | [`create`][Accessor::create] | - |
-/// | [`read`][Accessor::read] | - |
-/// | [`write`][Accessor::write] | - |
-/// | [`delete`][Accessor::delete] | - |
-/// | [`list`][Accessor::list] | - |
-/// | [`presign`][Accessor::presign] | `Presign` |
-/// | [`create_multipart`][Accessor::create_multipart] | `Multipart` |
-/// | [`write_multipart`][Accessor::write_multipart] | `Multipart` |
-/// | [`complete_multipart`][Accessor::complete_multipart] | `Multipart` |
-/// | [`abort_multipart`][Accessor::abort_multipart] | `Multipart` |
-/// | [`blocking_create`][Accessor::blocking_create] | `Blocking` |
-/// | [`blocking_read`][Accessor::blocking_read] | `Blocking` |
-/// | [`blocking_write`][Accessor::blocking_write] | `Blocking` |
-/// | [`blocking_delete`][Accessor::blocking_delete] | `Blocking` |
-/// | [`blocking_list`][Accessor::blocking_list] | `Blocking` |
-///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.
 ///   - Path that ends with `/` means it's Dir, otherwise, it's File.
@@ -77,11 +58,22 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     type BlockingPager: output::BlockingPage;
 
     /// Invoke the `metadata` operation to get metadata of accessor.
-    fn metadata(&self) -> AccessorMetadata {
-        unimplemented!("metadata() is required to be implemented")
-    }
+    ///
+    /// # Notes
+    ///
+    /// This function is required to be implemented.
+    ///
+    /// By returning AccessorMetadata, underlying services can declare
+    /// some useful information about it self.
+    ///
+    /// - scheme: declare the scheme of backend.
+    /// - capabilities: declare the capabilities of current backend.
+    /// - hints: declare the hints of current backend
+    fn metadata(&self) -> AccessorMetadata;
 
     /// Invoke the `create` operation on the specified path
+    ///
+    /// Require [`AccessorCapability::Write`]
     ///
     /// # Behavior
     ///
@@ -100,6 +92,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Invoke the `read` operation on the specified path, returns a
     /// [`ObjectReader`][crate::ObjectReader] if operate successful.
     ///
+    /// Require [`AccessorCapability::Read`]
+    ///
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
@@ -116,6 +110,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Invoke the `write` operation on the specified path, returns a
     /// written size if operate successful.
     ///
+    /// Require [`AccessorCapability::Write`]
+    ///
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
@@ -129,6 +125,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `stat` operation on the specified path.
+    ///
+    /// Require [`AccessorCapability::Read`]
     ///
     /// # Behavior
     ///
@@ -146,6 +144,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `delete` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::Write`]
+    ///
     /// # Behavior
     ///
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
@@ -161,6 +161,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `list` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::List`]
+    ///
     /// # Behavior
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
@@ -175,6 +177,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `scan` operation on the specified path.
+    ///
+    /// Require [`AccessorCapability::Scan`]
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         let (_, _) = (path, args);
 
@@ -186,9 +190,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `presign` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::Presign`]
+    ///
     /// # Behavior
     ///
-    /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let (_, _) = (path, args);
@@ -201,9 +206,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `create_multipart` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::Multipart`]
+    ///
     /// # Behavior
     ///
-    /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
     async fn create_multipart(
         &self,
@@ -220,9 +226,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `write_multipart` operation on the specified path.
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Multipart`
+    /// Require [`AccessorCapability::Multipart`]
     async fn write_multipart(
         &self,
         path: &str,
@@ -239,9 +243,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `complete_multipart` operation on the specified path.
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Multipart`
+    /// Require [`AccessorCapability::Multipart`]
     async fn complete_multipart(
         &self,
         path: &str,
@@ -257,9 +259,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `abort_multipart` operation on the specified path.
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Multipart`
+    /// Require [`AccessorCapability::Multipart`]
     async fn abort_multipart(
         &self,
         path: &str,
@@ -277,9 +277,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::create`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let (_, _) = (path, args);
 
@@ -293,9 +291,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::read`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Read`] and [`AccessorCapability::Blocking`]
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let (_, _) = (path, args);
 
@@ -309,9 +305,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::write`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
     fn blocking_write(
         &self,
         path: &str,
@@ -330,9 +324,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::stat`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Read`] and [`AccessorCapability::Blocking`]
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let (_, _) = (path, args);
 
@@ -346,9 +338,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::delete`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let (_, _) = (path, args);
 
@@ -362,9 +352,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::list`]
     ///
+    /// Require [`AccessorCapability::List`] and [`AccessorCapability::Blocking`]
+    ///
     /// # Behavior
     ///
-    /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let (_, _) = (path, args);
@@ -376,6 +367,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `blocking_scan` operation on the specified path.
+    ///
+    /// Require [`AccessorCapability::Scan`] and [`AccessorCapability::Blocking`]
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         let (_, _) = (path, args);
 

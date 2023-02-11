@@ -320,6 +320,13 @@ mod tests {
         type Pager = ();
         type BlockingPager = ();
 
+        fn metadata(&self) -> AccessorMetadata {
+            let mut am = AccessorMetadata::default();
+            am.set_capabilities(AccessorCapability::Read);
+
+            am
+        }
+
         async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
             let bs = args.range().apply_on_bytes(self.data.clone());
 

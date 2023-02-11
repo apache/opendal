@@ -33,7 +33,7 @@ pub enum Operation {
     Delete,
     /// Operation for [`crate::raw::Accessor::list`]
     List,
-    /// Operation for [`crate::raw::Accessor::Scan`]
+    /// Operation for [`crate::raw::Accessor::scan`]
     Scan,
     /// Operation for [`crate::raw::Accessor::presign`]
     Presign,

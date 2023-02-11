@@ -1,3 +1,64 @@
+# Upgrade to v0.27
+
+In v0.27, we refactored our `list` related logic and added `scan` support. So make `Pager` and `BlockingPager` associated types in `Accessor` too!
+
+```diff
+pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
+    type Reader: output::Read;
+    type BlockingReader: output::BlockingRead;
++    type Pager: output::Page;
++    type BlockingPager: output::BlockingPage;
+}
+```
+
+## User defined layers
+
+Due to this change, all layers implementation should be changed. If there is not changed over pager, they can by changed like the following:
+
+```diff
+impl<A: Accessor> LayeredAccessor for MyAccessor<A> {
+    type Inner = A;
+    type Reader = MyReader<A::Reader>;
+    type BlockingReader = MyReader<A::BlockingReader>;
++    type Pager = A::Pager;
++    type BlockingPager = A::BlockingPager;
+
++    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
++        self.inner.list(path, args).await
++    }
+
++    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
++        self.inner.scan(path, args).await
++    }
+
++    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
++        self.inner.blocking_list(path, args)
++    }
+
++    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
++        self.inner.blocking_scan(path, args)
++    }
+}
+```
+
+## Usage of ops
+
+To reduce the understanding overhead, we move all `OpXxx` into `opendal::ops` now. User may need to change:
+
+```diff
+- use opendal::OpWrite;
++ use opendal::ops::OpWrite;
+```
+
+## Usage of RetryLayer
+
+`backon` is the implementation detail of our `RetryLayer`, so we hide it from our public API. Users of `RetryLayer` need to change the code like:
+
+```diff
+- RetryLayer::new(backon::ExponentialBackoff::default())
++ RetryLayer::new()
+```
+
 # Upgrade to v0.26
 
 In v0.26 we have replaced all internal dynamic dispatch usage with static dispatch. With this change, we can ensure that all operations performed inside OpenDAL are zero cost.

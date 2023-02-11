@@ -145,8 +145,10 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     /// Add list capabilities for underlying storage services.
     fn metadata(&self) -> AccessorMetadata {
         let mut meta = self.inner.metadata();
-        meta.set_capabilities(meta.capabilities() | AccessorCapability::List);
-        meta.set_hints(meta.hints() | AccessorHint::ListFlat | AccessorHint::ListHierarchy);
+        meta.set_capabilities(
+            meta.capabilities() | AccessorCapability::List | AccessorCapability::Scan,
+        );
+        meta.set_hints(meta.hints());
 
         meta
     }
@@ -155,18 +157,16 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.read(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        let children = match args.style() {
-            ListStyle::Flat => self.children_flat(path),
-            ListStyle::Hierarchy => self.children_hierarchy(path),
-        };
-
-        Ok((RpList::default(), ImmutableDir::new(children)))
+        Ok((
+            RpList::default(),
+            ImmutableDir::new(self.children_hierarchy(path)),
+        ))
     }
 
     async fn scan(&self, path: &str, _: OpScan) -> Result<(RpScan, Self::Pager)> {
@@ -185,21 +185,19 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
         self.inner.blocking_read(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        let children = match args.style() {
-            ListStyle::Flat => self.children_flat(path),
-            ListStyle::Hierarchy => self.children_hierarchy(path),
-        };
-
-        Ok((RpList::default(), ImmutableDir::new(children)))
+        Ok((
+            RpList::default(),
+            ImmutableDir::new(self.children_hierarchy(path)),
+        ))
     }
 
-    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+    fn blocking_scan(&self, path: &str, _: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         let mut path = path;
         if path == "/" {
             path = ""

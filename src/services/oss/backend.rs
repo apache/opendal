@@ -391,19 +391,16 @@ impl Accessor for OssBackend {
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
+        use AccessorCapability::*;
+        use AccessorHint::*;
+
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Oss)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::List
-                    | AccessorCapability::Presign,
-            )
-            .set_hints(
-                AccessorHint::ReadStreamable | AccessorHint::ListFlat | AccessorHint::ListHierarchy,
-            );
+            .set_capabilities(Read | Write | List | Scan | Presign)
+            .set_hints(ReadStreamable);
+
         am
     }
 
@@ -490,20 +487,16 @@ impl Accessor for OssBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let delimiter = match args.style() {
-            ListStyle::Flat => "",
-            ListStyle::Hierarchy => "/",
-        };
-
         Ok((
             RpList::default(),
-            DirStream::new(
-                Arc::new(self.clone()),
-                &self.root,
-                path,
-                delimiter,
-                args.limit(),
-            ),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+        ))
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        Ok((
+            RpScan::default(),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 

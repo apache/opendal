@@ -1011,10 +1011,7 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self
-            .acc
-            .list(self.path(), OpList::new(ListStyle::Hierarchy))
-            .await?;
+        let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
 
         Ok(ObjectLister::new(self.acc.clone(), pager))
     }
@@ -1061,9 +1058,7 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self
-            .acc
-            .blocking_list(self.path(), OpList::new(ListStyle::Hierarchy))?;
+        let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
@@ -1111,10 +1106,7 @@ impl Object {
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self
-            .acc
-            .list(self.path(), OpList::new(ListStyle::Flat))
-            .await?;
+        let (_, pager) = self.acc.scan(self.path(), OpScan::new()).await?;
 
         Ok(ObjectLister::new(self.acc.clone(), pager))
     }
@@ -1156,14 +1148,12 @@ impl Object {
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
             )
-            .with_operation("Object::blocking_list")
+            .with_operation("Object::blocking_scan")
             .with_context("service", self.accessor().metadata().scheme().into_static())
             .with_context("path", self.path()));
         }
 
-        let (_, pager) = self
-            .acc
-            .blocking_list(self.path(), OpList::new(ListStyle::Flat))?;
+        let (_, pager) = self.acc.blocking_scan(self.path(), OpScan::new())?;
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 

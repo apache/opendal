@@ -581,6 +581,8 @@ flags! {
         Write,
         /// Add this capability if service supports `list`
         List,
+        /// Add this capability if service supports `scan`
+        Scan,
         /// Add this capability if service supports `presign`
         Presign,
         /// Add this capability if service supports `multipart`
@@ -605,9 +607,5 @@ flags! {
         ///
         /// It's better to use stream to reading data.
         ReadStreamable,
-        /// List flat means this underlying can list with flat style.
-        ListFlat,
-        /// List hierarchy means this underlying can list with hierarchy style.
-        ListHierarchy,
     }
 }

@@ -84,6 +84,14 @@ use crate::*;
 ///     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
 ///         self.inner.blocking_list(path, args)
 ///     }
+///
+///     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+///         self.inner.scan(path, args).await
+///     }
+///
+///     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+///         self.inner.blocking_scan(path, args)
+///     }
 /// }
 ///
 /// /// The public struct that exposed to users.

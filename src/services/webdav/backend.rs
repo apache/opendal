@@ -210,7 +210,10 @@ impl Builder for WebdavBuilder {
                 )
             }
             (Some(username), None) => {
-                format!("Basic {}", general_purpose::STANDARD.encode(username))
+                format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(format!("{username}:"))
+                )
             }
             (None, Some(_)) => {
                 return Err(

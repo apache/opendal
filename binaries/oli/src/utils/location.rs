@@ -37,11 +37,25 @@ pub fn parse_location(s: &str) -> Result<(Operator, &str)> {
 
     let s = s.splitn(2, "://").collect::<Vec<_>>();
     debug_assert!(s.len() == 2);
-    Ok((parse_profile(s[0])?, s[1]))
+
+    if let Ok(scheme) = Scheme::from_str(s[0]) {
+        // If name is a valid scheme, we will load from env directly.
+        match scheme {
+            Scheme::S3 => {
+                let (bucket, location) = parse_s3_uri(s[1]);
+                let mut builder = services::S3::default();
+                builder.bucket(bucket);
+                Ok((Operator::create(builder)?.finish(), location))
+            }
+            _ => todo!(),
+        }
+    } else {
+        // Otherwise, try to load profile.
+        Ok((parse_profile(s[0])?, s[1]))
+    }
 }
 
-/// If name is a valid scheme, we will load from env directly.
-/// Or, we will try to get env from `OLI_PROFILE_{NAME}_XXX`.
+/// Try to get env from `OLI_PROFILE_{NAME}_XXX`.
 ///
 /// Especially, the type is specified by `OLI_PROFILE_{NAME}_TYPE`
 pub fn parse_profile(name: &str) -> Result<Operator> {
@@ -66,4 +80,13 @@ pub fn parse_profile(name: &str) -> Result<Operator> {
     };
 
     Ok(op)
+}
+
+/// Parses bucket and key from [`S3Uri`](https://docs.aws.amazon.com/cli/latest/reference/s3/#path-argument-type)
+fn parse_s3_uri(s3uri: &str) -> (&str, &str) {
+    // TODO: support ARN
+
+    let s = s3uri.splitn(2, "/").collect::<Vec<_>>();
+    debug_assert!(s.len() == 2);
+    return (s[0], s[1]);
 }

@@ -15,5 +15,6 @@
 mod backend;
 pub use backend::WebdavBuilder as Webdav;
 
+mod body_request_type;
 mod error;
 mod list_response;

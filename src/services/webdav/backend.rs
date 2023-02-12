@@ -27,6 +27,8 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::body_request_type;
+use super::body_request_type::BodyRequestType;
 use super::error::parse_error;
 use crate::ops::*;
 use crate::raw::*;
@@ -395,8 +397,9 @@ impl WebdavBackend {
         self.client.send_async(req).await
     }
 
-    async fn webdav_put(
+    async fn webdav_custom_request(
         &self,
+        body_request_type: BodyRequestType,
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
@@ -405,8 +408,12 @@ impl WebdavBackend {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::put(&url).header(AUTHORIZATION, &self.authorization);
+        let body_type_string = body_request_type.to_string();
+        let method: &str = body_type_string.as_str();
+        let mut req = Request::builder()
+            .method(method)
+            .uri(&url)
+            .header(AUTHORIZATION, &self.authorization);
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -420,6 +427,28 @@ impl WebdavBackend {
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
+    }
+
+    async fn webdav_put(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        content_type: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        self.webdav_custom_request(BodyRequestType::PUT, path, size, content_type, body)
+            .await
+    }
+
+    async fn webdav_propfind(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        content_type: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        self.webdav_custom_request(BodyRequestType::PROPFIND, path, size, content_type, body)
+            .await
     }
 
     async fn webdav_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {

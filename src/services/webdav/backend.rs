@@ -270,18 +270,18 @@ impl Accessor for WebdavBackend {
         ma
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-        let (_, _) = (path, args);
+    // async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    //     let (_, _) = (path, args);
 
-        let empoty_string = AsyncBody::from("".into());
+    //     let empoty_string = AsyncBody::from("".into());
 
-        let resp = self.webdav_put(path, None, "application/xml".into(), empoty_string);
+    //     let resp = self.webdav_put(path, None, "application/xml".into(), empoty_string);
 
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
+    //     Err(Error::new(
+    //         ErrorKind::Unsupported,
+    //         "operation is not supported",
+    //     ))
+    // }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let resp = self

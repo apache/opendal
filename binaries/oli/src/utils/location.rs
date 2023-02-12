@@ -86,7 +86,7 @@ pub fn parse_profile(name: &str) -> Result<Operator> {
 fn parse_s3_uri(s3uri: &str) -> (&str, &str) {
     // TODO: support ARN
 
-    let s = s3uri.splitn(2, "/").collect::<Vec<_>>();
+    let s = s3uri.splitn(2, '/').collect::<Vec<_>>();
     debug_assert!(s.len() == 2);
-    return (s[0], s[1]);
+    (s[0], s[1])
 }

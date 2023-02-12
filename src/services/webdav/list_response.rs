@@ -391,5 +391,28 @@ mod tests {
         let multistatus = from_str::<Multistatus>(xml).unwrap();
 
         assert_eq!(multistatus.response.len(), 3);
+        let first_response = &multistatus.response[0];
+        assert_eq!(first_response.href, "/");
+        assert_eq!(first_response.propstat.prop.displayname, "/");
+        assert_eq!(
+            first_response.propstat.prop.getlastmodified,
+            "Tue, 07 May 2022 06:39:47 GMT"
+        );
+
+        let second_response = &multistatus.response[1];
+        assert_eq!(second_response.href, "/testdir/");
+        assert_eq!(second_response.propstat.prop.displayname, "testdir");
+        assert_eq!(
+            second_response.propstat.prop.getlastmodified,
+            "Tue, 07 May 2022 06:40:10 GMT"
+        );
+
+        let third_response = &multistatus.response[2];
+        assert_eq!(third_response.href, "/test_file");
+        assert_eq!(third_response.propstat.prop.displayname, "test_file");
+        assert_eq!(
+            third_response.propstat.prop.getlastmodified,
+            "Tue, 07 May 2022 05:52:22 GMT"
+        );
     }
 }

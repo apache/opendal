@@ -19,6 +19,7 @@ use std::fmt::Formatter;
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
+use bytes::Buf;
 use http::header::AUTHORIZATION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -27,9 +28,9 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::body_request_type;
 use super::body_request_type::BodyRequestType;
 use super::error::parse_error;
+use super::list_response::Multistatus;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -272,18 +273,37 @@ impl Accessor for WebdavBackend {
         ma
     }
 
-    // async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-    //     let (_, _) = (path, args);
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let _ = args;
 
-    //     let empoty_string = AsyncBody::from("".into());
+        let all_prop_xml_body = r#"
+            <D:propfind xmlns:D="DAV:">
+                <D:allprop/>
+            </D:propfind>
+        "#;
 
-    //     let resp = self.webdav_put(path, None, "application/xml".into(), empoty_string);
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(all_prop_xml_body));
 
-    //     Err(Error::new(
-    //         ErrorKind::Unsupported,
-    //         "operation is not supported",
-    //     ))
-    // }
+        let resp = self
+            .webdav_put(path, None, "application/xml".into(), async_body)
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::MULTI_STATUS => {
+                let bs = resp.into_body().bytes().await?;
+                let result: Multistatus =
+                    quick_xml::de::from_reader(bs.reader()).map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, &err.to_string())
+                            .with_context("service", Scheme::Webdav)
+                    })?;
+
+                let mut entries = Vec::new();
+            }
+            _ => Err(parse_error(resp).await?), // TODO: handle error gracefully
+        }
+    }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let resp = self

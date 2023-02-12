@@ -32,12 +32,12 @@ pub enum LockType {
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-struct Multistatus {
+pub struct Multistatus {
     response: Vec<ListOpResponse>,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-struct ListOpResponse {
+pub struct ListOpResponse {
     href: String,
     propstat: Propstat,
 }

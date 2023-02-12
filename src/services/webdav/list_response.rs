@@ -33,39 +33,39 @@ pub enum LockType {
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Multistatus {
-    response: Vec<ListOpResponse>,
+    pub response: Vec<ListOpResponse>,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct ListOpResponse {
-    href: String,
-    propstat: Propstat,
+    pub href: String,
+    pub propstat: Propstat,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
 struct Propstat {
-    prop: Prop,
-    status: String,
+    pub prop: Prop,
+    pub status: String,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-struct Prop {
-    displayname: String,
-    getlastmodified: String,
-    resourcetype: ResourceTypeContainer,
-    lockdiscovery: (),
-    supportedlock: SupportedLock,
+pub struct Prop {
+    pub displayname: String,
+    pub getlastmodified: String,
+    pub resourcetype: ResourceTypeContainer,
+    pub lockdiscovery: (),
+    pub supportedlock: SupportedLock,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-struct ResourceTypeContainer {
+pub struct ResourceTypeContainer {
     #[serde(rename = "$value")]
-    value: Option<ResourceType>,
+    pub value: Option<ResourceType>,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")]
-enum ResourceType {
+pub enum ResourceType {
     Collection,
 }
 

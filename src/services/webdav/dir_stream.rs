@@ -5,11 +5,8 @@ use crate::{
 };
 use async_trait::async_trait;
 
-use super::{backend::WebdavBackend, list_response::Multistatus};
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use super::list_response::Multistatus;
+use std::path::{Path, PathBuf};
 
 pub struct DirPager {
     root: PathBuf,
@@ -33,10 +30,13 @@ impl output::Page for DirPager {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
-        for _ in 0..self.size {
-            let de = match self.multistates.response.into_iter().next() {
+        for i in 0..self.size {
+            if i >= self.multistates.response.len() {
+                break;
+            }
+            match self.multistates.response.get(0) {
                 Some(de) => {
-                    let path = PathBuf::from(de.href);
+                    let path = PathBuf::from(de.href.clone());
 
                     let rel_path = normalize_path(
                         &path
@@ -57,7 +57,7 @@ impl output::Page for DirPager {
                     oes.push(entry);
                 }
                 None => break,
-            };
+            }
         }
 
         Ok(if oes.is_empty() { None } else { Some(oes) })

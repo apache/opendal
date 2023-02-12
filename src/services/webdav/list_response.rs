@@ -43,7 +43,7 @@ pub struct ListOpResponse {
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-struct Propstat {
+pub struct Propstat {
     pub prop: Prop,
     pub status: String,
 }
@@ -71,7 +71,7 @@ pub enum ResourceType {
 
 #[derive(Deserialize, Debug, PartialEq)]
 
-struct SupportedLock {
+pub struct SupportedLock {
     lockentry: LockEntry,
 }
 

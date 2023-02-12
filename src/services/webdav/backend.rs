@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::path::PathBuf;
 
 use async_trait::async_trait;
 use base64::engine::general_purpose;
@@ -29,6 +30,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::body_request_type::BodyRequestType;
+use super::dir_stream::DirPager;
 use super::error::parse_error;
 use super::list_response::Multistatus;
 use crate::ops::*;
@@ -260,7 +262,7 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Pager = ();
+    type Pager = DirPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -274,8 +276,6 @@ impl Accessor for WebdavBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let _ = args;
-
         let all_prop_xml_body = r#"
             <D:propfind xmlns:D="DAV:">
                 <D:allprop/>
@@ -283,11 +283,9 @@ impl Accessor for WebdavBackend {
         "#;
 
         let async_body = AsyncBody::Bytes(bytes::Bytes::from(all_prop_xml_body));
-
         let resp = self
-            .webdav_put(path, None, "application/xml".into(), async_body)
+            .webdav_propfind(path, None, "application/xml".into(), async_body)
             .await?;
-
         let status = resp.status();
 
         match status {
@@ -299,7 +297,10 @@ impl Accessor for WebdavBackend {
                             .with_context("service", Scheme::Webdav)
                     })?;
 
-                let mut entries = Vec::new();
+                Ok((
+                    RpList::default(),
+                    DirPager::new(&PathBuf::from(self.root.clone()), result, args.limit()),
+                ))
             }
             _ => Err(parse_error(resp).await?), // TODO: handle error gracefully
         }

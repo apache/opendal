@@ -8,14 +8,14 @@ use async_trait::async_trait;
 use super::list_response::Multistatus;
 use std::path::{Path, PathBuf};
 
-pub struct DirPager {
+pub struct DirStream {
     root: PathBuf,
 
     size: usize,
     multistates: Multistatus,
 }
 
-impl DirPager {
+impl DirStream {
     pub fn new(root: &Path, multistates: Multistatus, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
@@ -26,7 +26,7 @@ impl DirPager {
 }
 
 #[async_trait]
-impl output::Page for DirPager {
+impl output::Page for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 

@@ -30,7 +30,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::body_request_type::BodyRequestType;
-use super::dir_stream::DirPager;
+use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::list_response::Multistatus;
 use crate::ops::*;
@@ -262,7 +262,7 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Pager = DirPager;
+    type Pager = DirStream;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -299,7 +299,7 @@ impl Accessor for WebdavBackend {
 
                 Ok((
                     RpList::default(),
-                    DirPager::new(&PathBuf::from(self.root.clone()), result, args.limit()),
+                    DirStream::new(&PathBuf::from(self.root.clone()), result, args.limit()),
                 ))
             }
             _ => Err(parse_error(resp).await?), // TODO: handle error gracefully

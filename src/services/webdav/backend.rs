@@ -12,11 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::path::PathBuf;
-
 use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -28,8 +23,10 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
-use super::body_request_type::BodyRequestType;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::list_response::Multistatus;
@@ -297,7 +294,7 @@ impl Accessor for WebdavBackend {
 
                 Ok((
                     RpList::default(),
-                    DirStream::new(&PathBuf::from(self.root.clone()), result, args.limit()),
+                    DirStream::new(self.root.clone(), result, args.limit()),
                 ))
             }
             _ => Err(parse_error(resp).await?), // TODO: handle error gracefully
@@ -416,9 +413,8 @@ impl WebdavBackend {
         self.client.send_async(req).await
     }
 
-    async fn webdav_custom_request(
+    async fn webdav_put(
         &self,
-        body_request_type: BodyRequestType,
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
@@ -427,12 +423,7 @@ impl WebdavBackend {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-        let body_type_string = body_request_type.to_string();
-        let method: &str = body_type_string.as_str();
-        let mut req = Request::builder()
-            .method(method)
-            .uri(&url)
-            .header(AUTHORIZATION, &self.authorization);
+        let mut req = Request::put(&url).header(AUTHORIZATION, &self.authorization);
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -448,17 +439,6 @@ impl WebdavBackend {
         self.client.send_async(req).await
     }
 
-    async fn webdav_put(
-        &self,
-        path: &str,
-        size: Option<u64>,
-        content_type: Option<&str>,
-        body: AsyncBody,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        self.webdav_custom_request(BodyRequestType::Put, path, size, content_type, body)
-            .await
-    }
-
     async fn webdav_propfind(
         &self,
         path: &str,
@@ -466,8 +446,26 @@ impl WebdavBackend {
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        self.webdav_custom_request(BodyRequestType::Propfind, path, size, content_type, body)
-            .await
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut req = Request::builder()
+            .method("PROPFIND")
+            .uri(&url)
+            .header(AUTHORIZATION, &self.authorization);
+
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size)
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send_async(req).await
     }
 
     async fn webdav_head(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {

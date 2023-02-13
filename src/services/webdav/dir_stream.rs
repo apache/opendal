@@ -13,24 +13,20 @@
 // limitations under the License.
 
 use crate::Result;
-use crate::{
-    raw::{normalize_path, output},
-    ObjectMetadata, ObjectMode,
-};
+use crate::{raw::output, ObjectMetadata, ObjectMode};
 use async_trait::async_trait;
 
 use super::list_response::Multistatus;
-use std::path::{Path, PathBuf};
 
 pub struct DirStream {
-    root: PathBuf,
+    root: String,
 
     size: usize,
     multistates: Multistatus,
 }
 
 impl DirStream {
-    pub fn new(root: &Path, multistates: Multistatus, limit: Option<usize>) -> Self {
+    pub fn new(root: String, multistates: Multistatus, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
             size: limit.unwrap_or(1000),
@@ -50,22 +46,14 @@ impl output::Page for DirStream {
             }
             match self.multistates.response.get(0) {
                 Some(de) => {
-                    let path = PathBuf::from(de.href.clone());
-
-                    let rel_path = normalize_path(
-                        &path
-                            .strip_prefix(&self.root)
-                            .expect("cannot fail because the prefix is iterated")
-                            .to_string_lossy()
-                            .replace('\\', "/"),
-                    );
+                    let path = de.href.clone();
 
                     let entry = if de.propstat.prop.resourcetype.value
                         == Some(super::list_response::ResourceType::Collection)
                     {
-                        output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::DIR))
+                        output::Entry::new(&path, ObjectMetadata::new(ObjectMode::DIR))
                     } else {
-                        output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                        output::Entry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
                     };
 
                     oes.push(entry);

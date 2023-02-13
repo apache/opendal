@@ -47,6 +47,7 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [ ] presign
 /// - [ ] multipart
 /// - [ ] blocking

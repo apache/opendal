@@ -34,6 +34,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [ ] ~~list~~
+/// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
 /// - [x] blocking

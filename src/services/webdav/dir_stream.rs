@@ -41,7 +41,7 @@ impl output::Page for DirStream {
             if i >= self.multistates.response.len() {
                 break;
             }
-            match self.multistates.response.get(0) {
+            match self.multistates.response.get(i) {
                 Some(de) => {
                     let path = de.href.clone();
 

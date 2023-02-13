@@ -107,7 +107,7 @@ impl output::Page for DirStream {
             if object.key.ends_with('/') {
                 continue;
             }
-            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+            let mut meta = ObjectMetadata::new(ObjectMode::FILE).with_complete();
 
             meta.set_etag(&object.etag);
             meta.set_content_length(object.size);

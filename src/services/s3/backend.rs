@@ -83,6 +83,7 @@ mod constants {
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [x] presign
 /// - [x] multipart
 /// - [ ] blocking

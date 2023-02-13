@@ -51,6 +51,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [ ] presign
 /// - [ ] multipart
 /// - [ ] blocking

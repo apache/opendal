@@ -116,7 +116,7 @@ impl output::Page for DirStream {
                 continue;
             }
 
-            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+            let mut meta = ObjectMetadata::new(ObjectMode::FILE).with_complete();
 
             meta.set_etag(&object.etag);
             meta.set_content_md5(object.etag.trim_matches('"'));

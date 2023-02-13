@@ -80,15 +80,6 @@ impl OpList {
     }
 }
 
-/// List style define the style that underlying services used for list.
-#[derive(Debug, Clone, Copy)]
-pub enum ListStyle {
-    /// List in flat style. As known as list prefix or readdir recursively.
-    Flat,
-    /// List in hierarchy style. As known as list dir.
-    Hierarchy,
-}
-
 /// Args for `scan` operation.
 #[derive(Debug, Default, Clone)]
 pub struct OpScan {

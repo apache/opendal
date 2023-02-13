@@ -14,15 +14,15 @@
 
 #[derive(Debug, Clone)]
 pub enum BodyRequestType {
-    PUT,
-    PROPFIND,
+    Put,
+    Propfind,
 }
 
 impl ToString for BodyRequestType {
     fn to_string(&self) -> String {
         match self {
-            BodyRequestType::PUT => "PUT".to_string(),
-            BodyRequestType::PROPFIND => "PROPFIND".to_string(),
+            BodyRequestType::Put => "PUT".to_string(),
+            BodyRequestType::Propfind => "PROPFIND".to_string(),
         }
     }
 }

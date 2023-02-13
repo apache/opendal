@@ -457,7 +457,7 @@ impl WebdavBackend {
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        self.webdav_custom_request(BodyRequestType::PUT, path, size, content_type, body)
+        self.webdav_custom_request(BodyRequestType::Put, path, size, content_type, body)
             .await
     }
 
@@ -468,7 +468,7 @@ impl WebdavBackend {
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        self.webdav_custom_request(BodyRequestType::PROPFIND, path, size, content_type, body)
+        self.webdav_custom_request(BodyRequestType::Propfind, path, size, content_type, body)
             .await
     }
 

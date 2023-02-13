@@ -1,6 +1,6 @@
 - Proposal Name: Change Directory Layer
 - Start Date: 2023-02-10
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
+- RFC PR: [datafuselabs/opendal#1338](https://github.com/datafuselabs/opendal/pull/1338)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary

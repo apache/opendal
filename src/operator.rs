@@ -444,6 +444,11 @@ impl OperatorMetadata {
         self.acc.capabilities().contains(AccessorCapability::List)
     }
 
+    /// Check if current backend supports [`Accessor::scan`] or not.
+    pub fn can_scan(&self) -> bool {
+        self.acc.capabilities().contains(AccessorCapability::Scan)
+    }
+
     /// Check if current backend supports [`Accessor::presign`] or not.
     pub fn can_presign(&self) -> bool {
         self.acc

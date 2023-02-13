@@ -27,7 +27,7 @@ use super::utils::*;
 /// - can_read
 /// - can_write
 /// - can_blocking
-/// - can_list
+/// - can_list or can_scan
 macro_rules! behavior_blocking_list_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
@@ -42,7 +42,7 @@ macro_rules! behavior_blocking_list_test {
                         match op {
                             Some(op) if op.metadata().can_read()
                                 && op.metadata().can_write()
-                                && op.metadata().can_blocking() && op.metadata().can_list() => $crate::blocking_list::$test(op),
+                                && op.metadata().can_blocking() && (op.metadata().can_list()||op.metadata().can_scan()) => $crate::blocking_list::$test(op),
                             Some(_) => {
                                 log::warn!("service {} doesn't support read, ignored", opendal::Scheme::$service);
                                 Ok(())

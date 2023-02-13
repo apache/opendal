@@ -30,7 +30,7 @@ use super::utils::*;
 ///
 /// - can_read
 /// - can_write
-/// - can_list
+/// - can_list or can_scan
 macro_rules! behavior_list_test {
     ($service:ident, $($(#[$meta:meta])* $test:ident),*,) => {
         paste::item! {
@@ -43,7 +43,10 @@ macro_rules! behavior_list_test {
                     async fn [< $test >]() -> anyhow::Result<()> {
                         let op = $crate::utils::init_service::<opendal::services::$service>(true);
                         match op {
-                            Some(op) if op.metadata().can_read() && op.metadata().can_write() && op.metadata().can_list() => $crate::list::$test(op).await,
+                            Some(op) if op.metadata().can_read()
+                                && op.metadata().can_write()
+                                && (op.metadata().can_list()
+                                    || op.metadata().can_scan()) => $crate::list::$test(op).await,
                             Some(_) => {
                                 log::warn!("service {} doesn't support write, ignored", opendal::Scheme::$service);
                                 Ok(())

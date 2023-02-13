@@ -21,9 +21,15 @@ use crate::*;
 
 /// to_hierarchy_pager is used to make a hierarchy pager flat.
 pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
+    let path = if path == "/" {
+        "".to_string()
+    } else {
+        path.to_string()
+    };
+
     ToHierarchyPager {
         pager,
-        path: path.to_string(),
+        path,
         visited: HashSet::default(),
     }
 }
@@ -55,6 +61,11 @@ impl<P> ToHierarchyPager<P> {
                 // Idealy, it should never happen. But we just tolerate
                 // this state.
                 if !e.path().starts_with(&self.path) {
+                    return None;
+                }
+
+                // Dir itself should not be returned in hierarchy page.
+                if e.path() == self.path {
                     return None;
                 }
 

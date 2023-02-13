@@ -35,6 +35,8 @@ pub enum Operation {
     List,
     /// Operation for [`crate::raw::Accessor::scan`]
     Scan,
+    /// Operation for [`crate::raw::Accessor::batch`]
+    Batch,
     /// Operation for [`crate::raw::Accessor::presign`]
     Presign,
     /// Operation for [`crate::raw::Accessor::create_multipart`]
@@ -92,6 +94,7 @@ impl From<Operation> for &'static str {
             Operation::List => "list",
             Operation::Scan => "scan",
             Operation::Presign => "presign",
+            Operation::Batch => "batch",
             Operation::CreateMultipart => "create_multipart",
             Operation::WriteMultipart => "write_multipart",
             Operation::CompleteMultipart => "complete_multipart",

@@ -204,6 +204,16 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
+    /// Invoke the `batch` operations.
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let _ = args;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
     /// Invoke the `create_multipart` operation on the specified path.
     ///
     /// Require [`AccessorCapability::Multipart`]
@@ -415,6 +425,10 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().scan(path, args).await
     }
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        self.as_ref().batch(args).await
+    }
+
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.as_ref().presign(path, args)
     }
@@ -582,6 +596,8 @@ flags! {
         Multipart,
         /// Add this capability if service supports `blocking`
         Blocking,
+        /// Add this capability if service supports `batch`
+        Batch,
     }
 }
 

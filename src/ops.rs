@@ -265,6 +265,31 @@ impl From<OpWriteMultipart> for PresignOperation {
     }
 }
 
+/// Args for `batch` operation.
+pub struct OpBatch {
+    op: BatchOperations,
+}
+
+impl OpBatch {
+    /// Get operation from op.
+    pub fn operation(&self) -> &BatchOperations {
+        &self.op
+    }
+
+    /// Consume OpBatch into BatchOperation
+    pub fn into_operation(self) -> BatchOperations {
+        self.op
+    }
+}
+
+/// Batch operation used for batch.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum BatchOperations {
+    /// Batch delete operations.
+    Delete(Vec<(String, OpDelete)>),
+}
+
 /// Args for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {

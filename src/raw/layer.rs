@@ -154,6 +154,10 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)>;
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        self.inner().batch(args).await
+    }
+
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner().presign(path, args)
     }
@@ -256,6 +260,10 @@ impl<L: LayeredAccessor> Accessor for L {
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         (self as &L).scan(path, args).await
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        (self as &L).batch(args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

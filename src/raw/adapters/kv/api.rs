@@ -27,7 +27,7 @@ use crate::Scheme;
 ///
 /// By implement this trait, any kv service can work as an OpenDAL Service.
 #[async_trait]
-pub trait Adapter: Send + Sync + Debug + Unpin + Clone + 'static {
+pub trait Adapter: Send + Sync + Debug + Unpin + 'static {
     /// Return the medata of this key value accessor.
     fn metadata(&self) -> Metadata;
 

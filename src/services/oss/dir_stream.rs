@@ -35,18 +35,27 @@ pub struct DirStream {
     backend: Arc<OssBackend>,
     root: String,
     path: String,
+    delimiter: String,
+    limit: Option<usize>,
 
     token: Option<String>,
-
     done: bool,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<OssBackend>, root: &str, path: &str) -> Self {
+    pub fn new(
+        backend: Arc<OssBackend>,
+        root: &str,
+        path: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+    ) -> Self {
         Self {
             backend,
             root: root.to_string(),
             path: path.to_string(),
+            delimiter: delimiter.to_string(),
+            limit,
 
             token: None,
 
@@ -56,15 +65,20 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }
 
         let resp = self
             .backend
-            .oss_list_object(&self.path, self.token.clone())
+            .oss_list_object(
+                &self.path,
+                self.token.as_deref(),
+                &self.delimiter,
+                self.limit,
+            )
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -82,7 +96,7 @@ impl ObjectPage for DirStream {
         let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
 
         for prefix in output.common_prefixes {
-            let de = ObjectEntry::new(
+            let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
                 ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
@@ -93,7 +107,7 @@ impl ObjectPage for DirStream {
             if object.key.ends_with('/') {
                 continue;
             }
-            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+            let mut meta = ObjectMetadata::new(ObjectMode::FILE).with_complete();
 
             meta.set_etag(&object.etag);
             meta.set_content_length(object.size);
@@ -111,7 +125,7 @@ impl ObjectPage for DirStream {
             let rel = build_rel_path(&self.root, &object.key);
             let path = unescape(&rel)
                 .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
-            let de = ObjectEntry::new(&path, meta);
+            let de = output::Entry::new(&path, meta);
             entries.push(de);
         }
 

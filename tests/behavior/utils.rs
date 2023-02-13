@@ -17,7 +17,6 @@ use std::env;
 use std::io::SeekFrom;
 use std::usize;
 
-use backon::ExponentialBackoff;
 use bytes::Bytes;
 use log::debug;
 use opendal::layers::LoggingLayer;
@@ -70,7 +69,7 @@ pub fn init_service<B: Builder>(random_root: bool) -> Option<Operator> {
 
     let op = op
         .layer(LoggingLayer::default())
-        .layer(RetryLayer::new(ExponentialBackoff::default()))
+        .layer(RetryLayer::new())
         .finish();
 
     Some(op)
@@ -107,7 +106,7 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
 
 /// ObjectReaderFuzzer is the fuzzer for object readers.
 ///
-/// We will generate random read/seek/next operations to operate on obejct
+/// We will generate random read/seek/next operations to operate on object
 /// reader to check if the output is expected.
 ///
 /// # TODO

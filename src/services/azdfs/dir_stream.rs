@@ -28,17 +28,24 @@ pub struct DirStream {
     backend: Arc<AzdfsBackend>,
     root: String,
     path: String,
+    limit: Option<usize>,
 
     continuation: String,
     done: bool,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<AzdfsBackend>, root: String, path: String) -> Self {
+    pub fn new(
+        backend: Arc<AzdfsBackend>,
+        root: String,
+        path: String,
+        limit: Option<usize>,
+    ) -> Self {
         Self {
             backend,
             root,
             path,
+            limit,
 
             continuation: "".to_string(),
             done: false,
@@ -47,15 +54,15 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }
 
         let resp = self
             .backend
-            .azdfs_list(&self.path, &self.continuation)
+            .azdfs_list(&self.path, &self.continuation, self.limit)
             .await?;
 
         // Azdfs will return not found for not-exist path.
@@ -118,7 +125,7 @@ impl ObjectPage for DirStream {
                 path += "/"
             };
 
-            let de = ObjectEntry::new(&path, meta);
+            let de = output::Entry::new(&path, meta);
 
             entries.push(de);
         }

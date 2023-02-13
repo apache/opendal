@@ -26,6 +26,7 @@ use serde::Deserialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_json_deserialize_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -60,6 +61,8 @@ impl IpmfsBackend {
 impl Accessor for IpmfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -68,7 +71,7 @@ impl Accessor for IpmfsBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         am
     }
@@ -167,10 +170,10 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            DirStream::new(Arc::new(self.clone()), &self.root, path),
         ))
     }
 }

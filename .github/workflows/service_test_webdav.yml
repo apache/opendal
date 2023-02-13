@@ -38,3 +38,40 @@ jobs:
           RUST_LOG: debug
           OPENDAL_WEBDAV_TEST: on
           OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
+
+  nginx_with_password:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start nginx
+        shell: bash
+        run: |
+          mkdir -p /tmp/static
+          cp `pwd`/src/services/webdav/fixtures/htpasswd /tmp/htpasswd
+          nginx -c `pwd`/src/services/webdav/fixtures/nginx-with-basic-auth.conf
+
+      - name: Test empty password
+        shell: bash
+        run: cargo test webdav --features compress -- --show-output
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
+          OPENDAL_WEBDAV_USERNAME: foo
+
+      - name: Test with password
+        shell: bash
+        run: cargo test webdav --features compress -- --show-output
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_WEBDAV_TEST: on
+          OPENDAL_WEBDAV_ENDPOINT: http://127.0.0.1:8080
+          OPENDAL_WEBDAV_USERNAME: bar
+          OPENDAL_WEBDAV_PASSWORD: bar

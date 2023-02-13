@@ -40,7 +40,7 @@ where
     }
 }
 
-/// FdReader is a wrapper of input fd to implment [`output::Read`].
+/// FdReader is a wrapper of input fd to implement [`output::Read`].
 pub struct FdReader<R: AsyncRead + AsyncSeek + Unpin + Send + Sync> {
     inner: R,
 

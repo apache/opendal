@@ -19,7 +19,6 @@ use futures::StreamExt;
 use futures::TryStreamExt;
 
 use crate::layers::*;
-use crate::object::ObjectLister;
 use crate::raw::*;
 use crate::*;
 
@@ -283,7 +282,6 @@ impl Operator {
 /// ```
 /// use std::collections::HashMap;
 ///
-/// use backon::ExponentialBackoff;
 /// use opendal::layers::LoggingLayer;
 /// use opendal::layers::RetryLayer;
 /// use opendal::services;
@@ -295,7 +293,7 @@ impl Operator {
 /// fn init_service<B: Builder>(cfg: HashMap<String, String>) -> Result<Operator> {
 ///     let op = Operator::from_map::<B>(cfg)?
 ///         .layer(LoggingLayer::default())
-///         .layer(RetryLayer::new(ExponentialBackoff::default()))
+///         .layer(RetryLayer::new())
 ///         .finish();
 ///
 ///     Ok(op)
@@ -322,7 +320,7 @@ impl<A: Accessor> OperatorBuilder<A> {
         // Make sure error context layer has been attached.
         OperatorBuilder { accessor }
             .layer(ErrorContextLayer)
-            .layer(CompleteReaderLayer)
+            .layer(CompleteLayer)
     }
 
     /// Create a new layer with static dispatch.
@@ -388,38 +386,6 @@ impl BatchOperator {
         BatchOperator { src: op }
     }
 
-    /// Walk a dir in the best way that suitable for underlying storage.
-    ///
-    /// The returning order could be differ for different underlying storage.
-    /// And could be changed at any time. Users MUST NOT relay on the order.
-    pub fn walk(&self, path: &str) -> Result<ObjectLister> {
-        // # TODO
-        //
-        // After https://github.com/datafuselabs/opendal/issues/353, we can
-        // use prefix list for walk_bottom_up.
-        self.walk_top_down(path)
-    }
-
-    /// Walk a dir in top down way: list current dir first and then list nested dir.
-    ///
-    /// Refer to [`TopDownWalker`] for more about the behavior details.
-    pub fn walk_top_down(&self, path: &str) -> Result<ObjectLister> {
-        Ok(ObjectLister::new(
-            self.src.clone(),
-            Box::new(TopDownWalker::new(self.src.inner(), path)),
-        ))
-    }
-
-    /// Walk a dir in bottom up way: list nested dir first and then current dir.
-    ///
-    /// Refer to [`BottomUpWalker`] for more about the behavior details.
-    pub fn walk_bottom_up(&self, path: &str) -> Result<ObjectLister> {
-        Ok(ObjectLister::new(
-            self.src.clone(),
-            Box::new(BottomUpWalker::new(self.src.inner(), path)),
-        ))
-    }
-
     /// Remove the path and all nested dirs and files recursively.
     ///
     /// **Use this function in cautions to avoid unexpected data loss.**
@@ -431,7 +397,7 @@ impl BatchOperator {
             return parent.delete().await;
         }
 
-        let obs = self.walk_bottom_up(path)?;
+        let obs = self.src.object(path).scan().await?;
         obs.try_for_each(|v| async move { v.delete().await }).await
     }
 }
@@ -476,6 +442,11 @@ impl OperatorMetadata {
     /// Check if current backend supports [`Accessor::list`] or not.
     pub fn can_list(&self) -> bool {
         self.acc.capabilities().contains(AccessorCapability::List)
+    }
+
+    /// Check if current backend supports [`Accessor::scan`] or not.
+    pub fn can_scan(&self) -> bool {
+        self.acc.capabilities().contains(AccessorCapability::Scan)
     }
 
     /// Check if current backend supports [`Accessor::presign`] or not.

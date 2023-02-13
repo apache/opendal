@@ -35,6 +35,7 @@ use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_json_deserialize_error;
 use super::uri::percent_encode_path;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -50,6 +51,7 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [ ] presign
 /// - [ ] multipart
 /// - [ ] blocking
@@ -134,7 +136,7 @@ impl GcsBuilder {
     ///
     /// If not set, we will use `https://www.googleapis.com/auth/devstorage.read_write`.
     ///
-    /// # Valid scope exmaples
+    /// # Valid scope examples
     ///
     /// - read-only: `https://www.googleapis.com/auth/devstorage.read_only`
     /// - read-write: `https://www.googleapis.com/auth/devstorage.read_write`
@@ -345,16 +347,19 @@ impl Debug for GcsBackend {
 impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
+        use AccessorCapability::*;
+        use AccessorHint::*;
+
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Gcs)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_capabilities(Read | Write | List | Scan)
+            .set_hints(ReadStreamable);
         am
     }
 
@@ -461,10 +466,17 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+        ))
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        Ok((
+            RpScan::default(),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 }
@@ -581,15 +593,23 @@ impl GcsBackend {
         &self,
         path: &str,
         page_token: &str,
+        delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/storage/v1/b/{}/o?delimiter=/&prefix={}",
+            "{}/storage/v1/b/{}/o?prefix={}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&p)
         );
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&maxResults={limit}").expect("write into string must succeed");
+        }
         if !page_token.is_empty() {
             // NOTE:
             //

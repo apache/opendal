@@ -16,7 +16,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::io;
 use std::io::SeekFrom;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 use async_compat::Compat;
 use async_trait::async_trait;
@@ -29,6 +30,7 @@ use super::dir_stream::BlockingDirPager;
 use super::dir_stream::DirPager;
 use super::error::parse_io_error;
 use crate::object::*;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -41,6 +43,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
 /// - [x] blocking
@@ -289,6 +292,8 @@ impl FsBackend {
 impl Accessor for FsBackend {
     type Reader = output::into_reader::FdReader<Compat<tokio::fs::File>>;
     type BlockingReader = output::into_blocking_reader::FdReader<std::fs::File>;
+    type Pager = Option<DirPager>;
+    type BlockingPager = Option<BlockingDirPager>;
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -300,7 +305,7 @@ impl Accessor for FsBackend {
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )
-            .set_hints(AccessorHint::ReadIsSeekable);
+            .set_hints(AccessorHint::ReadSeekable);
 
         am
     }
@@ -506,23 +511,23 @@ impl Accessor for FsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match tokio::fs::read_dir(&p).await {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as ObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 };
             }
         };
 
-        let rd = DirPager::new(&self.root, f);
+        let rd = DirPager::new(&self.root, f, args.limit());
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -534,7 +539,7 @@ impl Accessor for FsBackend {
                 .ok_or_else(|| {
                     Error::new(
                         ErrorKind::Unexpected,
-                        "path shoud have parent but not, it must be malformed",
+                        "path should have parent but not, it must be malformed",
                     )
                     .with_context("input", p.to_string_lossy())
                 })?
@@ -710,23 +715,23 @@ impl Accessor for FsBackend {
         }
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let p = self.root.join(path.trim_end_matches('/'));
 
         let f = match std::fs::read_dir(p) {
             Ok(rd) => rd,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 };
             }
         };
 
-        let rd = BlockingDirPager::new(&self.root, f);
+        let rd = BlockingDirPager::new(&self.root, f, args.limit());
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 }
 

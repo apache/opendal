@@ -31,10 +31,11 @@ use reqsign::AliyunOssSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Aliyun Object Storage Sevice (OSS) support
+/// Aliyun Object Storage Service (OSS) support
 ///
 /// # Capabilities
 ///
@@ -43,6 +44,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [ ] presign
 /// - [ ] multipart
 /// - [ ] blocking
@@ -386,19 +388,20 @@ impl Debug for OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
+        use AccessorCapability::*;
+        use AccessorHint::*;
+
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Oss)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::List
-                    | AccessorCapability::Presign,
-            )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_capabilities(Read | Write | List | Scan | Presign)
+            .set_hints(ReadStreamable);
+
         am
     }
 
@@ -473,7 +476,7 @@ impl Accessor for OssBackend {
     }
 
     async fn delete(&self, path: &str, _: OpDelete) -> Result<RpDelete> {
-        let resp = self.obs_delete_object(path).await?;
+        let resp = self.oss_delete_object(path).await?;
         let status = resp.status();
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {
@@ -484,10 +487,17 @@ impl Accessor for OssBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+        ))
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        Ok((
+            RpScan::default(),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 
@@ -603,17 +613,20 @@ impl OssBackend {
     fn oss_list_object_request(
         &self,
         path: &str,
-        token: Option<String>,
+        token: Option<&str>,
+        delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
         let url = format!(
-            "{}/?list-type=2&delimiter=/&prefix={}{}",
+            "{}/?list-type=2&delimiter={delimiter}&prefix={}{}{}",
             endpoint,
             percent_encode_path(&p),
+            limit.map(|t| format!("&max-keys={t}")).unwrap_or_default(),
             token
-                .map(|t| format!("&continuation-token={}", percent_encode_path(&t)))
+                .map(|t| format!("&continuation-token={}", percent_encode_path(t)))
                 .unwrap_or_default(),
         );
 
@@ -657,15 +670,17 @@ impl OssBackend {
     pub(super) async fn oss_list_object(
         &self,
         path: &str,
-        token: Option<String>,
+        token: Option<&str>,
+        delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_list_object_request(path, token)?;
+        let mut req = self.oss_list_object_request(path, token, delimiter, limit)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await
     }
 
-    async fn obs_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
+    async fn oss_delete_object(&self, path: &str) -> Result<Response<IncomingAsyncBody>> {
         let mut req = self.oss_delete_object_request(path)?;
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await

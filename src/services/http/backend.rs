@@ -23,6 +23,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -35,6 +36,7 @@ use crate::*;
 /// - [x] read
 /// - [ ] ~~write~~
 /// - [ ] ~~list~~
+/// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
 /// - [ ] blocking
@@ -196,13 +198,15 @@ impl Debug for HttpBackend {
 impl Accessor for HttpBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = ();
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Http)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read)
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         ma
     }

@@ -32,21 +32,21 @@ use crate::*;
 /// call `next_page` directly.
 pub struct ObjectLister {
     acc: FusedAccessor,
-    pager: Option<ObjectPager>,
+    pager: Option<output::Pager>,
 
-    buf: VecDeque<ObjectEntry>,
+    buf: VecDeque<output::Entry>,
     /// We will move `pager` inside future and return it back while future is ready.
     /// Thus, we should not allow calling other function while we already have
     /// a future.
     #[allow(clippy::type_complexity)]
-    fut: Option<BoxFuture<'static, (ObjectPager, Result<Option<Vec<ObjectEntry>>>)>>,
+    fut: Option<BoxFuture<'static, (output::Pager, Result<Option<Vec<output::Entry>>>)>>,
 }
 
 impl ObjectLister {
     /// Create a new object lister.
-    pub fn new(op: Operator, pager: ObjectPager) -> Self {
+    pub(crate) fn new(acc: FusedAccessor, pager: output::Pager) -> Self {
         Self {
-            acc: op.inner(),
+            acc,
             pager: Some(pager),
             buf: VecDeque::default(),
             fut: None,
@@ -54,7 +54,7 @@ impl ObjectLister {
     }
 
     /// Fetch the operator that used by this object.
-    pub fn operator(&self) -> Operator {
+    pub(crate) fn operator(&self) -> Operator {
         self.acc.clone().into()
     }
 
@@ -135,13 +135,13 @@ impl Stream for ObjectLister {
 
 pub struct BlockingObjectLister {
     acc: FusedAccessor,
-    pager: BlockingObjectPager,
-    buf: VecDeque<ObjectEntry>,
+    pager: output::BlockingPager,
+    buf: VecDeque<output::Entry>,
 }
 
 impl BlockingObjectLister {
     /// Create a new object lister.
-    pub fn new(acc: FusedAccessor, pager: BlockingObjectPager) -> Self {
+    pub(crate) fn new(acc: FusedAccessor, pager: output::BlockingPager) -> Self {
         Self {
             acc,
             pager,
@@ -150,7 +150,7 @@ impl BlockingObjectLister {
     }
 
     /// Fetch the operator that used by this object.
-    pub fn operator(&self) -> Operator {
+    pub(crate) fn operator(&self) -> Operator {
         self.acc.clone().into()
     }
 

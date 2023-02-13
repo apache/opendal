@@ -14,7 +14,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Write;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -29,6 +28,7 @@ use reqsign::HuaweicloudObsSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -41,6 +41,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [ ] presign
 /// - [ ] multipart
 /// - [ ] blocking
@@ -303,16 +304,19 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
+        use AccessorCapability::*;
+        use AccessorHint::*;
+
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Obs)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_capabilities(Read | Write | List | Scan)
+            .set_hints(ReadStreamable);
 
         am
     }
@@ -405,10 +409,17 @@ impl Accessor for ObsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+        ))
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        Ok((
+            RpScan::default(),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 }
@@ -503,17 +514,30 @@ impl ObsBackend {
         &self,
         path: &str,
         next_marker: &str,
+        delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
-        let mut url = format!("{}?delimiter=/", self.endpoint);
+        let mut queries = vec![];
         if !path.is_empty() {
-            write!(url, "&prefix={}", percent_encode_path(&p))
-                .expect("write into string must succeed");
+            queries.push(format!("prefix={}", percent_encode_path(&p)));
+        }
+        if !delimiter.is_empty() {
+            queries.push(format!("delimiter={delimiter}"));
+        }
+        if let Some(limit) = limit {
+            queries.push(format!("max-keys={limit}"));
         }
         if !next_marker.is_empty() {
-            write!(url, "&marker={next_marker}").expect("write into string must succeed");
+            queries.push(format!("marker={next_marker}"));
         }
+
+        let url = if queries.is_empty() {
+            self.endpoint.to_string()
+        } else {
+            format!("{}?{}", self.endpoint, queries.join("&"))
+        };
 
         let mut req = Request::get(&url)
             .body(AsyncBody::Empty)

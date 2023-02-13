@@ -39,6 +39,7 @@ use tokio::sync::OnceCell;
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -51,6 +52,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
 /// - [ ] blocking
@@ -311,6 +313,8 @@ impl Debug for FtpBackend {
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -446,7 +450,7 @@ impl Accessor for FtpBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let mut ftp_stream = self.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
@@ -456,7 +460,7 @@ impl Accessor for FtpBackend {
 
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(if path == "/" { "" } else { path }, rd)) as ObjectPager,
+            DirStream::new(if path == "/" { "" } else { path }, rd, args.limit()),
         ))
     }
 }

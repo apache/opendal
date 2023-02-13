@@ -31,6 +31,7 @@
 - [redis](https://opendal.databend.rs/opendal/services/struct.Redis.html): [Redis](https://redis.io/) services support.
 - [rocksdb](https://opendal.databend.rs/opendal/services/struct.Rocksdb.html): [RocksDB](http://rocksdb.org/) services support.
 - [s3](https://opendal.databend.rs/opendal/services/struct.S3.html): [AWS S3](https://aws.amazon.com/s3/) alike services.
+- [sled](https://opendal.databend.rs/opendal/services/sled/struct.Sled.html): [sled](https://crates.io/crates/sled) services support.
 - [webdav](https://opendal.databend.rs/opendal/services/struct.Webdav.html): [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service Support.
 - [webhdfs](https://opendal.databend.rs/opendal/services/struct.Webhdfs.html): [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service Support.
 
@@ -109,6 +110,7 @@ More examples could be found at [Documentation](https://opendal.databend.rs).
 - [GreptimeDB](https://github.com/GreptimeTeam/greptimedb): An open-source, cloud-native, distributed time-series database.
 - [deepeth/mars](https://github.com/deepeth/mars): The powerful analysis platform to explore and visualize data from blockchain.
 - [mozilla/sccache](https://github.com/mozilla/sccache/): sccache is ccache with cloud storage
+- [risingwave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
 
 ## Contributing
 

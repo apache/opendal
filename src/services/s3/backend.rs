@@ -46,6 +46,7 @@ use serde::Serialize;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::error::parse_xml_deserialize_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -82,6 +83,7 @@ mod constants {
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [x] presign
 /// - [x] multipart
 /// - [ ] blocking
@@ -753,7 +755,7 @@ impl S3Builder {
             // Unexpected status code, fallback to default region "us-east-1"
             code => Err(Error::new(
                 ErrorKind::Unexpected,
-                "can't detect region automatically, unexpect status code got",
+                "can't detect region automatically, unexpected status code got",
             )
             .with_context("status", code.as_str())),
         }
@@ -1106,20 +1108,19 @@ impl S3Backend {
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
+        use AccessorCapability::*;
+        use AccessorHint::*;
+
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(
-                AccessorCapability::Read
-                    | AccessorCapability::Write
-                    | AccessorCapability::List
-                    | AccessorCapability::Presign
-                    | AccessorCapability::Multipart,
-            )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_capabilities(Read | Write | List | Scan | Presign | Multipart)
+            .set_hints(ReadStreamable);
 
         am
     }
@@ -1209,10 +1210,17 @@ impl Accessor for S3Backend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            Box::new(DirStream::new(Arc::new(self.clone()), &self.root, path)) as ObjectPager,
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+        ))
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        Ok((
+            RpScan::default(),
+            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 
@@ -1471,14 +1479,19 @@ impl S3Backend {
         &self,
         path: &str,
         continuation_token: &str,
+        delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}?list-type=2&delimiter=/&prefix={}",
+            "{}?list-type=2&delimiter={delimiter}&prefix={}",
             self.endpoint,
             percent_encode_path(&p)
         );
+        if let Some(limit) = limit {
+            write!(url, "&max-keys={limit}").expect("write into string must succeed");
+        }
         if !continuation_token.is_empty() {
             // AWS S3 could return continuation-token that contains `=`
             // which could lead `reqsign` parse query wrongly.
@@ -1677,6 +1690,8 @@ struct CompleteMultipartUploadRequestPart {
 
 #[cfg(test)]
 mod tests {
+    use backon::BlockingRetryable;
+    use backon::ExponentialBuilder;
     use bytes::Buf;
     use bytes::Bytes;
 
@@ -1702,8 +1717,9 @@ mod tests {
                 b.endpoint(endpoint);
             }
 
-            let region = b
-                .detect_region(&client)
+            let region = { || b.detect_region(&client) }
+                .retry(&ExponentialBuilder::default())
+                .call()
                 .expect("detect region must success");
             assert_eq!(region, "us-east-2");
         }

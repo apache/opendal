@@ -21,10 +21,10 @@ use parking_lot::Mutex;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::ops::OpRead;
 use crate::raw::*;
 use crate::ErrorKind;
 use crate::ObjectMetadata;
-use crate::OpRead;
 
 /// BlockingObjectReader is the public API for users.
 pub struct BlockingObjectReader {
@@ -35,9 +35,9 @@ impl BlockingObjectReader {
     /// Create a new blocking object reader.
     ///
     /// Create will use internal information to decide the most suitable
-    /// implementaion for users.
+    /// implementation for users.
     ///
-    /// We don't want to expose those detials to users so keep this fuction
+    /// We don't want to expose those details to users so keep this function
     /// in crate only.
     pub(crate) fn create(
         acc: FusedAccessor,
@@ -47,7 +47,7 @@ impl BlockingObjectReader {
     ) -> Result<Self> {
         let acc_meta = acc.metadata();
 
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsSeekable) {
+        let r = if acc_meta.hints().contains(AccessorHint::ReadSeekable) {
             let (_, r) = acc.blocking_read(path, op)?;
             r
         } else {
@@ -57,7 +57,7 @@ impl BlockingObjectReader {
             ));
         };
 
-        let r = if acc_meta.hints().contains(AccessorHint::ReadIsStreamable) {
+        let r = if acc_meta.hints().contains(AccessorHint::ReadStreamable) {
             r
         } else {
             // Make this capacity configurable.

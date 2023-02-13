@@ -18,7 +18,7 @@ use super::message::FileStatus;
 use crate::raw::*;
 use crate::*;
 
-pub(super) struct DirStream {
+pub struct DirStream {
     path: String,
     statuses: Vec<FileStatus>,
 }
@@ -33,8 +33,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.statuses.is_empty() {
             return Ok(None);
         }
@@ -48,7 +48,7 @@ impl ObjectPage for DirStream {
             if meta.mode().is_dir() {
                 path += "/"
             }
-            let entry = ObjectEntry::new(&path, meta);
+            let entry = output::Entry::new(&path, meta);
             entries.push(entry);
         }
 

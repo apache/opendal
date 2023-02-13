@@ -23,6 +23,7 @@ use bytes::Bytes;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -73,8 +74,10 @@ pub struct ConcurrentLimitAccessor<A: Accessor> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     type Inner = A;
-    type Reader = ConcurrentLimitReader<A::Reader>;
-    type BlockingReader = ConcurrentLimitReader<A::BlockingReader>;
+    type Reader = ConcurrentLimitWrapper<A::Reader>;
+    type BlockingReader = ConcurrentLimitWrapper<A::BlockingReader>;
+    type Pager = ConcurrentLimitWrapper<A::Pager>;
+    type BlockingPager = ConcurrentLimitWrapper<A::BlockingPager>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -101,7 +104,7 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, permit)))
+            .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
@@ -134,7 +137,7 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         self.inner.delete(path, args).await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let permit = self
             .semaphore
             .clone()
@@ -142,12 +145,24 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
             .await
             .expect("semaphore must be valid");
 
-        self.inner.list(path, args).await.map(|(rp, s)| {
-            (
-                rp,
-                Box::new(ConcurrentLimitPager::new(s, permit)) as ObjectPager,
-            )
-        })
+        self.inner
+            .list(path, args)
+            .await
+            .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let permit = self
+            .semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("semaphore must be valid");
+
+        self.inner
+            .scan(path, args)
+            .await
+            .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
     }
 
     async fn create_multipart(
@@ -225,7 +240,7 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
 
         self.inner
             .blocking_read(path, args)
-            .map(|(rp, r)| (rp, ConcurrentLimitReader::new(r, permit)))
+            .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
     }
 
     fn blocking_write(
@@ -260,30 +275,39 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         self.inner.blocking_delete(path, args)
     }
 
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let permit = self
             .semaphore
             .clone()
             .try_acquire_owned()
             .expect("semaphore must be valid");
 
-        self.inner.blocking_list(path, args).map(|(rp, it)| {
-            (
-                rp,
-                Box::new(BlockingConcurrentLimitPager::new(it, permit)) as BlockingObjectPager,
-            )
-        })
+        self.inner
+            .blocking_list(path, args)
+            .map(|(rp, it)| (rp, ConcurrentLimitWrapper::new(it, permit)))
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        let permit = self
+            .semaphore
+            .clone()
+            .try_acquire_owned()
+            .expect("semaphore must be valid");
+
+        self.inner
+            .blocking_scan(path, args)
+            .map(|(rp, it)| (rp, ConcurrentLimitWrapper::new(it, permit)))
     }
 }
 
-pub struct ConcurrentLimitReader<R> {
+pub struct ConcurrentLimitWrapper<R> {
     inner: R,
 
     // Hold on this permit until this reader has been dropped.
     _permit: OwnedSemaphorePermit,
 }
 
-impl<R> ConcurrentLimitReader<R> {
+impl<R> ConcurrentLimitWrapper<R> {
     fn new(inner: R, permit: OwnedSemaphorePermit) -> Self {
         Self {
             inner,
@@ -292,7 +316,7 @@ impl<R> ConcurrentLimitReader<R> {
     }
 }
 
-impl<R: output::Read> output::Read for ConcurrentLimitReader<R> {
+impl<R: output::Read> output::Read for ConcurrentLimitWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<std::io::Result<usize>> {
         self.inner.poll_read(cx, buf)
     }
@@ -306,7 +330,7 @@ impl<R: output::Read> output::Read for ConcurrentLimitReader<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for ConcurrentLimitReader<R> {
+impl<R: output::BlockingRead> output::BlockingRead for ConcurrentLimitWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.inner.read(buf)
     }
@@ -320,47 +344,15 @@ impl<R: output::BlockingRead> output::BlockingRead for ConcurrentLimitReader<R> 
     }
 }
 
-struct ConcurrentLimitPager {
-    inner: ObjectPager,
-
-    // Hold on this permit until this streamer has been dropped.
-    _permit: OwnedSemaphorePermit,
-}
-
-impl ConcurrentLimitPager {
-    fn new(inner: ObjectPager, permit: OwnedSemaphorePermit) -> Self {
-        Self {
-            inner,
-            _permit: permit,
-        }
-    }
-}
-
 #[async_trait]
-impl ObjectPage for ConcurrentLimitPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<R: output::Page> output::Page for ConcurrentLimitWrapper<R> {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page().await
     }
 }
 
-struct BlockingConcurrentLimitPager {
-    inner: BlockingObjectPager,
-
-    // Hold on this permit until this iterator has been dropped.
-    _permit: OwnedSemaphorePermit,
-}
-
-impl BlockingConcurrentLimitPager {
-    fn new(inner: BlockingObjectPager, permit: OwnedSemaphorePermit) -> Self {
-        Self {
-            inner,
-            _permit: permit,
-        }
-    }
-}
-
-impl BlockingObjectPage for BlockingConcurrentLimitPager {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl<R: output::BlockingPage> output::BlockingPage for ConcurrentLimitWrapper<R> {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next_page()
     }
 }

@@ -32,35 +32,45 @@ pub struct DirStream {
     backend: Arc<GcsBackend>,
     root: String,
     path: String,
-    page_token: String,
+    delimiter: String,
+    limit: Option<usize>,
 
+    page_token: String,
     done: bool,
 }
 
 impl DirStream {
     /// Generate a new directory walker
-    pub fn new(backend: Arc<GcsBackend>, root: &str, path: &str) -> Self {
+    pub fn new(
+        backend: Arc<GcsBackend>,
+        root: &str,
+        path: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+    ) -> Self {
         Self {
             backend,
             root: root.to_string(),
             path: path.to_string(),
-            page_token: "".to_string(),
+            delimiter: delimiter.to_string(),
+            limit,
 
+            page_token: "".to_string(),
             done: false,
         }
     }
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }
 
         let resp = self
             .backend
-            .gcs_list_objects(&self.path, &self.page_token)
+            .gcs_list_objects(&self.path, &self.page_token, &self.delimiter, self.limit)
             .await?;
 
         if !resp.status().is_success() {
@@ -80,7 +90,7 @@ impl ObjectPage for DirStream {
         let mut entries = Vec::with_capacity(output.prefixes.len() + output.items.len());
 
         for prefix in output.prefixes {
-            let de = ObjectEntry::new(
+            let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix),
                 ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
@@ -113,7 +123,7 @@ impl ObjectPage for DirStream {
             meta.set_last_modified(dt);
             meta.set_complete();
 
-            let de = ObjectEntry::new(&build_rel_path(&self.root, &object.name), meta);
+            let de = output::Entry::new(&build_rel_path(&self.root, &object.name), meta);
 
             entries.push(de);
         }

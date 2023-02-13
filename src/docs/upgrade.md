@@ -1,3 +1,64 @@
+# Upgrade to v0.27
+
+In v0.27, we refactored our `list` related logic and added `scan` support. So make `Pager` and `BlockingPager` associated types in `Accessor` too!
+
+```diff
+pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
+    type Reader: output::Read;
+    type BlockingReader: output::BlockingRead;
++    type Pager: output::Page;
++    type BlockingPager: output::BlockingPage;
+}
+```
+
+## User defined layers
+
+Due to this change, all layers implementation should be changed. If there is not changed over pager, they can by changed like the following:
+
+```diff
+impl<A: Accessor> LayeredAccessor for MyAccessor<A> {
+    type Inner = A;
+    type Reader = MyReader<A::Reader>;
+    type BlockingReader = MyReader<A::BlockingReader>;
++    type Pager = A::Pager;
++    type BlockingPager = A::BlockingPager;
+
++    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
++        self.inner.list(path, args).await
++    }
+
++    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
++        self.inner.scan(path, args).await
++    }
+
++    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
++        self.inner.blocking_list(path, args)
++    }
+
++    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
++        self.inner.blocking_scan(path, args)
++    }
+}
+```
+
+## Usage of ops
+
+To reduce the understanding overhead, we move all `OpXxx` into `opendal::ops` now. User may need to change:
+
+```diff
+- use opendal::OpWrite;
++ use opendal::ops::OpWrite;
+```
+
+## Usage of RetryLayer
+
+`backon` is the implementation detail of our `RetryLayer`, so we hide it from our public API. Users of `RetryLayer` need to change the code like:
+
+```diff
+- RetryLayer::new(backon::ExponentialBackoff::default())
++ RetryLayer::new()
+```
+
 # Upgrade to v0.26
 
 In v0.26 we have replaced all internal dynamic dispatch usage with static dispatch. With this change, we can ensure that all operations performed inside OpenDAL are zero cost.
@@ -15,7 +76,7 @@ By adding a `finish()` call, we will erase all generic types so that `Operator` 
 
 In v0.26, `Accessor` has been changed into trait with associated types.
 
-All services need to decalare the types returned as `Reader` or `BlockingReader`:
+All services need to declare the types returned as `Reader` or `BlockingReader`:
 
 ```rust
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
@@ -149,16 +210,16 @@ In v0.21, we refactor the whole `Accessor`'s API:
 
 Since v0.21, we will return a reply struct for different operations called `RpWrite` instead of an exact type. We can split OpenDAL's public API and raw API with this change.
 
-## ObjectList and ObjectPage
+## ObjectList and Page
 
-Since v0.21, `Accessor` will return `ObjectPager` for `List`:
+Since v0.21, `Accessor` will return `Pager` for `List`:
 
 ```diff
 - async fn list(&self, path: &str, args: OpList) -> Result<ObjectStreamer>
-+ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)>
++ async fn list(&self, path: &str, args: OpList) -> Result<(RpList, output::Pager)>
 ```
 
-And `Object` will return an `ObjectLister` which is built upon `ObjectPage`:
+And `Object` will return an `ObjectLister` which is built upon `Page`:
 
 ```rust
 pub async fn list(&self) -> Result<ObjectLister> { ... }
@@ -232,15 +293,15 @@ OpenDAL v0.18 introduces the following breaking changes:
 
 - Deprecated feature flag `services-http` has been removed.
 - All `DirXxx` items have been renamed to `ObjectXxx` to make them more consistent.
-  - `DirEntry` -> `ObjectEntry`
+  - `DirEntry` -> `Entry`
   - `DirStream` -> `ObjectStream`
   - `DirStreamer` -> `ObjectStream`
   - `DirIterate` -> `ObjectIterate`
   - `DirIterator` -> `ObjectIterator`
 
-Besides, we also make a big change to our `ObjectEntry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
+Besides, we also make a big change to our `Entry` API. Since v0.18, we can fully reuse the metadata that fetched during `list`. Take `entry.content_length()` for example:
 
-- If `content_lenght` is already known, we will return directly.
+- If `content_length` is already known, we will return directly.
 - If not, we will check if the object entry is `complete`:
   - If `complete`, the entry already fetched all metadata that it could have, return directly.
   - If not, we will send a `stat` call to get the `metadata` and refresh our cache.

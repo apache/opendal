@@ -17,6 +17,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use base64::engine::general_purpose;
+use base64::Engine;
+use http::header::AUTHORIZATION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -25,6 +28,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::error::parse_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -37,6 +41,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [ ] list
+/// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
 /// - [ ] blocking
@@ -72,7 +77,9 @@ use crate::*;
 ///     // create backend builder
 ///     let mut builder = Webdav::default();
 ///
-///     builder.endpoint("127.0.0.1");
+///     builder.endpoint("127.0.0.1")
+///     .username("xxx")
+///     .password("xxx");
 ///
 ///     let op: Operator = Operator::create(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");
@@ -82,6 +89,8 @@ use crate::*;
 #[derive(Default)]
 pub struct WebdavBuilder {
     endpoint: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -107,6 +116,26 @@ impl WebdavBuilder {
             Some(endpoint.to_string())
         };
 
+        self
+    }
+
+    /// set the password for Webdav
+    ///
+    /// default: no password
+    pub fn username(&mut self, username: &str) -> &mut Self {
+        if !username.is_empty() {
+            self.username = Some(username.to_owned());
+        }
+        self
+    }
+
+    /// set the password for Webdav
+    ///
+    /// default: no password
+    pub fn password(&mut self, password: &str) -> &mut Self {
+        if !password.is_empty() {
+            self.password = Some(password.to_owned());
+        }
         self
     }
 
@@ -142,6 +171,8 @@ impl Builder for WebdavBuilder {
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("username").map(|v| builder.username(v));
+        map.get("password").map(|v| builder.password(v));
 
         builder
     }
@@ -171,9 +202,33 @@ impl Builder for WebdavBuilder {
             })?
         };
 
+        // base64 encode
+        let auth = match (&self.username, &self.password) {
+            (Some(username), Some(password)) => {
+                format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(format!("{username}:{password}"))
+                )
+            }
+            (Some(username), None) => {
+                format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(format!("{username}:"))
+                )
+            }
+            (None, Some(_)) => {
+                return Err(
+                    Error::new(ErrorKind::BackendConfigInvalid, "missing username")
+                        .with_context("service", Scheme::Webdav),
+                )
+            }
+            _ => String::default(),
+        };
+
         debug!("backend build finished: {:?}", &self);
         Ok(WebdavBackend {
             endpoint: endpoint.to_string(),
+            authorization: auth,
             root,
             client,
         })
@@ -183,6 +238,7 @@ impl Builder for WebdavBuilder {
 #[derive(Clone)]
 pub struct WebdavBackend {
     endpoint: String,
+    authorization: String,
     root: String,
     client: HttpClient,
 }
@@ -201,13 +257,15 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = ();
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
             .set_capabilities(AccessorCapability::Read | AccessorCapability::Write)
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         ma
     }
@@ -222,7 +280,7 @@ impl Accessor for WebdavBackend {
         match status {
             StatusCode::CREATED
             | StatusCode::OK
-            // create existing dir will retrun conflict
+            // create existing dir will return conflict
             | StatusCode::CONFLICT
             // create existing file will return no_content
             | StatusCode::NO_CONTENT => {
@@ -311,7 +369,7 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::get(&url);
+        let mut req = Request::get(&url).header(AUTHORIZATION, &self.authorization);
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
@@ -335,7 +393,7 @@ impl WebdavBackend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::put(&url);
+        let mut req = Request::put(&url).header(AUTHORIZATION, &self.authorization);
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -356,7 +414,7 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::head(&url);
+        let req = Request::head(&url).header(AUTHORIZATION, &self.authorization);
 
         let req = req
             .body(AsyncBody::Empty)
@@ -371,6 +429,7 @@ impl WebdavBackend {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let req = Request::delete(&url)
+            .header(AUTHORIZATION, &self.authorization)
             .body(AsyncBody::Empty)
             .map_err(new_request_build_error)?;
 

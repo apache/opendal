@@ -49,7 +49,7 @@ pub(super) struct FileStatuses {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct FileStatus {
+pub struct FileStatus {
     pub length: u64,
     pub modification_time: i64,
 
@@ -77,16 +77,17 @@ impl TryFrom<FileStatus> for ObjectMetadata {
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "UPPERCASE")]
-pub(super) enum FileStatusType {
+pub enum FileStatusType {
     Directory,
     File,
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{raw::ObjectPage, services::webhdfs::dir_stream::DirStream, ObjectMode};
-
     use super::*;
+    use crate::raw::output::Page;
+    use crate::services::webhdfs::dir_stream::DirStream;
+    use crate::ObjectMode;
 
     #[test]
     fn test_file_statuses() {

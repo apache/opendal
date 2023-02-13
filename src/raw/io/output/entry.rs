@@ -17,22 +17,22 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Operator;
 
-/// ObjectEntry is returned by `ObjectPage` or `BlockingObjectPage`
+/// Entry is returned by `Page` or `BlockingPage`
 /// during list operations.
-#[derive(Debug, Clone)]
-pub struct ObjectEntry {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entry {
     path: String,
     meta: ObjectMetadata,
 }
 
-impl ObjectEntry {
+impl Entry {
     /// Create a new object entry by its corresponding underlying storage.
-    pub fn new(path: &str, meta: ObjectMetadata) -> ObjectEntry {
+    pub fn new(path: &str, meta: ObjectMetadata) -> Entry {
         Self::with(path.to_string(), meta)
     }
 
     /// Create a new object entry with given value.
-    pub fn with(path: String, meta: ObjectMetadata) -> ObjectEntry {
+    pub fn with(path: String, meta: ObjectMetadata) -> Entry {
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",
@@ -40,7 +40,7 @@ impl ObjectEntry {
             path
         );
 
-        ObjectEntry { path, meta }
+        Entry { path, meta }
     }
 
     /// Set path for object entry.
@@ -52,6 +52,16 @@ impl ObjectEntry {
     /// Get the path of object entry.
     pub fn path(&self) -> &str {
         &self.path
+    }
+
+    /// Set mode for object entry.
+    ///
+    /// # Note
+    ///
+    /// Please use this function carefully.
+    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+        self.meta.set_mode(mode);
+        self
     }
 
     /// Get entry's object mode.

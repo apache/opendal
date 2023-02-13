@@ -33,7 +33,7 @@ struct S3Error {
     request_id: String,
 }
 
-/// Parse error respons into Error.
+/// Parse error response into Error.
 pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     let (parts, body) = resp.into_parts();
     let bs = body.bytes().await?;

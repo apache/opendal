@@ -26,6 +26,7 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -40,6 +41,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
 /// - [x] blocking
@@ -144,7 +146,7 @@ impl HdfsBuilder {
 
     /// Set name_node of this backend.
     ///
-    /// Vaild format including:
+    /// Valid format including:
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
@@ -221,6 +223,8 @@ unsafe impl Sync for HdfsBackend {}
 impl Accessor for HdfsBackend {
     type Reader = output::into_reader::FdReader<hdrs::AsyncFile>;
     type BlockingReader = output::into_blocking_reader::FdReader<hdrs::File>;
+    type Pager = Option<DirStream>;
+    type BlockingPager = Option<DirStream>;
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -232,7 +236,7 @@ impl Accessor for HdfsBackend {
                     | AccessorCapability::List
                     | AccessorCapability::Blocking,
             )
-            .set_hints(AccessorHint::ReadIsSeekable);
+            .set_hints(AccessorHint::ReadSeekable);
 
         am
     }
@@ -247,7 +251,7 @@ impl Accessor for HdfsBackend {
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            "path shoud have parent but not, it must be malformed",
+                            "path should have parent but not, it must be malformed",
                         )
                         .with_context("input", &p)
                     })?
@@ -319,7 +323,7 @@ impl Accessor for HdfsBackend {
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
+                    "path should have parent but not, it must be malformed",
                 )
                 .with_context("input", &p)
             })?
@@ -389,23 +393,23 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as ObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 }
             }
         };
 
-        let rd = DirStream::new(&self.root, f);
+        let rd = DirStream::new(&self.root, f, args.limit());
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -418,7 +422,7 @@ impl Accessor for HdfsBackend {
                     .ok_or_else(|| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            "path shoud have parent but not, it must be malformed",
+                            "path should have parent but not, it must be malformed",
                         )
                         .with_context("input", &p)
                     })?
@@ -494,7 +498,7 @@ impl Accessor for HdfsBackend {
             .ok_or_else(|| {
                 Error::new(
                     ErrorKind::Unexpected,
-                    "path shoud have parent but not, it must be malformed",
+                    "path should have parent but not, it must be malformed",
                 )
                 .with_context("input", &p)
             })?
@@ -563,22 +567,22 @@ impl Accessor for HdfsBackend {
         Ok(RpDelete::default())
     }
 
-    fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let f = match self.client.read_dir(&p) {
             Ok(f) => f,
             Err(e) => {
                 return if e.kind() == io::ErrorKind::NotFound {
-                    Ok((RpList::default(), Box::new(()) as BlockingObjectPager))
+                    Ok((RpList::default(), None))
                 } else {
                     Err(parse_io_error(e))
                 }
             }
         };
 
-        let rd = DirStream::new(&self.root, f);
+        let rd = DirStream::new(&self.root, f, args.limit());
 
-        Ok((RpList::default(), Box::new(rd)))
+        Ok((RpList::default(), Some(rd)))
     }
 }

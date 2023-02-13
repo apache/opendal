@@ -41,3 +41,20 @@ pub use cursor::Cursor;
 mod into_streamable;
 pub use into_streamable::into_streamable_reader;
 pub use into_streamable::IntoStreamableReader;
+
+mod entry;
+pub use entry::Entry;
+
+mod page;
+pub use page::BlockingPage;
+pub use page::BlockingPager;
+pub use page::Page;
+pub use page::Pager;
+
+mod to_flat_pager;
+pub use to_flat_pager::to_flat_pager;
+pub use to_flat_pager::ToFlatPager;
+
+mod to_hierarchy_pager;
+pub use to_hierarchy_pager::to_hierarchy_pager;
+pub use to_hierarchy_pager::ToHierarchyPager;

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Ops provides the operation args struct like [`OpRead`] for user.
+//!
+//! By using ops, users can add more context for operation.
+
 use time::Duration;
 
 use crate::raw::*;
@@ -52,12 +56,62 @@ impl OpDelete {
 
 /// Args for `list` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpList {}
+pub struct OpList {
+    /// The limit passed to underlying service to specify the max results
+    /// that could return.
+    limit: Option<usize>,
+}
 
 impl OpList {
     /// Create a new `OpList`.
     pub fn new() -> Self {
-        Self {}
+        Self::default()
+    }
+
+    /// Change the limit of this list operation.
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Get the limit of list operation.
+    pub fn limit(&self) -> Option<usize> {
+        self.limit
+    }
+}
+
+/// List style define the style that underlying services used for list.
+#[derive(Debug, Clone, Copy)]
+pub enum ListStyle {
+    /// List in flat style. As known as list prefix or readdir recursively.
+    Flat,
+    /// List in hierarchy style. As known as list dir.
+    Hierarchy,
+}
+
+/// Args for `scan` operation.
+#[derive(Debug, Default, Clone)]
+pub struct OpScan {
+    /// The limit passed to underlying service to specify the max results
+    /// that could return.
+    limit: Option<usize>,
+}
+
+impl OpScan {
+    /// Create a new `OpList`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Change the limit of this list operation.
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    /// Get the limit of list operation.
+    pub fn limit(&self) -> Option<usize> {
+        self.limit
     }
 }
 

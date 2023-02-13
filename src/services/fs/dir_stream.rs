@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::path::Path;
+use std::path::PathBuf;
+
 use async_trait::async_trait;
-use std::path::{Path, PathBuf};
 
 use super::error::parse_io_error;
 use crate::raw::*;
@@ -29,20 +31,19 @@ pub struct DirPager {
 }
 
 impl DirPager {
-    pub fn new(root: &Path, rd: tokio::fs::ReadDir) -> Self {
+    pub fn new(root: &Path, rd: tokio::fs::ReadDir, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
-            // TODO: make this a configurable value.
-            size: 256,
+            size: limit.unwrap_or(1000),
             rd,
         }
     }
 }
 
 #[async_trait]
-impl ObjectPage for DirPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+impl output::Page for DirPager {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next_entry().await.map_err(parse_io_error)? {
@@ -66,15 +67,15 @@ impl ObjectPage for DirPager {
             let file_type = de.file_type().await.map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                ObjectEntry::new(
+                output::Entry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -92,19 +93,18 @@ pub struct BlockingDirPager {
 }
 
 impl BlockingDirPager {
-    pub fn new(root: &Path, rd: std::fs::ReadDir) -> Self {
+    pub fn new(root: &Path, rd: std::fs::ReadDir, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
-            // TODO: make this a configurable value.
-            size: 256,
+            size: limit.unwrap_or(1000),
             rd,
         }
     }
 }
 
-impl BlockingObjectPage for BlockingDirPager {
-    fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
-        let mut oes: Vec<ObjectEntry> = Vec::with_capacity(self.size);
+impl output::BlockingPage for BlockingDirPager {
+    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -128,15 +128,15 @@ impl BlockingObjectPage for BlockingDirPager {
             let file_type = de.file_type().map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                ObjectEntry::new(
+                output::Entry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                ObjectEntry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

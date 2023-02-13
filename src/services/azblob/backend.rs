@@ -32,6 +32,7 @@ use reqsign::AzureStorageSigner;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::object::ObjectMetadata;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -46,6 +47,7 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [x] scan
 /// - [ ] presign
 /// - [ ] multipart
 /// - [ ] blocking
@@ -414,16 +416,19 @@ pub struct AzblobBackend {
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
+        use AccessorCapability::*;
+        use AccessorHint::*;
+
         let mut am = AccessorMetadata::default();
         am.set_scheme(Scheme::Azblob)
             .set_root(&self.root)
             .set_name(&self.container)
-            .set_capabilities(
-                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_capabilities(Read | Write | List | Scan)
+            .set_hints(ReadStreamable);
 
         am
     }
@@ -514,14 +519,28 @@ impl Accessor for AzblobBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
-        let op = Box::new(DirStream::new(
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let op = DirStream::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
-        ));
+            "/".to_string(),
+            args.limit(),
+        );
 
-        Ok((RpList::default(), op as ObjectPager))
+        Ok((RpList::default(), op))
+    }
+
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        let op = DirStream::new(
+            Arc::new(self.clone()),
+            self.root.clone(),
+            path.to_string(),
+            "".to_string(),
+            args.limit(),
+        );
+
+        Ok((RpScan::default(), op))
     }
 }
 
@@ -645,16 +664,24 @@ impl AzblobBackend {
         &self,
         path: &str,
         next_marker: &str,
+        delimiter: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!(
-            "{}/{}?restype=container&comp=list&delimiter=/",
+            "{}/{}?restype=container&comp=list",
             self.endpoint, self.container
         );
         if !p.is_empty() {
             write!(url, "&prefix={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&maxresults={limit}").expect("write into string must succeed");
+        }
+        if !delimiter.is_empty() {
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
         }
         if !next_marker.is_empty() {
             write!(url, "&marker={next_marker}").expect("write into string must succeed");

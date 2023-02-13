@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.27.1] - 2023-02-13
+
+### Added
+
+- feat: Add username and password support for WebDAV (#1323)
+- ci: Add test case for webdav with basic auth (#1327)
+- feat(oli): support s3 uri without profile (#1328)
+- feat: Add scan support for kv adapter (#1333)
+- feat: Add scan support for sled (#1334)
+
+### Changed
+
+- chore(deps): update moka requirement from 0.9 to 0.10 (#1331)
+- chore(deps): update rocksdb requirement from 0.19 to 0.20 (#1332)
+
+### Fixed
+
+- fix(services/oss,s3): Metadata should be marked as complete (#1335)
+
+## [v0.27.0] - 2023-02-11
+
+### Added
+
+- feat: Add Retryable Pager Support (#1304)
+- feat: Add Sled support (#1305)
+- feat: Add Object::scan() support (#1314)
+- feat: Add object page size support (#1318)
+
+### Changed
+
+- refactor: Hide backon from our public API (#1302)
+- refactor: Don't expose ops structs to users directly (#1303)
+- refactor: Move and rename ObjectPager and ObjectEntry for more clear semantics (#1308)
+- refactor: Implement strong typed pager (#1311)
+- deps: remove unused deps (#1321)
+- refactor: Extract scan as a new API and remove ListStyle (#1324)
+
+### Docs
+
+- docs: Add risingwave in projects (#1322)
+
+### Fixed
+
+- ci: Fix dev container Dockerfile (#1298)
+- fix: Rocksdb's scheme not output correctly (#1300)
+- chore: fix name typo in oss backend (#1316)
+- chore: Add typos-cli and fix typos (#1320)
+
 ## [v0.26.2] - 2023-02-07
 
 ### Added
@@ -315,7 +363,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- refactor: Use seperate Error instead of std::io::Error to avoid confusing (#976)
+- refactor: Use separate Error instead of std::io::Error to avoid confusing (#976)
 - refactor: Return ReplyCreate for create operation (#981)
 - refactor: Add ReplyRead for read operation (#982)
 - refactor: Add RpWrite for write operation (#983)
@@ -329,7 +377,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: Move io to raw (#996)
 - refactor: Move {path,wrapper,http_util,io_util} into raw modules (#998)
 - refactor: Move ObjectEntry and ObjectPage into raw (#999)
-- refactor: Accept Operator intead of `Arc<dyn Accessor>` (#1001)
+- refactor: Accept Operator instead of `Arc<dyn Accessor>` (#1001)
 
 ### Fixed
 
@@ -371,7 +419,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: Return ObjectReader in Accessor::read (#929)
 - refactor(oay,oli): drop unnecessary patch.crates-io from `Cargo.toml`
 - refactor: Polish bytes range (#950)
-- refactor: Use simplifed kv adapter instead (#959)
+- refactor: Use simplified kv adapter instead (#959)
 
 ### Fixed
 
@@ -472,7 +520,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- fix: ObjectEntry returned in batch operator doesn't have corrent accessor (#839)
+- fix: ObjectEntry returned in batch operator doesn't have correct accessor (#839)
 - fix: Accessor in layers not set correctly (#840)
 
 ## [v0.19.0] - 2022-10-08
@@ -626,7 +674,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- fix: Immutable Index Layer could return duplicated pathes (#671)
+- fix: Immutable Index Layer could return duplicated paths (#671)
 - fix: Remove not needed type parameter for immutable_layer (#677)
 - fix: Don't trace buf field in poll_read (#682)
 - fix: List non-exist dir should return empty (#683)
@@ -924,7 +972,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- refactor: Rename Metadata to ObjectMetadata for clearify (#339)
+- refactor: Rename Metadata to ObjectMetadata for clarify (#339)
 
 ### Others
 
@@ -1311,6 +1359,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.27.0]: https://github.com/datafuselabs/opendal/compare/v0.26.2...v0.27.0
 [v0.26.2]: https://github.com/datafuselabs/opendal/compare/v0.26.1...v0.26.2
 [v0.26.1]: https://github.com/datafuselabs/opendal/compare/v0.26.0...v0.26.1
 [v0.26.0]: https://github.com/datafuselabs/opendal/compare/v0.25.2...v0.26.0

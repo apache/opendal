@@ -33,6 +33,7 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
 use super::message::Redirection;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -40,7 +41,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 ///
-/// There two implementaions of WebHDFS REST API:
+/// There two implementations of WebHDFS REST API:
 ///
 /// - Native via HDFS Namenode and Datanode, data are transferred between nodes directly.
 /// - [HttpFS](https://hadoop.apache.org/docs/stable/hadoop-hdfs-httpfs/index.html) is a gateway before hdfs nodes, data are proxied.
@@ -52,6 +53,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
 /// - [ ] blocking
@@ -82,7 +84,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     let mut builder = Webhdfs::default();
-///     // set the root for WebHDFS, all operations will happend under this root
+///     // set the root for WebHDFS, all operations will happen under this root
 ///     //
 ///     // Note:
 ///     // if the root is not exists, the builder will automatically create the
@@ -90,7 +92,7 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///     // if the root exists and is a directory, the builder will continue working
 ///     // if the root exists and is a folder, the builder will fail on building backend
 ///     builder.root("/path/to/dir");
-///     // set the endpoint of webhdfs namenode, controled by dfs.namenode.http-address
+///     // set the endpoint of webhdfs namenode, controlled by dfs.namenode.http-address
 ///     // default is http://127.0.0.1:9870
 ///     builder.endpoint("http://127.0.0.1:9870");
 ///     // set the delegation_token for builder
@@ -129,7 +131,7 @@ impl WebhdfsBuilder {
     /// All operations will happen under this root
     /// # Note
     /// The root will be automatically created if not exists.
-    /// If the root is ocupied by a file, building of directory will fail
+    /// If the root is occupied by a file, building of directory will fail
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
             None
@@ -360,7 +362,7 @@ impl WebhdfsBackend {
     /// get object from webhdfs
     /// # Note
     /// looks like webhdfs doesn't support range request from file end.
-    /// so if we want to read the tail of object, the whole object should be transfered.
+    /// so if we want to read the tail of object, the whole object should be transferred.
     async fn webhdfs_get_object(
         &self,
         path: &str,
@@ -536,6 +538,8 @@ impl WebhdfsBackend {
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -543,7 +547,8 @@ impl Accessor for WebhdfsBackend {
             .set_root(&self.root)
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
-            );
+            )
+            .set_hints(AccessorHint::ReadStreamable);
         am
     }
 
@@ -671,7 +676,7 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         let path = path.trim_end_matches('/');
         let req = self.webhdfs_list_status_req(path)?;
 
@@ -690,11 +695,11 @@ impl Accessor for WebhdfsBackend {
                         .file_status;
 
                 let objects = DirStream::new(path, file_statuses);
-                Ok((RpList::default(), Box::new(objects) as Box<dyn ObjectPage>))
+                Ok((RpList::default(), objects))
             }
             StatusCode::NOT_FOUND => {
                 let objects = DirStream::new(path, vec![]);
-                Ok((RpList::default(), Box::new(objects) as Box<dyn ObjectPage>))
+                Ok((RpList::default(), objects))
             }
             _ => Err(parse_error(resp).await?),
         }

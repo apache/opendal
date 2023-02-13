@@ -15,6 +15,7 @@ default feature is `rustls` which enable rustls support.
 - `services-ipfs`: Enable ipfs service support.
 - `services-redis`: Enable redis service support.
 - `services-rocksdb`: Enable rocksdb service support.
+- `services-sled`: Enable sled service support.
 
 ## Dependencies Features
 

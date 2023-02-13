@@ -19,6 +19,7 @@ use async_trait::async_trait;
 use flagset::flags;
 use flagset::FlagSet;
 
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -30,25 +31,6 @@ use crate::*;
 /// use [`Operator`][crate::Operator] instead.
 ///
 /// # Operations
-///
-/// | Name | Capability |
-/// | ---- | ---------- |
-/// | [`metadata`][Accessor::metadata] | - |
-/// | [`create`][Accessor::create] | - |
-/// | [`read`][Accessor::read] | - |
-/// | [`write`][Accessor::write] | - |
-/// | [`delete`][Accessor::delete] | - |
-/// | [`list`][Accessor::list] | - |
-/// | [`presign`][Accessor::presign] | `Presign` |
-/// | [`create_multipart`][Accessor::create_multipart] | `Multipart` |
-/// | [`write_multipart`][Accessor::write_multipart] | `Multipart` |
-/// | [`complete_multipart`][Accessor::complete_multipart] | `Multipart` |
-/// | [`abort_multipart`][Accessor::abort_multipart] | `Multipart` |
-/// | [`blocking_create`][Accessor::blocking_create] | `Blocking` |
-/// | [`blocking_read`][Accessor::blocking_read] | `Blocking` |
-/// | [`blocking_write`][Accessor::blocking_write] | `Blocking` |
-/// | [`blocking_delete`][Accessor::blocking_delete] | `Blocking` |
-/// | [`blocking_list`][Accessor::blocking_list] | `Blocking` |
 ///
 /// - Path in args will all be normalized into the same style, services
 ///   should handle them based on services' requirement.
@@ -69,13 +51,29 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: output::BlockingRead;
+    /// Pager is the associated page that return in `list` operation.
+    type Pager: output::Page;
+    /// BlockingPager is the associated pager that could return in
+    /// `blocking_list` operation.
+    type BlockingPager: output::BlockingPage;
 
     /// Invoke the `metadata` operation to get metadata of accessor.
-    fn metadata(&self) -> AccessorMetadata {
-        unimplemented!("metadata() is required to be implemented")
-    }
+    ///
+    /// # Notes
+    ///
+    /// This function is required to be implemented.
+    ///
+    /// By returning AccessorMetadata, underlying services can declare
+    /// some useful information about it self.
+    ///
+    /// - scheme: declare the scheme of backend.
+    /// - capabilities: declare the capabilities of current backend.
+    /// - hints: declare the hints of current backend
+    fn metadata(&self) -> AccessorMetadata;
 
     /// Invoke the `create` operation on the specified path
+    ///
+    /// Require [`AccessorCapability::Write`]
     ///
     /// # Behavior
     ///
@@ -94,10 +92,12 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Invoke the `read` operation on the specified path, returns a
     /// [`ObjectReader`][crate::ObjectReader] if operate successful.
     ///
+    /// Require [`AccessorCapability::Read`]
+    ///
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    /// - The returning contnet length may be smaller than the range specifed.
+    /// - The returning contnet length may be smaller than the range specified.
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let (_, _) = (path, args);
 
@@ -109,6 +109,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `write` operation on the specified path, returns a
     /// written size if operate successful.
+    ///
+    /// Require [`AccessorCapability::Write`]
     ///
     /// # Behavior
     ///
@@ -123,6 +125,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `stat` operation on the specified path.
+    ///
+    /// Require [`AccessorCapability::Read`]
     ///
     /// # Behavior
     ///
@@ -140,6 +144,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `delete` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::Write`]
+    ///
     /// # Behavior
     ///
     /// - `delete` is an idempotent operation, it's safe to call `Delete` on the same path multiple times.
@@ -155,11 +161,25 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `list` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::List`]
+    ///
     /// # Behavior
     ///
     /// - Input path MUST be dir path, DON'T NEED to check object mode.
     /// - List non-exist dir should return Empty.
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `scan` operation on the specified path.
+    ///
+    /// Require [`AccessorCapability::Scan`]
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -170,9 +190,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `presign` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::Presign`]
+    ///
     /// # Behavior
     ///
-    /// - Require capability: `Presign`
     /// - This API is optional, return [`std::io::ErrorKind::Unsupported`] if not supported.
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         let (_, _) = (path, args);
@@ -185,9 +206,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `create_multipart` operation on the specified path.
     ///
+    /// Require [`AccessorCapability::Multipart`]
+    ///
     /// # Behavior
     ///
-    /// - Require capability: `Multipart`
     /// - This op returns a `upload_id` which is required to for following APIs.
     async fn create_multipart(
         &self,
@@ -204,9 +226,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `write_multipart` operation on the specified path.
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Multipart`
+    /// Require [`AccessorCapability::Multipart`]
     async fn write_multipart(
         &self,
         path: &str,
@@ -223,9 +243,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `complete_multipart` operation on the specified path.
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Multipart`
+    /// Require [`AccessorCapability::Multipart`]
     async fn complete_multipart(
         &self,
         path: &str,
@@ -241,9 +259,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 
     /// Invoke the `abort_multipart` operation on the specified path.
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Multipart`
+    /// Require [`AccessorCapability::Multipart`]
     async fn abort_multipart(
         &self,
         path: &str,
@@ -261,9 +277,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::create`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let (_, _) = (path, args);
 
@@ -277,9 +291,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::read`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Read`] and [`AccessorCapability::Blocking`]
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         let (_, _) = (path, args);
 
@@ -293,9 +305,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::write`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
     fn blocking_write(
         &self,
         path: &str,
@@ -314,9 +324,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::stat`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Read`] and [`AccessorCapability::Blocking`]
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let (_, _) = (path, args);
 
@@ -330,9 +338,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::delete`]
     ///
-    /// # Behavior
-    ///
-    /// - Require capability: `Blocking`
+    /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         let (_, _) = (path, args);
 
@@ -346,11 +352,24 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// This operation is the blocking version of [`Accessor::list`]
     ///
+    /// Require [`AccessorCapability::List`] and [`AccessorCapability::Blocking`]
+    ///
     /// # Behavior
     ///
-    /// - Require capability: `Blocking`
     /// - List non-exist dir should return Empty.
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
+        let (_, _) = (path, args);
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    /// Invoke the `blocking_scan` operation on the specified path.
+    ///
+    /// Require [`AccessorCapability::Scan`] and [`AccessorCapability::Blocking`]
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         let (_, _) = (path, args);
 
         Err(Error::new(
@@ -363,9 +382,11 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 /// All functions in `Accessor` only requires `&self`, so it's safe to implement
 /// `Accessor` for `Arc<dyn Accessor>`.
 #[async_trait]
-impl<T: Accessor> Accessor for Arc<T> {
+impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type Reader = T::Reader;
     type BlockingReader = T::BlockingReader;
+    type Pager = T::Pager;
+    type BlockingPager = T::BlockingPager;
 
     fn metadata(&self) -> AccessorMetadata {
         self.as_ref().metadata()
@@ -387,8 +408,11 @@ impl<T: Accessor> Accessor for Arc<T> {
     async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().delete(path, args).await
     }
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.as_ref().list(path, args).await
+    }
+    async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
+        self.as_ref().scan(path, args).await
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -445,102 +469,24 @@ impl<T: Accessor> Accessor for Arc<T> {
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.as_ref().blocking_delete(path, args)
     }
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
+    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.as_ref().blocking_list(path, args)
+    }
+
+    fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
+        self.as_ref().blocking_scan(path, args)
     }
 }
 
 /// FusedAccessor is the type erased accessor with `Box<dyn Reader>`.
-pub type FusedAccessor =
-    Arc<dyn Accessor<Reader = output::Reader, BlockingReader = output::BlockingReader>>;
-
-#[async_trait]
-impl Accessor for FusedAccessor {
-    type Reader = output::Reader;
-    type BlockingReader = output::BlockingReader;
-
-    fn metadata(&self) -> AccessorMetadata {
-        self.as_ref().metadata()
-    }
-
-    async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().create(path, args).await
-    }
-
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.as_ref().read(path, args).await
-    }
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.as_ref().write(path, args, r).await
-    }
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().stat(path, args).await
-    }
-    async fn delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.as_ref().delete(path, args).await
-    }
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, ObjectPager)> {
-        self.as_ref().list(path, args).await
-    }
-
-    fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
-        self.as_ref().presign(path, args)
-    }
-
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.as_ref().create_multipart(path, args).await
-    }
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        self.as_ref().write_multipart(path, args, r).await
-    }
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.as_ref().complete_multipart(path, args).await
-    }
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.as_ref().abort_multipart(path, args).await
-    }
-
-    fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
-        self.as_ref().blocking_create(path, args)
-    }
-    fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.as_ref().blocking_read(path, args)
-    }
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.as_ref().blocking_write(path, args, r)
-    }
-    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.as_ref().blocking_stat(path, args)
-    }
-    fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
-        self.as_ref().blocking_delete(path, args)
-    }
-    fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, BlockingObjectPager)> {
-        self.as_ref().blocking_list(path, args)
-    }
-}
+pub type FusedAccessor = Arc<
+    dyn Accessor<
+        Reader = output::Reader,
+        BlockingReader = output::BlockingReader,
+        Pager = output::Pager,
+        BlockingPager = output::BlockingPager,
+    >,
+>;
 
 /// Metadata for accessor, users can use this metadata to get information of underlying backend.
 #[derive(Clone, Debug, Default)]
@@ -628,6 +574,8 @@ flags! {
         Write,
         /// Add this capability if service supports `list`
         List,
+        /// Add this capability if service supports `scan`
+        Scan,
         /// Add this capability if service supports `presign`
         Presign,
         /// Add this capability if service supports `multipart`
@@ -644,13 +592,13 @@ flags! {
     ///
     /// All hints are internal used only and will not be exposed to users.
     pub enum AccessorHint: u64 {
-        /// Read is seekable means the underlying read is seekable.
+        /// Read seekable means the underlying read is seekable.
         ///
         /// We can reuse the same reader instead of always creating new one.
-        ReadIsSeekable,
-        /// Read is seekable means the underlying read is streamable.
+        ReadSeekable,
+        /// Read streamable means the underlying read is streamable.
         ///
         /// It's better to use stream to reading data.
-        ReadIsStreamable,
+        ReadStreamable,
     }
 }

@@ -33,7 +33,7 @@ OpenDAL has been waiting for features [`io_error_more`](https://github.com/rust-
 
 ## Error is not easy to carry context
 
-To carry context inside `std::io::Error`, we have to check and make sure all functions are constructed `ObjectError` or `BacknedError`:
+To carry context inside `std::io::Error`, we have to check and make sure all functions are constructed `ObjectError` or `BackendError`:
 
 ```rust
 #[derive(Error, Debug)]

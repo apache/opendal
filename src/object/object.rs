@@ -28,6 +28,7 @@ use tokio::io::ReadBuf;
 use super::BlockingObjectLister;
 use super::BlockingObjectReader;
 use super::ObjectLister;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -340,7 +341,7 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// - The returning contnet's length may be smaller than the range specifed.
+    /// - The returning contnet's length may be smaller than the range specified.
     ///
     /// # Examples
     ///
@@ -483,7 +484,7 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// - The returning contnet's length may be smaller than the range specifed.
+    /// - The returning contnet's length may be smaller than the range specified.
     ///
     /// # Examples
     ///
@@ -716,12 +717,10 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::OpWrite;
     /// # use std::io::Result;
     /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
     /// use bytes::Bytes;
+    /// use opendal::ops::OpWrite;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -791,13 +790,10 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::OpWrite;
-    /// # use std::io::Result;
+    /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// # use opendal::Scheme;
     /// use bytes::Bytes;
+    /// use opendal::ops::OpWrite;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("hello.txt");
@@ -1017,7 +1013,7 @@ impl Object {
 
         let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
 
-        Ok(ObjectLister::new(self.operator(), pager))
+        Ok(ObjectLister::new(self.acc.clone(), pager))
     }
 
     /// List current dir object.
@@ -1063,6 +1059,101 @@ impl Object {
         }
 
         let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
+        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
+    }
+
+    /// List dir in flat way.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.scan().await?;
+    /// // ObjectStreamer implements `futures::Stream`
+    /// while let Some(de) = ds.try_next().await? {
+    ///     match de.mode().await? {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn scan(&self) -> Result<ObjectLister> {
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::list")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
+        }
+
+        let (_, pager) = self.acc.scan(self.path(), OpScan::new()).await?;
+
+        Ok(ObjectLister::new(self.acc.clone(), pager))
+    }
+
+    /// List dir in flat way.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use opendal::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.blocking_list()?;
+    /// while let Some(de) = ds.next() {
+    ///     let de = de?;
+    ///     match de.blocking_mode()? {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_scan(&self) -> Result<BlockingObjectLister> {
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::blocking_scan")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
+        }
+
+        let (_, pager) = self.acc.blocking_scan(self.path(), OpScan::new())?;
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
@@ -1164,9 +1255,9 @@ impl Object {
         Ok(guard.clone())
     }
 
-    /// The size of `ObjectEntry`'s corresponding object
+    /// The size of `Entry`'s corresponding object
     ///
-    /// `content_length` is a prefetched metadata field in `ObjectEntry`.
+    /// `content_length` is a prefetched metadata field in `Entry`.
     pub async fn content_length(&self) -> Result<u64> {
         {
             let guard = self.meta.lock();
@@ -1182,12 +1273,12 @@ impl Object {
         Ok(guard.content_length())
     }
 
-    /// The MD5 message digest of `ObjectEntry`'s corresponding object
+    /// The MD5 message digest of `Entry`'s corresponding object
     ///
-    /// `content_md5` is a prefetched metadata field in `ObjectEntry`
+    /// `content_md5` is a prefetched metadata field in `Entry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
     pub async fn content_md5(&self) -> Result<Option<String>> {
         {
             let guard = self.meta.lock();
@@ -1204,12 +1295,12 @@ impl Object {
         Ok(guard.content_md5().map(|v| v.to_string()))
     }
 
-    /// The last modified UTC datetime of `ObjectEntry`'s corresponding object
+    /// The last modified UTC datetime of `Entry`'s corresponding object
     ///
-    /// `last_modified` is a prefetched metadata field in `ObjectEntry`
+    /// `last_modified` is a prefetched metadata field in `Entry`
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
     pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
         {
             let guard = self.meta.lock();
@@ -1226,12 +1317,12 @@ impl Object {
         Ok(guard.last_modified())
     }
 
-    /// The ETag string of `ObjectEntry`'s corresponding object
+    /// The ETag string of `Entry`'s corresponding object
     ///
-    /// `etag` is a prefetched metadata field in `ObjectEntry`.
+    /// `etag` is a prefetched metadata field in `Entry`.
     ///
     /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
-    /// Then you have to call `ObjectEntry::metadata()` to get the metadata you want.
+    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
     pub async fn etag(&self) -> Result<Option<String>> {
         {
             let guard = self.meta.lock();
@@ -1437,7 +1528,7 @@ impl Object {
     /// ```no_run
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::OpWrite;
+    /// use opendal::ops::OpWrite;
     /// use opendal::Operator;
     /// use time::Duration;
     ///

@@ -31,6 +31,7 @@ use reqsign::AzureStorageSigner;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use crate::object::ObjectMetadata;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -47,6 +48,7 @@ use crate::*;
 /// - [x] read
 /// - [x] write
 /// - [x] list
+/// - [ ] ~~scan~~
 /// - [ ] presign
 /// - [ ] multipart
 /// - [ ] blocking
@@ -299,6 +301,8 @@ pub struct AzdfsBackend {
 impl Accessor for AzdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Pager = DirStream;
+    type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -308,7 +312,7 @@ impl Accessor for AzdfsBackend {
             .set_capabilities(
                 AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
             )
-            .set_hints(AccessorHint::ReadIsStreamable);
+            .set_hints(AccessorHint::ReadStreamable);
 
         am
     }
@@ -419,14 +423,15 @@ impl Accessor for AzdfsBackend {
         }
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, ObjectPager)> {
-        let op = Box::new(DirStream::new(
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        let op = DirStream::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
-        ));
+            args.limit(),
+        );
 
-        Ok((RpList::default(), op as ObjectPager))
+        Ok((RpList::default(), op))
     }
 }
 
@@ -586,6 +591,7 @@ impl AzdfsBackend {
         &self,
         path: &str,
         continuation: &str,
+        limit: Option<usize>,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -598,6 +604,9 @@ impl AzdfsBackend {
         if !p.is_empty() {
             write!(url, "&directory={}", percent_encode_path(&p))
                 .expect("write into string must succeed");
+        }
+        if let Some(limit) = limit {
+            write!(url, "&maxresults={limit}").expect("write into string must succeed");
         }
         if !continuation.is_empty() {
             write!(url, "&continuation={continuation}").expect("write into string must succeed");

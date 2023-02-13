@@ -92,24 +92,11 @@ pub use error::Error;
 pub use error::ErrorKind;
 pub use error::Result;
 
-mod ops;
-pub use ops::OpAbortMultipart;
-pub use ops::OpCompleteMultipart;
-pub use ops::OpCreate;
-pub use ops::OpCreateMultipart;
-pub use ops::OpDelete;
-pub use ops::OpList;
-pub use ops::OpPresign;
-pub use ops::OpRead;
-pub use ops::OpStat;
-pub use ops::OpWrite;
-pub use ops::OpWriteMultipart;
-pub use ops::PresignOperation;
-
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
 #[cfg(feature = "docs")]
 pub mod docs;
 pub mod layers;
+pub mod ops;
 pub mod raw;
 pub mod services;
 
@@ -129,7 +116,7 @@ mod tests {
         assert_eq!(88, size_of::<AccessorMetadata>());
         assert_eq!(16, size_of::<Operator>());
         assert_eq!(16, size_of::<BatchOperator>());
-        assert_eq!(184, size_of::<ObjectEntry>());
+        assert_eq!(184, size_of::<output::Entry>());
         assert_eq!(48, size_of::<Object>());
         assert_eq!(160, size_of::<ObjectMetadata>());
         assert_eq!(1, size_of::<ObjectMode>());

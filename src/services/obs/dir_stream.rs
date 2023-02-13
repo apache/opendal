@@ -32,17 +32,28 @@ pub struct DirStream {
     backend: Arc<ObsBackend>,
     root: String,
     path: String,
+    delimiter: String,
+    limit: Option<usize>,
 
     next_marker: String,
     done: bool,
 }
 
 impl DirStream {
-    pub fn new(backend: Arc<ObsBackend>, root: &str, path: &str) -> Self {
+    pub fn new(
+        backend: Arc<ObsBackend>,
+        root: &str,
+        path: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+    ) -> Self {
         Self {
             backend,
             root: root.to_string(),
             path: path.to_string(),
+            delimiter: delimiter.to_string(),
+            limit,
+
             next_marker: "".to_string(),
             done: false,
         }
@@ -50,15 +61,15 @@ impl DirStream {
 }
 
 #[async_trait]
-impl ObjectPage for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<ObjectEntry>>> {
+impl output::Page for DirStream {
+    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }
 
         let resp = self
             .backend
-            .obs_list_objects(&self.path, &self.next_marker)
+            .obs_list_objects(&self.path, &self.next_marker, &self.delimiter, self.limit)
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -83,7 +94,7 @@ impl ObjectPage for DirStream {
         let mut entries = Vec::with_capacity(common_prefixes.len() + output.contents.len());
 
         for prefix in common_prefixes {
-            let de = ObjectEntry::new(
+            let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
                 ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
@@ -98,7 +109,7 @@ impl ObjectPage for DirStream {
 
             let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
 
-            let de = ObjectEntry::new(&build_rel_path(&self.root, &object.key), meta);
+            let de = output::Entry::new(&build_rel_path(&self.root, &object.key), meta);
 
             entries.push(de);
         }

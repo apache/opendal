@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.27.1] - 2023-02-13
+
+### Added
+
+- feat: Add username and password support for WebDAV (#1323)
+- ci: Add test case for webdav with basic auth (#1327)
+- feat(oli): support s3 uri without profile (#1328)
+- feat: Add scan support for kv adapter (#1333)
+- feat: Add scan support for sled (#1334)
+
+### Changed
+
+- chore(deps): update moka requirement from 0.9 to 0.10 (#1331)
+- chore(deps): update rocksdb requirement from 0.19 to 0.20 (#1332)
+
+### Fixed
+
+- fix(services/oss,s3): Metadata should be marked as complete (#1335)
+
 ## [v0.27.0] - 2023-02-11
 
 ### Added

@@ -187,6 +187,24 @@ impl RpRead {
     }
 }
 
+/// Reply for `batch` operation.
+pub struct RpBatch {
+    results: BatchedResults,
+}
+
+impl RpBatch {
+    /// Consume RpBatch to get the batched results.
+    pub fn into_results(self) -> BatchedResults {
+        self.results
+    }
+}
+
+/// Batch results of `bacth` operations.
+pub enum BatchedResults {
+    /// results of delete batch operation
+    Delete(Vec<(String, Result<RpDelete>)>),
+}
+
 /// Reply for `stat` operation.
 #[derive(Debug, Clone)]
 pub struct RpStat {

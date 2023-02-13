@@ -463,6 +463,11 @@ impl OperatorMetadata {
             .contains(AccessorCapability::Multipart)
     }
 
+    /// Check if current backend supports batch operations or not.
+    pub fn can_batch(&self) -> bool {
+        self.acc.capabilities().contains(AccessorCapability::Batch)
+    }
+
     /// Check if current backend supports blocking operations or not.
     pub fn can_blocking(&self) -> bool {
         self.acc

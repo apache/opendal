@@ -45,7 +45,7 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
-/// - [ ] list
+/// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
@@ -55,10 +55,6 @@ use crate::*;
 ///
 /// Bazel Remote Caching and Ccache HTTP Storage is also part of this service.
 /// Users can use `webdav` to connect those services.
-///
-/// # Status
-///
-/// - `list` is not supported so far.
 ///
 /// # Configuration
 ///

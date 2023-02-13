@@ -265,7 +265,9 @@ impl Accessor for WebdavBackend {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Read | AccessorCapability::Write)
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            )
             .set_hints(AccessorHint::ReadStreamable);
 
         ma

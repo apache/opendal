@@ -19,16 +19,13 @@ use async_trait::async_trait;
 use super::list_response::Multistatus;
 
 pub struct DirStream {
-    root: String,
-
     size: usize,
     multistates: Multistatus,
 }
 
 impl DirStream {
-    pub fn new(root: String, multistates: Multistatus, limit: Option<usize>) -> Self {
+    pub fn new(multistates: Multistatus, limit: Option<usize>) -> Self {
         Self {
-            root: root.to_owned(),
             size: limit.unwrap_or(1000),
             multistates: multistates,
         }

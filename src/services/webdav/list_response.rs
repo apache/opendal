@@ -15,13 +15,6 @@
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub struct LockEntry {
-    pub lockscope: LockScopeContainer,
-    pub locktype: LockTypeContainer,
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
 pub struct LockScopeContainer {
     #[serde(rename = "$value")]
     pub value: LockScope,
@@ -68,7 +61,6 @@ pub struct Prop {
     pub getlastmodified: String,
     pub resourcetype: ResourceTypeContainer,
     pub lockdiscovery: (),
-    pub supportedlock: SupportedLock,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -83,44 +75,10 @@ pub enum ResourceType {
     Collection,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
-
-pub struct SupportedLock {
-    lockentry: LockEntry,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use quick_xml::de::from_str;
-    #[test]
-    fn test_lockentry() {
-        let xml = r#"<D:lockentry>
-            <D:lockscope><D:exclusive/></D:lockscope>
-            <D:locktype><D:write/></D:locktype>
-        </D:lockentry>"#;
-
-        let lockentry = from_str::<LockEntry>(xml).unwrap();
-        assert_eq!(lockentry.lockscope.value, LockScope::Exclusive);
-        assert_eq!(lockentry.locktype.value, LockType::Write);
-    }
-
-    #[test]
-    fn test_supportedlock() {
-        let xml = r#"<D:supportedlock>
-            <D:lockentry>
-                <D:lockscope><D:exclusive/></D:lockscope>
-                <D:locktype><D:write/></D:locktype>
-            </D:lockentry>
-        </D:supportedlock>"#;
-
-        let supportedlock = from_str::<SupportedLock>(xml).unwrap();
-        assert_eq!(
-            supportedlock.lockentry.lockscope.value,
-            LockScope::Exclusive
-        );
-        assert_eq!(supportedlock.lockentry.locktype.value, LockType::Write);
-    }
 
     #[test]
     fn test_propstat() {
@@ -150,14 +108,7 @@ mod tests {
             propstat.prop.resourcetype.value.unwrap(),
             ResourceType::Collection
         );
-        assert_eq!(
-            propstat.prop.supportedlock.lockentry.lockscope.value,
-            LockScope::Exclusive
-        );
-        assert_eq!(
-            propstat.prop.supportedlock.lockentry.locktype.value,
-            LockType::Write
-        );
+
         assert_eq!(propstat.status, "HTTP/1.1 200 OK");
     }
 
@@ -192,26 +143,6 @@ mod tests {
         assert_eq!(
             response.propstat.prop.resourcetype.value.unwrap(),
             ResourceType::Collection
-        );
-        assert_eq!(
-            response
-                .propstat
-                .prop
-                .supportedlock
-                .lockentry
-                .lockscope
-                .value,
-            LockScope::Exclusive
-        );
-        assert_eq!(
-            response
-                .propstat
-                .prop
-                .supportedlock
-                .lockentry
-                .locktype
-                .value,
-            LockType::Write
         );
         assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
     }
@@ -250,27 +181,6 @@ mod tests {
             "Tue, 07 May 2022 05:52:22 GMT"
         );
         assert_eq!(response.propstat.prop.resourcetype.value, None);
-
-        assert_eq!(
-            response
-                .propstat
-                .prop
-                .supportedlock
-                .lockentry
-                .lockscope
-                .value,
-            LockScope::Exclusive
-        );
-        assert_eq!(
-            response
-                .propstat
-                .prop
-                .supportedlock
-                .lockentry
-                .locktype
-                .value,
-            LockType::Write
-        );
         assert_eq!(response.propstat.status, "HTTP/1.1 200 OK");
     }
 

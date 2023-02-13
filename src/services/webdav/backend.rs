@@ -292,10 +292,7 @@ impl Accessor for WebdavBackend {
                             .with_context("service", Scheme::Webdav)
                     })?;
 
-                Ok((
-                    RpList::default(),
-                    DirStream::new(self.root.clone(), result, args.limit()),
-                ))
+                Ok((RpList::default(), DirStream::new(result, args.limit())))
             }
             _ => Err(parse_error(resp).await?), // TODO: handle error gracefully
         }

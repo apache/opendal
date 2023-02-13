@@ -141,11 +141,8 @@ impl Debug for Adapter {
 #[async_trait]
 impl kv::Adapter for Adapter {
     fn metadata(&self) -> kv::Metadata {
-        kv::Metadata::new(
-            Scheme::Sled,
-            &self.datadir,
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::Blocking,
-        )
+        use AccessorCapability::*;
+        kv::Metadata::new(Scheme::Sled, &self.datadir, Read | Write | Scan | Blocking)
     }
 
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
@@ -153,23 +150,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_get(&self, path: &str) -> Result<Option<Vec<u8>>> {
-        let parent = get_parent(path);
-        let basename = get_basename(path);
-
-        let tree = self.db.open_tree(parent).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "Unable to open tree")
-                .with_context("input", path)
-                .set_source(e)
-        })?;
-
-        Ok(tree
-            .get(basename)
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "Unable to get")
-                    .with_context("input", basename)
-                    .set_source(e)
-            })?
-            .map(|v| v.to_vec()))
+        Ok(self.db.get(path).map_err(parse_error)?.map(|v| v.to_vec()))
     }
 
     async fn set(&self, path: &str, value: &[u8]) -> Result<()> {
@@ -177,20 +158,7 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_set(&self, path: &str, value: &[u8]) -> Result<()> {
-        let parent = get_parent(path);
-        let basename = get_basename(path);
-
-        let tree = self.db.open_tree(parent).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "Unable to open tree")
-                .with_context("input", path)
-                .set_source(e)
-        })?;
-
-        tree.insert(basename, value).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "Unable to set")
-                .with_context("input", basename)
-                .set_source(e)
-        })?;
+        self.db.insert(path, value).map_err(parse_error)?;
 
         Ok(())
     }
@@ -200,21 +168,31 @@ impl kv::Adapter for Adapter {
     }
 
     fn blocking_delete(&self, path: &str) -> Result<()> {
-        let parent = get_parent(path);
-        let basename = get_basename(path);
-
-        let tree = self.db.open_tree(parent).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "Unable to open tree")
-                .with_context("input", path)
-                .set_source(e)
-        })?;
-
-        tree.remove(basename).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "Unable to delete")
-                .with_context("input", basename)
-                .set_source(e)
-        })?;
+        self.db.remove(path).map_err(parse_error)?;
 
         Ok(())
     }
+
+    async fn scan(&self, path: &str) -> Result<Vec<String>> {
+        self.blocking_scan(path)
+    }
+
+    fn blocking_scan(&self, path: &str) -> Result<Vec<String>> {
+        let it = self.db.scan_prefix(path).keys();
+        let mut res = Vec::default();
+
+        for i in it {
+            let bs = i.map_err(parse_error)?.to_vec();
+            res.push(String::from_utf8(bs).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
+                    .set_source(err)
+            })?);
+        }
+
+        Ok(res)
+    }
+}
+
+fn parse_error(err: sled::Error) -> Error {
+    Error::new(ErrorKind::Unexpected, "error from sled").set_source(err)
 }

@@ -27,7 +27,7 @@ impl DirStream {
     pub fn new(multistates: Multistatus, limit: Option<usize>) -> Self {
         Self {
             size: limit.unwrap_or(1000),
-            multistates: multistates,
+            multistates,
         }
     }
 }

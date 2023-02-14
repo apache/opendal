@@ -9,31 +9,31 @@
 **Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
 
 - Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.databend.rs/opendal/)
-- [Release notes](https://github.com/datafuselabs/opendal/releases)
+- [Release notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 
 ## Services
 
-- [azblob](https://opendal.databend.rs/opendal/services/struct.Azblob.html): [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services.
-- [azdfs](https://opendal.databend.rs/opendal/services/struct.Azdfs.html): [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services. (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
-- [fs](https://opendal.databend.rs/opendal/services/struct.Fs.html): POSIX alike file system.
-- [ftp](https://opendal.databend.rs/opendal/services/struct.Ftp.html): FTP and FTPS support.
-- [gcs](https://opendal.databend.rs/opendal/services/struct.Gcs.html): [Google Cloud Storage](https://cloud.google.com/storage) Service.
-- [ghac](https://opendal.databend.rs/opendal/services/struct.Ghac.html): [Github Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service.
-- [hdfs](https://opendal.databend.rs/opendal/services/struct.Hdfs.html): [Hadoop Distributed File System](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html)(HDFS).
-- [http](https://opendal.databend.rs/opendal/services/struct.Http.html): HTTP read-only services.
-- [ipfs](https://opendal.databend.rs/opendal/services/struct.Ipfs.html): [InterPlanetary File System](https://ipfs.tech/) HTTP Gateway support.
-- [ipmfs](https://opendal.databend.rs/opendal/services/struct.Ipmfs.html): [InterPlanetary File System](https://ipfs.tech/) MFS API support.
-- [memcached](https://opendal.databend.rs/opendal/services/struct.Memcached.html): [Memcached](https://memcached.org/) service support.
-- [memory](https://opendal.databend.rs/opendal/services/struct.Memory.html): In memory backend.
-- [moka](https://opendal.databend.rs/opendal/services/struct.Moka.html): [moka](https://github.com/moka-rs/moka) backend support.
-- [obs](https://opendal.databend.rs/opendal/services/struct.Obs.html): [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS).
-- [oss](https://opendal.databend.rs/opendal/services/struct.Oss.html): [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS).
-- [redis](https://opendal.databend.rs/opendal/services/struct.Redis.html): [Redis](https://redis.io/) services support.
-- [rocksdb](https://opendal.databend.rs/opendal/services/struct.Rocksdb.html): [RocksDB](http://rocksdb.org/) services support.
-- [s3](https://opendal.databend.rs/opendal/services/struct.S3.html): [AWS S3](https://aws.amazon.com/s3/) alike services.
-- [sled](https://opendal.databend.rs/opendal/services/sled/struct.Sled.html): [sled](https://crates.io/crates/sled) services support.
-- [webdav](https://opendal.databend.rs/opendal/services/struct.Webdav.html): [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service Support.
-- [webhdfs](https://opendal.databend.rs/opendal/services/struct.Webhdfs.html): [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service Support.
+- [azblob](https://docs.rs/opendal/latest/opendal/services/struct.Azblob.html): [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services.
+- [azdfs](https://docs.rs/opendal/latest/opendal/services/struct.Azdfs.html): [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services. (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
+- [fs](https://docs.rs/opendal/latest/opendal/services/struct.Fs.html): POSIX alike file system.
+- [ftp](https://docs.rs/opendal/latest/opendal/services/struct.Ftp.html): FTP and FTPS support.
+- [gcs](https://docs.rs/opendal/latest/opendal/services/struct.Gcs.html): [Google Cloud Storage](https://cloud.google.com/storage) Service.
+- [ghac](https://docs.rs/opendal/latest/opendal/services/struct.Ghac.html): [Github Action Cache](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows) Service.
+- [hdfs](https://docs.rs/opendal/latest/opendal/services/struct.Hdfs.html): [Hadoop Distributed File System](https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html)(HDFS).
+- [http](https://docs.rs/opendal/latest/opendal/services/struct.Http.html): HTTP read-only services.
+- [ipfs](https://docs.rs/opendal/latest/opendal/services/struct.Ipfs.html): [InterPlanetary File System](https://ipfs.tech/) HTTP Gateway support.
+- [ipmfs](https://docs.rs/opendal/latest/opendal/services/struct.Ipmfs.html): [InterPlanetary File System](https://ipfs.tech/) MFS API support.
+- [memcached](https://docs.rs/opendal/latest/opendal/services/struct.Memcached.html): [Memcached](https://memcached.org/) service support.
+- [memory](https://docs.rs/opendal/latest/opendal/services/struct.Memory.html): In memory backend.
+- [moka](https://docs.rs/opendal/latest/opendal/services/struct.Moka.html): [moka](https://github.com/moka-rs/moka) backend support.
+- [obs](https://docs.rs/opendal/latest/opendal/services/struct.Obs.html): [Huawei Cloud Object Storage](https://www.huaweicloud.com/intl/en-us/product/obs.html) Service (OBS).
+- [oss](https://docs.rs/opendal/latest/opendal/services/struct.Oss.html): [Aliyun Object Storage Service](https://www.aliyun.com/product/oss) (OSS).
+- [redis](https://docs.rs/opendal/latest/opendal/services/struct.Redis.html): [Redis](https://redis.io/) services support.
+- [rocksdb](https://docs.rs/opendal/latest/opendal/services/struct.Rocksdb.html): [RocksDB](http://rocksdb.org/) services support.
+- [s3](https://docs.rs/opendal/latest/opendal/services/struct.S3.html): [AWS S3](https://aws.amazon.com/s3/) alike services.
+- [sled](https://docs.rs/opendal/latest/opendal/services/sled/struct.Sled.html): [sled](https://crates.io/crates/sled) services support.
+- [webdav](https://docs.rs/opendal/latest/opendal/services/struct.Webdav.html): [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) Service Support.
+- [webhdfs](https://docs.rs/opendal/latest/opendal/services/struct.Webhdfs.html): [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html) Service Support.
 
 ## Features
 
@@ -49,17 +49,17 @@ Access data **freely**
 Access data **painlessly**
 
 - **100%** documents covered
-- Powerful [`Layers`](https://opendal.databend.rs/opendal/layers/index.html)
-- Automatic [retry](https://opendal.databend.rs/opendal/layers/struct.RetryLayer.html) support
-- Full observability support: [logging](https://opendal.databend.rs/opendal/layers/struct.LoggingLayer.html), [tracing](https://opendal.databend.rs/opendal/layers/struct.TracingLayer.html), [metrics](https://opendal.databend.rs/opendal/layers/struct.MetricsLayer.html).
-- Native decompress support
+- Powerful [`Layers`](https://docs.rs/opendal/latest/opendal/layers/index.html)
+- Automatic [retry](https://docs.rs/opendal/latest/opendal/layers/struct.RetryLayer.html) support
+- Full observability: [logging](https://docs.rs/opendal/latest/opendal/layers/struct.LoggingLayer.html), [tracing](https://docs.rs/opendal/latest/opendal/layers/struct.TracingLayer.html), [metrics](https://docs.rs/opendal/latest/opendal/layers/struct.MetricsLayer.html).
+- [Native chaos testing](https://docs.rs/opendal/latest/opendal/layers/struct.ChaosLayer.html)
 - Native service-side encryption support
 
 Access data **efficiently**
 
 - Zero cost: mapping to underlying API calls directly
 - Best effort: auto pick the best `read`/`seek`/`next` implementations based on services
-- [Auto metadata reuse](https://opendal.databend.rs/rfcs/0561-list-metadata-reuse.html): avoid extra `metadata` calls
+- [Auto metadata reuse](https://docs.rs/opendal/latest/opendal/docs/rfcs/rfc_0561_list_metadata_reuse/index.html): avoid extra `metadata` calls
 
 ## Quickstart
 

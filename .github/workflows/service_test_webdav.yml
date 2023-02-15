@@ -24,6 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install nginx full for dav_ext modules
+        run: apt install nginx-full
+
       - name: Start nginx
         shell: bash
         run: |

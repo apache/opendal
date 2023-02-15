@@ -20,6 +20,7 @@ use async_trait::async_trait;
 use base64::engine::general_purpose;
 use base64::Engine;
 use http::header::AUTHORIZATION;
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -272,7 +273,7 @@ impl Accessor for WebdavBackend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let resp = self
-            .webdav_put(path, Some(0), None, AsyncBody::Empty)
+            .webdav_put(path, Some(0), None, None, AsyncBody::Empty)
             .await?;
 
         let status = resp.status();
@@ -311,6 +312,7 @@ impl Accessor for WebdavBackend {
                 path,
                 Some(args.size()),
                 args.content_type(),
+                args.content_disposition(),
                 AsyncBody::Reader(r),
             )
             .await?;
@@ -387,6 +389,7 @@ impl WebdavBackend {
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
+        content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -401,6 +404,10 @@ impl WebdavBackend {
 
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(cd) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, cd)
         }
 
         // Set body

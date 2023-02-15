@@ -18,6 +18,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::RANGE;
@@ -407,7 +408,7 @@ impl Accessor for OssBackend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let resp = self
-            .oss_put_object(path, None, None, AsyncBody::Empty)
+            .oss_put_object(path, None, None, None, AsyncBody::Empty)
             .await?;
         let status = resp.status();
 
@@ -440,6 +441,7 @@ impl Accessor for OssBackend {
                 path,
                 Some(args.size()),
                 args.content_type(),
+                args.content_disposition(),
                 AsyncBody::Reader(r),
             )
             .await?;
@@ -506,9 +508,14 @@ impl Accessor for OssBackend {
         let mut req = match args.operation() {
             PresignOperation::Stat(_) => self.oss_head_object_request(path, true)?,
             PresignOperation::Read(v) => self.oss_get_object_request(path, v.range(), true)?,
-            PresignOperation::Write(v) => {
-                self.oss_put_object_request(path, None, v.content_type(), AsyncBody::Empty, true)?
-            }
+            PresignOperation::Write(v) => self.oss_put_object_request(
+                path,
+                None,
+                v.content_type(),
+                v.content_disposition(),
+                AsyncBody::Empty,
+                true,
+            )?,
             _ => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
@@ -538,6 +545,7 @@ impl OssBackend {
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
+        content_disposition: Option<&str>,
         body: AsyncBody,
         is_presign: bool,
     ) -> Result<Request<AsyncBody>> {
@@ -551,6 +559,10 @@ impl OssBackend {
 
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(pos) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, pos);
         }
 
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -659,9 +671,17 @@ impl OssBackend {
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
+        content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let mut req = self.oss_put_object_request(path, size, content_type, body, false)?;
+        let mut req = self.oss_put_object_request(
+            path,
+            size,
+            content_type,
+            content_disposition,
+            body,
+            false,
+        )?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
         self.client.send_async(req).await

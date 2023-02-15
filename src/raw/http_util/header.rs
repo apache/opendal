@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use http::header::HeaderName;
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -144,6 +145,21 @@ pub fn parse_etag(headers: &HeaderMap) -> Result<Option<&str>> {
     }
 }
 
+/// Parse Content-Disposition for header map
+pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
+    match headers.get(CONTENT_DISPOSITION) {
+        None => Ok(None),
+        Some(v) => Ok(Some(v.to_str().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "header value has to be valid utf-8 string",
+            )
+            .with_operation("http_util::parse_content_disposition")
+            .set_source(e)
+        })?)),
+    }
+}
+
 /// parse_into_object_metadata will parse standards http headers into ObjectMetadata.
 ///
 /// # Notes
@@ -181,6 +197,10 @@ pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<Obj
 
     if let Some(v) = parse_last_modified(headers)? {
         m.set_last_modified(v);
+    }
+
+    if let Some(v) = parse_content_disposition(headers)? {
+        m.set_content_disposition(v);
     }
 
     Ok(m)

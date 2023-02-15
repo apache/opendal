@@ -36,18 +36,19 @@ impl DirStream {
 impl output::Page for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::new();
+        for _ in 0..self.size {
+            if let Some(de) = self.multistates.response.pop() {
+                let path = de.href.clone();
 
-        while let Some(de) = self.multistates.response.pop() {
-            let path = de.href.clone();
-
-            let entry = if de.propstat.prop.resourcetype.value
-                == Some(super::list_response::ResourceType::Collection)
-            {
-                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::DIR))
-            } else {
-                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
-            };
-            oes.push(entry);
+                let entry = if de.propstat.prop.resourcetype.value
+                    == Some(super::list_response::ResourceType::Collection)
+                {
+                    output::Entry::new(&path, ObjectMetadata::new(ObjectMode::DIR))
+                } else {
+                    output::Entry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+                };
+                oes.push(entry);
+            }
         }
 
         Ok(if oes.is_empty() { None } else { Some(oes) })

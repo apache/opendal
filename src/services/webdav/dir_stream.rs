@@ -41,11 +41,11 @@ impl output::Page for DirStream {
             let path = de.href.clone();
 
             let entry = if de.propstat.prop.resourcetype.value
-                        == Some(super::list_response::ResourceType::Collection)
+                == Some(super::list_response::ResourceType::Collection)
             {
-                 output::Entry::new(&path, ObjectMetadata::new(ObjectMode::DIR))
+                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::DIR))
             } else {
-                 output::Entry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
             };
             oes.push(entry);
         }

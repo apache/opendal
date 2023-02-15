@@ -401,9 +401,9 @@ impl WebdavBackend {
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = if self.authorization.is_empty() {
-            Request::get(&url)
+            Request::put(&url)
         } else {
-            Request::get(&url).header(AUTHORIZATION, &self.authorization)
+            Request::put(&url).header(AUTHORIZATION, &self.authorization)
         };
 
         if let Some(size) = size {
@@ -426,9 +426,9 @@ impl WebdavBackend {
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
         let req = if self.authorization.is_empty() {
-            Request::get(&url)
+            Request::head(&url)
         } else {
-            Request::get(&url).header(AUTHORIZATION, &self.authorization)
+            Request::head(&url).header(AUTHORIZATION, &self.authorization)
         };
 
         let req = req

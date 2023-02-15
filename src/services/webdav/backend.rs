@@ -369,7 +369,11 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::get(&url).header(AUTHORIZATION, &self.authorization);
+        let mut req = if self.authorization.is_empty() {
+            Request::get(&url)
+        } else {
+            Request::get(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
@@ -393,7 +397,11 @@ impl WebdavBackend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::put(&url).header(AUTHORIZATION, &self.authorization);
+        let mut req = if self.authorization.is_empty() {
+            Request::get(&url)
+        } else {
+            Request::get(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -414,7 +422,11 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::head(&url).header(AUTHORIZATION, &self.authorization);
+        let req = if self.authorization.is_empty() {
+            Request::get(&url)
+        } else {
+            Request::get(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         let req = req
             .body(AsyncBody::Empty)
@@ -428,10 +440,13 @@ impl WebdavBackend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::delete(&url)
-            .header(AUTHORIZATION, &self.authorization)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = if self.authorization.is_empty() {
+            Request::delete(&url)
+        } else {
+            Request::delete(&url).header(AUTHORIZATION, &self.authorization)
+        }
+        .body(AsyncBody::Empty)
+        .map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
     }

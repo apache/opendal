@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install nginx full for dav_ext modules
-        run: apt install nginx-full
+        run: sudo apt install nginx-full
 
       - name: Start nginx
         shell: bash
@@ -50,6 +50,9 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - name: Install nginx full for dav_ext modules
+        run: sudo apt install nginx-full
 
       - name: Start nginx
         shell: bash

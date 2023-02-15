@@ -28,6 +28,7 @@ pub use body::Body;
 pub use body::IncomingAsyncBody;
 
 mod header;
+pub use header::parse_content_disposition;
 pub use header::parse_content_length;
 pub use header::parse_content_md5;
 pub use header::parse_content_range;

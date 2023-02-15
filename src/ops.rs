@@ -330,6 +330,7 @@ impl OpStat {
 pub struct OpWrite {
     size: u64,
     content_type: Option<String>,
+    content_disposition: Option<String>,
 }
 
 impl OpWrite {
@@ -340,6 +341,7 @@ impl OpWrite {
         Self {
             size,
             content_type: None,
+            content_disposition: None,
         }
     }
 
@@ -348,6 +350,16 @@ impl OpWrite {
         Self {
             size: self.size(),
             content_type: Some(content_type.to_string()),
+            content_disposition: self.content_disposition,
+        }
+    }
+
+    /// Set the content disposition of option
+    pub fn with_content_disposition(self, content_disposition: &str) -> Self {
+        Self {
+            size: self.size(),
+            content_type: self.content_type,
+            content_disposition: Some(content_disposition.to_string()),
         }
     }
 
@@ -358,5 +370,10 @@ impl OpWrite {
     /// Get the content type from option
     pub fn content_type(&self) -> Option<&str> {
         self.content_type.as_deref()
+    }
+
+    /// Get the content disposition from option
+    pub fn content_disposition(&self) -> Option<&str> {
+        self.content_disposition.as_deref()
     }
 }

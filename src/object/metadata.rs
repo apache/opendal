@@ -50,6 +50,8 @@ pub struct ObjectMetadata {
     last_modified: Option<OffsetDateTime>,
     /// ETag of this object.
     etag: Option<String>,
+    /// Content-Disposition of this object
+    content_disposition: Option<String>,
 }
 
 impl ObjectMetadata {
@@ -66,6 +68,7 @@ impl ObjectMetadata {
             content_range: None,
             last_modified: None,
             etag: None,
+            content_disposition: None,
         }
     }
 
@@ -274,6 +277,53 @@ impl ObjectMetadata {
     /// `"` is part of etag, don't trim it before setting.
     pub fn with_etag(mut self, etag: &str) -> Self {
         self.etag = Some(etag.to_string());
+        self
+    }
+
+    /// Content-Disposition of this object
+    ///
+    /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
+    /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
+    /// Refer to [MDN Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) for more information.
+    ///
+    /// OpenDAL will return this value AS-IS like the following:
+    ///
+    /// - "inline"
+    /// - "attachment"
+    /// - "attachment; filename=\"filename.jpg\""
+    pub fn content_disposition(&self) -> Option<&str> {
+        self.content_disposition.as_deref()
+    }
+
+    /// Set Content-Disposition of this object
+    ///
+    /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
+    /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
+    /// Refer to [MDN Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) for more information.
+    ///
+    /// OpenDAL will return this value AS-IS like the following:
+    ///
+    /// - "inline"
+    /// - "attachment"
+    /// - "attachment; filename=\"filename.jpg\""
+    pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
+        self.content_disposition = Some(content_disposition.to_string());
+        self
+    }
+
+    /// Set Content-Disposition of this object
+    ///
+    /// `Content-Disposition` is defined by [RFC 2616](https://www.rfc-editor/rfcs/2616) and
+    /// clarified usage in [RFC 6266](https://www.rfc-editor/6266).
+    /// Refer to [MDN Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) for more information.
+    ///
+    /// OpenDAL will return this value AS-IS like the following:
+    ///
+    /// - "inline"
+    /// - "attachment"
+    /// - "attachment; filename=\"filename.jpg\""
+    pub fn set_content_disposition(&mut self, content_disposition: &str) -> &mut Self {
+        self.content_disposition = Some(content_disposition.to_string());
         self
     }
 }

@@ -74,6 +74,9 @@ pub enum Scheme {
     /// [sled][crate::services::Sled]: Sled services
     #[cfg(feature = "services-sled")]
     Sled,
+    /// [tikv][crate::services::Tikv]: TiKV services
+    #[cfg(feature = "services-tikv")]
+    Tikv,
     /// [webdav][crate::services::Webdav]: WebDAV support.
     Webdav,
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
@@ -141,6 +144,8 @@ impl FromStr for Scheme {
             "oss" => Ok(Scheme::Oss),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
+            #[cfg(feature = "services-tikv")]
+            "tikv" => Ok(Scheme::Tikv),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -178,6 +183,8 @@ impl From<Scheme> for &'static str {
             Scheme::Oss => "oss",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
+            #[cfg(feature = "services-tikv")]
+            Scheme::Tikv => "tikv",
             Scheme::Custom(v) => v,
         }
     }

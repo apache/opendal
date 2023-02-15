@@ -94,3 +94,8 @@ pub use webdav::Webdav;
 
 mod webhdfs;
 pub use webhdfs::Webhdfs;
+
+#[cfg(feature = "services-tikv")]
+mod tikv;
+#[cfg(feature = "services-tikv")]
+pub use tikv::Tikv;

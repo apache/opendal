@@ -1277,6 +1277,10 @@ impl Accessor for S3Backend {
         }
     }
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        todo!()
+    }
+
     async fn write_multipart(
         &self,
         path: &str,
@@ -1635,6 +1639,10 @@ impl S3Backend {
 
         self.client.send_async(req).await
     }
+
+    async fn s3_delete_objects(&self, pathes: Vec<String>) {
+        let url = format!("{}/?delete", self.endpoint);
+    }
 }
 
 /// Result of CreateMultipartUpload
@@ -1686,6 +1694,19 @@ struct CompleteMultipartUploadRequestPart {
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
     #[serde(rename = "ETag")]
     etag: String,
+}
+
+/// Request of DeleteObjects.
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "Delete", rename_all = "PascalCase")]
+struct DeleteObjectsRequest {
+    object: Vec<DeleteObjectsObject>,
+}
+
+#[derive(Default, Debug, Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct DeleteObjectsObject {
+    key: String,
 }
 
 #[cfg(test)]
@@ -1823,6 +1844,37 @@ mod tests {
                 .replace([' ', '\n'], "")
                 // Escape `"` by hand to address <https://github.com/tafia/quick-xml/issues/362>
                 .replace('"', "&quot;")
+        )
+    }
+
+    /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html#API_DeleteObjects_Examples
+    #[test]
+    fn test_serialize_delete_objects_request() {
+        let req = DeleteObjectsRequest {
+            object: vec![
+                DeleteObjectsObject {
+                    key: "sample1.txt".to_string(),
+                },
+                DeleteObjectsObject {
+                    key: "sample2.txt".to_string(),
+                },
+            ],
+        };
+
+        let actual = quick_xml::se::to_string(&req).expect("must succeed");
+
+        pretty_assertions::assert_eq!(
+            actual,
+            r#"<Delete>
+             <Object>
+             <Key>sample1.txt</Key>
+             </Object>
+             <Object>
+               <Key>sample2.txt</Key>
+             </Object>
+             </Delete>"#
+                // Cleanup space and new line
+                .replace([' ', '\n'], "")
         )
     }
 }

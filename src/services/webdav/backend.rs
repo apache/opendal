@@ -99,8 +99,6 @@ impl Debug for WebdavBuilder {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut de = f.debug_struct("Builder");
         de.field("endpoint", &self.endpoint);
-        de.field("username", &self.username);
-        de.field("password", &self.password);
         de.field("root", &self.root);
 
         de.finish()
@@ -249,7 +247,6 @@ impl Debug for WebdavBackend {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Backend")
             .field("endpoint", &self.endpoint)
-            .field("authorization", &self.authorization)
             .field("root", &self.root)
             .field("client", &self.client)
             .finish()

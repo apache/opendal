@@ -92,6 +92,7 @@ pub struct WebdavBuilder {
     endpoint: Option<String>,
     username: Option<String>,
     password: Option<String>,
+    token: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -140,6 +141,16 @@ impl WebdavBuilder {
         self
     }
 
+    /// set the bearer token for Webdav
+    ///
+    /// default: no access token
+    pub fn token(&mut self, token: &str) -> &mut Self {
+        if !token.is_empty() {
+            self.token = Some(token.to_owned());
+        }
+        self
+    }
+
     /// Set root path of http backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -174,6 +185,7 @@ impl Builder for WebdavBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("username").map(|v| builder.username(v));
         map.get("password").map(|v| builder.password(v));
+        map.get("token").map(|v| builder.token(v));
 
         builder
     }
@@ -204,20 +216,23 @@ impl Builder for WebdavBuilder {
         };
 
         // base64 encode
-        let auth = match (&self.username, &self.password) {
-            (Some(username), Some(password)) => {
+        let auth = match (&self.username, &self.password, &self.token) {
+            (Some(username), Some(password), None) => {
                 format!(
                     "Basic {}",
                     general_purpose::STANDARD.encode(format!("{username}:{password}"))
                 )
             }
-            (Some(username), None) => {
+            (Some(username), None, None) => {
                 format!(
                     "Basic {}",
                     general_purpose::STANDARD.encode(format!("{username}:"))
                 )
             }
-            (None, Some(_)) => {
+            (None, None, Some(token)) => {
+                format!("Bearer {token}")
+            }
+            (None, Some(_), _) => {
                 return Err(
                     Error::new(ErrorKind::BackendConfigInvalid, "missing username")
                         .with_context("service", Scheme::Webdav),

@@ -213,10 +213,17 @@ impl Builder for WebhdfsBuilder {
         debug!("building backend: {:?}", self);
 
         let root = normalize_root(&self.root.take().unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
+        // check scheme
         let endpoint = match self.endpoint.take() {
-            Some(e) => e,
+            Some(endpoint) => {
+                if endpoint.starts_with("http") {
+                    endpoint
+                } else {
+                    format!("http://{endpoint}")
+                }
+            }
             None => WEBHDFS_DEFAULT_ENDPOINT.to_string(),
         };
         debug!("backend use endpoint {}", endpoint);

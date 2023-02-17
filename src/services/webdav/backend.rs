@@ -315,7 +315,7 @@ impl Accessor for WebdavBackend {
                     DirStream::new(&self.root, result, args.limit()),
                 ))
             }
-            _ => Err(parse_error(resp).await?), // TODO: handle error gracefully
+            _ => Err(parse_error(resp).await?),
         }
     }
 

@@ -487,10 +487,8 @@ impl WebdavBackend {
             .header(AUTHORIZATION, &self.authorization)
             .header("Depth", "1");
 
-        let mut req = if self.authorization.is_empty() {
-            Request::put(&url)
-        } else {
-            Request::put(&url).header(AUTHORIZATION, &self.authorization)
+        if !self.authorization.is_empty() {
+            req = req.header(AUTHORIZATION, &self.authorization);
         };
 
         if let Some(size) = size {

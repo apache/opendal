@@ -15,10 +15,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use futures::stream;
+use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
 use crate::layers::*;
+use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -379,16 +382,123 @@ impl<A: Accessor> OperatorBuilder<A> {
 #[derive(Clone, Debug)]
 pub struct BatchOperator {
     src: Operator,
+    meta: OperatorMetadata,
+
+    limit: usize,
 }
 
 impl BatchOperator {
     pub(crate) fn new(op: Operator) -> Self {
-        BatchOperator { src: op }
+        let meta = op.metadata();
+
+        BatchOperator {
+            src: op,
+            meta,
+            limit: 1000,
+        }
+    }
+
+    /// Specify the limit to 1000
+    pub fn with_limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
+    }
+
+    /// remove will given pathes.
+    ///
+    /// # Notes
+    ///
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.batch().remove(vec!["abc".to_string(), "def".to_string()]).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove(&self, pathes: Vec<String>) -> Result<()> {
+        self.remove_via(stream::iter(pathes)).await
+    }
+
+    /// remove_via will remove objects via given stream.
+    ///
+    /// We will delete by chunks with given batch limit on the stream.
+    ///
+    /// # Notes
+    ///
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// use futures::stream;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let stream = stream::iter(vec!["abc".to_string(), "def".to_string());
+    /// op.batch().remove_via(stream).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove_via(&self, mut input: impl Stream<Item = String> + Unpin) -> Result<()> {
+        if self.meta.can_batch() {
+            let mut input = input.map(|v| (v, OpDelete::default())).chunks(self.limit);
+
+            while let Some(batches) = input.next().await {
+                let results = self
+                    .src
+                    .accessor
+                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
+                    .await?;
+
+                let BatchedResults::Delete(results) = results.into_results();
+
+                // TODO: return error here directly seems not a good idea?
+                for (_, result) in results {
+                    let _ = result?;
+                }
+            }
+        } else {
+            while let Some(path) = input.next().await {
+                self.src.accessor.delete(&path, OpDelete::default()).await?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Remove the path and all nested dirs and files recursively.
     ///
-    /// **Use this function in cautions to avoid unexpected data loss.**
+    /// # Notes
+    ///
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.batch().remove_all("path/to/dir").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn remove_all(&self, path: &str) -> Result<()> {
         let parent = self.src.object(path);
         let meta = parent.metadata().await?;
@@ -398,7 +508,36 @@ impl BatchOperator {
         }
 
         let obs = self.src.object(path).scan().await?;
-        obs.try_for_each(|v| async move { v.delete().await }).await
+
+        if self.meta.can_batch() {
+            let mut obs = obs.try_chunks(self.limit);
+
+            while let Some(batches) = obs.next().await {
+                let batches = batches
+                    .map_err(|err| err.1)?
+                    .into_iter()
+                    .map(|v| (v.path().to_string(), OpDelete::default()))
+                    .collect();
+
+                let results = self
+                    .src
+                    .accessor
+                    .batch(OpBatch::new(BatchOperations::Delete(batches)))
+                    .await?;
+
+                let BatchedResults::Delete(results) = results.into_results();
+
+                // TODO: return error here directly seems not a good idea?
+                for (_, result) in results {
+                    let _ = result?;
+                }
+            }
+        } else {
+            obs.try_for_each(|v| async move { v.delete().await })
+                .await?;
+        }
+
+        Ok(())
     }
 }
 

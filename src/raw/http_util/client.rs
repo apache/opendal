@@ -108,6 +108,20 @@ impl HttpClient {
     ///
     /// And this API is an internal API, OpenDAL could change it while bumping
     /// minor versions.
+    ///
+    /// ## Reminders
+    /// ### no auto redirect
+    /// OpenDAL will handle all HTTP responses, including redirections.
+    /// Auto redirect may cause OpenDAL to fail.
+    ///
+    /// For reqwest client, please make sure your client's redirect policy is `Policy::none()`.
+    /// ```no_run
+    /// let client = reqwest::ClientBuilder::new().redirect(Policy::none()).build()?;
+    /// ```
+    /// For ureq client, please make sure your client's redirect count is `0`:
+    /// ```no_run
+    /// let client = ureq::AgentBuilder::new().max_redirects(0).build();
+    /// ```
     pub fn with_client(async_client: reqwest::Client, sync_client: ureq::Agent) -> Self {
         Self {
             async_client,

@@ -78,9 +78,10 @@ use crate::*;
 ///     // create backend builder
 ///     let mut builder = Webdav::default();
 ///
-///     builder.endpoint("127.0.0.1")
-///     .username("xxx")
-///     .password("xxx");
+///     builder
+///         .endpoint("127.0.0.1")
+///         .username("xxx")
+///         .password("xxx");
 ///
 ///     let op: Operator = Operator::create(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");
@@ -215,7 +216,7 @@ impl Builder for WebdavBuilder {
             })?
         };
 
-        // base64 encode
+        // authorization via `Basic` or `Bearer`
         let auth = match (&self.username, &self.password, &self.token) {
             (Some(username), Some(password), None) => {
                 format!(

@@ -21,14 +21,16 @@ use super::list_response::Multistatus;
 
 pub struct DirStream {
     root: String,
+    path: String,
     size: usize,
     multistates: Multistatus,
 }
 
 impl DirStream {
-    pub fn new(root: &str, multistates: Multistatus, limit: Option<usize>) -> Self {
+    pub fn new(root: &str, path: &str, multistates: Multistatus, limit: Option<usize>) -> Self {
         Self {
             root: root.into(),
+            path: path.into(),
             size: limit.unwrap_or(1000),
             multistates,
         }
@@ -47,6 +49,11 @@ impl output::Page for DirStream {
                 } else {
                     path
                 };
+
+                if normalized_path.eq(&self.path) {
+                    // WebDav server may return the current path as an entry.
+                    continue;
+                }
 
                 let entry = if de.propstat.prop.resourcetype.value
                     == Some(super::list_response::ResourceType::Collection)

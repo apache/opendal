@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::raw::build_rel_path;
 use crate::Result;
 use crate::{raw::output, ObjectMetadata, ObjectMode};
 use async_trait::async_trait;
@@ -19,13 +20,15 @@ use async_trait::async_trait;
 use super::list_response::Multistatus;
 
 pub struct DirStream {
+    root: String,
     size: usize,
     multistates: Multistatus,
 }
 
 impl DirStream {
-    pub fn new(multistates: Multistatus, limit: Option<usize>) -> Self {
+    pub fn new(root: &str, multistates: Multistatus, limit: Option<usize>) -> Self {
         Self {
+            root: root.into(),
             size: limit.unwrap_or(1000),
             multistates,
         }
@@ -39,13 +42,14 @@ impl output::Page for DirStream {
         for _ in 0..self.size {
             if let Some(de) = self.multistates.response.pop() {
                 let path = de.href.clone();
+                let normalized_path = &build_rel_path(&self.root, &path);
 
                 let entry = if de.propstat.prop.resourcetype.value
                     == Some(super::list_response::ResourceType::Collection)
                 {
-                    output::Entry::new(&path, ObjectMetadata::new(ObjectMode::DIR))
+                    output::Entry::new(normalized_path, ObjectMetadata::new(ObjectMode::DIR))
                 } else {
-                    output::Entry::new(&path, ObjectMetadata::new(ObjectMode::FILE))
+                    output::Entry::new(normalized_path, ObjectMetadata::new(ObjectMode::FILE))
                 };
                 oes.push(entry);
             }

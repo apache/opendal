@@ -193,6 +193,11 @@ pub struct RpBatch {
 }
 
 impl RpBatch {
+    /// Create a new RpBatch.
+    pub fn new(results: BatchedResults) -> Self {
+        Self { results }
+    }
+
     /// Consume RpBatch to get the batched results.
     pub fn into_results(self) -> BatchedResults {
         self.results

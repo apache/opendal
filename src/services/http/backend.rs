@@ -17,6 +17,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
+use base64::engine::general_purpose;
+use base64::Engine;
+use http::header::AUTHORIZATION;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -78,6 +81,9 @@ use crate::*;
 #[derive(Default)]
 pub struct HttpBuilder {
     endpoint: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    token: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -103,6 +109,36 @@ impl HttpBuilder {
             Some(endpoint.to_string())
         };
 
+        self
+    }
+
+    /// set password for http backend
+    ///
+    /// default: no password
+    pub fn username(&mut self, username: &str) -> &mut Self {
+        if !username.is_empty() {
+            self.username = Some(username.to_owned());
+        }
+        self
+    }
+
+    /// set password for http backend
+    ///
+    /// default: no password
+    pub fn password(&mut self, password: &str) -> &mut Self {
+        if !password.is_empty() {
+            self.password = Some(password.to_owned());
+        }
+        self
+    }
+
+    /// set bearer token for http backend
+    ///
+    /// default: no access token
+    pub fn token(&mut self, token: &str) -> &mut Self {
+        if !token.is_empty() {
+            self.token = Some(token.to_owned());
+        }
         self
     }
 
@@ -138,6 +174,9 @@ impl Builder for HttpBuilder {
 
         map.get("root").map(|v| builder.root(v));
         map.get("endpoint").map(|v| builder.endpoint(v));
+        map.get("username").map(|v| builder.username(v));
+        map.get("password").map(|v| builder.password(v));
+        map.get("token").map(|v| builder.token(v));
 
         builder
     }
@@ -167,9 +206,36 @@ impl Builder for HttpBuilder {
             })?
         };
 
+        // authorization via `Basic` or `Bearer`
+        let auth = match (&self.username, &self.password, &self.token) {
+            (Some(username), Some(password), None) => {
+                format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(format!("{username}:{password}"))
+                )
+            }
+            (Some(username), None, None) => {
+                format!(
+                    "Basic {}",
+                    general_purpose::STANDARD.encode(format!("{username}:"))
+                )
+            }
+            (None, None, Some(token)) => {
+                format!("Bearer {token}")
+            }
+            (None, Some(_), _) => {
+                return Err(
+                    Error::new(ErrorKind::BackendConfigInvalid, "missing username")
+                        .with_context("service", Scheme::Http),
+                )
+            }
+            _ => String::default(),
+        };
+
         debug!("backend build finished: {:?}", &self);
         Ok(HttpBackend {
             endpoint: endpoint.to_string(),
+            authorization: auth,
             root,
             client,
         })
@@ -180,6 +246,7 @@ impl Builder for HttpBuilder {
 #[derive(Clone)]
 pub struct HttpBackend {
     endpoint: String,
+    authorization: String,
     root: String,
     client: HttpClient,
 }
@@ -253,7 +320,11 @@ impl HttpBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::get(&url);
+        let mut req = if self.authorization.is_empty() {
+            Request::get(&url)
+        } else {
+            Request::get(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
@@ -271,7 +342,11 @@ impl HttpBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::head(&url);
+        let req = if self.authorization.is_empty() {
+            Request::head(&url)
+        } else {
+            Request::head(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         let req = req
             .body(AsyncBody::Empty)
@@ -284,6 +359,8 @@ impl HttpBackend {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use wiremock::matchers::basic_auth;
+    use wiremock::matchers::bearer_token;
     use wiremock::matchers::method;
     use wiremock::matchers::path;
     use wiremock::Mock;
@@ -311,6 +388,66 @@ mod tests {
         let mut builder = HttpBuilder::default();
         builder.endpoint(&mock_server.uri());
         builder.root("/");
+        let op = Operator::create(builder)?.finish();
+
+        let bs = op.object("hello").read().await?;
+
+        assert_eq!(bs, b"Hello, World!");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_via_basic_auth() -> Result<()> {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let (username, password) = ("your_username", "your_password");
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .and(basic_auth(username, password))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "13")
+                    .set_body_string("Hello, World!"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let mut builder = HttpBuilder::default();
+        builder.endpoint(&mock_server.uri());
+        builder.root("/");
+        builder.username(username).password(password);
+        let op = Operator::create(builder)?.finish();
+
+        let bs = op.object("hello").read().await?;
+
+        assert_eq!(bs, b"Hello, World!");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_via_bearer_auth() -> Result<()> {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let token = "your_token";
+
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/hello"))
+            .and(bearer_token(token))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "13")
+                    .set_body_string("Hello, World!"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let mut builder = HttpBuilder::default();
+        builder.endpoint(&mock_server.uri());
+        builder.root("/");
+        builder.token(token);
         let op = Operator::create(builder)?.finish();
 
         let bs = op.object("hello").read().await?;

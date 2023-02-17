@@ -398,7 +398,9 @@ impl BatchOperator {
         }
     }
 
-    /// Specify the limit to 1000
+    /// Specify the batch limit.
+    ///
+    /// Default: 1000
     pub fn with_limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self

@@ -288,8 +288,8 @@ impl Accessor for WebdavBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let all_prop_xml_body = r#"
-            <?xml version="1.0" encoding="utf-8" ?>
+        // XML body must start without a new line. Otherwise, the server will panic: `xmlParseChunk() failed`
+        let all_prop_xml_body = r#"<?xml version="1.0" encoding="utf-8" ?>
             <D:propfind xmlns:D="DAV:">
                 <D:allprop/>
             </D:propfind>

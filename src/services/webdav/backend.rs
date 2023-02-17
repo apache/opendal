@@ -310,7 +310,7 @@ impl Accessor for WebdavBackend {
 
                 Ok((
                     RpList::default(),
-                    DirStream::new(path, result, args.limit()),
+                    DirStream::new(&self.root, result, args.limit()),
                 ))
             }
             _ => Err(parse_error(resp).await?), // TODO: handle error gracefully

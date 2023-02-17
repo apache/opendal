@@ -100,6 +100,7 @@ macro_rules! behavior_write_tests {
                 test_delete_empty_dir,
                 test_delete_with_special_chars,
                 test_delete_not_existing,
+                test_delete_stream,
             );
         )*
     };
@@ -864,6 +865,32 @@ pub async fn test_delete_not_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
     op.object(&path).delete().await?;
+
+    Ok(())
+}
+
+// Delete via stream.
+pub async fn test_delete_stream(op: Operator) -> Result<()> {
+    let dir = uuid::Uuid::new_v4().to_string();
+    op.object(&dir).create().await.expect("creat must succeed");
+
+    let expected: Vec<_> = (0..100).collect();
+    for path in expected.iter() {
+        op.object(&format!("{dir}/{path}")).create().await?;
+    }
+
+    op.batch()
+        .with_limit(30)
+        .remove_via(futures::stream::iter(expected.clone()).map(|v| format!("{dir}/{v}")))
+        .await?;
+
+    // Stat it again to check.
+    for path in expected.iter() {
+        assert!(
+            !op.object(&format!("{dir}/{path}")).is_exist().await?,
+            "{path} should be removed"
+        )
+    }
 
     Ok(())
 }

@@ -483,7 +483,8 @@ impl WebdavBackend {
         let mut req = Request::builder()
             .method("PROPFIND")
             .uri(&url)
-            .header(AUTHORIZATION, &self.authorization);
+            .header(AUTHORIZATION, &self.authorization)
+            .header("Depth", "1");
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)

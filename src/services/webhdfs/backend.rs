@@ -16,6 +16,7 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use bytes::Buf;
+use http::header::HeaderName;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::response::Parts;
@@ -32,7 +33,6 @@ use super::message::BooleanResp;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
-use super::message::Redirection;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -264,7 +264,7 @@ impl WebhdfsBackend {
             "CREATE"
         };
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op={}&overwrite=true&noredirect=true",
+            "{}/webhdfs/v1/{}?op={}&overwrite=true",
             self.endpoint,
             percent_encode_path(&p),
             op,
@@ -290,7 +290,7 @@ impl WebhdfsBackend {
     async fn webhdfs_open_req(&self, path: &str, range: &BytesRange) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op=OPEN&noredirect=true",
+            "{}/webhdfs/v1/{}?op=OPEN",
             self.endpoint,
             percent_encode_path(&p),
         );
@@ -423,21 +423,34 @@ impl WebhdfsBackend {
 
     /// get redirect destination from 307 TEMPORARY_REDIRECT http response
     async fn follow_redirect(&self, resp: Response<IncomingAsyncBody>) -> Result<String> {
-        let bs = resp.into_body().bytes().await.map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "redirection receive fail")
+        if resp.status() != StatusCode::TEMPORARY_REDIRECT {
+            let err = Error::new(ErrorKind::Unexpected, "redirection fail: not 307")
+                .with_context("service", Scheme::Webhdfs)
+                .set_permanent();
+            return Err(err);
+        }
+        let loc = match resp.headers().get(HeaderName::from_static("location")) {
+            Some(loc) => loc.to_str().map_err(|e| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "redirection fail: not valid redirection",
+                )
                 .with_context("service", Scheme::Webhdfs)
                 .set_source(e)
-        })?;
-        let loc = serde_json::from_reader::<_, Redirection>(bs.reader())
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "redirection fail")
-                    .with_context("service", Scheme::Webhdfs)
-                    .set_permanent()
-                    .set_source(e)
-            })?
-            .location;
+                .set_permanent()
+            })?,
+            None => {
+                let err = Error::new(
+                    ErrorKind::Unexpected,
+                    "redirection fail: no location header",
+                )
+                .with_context("service", Scheme::Webhdfs)
+                .set_permanent();
+                return Err(err);
+            }
+        };
 
-        Ok(loc)
+        Ok(loc.to_owned())
     }
 }
 

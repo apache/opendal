@@ -375,6 +375,10 @@ impl Accessor for IpfsBackend {
                     m.set_mode(ObjectMode::DIR);
                 }
 
+                if let Some(v) = parse_content_disposition(resp.headers())? {
+                    m.set_content_disposition(v);
+                }
+
                 Ok(RpStat::new(m))
             }
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {

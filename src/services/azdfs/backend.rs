@@ -20,6 +20,7 @@ use std::mem;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -324,7 +325,7 @@ impl Accessor for AzdfsBackend {
             _ => unimplemented!("not supported object mode"),
         };
 
-        let mut req = self.azdfs_create_request(path, resource, None, AsyncBody::Empty)?;
+        let mut req = self.azdfs_create_request(path, resource, None, None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -356,8 +357,13 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req =
-            self.azdfs_create_request(path, "file", args.content_type(), AsyncBody::Empty)?;
+        let mut req = self.azdfs_create_request(
+            path,
+            "file",
+            args.content_type(),
+            args.content_disposition(),
+            AsyncBody::Empty,
+        )?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -483,6 +489,7 @@ impl AzdfsBackend {
         path: &str,
         resource: &str,
         content_type: Option<&str>,
+        content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path)
@@ -503,6 +510,10 @@ impl AzdfsBackend {
 
         if let Some(ty) = content_type {
             req = req.header(CONTENT_TYPE, ty)
+        }
+
+        if let Some(pos) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, pos)
         }
 
         // Set body

@@ -17,6 +17,7 @@ use base64::engine::general_purpose;
 use base64::Engine;
 use bytes::Buf;
 use http::header::AUTHORIZATION;
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::Request;
@@ -89,6 +90,7 @@ pub struct WebdavBuilder {
     endpoint: Option<String>,
     username: Option<String>,
     password: Option<String>,
+    token: Option<String>,
     root: Option<String>,
     http_client: Option<HttpClient>,
 }
@@ -137,6 +139,16 @@ impl WebdavBuilder {
         self
     }
 
+    /// set the bearer token for Webdav
+    ///
+    /// default: no access token
+    pub fn token(&mut self, token: &str) -> &mut Self {
+        if !token.is_empty() {
+            self.token = Some(token.to_owned());
+        }
+        self
+    }
+
     /// Set root path of http backend.
     pub fn root(&mut self, root: &str) -> &mut Self {
         self.root = if root.is_empty() {
@@ -171,6 +183,7 @@ impl Builder for WebdavBuilder {
         map.get("endpoint").map(|v| builder.endpoint(v));
         map.get("username").map(|v| builder.username(v));
         map.get("password").map(|v| builder.password(v));
+        map.get("token").map(|v| builder.token(v));
 
         builder
     }
@@ -201,20 +214,23 @@ impl Builder for WebdavBuilder {
         };
 
         // base64 encode
-        let auth = match (&self.username, &self.password) {
-            (Some(username), Some(password)) => {
+        let auth = match (&self.username, &self.password, &self.token) {
+            (Some(username), Some(password), None) => {
                 format!(
                     "Basic {}",
                     general_purpose::STANDARD.encode(format!("{username}:{password}"))
                 )
             }
-            (Some(username), None) => {
+            (Some(username), None, None) => {
                 format!(
                     "Basic {}",
                     general_purpose::STANDARD.encode(format!("{username}:"))
                 )
             }
-            (None, Some(_)) => {
+            (None, None, Some(token)) => {
+                format!("Bearer {token}")
+            }
+            (None, Some(_), _) => {
                 return Err(
                     Error::new(ErrorKind::BackendConfigInvalid, "missing username")
                         .with_context("service", Scheme::Webdav),
@@ -303,7 +319,7 @@ impl Accessor for WebdavBackend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         let resp = self
-            .webdav_put(path, Some(0), None, AsyncBody::Empty)
+            .webdav_put(path, Some(0), None, None, AsyncBody::Empty)
             .await?;
 
         let status = resp.status();
@@ -342,6 +358,7 @@ impl Accessor for WebdavBackend {
                 path,
                 Some(args.size()),
                 args.content_type(),
+                args.content_disposition(),
                 AsyncBody::Reader(r),
             )
             .await?;
@@ -400,7 +417,11 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = Request::get(&url).header(AUTHORIZATION, &self.authorization);
+        let mut req = if self.authorization.is_empty() {
+            Request::get(&url)
+        } else {
+            Request::get(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header());
@@ -418,12 +439,18 @@ impl WebdavBackend {
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
+        content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
-        let mut req = Request::put(&url).header(AUTHORIZATION, &self.authorization);
+
+        let mut req = if self.authorization.is_empty() {
+            Request::put(&url)
+        } else {
+            Request::put(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         if let Some(size) = size {
             req = req.header(CONTENT_LENGTH, size)
@@ -431,6 +458,10 @@ impl WebdavBackend {
 
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(cd) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, cd)
         }
 
         // Set body
@@ -473,7 +504,11 @@ impl WebdavBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::head(&url).header(AUTHORIZATION, &self.authorization);
+        let req = if self.authorization.is_empty() {
+            Request::head(&url)
+        } else {
+            Request::head(&url).header(AUTHORIZATION, &self.authorization)
+        };
 
         let req = req
             .body(AsyncBody::Empty)
@@ -487,10 +522,13 @@ impl WebdavBackend {
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
-        let req = Request::delete(&url)
-            .header(AUTHORIZATION, &self.authorization)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
+        let req = if self.authorization.is_empty() {
+            Request::delete(&url)
+        } else {
+            Request::delete(&url).header(AUTHORIZATION, &self.authorization)
+        }
+        .body(AsyncBody::Empty)
+        .map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
     }

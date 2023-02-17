@@ -19,6 +19,7 @@ use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
+use http::header::LOCATION;
 use http::HeaderMap;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
@@ -29,6 +30,24 @@ use crate::ErrorKind;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
+
+/// Parse redirect location from header map
+///
+/// # Note
+/// The returned value maybe a relative path, like `/index.html`, `/robots.txt`, etc.
+pub fn parse_location(headers: &HeaderMap) -> Result<Option<&str>> {
+    match headers.get(LOCATION) {
+        None => Ok(None),
+        Some(v) => Ok(Some(v.to_str().map_err(|e| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "header value has to be valid utf-8 string",
+            )
+            .with_operation("http_util::parse_location")
+            .set_source(e)
+        })?)),
+    }
+}
 
 /// Parse content length from header map.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {

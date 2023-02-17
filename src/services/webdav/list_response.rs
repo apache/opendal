@@ -57,10 +57,8 @@ pub struct Propstat {
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Prop {
-    pub displayname: String,
     pub getlastmodified: String,
     pub resourcetype: ResourceTypeContainer,
-    pub lockdiscovery: (),
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -99,7 +97,6 @@ mod tests {
         </D:propstat>"#;
 
         let propstat = from_str::<Propstat>(xml).unwrap();
-        assert_eq!(propstat.prop.displayname, "/");
         assert_eq!(
             propstat.prop.getlastmodified,
             "Tue, 01 May 2022 06:39:47 GMT"
@@ -135,7 +132,6 @@ mod tests {
 
         let response = from_str::<ListOpResponse>(xml).unwrap();
         assert_eq!(response.href, "/");
-        assert_eq!(response.propstat.prop.displayname, "/");
         assert_eq!(
             response.propstat.prop.getlastmodified,
             "Tue, 01 May 2022 06:39:47 GMT"
@@ -175,7 +171,6 @@ mod tests {
 
         let response = from_str::<ListOpResponse>(xml).unwrap();
         assert_eq!(response.href, "/test_file");
-        assert_eq!(response.propstat.prop.displayname, "test_file");
         assert_eq!(
             response.propstat.prop.getlastmodified,
             "Tue, 07 May 2022 05:52:22 GMT"
@@ -228,7 +223,6 @@ mod tests {
         let multistatus = from_str::<Multistatus>(xml).unwrap();
         assert_eq!(multistatus.response.len(), 2);
         assert_eq!(multistatus.response[0].href, "/");
-        assert_eq!(multistatus.response[0].propstat.prop.displayname, "/");
         assert_eq!(
             multistatus.response[0].propstat.prop.getlastmodified,
             "Tue, 01 May 2022 06:39:47 GMT"
@@ -317,7 +311,6 @@ mod tests {
         assert_eq!(multistatus.response.len(), 3);
         let first_response = &multistatus.response[0];
         assert_eq!(first_response.href, "/");
-        assert_eq!(first_response.propstat.prop.displayname, "/");
         assert_eq!(
             first_response.propstat.prop.getlastmodified,
             "Tue, 07 May 2022 06:39:47 GMT"
@@ -325,7 +318,6 @@ mod tests {
 
         let second_response = &multistatus.response[1];
         assert_eq!(second_response.href, "/testdir/");
-        assert_eq!(second_response.propstat.prop.displayname, "testdir");
         assert_eq!(
             second_response.propstat.prop.getlastmodified,
             "Tue, 07 May 2022 06:40:10 GMT"
@@ -333,10 +325,128 @@ mod tests {
 
         let third_response = &multistatus.response[2];
         assert_eq!(third_response.href, "/test_file");
-        assert_eq!(third_response.propstat.prop.displayname, "test_file");
         assert_eq!(
             third_response.propstat.prop.getlastmodified,
             "Tue, 07 May 2022 05:52:22 GMT"
+        );
+    }
+
+    #[test]
+    fn test_with_multiple_items_mixed_nginx() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+      <D:multistatus xmlns:D="DAV:">
+        <D:response>
+          <D:href>/</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
+              <D:resourcetype>
+                <D:collection />
+              </D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_75</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_36</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_38</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_59</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_9</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_93</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_43</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+        <D:response>
+          <D:href>/test_file_95</D:href>
+          <D:propstat>
+            <D:prop>
+              <D:getcontentlength>1</D:getcontentlength>
+              <D:getlastmodified>Fri, 17 Feb 2023 03:36:54 GMT</D:getlastmodified>
+              <D:resourcetype></D:resourcetype>
+            </D:prop>
+            <D:status>HTTP/1.1 200 OK</D:status>
+          </D:propstat>
+        </D:response>
+      </D:multistatus>
+      "#;
+
+        let multistatus: Multistatus = from_str(xml).unwrap();
+
+        assert_eq!(multistatus.response.len(), 9);
+
+        let first_response = &multistatus.response[0];
+        assert_eq!(first_response.href, "/");
+        assert_eq!(
+            first_response.propstat.prop.getlastmodified,
+            "Fri, 17 Feb 2023 03:37:22 GMT"
         );
     }
 }

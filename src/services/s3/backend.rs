@@ -24,6 +24,7 @@ use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
 use http::header::HeaderName;
+use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::HeaderValue;
@@ -1126,7 +1127,7 @@ impl Accessor for S3Backend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let mut req = self.s3_put_object_request(path, Some(0), None, AsyncBody::Empty)?;
+        let mut req = self.s3_put_object_request(path, Some(0), None, None, AsyncBody::Empty)?;
 
         self.signer.sign(&mut req).map_err(new_request_sign_error)?;
 
@@ -1162,6 +1163,7 @@ impl Accessor for S3Backend {
             path,
             Some(args.size()),
             args.content_type(),
+            args.content_disposition(),
             AsyncBody::Reader(r),
         )?;
 
@@ -1230,7 +1232,7 @@ impl Accessor for S3Backend {
             PresignOperation::Stat(_) => self.s3_head_object_request(path)?,
             PresignOperation::Read(v) => self.s3_get_object_request(path, v.range())?,
             PresignOperation::Write(_) => {
-                self.s3_put_object_request(path, None, None, AsyncBody::Empty)?
+                self.s3_put_object_request(path, None, None, None, AsyncBody::Empty)?
             }
             PresignOperation::WriteMultipart(v) => self.s3_upload_part_request(
                 path,
@@ -1463,6 +1465,7 @@ impl S3Backend {
         path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
+        content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
@@ -1477,6 +1480,10 @@ impl S3Backend {
 
         if let Some(mime) = content_type {
             req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(pos) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, pos)
         }
 
         // Set SSE headers.

@@ -154,6 +154,19 @@ impl WebhdfsBuilder {
     /// prepend `http://` to it.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
         if !endpoint.is_empty() {
+            // check scheme
+            let endpoint = {
+                let uri: Vec<_> = endpoint.split("://").collect();
+                if uri.len() == 1 {
+                    // An URI without scheme
+                    // prepend `http://`
+                    format!("http://{endpoint}")
+                } else {
+                    // keep endpoint as is.
+                    // even it is invalid
+                    endpoint.to_string()
+                }
+            };
             // trim tailing slash so we can accept `http://127.0.0.1:9870/`
             self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         }

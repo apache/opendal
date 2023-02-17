@@ -215,7 +215,7 @@ impl Builder for WebdavBuilder {
             })?
         };
 
-        // base64 encode
+        // authorization via `Basic` or `Bearer`
         let auth = match (&self.username, &self.password, &self.token) {
             (Some(username), Some(password), None) => {
                 format!(

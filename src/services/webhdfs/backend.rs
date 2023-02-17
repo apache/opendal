@@ -285,11 +285,7 @@ impl WebhdfsBackend {
 
         // should be a 307 TEMPORARY_REDIRECT
         if resp.status() != StatusCode::TEMPORARY_REDIRECT {
-            let err = Error::new(
-                ErrorKind::Unexpected,
-                &format!("expected 307 temporary redirect, got {}", resp.status()),
-            );
-            return Err(err);
+            return Err(parse_error(resp).await?);
         }
         let re_url = self.follow_redirect(resp)?;
 
@@ -390,11 +386,7 @@ impl WebhdfsBackend {
 
         // this should be a 307 redirect
         if resp.status() != StatusCode::TEMPORARY_REDIRECT {
-            let err = Error::new(
-                ErrorKind::Unexpected,
-                &format!("expected 307 temporary redirect, got {}", resp.status()),
-            );
-            return Err(err);
+            return Err(parse_error(resp).await?);
         }
 
         let re_url = self.follow_redirect(resp)?;

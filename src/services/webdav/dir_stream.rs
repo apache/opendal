@@ -42,7 +42,11 @@ impl output::Page for DirStream {
         for _ in 0..self.size {
             if let Some(de) = self.multistates.response.pop() {
                 let path = de.href.clone();
-                let normalized_path = &build_rel_path(&self.root, &path);
+                let normalized_path = &if self.root != path {
+                    build_rel_path(&self.root, &path)
+                } else {
+                    path
+                };
 
                 let entry = if de.propstat.prop.resourcetype.value
                     == Some(super::list_response::ResourceType::Collection)

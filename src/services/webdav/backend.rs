@@ -78,9 +78,10 @@ use crate::*;
 ///     // create backend builder
 ///     let mut builder = Webdav::default();
 ///
-///     builder.endpoint("127.0.0.1")
-///     .username("xxx")
-///     .password("xxx");
+///     builder
+///         .endpoint("127.0.0.1")
+///         .username("xxx")
+///         .password("xxx");
 ///
 ///     let op: Operator = Operator::create(builder)?.finish();
 ///     let _obj: Object = op.object("test_file");

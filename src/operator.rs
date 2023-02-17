@@ -422,7 +422,9 @@ impl BatchOperator {
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.batch().remove(vec!["abc".to_string(), "def".to_string()]).await?;
+    /// op.batch()
+    ///     .remove(vec!["abc".to_string(), "def".to_string()])
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -449,7 +451,7 @@ impl BatchOperator {
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let stream = stream::iter(vec!["abc".to_string(), "def".to_string());
+    /// let stream = stream::iter(vec!["abc".to_string(), "def".to_string()]);
     /// op.batch().remove_via(stream).await?;
     /// # Ok(())
     /// # }

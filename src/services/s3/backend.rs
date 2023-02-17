@@ -1712,7 +1712,8 @@ impl S3Backend {
         let req = req.header(CONTENT_TYPE, "application/xml");
         // Set content-md5 as required by API.
         let req = req.header("CONTENT-MD5", {
-            use base64::{engine::general_purpose, Engine as _};
+            use base64::engine::general_purpose;
+            use base64::Engine as _;
 
             let mut hasher = md5::Md5::new();
             hasher.update(content.as_bytes());

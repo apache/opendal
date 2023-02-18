@@ -75,10 +75,6 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     Ok(err)
 }
 
-pub fn parse_json_deserialize_error(e: serde_json::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "deserialize json").set_source(e)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -20,7 +20,6 @@ use serde::Deserialize;
 
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
-use super::error::parse_json_deserialize_error;
 use crate::raw::*;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
@@ -59,7 +58,7 @@ impl output::Page for DirStream {
 
         let bs = resp.into_body().bytes().await?;
         let entries_body: IpfsLsResponse =
-            serde_json::from_slice(&bs).map_err(parse_json_deserialize_error)?;
+            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
         // Mark dir stream has been consumed.
         self.consumed = true;

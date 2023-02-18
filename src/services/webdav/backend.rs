@@ -312,28 +312,21 @@ impl Accessor for WebdavBackend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let resp = if path.ends_with('/') {
-            self.webdav_mkcol(path, None, None, AsyncBody::Empty)
-                .await?
-        } else {
-            self.webdav_put(path, Some(0), None, None, AsyncBody::Empty)
-                .await?
-        };
+        // create dir recursively, split path by `/` and create each dir except the last one
+        let parts = path.split('/');
+        let paths_without_last_part: Vec<&str> = parts.clone().take(parts.count() - 1).collect();
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED
-            | StatusCode::OK
-            // create existing dir will return conflict
-            | StatusCode::CONFLICT
-            // create existing file will return no_content
-            | StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+        let mut sub_path = String::new();
+        for sub_part in paths_without_last_part {
+            if sub_part.is_empty() {
+                continue;
             }
-            _ => Err(parse_error(resp).await?),
+            let sub_path_with_slash = sub_path.clone() + "/";
+            sub_path.push_str(&sub_path_with_slash);
+            self.create_internal(&sub_path).await?;
         }
+
+        self.create_internal(path).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -563,5 +556,30 @@ impl WebdavBackend {
             .map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
+    }
+
+    async fn create_internal(&self, path: &str) -> Result<RpCreate> {
+        let resp = if path.ends_with('/') {
+            self.webdav_mkcol(path, None, None, AsyncBody::Empty)
+                .await?
+        } else {
+            self.webdav_put(path, Some(0), None, None, AsyncBody::Empty)
+                .await?
+        };
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED
+            | StatusCode::OK
+            // create existing dir will return conflict
+            | StatusCode::CONFLICT
+            // create existing file will return no_content
+            | StatusCode::NO_CONTENT => {
+                resp.into_body().consume().await?;
+                Ok(RpCreate::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

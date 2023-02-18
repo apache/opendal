@@ -345,9 +345,10 @@ impl Accessor for WebdavBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let abs_path = &build_abs_path(&self.root, path);
         let resp = self
             .webdav_put(
-                path,
+                abs_path,
                 Some(args.size()),
                 args.content_type(),
                 args.content_disposition(),

@@ -133,8 +133,10 @@ jobs:
           hdfs-version: "3.3.2"
 
       - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
       - name: Test
-        run: cargo test --no-fail-fast --features compress,layers-all
+        run: cargo nextest run --no-fail-fast --features compress,layers-all && cargo test --doc
         env:
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full
@@ -160,9 +162,11 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
       - name: Test
         working-directory: ./binaries/oli
-        run: cargo test
+        run: cargo nextest run && cargo test --doc
 
   build_oay:
     runs-on: ${{ matrix.os }}
@@ -184,9 +188,11 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
       - name: Test
         working-directory: ./binaries/oay
-        run: cargo test
+        run: cargo nextest run && cargo test --doc
 
   build_object_store:
     runs-on: ${{ matrix.os }}
@@ -208,6 +214,8 @@ jobs:
           - ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
       - name: Test
         working-directory: ./bindings/object_store
-        run: cargo test
+        run: cargo nextest run && cargo test --doc

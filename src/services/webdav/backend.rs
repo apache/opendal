@@ -572,6 +572,8 @@ impl WebdavBackend {
         match status {
             StatusCode::CREATED
             | StatusCode::OK
+            // `File exists` will return `Method Not Allowed`
+            | StatusCode::METHOD_NOT_ALLOWED
             // create existing dir will return conflict
             | StatusCode::CONFLICT
             // create existing file will return no_content

@@ -323,7 +323,7 @@ impl Accessor for GhacBackend {
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body().bytes().await?;
             let reserve_resp: GhacReserveResponse =
-                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             reserve_resp.cache_id
         } else if resp.status().as_u16() == StatusCode::CONFLICT {
             // If the file is already exist, just return Ok.
@@ -370,7 +370,7 @@ impl Accessor for GhacBackend {
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body().bytes().await?;
             let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else {
             return Err(parse_error(resp).await?);
@@ -397,7 +397,7 @@ impl Accessor for GhacBackend {
         let cache_id = if resp.status().is_success() {
             let slc = resp.into_body().bytes().await?;
             let reserve_resp: GhacReserveResponse =
-                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             reserve_resp.cache_id
         } else {
             return Err(parse_error(resp)
@@ -445,7 +445,7 @@ impl Accessor for GhacBackend {
         let location = if resp.status() == StatusCode::OK {
             let slc = resp.into_body().bytes().await?;
             let query_resp: GhacQueryResponse =
-                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else if resp.status() == StatusCode::NO_CONTENT && path.ends_with('/') {
             return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
@@ -554,7 +554,7 @@ impl GhacBackend {
             version: self.version.to_string(),
             cache_size: size,
         })
-        .map_err(parse_json_serialize_error)?;
+        .map_err(new_json_serialize_error)?;
 
         let mut req = Request::post(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
@@ -598,7 +598,7 @@ impl GhacBackend {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
 
         let bs =
-            serde_json::to_vec(&GhacCommitRequest { size }).map_err(parse_json_serialize_error)?;
+            serde_json::to_vec(&GhacCommitRequest { size }).map_err(new_json_serialize_error)?;
 
         let mut req = Request::post(&url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));

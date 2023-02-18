@@ -58,7 +58,7 @@ impl output::Page for DirStream {
 
         let bs = resp.into_body().bytes().await?;
         let entries_body: IpfsLsResponse =
-            serde_json::from_slice(&bs).map_err(parse_json_deserialize_error)?;
+            serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
         // Mark dir stream has been consumed.
         self.consumed = true;

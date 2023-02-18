@@ -1278,7 +1278,7 @@ impl Accessor for S3Backend {
                     let bs = resp.into_body().bytes().await?;
 
                     let result: DeleteObjectsResult = quick_xml::de::from_reader(bs.reader())
-                        .map_err(parse_xml_deserialize_error)?;
+                        .map_err(new_xml_deserialize_error)?;
 
                     let mut batched_result =
                         Vec::with_capacity(result.deleted.len() + result.error.len());
@@ -1318,7 +1318,7 @@ impl Accessor for S3Backend {
                 let bs = resp.into_body().bytes().await?;
 
                 let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
                 Ok(RpCreateMultipart::new(&result.upload_id))
             }
@@ -1652,7 +1652,7 @@ impl S3Backend {
                 })
                 .collect(),
         })
-        .map_err(parse_xml_deserialize_error)?;
+        .map_err(new_xml_deserialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
@@ -1703,7 +1703,7 @@ impl S3Backend {
                 })
                 .collect(),
         })
-        .map_err(parse_xml_deserialize_error)?;
+        .map_err(new_xml_deserialize_error)?;
 
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());

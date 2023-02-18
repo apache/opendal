@@ -15,16 +15,16 @@
 use crate::*;
 
 /// Parse xml deserialize error into opendal::Error.
-pub fn parse_xml_deserialize_error(e: quick_xml::DeError) -> Error {
+pub fn new_xml_deserialize_error(e: quick_xml::DeError) -> Error {
     Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e)
 }
 
 /// Parse json serialize error into opendal::Error.
-pub fn parse_json_serialize_error(e: serde_json::Error) -> Error {
+pub fn new_json_serialize_error(e: serde_json::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "serialize json").set_source(e)
 }
 
 /// Parse json deserialize error into opendal::Error.
-pub fn parse_json_deserialize_error(e: serde_json::Error) -> Error {
+pub fn new_json_deserialize_error(e: serde_json::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "deserialize json").set_source(e)
 }

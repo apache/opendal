@@ -80,7 +80,7 @@ impl output::Page for DirStream {
 
         let bs = resp.into_body().bytes().await?;
 
-        let output: Output = de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
+        let output: Output = de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
         // Try our best to check whether this list is done.
         //

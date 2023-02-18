@@ -320,10 +320,7 @@ impl Accessor for WebdavBackend {
 
         let mut sub_path = String::new();
         for sub_part in parts {
-            if sub_part.is_empty() {
-                continue;
-            }
-            let sub_path_with_slash = sub_path.clone() + "/";
+            let sub_path_with_slash = sub_part.clone().to_owned() + "/";
             sub_path.push_str(&sub_path_with_slash);
             self.create_internal(&sub_path).await?;
         }

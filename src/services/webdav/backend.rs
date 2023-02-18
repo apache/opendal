@@ -313,19 +313,21 @@ impl Accessor for WebdavBackend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         // create dir recursively, split path by `/` and create each dir except the last one
-        let mut parts: Vec<&str> = path.split('/').filter(|x| !x.is_empty()).collect();
+        let abs_path = build_abs_path(&self.root, path);
+        let abs_path = abs_path.as_str();
+        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
         if !parts.is_empty() {
             parts.pop();
         }
 
         let mut sub_path = String::new();
         for sub_part in parts {
-            let sub_path_with_slash = sub_part.clone().to_owned() + "/";
+            let sub_path_with_slash = sub_part.to_owned() + "/";
             sub_path.push_str(&sub_path_with_slash);
             self.create_internal(&sub_path).await?;
         }
 
-        self.create_internal(path).await
+        self.create_internal(abs_path).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -426,15 +428,13 @@ impl WebdavBackend {
 
     async fn webdav_put(
         &self,
-        path: &str,
+        abs_path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
 
         let mut req = Request::put(&url);
 
@@ -462,14 +462,12 @@ impl WebdavBackend {
 
     async fn webdav_mkcol(
         &self,
-        path: &str,
+        abs_path: &str,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
 
         let mut req = Request::builder().method("MKCOL").uri(&url);
         if let Some(auth) = &self.authorization {
@@ -557,12 +555,12 @@ impl WebdavBackend {
         self.client.send_async(req).await
     }
 
-    async fn create_internal(&self, path: &str) -> Result<RpCreate> {
-        let resp = if path.ends_with('/') {
-            self.webdav_mkcol(path, None, None, AsyncBody::Empty)
+    async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {
+        let resp = if abs_path.ends_with('/') {
+            self.webdav_mkcol(abs_path, None, None, AsyncBody::Empty)
                 .await?
         } else {
-            self.webdav_put(path, Some(0), None, None, AsyncBody::Empty)
+            self.webdav_put(abs_path, Some(0), None, None, AsyncBody::Empty)
                 .await?
         };
 

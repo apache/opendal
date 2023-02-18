@@ -17,9 +17,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use async_trait::async_trait;
-use base64::engine::general_purpose;
-use base64::Engine;
-use http::header::AUTHORIZATION;
+use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
@@ -206,31 +204,16 @@ impl Builder for HttpBuilder {
             })?
         };
 
-        // authorization via `Basic` or `Bearer`
-        let auth = match (&self.username, &self.password, &self.token) {
-            (Some(username), Some(password), None) => {
-                format!(
-                    "Basic {}",
-                    general_purpose::STANDARD.encode(format!("{username}:{password}"))
-                )
-            }
-            (Some(username), None, None) => {
-                format!(
-                    "Basic {}",
-                    general_purpose::STANDARD.encode(format!("{username}:"))
-                )
-            }
-            (None, None, Some(token)) => {
-                format!("Bearer {token}")
-            }
-            (None, Some(_), _) => {
-                return Err(
-                    Error::new(ErrorKind::BackendConfigInvalid, "missing username")
-                        .with_context("service", Scheme::Http),
-                )
-            }
-            _ => String::default(),
-        };
+        let mut auth = None;
+        if let Some(username) = &self.username {
+            auth = Some(format_authorization_by_basic(
+                username,
+                self.password.as_deref().unwrap_or_default(),
+            )?);
+        }
+        if let Some(token) = &self.token {
+            auth = Some(format_authorization_by_bearer(token)?)
+        }
 
         debug!("backend build finished: {:?}", &self);
         Ok(HttpBackend {
@@ -246,9 +229,10 @@ impl Builder for HttpBuilder {
 #[derive(Clone)]
 pub struct HttpBackend {
     endpoint: String,
-    authorization: String,
     root: String,
     client: HttpClient,
+
+    authorization: Option<String>,
 }
 
 impl Debug for HttpBackend {
@@ -320,14 +304,14 @@ impl HttpBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let mut req = if self.authorization.is_empty() {
-            Request::get(&url)
-        } else {
-            Request::get(&url).header(AUTHORIZATION, &self.authorization)
-        };
+        let mut req = Request::get(&url);
+
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth.clone())
+        }
 
         if !range.is_full() {
-            req = req.header(http::header::RANGE, range.to_header());
+            req = req.header(header::RANGE, range.to_header());
         }
 
         let req = req
@@ -342,11 +326,11 @@ impl HttpBackend {
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
-        let req = if self.authorization.is_empty() {
-            Request::head(&url)
-        } else {
-            Request::head(&url).header(AUTHORIZATION, &self.authorization)
-        };
+        let mut req = Request::head(&url);
+
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth.clone())
+        }
 
         let req = req
             .body(AsyncBody::Empty)

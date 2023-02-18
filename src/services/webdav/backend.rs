@@ -312,7 +312,7 @@ impl Accessor for WebdavBackend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let resp = if path.ends_with("/") {
+        let resp = if path.ends_with('/') {
             self.webdav_mkcol(path, None, None, AsyncBody::Empty)
                 .await?
         } else {

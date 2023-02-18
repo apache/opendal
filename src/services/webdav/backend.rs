@@ -313,11 +313,13 @@ impl Accessor for WebdavBackend {
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         // create dir recursively, split path by `/` and create each dir except the last one
-        let parts = path.split('/');
-        let paths_without_last_part: Vec<&str> = parts.clone().take(parts.count() - 1).collect();
+        let mut parts: Vec<&str> = path.split('/').filter(|x| !x.is_empty()).collect();
+        if !parts.is_empty() {
+            parts.pop();
+        }
 
         let mut sub_path = String::new();
-        for sub_part in paths_without_last_part {
+        for sub_part in parts {
             if sub_part.is_empty() {
                 continue;
             }

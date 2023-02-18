@@ -380,7 +380,9 @@ impl WebhdfsBackend {
 
 impl WebhdfsBackend {
     /// get object from webhdfs
-    /// # Note
+    ///
+    /// # Notes
+    ///
     /// looks like webhdfs doesn't support range request from file end.
     /// so if we want to read the tail of object, the whole object should be transferred.
     async fn webhdfs_get_object(
@@ -625,10 +627,7 @@ impl Accessor for WebhdfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // if root exists and is a directory, stat will be ok
         self.root_checker
-            .get_or_try_init(|| async {
-                debug!("checking root existence");
-                self.check_root().await
-            })
+            .get_or_try_init(|| async { self.check_root().await })
             .await?;
 
         let resp = self.webhdfs_status_object(path).await?;

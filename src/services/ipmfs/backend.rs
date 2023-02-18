@@ -25,7 +25,6 @@ use serde::Deserialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use super::error::parse_json_deserialize_error;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -139,7 +138,7 @@ impl Accessor for IpmfsBackend {
                 let bs = resp.into_body().bytes().await?;
 
                 let res: IpfsStatResponse =
-                    serde_json::from_slice(&bs).map_err(parse_json_deserialize_error)?;
+                    serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
                 let mode = match res.file_type.as_str() {
                     "file" => ObjectMode::FILE,

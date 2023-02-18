@@ -33,7 +33,6 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use super::error::parse_json_deserialize_error;
 use super::uri::percent_encode_path;
 use crate::ops::*;
 use crate::raw::*;
@@ -421,7 +420,7 @@ impl Accessor for GcsBackend {
             // read http response body
             let slc = resp.into_body().bytes().await?;
             let meta: GetObjectJsonResponse =
-                serde_json::from_slice(&slc).map_err(parse_json_deserialize_error)?;
+                serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
             let mode = if path.ends_with('/') {
                 ObjectMode::DIR

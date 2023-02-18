@@ -59,5 +59,8 @@ pub use rps::*;
 mod http_util;
 pub use http_util::*;
 
+mod serde_util;
+pub use serde_util::*;
+
 // Expose as a pub mod to avoid confusing.
 pub mod adapters;

@@ -23,7 +23,6 @@ use time::OffsetDateTime;
 
 use super::backend::S3Backend;
 use super::error::parse_error;
-use super::error::parse_xml_deserialize_error;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;

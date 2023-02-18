@@ -17,4 +17,3 @@ pub use backend::GcsBuilder as Gcs;
 
 mod dir_stream;
 mod error;
-mod uri;

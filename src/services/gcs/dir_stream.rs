@@ -22,7 +22,6 @@ use time::OffsetDateTime;
 
 use super::backend::GcsBackend;
 use super::error::parse_error;
-use super::error::parse_json_deserialize_error;
 use crate::raw::*;
 use crate::*;
 

@@ -662,11 +662,3 @@ struct GhacReserveResponse {
 struct GhacCommitRequest {
     size: u64,
 }
-
-pub fn parse_json_serialize_error(e: serde_json::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "serialize json").set_source(e)
-}
-
-pub fn parse_json_deserialize_error(e: serde_json::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "deserialize json").set_source(e)
-}

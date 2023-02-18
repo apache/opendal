@@ -62,10 +62,6 @@ pub async fn parse_error(resp: Response<IncomingAsyncBody>) -> Result<Error> {
     Ok(err)
 }
 
-pub fn parse_xml_deserialize_error(e: quick_xml::DeError) -> Error {
-    Error::new(ErrorKind::Unexpected, "deserialize xml").set_source(e)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

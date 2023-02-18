@@ -33,8 +33,6 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use super::error::parse_json_deserialize_error;
-use super::uri::percent_encode_path;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;

@@ -331,9 +331,13 @@ impl Accessor for WebdavBackend {
     }
 
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let resp = self
-            .webdav_put(path, Some(0), None, None, AsyncBody::Empty)
-            .await?;
+        let resp = if path.ends_with("/") {
+            self.webdav_mkcol(path, None, None, AsyncBody::Empty)
+                .await?
+        } else {
+            self.webdav_put(path, Some(0), None, None, AsyncBody::Empty)
+                .await?
+        };
 
         let status = resp.status();
 
@@ -483,6 +487,35 @@ impl WebdavBackend {
         self.client.send_async(req).await
     }
 
+    async fn webdav_mkcol(
+        &self,
+        path: &str,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+
+        let mut req = Request::builder().method("MKCOL").uri(&url);
+        if !self.authorization.is_empty() {
+            req = req.header(AUTHORIZATION, &self.authorization);
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(CONTENT_TYPE, mime)
+        }
+
+        if let Some(cd) = content_disposition {
+            req = req.header(CONTENT_DISPOSITION, cd)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send_async(req).await
+    }
+
     async fn webdav_propfind(
         &self,
         path: &str,
@@ -510,7 +543,6 @@ impl WebdavBackend {
             req = req.header(CONTENT_TYPE, mime)
         }
 
-        // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.client.send_async(req).await

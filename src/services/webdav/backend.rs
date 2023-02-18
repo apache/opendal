@@ -315,6 +315,17 @@ impl Accessor for WebdavBackend {
                     DirStream::new(&self.root, path, result, args.limit()),
                 ))
             }
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
+                RpList::default(),
+                DirStream::new(
+                    &self.root,
+                    path,
+                    Multistatus {
+                        response: Vec::new(),
+                    },
+                    args.limit(),
+                ),
+            )),
             _ => Err(parse_error(resp).await?),
         }
     }

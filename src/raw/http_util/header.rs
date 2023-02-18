@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use base64::engine::general_purpose;
+use base64::Engine;
 use http::header::HeaderName;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -223,4 +225,82 @@ pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<Obj
     }
 
     Ok(m)
+}
+
+/// format authorization header by basic auth.
+///
+/// # Errors
+///
+/// If input username is empty, function will return an unexpected error.
+pub fn format_authorization_by_basic(username: &str, password: &str) -> Result<String> {
+    if username.is_empty() {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "can't build authorization header with empty username",
+        ));
+    }
+
+    let value = general_purpose::STANDARD.encode(format!("{username}:{password}"));
+
+    Ok(format!("Basic {value}"))
+}
+
+/// format authorization header by bearer token.
+///
+/// # Errors
+///
+/// If input token is empty, function will return an unexpected error.
+pub fn format_authorization_by_bearer(token: &str) -> Result<String> {
+    if token.is_empty() {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "can't build authorization header with empty token",
+        ));
+    }
+
+    Ok(format!("Bearer {token}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{format_authorization_by_basic, format_authorization_by_bearer};
+
+    /// Test cases is borrowed from
+    ///
+    /// - RFC2617: https://datatracker.ietf.org/doc/html/rfc2617#section-2
+    /// - MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization
+    #[test]
+    fn test_format_authorization_by_basic() {
+        let cases = vec![
+            ("aladdin", "opensesame", "Basic YWxhZGRpbjpvcGVuc2VzYW1l"),
+            ("aladdin", "", "Basic YWxhZGRpbjo="),
+            (
+                "Aladdin",
+                "open sesame",
+                "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
+            ),
+            ("Aladdin", "", "Basic QWxhZGRpbjo="),
+        ];
+
+        for (username, password, expected) in cases {
+            let actual =
+                format_authorization_by_basic(username, password).expect("format must success");
+
+            assert_eq!(actual, expected)
+        }
+    }
+
+    /// Test cases is borrowed from
+    ///
+    /// - RFC6750: https://datatracker.ietf.org/doc/html/rfc6750
+    #[test]
+    fn test_format_authorization_by_bearer() {
+        let cases = vec![("mF_9.B5f-4.1JqM", "Bearer mF_9.B5f-4.1JqM")];
+
+        for (token, expected) in cases {
+            let actual = format_authorization_by_bearer(token).expect("format must success");
+
+            assert_eq!(actual, expected)
+        }
+    }
 }

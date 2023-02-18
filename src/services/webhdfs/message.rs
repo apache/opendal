@@ -19,12 +19,6 @@ use serde::Deserialize;
 use crate::*;
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub(super) struct Redirection {
-    pub location: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub(super) struct BooleanResp {
     pub boolean: bool,
 }
@@ -88,16 +82,6 @@ mod test {
     use crate::raw::output::Page;
     use crate::services::webhdfs::dir_stream::DirStream;
     use crate::ObjectMode;
-
-    #[test]
-    fn test_file_statuses() {
-        let json = r#"{"Location":"http://<DATANODE>:<PORT>/webhdfs/v1/<PATH>?op=CREATE..."}"#;
-        let redir: Redirection = serde_json::from_str(json).expect("must success");
-        assert_eq!(
-            redir.location,
-            "http://<DATANODE>:<PORT>/webhdfs/v1/<PATH>?op=CREATE..."
-        );
-    }
 
     #[test]
     fn test_file_status() {

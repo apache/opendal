@@ -263,7 +263,8 @@ pub fn format_authorization_by_bearer(token: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_authorization_by_basic, format_authorization_by_bearer};
+    use super::format_authorization_by_basic;
+    use super::format_authorization_by_bearer;
 
     /// Test cases is borrowed from
     ///

@@ -119,7 +119,9 @@ impl HttpClient {
     /// # use anyhow::Result;
     /// # use reqwest::redirect::Policy;
     /// # fn main() -> Result<()> {
-    /// let _client = reqwest::ClientBuilder::new().redirect(Policy::none()).build()?;
+    /// let _client = reqwest::ClientBuilder::new()
+    ///     .redirect(Policy::none())
+    ///     .build()?;
     /// # Ok(())
     /// # }
     /// ```

@@ -268,49 +268,6 @@ impl Accessor for WebdavBackend {
         ma
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        // XML body must start without a new line. Otherwise, the server will panic: `xmlParseChunk() failed`
-        let all_prop_xml_body = r#"<?xml version="1.0" encoding="utf-8" ?>
-            <D:propfind xmlns:D="DAV:">
-                <D:allprop/>
-            </D:propfind>
-        "#;
-
-        let async_body = AsyncBody::Bytes(bytes::Bytes::from(all_prop_xml_body));
-        let resp = self
-            .webdav_propfind(path, None, "application/xml".into(), async_body)
-            .await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::MULTI_STATUS => {
-                let bs = resp.into_body().bytes().await?;
-                let result: Multistatus =
-                    quick_xml::de::from_reader(bs.reader()).map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, &err.to_string())
-                            .with_context("service", Scheme::Webdav)
-                    })?;
-
-                Ok((
-                    RpList::default(),
-                    DirStream::new(&self.root, path, result, args.limit()),
-                ))
-            }
-            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
-                RpList::default(),
-                DirStream::new(
-                    &self.root,
-                    path,
-                    Multistatus {
-                        response: Vec::new(),
-                    },
-                    args.limit(),
-                ),
-            )),
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
     async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
         // create dir recursively, split path by `/` and create each dir except the last one
         let abs_path = build_abs_path(&self.root, path);
@@ -395,6 +352,42 @@ impl Accessor for WebdavBackend {
 
         match status {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(RpDelete::default()),
+            _ => Err(parse_error(resp).await?),
+        }
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
+        // XML body must start without a new line. Otherwise, the server will panic: `xmlParseChunk() failed`
+        let all_prop_xml_body = r#"<?xml version="1.0" encoding="utf-8" ?>
+            <D:propfind xmlns:D="DAV:">
+                <D:allprop/>
+            </D:propfind>
+        "#;
+
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(all_prop_xml_body));
+        let resp = self
+            .webdav_propfind(path, None, "application/xml".into(), async_body)
+            .await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK | StatusCode::MULTI_STATUS => {
+                let bs = resp.into_body().bytes().await?;
+                let result: Multistatus =
+                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
+
+                Ok((RpList::default(), DirStream::new(&self.root, path, result)))
+            }
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
+                RpList::default(),
+                DirStream::new(
+                    &self.root,
+                    path,
+                    Multistatus {
+                        response: Vec::new(),
+                    },
+                ),
+            )),
             _ => Err(parse_error(resp).await?),
         }
     }

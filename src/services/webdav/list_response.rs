@@ -15,30 +15,6 @@
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug, PartialEq)]
-pub struct LockScopeContainer {
-    #[serde(rename = "$value")]
-    pub value: LockScope,
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum LockScope {
-    Exclusive,
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
-pub struct LockTypeContainer {
-    #[serde(rename = "$value")]
-    pub value: LockType,
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum LockType {
-    Write,
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
 pub struct Multistatus {
     pub response: Vec<ListOpResponse>,
 }

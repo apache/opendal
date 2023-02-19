@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::mem;
+
 use crate::raw::build_rel_path;
 use crate::Result;
 use crate::{raw::output, ObjectMetadata, ObjectMode};
@@ -22,16 +24,14 @@ use super::list_response::Multistatus;
 pub struct DirStream {
     root: String,
     path: String,
-    size: usize,
     multistates: Multistatus,
 }
 
 impl DirStream {
-    pub fn new(root: &str, path: &str, multistates: Multistatus, limit: Option<usize>) -> Self {
+    pub fn new(root: &str, path: &str, multistates: Multistatus) -> Self {
         Self {
             root: root.into(),
             path: path.into(),
-            size: limit.unwrap_or(1000),
             multistates,
         }
     }
@@ -40,32 +40,41 @@ impl DirStream {
 #[async_trait]
 impl output::Page for DirStream {
     async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let mut oes: Vec<output::Entry> = Vec::new();
-        for _ in 0..self.size {
-            if let Some(de) = self.multistates.response.pop() {
-                let path = de.href.clone();
-                let normalized_path = &if self.root != path {
+        if self.multistates.response.is_empty() {
+            return Ok(None);
+        };
+        let oes = mem::take(&mut self.multistates.response);
+
+        let oes = oes
+            .into_iter()
+            .filter_map(|de| {
+                let path = de.href;
+                let normalized_path = if self.root != path {
                     build_rel_path(&self.root, &path)
                 } else {
                     path
                 };
 
-                if normalized_path.eq(&self.path) {
+                if normalized_path == self.path {
                     // WebDav server may return the current path as an entry.
-                    continue;
+                    return None;
                 }
 
                 let entry = if de.propstat.prop.resourcetype.value
                     == Some(super::list_response::ResourceType::Collection)
                 {
-                    output::Entry::new(normalized_path, ObjectMetadata::new(ObjectMode::DIR))
+                    output::Entry::new(
+                        &normalized_path,
+                        ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    )
                 } else {
-                    output::Entry::new(normalized_path, ObjectMetadata::new(ObjectMode::FILE))
+                    output::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::FILE))
                 };
-                oes.push(entry);
-            }
-        }
 
-        Ok(if oes.is_empty() { None } else { Some(oes) })
+                Some(entry)
+            })
+            .collect();
+
+        Ok(Some(oes))
     }
 }

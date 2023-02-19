@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
 use async_trait::async_trait;
+use bytes::Buf;
 use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 
+use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::list_response::Multistatus;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -36,7 +38,7 @@ use crate::*;
 ///
 /// - [x] read
 /// - [x] write
-/// - [ ] list
+/// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
 /// - [ ] ~~multipart~~
@@ -46,10 +48,6 @@ use crate::*;
 ///
 /// Bazel Remote Caching and Ccache HTTP Storage is also part of this service.
 /// Users can use `webdav` to connect those services.
-///
-/// # Status
-///
-/// - `list` is not supported so far.
 ///
 /// # Configuration
 ///
@@ -255,38 +253,81 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
-    type Pager = ();
+    type Pager = DirStream;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
         let mut ma = AccessorMetadata::default();
         ma.set_scheme(Scheme::Webdav)
             .set_root(&self.root)
-            .set_capabilities(AccessorCapability::Read | AccessorCapability::Write)
+            .set_capabilities(
+                AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::List,
+            )
             .set_hints(AccessorHint::ReadStreamable);
 
         ma
     }
 
-    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
-        let resp = self
-            .webdav_put(path, Some(0), None, None, AsyncBody::Empty)
-            .await?;
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
+        // XML body must start without a new line. Otherwise, the server will panic: `xmlParseChunk() failed`
+        let all_prop_xml_body = r#"<?xml version="1.0" encoding="utf-8" ?>
+            <D:propfind xmlns:D="DAV:">
+                <D:allprop/>
+            </D:propfind>
+        "#;
 
+        let async_body = AsyncBody::Bytes(bytes::Bytes::from(all_prop_xml_body));
+        let resp = self
+            .webdav_propfind(path, None, "application/xml".into(), async_body)
+            .await?;
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED
-            | StatusCode::OK
-            // create existing dir will return conflict
-            | StatusCode::CONFLICT
-            // create existing file will return no_content
-            | StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-                Ok(RpCreate::default())
+            StatusCode::OK | StatusCode::MULTI_STATUS => {
+                let bs = resp.into_body().bytes().await?;
+                let result: Multistatus =
+                    quick_xml::de::from_reader(bs.reader()).map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, &err.to_string())
+                            .with_context("service", Scheme::Webdav)
+                    })?;
+
+                Ok((
+                    RpList::default(),
+                    DirStream::new(&self.root, path, result, args.limit()),
+                ))
             }
+            StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
+                RpList::default(),
+                DirStream::new(
+                    &self.root,
+                    path,
+                    Multistatus {
+                        response: Vec::new(),
+                    },
+                    args.limit(),
+                ),
+            )),
             _ => Err(parse_error(resp).await?),
         }
+    }
+
+    async fn create(&self, path: &str, _: OpCreate) -> Result<RpCreate> {
+        // create dir recursively, split path by `/` and create each dir except the last one
+        let abs_path = build_abs_path(&self.root, path);
+        let abs_path = abs_path.as_str();
+        let mut parts: Vec<&str> = abs_path.split('/').filter(|x| !x.is_empty()).collect();
+        if !parts.is_empty() {
+            parts.pop();
+        }
+
+        let mut sub_path = String::new();
+        for sub_part in parts {
+            let sub_path_with_slash = sub_part.to_owned() + "/";
+            sub_path.push_str(&sub_path_with_slash);
+            self.create_internal(&sub_path).await?;
+        }
+
+        self.create_internal(abs_path).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -304,9 +345,10 @@ impl Accessor for WebdavBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+        let abs_path = &build_abs_path(&self.root, path);
         let resp = self
             .webdav_put(
-                path,
+                abs_path,
                 Some(args.size()),
                 args.content_type(),
                 args.content_disposition(),
@@ -387,15 +429,13 @@ impl WebdavBackend {
 
     async fn webdav_put(
         &self,
-        path: &str,
+        abs_path: &str,
         size: Option<u64>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
 
         let mut req = Request::put(&url);
 
@@ -416,6 +456,65 @@ impl WebdavBackend {
         }
 
         // Set body
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn webdav_mkcol(
+        &self,
+        abs_path: &str,
+        content_type: Option<&str>,
+        content_disposition: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
+
+        let mut req = Request::builder().method("MKCOL").uri(&url);
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(header::CONTENT_TYPE, mime)
+        }
+
+        if let Some(cd) = content_disposition {
+            req = req.header(header::CONTENT_DISPOSITION, cd)
+        }
+
+        let req = req.body(body).map_err(new_request_build_error)?;
+
+        self.client.send_async(req).await
+    }
+
+    async fn webdav_propfind(
+        &self,
+        path: &str,
+        size: Option<u64>,
+        content_type: Option<&str>,
+        body: AsyncBody,
+    ) -> Result<Response<IncomingAsyncBody>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let mut req = Request::builder()
+            .method("PROPFIND")
+            .uri(&url)
+            .header("Depth", "1");
+
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        if let Some(size) = size {
+            req = req.header(header::CONTENT_LENGTH, size)
+        }
+
+        if let Some(mime) = content_type {
+            req = req.header(header::CONTENT_TYPE, mime)
+        }
+
         let req = req.body(body).map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
@@ -455,5 +554,32 @@ impl WebdavBackend {
             .map_err(new_request_build_error)?;
 
         self.client.send_async(req).await
+    }
+
+    async fn create_internal(&self, abs_path: &str) -> Result<RpCreate> {
+        let resp = if abs_path.ends_with('/') {
+            self.webdav_mkcol(abs_path, None, None, AsyncBody::Empty)
+                .await?
+        } else {
+            self.webdav_put(abs_path, Some(0), None, None, AsyncBody::Empty)
+                .await?
+        };
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED
+            | StatusCode::OK
+            // `File exists` will return `Method Not Allowed`
+            | StatusCode::METHOD_NOT_ALLOWED
+            // create existing dir will return conflict
+            | StatusCode::CONFLICT
+            // create existing file will return no_content
+            | StatusCode::NO_CONTENT => {
+                resp.into_body().consume().await?;
+                Ok(RpCreate::default())
+            }
+            _ => Err(parse_error(resp).await?),
+        }
     }
 }

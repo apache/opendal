@@ -222,6 +222,16 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
         self.inner.abort_multipart(path, args).await
     }
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .expect("semaphore must be valid");
+
+        self.inner.batch(args).await
+    }
+
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let _permit = self
             .semaphore

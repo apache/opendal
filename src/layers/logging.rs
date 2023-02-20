@@ -545,6 +545,46 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let (op, count) = (args.operation().operation(), args.operation().len());
+
+        debug!(
+            target: LOGGING_TARGET,
+            "service={} operation={}-{op} count={count} -> started",
+            self.scheme,
+            Operation::Batch,
+        );
+
+        self.inner
+            .batch(args)
+            .map_ok(|v| {
+                debug!(
+                    target: LOGGING_TARGET,
+                    "service={} operation={}-{op} count={count} -> finished: {}, succeed: {}, failed: {}",
+                    self.scheme,
+                    Operation::Batch,
+                    v.results().len(),
+                    v.results().len_ok(),
+                    v.results().len_err(),
+                );
+                v
+            })
+            .map_err(|err| {
+                if let Some(lvl) = self.err_level(&err) {
+                    log!(
+                        target: LOGGING_TARGET,
+                        lvl,
+                        "service={} operation={}-{op} count={count} -> {}: {err:?}",
+                        self.scheme,
+                        Operation::Batch,
+                        self.err_status(&err)
+                    );
+                }
+                err
+            })
+            .await
+    }
+
     async fn create_multipart(
         &self,
         path: &str,

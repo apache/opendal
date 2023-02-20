@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.27.2] - 2023-02-20
+
+### Added
+
+- feat: Add batch API for Accessor (#1339)
+- feat: add Content-Disposition for inner API (#1347)
+- feat: add content-disposition support for services (#1350)
+- feat: webdav service support bearer token (#1349)
+- feat: support auth for HttpBackend (#1359)
+- feat: Add batch delete support (#1357)
+- feat(webdav): add list and improve create (#1330)
+- feat: Integrate batch with existing ecosystem better (#1378)
+- feat: Add batch delete support for oss (#1385)
+
+### Changed
+
+- refactor: Authorization logic for WebdavBackend (#1348)
+- refactor(webhdfs): handle 307 redirection instead of noredirect (#1358)
+- refactor: Polish http authorization related logic (#1367)
+- refactor: Cleanup duplicated code (#1373)
+- refactor: Cleanup some not needed error context (#1374)
+
+### Docs
+
+- docs: Fix broken links (#1344)
+- docs: clarify about opendal user defined client (#1356)
+
+### Fixed
+
+- fix(webhdfs): should prepend http:// scheme (#1354)
+
+### Infra
+
+- ci: Pin time <= 0.3.17 until we decide to bump MSRV (#1361)
+- ci: Only run service test on changing (#1363)
+- ci: run tests with nextest (#1370)
+
 ## [v0.27.1] - 2023-02-13
 
 ### Added
@@ -1359,6 +1396,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.27.2]: https://github.com/datafuselabs/opendal/compare/v0.27.1...v0.27.2
+[v0.27.1]: https://github.com/datafuselabs/opendal/compare/v0.27.0...v0.27.1
 [v0.27.0]: https://github.com/datafuselabs/opendal/compare/v0.26.2...v0.27.0
 [v0.26.2]: https://github.com/datafuselabs/opendal/compare/v0.26.1...v0.26.2
 [v0.26.1]: https://github.com/datafuselabs/opendal/compare/v0.26.0...v0.26.1

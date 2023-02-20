@@ -405,7 +405,7 @@ impl Accessor for OssBackend {
         am.set_scheme(Scheme::Oss)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(Read | Write | List | Scan | Presign)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
             .set_hints(ReadStreamable);
 
         am

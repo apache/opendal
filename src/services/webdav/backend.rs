@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use async_trait::async_trait;
 use bytes::Buf;
 use http::header;
@@ -19,9 +23,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;

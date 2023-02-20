@@ -847,7 +847,8 @@ struct DeleteObjectsResultError {
 
 #[cfg(test)]
 mod tests {
-    use bytes::{Buf, Bytes};
+    use bytes::Buf;
+    use bytes::Bytes;
 
     use super::*;
 

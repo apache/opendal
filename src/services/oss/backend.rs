@@ -13,11 +13,14 @@
 // limitations under the License.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Buf;
+use bytes::Bytes;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
@@ -29,6 +32,8 @@ use http::Uri;
 use log::debug;
 use reqsign::AliyunOssBuilder;
 use reqsign::AliyunOssSigner;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
@@ -537,6 +542,66 @@ impl Accessor for OssBackend {
             parts.headers,
         )))
     }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        let ops = args.into_operation();
+        match ops {
+            BatchOperations::Delete(ops) => {
+                // Sadly, OSS will not return failed keys, so we will build
+                // a set to calculate the failed keys.
+                let mut keys = HashSet::new();
+
+                let ops_len = ops.len();
+                if ops_len > 1000 {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "oss services only allow delete up to 1000 keys at once",
+                    )
+                    .with_context("length", ops_len.to_string()));
+                }
+
+                let pathes = ops
+                    .into_iter()
+                    .map(|(p, _)| {
+                        keys.insert(p.clone());
+                        p
+                    })
+                    .collect();
+
+                let resp = self.oss_delete_objects(pathes).await?;
+
+                let status = resp.status();
+
+                if let StatusCode::OK = status {
+                    let bs = resp.into_body().bytes().await?;
+
+                    let result: DeleteObjectsResult = quick_xml::de::from_reader(bs.reader())
+                        .map_err(new_xml_deserialize_error)?;
+
+                    let mut batched_result = Vec::with_capacity(ops_len);
+                    for i in result.deleted {
+                        let path = build_rel_path(&self.root, &i.key);
+                        keys.remove(&path);
+                        batched_result.push((path, Ok(RpDelete::default())));
+                    }
+                    // TODO: we should handle those errors with code.
+                    for i in keys {
+                        batched_result.push((
+                            i,
+                            Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "oss delete this key failed for reason we don't know",
+                            )),
+                        ));
+                    }
+
+                    Ok(RpBatch::new(BatchedResults::Delete(batched_result)))
+                } else {
+                    Err(parse_error(resp).await?)
+                }
+            }
+        }
+    }
 }
 
 impl OssBackend {
@@ -706,11 +771,147 @@ impl OssBackend {
         self.client.send_async(req).await
     }
 
+    async fn oss_delete_objects(&self, pathes: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
+        let url = format!("{}/?delete", self.endpoint);
+
+        let req = Request::post(&url);
+
+        let content = quick_xml::se::to_string(&DeleteObjectsRequest {
+            object: pathes
+                .into_iter()
+                .map(|path| DeleteObjectsRequestObject {
+                    key: build_abs_path(&self.root, &path),
+                })
+                .collect(),
+        })
+        .map_err(new_xml_deserialize_error)?;
+
+        // Make sure content length has been set to avoid post with chunked encoding.
+        let req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        let req = req.header(CONTENT_TYPE, "application/xml");
+        // Set content-md5 as required by API.
+        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
+
+        let mut req = req
+            .body(AsyncBody::Bytes(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+
+        self.client.send_async(req).await
+    }
+
     fn get_endpoint(&self, is_presign: bool) -> &str {
         if is_presign {
             &self.presign_endpoint
         } else {
             &self.endpoint
         }
+    }
+}
+
+/// Request of DeleteObjects.
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename = "Delete", rename_all = "PascalCase")]
+struct DeleteObjectsRequest {
+    object: Vec<DeleteObjectsRequestObject>,
+}
+
+#[derive(Default, Debug, Serialize)]
+#[serde(rename_all = "PascalCase")]
+struct DeleteObjectsRequestObject {
+    key: String,
+}
+
+/// Result of DeleteObjects.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
+struct DeleteObjectsResult {
+    deleted: Vec<DeleteObjectsResultDeleted>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct DeleteObjectsResultDeleted {
+    key: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct DeleteObjectsResultError {
+    code: String,
+    key: String,
+    message: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::{Buf, Bytes};
+
+    use super::*;
+
+    /// This example is from https://www.alibabacloud.com/help/zh/object-storage-service/latest/deletemultipleobjects
+    #[test]
+    fn test_serialize_delete_objects_request() {
+        let req = DeleteObjectsRequest {
+            object: vec![
+                DeleteObjectsRequestObject {
+                    key: "multipart.data".to_string(),
+                },
+                DeleteObjectsRequestObject {
+                    key: "test.jpg".to_string(),
+                },
+                DeleteObjectsRequestObject {
+                    key: "demo.jpg".to_string(),
+                },
+            ],
+        };
+
+        let actual = quick_xml::se::to_string(&req).expect("must succeed");
+
+        pretty_assertions::assert_eq!(
+            actual,
+            r#"<Delete>
+  <Object>
+    <Key>multipart.data</Key>
+  </Object>
+  <Object>
+    <Key>test.jpg</Key>
+  </Object>
+  <Object>
+    <Key>demo.jpg</Key>
+  </Object>
+</Delete>"#
+                // Cleanup space and new line
+                .replace([' ', '\n'], "")
+        )
+    }
+
+    /// This example is from https://www.alibabacloud.com/help/zh/object-storage-service/latest/deletemultipleobjects
+    #[test]
+    fn test_deserialize_delete_objects_result() {
+        let bs = Bytes::from(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<DeleteResult xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
+    <Deleted>
+       <Key>multipart.data</Key>
+    </Deleted>
+    <Deleted>
+       <Key>test.jpg</Key>
+    </Deleted>
+    <Deleted>
+       <Key>demo.jpg</Key>
+    </Deleted>
+</DeleteResult>"#,
+        );
+
+        let out: DeleteObjectsResult =
+            quick_xml::de::from_reader(bs.reader()).expect("must success");
+
+        assert_eq!(out.deleted.len(), 3);
+        assert_eq!(out.deleted[0].key, "multipart.data");
+        assert_eq!(out.deleted[1].key, "test.jpg");
+        assert_eq!(out.deleted[2].key, "demo.jpg");
     }
 }

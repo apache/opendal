@@ -231,6 +231,33 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        self.inner
+            .batch(args)
+            .map_ok(|v| {
+                let BatchedResults::Delete(res) = v.into_results();
+
+                let res = res
+                    .into_iter()
+                    .map(|(path, res)| {
+                        let res = res.map_err(|err| {
+                            err.with_operation(Operation::Delete.into_static())
+                                .with_context("service", self.meta.scheme())
+                                .with_context("path", &path)
+                        });
+                        (path, res)
+                    })
+                    .collect();
+
+                RpBatch::new(BatchedResults::Delete(res))
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Batch.into_static())
+                    .with_context("service", self.meta.scheme())
+            })
+            .await
+    }
+
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.blocking_create(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingCreate.into_static())

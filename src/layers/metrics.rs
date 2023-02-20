@@ -166,6 +166,9 @@ struct MetricsHandler {
     requests_total_presign: Counter,
     requests_duration_seconds_presign: Histogram,
 
+    requests_total_batch: Counter,
+    requests_duration_seconds_batch: Histogram,
+
     requests_total_create_multipart: Counter,
     requests_duration_seconds_create_multipart: Histogram,
 
@@ -315,6 +318,17 @@ impl MetricsHandler {
                 METRIC_REQUESTS_DURATION_SECONDS,
                 LABEL_SERVICE => service,
                 LABEL_OPERATION => Operation::Presign.into_static(),
+            ),
+
+            requests_total_batch: register_counter!(
+                METRIC_REQUESTS_TOTAL,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Batch.into_static(),
+            ),
+            requests_duration_seconds_batch: register_histogram!(
+                METRIC_REQUESTS_DURATION_SECONDS,
+                LABEL_SERVICE => service,
+                LABEL_OPERATION => Operation::Batch.into_static(),
             ),
 
             requests_total_create_multipart: register_counter!(
@@ -659,6 +673,22 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
                     .increment_errors_total(Operation::Scan, e.kind());
             })
             .await
+    }
+
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        self.handle.requests_total_batch.increment(1);
+
+        let start = Instant::now();
+        let result = self.inner.batch(args).await;
+        let dur = start.elapsed().as_secs_f64();
+
+        self.handle.requests_duration_seconds_batch.record(dur);
+
+        result.map_err(|e| {
+            self.handle
+                .increment_errors_total(Operation::Batch, e.kind());
+            e
+        })
     }
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

@@ -199,6 +199,11 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        self.inner.batch(args).await
+    }
+
+    #[tracing::instrument(level = "debug", skip(self))]
     async fn create_multipart(
         &self,
         path: &str,

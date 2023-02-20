@@ -198,6 +198,11 @@ impl RpBatch {
         Self { results }
     }
 
+    /// Get the results from RpBatch.
+    pub fn results(&self) -> &BatchedResults {
+        &self.results
+    }
+
     /// Consume RpBatch to get the batched results.
     pub fn into_results(self) -> BatchedResults {
         self.results
@@ -208,6 +213,40 @@ impl RpBatch {
 pub enum BatchedResults {
     /// results of delete batch operation
     Delete(Vec<(String, Result<RpDelete>)>),
+}
+
+impl BatchedResults {
+    /// Return the length of given results.
+    pub fn len(&self) -> usize {
+        use BatchedResults::*;
+        match self {
+            Delete(v) => v.len(),
+        }
+    }
+
+    /// Return if given results is empty.
+    pub fn is_empty(&self) -> bool {
+        use BatchedResults::*;
+        match self {
+            Delete(v) => v.is_empty(),
+        }
+    }
+
+    /// Return the length of ok results.
+    pub fn len_ok(&self) -> usize {
+        use BatchedResults::*;
+        match self {
+            Delete(v) => v.iter().filter(|v| v.1.is_ok()).count(),
+        }
+    }
+
+    /// Return the length of error results.
+    pub fn len_err(&self) -> usize {
+        use BatchedResults::*;
+        match self {
+            Delete(v) => v.iter().filter(|v| v.1.is_err()).count(),
+        }
+    }
 }
 
 /// Reply for `stat` operation.

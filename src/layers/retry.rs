@@ -258,6 +258,20 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
+    async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
+        { || self.inner.batch(args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Batch, dur.as_secs_f64(), err)
+            })
+            .map(|v| v.map_err(|e| e.set_persistent()))
+            .await
+    }
+
     async fn create_multipart(
         &self,
         path: &str,

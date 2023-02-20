@@ -1710,15 +1710,7 @@ impl S3Backend {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
         // Set content-md5 as required by API.
-        let req = req.header("CONTENT-MD5", {
-            use base64::engine::general_purpose;
-            use base64::Engine as _;
-
-            let mut hasher = md5::Md5::new();
-            hasher.update(content.as_bytes());
-
-            general_purpose::STANDARD.encode(hasher.finalize())
-        });
+        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
         let mut req = req
             .body(AsyncBody::Bytes(Bytes::from(content)))

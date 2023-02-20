@@ -23,6 +23,7 @@ use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
 use http::HeaderMap;
+use md5::Digest;
 use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
@@ -227,6 +228,14 @@ pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<Obj
     Ok(m)
 }
 
+/// format content md5 header by given input.
+pub fn format_content_md5(bs: &[u8]) -> String {
+    let mut hasher = md5::Md5::new();
+    hasher.update(bs);
+
+    general_purpose::STANDARD.encode(hasher.finalize())
+}
+
 /// format authorization header by basic auth.
 ///
 /// # Errors
@@ -263,8 +272,29 @@ pub fn format_authorization_by_bearer(token: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::format_authorization_by_basic;
-    use super::format_authorization_by_bearer;
+    use super::*;
+
+    /// Test cases is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
+    #[test]
+    fn test_format_content_md5() {
+        let cases = vec![(
+            r#"<Delete>
+<Object>
+ <Key>sample1.txt</Key>
+ </Object>
+ <Object>
+   <Key>sample2.txt</Key>
+ </Object>
+ </Delete>"#,
+            "WOctCY1SS662e7ziElh4cw==",
+        )];
+
+        for (input, expected) in cases {
+            let actual = format_content_md5(input.as_bytes());
+
+            assert_eq!(actual, expected)
+        }
+    }
 
     /// Test cases is borrowed from
     ///

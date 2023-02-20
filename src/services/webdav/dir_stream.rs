@@ -14,12 +14,14 @@
 
 use std::mem;
 
-use crate::raw::build_rel_path;
-use crate::Result;
-use crate::{raw::output, ObjectMetadata, ObjectMode};
 use async_trait::async_trait;
 
 use super::list_response::Multistatus;
+use crate::raw::build_rel_path;
+use crate::raw::output;
+use crate::ObjectMetadata;
+use crate::ObjectMode;
+use crate::Result;
 
 pub struct DirStream {
     root: String,

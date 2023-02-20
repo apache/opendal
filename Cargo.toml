@@ -129,7 +129,7 @@ suppaftp = { version = "4.5", default-features = false, features = [
 ], optional = true }
 # time 0.3.18 bump MSRV to 1.62, let's pin to 0.3.17 until we decide
 # to bump ours
-time = { version = ">=0.3.10, <=0.3.17", features = ["serde"] }
+time = { version = ">=0.3.10, <=0.3.20", features = ["serde"] }
 tokio = { version = "1.20", features = ["fs"] }
 tracing = { version = "0.1", optional = true }
 trust-dns-resolver = { version = "0.22", optional = true }

@@ -1,3 +1,3 @@
 [profile.default]
-slow-timeout = { period = "60s", terminate-after = 2 }
 fail-fast = false
+slow-timeout = { period = "60s", terminate-after = 2 }

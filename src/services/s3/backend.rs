@@ -46,7 +46,6 @@ use serde::Serialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
-use super::error::parse_xml_deserialize_error;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -1279,7 +1278,7 @@ impl Accessor for S3Backend {
                     let bs = resp.into_body().bytes().await?;
 
                     let result: DeleteObjectsResult = quick_xml::de::from_reader(bs.reader())
-                        .map_err(parse_xml_deserialize_error)?;
+                        .map_err(new_xml_deserialize_error)?;
 
                     let mut batched_result =
                         Vec::with_capacity(result.deleted.len() + result.error.len());
@@ -1319,7 +1318,7 @@ impl Accessor for S3Backend {
                 let bs = resp.into_body().bytes().await?;
 
                 let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(parse_xml_deserialize_error)?;
+                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
                 Ok(RpCreateMultipart::new(&result.upload_id))
             }
@@ -1653,7 +1652,7 @@ impl S3Backend {
                 })
                 .collect(),
         })
-        .map_err(parse_xml_deserialize_error)?;
+        .map_err(new_xml_deserialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
@@ -1704,22 +1703,14 @@ impl S3Backend {
                 })
                 .collect(),
         })
-        .map_err(parse_xml_deserialize_error)?;
+        .map_err(new_xml_deserialize_error)?;
 
         // Make sure content length has been set to avoid post with chunked encoding.
         let req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
         // Set content-md5 as required by API.
-        let req = req.header("CONTENT-MD5", {
-            use base64::engine::general_purpose;
-            use base64::Engine as _;
-
-            let mut hasher = md5::Md5::new();
-            hasher.update(content.as_bytes());
-
-            general_purpose::STANDARD.encode(hasher.finalize())
-        });
+        let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
         let mut req = req
             .body(AsyncBody::Bytes(Bytes::from(content)))

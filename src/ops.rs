@@ -266,6 +266,7 @@ impl From<OpWriteMultipart> for PresignOperation {
 }
 
 /// Args for `batch` operation.
+#[derive(Debug, Clone)]
 pub struct OpBatch {
     ops: BatchOperations,
 }
@@ -288,7 +289,7 @@ impl OpBatch {
 }
 
 /// Batch operation used for batch.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum BatchOperations {
     /// Batch delete operations.
@@ -301,6 +302,22 @@ impl BatchOperations {
         use BatchOperations::*;
         match self {
             Delete(_) => Operation::Delete,
+        }
+    }
+
+    /// Return the length of given operations.
+    pub fn len(&self) -> usize {
+        use BatchOperations::*;
+        match self {
+            Delete(v) => v.len(),
+        }
+    }
+
+    /// Return if given operations is empty.
+    pub fn is_empty(&self) -> bool {
+        use BatchOperations::*;
+        match self {
+            Delete(v) => v.is_empty(),
         }
     }
 }

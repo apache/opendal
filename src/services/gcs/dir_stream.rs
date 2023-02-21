@@ -22,7 +22,6 @@ use time::OffsetDateTime;
 
 use super::backend::GcsBackend;
 use super::error::parse_error;
-use super::error::parse_json_deserialize_error;
 use crate::raw::*;
 use crate::*;
 
@@ -79,7 +78,7 @@ impl output::Page for DirStream {
         let bytes = resp.into_body().bytes().await?;
 
         let output: ListResponse =
-            serde_json::from_slice(&bytes).map_err(parse_json_deserialize_error)?;
+            serde_json::from_slice(&bytes).map_err(new_json_deserialize_error)?;
 
         if let Some(token) = &output.next_page_token {
             self.page_token = token.clone();

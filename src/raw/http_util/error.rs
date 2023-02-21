@@ -86,10 +86,14 @@ pub async fn parse_error_response(resp: Response<IncomingAsyncBody>) -> Result<E
 
 /// Create a new error happened during building request.
 pub fn new_request_build_error(err: http::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "building request").set_source(err)
+    Error::new(ErrorKind::Unexpected, "building http request")
+        .with_operation("http::Request::build")
+        .set_source(err)
 }
 
 /// Create a new error happened during signing request.
 pub fn new_request_sign_error(err: anyhow::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "signing request").set_source(err)
+    Error::new(ErrorKind::Unexpected, "signing http request")
+        .with_operation("reqsign::Sign")
+        .set_source(err)
 }

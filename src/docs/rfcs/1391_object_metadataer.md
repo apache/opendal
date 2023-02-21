@@ -1,7 +1,7 @@
 - Proposal Name: `object_metadataer`
 - Start Date: 2023-02-21
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
-- Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
+- RFC PR: [datafuselabs/opendal#1391](https://github.com/datafuselabs/opendal/pull/1391)
+- Tracking Issue: [datafuselabs/opendal#1393](https://github.com/datafuselabs/opendal/issues/1393)
 
 # Summary
 

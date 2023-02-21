@@ -69,6 +69,7 @@ macro_rules! behavior_tests {
 
 behavior_tests!(Azblob);
 behavior_tests!(Azdfs);
+cfg_if::cfg_if! { if #[cfg(feature = "services-dashmap")] { behavior_tests!(Dashmap); }}
 behavior_tests!(Fs);
 cfg_if::cfg_if! { if #[cfg(feature = "services-ftp")] { behavior_tests!(Ftp); }}
 cfg_if::cfg_if! { if #[cfg(feature = "services-memcached")] { behavior_tests!(Memcached); }}

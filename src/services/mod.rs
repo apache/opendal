@@ -22,6 +22,11 @@ pub use azblob::Azblob;
 mod azdfs;
 pub use azdfs::Azdfs;
 
+#[cfg(feature = "services-dashmap")]
+mod dashmap;
+#[cfg(feature = "services-dashmap")]
+pub use self::dashmap::Dashmap;
+
 mod fs;
 pub use fs::Fs;
 

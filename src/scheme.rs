@@ -32,6 +32,9 @@ pub enum Scheme {
     Azblob,
     /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
     Azdfs,
+    /// [dashmap][crate::services::Dashmap]: dashmap backend support.
+    #[cfg(feature = "services-dashmap")]
+    Dashmap,
     /// [fs][crate::services::Fs]: POSIX alike file system.
     Fs,
     /// [gcs][crate::services::Gcs]: Google Cloud Storage backend.
@@ -114,6 +117,8 @@ impl FromStr for Scheme {
         match s.as_str() {
             "azblob" => Ok(Scheme::Azblob),
             "azdfs" => Ok(Scheme::Azdfs),
+            #[cfg(feature = "services-dashmap")]
+            "dashmap" => Ok(Scheme::Dashmap),
             "fs" => Ok(Scheme::Fs),
             "gcs" => Ok(Scheme::Gcs),
             "ghac" => Ok(Scheme::Ghac),
@@ -151,6 +156,8 @@ impl From<Scheme> for &'static str {
         match v {
             Scheme::Azblob => "azblob",
             Scheme::Azdfs => "azdfs",
+            #[cfg(feature = "services-dashmap")]
+            Scheme::Dashmap => "dashmap",
             Scheme::Fs => "fs",
             Scheme::Gcs => "gcs",
             Scheme::Ghac => "ghac",

@@ -67,7 +67,7 @@ impl kv::Adapter for Adapter {
         kv::Metadata::new(
             Scheme::Dashmap,
             &format!("{:?}", &self.inner as *const _),
-            AccessorCapability::Read | AccessorCapability::Write | AccessorCapability::Scan,
+            AccessorCapability::Read | AccessorCapability::Write,
         )
     }
 

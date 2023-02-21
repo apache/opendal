@@ -55,7 +55,8 @@ impl ObjectMetadata {
     /// Create a new object metadata
     pub fn new(mode: ObjectMode) -> Self {
         Self {
-            complete: false,
+            // If mode is dir, we will set complete to true.
+            complete: mode == ObjectMode::DIR,
             bit: FlagSet::default(),
 
             mode,

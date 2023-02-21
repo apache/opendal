@@ -67,13 +67,10 @@ impl output::Page for DirStream {
                 {
                     output::Entry::new(
                         &normalized_path,
-                        output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                        output::Metadata::new(ObjectMode::DIR).with_complete(),
                     )
                 } else {
-                    output::Entry::new(
-                        &normalized_path,
-                        output::ObjectMetadata::new(ObjectMode::FILE),
-                    )
+                    output::Entry::new(&normalized_path, output::Metadata::new(ObjectMode::FILE))
                 };
 
                 Some(entry)

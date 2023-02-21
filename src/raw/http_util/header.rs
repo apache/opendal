@@ -182,23 +182,20 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
     }
 }
 
-/// parse_into_object_metadata will parse standards http headers intooutput::ObjectMetadata.
+/// parse_into_object_metadata will parse standards http headers intooutput::Metadata.
 ///
 /// # Notes
 ///
 /// parse_into_object_metadata only handles the standard behavior of http
 /// headers. If services have their own logic, they should update the parsed
 /// metadata on demand.
-pub fn parse_into_object_metadata(
-    path: &str,
-    headers: &HeaderMap,
-) -> Result<output::ObjectMetadata> {
+pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<output::Metadata> {
     let mode = if path.ends_with('/') {
         ObjectMode::DIR
     } else {
         ObjectMode::FILE
     };
-    let mut m = output::ObjectMetadata::new(mode);
+    let mut m = output::Metadata::new(mode);
 
     if let Some(v) = parse_content_length(headers)? {
         m.set_content_length(v);

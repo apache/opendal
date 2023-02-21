@@ -328,7 +328,7 @@ impl Accessor for WebdavBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(output::Metadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.webdav_head(path).await?;
@@ -340,7 +340,7 @@ impl Accessor for WebdavBackend {
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)))
+                Ok(RpStat::new(output::Metadata::new(ObjectMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

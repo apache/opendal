@@ -182,9 +182,9 @@ mod tests {
                 .iter()
                 .map(|path| {
                     if path.ends_with('/') {
-                        output::Entry::new(path, output::ObjectMetadata::new(ObjectMode::DIR))
+                        output::Entry::new(path, output::Metadata::new(ObjectMode::DIR))
                     } else {
-                        output::Entry::new(path, output::ObjectMetadata::new(ObjectMode::FILE))
+                        output::Entry::new(path, output::Metadata::new(ObjectMode::FILE))
                     }
                 })
                 .collect();
@@ -217,19 +217,19 @@ mod tests {
 
         assert_eq!(
             entries[0],
-            output::Entry::new("x/", output::ObjectMetadata::new(ObjectMode::DIR))
+            output::Entry::new("x/", output::Metadata::new(ObjectMode::DIR))
         );
         assert_eq!(
             entries[1],
-            output::Entry::new("y/", output::ObjectMetadata::new(ObjectMode::DIR))
+            output::Entry::new("y/", output::Metadata::new(ObjectMode::DIR))
         );
         assert_eq!(
             entries[2],
-            output::Entry::new("xy/", output::ObjectMetadata::new(ObjectMode::DIR))
+            output::Entry::new("xy/", output::Metadata::new(ObjectMode::DIR))
         );
         assert_eq!(
             entries[3],
-            output::Entry::new("z", output::ObjectMetadata::new(ObjectMode::FILE))
+            output::Entry::new("z", output::Metadata::new(ObjectMode::FILE))
         );
 
         Ok(())

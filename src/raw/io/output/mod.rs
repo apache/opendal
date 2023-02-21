@@ -46,7 +46,7 @@ mod entry;
 pub use entry::Entry;
 
 mod metadata;
-pub use metadata::ObjectMetadata;
+pub use metadata::Metadata;
 
 mod page;
 pub use page::BlockingPage;

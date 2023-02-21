@@ -51,7 +51,7 @@ impl output::Page for DirStream {
             let path = build_rel_path(&self.root, de.path());
 
             let d = if de.is_file() {
-                let meta = output::ObjectMetadata::new(ObjectMode::FILE)
+                let meta = output::Metadata::new(ObjectMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
                 output::Entry::new(&path, meta)
@@ -59,10 +59,10 @@ impl output::Page for DirStream {
                 // Make sure we are returning the correct path.
                 output::Entry::new(
                     &format!("{path}/"),
-                    output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    output::Metadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                output::Entry::new(&path, output::ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&path, output::Metadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -85,7 +85,7 @@ impl output::BlockingPage for DirStream {
             let path = build_rel_path(&self.root, de.path());
 
             let d = if de.is_file() {
-                let meta = output::ObjectMetadata::new(ObjectMode::FILE)
+                let meta = output::Metadata::new(ObjectMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
                 output::Entry::new(&path, meta)
@@ -93,10 +93,10 @@ impl output::BlockingPage for DirStream {
                 // Make sure we are returning the correct path.
                 output::Entry::new(
                     &format!("{path}/"),
-                    output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    output::Metadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                output::Entry::new(&path, output::ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&path, output::Metadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

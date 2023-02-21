@@ -24,8 +24,8 @@ use crate::*;
 /// mode and content_length are required metadata that all services
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `Entry`'s content length could be `None`.
-#[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct ObjectMetadata {
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Metadata {
     /// Mark if this metadata is complete or not.
     complete: bool,
 
@@ -54,7 +54,7 @@ pub struct ObjectMetadata {
     content_disposition: Option<String>,
 }
 
-impl ObjectMetadata {
+impl Metadata {
     /// Create a new object metadata
     pub fn new(mode: ObjectMode) -> Self {
         Self {

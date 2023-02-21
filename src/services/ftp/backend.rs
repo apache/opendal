@@ -406,9 +406,9 @@ impl Accessor for FtpBackend {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        // root dir, return defaultoutput::ObjectMetadata with Dir ObjectMode.
+        // root dir, return defaultoutput::Metadata with Dir ObjectMode.
         if path == "/" {
-            return Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(output::Metadata::new(ObjectMode::DIR)));
         }
 
         let file = self.ftp_stat(path).await?;
@@ -420,7 +420,7 @@ impl Accessor for FtpBackend {
         } else {
             ObjectMode::Unknown
         };
-        let mut meta = output::ObjectMetadata::new(mode);
+        let mut meta = output::Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
         meta.set_last_modified(OffsetDateTime::from(file.modified()));
 

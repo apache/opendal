@@ -435,7 +435,7 @@ impl Accessor for GhacBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(output::Metadata::new(ObjectMode::DIR)));
         }
 
         let req = self.ghac_query(path).await?;
@@ -448,7 +448,7 @@ impl Accessor for GhacBackend {
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
             query_resp.archive_location
         } else if resp.status() == StatusCode::NO_CONTENT && path.ends_with('/') {
-            return Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(output::Metadata::new(ObjectMode::DIR)));
         } else {
             return Err(parse_error(resp).await?);
         };

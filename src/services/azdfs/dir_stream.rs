@@ -102,7 +102,7 @@ impl output::Page for DirStream {
                 ObjectMode::FILE
             };
 
-            let meta = output::ObjectMetadata::new(mode)
+            let meta = output::Metadata::new(mode)
                 // Keep fit with ETag header.
                 .with_etag(&format!("\"{}\"", &object.etag))
                 .with_content_length(object.content_length.parse().map_err(|err| {

@@ -161,29 +161,29 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 /// Reply for `read` operation.
 #[derive(Debug, Clone)]
 pub struct RpRead {
-    meta: output::ObjectMetadata,
+    meta: output::Metadata,
 }
 
 impl RpRead {
     /// Create a new reply.
     pub fn new(content_length: u64) -> Self {
         RpRead {
-            meta: output::ObjectMetadata::new(ObjectMode::FILE).with_content_length(content_length),
+            meta: output::Metadata::new(ObjectMode::FILE).with_content_length(content_length),
         }
     }
 
     /// Create reply read with existing object metadata.
-    pub fn with_metadata(meta: output::ObjectMetadata) -> Self {
+    pub fn with_metadata(meta: output::Metadata) -> Self {
         RpRead { meta }
     }
 
     /// Get a ref of object metadata.
-    pub fn metadata(&self) -> &output::ObjectMetadata {
+    pub fn metadata(&self) -> &output::Metadata {
         &self.meta
     }
 
     /// Consume reply to get the object meta.
-    pub fn into_metadata(self) -> output::ObjectMetadata {
+    pub fn into_metadata(self) -> output::Metadata {
         self.meta
     }
 }
@@ -253,17 +253,17 @@ impl BatchedResults {
 /// Reply for `stat` operation.
 #[derive(Debug, Clone)]
 pub struct RpStat {
-    meta: output::ObjectMetadata,
+    meta: output::Metadata,
 }
 
 impl RpStat {
     /// Create a new reply for stat.
-    pub fn new(meta: output::ObjectMetadata) -> Self {
+    pub fn new(meta: output::Metadata) -> Self {
         RpStat { meta }
     }
 
     /// Consume RpStat to get the inner metadata.
-    pub fn into_metadata(self) -> output::ObjectMetadata {
+    pub fn into_metadata(self) -> output::Metadata {
         self.meta
     }
 }

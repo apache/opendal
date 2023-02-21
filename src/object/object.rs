@@ -43,7 +43,7 @@ pub struct Object {
     acc: FusedAccessor,
     path: String,
 
-    meta: Arc<Mutex<output::ObjectMetadata>>,
+    meta: Arc<Mutex<output::Metadata>>,
 }
 
 impl Object {
@@ -53,10 +53,10 @@ impl Object {
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
     pub fn new(op: Operator, path: &str) -> Self {
-        Self::with(op, path, output::ObjectMetadata::new(ObjectMode::Unknown))
+        Self::with(op, path, output::Metadata::new(ObjectMode::Unknown))
     }
 
-    pub(crate) fn with(op: Operator, path: &str, meta: output::ObjectMetadata) -> Self {
+    pub(crate) fn with(op: Operator, path: &str, meta: output::Metadata) -> Self {
         Self {
             acc: op.inner(),
             path: normalize_path(path),
@@ -748,8 +748,7 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard =
-                output::ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+            *guard = output::Metadata::new(ObjectMode::FILE).with_content_length(rp.written());
         }
 
         Ok(())
@@ -821,8 +820,7 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard =
-                output::ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+            *guard = output::Metadata::new(ObjectMode::FILE).with_content_length(rp.written());
         }
         Ok(())
     }
@@ -936,7 +934,7 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard = output::ObjectMetadata::new(ObjectMode::Unknown);
+            *guard = output::Metadata::new(ObjectMode::Unknown);
         }
         Ok(())
     }
@@ -964,7 +962,7 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard = output::ObjectMetadata::new(ObjectMode::Unknown);
+            *guard = output::Metadata::new(ObjectMode::Unknown);
         }
         Ok(())
     }
@@ -1166,9 +1164,9 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// We return `MutexGuard<'_, output::ObjectMetadata>` here to make rustc 1.60 happy.
+    /// We return `MutexGuard<'_, output::Metadata>` here to make rustc 1.60 happy.
     /// After MSRV bumped to higher version, we can elide this.
-    async fn metadata_ref(&self) -> Result<MutexGuard<'_, output::ObjectMetadata>> {
+    async fn metadata_ref(&self) -> Result<MutexGuard<'_, output::Metadata>> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock();
@@ -1186,7 +1184,7 @@ impl Object {
         Ok(guard)
     }
 
-    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, output::ObjectMetadata>> {
+    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, output::Metadata>> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock();
@@ -1212,7 +1210,7 @@ impl Object {
     /// only difference is it will not try to load data from cached metadata.
     ///
     /// Use this function to detect the outside changes of object.
-    pub async fn stat(&self) -> Result<output::ObjectMetadata> {
+    pub async fn stat(&self) -> Result<output::Metadata> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
 
@@ -1251,7 +1249,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(&self) -> Result<output::ObjectMetadata> {
+    pub async fn metadata(&self) -> Result<output::Metadata> {
         let guard = self.metadata_ref().await?;
 
         Ok(guard.clone())
@@ -1360,7 +1358,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_metadata(&self) -> Result<output::ObjectMetadata> {
+    pub fn blocking_metadata(&self) -> Result<output::Metadata> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock();

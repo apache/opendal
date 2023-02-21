@@ -23,17 +23,17 @@ use crate::Operator;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     path: String,
-    meta: output::ObjectMetadata,
+    meta: output::Metadata,
 }
 
 impl Entry {
     /// Create a new object entry by its corresponding underlying storage.
-    pub fn new(path: &str, meta: output::ObjectMetadata) -> Entry {
+    pub fn new(path: &str, meta: output::Metadata) -> Entry {
         Self::with(path.to_string(), meta)
     }
 
     /// Create a new object entry with given value.
-    pub fn with(path: String, meta: output::ObjectMetadata) -> Entry {
+    pub fn with(path: String, meta: output::Metadata) -> Entry {
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",

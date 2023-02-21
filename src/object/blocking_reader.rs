@@ -41,7 +41,7 @@ impl BlockingObjectReader {
     pub(crate) fn create(
         acc: FusedAccessor,
         path: &str,
-        _meta: Arc<Mutex<output::ObjectMetadata>>,
+        _meta: Arc<Mutex<output::Metadata>>,
         op: OpRead,
     ) -> Result<Self> {
         let acc_meta = acc.metadata();

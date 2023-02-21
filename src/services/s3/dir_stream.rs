@@ -101,7 +101,7 @@ impl output::Page for DirStream {
         for prefix in output.common_prefixes {
             let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
-                output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                output::Metadata::new(ObjectMode::DIR).with_complete(),
             );
 
             entries.push(de);
@@ -115,7 +115,7 @@ impl output::Page for DirStream {
                 continue;
             }
 
-            let mut meta = output::ObjectMetadata::new(ObjectMode::FILE).with_complete();
+            let mut meta = output::Metadata::new(ObjectMode::FILE).with_complete();
 
             meta.set_etag(&object.etag);
             meta.set_content_md5(object.etag.trim_matches('"'));

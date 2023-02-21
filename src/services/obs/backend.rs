@@ -379,7 +379,7 @@ impl Accessor for ObsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(output::Metadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.obs_get_head_object(path).await?;
@@ -390,7 +390,7 @@ impl Accessor for ObsBackend {
         match status {
             StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)))
+                Ok(RpStat::new(output::Metadata::new(ObjectMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

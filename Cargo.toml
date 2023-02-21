@@ -49,6 +49,8 @@ layers-metrics = ["dep:metrics"]
 # Enable layers tracing support.
 layers-tracing = ["dep:tracing"]
 
+# Enable services dashmap support
+services-dashmap = ["dep:dashmap"]
 # Enable services hdfs support
 services-hdfs = ["dep:hdrs"]
 # Enable services ftp support
@@ -92,6 +94,7 @@ backon = "0.4.0"
 base64 = "0.21"
 bb8 = { version = "0.8", optional = true }
 bytes = "1.2"
+dashmap = { version = "5.4", optional = true }
 flagset = "0.4"
 futures = { version = "0.3", features = ["alloc"] }
 hdrs = { version = "0.2", optional = true, features = ["async_file"] }

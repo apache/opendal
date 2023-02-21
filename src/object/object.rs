@@ -504,7 +504,7 @@ impl Object {
 
         let op = OpRead::new().with_range(range.into());
 
-        BlockingObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op)
+        BlockingObjectReader::create(self.accessor(), self.path(), op)
     }
 
     /// Read the whole object into a bytes with auto detected compress algorithm.

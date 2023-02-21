@@ -15,6 +15,7 @@
 
 - [azblob](https://docs.rs/opendal/latest/opendal/services/struct.Azblob.html): [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services.
 - [azdfs](https://docs.rs/opendal/latest/opendal/services/struct.Azdfs.html): [Azure Data Lake Storage Gen2](https://azure.microsoft.com/en-us/products/storage/data-lake-storage/) services. (As known as [abfs](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-abfs-driver))
+- [dashmap](https://docs.rs/opendal/latest/opendal/services/struct.Dashmap.html): [dashmap](https://github.com/xacrimon/dashmap) backend support.
 - [fs](https://docs.rs/opendal/latest/opendal/services/struct.Fs.html): POSIX alike file system.
 - [ftp](https://docs.rs/opendal/latest/opendal/services/struct.Ftp.html): FTP and FTPS support.
 - [gcs](https://docs.rs/opendal/latest/opendal/services/struct.Gcs.html): [Google Cloud Storage](https://cloud.google.com/storage) Service.

@@ -505,9 +505,8 @@ impl BatchOperator {
     /// ```
     pub async fn remove_all(&self, path: &str) -> Result<()> {
         let parent = self.src.object(path);
-        let meta = parent.metadata().await?;
 
-        if meta.mode() != ObjectMode::DIR {
+        if parent.mode().await? != ObjectMode::DIR {
             return parent.delete().await;
         }
 

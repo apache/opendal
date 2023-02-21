@@ -73,7 +73,6 @@ macro_rules! behavior_list_tests {
                 test_check,
                 test_list_dir,
                 test_list_rich_dir,
-                test_list_dir_metadata_cache,
                 test_list_empty_dir,
                 test_list_non_exist_dir,
                 test_list_sub_dir,
@@ -107,10 +106,9 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     let mut obs = op.object("/").list().await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
-        let meta = de.metadata().await?;
         if de.path() == path {
-            assert_eq!(meta.mode(), ObjectMode::FILE);
-            assert_eq!(meta.content_length(), size as u64);
+            assert_eq!(de.mode().await?, ObjectMode::FILE);
+            assert_eq!(de.content_length().await?, size as u64);
 
             found = true
         }
@@ -156,31 +154,6 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     assert_eq!(actual, expected);
 
     op.batch().remove_all("test_list_rich_dir/").await?;
-    Ok(())
-}
-
-/// List dir should return newly created file with correct metadata.
-pub async fn test_list_dir_metadata_cache(op: Operator) -> Result<()> {
-    let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, _) = gen_bytes();
-
-    op.object(&path)
-        .write(content)
-        .await
-        .expect("write must succeed");
-
-    let mut obs = op.object("/").list().await?;
-    while let Some(de) = obs.try_next().await? {
-        let meta_from_raw = de.stat().await?;
-        let meta_from_cache = de.metadata().await?;
-        assert_eq!(meta_from_raw, meta_from_cache)
-    }
-
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
     Ok(())
 }
 
@@ -273,21 +246,17 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     assert_eq!(objects.len(), 2, "dir should only got 2 objects");
 
     // Check file
-    let meta = objects
+    let file_o = objects
         .get(&file_path)
-        .expect("file should be found in list")
-        .metadata()
-        .await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
-    assert_eq!(meta.content_length(), 0);
+        .expect("file should be found in list");
+    assert_eq!(file_o.mode().await?, ObjectMode::FILE);
+    assert_eq!(file_o.content_length().await?, 0);
 
     // Check dir
-    let meta = objects
+    let dir_o = objects
         .get(&dir_path)
-        .expect("file should be found in list")
-        .metadata()
-        .await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+        .expect("file should be found in list");
+    assert_eq!(dir_o.mode().await?, ObjectMode::DIR);
 
     op.object(&file_path)
         .delete()

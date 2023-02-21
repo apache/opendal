@@ -1210,49 +1210,17 @@ impl Object {
     /// only difference is it will not try to load data from cached metadata.
     ///
     /// Use this function to detect the outside changes of object.
-    pub async fn stat(&self) -> Result<output::Metadata> {
+    pub async fn stat(&self) -> Result<()> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
 
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard = meta.clone();
+            *guard = meta;
         }
 
-        Ok(meta)
-    }
-
-    /// Get current object's metadata with cache.
-    ///
-    /// # Notes
-    ///
-    /// This function will try access the local metadata cache first.
-    /// If there are outside changes of the object, `metadata` could return
-    /// out-of-date metadata. To overcome this, please use [`Object::stat`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
-    /// #
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// if let Err(e) = op.object("test").metadata().await {
-    ///     if e.kind() == ErrorKind::ObjectNotFound {
-    ///         println!("object not exist")
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn metadata(&self) -> Result<output::Metadata> {
-        let guard = self.metadata_ref().await?;
-
-        Ok(guard.clone())
+        Ok(())
     }
 
     /// The size of `Entry`'s corresponding object
@@ -1335,7 +1303,7 @@ impl Object {
             }
         }
 
-        let meta = self.metadata().await?;
+        let meta = self.metadata_ref().await?;
         Ok(meta.etag().map(|v| v.to_string()))
     }
 

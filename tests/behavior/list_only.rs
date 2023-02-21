@@ -71,7 +71,7 @@ pub async fn test_list(op: Operator) -> Result<()> {
 
     let mut ds = op.object("/").list().await?;
     while let Some(de) = ds.try_next().await? {
-        entries.insert(de.path().to_string(), de.metadata().await?.mode());
+        entries.insert(de.path().to_string(), de.mode().await?);
     }
 
     assert_eq!(entries["normal_file"], ObjectMode::FILE);

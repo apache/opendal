@@ -111,8 +111,7 @@ pub async fn test_presign_write_multipart(op: Operator) -> Result<()> {
 
     let o = mp.complete(vec![ObjectPart::new(1, etag)]).await?;
 
-    let meta = o.metadata().await.expect("stat must succeed");
-    assert_eq!(meta.content_length(), size as u64);
+    assert_eq!(o.content_length().await?, size as u64);
 
     op.object(&path)
         .delete()

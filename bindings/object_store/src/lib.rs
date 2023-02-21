@@ -105,13 +105,17 @@ impl ObjectStore for OpendalStore {
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
         let o = self.inner.object(location.as_ref());
-        let meta = o
-            .metadata()
+
+        let content_length = o
+            .content_length()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let last_modified = o
+            .last_modified()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let (secs, nsecs) = meta
-            .last_modified()
+        let (secs, nsecs) = last_modified
             .map(|v| (v.unix_timestamp(), v.nanosecond()))
             .unwrap_or((0, 0));
 
@@ -122,7 +126,7 @@ impl ObjectStore for OpendalStore {
                     .expect("returning timestamp must be valid"),
                 Utc,
             ),
-            size: meta.content_length() as usize,
+            size: content_length as usize,
         })
     }
 

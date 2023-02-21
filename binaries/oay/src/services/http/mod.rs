@@ -78,7 +78,7 @@ impl Service {
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
-        let meta = o.metadata().await?;
+        let content_length = o.content_length().await?;
 
         let (size, r) = if let Some(range) = req.headers().get(header::RANGE) {
             let br = BytesRange::from_str(range.to_str().map_err(|e| {
@@ -88,7 +88,7 @@ impl Service {
                 )
             })?)?;
 
-            let bcr = BytesContentRange::from_bytes_range(meta.content_length(), br);
+            let bcr = BytesContentRange::from_bytes_range(content_length, br);
 
             (
                 bcr.len().expect("range must be specified"),
@@ -96,7 +96,7 @@ impl Service {
                     .await?,
             )
         } else {
-            (meta.content_length(), o.reader().await?)
+            (content_length, o.reader().await?)
         };
 
         Ok(HttpResponse::Ok().body(SizedStream::new(size, into_stream(r, 8 * 1024))))
@@ -167,10 +167,11 @@ impl Service {
         let o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
-        let meta = o.metadata().await?;
+
+        let content_length = o.content_length().await?;
 
         Ok(HttpResponse::Ok().body(SizedStream::new(
-            meta.content_length(),
+            content_length,
             stream::empty::<std::result::Result<_, Infallible>>(),
         )))
     }

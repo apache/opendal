@@ -456,10 +456,10 @@ mod tests {
         builder.root("/");
         let op = Operator::create(builder)?.finish();
 
-        let bs = op.object("hello").metadata().await?;
+        let o = op.object("hello");
 
-        assert_eq!(bs.mode(), ObjectMode::FILE);
-        assert_eq!(bs.content_length(), 128);
+        assert_eq!(o.mode().await?, ObjectMode::FILE);
+        assert_eq!(o.content_length().await?, 128);
         Ok(())
     }
 }

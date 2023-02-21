@@ -24,7 +24,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
-use crate::ObjectMetadata;
+
 use crate::ObjectMode;
 use crate::Result;
 
@@ -96,7 +96,7 @@ impl output::Page for DirStream {
         for prefix in common_prefixes {
             let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
-                ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
 
             entries.push(de);
@@ -107,7 +107,8 @@ impl output::Page for DirStream {
                 continue;
             }
 
-            let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
+            let meta =
+                output::ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
 
             let de = output::Entry::new(&build_rel_path(&self.root, &object.key), meta);
 

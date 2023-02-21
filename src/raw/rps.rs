@@ -14,6 +14,7 @@
 
 use http::Request;
 
+use crate::raw::*;
 use crate::*;
 
 /// Reply for `create` operation
@@ -160,29 +161,29 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 /// Reply for `read` operation.
 #[derive(Debug, Clone)]
 pub struct RpRead {
-    meta: ObjectMetadata,
+    meta: output::ObjectMetadata,
 }
 
 impl RpRead {
     /// Create a new reply.
     pub fn new(content_length: u64) -> Self {
         RpRead {
-            meta: ObjectMetadata::new(ObjectMode::FILE).with_content_length(content_length),
+            meta: output::ObjectMetadata::new(ObjectMode::FILE).with_content_length(content_length),
         }
     }
 
     /// Create reply read with existing object metadata.
-    pub fn with_metadata(meta: ObjectMetadata) -> Self {
+    pub fn with_metadata(meta: output::ObjectMetadata) -> Self {
         RpRead { meta }
     }
 
     /// Get a ref of object metadata.
-    pub fn metadata(&self) -> &ObjectMetadata {
+    pub fn metadata(&self) -> &output::ObjectMetadata {
         &self.meta
     }
 
     /// Consume reply to get the object meta.
-    pub fn into_metadata(self) -> ObjectMetadata {
+    pub fn into_metadata(self) -> output::ObjectMetadata {
         self.meta
     }
 }
@@ -252,17 +253,17 @@ impl BatchedResults {
 /// Reply for `stat` operation.
 #[derive(Debug, Clone)]
 pub struct RpStat {
-    meta: ObjectMetadata,
+    meta: output::ObjectMetadata,
 }
 
 impl RpStat {
     /// Create a new reply for stat.
-    pub fn new(meta: ObjectMetadata) -> Self {
+    pub fn new(meta: output::ObjectMetadata) -> Self {
         RpStat { meta }
     }
 
     /// Consume RpStat to get the inner metadata.
-    pub fn into_metadata(self) -> ObjectMetadata {
+    pub fn into_metadata(self) -> output::ObjectMetadata {
         self.meta
     }
 }
@@ -295,7 +296,6 @@ mod tests {
     use http::Uri;
 
     use super::*;
-    use crate::raw::*;
 
     #[test]
     fn test_presigned_request_convert() -> Result<()> {

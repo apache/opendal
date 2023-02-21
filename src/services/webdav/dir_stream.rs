@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use super::list_response::Multistatus;
 use crate::raw::build_rel_path;
 use crate::raw::output;
-use crate::ObjectMetadata;
+
 use crate::ObjectMode;
 use crate::Result;
 
@@ -67,10 +67,13 @@ impl output::Page for DirStream {
                 {
                     output::Entry::new(
                         &normalized_path,
-                        ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                        output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                     )
                 } else {
-                    output::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::FILE))
+                    output::Entry::new(
+                        &normalized_path,
+                        output::ObjectMetadata::new(ObjectMode::FILE),
+                    )
                 };
 
                 Some(entry)

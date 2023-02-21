@@ -45,6 +45,9 @@ pub use into_streamable::IntoStreamableReader;
 mod entry;
 pub use entry::Entry;
 
+mod metadata;
+pub use metadata::ObjectMetadata;
+
 mod page;
 pub use page::BlockingPage;
 pub use page::BlockingPager;

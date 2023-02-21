@@ -84,7 +84,7 @@ impl output::Page for DirStream {
             let d = if de.is_file() {
                 output::Entry::new(
                     &path,
-                    ObjectMetadata::new(ObjectMode::FILE)
+                    output::ObjectMetadata::new(ObjectMode::FILE)
                         .with_content_length(de.size() as u64)
                         .with_last_modified(OffsetDateTime::from(de.modified()))
                         .with_complete(),
@@ -92,12 +92,12 @@ impl output::Page for DirStream {
             } else if de.is_directory() {
                 output::Entry::new(
                     &format!("{}/", &path),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
                 output::Entry::new(
                     &path,
-                    ObjectMetadata::new(ObjectMode::Unknown).with_complete(),
+                    output::ObjectMetadata::new(ObjectMode::Unknown).with_complete(),
                 )
             };
 

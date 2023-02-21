@@ -646,7 +646,7 @@ impl Accessor for WebhdfsBackend {
                     })?
                     .file_status;
                 debug!("file status: {:?}", file_status);
-                let status_meta: ObjectMetadata = file_status.try_into()?;
+                let status_meta: output::ObjectMetadata = file_status.try_into()?;
 
                 // is ok to unwrap here
                 // all metadata field of status meta is present and checked by `TryFrom`

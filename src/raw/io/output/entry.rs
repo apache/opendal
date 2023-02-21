@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use crate::Object;
-use crate::ObjectMetadata;
+
+use crate::raw::*;
 use crate::ObjectMode;
 use crate::Operator;
 
@@ -22,17 +23,17 @@ use crate::Operator;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     path: String,
-    meta: ObjectMetadata,
+    meta: output::ObjectMetadata,
 }
 
 impl Entry {
     /// Create a new object entry by its corresponding underlying storage.
-    pub fn new(path: &str, meta: ObjectMetadata) -> Entry {
+    pub fn new(path: &str, meta: output::ObjectMetadata) -> Entry {
         Self::with(path.to_string(), meta)
     }
 
     /// Create a new object entry with given value.
-    pub fn with(path: String, meta: ObjectMetadata) -> Entry {
+    pub fn with(path: String, meta: output::ObjectMetadata) -> Entry {
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",

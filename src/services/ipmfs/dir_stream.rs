@@ -21,7 +21,7 @@ use serde::Deserialize;
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::ObjectMetadata;
+
 use crate::ObjectMode;
 use crate::Result;
 
@@ -83,7 +83,7 @@ impl output::Page for DirStream {
 
                     output::Entry::new(
                         &path,
-                        ObjectMetadata::new(object.mode())
+                        output::ObjectMetadata::new(object.mode())
                             .with_content_length(object.size)
                             .with_complete(),
                     )

@@ -359,7 +359,7 @@ impl Accessor for HdfsBackend {
         } else {
             ObjectMode::Unknown
         };
-        let mut m = ObjectMetadata::new(mode);
+        let mut m = output::ObjectMetadata::new(mode);
         m.set_content_length(meta.len());
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
 
@@ -533,7 +533,7 @@ impl Accessor for HdfsBackend {
         } else {
             ObjectMode::Unknown
         };
-        let mut m = ObjectMetadata::new(mode);
+        let mut m = output::ObjectMetadata::new(mode);
         m.set_content_length(meta.len());
         m.set_last_modified(OffsetDateTime::from(meta.modified()));
 

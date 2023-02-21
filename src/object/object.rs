@@ -43,7 +43,7 @@ pub struct Object {
     acc: FusedAccessor,
     path: String,
 
-    meta: Arc<Mutex<ObjectMetadata>>,
+    meta: Arc<Mutex<output::ObjectMetadata>>,
 }
 
 impl Object {
@@ -53,10 +53,10 @@ impl Object {
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
     pub fn new(op: Operator, path: &str) -> Self {
-        Self::with(op, path, ObjectMetadata::new(ObjectMode::Unknown))
+        Self::with(op, path, output::ObjectMetadata::new(ObjectMode::Unknown))
     }
 
-    pub(crate) fn with(op: Operator, path: &str, meta: ObjectMetadata) -> Self {
+    pub(crate) fn with(op: Operator, path: &str, meta: output::ObjectMetadata) -> Self {
         Self {
             acc: op.inner(),
             path: normalize_path(path),
@@ -748,7 +748,8 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+            *guard =
+                output::ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
         }
 
         Ok(())
@@ -820,7 +821,8 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
+            *guard =
+                output::ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
         }
         Ok(())
     }
@@ -934,7 +936,7 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::Unknown);
+            *guard = output::ObjectMetadata::new(ObjectMode::Unknown);
         }
         Ok(())
     }
@@ -962,7 +964,7 @@ impl Object {
         // Always write latest metadata into cache.
         {
             let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::Unknown);
+            *guard = output::ObjectMetadata::new(ObjectMode::Unknown);
         }
         Ok(())
     }
@@ -1164,9 +1166,9 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// We return `MutexGuard<'_, ObjectMetadata>` here to make rustc 1.60 happy.
+    /// We return `MutexGuard<'_, output::ObjectMetadata>` here to make rustc 1.60 happy.
     /// After MSRV bumped to higher version, we can elide this.
-    async fn metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
+    async fn metadata_ref(&self) -> Result<MutexGuard<'_, output::ObjectMetadata>> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock();
@@ -1184,7 +1186,7 @@ impl Object {
         Ok(guard)
     }
 
-    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
+    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, output::ObjectMetadata>> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock();
@@ -1210,7 +1212,7 @@ impl Object {
     /// only difference is it will not try to load data from cached metadata.
     ///
     /// Use this function to detect the outside changes of object.
-    pub async fn stat(&self) -> Result<ObjectMetadata> {
+    pub async fn stat(&self) -> Result<output::ObjectMetadata> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
 
@@ -1249,7 +1251,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(&self) -> Result<ObjectMetadata> {
+    pub async fn metadata(&self) -> Result<output::ObjectMetadata> {
         let guard = self.metadata_ref().await?;
 
         Ok(guard.clone())
@@ -1358,7 +1360,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
+    pub fn blocking_metadata(&self) -> Result<output::ObjectMetadata> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock();

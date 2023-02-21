@@ -91,7 +91,7 @@ impl output::Page for DirStream {
         for prefix in output.prefixes {
             let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix),
-                ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
 
             entries.push(de);
@@ -102,7 +102,7 @@ impl output::Page for DirStream {
                 continue;
             }
 
-            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+            let mut meta = output::ObjectMetadata::new(ObjectMode::FILE);
 
             // set metadata fields
             meta.set_content_md5(object.md5_hash.as_str());

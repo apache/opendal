@@ -93,7 +93,7 @@ impl output::Page for DirStream {
         for prefix in prefixes {
             let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix.name),
-                ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
             );
 
             entries.push(de)
@@ -107,7 +107,7 @@ impl output::Page for DirStream {
                 continue;
             }
 
-            let meta = ObjectMetadata::new(ObjectMode::FILE)
+            let meta = output::ObjectMetadata::new(ObjectMode::FILE)
                 // Keep fit with ETag header.
                 .with_etag(&format!("\"{}\"", object.properties.etag.as_str()))
                 .with_content_length(object.properties.content_length)

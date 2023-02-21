@@ -44,7 +44,7 @@ impl output::Page for DirStream {
         while let Some(status) = self.statuses.pop() {
             let mut path = format!("{}/{}", &self.path, status.path_suffix);
 
-            let meta: ObjectMetadata = status.try_into()?;
+            let meta: output::ObjectMetadata = status.try_into()?;
             if meta.mode().is_dir() {
                 path += "/"
             }

@@ -19,7 +19,7 @@ use async_trait::async_trait;
 
 use super::error::parse_io_error;
 use crate::raw::*;
-use crate::ObjectMetadata;
+
 use crate::ObjectMode;
 use crate::Result;
 
@@ -67,15 +67,15 @@ impl output::Page for DirPager {
             let file_type = de.file_type().await.map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::Entry::new(&rel_path, output::ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
                 output::Entry::new(
                     &format!("{rel_path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&rel_path, output::ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -128,15 +128,15 @@ impl output::BlockingPage for BlockingDirPager {
             let file_type = de.file_type().map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                output::Entry::new(&rel_path, output::ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
                 output::Entry::new(
                     &format!("{rel_path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    output::ObjectMetadata::new(ObjectMode::DIR).with_complete(),
                 )
             } else {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                output::Entry::new(&rel_path, output::ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

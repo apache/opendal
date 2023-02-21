@@ -126,7 +126,7 @@ impl Accessor for IpmfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.ipmfs_stat(path).await?;
@@ -146,7 +146,7 @@ impl Accessor for IpmfsBackend {
                     _ => ObjectMode::Unknown,
                 };
 
-                let mut meta = ObjectMetadata::new(mode);
+                let mut meta = output::ObjectMetadata::new(mode);
                 meta.set_content_length(res.size);
 
                 Ok(RpStat::new(meta))

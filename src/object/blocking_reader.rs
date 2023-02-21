@@ -24,7 +24,6 @@ use crate::error::Result;
 use crate::ops::OpRead;
 use crate::raw::*;
 use crate::ErrorKind;
-use crate::ObjectMetadata;
 
 /// BlockingObjectReader is the public API for users.
 pub struct BlockingObjectReader {
@@ -42,7 +41,7 @@ impl BlockingObjectReader {
     pub(crate) fn create(
         acc: FusedAccessor,
         path: &str,
-        _meta: Arc<Mutex<ObjectMetadata>>,
+        _meta: Arc<Mutex<output::ObjectMetadata>>,
         op: OpRead,
     ) -> Result<Self> {
         let acc_meta = acc.metadata();

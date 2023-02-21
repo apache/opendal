@@ -144,12 +144,13 @@ impl<S: Adapter> Accessor for Backend<S> {
         let p = build_abs_path(&self.root, path);
 
         if p.is_empty() || p.ends_with('/') {
-            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+            Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)))
         } else {
             let bs = self.kv.get(&p).await?;
             match bs {
                 Some(bs) => Ok(RpStat::new(
-                    ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
+                    output::ObjectMetadata::new(ObjectMode::FILE)
+                        .with_content_length(bs.len() as u64),
                 )),
                 None => Err(Error::new(
                     ErrorKind::ObjectNotFound,
@@ -163,12 +164,13 @@ impl<S: Adapter> Accessor for Backend<S> {
         let p = build_abs_path(&self.root, path);
 
         if p.is_empty() || p.ends_with('/') {
-            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+            Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)))
         } else {
             let bs = self.kv.blocking_get(&p)?;
             match bs {
                 Some(bs) => Ok(RpStat::new(
-                    ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
+                    output::ObjectMetadata::new(ObjectMode::FILE)
+                        .with_content_length(bs.len() as u64),
                 )),
                 None => Err(Error::new(
                     ErrorKind::ObjectNotFound,
@@ -263,7 +265,7 @@ impl KvPager {
                 output::Entry::new(
                     v.strip_prefix(&self.root)
                         .expect("key must start with root"),
-                    ObjectMetadata::new(mode),
+                    output::ObjectMetadata::new(mode),
                 )
             })
             .collect();

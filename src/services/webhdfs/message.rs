@@ -16,6 +16,7 @@
 
 use serde::Deserialize;
 
+use crate::raw::*;
 use crate::*;
 
 #[derive(Debug, Deserialize)]
@@ -52,12 +53,12 @@ pub struct FileStatus {
     pub ty: FileStatusType,
 }
 
-impl TryFrom<FileStatus> for ObjectMetadata {
+impl TryFrom<FileStatus> for output::ObjectMetadata {
     type Error = Error;
     fn try_from(value: FileStatus) -> Result<Self> {
         let mut meta = match value.ty {
-            FileStatusType::Directory => ObjectMetadata::new(ObjectMode::DIR),
-            FileStatusType::File => ObjectMetadata::new(ObjectMode::FILE),
+            FileStatusType::Directory => output::ObjectMetadata::new(ObjectMode::DIR),
+            FileStatusType::File => output::ObjectMetadata::new(ObjectMode::FILE),
         };
         let till_now = time::Duration::milliseconds(value.modification_time);
         let last_modified = time::OffsetDateTime::UNIX_EPOCH

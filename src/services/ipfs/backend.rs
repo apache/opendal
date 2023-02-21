@@ -342,7 +342,7 @@ impl Accessor for IpfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.ipfs_head(path).await?;
@@ -351,7 +351,7 @@ impl Accessor for IpfsBackend {
 
         match status {
             StatusCode::OK => {
-                let mut m = ObjectMetadata::new(ObjectMode::Unknown);
+                let mut m = output::ObjectMetadata::new(ObjectMode::Unknown);
 
                 if let Some(v) = parse_content_length(resp.headers())? {
                     m.set_content_length(v);
@@ -382,7 +382,7 @@ impl Accessor for IpfsBackend {
                 Ok(RpStat::new(m))
             }
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+                Ok(RpStat::new(output::ObjectMetadata::new(ObjectMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

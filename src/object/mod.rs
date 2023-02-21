@@ -15,9 +15,6 @@
 mod mode;
 pub use mode::ObjectMode;
 
-mod metadata;
-pub use metadata::ObjectMetadata;
-
 mod multipart;
 pub use multipart::ObjectMultipart;
 pub use multipart::ObjectPart;

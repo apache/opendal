@@ -1,0 +1,36 @@
+name: Service Test Dashmap
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "!src/docs/**"
+      - "!src/services/**"
+      - "src/services/dashmap/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  dashmap:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        shell: bash
+        run: cargo test dashmap --features compress,services-dashmap -- --show-output
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+          OPENDAL_DASHMAP_TEST: on

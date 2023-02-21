@@ -296,7 +296,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode().await?);
+            map.insert(entry.path().to_string(), entry.stat().await?.mode());
         }
 
         assert_eq!(map["file"], ObjectMode::FILE);
@@ -331,7 +331,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode().await?);
+            map.insert(entry.path().to_string(), entry.stat().await?.mode());
         }
 
         debug!("current files: {:?}", map);
@@ -372,7 +372,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode().await?);
+            map.insert(entry.path().to_string(), entry.stat().await?.mode());
         }
 
         assert_eq!(map.len(), 1);
@@ -388,7 +388,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode().await?);
+            map.insert(entry.path().to_string(), entry.stat().await?.mode());
         }
 
         assert_eq!(
@@ -436,7 +436,7 @@ mod tests {
                 "duplicated value: {}",
                 entry.path()
             );
-            map.insert(entry.path().to_string(), entry.mode().await?);
+            map.insert(entry.path().to_string(), entry.stat().await?.mode());
         }
 
         debug!("current files: {:?}", map);

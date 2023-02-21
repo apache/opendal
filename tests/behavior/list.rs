@@ -228,7 +228,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
         if de.path() == path {
-            assert_eq!(de.mode().await?, ObjectMode::DIR);
+            assert_eq!(de.stat().await?.mode(), ObjectMode::DIR);
             assert_eq!(de.name(), path);
 
             found = true

@@ -22,7 +22,6 @@ use futures::AsyncReadExt;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use time::Duration;
-use time::OffsetDateTime;
 use tokio::io::ReadBuf;
 
 use super::BlockingObjectLister;
@@ -147,44 +146,6 @@ impl Object {
     /// ```
     pub fn name(&self) -> &str {
         get_basename(&self.path)
-    }
-
-    /// Return this object entry's object mode.
-    pub async fn mode(&self) -> Result<ObjectMode> {
-        {
-            let guard = self.meta.lock();
-            // Object mode other than unknown is OK to be returned.
-            if guard.mode() != ObjectMode::Unknown {
-                return Ok(guard.mode());
-            }
-            // Object mode is unknown, but the object metadata is marked
-            // as complete.
-            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
-                return Ok(guard.mode());
-            }
-        }
-
-        let guard = self.metadata_ref().await?;
-        Ok(guard.mode())
-    }
-
-    /// Return this object entry's object mode in blocking way.
-    pub fn blocking_mode(&self) -> Result<ObjectMode> {
-        {
-            let guard = self.meta.lock();
-            // Object mode other than unknown is OK to be returned.
-            if guard.mode() != ObjectMode::Unknown {
-                return Ok(guard.mode());
-            }
-            // Object mode is unknown, but the object metadata is marked
-            // as complete.
-            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
-                return Ok(guard.mode());
-            }
-        }
-
-        let guard = self.blocking_metadata_ref()?;
-        Ok(guard.mode())
     }
 
     /// Create an empty object, like using the following linux commands:
@@ -1184,24 +1145,6 @@ impl Object {
         Ok(guard)
     }
 
-    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
-        // Make sure the mutex guard has been dropped.
-        {
-            let guard = self.meta.lock();
-            if guard.is_complete() {
-                return Ok(guard);
-            }
-        }
-
-        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
-        let meta = rp.into_metadata();
-
-        let mut guard = self.meta.lock();
-        *guard = meta;
-
-        Ok(guard)
-    }
-
     /// Get current object's metadata **without cache**.
     ///
     /// # Notes
@@ -1253,90 +1196,6 @@ impl Object {
         let guard = self.metadata_ref().await?;
 
         Ok(guard.clone())
-    }
-
-    /// The size of `Entry`'s corresponding object
-    ///
-    /// `content_length` is a prefetched metadata field in `Entry`.
-    pub async fn content_length(&self) -> Result<u64> {
-        {
-            let guard = self.meta.lock();
-            if let Some(v) = guard.content_length_raw() {
-                return Ok(v);
-            }
-            if guard.is_complete() {
-                return Ok(0);
-            }
-        }
-
-        let guard = self.metadata_ref().await?;
-        Ok(guard.content_length())
-    }
-
-    /// The MD5 message digest of `Entry`'s corresponding object
-    ///
-    /// `content_md5` is a prefetched metadata field in `Entry`
-    ///
-    /// It doesn't mean this metadata field of object doesn't exist if `content_md5` is `None`.
-    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
-    pub async fn content_md5(&self) -> Result<Option<String>> {
-        {
-            let guard = self.meta.lock();
-
-            if let Some(v) = guard.content_md5() {
-                return Ok(Some(v.to_string()));
-            }
-            if guard.is_complete() {
-                return Ok(None);
-            }
-        }
-
-        let guard = self.metadata_ref().await?;
-        Ok(guard.content_md5().map(|v| v.to_string()))
-    }
-
-    /// The last modified UTC datetime of `Entry`'s corresponding object
-    ///
-    /// `last_modified` is a prefetched metadata field in `Entry`
-    ///
-    /// It doesn't mean this metadata field of object doesn't exist if `last_modified` is `None`.
-    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
-    pub async fn last_modified(&self) -> Result<Option<OffsetDateTime>> {
-        {
-            let guard = self.meta.lock();
-
-            if let Some(v) = guard.last_modified() {
-                return Ok(Some(v));
-            }
-            if guard.is_complete() {
-                return Ok(None);
-            }
-        }
-
-        let guard = self.metadata_ref().await?;
-        Ok(guard.last_modified())
-    }
-
-    /// The ETag string of `Entry`'s corresponding object
-    ///
-    /// `etag` is a prefetched metadata field in `Entry`.
-    ///
-    /// It doesn't mean this metadata field of object doesn't exist if `etag` is `None`.
-    /// Then you have to call `output::Entry::metadata()` to get the metadata you want.
-    pub async fn etag(&self) -> Result<Option<String>> {
-        {
-            let guard = self.meta.lock();
-
-            if let Some(v) = guard.etag() {
-                return Ok(Some(v.to_string()));
-            }
-            if guard.is_complete() {
-                return Ok(None);
-            }
-        }
-
-        let meta = self.metadata().await?;
-        Ok(meta.etag().map(|v| v.to_string()))
     }
 
     /// Get current object's metadata.
@@ -1428,6 +1287,7 @@ impl Object {
             },
         }
     }
+
     /// Presign an operation for stat(head).
     ///
     /// # Example

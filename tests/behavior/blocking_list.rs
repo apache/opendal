@@ -88,7 +88,7 @@ pub fn test_list_dir(op: Operator) -> Result<()> {
     let mut found = false;
     for de in obs {
         let de = de?;
-        let meta = de.blocking_metadata()?;
+        let meta = de.blocking_stat()?;
         if de.path() == path {
             assert_eq!(meta.mode(), ObjectMode::FILE);
             assert_eq!(meta.content_length(), size as u64);

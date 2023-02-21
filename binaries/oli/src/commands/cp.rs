@@ -25,13 +25,13 @@ pub async fn main(args: Option<ArgMatches>) -> Result<()> {
         .get_one::<String>("source")
         .ok_or_else(|| anyhow!("missing source"))?;
     let (src_op, src_path) = parse_location(src)?;
-    let src_o = src_op.object(src_path);
+    let mut src_o = src_op.object(src_path);
 
     let dst = args
         .get_one::<String>("destination")
         .ok_or_else(|| anyhow!("missing target"))?;
     let (dst_op, dst_path) = parse_location(dst)?;
-    let dst_o = dst_op.object(dst_path);
+    let mut dst_o = dst_op.object(dst_path);
 
     let size = src_o.metadata().await?.content_length();
     let reader = src_o.reader().await?;

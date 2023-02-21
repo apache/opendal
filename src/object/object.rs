@@ -19,8 +19,6 @@ use std::sync::Arc;
 
 use futures::io::Cursor;
 use futures::AsyncReadExt;
-use parking_lot::Mutex;
-use parking_lot::MutexGuard;
 use time::Duration;
 use tokio::io::ReadBuf;
 
@@ -42,7 +40,7 @@ pub struct Object {
     acc: FusedAccessor,
     path: Arc<String>,
 
-    meta: Arc<Mutex<ObjectMetadata>>,
+    meta: Arc<ObjectMetadata>,
 }
 
 impl Object {
@@ -59,7 +57,7 @@ impl Object {
         Self {
             acc: op.inner(),
             path: Arc::new(normalize_path(path)),
-            meta: Arc::new(Mutex::new(meta)),
+            meta: Arc::new(meta),
         }
     }
 
@@ -187,7 +185,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn create(&self) -> Result<()> {
+    pub async fn create(&mut self) -> Result<()> {
         let _ = if self.path.ends_with('/') {
             self.acc
                 .create(self.path(), OpCreate::new(ObjectMode::DIR))
@@ -238,7 +236,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_create(&self) -> Result<()> {
+    pub fn blocking_create(&mut self) -> Result<()> {
         if self.path.ends_with('/') {
             self.acc
                 .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
@@ -663,7 +661,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub async fn write(&mut self, bs: impl Into<Vec<u8>>) -> Result<()> {
         let bs: Vec<u8> = bs.into();
         let op = OpWrite::new(bs.len() as u64);
         self.write_with(op, bs).await
@@ -692,7 +690,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub async fn write_with(&mut self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -707,10 +705,8 @@ impl Object {
         let rp = self.acc.write(self.path(), args, Box::new(r)).await?;
 
         // Always write latest metadata into cache.
-        {
-            let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
-        }
+        self.meta =
+            Arc::new(ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()));
 
         Ok(())
     }
@@ -736,7 +732,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub fn blocking_write(&mut self, bs: impl Into<Vec<u8>>) -> Result<()> {
         let bs: Vec<u8> = bs.into();
         let op = OpWrite::new(bs.len() as u64);
         self.blocking_write_with(op, bs)
@@ -764,7 +760,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub fn blocking_write_with(&mut self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -779,10 +775,8 @@ impl Object {
         let rp = self.acc.blocking_write(self.path(), args, Box::new(r))?;
 
         // Always write latest metadata into cache.
-        {
-            let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written());
-        }
+        self.meta =
+            Arc::new(ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()));
         Ok(())
     }
 
@@ -810,7 +804,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_from(&self, size: u64, br: impl input::Read + 'static) -> Result<()> {
+    pub async fn write_from(&mut self, size: u64, br: impl input::Read + 'static) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -852,7 +846,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_write_from(
-        &self,
+        &mut self,
         size: u64,
         br: impl input::BlockingRead + 'static,
     ) -> Result<()> {
@@ -889,14 +883,12 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn delete(&self) -> Result<()> {
+    pub async fn delete(&mut self) -> Result<()> {
         let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
 
         // Always write latest metadata into cache.
-        {
-            let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::Unknown);
-        }
+        self.meta = Arc::new(ObjectMetadata::new(ObjectMode::Unknown));
+
         Ok(())
     }
 
@@ -917,14 +909,11 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_delete(&self) -> Result<()> {
+    pub fn blocking_delete(&mut self) -> Result<()> {
         let _ = self.acc.blocking_delete(self.path(), OpDelete::new())?;
 
         // Always write latest metadata into cache.
-        {
-            let mut guard = self.meta.lock();
-            *guard = ObjectMetadata::new(ObjectMode::Unknown);
-        }
+        self.meta = Arc::new(ObjectMetadata::new(ObjectMode::Unknown));
         Ok(())
     }
 
@@ -1118,33 +1107,6 @@ impl Object {
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
-    /// metadata_ref is used to get object metadata with mutex guard.
-    ///
-    /// Called can decide to access or clone the content of object metadata.
-    /// But they can't pass the guard outside or across the await boundary.
-    ///
-    /// # Notes
-    ///
-    /// We return `MutexGuard<'_, ObjectMetadata>` here to make rustc 1.60 happy.
-    /// After MSRV bumped to higher version, we can elide this.
-    async fn metadata_ref(&self) -> Result<MutexGuard<'_, ObjectMetadata>> {
-        // Make sure the mutex guard has been dropped.
-        {
-            let guard = self.meta.lock();
-            if guard.is_complete() {
-                return Ok(guard);
-            }
-        }
-
-        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
-        let meta = rp.into_metadata();
-
-        let mut guard = self.meta.lock();
-        *guard = meta;
-
-        Ok(guard)
-    }
-
     /// Get current object's metadata **without cache**.
     ///
     /// # Notes
@@ -1157,11 +1119,20 @@ impl Object {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
 
-        // Always write latest metadata into cache.
-        {
-            let mut guard = self.meta.lock();
-            *guard = meta.clone();
-        }
+        Ok(meta)
+    }
+
+    /// Get current object's metadata **without cache**.
+    ///
+    /// # Notes
+    ///
+    /// This function works exactly the same with `Object::metadata`.The
+    /// only difference is it will not try to load data from cached metadata.
+    ///
+    /// Use this function to detect the outside changes of object.
+    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
+        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
+        let meta = rp.into_metadata();
 
         Ok(meta)
     }
@@ -1192,10 +1163,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(&self) -> Result<ObjectMetadata> {
-        let guard = self.metadata_ref().await?;
-
-        Ok(guard.clone())
+    pub async fn metadata(&mut self) -> Result<Arc<ObjectMetadata>> {
+        Ok(self.meta.clone())
     }
 
     /// Get current object's metadata.
@@ -1217,24 +1186,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_metadata(&self) -> Result<ObjectMetadata> {
-        // Make sure the mutex guard has been dropped.
-        {
-            let guard = self.meta.lock();
-            if guard.is_complete() {
-                return Ok(guard.clone());
-            }
-        }
-
-        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
-        let meta = rp.into_metadata();
-
-        {
-            let mut guard = self.meta.lock();
-            *guard = meta.clone();
-        }
-
-        Ok(meta)
+    pub fn blocking_metadata(&mut self) -> Result<Arc<ObjectMetadata>> {
+        Ok(self.meta.clone())
     }
 
     /// Check if this object exists or not.
@@ -1253,8 +1206,8 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn is_exist(&self) -> Result<bool> {
-        let r = self.metadata_ref().await;
+    pub async fn is_exist(&mut self) -> Result<bool> {
+        let r = self.stat().await;
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {
@@ -1277,8 +1230,8 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    pub fn blocking_is_exist(&self) -> Result<bool> {
-        let r = self.blocking_metadata();
+    pub fn blocking_is_exist(&mut self) -> Result<bool> {
+        let r = self.blocking_stat();
         match r {
             Ok(_) => Ok(true),
             Err(err) => match err.kind() {

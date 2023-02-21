@@ -74,7 +74,7 @@ impl Service {
     }
 
     async fn get(&self, req: HttpRequest) -> Result<HttpResponse> {
-        let o = self
+        let mut o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
@@ -103,7 +103,7 @@ impl Service {
     }
 
     async fn put(&self, req: HttpRequest, mut body: web::Payload) -> Result<HttpResponse> {
-        let o = self
+        let mut o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
@@ -164,7 +164,7 @@ impl Service {
     /// - The body's size.
     /// - The body returned by HEAD should not be read.
     async fn head(&self, req: HttpRequest) -> Result<HttpResponse> {
-        let o = self
+        let mut o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
         let meta = o.metadata().await?;

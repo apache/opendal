@@ -56,7 +56,7 @@ pub struct ObjectMetadata {
 
 impl ObjectMetadata {
     /// Create a new object metadata
-    pub fn new(mode: ObjectMode) -> Self {
+    pub const fn new(mode: ObjectMode) -> Self {
         Self {
             complete: false,
 

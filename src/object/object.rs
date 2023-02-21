@@ -41,7 +41,7 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct Object {
     acc: FusedAccessor,
-    path: String,
+    path: Arc<String>,
 
     meta: Arc<Mutex<ObjectMetadata>>,
 }
@@ -59,7 +59,7 @@ impl Object {
     pub(crate) fn with(op: Operator, path: &str, meta: ObjectMetadata) -> Self {
         Self {
             acc: op.inner(),
-            path: normalize_path(path),
+            path: Arc::new(normalize_path(path)),
             meta: Arc::new(Mutex::new(meta)),
         }
     }

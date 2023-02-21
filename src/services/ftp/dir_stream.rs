@@ -86,19 +86,12 @@ impl output::Page for DirStream {
                     &path,
                     ObjectMetadata::new(ObjectMode::FILE)
                         .with_content_length(de.size() as u64)
-                        .with_last_modified(OffsetDateTime::from(de.modified()))
-                        .with_complete(),
+                        .with_last_modified(OffsetDateTime::from(de.modified())),
                 )
             } else if de.is_directory() {
-                output::Entry::new(
-                    &format!("{}/", &path),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
-                )
+                output::Entry::new(&format!("{}/", &path), ObjectMetadata::new(ObjectMode::DIR))
             } else {
-                output::Entry::new(
-                    &path,
-                    ObjectMetadata::new(ObjectMode::Unknown).with_complete(),
-                )
+                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

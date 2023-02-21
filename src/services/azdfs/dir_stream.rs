@@ -117,8 +117,7 @@ impl output::Page for DirStream {
                         )
                         .set_source(e)
                     })?,
-                )
-                .with_complete();
+                );
 
             let mut path = build_rel_path(&self.root, &object.name);
             if mode == ObjectMode::DIR {

@@ -291,6 +291,24 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
         self.complete_blocking_reader(path, args)
     }
 
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(path, args).await.map(|v| {
+            v.map_metadata(|m| {
+                debug_assert!(!m.is_complete(), "service should not set complete by hand");
+                m.with_complete()
+            })
+        })
+    }
+
+    fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.blocking_stat(path, args).map(|v| {
+            v.map_metadata(|m| {
+                debug_assert!(!m.is_complete(), "service should not set complete by hand");
+                m.with_complete()
+            })
+        })
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.complete_list(path, args).await
     }

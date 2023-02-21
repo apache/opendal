@@ -83,9 +83,7 @@ impl output::Page for DirStream {
 
                     output::Entry::new(
                         &path,
-                        ObjectMetadata::new(object.mode())
-                            .with_content_length(object.size)
-                            .with_complete(),
+                        ObjectMetadata::new(object.mode()).with_content_length(object.size),
                     )
                 })
                 .collect(),

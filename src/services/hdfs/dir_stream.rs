@@ -57,10 +57,7 @@ impl output::Page for DirStream {
                 output::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                output::Entry::new(
-                    &format!("{path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
-                )
+                output::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
             } else {
                 output::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };
@@ -91,10 +88,7 @@ impl output::BlockingPage for DirStream {
                 output::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                output::Entry::new(
-                    &format!("{path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
-                )
+                output::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
             } else {
                 output::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };

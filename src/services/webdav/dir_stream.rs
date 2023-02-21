@@ -65,10 +65,7 @@ impl output::Page for DirStream {
                 let entry = if de.propstat.prop.resourcetype.value
                     == Some(super::list_response::ResourceType::Collection)
                 {
-                    output::Entry::new(
-                        &normalized_path,
-                        ObjectMetadata::new(ObjectMode::DIR).with_complete(),
-                    )
+                    output::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::DIR))
                 } else {
                     output::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::FILE))
                 };

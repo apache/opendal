@@ -72,7 +72,7 @@ impl output::Page for DirPager {
                 // Make sure we are returning the correct path.
                 output::Entry::new(
                     &format!("{rel_path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    ObjectMetadata::new(ObjectMode::DIR),
                 )
             } else {
                 output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
@@ -133,7 +133,7 @@ impl output::BlockingPage for BlockingDirPager {
                 // Make sure we are returning the correct path.
                 output::Entry::new(
                     &format!("{rel_path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                    ObjectMetadata::new(ObjectMode::DIR),
                 )
             } else {
                 output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))

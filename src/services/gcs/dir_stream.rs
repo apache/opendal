@@ -91,7 +91,7 @@ impl output::Page for DirStream {
         for prefix in output.prefixes {
             let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix),
-                ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                ObjectMetadata::new(ObjectMode::DIR),
             );
 
             entries.push(de);

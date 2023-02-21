@@ -97,11 +97,11 @@ macro_rules! behavior_blocking_write_tests {
 pub fn test_create_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let o = op.object(&path);
+    let mut o = op.object(&path);
 
     o.blocking_create()?;
 
-    let meta = o.blocking_metadata()?;
+    let meta = o.blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -115,13 +115,13 @@ pub fn test_create_file(op: Operator) -> Result<()> {
 pub fn test_create_file_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let o = op.object(&path);
+    let mut o = op.object(&path);
 
     o.blocking_create()?;
 
     o.blocking_create()?;
 
-    let meta = o.blocking_metadata()?;
+    let meta = o.blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -135,12 +135,12 @@ pub fn test_create_file_existing(op: Operator) -> Result<()> {
 pub fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
 
-    let o = op.object(&path);
+    let mut o = op.object(&path);
     debug!("{o:?}");
 
     o.blocking_create()?;
 
-    let meta = o.blocking_metadata()?;
+    let meta = o.blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
@@ -154,11 +154,11 @@ pub fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
 pub fn test_create_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let o = op.object(&path);
+    let mut o = op.object(&path);
 
     o.blocking_create()?;
 
-    let meta = o.blocking_metadata()?;
+    let meta = o.blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -171,13 +171,13 @@ pub fn test_create_dir(op: Operator) -> Result<()> {
 pub fn test_create_dir_existing(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let o = op.object(&path);
+    let mut o = op.object(&path);
 
     o.blocking_create()?;
 
     o.blocking_create()?;
 
-    let meta = o.blocking_metadata()?;
+    let meta = o.blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -194,10 +194,7 @@ pub fn test_write(op: Operator) -> Result<()> {
 
     op.object(&path).blocking_write(content)?;
 
-    let meta = op
-        .object(&path)
-        .blocking_metadata()
-        .expect("stat must succeed");
+    let meta = op.object(&path).blocking_stat().expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -226,10 +223,7 @@ pub fn test_write_with_special_chars(op: Operator) -> Result<()> {
 
     op.object(&path).blocking_write(content)?;
 
-    let meta = op
-        .object(&path)
-        .blocking_metadata()
-        .expect("stat must succeed");
+    let meta = op.object(&path).blocking_stat().expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -248,7 +242,7 @@ pub fn test_stat(op: Operator) -> Result<()> {
         .blocking_write(content)
         .expect("write must succeed");
 
-    let meta = op.object(&path).blocking_metadata()?;
+    let meta = op.object(&path).blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
@@ -266,7 +260,7 @@ pub fn test_stat_dir(op: Operator) -> Result<()> {
         .blocking_create()
         .expect("write must succeed");
 
-    let meta = op.object(&path).blocking_metadata()?;
+    let meta = op.object(&path).blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     op.object(&path)
@@ -285,7 +279,7 @@ pub fn test_stat_with_special_chars(op: Operator) -> Result<()> {
         .blocking_write(content)
         .expect("write must succeed");
 
-    let meta = op.object(&path).blocking_metadata()?;
+    let meta = op.object(&path).blocking_stat()?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
@@ -299,7 +293,7 @@ pub fn test_stat_with_special_chars(op: Operator) -> Result<()> {
 pub fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).blocking_metadata();
+    let meta = op.object(&path).blocking_stat();
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 

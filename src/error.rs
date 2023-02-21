@@ -23,7 +23,7 @@
 //! use opendal::ErrorKind;
 //! # #[tokio::main]
 //! # async fn test(op: Operator) -> Result<()> {
-//! if let Err(e) = op.object("test_file").metadata().await {
+//! if let Err(e) = op.object("test_file").stat().await {
 //!     if e.kind() == ErrorKind::ObjectNotFound {
 //!         println!("object not exist")
 //!     }

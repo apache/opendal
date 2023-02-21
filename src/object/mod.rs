@@ -17,6 +17,7 @@ pub use mode::ObjectMode;
 
 mod metadata;
 pub use metadata::ObjectMetadata;
+pub use metadata::ObjectMetadataKey;
 
 mod multipart;
 pub use multipart::ObjectMultipart;

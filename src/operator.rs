@@ -504,14 +504,14 @@ impl BatchOperator {
     /// # }
     /// ```
     pub async fn remove_all(&self, path: &str) -> Result<()> {
-        let parent = self.src.object(path);
-        let meta = parent.metadata().await?;
+        let mut parent = self.src.object(path);
+        let meta = parent.stat().await?;
 
         if meta.mode() != ObjectMode::DIR {
             return parent.delete().await;
         }
 
-        let obs = self.src.object(path).scan().await?;
+        let obs = parent.scan().await?;
 
         if self.meta.can_batch() {
             let mut obs = obs.try_chunks(self.limit);
@@ -537,7 +537,7 @@ impl BatchOperator {
                 }
             }
         } else {
-            obs.try_for_each(|v| async move { v.delete().await })
+            obs.try_for_each(|mut v| async move { v.delete().await })
                 .await?;
         }
 

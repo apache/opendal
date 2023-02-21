@@ -78,7 +78,7 @@ impl Service {
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
-        let meta = o.metadata().await?;
+        let meta = o.stat().await?;
 
         let (size, r) = if let Some(range) = req.headers().get(header::RANGE) {
             let br = BytesRange::from_str(range.to_str().map_err(|e| {
@@ -103,7 +103,7 @@ impl Service {
     }
 
     async fn put(&self, req: HttpRequest, mut body: web::Payload) -> Result<HttpResponse> {
-        let o = self
+        let mut o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
@@ -167,7 +167,7 @@ impl Service {
         let o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
-        let meta = o.metadata().await?;
+        let meta = o.stat().await?;
 
         Ok(HttpResponse::Ok().body(SizedStream::new(
             meta.content_length(),

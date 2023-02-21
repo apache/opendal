@@ -503,7 +503,7 @@ impl output::Page for DirStream {
                 name += "/";
             }
 
-            oes.push(output::Entry::new(&name, meta.with_complete()))
+            oes.push(output::Entry::new(&name, meta))
         }
 
         self.consumed = true;

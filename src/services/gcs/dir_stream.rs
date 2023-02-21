@@ -91,7 +91,7 @@ impl output::Page for DirStream {
         for prefix in output.prefixes {
             let de = output::Entry::new(
                 &build_rel_path(&self.root, &prefix),
-                ObjectMetadata::new(ObjectMode::DIR).with_complete(),
+                ObjectMetadata::new(ObjectMode::DIR),
             );
 
             entries.push(de);
@@ -120,7 +120,6 @@ impl output::Page for DirStream {
                 Error::new(ErrorKind::Unexpected, "parse last modified as rfc3339").set_source(e)
             })?;
             meta.set_last_modified(dt);
-            meta.set_complete();
 
             let de = output::Entry::new(&build_rel_path(&self.root, &object.name), meta);
 

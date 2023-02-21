@@ -261,6 +261,12 @@ impl RpStat {
         RpStat { meta }
     }
 
+    /// Operate on inner metadata.
+    pub fn map_metadata(mut self, f: impl FnOnce(ObjectMetadata) -> ObjectMetadata) -> Self {
+        self.meta = f(self.meta);
+        self
+    }
+
     /// Consume RpStat to get the inner metadata.
     pub fn into_metadata(self) -> ObjectMetadata {
         self.meta

@@ -14,17 +14,14 @@
 
 use std::io;
 use std::io::SeekFrom;
-use std::sync::Arc;
 
 use bytes::Bytes;
-use parking_lot::Mutex;
 
 use crate::error::Error;
 use crate::error::Result;
 use crate::ops::OpRead;
 use crate::raw::*;
 use crate::ErrorKind;
-use crate::ObjectMetadata;
 
 /// BlockingObjectReader is the public API for users.
 pub struct BlockingObjectReader {
@@ -39,12 +36,7 @@ impl BlockingObjectReader {
     ///
     /// We don't want to expose those details to users so keep this function
     /// in crate only.
-    pub(crate) fn create(
-        acc: FusedAccessor,
-        path: &str,
-        _meta: Arc<Mutex<ObjectMetadata>>,
-        op: OpRead,
-    ) -> Result<Self> {
+    pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
         let acc_meta = acc.metadata();
 
         let r = if acc_meta.hints().contains(AccessorHint::ReadSeekable) {

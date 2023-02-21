@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use flagset::flags;
+use flagset::FlagSet;
 use time::OffsetDateTime;
 
 use crate::raw::*;
@@ -24,41 +26,39 @@ use crate::*;
 /// mode and content_length are required metadata that all services
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `Entry`'s content length could be `None`.
-#[derive(Debug, Clone, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ObjectMetadata {
     /// Mark if this metadata is complete or not.
     complete: bool,
+    /// bit stores current key store.
+    bit: FlagSet<ObjectMetadataKey>,
 
     /// Mode of this object.
     mode: ObjectMode,
 
+    /// Content-Disposition of this object
+    content_disposition: Option<String>,
     /// Content Length of this object
-    ///
-    /// # NOTE
-    ///
-    /// - For `stat` operation, content_length is required to set.
-    /// - For `list` operation, content_length could be None.
-    /// - For `read` operation, content_length could be the length of request.
     content_length: Option<u64>,
     /// Content MD5 of this object.
     content_md5: Option<String>,
-    /// Content Type of this object.
-    content_type: Option<String>,
     /// Content Range of this object.
     content_range: Option<BytesContentRange>,
-    /// Last Modified of this object.
-    last_modified: Option<OffsetDateTime>,
+    /// Content Type of this object.
+    content_type: Option<String>,
     /// ETag of this object.
     etag: Option<String>,
-    /// Content-Disposition of this object
-    content_disposition: Option<String>,
+    /// Last Modified of this object.
+    last_modified: Option<OffsetDateTime>,
 }
 
 impl ObjectMetadata {
     /// Create a new object metadata
     pub fn new(mode: ObjectMode) -> Self {
         Self {
-            complete: false,
+            // If mode is dir, we will set complete to true.
+            complete: mode == ObjectMode::DIR,
+            bit: ObjectMetadataKey::Mode.into(),
 
             mode,
 
@@ -73,20 +73,19 @@ impl ObjectMetadata {
     }
 
     /// If this object metadata if complete
-    pub fn is_complete(&self) -> bool {
+    pub(crate) fn is_complete(&self) -> bool {
         self.complete
     }
 
     /// Make this object metadata if complete.
-    pub fn set_complete(&mut self) -> &mut Self {
+    pub(crate) fn with_complete(mut self) -> Self {
         self.complete = true;
         self
     }
 
-    /// Make this object metadata if complete.
-    pub fn with_complete(mut self) -> Self {
-        self.complete = true;
-        self
+    /// Get the bit from object metadata.
+    pub(crate) fn bit(&self) -> FlagSet<ObjectMetadataKey> {
+        self.bit
     }
 
     /// Object mode represent this object's mode.
@@ -97,12 +96,14 @@ impl ObjectMetadata {
     /// Set mode for object.
     pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
         self.mode = mode;
+        self.bit |= ObjectMetadataKey::Mode;
         self
     }
 
     /// Set mode for object.
     pub fn with_mode(mut self, mode: ObjectMode) -> Self {
         self.mode = mode;
+        self.bit |= ObjectMetadataKey::Mode;
         self
     }
 
@@ -122,12 +123,14 @@ impl ObjectMetadata {
     /// Set content length of this object.
     pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = Some(content_length);
+        self.bit |= ObjectMetadataKey::ContentLength;
         self
     }
 
     /// Set content length of this object.
     pub fn with_content_length(mut self, content_length: u64) -> Self {
         self.content_length = Some(content_length);
+        self.bit |= ObjectMetadataKey::ContentLength;
         self
     }
 
@@ -147,6 +150,7 @@ impl ObjectMetadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
         self.content_md5 = Some(content_md5.to_string());
+        self.bit |= ObjectMetadataKey::ContentMd5;
         self
     }
 
@@ -154,8 +158,9 @@ impl ObjectMetadata {
     ///
     /// Content MD5 is defined by [RFC 2616](http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
-    pub fn with_content_md5(mut self, content_md5: &str) -> Self {
-        self.content_md5 = Some(content_md5.to_string());
+    pub fn with_content_md5(mut self, content_md5: String) -> Self {
+        self.content_md5 = Some(content_md5);
+        self.bit |= ObjectMetadataKey::ContentMd5;
         self
     }
 
@@ -171,14 +176,16 @@ impl ObjectMetadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn set_content_type(&mut self, v: &str) -> &mut Self {
         self.content_type = Some(v.to_string());
+        self.bit |= ObjectMetadataKey::ContentType;
         self
     }
 
     /// Set Content Type of this object.
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
-    pub fn with_content_type(mut self, v: &str) -> Self {
-        self.content_type = Some(v.to_string());
+    pub fn with_content_type(mut self, v: String) -> Self {
+        self.content_type = Some(v);
+        self.bit |= ObjectMetadataKey::ContentType;
         self
     }
 
@@ -194,6 +201,7 @@ impl ObjectMetadata {
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
         self.content_range = Some(v);
+        self.bit |= ObjectMetadataKey::ContentRange;
         self
     }
 
@@ -202,6 +210,7 @@ impl ObjectMetadata {
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
         self.content_range = Some(v);
+        self.bit |= ObjectMetadataKey::ContentRange;
         self
     }
 
@@ -221,6 +230,7 @@ impl ObjectMetadata {
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
         self.last_modified = Some(last_modified);
+        self.bit |= ObjectMetadataKey::LastModified;
         self
     }
 
@@ -230,6 +240,7 @@ impl ObjectMetadata {
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn with_last_modified(mut self, last_modified: OffsetDateTime) -> Self {
         self.last_modified = Some(last_modified);
+        self.bit |= ObjectMetadataKey::LastModified;
         self
     }
 
@@ -261,6 +272,7 @@ impl ObjectMetadata {
     /// `"` is part of etag, don't trim it before setting.
     pub fn set_etag(&mut self, etag: &str) -> &mut Self {
         self.etag = Some(etag.to_string());
+        self.bit |= ObjectMetadataKey::Etag;
         self
     }
 
@@ -275,8 +287,9 @@ impl ObjectMetadata {
     /// - `W/"0815"`
     ///
     /// `"` is part of etag, don't trim it before setting.
-    pub fn with_etag(mut self, etag: &str) -> Self {
-        self.etag = Some(etag.to_string());
+    pub fn with_etag(mut self, etag: String) -> Self {
+        self.etag = Some(etag);
+        self.bit |= ObjectMetadataKey::Etag;
         self
     }
 
@@ -306,8 +319,9 @@ impl ObjectMetadata {
     /// - "inline"
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
-    pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
-        self.content_disposition = Some(content_disposition.to_string());
+    pub fn with_content_disposition(mut self, content_disposition: String) -> Self {
+        self.content_disposition = Some(content_disposition);
+        self.bit |= ObjectMetadataKey::ContentDisposition;
         self
     }
 
@@ -324,6 +338,41 @@ impl ObjectMetadata {
     /// - "attachment; filename=\"filename.jpg\""
     pub fn set_content_disposition(&mut self, content_disposition: &str) -> &mut Self {
         self.content_disposition = Some(content_disposition.to_string());
+        self.bit |= ObjectMetadataKey::ContentDisposition;
         self
+    }
+}
+
+flags! {
+    /// ObjectMetadataKey describes the metadata keys that can be stored
+    /// or quried.
+    ///
+    /// ## For store
+    ///
+    /// Internally, we will store a flag set of ObjectMetadataKey to check
+    /// whether we have set some key already.
+    ///
+    /// ## For query
+    ///
+    /// At user side, we will allow user to query the object metadata. If
+    /// the meta has been stored, we will return directly. If no, we will
+    /// call `stat` internally to fecth the metadata.
+    pub enum ObjectMetadataKey: u64 {
+        /// Key for mode.
+        Mode,
+        /// Key for content disposition.
+        ContentDisposition,
+        /// Key for content length.
+        ContentLength,
+        /// Key for content md5.
+        ContentMd5,
+        /// Key for content range.
+        ContentRange,
+        /// Key for content type.
+        ContentType,
+        /// Key for etag.
+        Etag,
+        /// Key for last last modified.
+        LastModified,
     }
 }

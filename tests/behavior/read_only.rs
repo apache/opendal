@@ -86,11 +86,11 @@ macro_rules! behavior_read_tests {
 
 /// Stat normal file and dir should return metadata
 pub async fn test_stat(op: Operator) -> Result<()> {
-    let meta = op.object("normal_file").metadata().await?;
+    let meta = op.object("normal_file").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
-    let meta = op.object("normal_dir/").metadata().await?;
+    let meta = op.object("normal_dir/").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     Ok(())
@@ -98,17 +98,11 @@ pub async fn test_stat(op: Operator) -> Result<()> {
 
 /// Stat special file and dir should return metadata
 pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
-    let meta = op
-        .object("special_file  !@#$%^&()_+-=;',")
-        .metadata()
-        .await?;
+    let meta = op.object("special_file  !@#$%^&()_+-=;',").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
-    let meta = op
-        .object("special_dir  !@#$%^&()_+-=;',/")
-        .metadata()
-        .await?;
+    let meta = op.object("special_dir  !@#$%^&()_+-=;',/").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     Ok(())
@@ -116,7 +110,7 @@ pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
 
 /// Stat not cleaned path should also succeed.
 pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
-    let meta = op.object("//normal_file").metadata().await?;
+    let meta = op.object("//normal_file").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
@@ -127,7 +121,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
 pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let meta = op.object(&path).metadata().await;
+    let meta = op.object(&path).stat().await;
     assert!(meta.is_err());
     assert_eq!(meta.unwrap_err().kind(), ErrorKind::ObjectNotFound);
 
@@ -136,10 +130,10 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Root should be able to stat and returns DIR.
 pub async fn test_stat_root(op: Operator) -> Result<()> {
-    let meta = op.object("").metadata().await?;
+    let meta = op.object("").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
-    let meta = op.object("/").metadata().await?;
+    let meta = op.object("/").stat().await?;
     assert_eq!(meta.mode(), ObjectMode::DIR);
 
     Ok(())

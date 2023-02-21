@@ -167,7 +167,7 @@ impl Object {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// let _ = o.create().await?;
     /// # Ok(())
     /// # }
@@ -181,7 +181,7 @@ impl Object {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
+    /// let mut o = op.object("path/to/dir/");
     /// let _ = o.create().await?;
     /// # Ok(())
     /// # }
@@ -219,7 +219,7 @@ impl Object {
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// let _ = o.blocking_create()?;
     /// # Ok(())
     /// # }
@@ -232,7 +232,7 @@ impl Object {
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
+    /// let mut o = op.object("path/to/dir/");
     /// let _ = o.blocking_create()?;
     /// # Ok(())
     /// # }
@@ -262,7 +262,7 @@ impl Object {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.read().await?;
     /// # Ok(())
@@ -284,7 +284,7 @@ impl Object {
     /// # use opendal::Operator;
     /// #
     /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// # let mut o = op.object("path/to/file");
     /// # o.blocking_write(vec![0; 4096])?;
     /// let bs = o.blocking_read()?;
     /// # Ok(())
@@ -311,7 +311,7 @@ impl Object {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// # o.write(vec![0; 4096]).await?;
     /// let bs = o.range_read(1024..2048).await?;
     /// # Ok(())
@@ -368,7 +368,7 @@ impl Object {
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// # let mut o = op.object("path/to/file");
     /// # o.blocking_write(vec![0; 4096])?;
     /// let bs = o.blocking_range_read(1024..2048)?;
     /// # Ok(())
@@ -657,7 +657,7 @@ impl Object {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// let _ = o.write(vec![0; 4096]).await?;
     /// # Ok(())
     /// # }
@@ -684,7 +684,7 @@ impl Object {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// let bs = b"hello, world!".to_vec();
     /// let args = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
     /// let _ = o.write_with(args, bs).await?;
@@ -731,7 +731,7 @@ impl Object {
     /// use bytes::Bytes;
     ///
     /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// let _ = o.blocking_write(vec![0; 4096])?;
     /// # Ok(())
     /// # }
@@ -757,7 +757,7 @@ impl Object {
     /// use opendal::ops::OpWrite;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("hello.txt");
+    /// let mut o = op.object("hello.txt");
     /// let bs = b"hello, world!".to_vec();
     /// let ow = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
     /// let _ = o.blocking_write_with(ow, bs)?;
@@ -805,7 +805,7 @@ impl Object {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// let r = Cursor::new(vec![0; 4096]);
     /// let _ = o.write_from(4096, r).await?;
     /// # Ok(())
@@ -846,7 +846,7 @@ impl Object {
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
+    /// let mut o = op.object("path/to/file");
     /// let r = Cursor::new(vec![0; 4096]);
     /// let _ = o.blocking_write_from(4096, r)?;
     /// # Ok(())
@@ -943,9 +943,14 @@ impl Object {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.list().await?;
-    /// // ObjectStreamer implements `futures::Stream`
-    /// while let Some(de) = ds.try_next().await? {
-    ///     match de.mode().await? {
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = de
+    ///         .metadata({
+    ///             use opendal::ObjectMetadataKey::*;
+    ///             Mode
+    ///         })
+    ///         .await?;
+    ///     match meta.mode() {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -990,9 +995,12 @@ impl Object {
     /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.blocking_list()?;
-    /// while let Some(de) = ds.next() {
-    ///     let de = de?;
-    ///     match de.blocking_mode()? {
+    /// while let Some(mut de) = ds.next() {
+    ///     let meta = de?.blocking_metadata({
+    ///         use opendal::ObjectMetadataKey::*;
+    ///         Mode
+    ///     })?;
+    ///     match meta.mode() {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1034,13 +1042,19 @@ impl Object {
     /// # use opendal::Operator;
     /// # use opendal::ObjectMode;
     /// # use futures::TryStreamExt;
+    /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.scan().await?;
-    /// // ObjectStreamer implements `futures::Stream`
-    /// while let Some(de) = ds.try_next().await? {
-    ///     match de.mode().await? {
+    /// while let Some(mut de) = ds.try_next().await? {
+    ///     let meta = de
+    ///         .metadata({
+    ///             use opendal::ObjectMetadataKey::*;
+    ///             Mode
+    ///         })
+    ///         .await?;
+    ///     match meta.mode() {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1085,9 +1099,12 @@ impl Object {
     /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.blocking_list()?;
-    /// while let Some(de) = ds.next() {
-    ///     let de = de?;
-    ///     match de.blocking_mode()? {
+    /// while let Some(mut de) = ds.next() {
+    ///     let meta = de?.blocking_metadata({
+    ///         use opendal::ObjectMetadataKey::*;
+    ///         Mode
+    ///     })?;
+    ///     match meta.mode() {
     ///         ObjectMode::FILE => {
     ///             println!("Handling file")
     ///         }
@@ -1305,7 +1322,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn blocking_metadata(
+    pub fn blocking_metadata(
         &mut self,
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {

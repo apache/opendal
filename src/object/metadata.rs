@@ -58,7 +58,7 @@ impl ObjectMetadata {
         Self {
             // If mode is dir, we will set complete to true.
             complete: mode == ObjectMode::DIR,
-            bit: FlagSet::default(),
+            bit: ObjectMetadataKey::Mode.into(),
 
             mode,
 
@@ -96,12 +96,14 @@ impl ObjectMetadata {
     /// Set mode for object.
     pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
         self.mode = mode;
+        self.bit |= ObjectMetadataKey::Mode;
         self
     }
 
     /// Set mode for object.
     pub fn with_mode(mut self, mode: ObjectMode) -> Self {
         self.mode = mode;
+        self.bit |= ObjectMetadataKey::Mode;
         self
     }
 

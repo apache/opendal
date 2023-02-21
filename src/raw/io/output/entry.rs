@@ -71,6 +71,6 @@ impl Entry {
 
     /// Consume to convert into an object.
     pub fn into_object(self, op: Operator) -> Object {
-        Object::with(op, &self.path, self.meta)
+        Object::with(op, &self.path, Some(self.meta))
     }
 }

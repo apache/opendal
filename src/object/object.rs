@@ -41,7 +41,7 @@ pub struct Object {
     acc: FusedAccessor,
     path: Arc<String>,
 
-    meta: Arc<ObjectMetadata>,
+    meta: Option<Arc<ObjectMetadata>>,
 }
 
 impl Object {
@@ -51,14 +51,14 @@ impl Object {
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
     pub fn new(op: Operator, path: &str) -> Self {
-        Self::with(op, path, ObjectMetadata::new(ObjectMode::Unknown))
+        Self::with(op, path, None)
     }
 
-    pub(crate) fn with(op: Operator, path: &str, meta: ObjectMetadata) -> Self {
+    pub(crate) fn with(op: Operator, path: &str, meta: Option<ObjectMetadata>) -> Self {
         Self {
             acc: op.inner(),
             path: Arc::new(normalize_path(path)),
-            meta: Arc::new(meta),
+            meta: meta.map(Arc::new),
         }
     }
 
@@ -706,8 +706,11 @@ impl Object {
         let rp = self.acc.write(self.path(), args, Box::new(r)).await?;
 
         // Always write latest metadata into cache.
-        self.meta =
-            Arc::new(ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()));
+        if self.meta.is_some() {
+            self.meta = Some(Arc::new(
+                ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()),
+            ));
+        }
 
         Ok(())
     }
@@ -776,8 +779,11 @@ impl Object {
         let rp = self.acc.blocking_write(self.path(), args, Box::new(r))?;
 
         // Always write latest metadata into cache.
-        self.meta =
-            Arc::new(ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()));
+        if self.meta.is_some() {
+            self.meta = Some(Arc::new(
+                ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()),
+            ));
+        }
         Ok(())
     }
 
@@ -888,7 +894,7 @@ impl Object {
         let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
 
         // Always write latest metadata into cache.
-        self.meta = Arc::new(ObjectMetadata::new(ObjectMode::Unknown));
+        self.meta = None;
 
         Ok(())
     }
@@ -914,7 +920,8 @@ impl Object {
         let _ = self.acc.blocking_delete(self.path(), OpDelete::new())?;
 
         // Always write latest metadata into cache.
-        self.meta = Arc::new(ObjectMetadata::new(ObjectMode::Unknown));
+        self.meta = None;
+
         Ok(())
     }
 
@@ -1168,17 +1175,19 @@ impl Object {
         &mut self,
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
-        if self.meta.is_complete() {
-            return Ok(self.meta.clone());
-        }
-        if self.meta.bit().contains(flags) {
-            return Ok(self.meta.clone());
+        if let Some(meta) = &self.meta {
+            if meta.is_complete() {
+                return Ok(meta.clone());
+            }
+            if meta.bit().contains(flags) {
+                return Ok(meta.clone());
+            }
         }
 
-        let meta = self.stat().await?;
-        self.meta = Arc::new(meta);
+        let meta = Arc::new(self.stat().await?);
+        self.meta = Some(meta.clone());
 
-        Ok(self.meta.clone())
+        Ok(meta)
     }
 
     /// Get current object's metadata.
@@ -1204,17 +1213,19 @@ impl Object {
         &mut self,
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
-        if self.meta.is_complete() {
-            return Ok(self.meta.clone());
-        }
-        if self.meta.bit().contains(flags) {
-            return Ok(self.meta.clone());
+        if let Some(meta) = &self.meta {
+            if meta.is_complete() {
+                return Ok(meta.clone());
+            }
+            if meta.bit().contains(flags) {
+                return Ok(meta.clone());
+            }
         }
 
-        let meta = self.blocking_stat()?;
-        self.meta = Arc::new(meta);
+        let meta = Arc::new(self.blocking_stat()?);
+        self.meta = Some(meta.clone());
 
-        Ok(self.meta.clone())
+        Ok(meta)
     }
 
     /// Check if this object exists or not.

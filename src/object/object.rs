@@ -46,6 +46,7 @@ pub struct Object {
     meta: Arc<Mutex<output::Metadata>>,
 }
 
+/// ## Base APIs
 impl Object {
     /// Creates a new Object with normalized path.
     ///
@@ -148,45 +149,10 @@ impl Object {
     pub fn name(&self) -> &str {
         get_basename(&self.path)
     }
+}
 
-    /// Return this object entry's object mode.
-    pub async fn mode(&self) -> Result<ObjectMode> {
-        {
-            let guard = self.meta.lock();
-            // Object mode other than unknown is OK to be returned.
-            if guard.mode() != ObjectMode::Unknown {
-                return Ok(guard.mode());
-            }
-            // Object mode is unknown, but the object metadata is marked
-            // as complete.
-            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
-                return Ok(guard.mode());
-            }
-        }
-
-        let guard = self.metadata_ref().await?;
-        Ok(guard.mode())
-    }
-
-    /// Return this object entry's object mode in blocking way.
-    pub fn blocking_mode(&self) -> Result<ObjectMode> {
-        {
-            let guard = self.meta.lock();
-            // Object mode other than unknown is OK to be returned.
-            if guard.mode() != ObjectMode::Unknown {
-                return Ok(guard.mode());
-            }
-            // Object mode is unknown, but the object metadata is marked
-            // as complete.
-            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
-                return Ok(guard.mode());
-            }
-        }
-
-        let guard = self.blocking_metadata_ref()?;
-        Ok(guard.mode())
-    }
-
+/// ## IO APIs
+impl Object {
     /// Create an empty object, like using the following linux commands:
     ///
     /// - `touch path/to/file`
@@ -240,55 +206,6 @@ impl Object {
         Ok(())
     }
 
-    /// Create an empty object, like using the following linux commands:
-    ///
-    /// - `touch path/to/file`
-    /// - `mkdir path/to/dir/`
-    ///
-    /// # Behavior
-    ///
-    /// - Create on existing dir will succeed.
-    /// - Create on existing file will overwrite and truncate it.
-    ///
-    /// # Examples
-    ///
-    /// ## Create an empty file
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let _ = o.blocking_create()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// ## Create a dir
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
-    /// let _ = o.blocking_create()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_create(&self) -> Result<()> {
-        if self.path.ends_with('/') {
-            self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
-        } else {
-            self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))?;
-        };
-
-        Ok(())
-    }
-
     /// Read the whole object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or
@@ -310,28 +227,6 @@ impl Object {
     /// ```
     pub async fn read(&self) -> Result<Vec<u8>> {
         self.range_read(..).await
-    }
-
-    /// Read the whole object into a bytes.
-    ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::blocking_reader`]
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// #
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// # o.blocking_write(vec![0; 4096])?;
-    /// let bs = o.blocking_read()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_read(&self) -> Result<Vec<u8>> {
-        self.blocking_range_read(..)
     }
 
     /// Read the specified range of object into a bytes.
@@ -395,53 +290,6 @@ impl Object {
         Ok(buffer)
     }
 
-    /// Read the specified range of object into a bytes.
-    ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`Object::blocking_range_reader`]
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// # o.blocking_write(vec![0; 4096])?;
-    /// let bs = o.blocking_range_read(1024..2048)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_operation("Object::blocking_range_read")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let br = BytesRange::from(range);
-        let (rp, mut s) = self
-            .acc
-            .blocking_read(self.path(), OpRead::new().with_range(br))?;
-
-        let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
-        s.read_to_end(&mut buffer).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "blocking range read failed")
-                .with_operation("Object::blocking_range_read")
-                .with_context("service", self.accessor().metadata().scheme().into_static())
-                .with_context("path", self.path())
-                .with_context("range", br.to_string())
-                .set_source(err)
-        })?;
-
-        Ok(buffer)
-    }
-
     /// Create a new reader which can read the whole object.
     ///
     /// # Examples
@@ -460,24 +308,6 @@ impl Object {
     /// ```
     pub async fn reader(&self) -> Result<ObjectReader> {
         self.range_reader(..).await
-    }
-
-    /// Create a new reader which can read the whole object.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let r = o.blocking_reader()?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_reader(&self) -> Result<BlockingObjectReader> {
-        self.blocking_range_reader(..)
     }
 
     /// Create a new reader which can read the specified range.
@@ -512,38 +342,6 @@ impl Object {
         let op = OpRead::new().with_range(range.into());
 
         ObjectReader::create(self.accessor(), self.path(), op).await
-    }
-
-    /// Create a new reader which can read the specified range.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::TryStreamExt;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let r = o.blocking_range_reader(1024..2048)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_range_reader(
-        &self,
-        range: impl RangeBounds<u64>,
-    ) -> Result<BlockingObjectReader> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_operation("Object::blocking_range_reader")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let op = OpRead::new().with_range(range.into());
-
-        BlockingObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op)
     }
 
     /// Read the whole object into a bytes with auto detected compress algorithm.
@@ -754,6 +552,393 @@ impl Object {
         Ok(())
     }
 
+    /// Write data into object from a [`input::Read`].
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    /// use futures::io::Cursor;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// let r = Cursor::new(vec![0; 4096]);
+    /// let _ = o.write_from(4096, r).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn write_from(&self, size: u64, br: impl input::Read + 'static) -> Result<()> {
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::write_from")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
+        }
+
+        let _ = self
+            .acc
+            .write(self.path(), OpWrite::new(size), Box::new(br))
+            .await?;
+        Ok(())
+    }
+
+    /// Delete object.
+    ///
+    /// # Notes
+    ///
+    /// - Delete not existing error won't return errors.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.object("test").delete().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn delete(&self) -> Result<()> {
+        let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock();
+            *guard = output::Metadata::new(ObjectMode::Unknown);
+        }
+        Ok(())
+    }
+
+    /// List current dir object.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.list().await?;
+    /// // ObjectStreamer implements `futures::Stream`
+    /// while let Some(de) = ds.try_next().await? {
+    ///     match de.mode().await? {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn list(&self) -> Result<ObjectLister> {
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::list")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
+        }
+
+        let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
+
+        Ok(ObjectLister::new(self.acc.clone(), pager))
+    }
+
+    /// List dir in flat way.
+    ///
+    /// This function will create a new handle to list objects.
+    ///
+    /// An error will be returned if object path doesn't end with `/`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// # use opendal::ObjectMode;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let mut ds = o.scan().await?;
+    /// // ObjectStreamer implements `futures::Stream`
+    /// while let Some(de) = ds.try_next().await? {
+    ///     match de.mode().await? {
+    ///         ObjectMode::FILE => {
+    ///             println!("Handling file")
+    ///         }
+    ///         ObjectMode::DIR => {
+    ///             println!("Handling dir like start a new list via meta.path()")
+    ///         }
+    ///         ObjectMode::Unknown => continue,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn scan(&self) -> Result<ObjectLister> {
+        if !validate_path(self.path(), ObjectMode::DIR) {
+            return Err(Error::new(
+                ErrorKind::ObjectNotADirectory,
+                "the path trying to list is not a directory",
+            )
+            .with_operation("Object::list")
+            .with_context("service", self.accessor().metadata().scheme().into_static())
+            .with_context("path", self.path()));
+        }
+
+        let (_, pager) = self.acc.scan(self.path(), OpScan::new()).await?;
+
+        Ok(ObjectLister::new(self.acc.clone(), pager))
+    }
+
+    /// Get current object's metadata **without cache**.
+    ///
+    /// # Notes
+    ///
+    /// This function works exactly the same with `Object::metadata`.The
+    /// only difference is it will not try to load data from cached metadata.
+    ///
+    /// Use this function to detect the outside changes of object.
+    pub async fn stat(&self) -> Result<()> {
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        let meta = rp.into_metadata();
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock();
+            *guard = meta;
+        }
+
+        Ok(())
+    }
+
+    /// Check if this object exists or not.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use futures::io;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let _ = op.object("test").is_exist().await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn is_exist(&self) -> Result<bool> {
+        let r = self.metadata_ref().await;
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                ErrorKind::ObjectNotFound => Ok(false),
+                _ => Err(err),
+            },
+        }
+    }
+}
+
+/// ## Blocking IO APIs
+impl Object {
+    /// Create an empty object, like using the following linux commands:
+    ///
+    /// - `touch path/to/file`
+    /// - `mkdir path/to/dir/`
+    ///
+    /// # Behavior
+    ///
+    /// - Create on existing dir will succeed.
+    /// - Create on existing file will overwrite and truncate it.
+    ///
+    /// # Examples
+    ///
+    /// ## Create an empty file
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// let _ = o.blocking_create()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Create a dir
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/dir/");
+    /// let _ = o.blocking_create()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_create(&self) -> Result<()> {
+        if self.path.ends_with('/') {
+            self.acc
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
+        } else {
+            self.acc
+                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))?;
+        };
+
+        Ok(())
+    }
+
+    /// Read the whole object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::blocking_reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// #
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// # o.blocking_write(vec![0; 4096])?;
+    /// let bs = o.blocking_read()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_read(&self) -> Result<Vec<u8>> {
+        self.blocking_range_read(..)
+    }
+
+    /// Read the specified range of object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::blocking_range_reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # use opendal::Scheme;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// # o.blocking_write(vec![0; 4096])?;
+    /// let bs = o.blocking_range_read(1024..2048)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("Object::blocking_range_read")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
+        }
+
+        let br = BytesRange::from(range);
+        let (rp, mut s) = self
+            .acc
+            .blocking_read(self.path(), OpRead::new().with_range(br))?;
+
+        let mut buffer = Vec::with_capacity(rp.into_metadata().content_length() as usize);
+        s.read_to_end(&mut buffer).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "blocking range read failed")
+                .with_operation("Object::blocking_range_read")
+                .with_context("service", self.accessor().metadata().scheme().into_static())
+                .with_context("path", self.path())
+                .with_context("range", br.to_string())
+                .set_source(err)
+        })?;
+
+        Ok(buffer)
+    }
+
+    /// Create a new reader which can read the whole object.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// let r = o.blocking_reader()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_reader(&self) -> Result<BlockingObjectReader> {
+        self.blocking_range_reader(..)
+    }
+
+    /// Create a new reader which can read the specified range.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let o = op.object("path/to/file");
+    /// let r = o.blocking_range_reader(1024..2048)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_range_reader(
+        &self,
+        range: impl RangeBounds<u64>,
+    ) -> Result<BlockingObjectReader> {
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
+                    .with_operation("Object::blocking_range_reader")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
+        }
+
+        let op = OpRead::new().with_range(range.into());
+
+        BlockingObjectReader::create(self.accessor(), self.path(), self.meta.clone(), op)
+    }
+
     /// Write bytes into object.
     ///
     /// # Notes
@@ -825,47 +1010,6 @@ impl Object {
         Ok(())
     }
 
-    /// Write data into object from a [`input::Read`].
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// use bytes::Bytes;
-    /// use futures::io::Cursor;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let r = Cursor::new(vec![0; 4096]);
-    /// let _ = o.write_from(4096, r).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn write_from(&self, size: u64, br: impl input::Read + 'static) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_operation("Object::write_from")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let _ = self
-            .acc
-            .write(self.path(), OpWrite::new(size), Box::new(br))
-            .await?;
-        Ok(())
-    }
-
     /// Write data into object from a [`input::BlockingRead`].
     ///
     /// # Notes
@@ -918,35 +1062,6 @@ impl Object {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// # use opendal::Operator;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// op.object("test").delete().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn delete(&self) -> Result<()> {
-        let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
-
-        // Always write latest metadata into cache.
-        {
-            let mut guard = self.meta.lock();
-            *guard = output::Metadata::new(ObjectMode::Unknown);
-        }
-        Ok(())
-    }
-
-    /// Delete object.
-    ///
-    /// # Notes
-    ///
-    /// - Delete not existing error won't return errors.
-    ///
-    /// # Examples
-    ///
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
@@ -965,55 +1080,6 @@ impl Object {
             *guard = output::Metadata::new(ObjectMode::Unknown);
         }
         Ok(())
-    }
-
-    /// List current dir object.
-    ///
-    /// This function will create a new handle to list objects.
-    ///
-    /// An error will be returned if object path doesn't end with `/`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
-    /// let mut ds = o.list().await?;
-    /// // ObjectStreamer implements `futures::Stream`
-    /// while let Some(de) = ds.try_next().await? {
-    ///     match de.mode().await? {
-    ///         ObjectMode::FILE => {
-    ///             println!("Handling file")
-    ///         }
-    ///         ObjectMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
-    ///         }
-    ///         ObjectMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn list(&self) -> Result<ObjectLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::ObjectNotADirectory,
-                "the path trying to list is not a directory",
-            )
-            .with_operation("Object::list")
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
-        }
-
-        let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
-
-        Ok(ObjectLister::new(self.acc.clone(), pager))
     }
 
     /// List current dir object.
@@ -1071,55 +1137,6 @@ impl Object {
     /// # Examples
     ///
     /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
-    /// # use futures::TryStreamExt;
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
-    /// let mut ds = o.scan().await?;
-    /// // ObjectStreamer implements `futures::Stream`
-    /// while let Some(de) = ds.try_next().await? {
-    ///     match de.mode().await? {
-    ///         ObjectMode::FILE => {
-    ///             println!("Handling file")
-    ///         }
-    ///         ObjectMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
-    ///         }
-    ///         ObjectMode::Unknown => continue,
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn scan(&self) -> Result<ObjectLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
-            return Err(Error::new(
-                ErrorKind::ObjectNotADirectory,
-                "the path trying to list is not a directory",
-            )
-            .with_operation("Object::list")
-            .with_context("service", self.accessor().metadata().scheme().into_static())
-            .with_context("path", self.path()));
-        }
-
-        let (_, pager) = self.acc.scan(self.path(), OpScan::new()).await?;
-
-        Ok(ObjectLister::new(self.acc.clone(), pager))
-    }
-
-    /// List dir in flat way.
-    ///
-    /// This function will create a new handle to list objects.
-    ///
-    /// An error will be returned if object path doesn't end with `/`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
     /// # use opendal::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
@@ -1157,6 +1174,42 @@ impl Object {
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
+    /// Get current object's metadata **without cache**.
+    ///
+    /// # Notes
+    ///
+    /// This function works exactly the same with `Object::metadata`.The
+    /// only difference is it will not try to load data from cached metadata.
+    ///
+    /// Use this function to detect the outside changes of object.
+    pub fn blocking_stat(&self) -> Result<()> {
+        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
+        let meta = rp.into_metadata();
+
+        // Always write latest metadata into cache.
+        {
+            let mut guard = self.meta.lock();
+            *guard = meta;
+        }
+
+        Ok(())
+    }
+
+    /// Check if this object exists or not.
+    pub fn blocking_is_exist(&self) -> Result<bool> {
+        let r = self.blocking_stat();
+        match r {
+            Ok(_) => Ok(true),
+            Err(err) => match err.kind() {
+                ErrorKind::ObjectNotFound => Ok(false),
+                _ => Err(err),
+            },
+        }
+    }
+}
+
+/// ## Metadata APIs
+impl Object {
     /// metadata_ref is used to get object metadata with mutex guard.
     ///
     /// Called can decide to access or clone the content of object metadata.
@@ -1184,43 +1237,23 @@ impl Object {
         Ok(guard)
     }
 
-    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, output::Metadata>> {
-        // Make sure the mutex guard has been dropped.
+    /// Return this object's object mode.
+    pub async fn mode(&self) -> Result<ObjectMode> {
         {
             let guard = self.meta.lock();
-            if guard.is_complete() {
-                return Ok(guard);
+            // Object mode other than unknown is OK to be returned.
+            if guard.mode() != ObjectMode::Unknown {
+                return Ok(guard.mode());
+            }
+            // Object mode is unknown, but the object metadata is marked
+            // as complete.
+            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
+                return Ok(guard.mode());
             }
         }
 
-        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
-        let meta = rp.into_metadata();
-
-        let mut guard = self.meta.lock();
-        *guard = meta;
-
-        Ok(guard)
-    }
-
-    /// Get current object's metadata **without cache**.
-    ///
-    /// # Notes
-    ///
-    /// This function works exactly the same with `Object::metadata`.The
-    /// only difference is it will not try to load data from cached metadata.
-    ///
-    /// Use this function to detect the outside changes of object.
-    pub async fn stat(&self) -> Result<()> {
-        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
-        let meta = rp.into_metadata();
-
-        // Always write latest metadata into cache.
-        {
-            let mut guard = self.meta.lock();
-            *guard = meta;
-        }
-
-        Ok(())
+        let guard = self.metadata_ref().await?;
+        Ok(guard.mode())
     }
 
     /// The size of `Entry`'s corresponding object
@@ -1306,96 +1339,71 @@ impl Object {
         let meta = self.metadata_ref().await?;
         Ok(meta.etag().map(|v| v.to_string()))
     }
+}
 
-    /// Get current object's metadata.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use anyhow::Result;
-    /// # use futures::io;
-    /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
-    /// #
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// if let Err(e) = op.object("test").blocking_metadata() {
-    ///     if e.kind() == ErrorKind::ObjectNotFound {
-    ///         println!("object not exist")
-    ///     }
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_metadata(&self) -> Result<output::Metadata> {
+/// ## Blocking Metadata APIs
+impl Object {
+    fn blocking_metadata_ref(&self) -> Result<MutexGuard<'_, output::Metadata>> {
         // Make sure the mutex guard has been dropped.
         {
             let guard = self.meta.lock();
             if guard.is_complete() {
-                return Ok(guard.clone());
+                return Ok(guard);
             }
         }
 
         let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
         let meta = rp.into_metadata();
 
+        let mut guard = self.meta.lock();
+        *guard = meta;
+
+        Ok(guard)
+    }
+
+    /// Return this object entry's object mode in blocking way.
+    pub fn blocking_mode(&self) -> Result<ObjectMode> {
         {
-            let mut guard = self.meta.lock();
-            *guard = meta.clone();
+            let guard = self.meta.lock();
+            // Object mode other than unknown is OK to be returned.
+            if guard.mode() != ObjectMode::Unknown {
+                return Ok(guard.mode());
+            }
+            // Object mode is unknown, but the object metadata is marked
+            // as complete.
+            if guard.mode() == ObjectMode::Unknown && guard.is_complete() {
+                return Ok(guard.mode());
+            }
         }
 
-        Ok(meta)
+        let guard = self.blocking_metadata_ref()?;
+        Ok(guard.mode())
     }
 
-    /// Check if this object exists or not.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let _ = op.object("test").is_exist().await?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub async fn is_exist(&self) -> Result<bool> {
-        let r = self.metadata_ref().await;
-        match r {
-            Ok(_) => Ok(true),
-            Err(err) => match err.kind() {
-                ErrorKind::ObjectNotFound => Ok(false),
-                _ => Err(err),
-            },
+    /// The size of `Entry`'s corresponding object
+    pub fn blocking_content_length(&self) -> Result<u64> {
+        {
+            let guard = self.meta.lock();
+            if let Some(v) = guard.content_length_raw() {
+                return Ok(v);
+            }
+            if guard.is_complete() {
+                return Ok(0);
+            }
         }
-    }
 
-    /// Check if this object exists or not.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    /// fn test(op: Operator) -> Result<()> {
-    ///     let _ = op.object("test").blocking_is_exist()?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn blocking_is_exist(&self) -> Result<bool> {
-        let r = self.blocking_metadata();
-        match r {
-            Ok(_) => Ok(true),
-            Err(err) => match err.kind() {
-                ErrorKind::ObjectNotFound => Ok(false),
-                _ => Err(err),
-            },
-        }
+        let guard = self.blocking_metadata_ref()?;
+        Ok(guard.content_length())
     }
+}
+
+/// ## Presign APIs
+///
+/// This section will provide presign related APIs.
+///
+/// By using presign, users can generate a link for other users to access
+/// resources without sharing credentials.
+impl Object {
     /// Presign an operation for stat(head).
     ///
     /// # Example
@@ -1518,7 +1526,12 @@ impl Object {
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())
     }
+}
 
+/// ## Multipart APIs
+///
+/// Provide support to write objects with multipart API.
+impl Object {
     /// Construct a multipart with existing upload id.
     pub fn to_multipart(&self, upload_id: &str) -> ObjectMultipart {
         ObjectMultipart::new(self.operator(), &self.path, upload_id)

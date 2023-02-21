@@ -1115,43 +1115,20 @@ impl Object {
         Ok(BlockingObjectLister::new(self.acc.clone(), pager))
     }
 
-    /// Get current object's metadata **without cache**.
+    /// Get current object's metadata **without cache** directly.
     ///
     /// # Notes
     ///
-    /// This function works exactly the same with `Object::metadata`.The
-    /// only difference is it will not try to load data from cached metadata.
+    /// Use `stat` if you:
     ///
-    /// Use this function to detect the outside changes of object.
-    pub async fn stat(&self) -> Result<ObjectMetadata> {
-        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
-        let meta = rp.into_metadata();
-
-        Ok(meta)
-    }
-
-    /// Get current object's metadata **without cache**.
+    /// - Want detect the outside changes of object.
+    /// - Don't want to read from cached object metadata.
+    /// - No repeated stat call will be sent to the same object.
     ///
-    /// # Notes
+    /// You may want to use `metadata`, if you:
     ///
-    /// This function works exactly the same with `Object::metadata`.The
-    /// only difference is it will not try to load data from cached metadata.
-    ///
-    /// Use this function to detect the outside changes of object.
-    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
-        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
-        let meta = rp.into_metadata();
-
-        Ok(meta)
-    }
-
-    /// Get current object's metadata with cache.
-    ///
-    /// # Notes
-    ///
-    /// This function will try access the local metadata cache first.
-    /// If there are outside changes of the object, `metadata` could return
-    /// out-of-date metadata. To overcome this, please use [`Object::stat`].
+    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
+    /// - Are working with the same object instance.
     ///
     /// # Examples
     ///
@@ -1163,11 +1140,103 @@ impl Object {
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// if let Err(e) = op.object("test").metadata().await {
+    /// if let Err(e) = op.object("test").stat().await {
     ///     if e.kind() == ErrorKind::ObjectNotFound {
     ///         println!("object not exist")
     ///     }
     /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn stat(&self) -> Result<ObjectMetadata> {
+        let rp = self.acc.stat(self.path(), OpStat::new()).await?;
+        let meta = rp.into_metadata();
+
+        Ok(meta)
+    }
+
+    /// Get current object's metadata **without cache** directly.
+    ///
+    /// # Notes
+    ///
+    /// Use `stat` if you:
+    ///
+    /// - Want detect the outside changes of object.
+    /// - Don't want to read from cached object metadata.
+    /// - No repeated stat call will be sent to the same object.
+    ///
+    /// You may want to use `metadata`, if you:
+    ///
+    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
+    /// - Are working with the same object instance.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// use opendal::ErrorKind;
+    /// #
+    /// # fn test(op: Operator) -> Result<()> {
+    /// if let Err(e) = op.object("test").blocking_stat() {
+    ///     if e.kind() == ErrorKind::ObjectNotFound {
+    ///         println!("object not exist")
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
+        let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
+        let meta = rp.into_metadata();
+
+        Ok(meta)
+    }
+
+    /// Get current object's metadata with cache.
+    ///
+    /// `metadata` will check the given query with already cached metadata
+    ///  first. And query from storage if not found.
+    ///
+    /// # Notes
+    ///
+    /// Use `metadata` if you:
+    ///
+    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
+    /// - Are working with the same object instance.
+    ///
+    /// You may want to use `stat`, if you:
+    ///
+    /// - Want detect the outside changes of object.
+    /// - Don't want to read from cached object metadata.
+    /// - No repeated stat call will be sent to the same object.
+    ///
+    /// # Behavior
+    ///
+    /// `metadata` only make sure that the quired metadata is fetched. Not
+    /// fetched metadata key could be `None`, it doesn't means it's really
+    /// empty. Please make sure input metadata key is correct.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use futures::io;
+    /// # use opendal::Operator;
+    /// use opendal::ErrorKind;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let meta = op
+    ///     .object("test")
+    ///     .metadata({
+    ///         use opendal::ObjectMetadataKey::*;
+    ///         ContentLength | ContentType
+    ///     })
+    ///     .await?;
+    /// let _ = meta.content_length();
+    /// let _ = meta.content_type();
     /// # Ok(())
     /// # }
     /// ```
@@ -1190,22 +1259,49 @@ impl Object {
         Ok(meta)
     }
 
-    /// Get current object's metadata.
+    /// Get current object's metadata with cache in blocking way.
+    ///
+    /// `metadata` will check the given query with already cached metadata
+    ///  first. And query from storage if not found.
+    ///
+    /// # Notes
+    ///
+    /// Use `metadata` if you:
+    ///
+    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
+    /// - Are working with the same object instance.
+    ///
+    /// You may want to use `stat`, if you:
+    ///
+    /// - Want detect the outside changes of object.
+    /// - Don't want to read from cached object metadata.
+    /// - No repeated stat call will be sent to the same object.
+    ///
+    /// # Behavior
+    ///
+    /// `metadata` only make sure that the quired metadata is fetched. Not
+    /// fetched metadata key could be `None`, it doesn't means it's really
+    /// empty. Please make sure input metadata key is correct.
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
     /// use opendal::ErrorKind;
     /// #
+    /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// if let Err(e) = op.object("test").blocking_metadata() {
-    ///     if e.kind() == ErrorKind::ObjectNotFound {
-    ///         println!("object not exist")
-    ///     }
-    /// }
+    /// let meta = op
+    ///     .object("test")
+    ///     .metadata({
+    ///         use opendal::ObjectMetadataKey::*;
+    ///         ContentLength | ContentType
+    ///     })
+    ///     .await?;
+    /// let _ = meta.content_length();
+    /// let _ = meta.content_type();
     /// # Ok(())
     /// # }
     /// ```

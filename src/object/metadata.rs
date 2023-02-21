@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use flagset::{flags, FlagSet};
+use flagset::flags;
+use flagset::FlagSet;
 use time::OffsetDateTime;
 
 use crate::raw::*;

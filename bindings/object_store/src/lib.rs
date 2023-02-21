@@ -104,9 +104,9 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn head(&self, location: &Path) -> Result<ObjectMeta> {
-        let mut o = self.inner.object(location.as_ref());
+        let o = self.inner.object(location.as_ref());
         let meta = o
-            .metadata()
+            .stat()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 

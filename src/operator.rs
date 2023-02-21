@@ -505,13 +505,13 @@ impl BatchOperator {
     /// ```
     pub async fn remove_all(&self, path: &str) -> Result<()> {
         let mut parent = self.src.object(path);
-        let meta = parent.metadata().await?;
+        let meta = parent.stat().await?;
 
         if meta.mode() != ObjectMode::DIR {
             return parent.delete().await;
         }
 
-        let obs = self.src.object(path).scan().await?;
+        let obs = parent.scan().await?;
 
         if self.meta.can_batch() {
             let mut obs = obs.try_chunks(self.limit);

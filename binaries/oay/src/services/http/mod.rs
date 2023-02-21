@@ -74,11 +74,11 @@ impl Service {
     }
 
     async fn get(&self, req: HttpRequest) -> Result<HttpResponse> {
-        let mut o = self
+        let o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 
-        let meta = o.metadata().await?;
+        let meta = o.stat().await?;
 
         let (size, r) = if let Some(range) = req.headers().get(header::RANGE) {
             let br = BytesRange::from_str(range.to_str().map_err(|e| {
@@ -164,10 +164,10 @@ impl Service {
     /// - The body's size.
     /// - The body returned by HEAD should not be read.
     async fn head(&self, req: HttpRequest) -> Result<HttpResponse> {
-        let mut o = self
+        let o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
-        let meta = o.metadata().await?;
+        let meta = o.stat().await?;
 
         Ok(HttpResponse::Ok().body(SizedStream::new(
             meta.content_length(),

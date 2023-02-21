@@ -17,6 +17,7 @@ use std::io::Read;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+use flagset::FlagSet;
 use futures::io::Cursor;
 use futures::AsyncReadExt;
 use time::Duration;
@@ -1163,7 +1164,20 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(&mut self) -> Result<Arc<ObjectMetadata>> {
+    pub async fn metadata(
+        &mut self,
+        flags: impl Into<FlagSet<ObjectMetadataKey>>,
+    ) -> Result<Arc<ObjectMetadata>> {
+        if self.meta.is_complete() {
+            return Ok(self.meta.clone());
+        }
+        if self.meta.bit().contains(flags) {
+            return Ok(self.meta.clone());
+        }
+
+        let meta = self.stat().await?;
+        self.meta = Arc::new(meta);
+
         Ok(self.meta.clone())
     }
 
@@ -1186,7 +1200,20 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_metadata(&mut self) -> Result<Arc<ObjectMetadata>> {
+    pub async fn blocking_metadata(
+        &mut self,
+        flags: impl Into<FlagSet<ObjectMetadataKey>>,
+    ) -> Result<Arc<ObjectMetadata>> {
+        if self.meta.is_complete() {
+            return Ok(self.meta.clone());
+        }
+        if self.meta.bit().contains(flags) {
+            return Ok(self.meta.clone());
+        }
+
+        let meta = self.blocking_stat()?;
+        self.meta = Arc::new(meta);
+
         Ok(self.meta.clone())
     }
 

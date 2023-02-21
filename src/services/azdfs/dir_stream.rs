@@ -104,7 +104,7 @@ impl output::Page for DirStream {
 
             let meta = ObjectMetadata::new(mode)
                 // Keep fit with ETag header.
-                .with_etag(&format!("\"{}\"", &object.etag))
+                .with_etag(format!("\"{}\"", &object.etag))
                 .with_content_length(object.content_length.parse().map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "content length is not valid integer")
                         .set_source(err)

@@ -560,7 +560,7 @@ impl Accessor for OssBackend {
                     .with_context("length", ops_len.to_string()));
                 }
 
-                let pathes = ops
+                let paths = ops
                     .into_iter()
                     .map(|(p, _)| {
                         keys.insert(p.clone());
@@ -568,7 +568,7 @@ impl Accessor for OssBackend {
                     })
                     .collect();
 
-                let resp = self.oss_delete_objects(pathes).await?;
+                let resp = self.oss_delete_objects(paths).await?;
 
                 let status = resp.status();
 
@@ -771,13 +771,13 @@ impl OssBackend {
         self.client.send_async(req).await
     }
 
-    async fn oss_delete_objects(&self, pathes: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
+    async fn oss_delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
-            object: pathes
+            object: paths
                 .into_iter()
                 .map(|path| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, &path),

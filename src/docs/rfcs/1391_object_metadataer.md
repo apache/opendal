@@ -29,7 +29,7 @@ while let Some(de) = ds.try_next().await? {
 
 By reusing metadata from `list` or `scan` we can reduce the extra `stat` call for each object. In our real use cases, we can reduce the total time to calculate the total length inside a dir with 6k files from 4 minutes to 2 seconds.
 
-However, metadata can only be cached as a whole. If services could return more metadata in `stat` than in `list`, we wouldn't be able to mark the metadata as cachable. If services add more metadata, we could inadvertently introduce the performance degradation.
+However, metadata can only be cached as a whole. If services could return more metadata in `stat` than in `list`, we wouldn't be able to mark the metadata as cacheable. If services add more metadata, we could inadvertently introduce the performance degradation.
 
 This RFC aims to address this problem by hiding `ObjectMetadata` and adding `ObjectMetadataer` instead. All object metadata values will be cached separately and all user calls to object metadata will go to the cache.
 
@@ -78,7 +78,7 @@ impl ObjectMetadataer {
     pub async fn etag(&self) -> Result<Option<String>>;
 }
 
-impl BlokcingObjectMetadataer {
+impl BlockingObjectMetadataer {
     pub fn mode(&self) -> Result<ObjectMode>
     pub fn content_length(&self) -> Result<u64>;
     pub fn content_md5(&self) -> Result<Option<String>>;

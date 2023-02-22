@@ -406,7 +406,7 @@ impl BatchOperator {
         self
     }
 
-    /// remove will given pathes.
+    /// remove will given paths.
     ///
     /// # Notes
     ///
@@ -428,8 +428,8 @@ impl BatchOperator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn remove(&self, pathes: Vec<String>) -> Result<()> {
-        self.remove_via(stream::iter(pathes)).await
+    pub async fn remove(&self, paths: Vec<String>) -> Result<()> {
+        self.remove_via(stream::iter(paths)).await
     }
 
     /// remove_via will remove objects via given stream.

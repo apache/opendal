@@ -1268,9 +1268,9 @@ impl Accessor for S3Backend {
                     .with_context("length", ops.len().to_string()));
                 }
 
-                let pathes = ops.into_iter().map(|(p, _)| p).collect();
+                let paths = ops.into_iter().map(|(p, _)| p).collect();
 
-                let resp = self.s3_delete_objects(pathes).await?;
+                let resp = self.s3_delete_objects(paths).await?;
 
                 let status = resp.status();
 
@@ -1690,13 +1690,13 @@ impl S3Backend {
         self.client.send_async(req).await
     }
 
-    async fn s3_delete_objects(&self, pathes: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
+    async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
-            object: pathes
+            object: paths
                 .into_iter()
                 .map(|path| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, &path),

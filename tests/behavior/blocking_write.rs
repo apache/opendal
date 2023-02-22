@@ -97,7 +97,7 @@ macro_rules! behavior_blocking_write_tests {
 pub fn test_create_file(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let mut o = op.object(&path);
+    let o = op.object(&path);
 
     o.blocking_create()?;
 
@@ -115,7 +115,7 @@ pub fn test_create_file(op: Operator) -> Result<()> {
 pub fn test_create_file_existing(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
 
-    let mut o = op.object(&path);
+    let o = op.object(&path);
 
     o.blocking_create()?;
 
@@ -135,7 +135,7 @@ pub fn test_create_file_existing(op: Operator) -> Result<()> {
 pub fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
 
-    let mut o = op.object(&path);
+    let o = op.object(&path);
     debug!("{o:?}");
 
     o.blocking_create()?;
@@ -154,7 +154,7 @@ pub fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
 pub fn test_create_dir(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let mut o = op.object(&path);
+    let o = op.object(&path);
 
     o.blocking_create()?;
 
@@ -171,7 +171,7 @@ pub fn test_create_dir(op: Operator) -> Result<()> {
 pub fn test_create_dir_existing(op: Operator) -> Result<()> {
     let path = format!("{}/", uuid::Uuid::new_v4());
 
-    let mut o = op.object(&path);
+    let o = op.object(&path);
 
     o.blocking_create()?;
 

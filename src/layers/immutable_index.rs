@@ -327,7 +327,7 @@ mod tests {
         let mut ds = op.object("/").scan().await?;
         let mut set = HashSet::new();
         let mut map = HashMap::new();
-        while let Some(mut entry) = ds.try_next().await? {
+        while let Some(entry) = ds.try_next().await? {
             debug!("got entry: {}", entry.path());
             assert!(
                 set.insert(entry.path().to_string()),
@@ -372,7 +372,7 @@ mod tests {
         let mut map = HashMap::new();
         let mut set = HashSet::new();
         let mut ds = op.object("/").list().await?;
-        while let Some(mut entry) = ds.try_next().await? {
+        while let Some(entry) = ds.try_next().await? {
             assert!(
                 set.insert(entry.path().to_string()),
                 "duplicated value: {}",
@@ -391,7 +391,7 @@ mod tests {
         let mut map = HashMap::new();
         let mut set = HashSet::new();
         let mut ds = op.object("dataset/stateful/").list().await?;
-        while let Some(mut entry) = ds.try_next().await? {
+        while let Some(entry) = ds.try_next().await? {
             assert!(
                 set.insert(entry.path().to_string()),
                 "duplicated value: {}",
@@ -442,7 +442,7 @@ mod tests {
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
-        while let Some(mut entry) = ds.try_next().await? {
+        while let Some(entry) = ds.try_next().await? {
             assert!(
                 set.insert(entry.path().to_string()),
                 "duplicated value: {}",

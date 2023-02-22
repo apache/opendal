@@ -9,6 +9,7 @@ default feature is `rustls` which enable rustls support.
 
 ## Service Features
 
+- `services-dashmap`: Enable dashmap service support.
 - `services-ftp`: Enable ftp service support.
 - `services-hdfs`: Enable hdfs service support.
 - `services-moka`: Enable moka service support.

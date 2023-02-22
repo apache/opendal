@@ -1245,13 +1245,13 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
-    /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op.object("test").metadata(None).await?;
+    /// // content length COULD be correct.
     /// let _ = meta.content_length();
-    /// let _ = meta.content_type();
+    /// // etag COULD be correct.
+    /// let _ = meta.etag();
     /// # Ok(())
     /// # }
     /// ```
@@ -1261,9 +1261,8 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
     /// use opendal::ObjectMetadataKey;
-    /// #
+    ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op
@@ -1273,8 +1272,10 @@ impl Object {
     ///         ContentLength | ContentType
     ///     })
     ///     .await?;
+    /// // content length MUST be correct.
     /// let _ = meta.content_length();
-    /// let _ = meta.content_type();
+    /// // etag COULD be correct.
+    /// let _ = meta.etag();
     /// # Ok(())
     /// # }
     /// ```
@@ -1286,17 +1287,18 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
     /// use opendal::ObjectMetadataKey;
-    /// #
+    ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
     ///     .metadata({ ObjectMetadataKey::Complete })
     ///     .await?;
+    /// // content length MUST be correct.
     /// let _ = meta.content_length();
-    /// let _ = meta.content_type();
+    /// // etag MUST be correct.
+    /// let _ = meta.etag();
     /// # Ok(())
     /// # }
     /// ```
@@ -1350,12 +1352,12 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
-    /// #
     /// # fn test(op: Operator) -> Result<()> {
     /// let meta = op.object("test").blocking_metadata(None)?;
+    /// // content length COULD be correct.
     /// let _ = meta.content_length();
-    /// let _ = meta.content_type();
+    /// // etag COULD be correct.
+    /// let _ = meta.etag();
     /// # Ok(())
     /// # }
     /// ```
@@ -1365,16 +1367,17 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
     /// use opendal::ObjectMetadataKey;
-    /// #
+    ///
     /// # fn test(op: Operator) -> Result<()> {
     /// let meta = op.object("test").blocking_metadata({
     ///     use ObjectMetadataKey::*;
     ///     ContentLength | ContentType
     /// })?;
+    /// // content length MUST be correct.
     /// let _ = meta.content_length();
-    /// let _ = meta.content_type();
+    /// // etag COULD be correct.
+    /// let _ = meta.etag();
     /// # Ok(())
     /// # }
     /// ```
@@ -1386,15 +1389,16 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
     /// use opendal::ObjectMetadataKey;
-    /// #
+    ///
     /// # fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
     ///     .blocking_metadata({ ObjectMetadataKey::Complete })?;
+    /// // content length MUST be correct.
     /// let _ = meta.content_length();
-    /// let _ = meta.content_type();
+    /// // etag MUST be correct.
+    /// let _ = meta.etag();
     /// # Ok(())
     /// # }
     /// ```

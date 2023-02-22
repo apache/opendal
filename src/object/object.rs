@@ -1121,12 +1121,10 @@ impl Object {
     ///
     /// - Want detect the outside changes of object.
     /// - Don't want to read from cached object metadata.
-    /// - No repeated stat call will be sent to the same object.
     ///
-    /// You may want to use `metadata`, if you:
-    ///
-    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
-    /// - Are working with the same object instance.
+    /// You may want to use `metadata` if you are working with objects
+    /// returned by [`ObjectLister`]. It's highly possible that metadata
+    /// you want has already been cached.
     ///
     /// # Examples
     ///
@@ -1161,12 +1159,10 @@ impl Object {
     ///
     /// - Want detect the outside changes of object.
     /// - Don't want to read from cached object metadata.
-    /// - No repeated stat call will be sent to the same object.
     ///
-    /// You may want to use `metadata`, if you:
-    ///
-    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
-    /// - Are working with the same object instance.
+    /// You may want to use `metadata` if you are working with objects
+    /// returned by [`ObjectLister`]. It's highly possible that metadata
+    /// you want has already been cached.
     ///
     /// # Examples
     ///
@@ -1199,16 +1195,14 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// Use `metadata` if you:
-    ///
-    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
-    /// - Are working with the same object instance.
+    /// Use `metadata` if you are working with objects returned by
+    /// [`ObjectLister`]. It's highly possible that metadata you want
+    /// has already been cached.
     ///
     /// You may want to use `stat`, if you:
     ///
     /// - Want detect the outside changes of object.
     /// - Don't want to read from cached object metadata.
-    /// - No repeated stat call will be sent to the same object.
     ///
     /// # Behavior
     ///
@@ -1303,16 +1297,14 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// Use `metadata` if you:
-    ///
-    /// - Are working with objects returned by [`ObjectLister`]. It's highly possible that metadata you want has already been cached.
-    /// - Are working with the same object instance.
+    /// Use `metadata` if you are working with objects returned by
+    /// [`ObjectLister`]. It's highly possible that metadata you want
+    /// has already been cached.
     ///
     /// You may want to use `stat`, if you:
     ///
     /// - Want detect the outside changes of object.
     /// - Don't want to read from cached object metadata.
-    /// - No repeated stat call will be sent to the same object.
     ///
     /// # Behavior
     ///

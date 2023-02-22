@@ -1,3 +1,17 @@
+# Upgrade to v0.28
+
+In v0.28, we introduced [Query Based Metadata][crate::docs::rfcs::rfc_1398_query_based_metadata]. Users can query cached metadata with [`ObjectMetakey`][crate::ObjectMetakey] to make sure that OpenDAL always makes the best decision.
+
+```diff
+- pub async fn metadata(&self) -> Result<ObjectMetadata>;
++ pub async fn metadata(
++        &self,
++        flags: impl Into<FlagSet<ObjectMetakey>>,
++    ) -> Result<Arc<ObjectMetadata>>;
+```
+
+Please visit [`Object::metadata()`][crate::Object::metadata()]'s example for more details.
+
 # Upgrade to v0.27
 
 In v0.27, we refactored our `list` related logic and added `scan` support. So make `Pager` and `BlockingPager` associated types in `Accessor` too!

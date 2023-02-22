@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.28.0] - 2023-02-22
+
+### Added
+
+- feat: add dashmap support (#1390)
+
+### Changed
+
+- refactor: Implement query based object metadata cache (#1395)
+- refactor: Store complete inside bits and add more examples (#1397)
+- refactor: Trigger panic if users try to visit not fetched metadata (#1399)
+- refactor: Polish the implement of Query Based Metadata Cache (#1400)
+
+### Docs
+
+- RFC-1391: Object Metadataer (#1391)
+- RFC-1398: Query Based Metadata (#1398)
+
 ## [v0.27.2] - 2023-02-20
 
 ### Added
@@ -1396,6 +1414,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.28.0]: https://github.com/datafuselabs/opendal/compare/v0.27.2...v0.28.0
 [v0.27.2]: https://github.com/datafuselabs/opendal/compare/v0.27.1...v0.27.2
 [v0.27.1]: https://github.com/datafuselabs/opendal/compare/v0.27.0...v0.27.1
 [v0.27.0]: https://github.com/datafuselabs/opendal/compare/v0.26.2...v0.27.0

@@ -1262,10 +1262,7 @@ impl Object {
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
-            if meta.is_complete() {
-                return Ok(meta.clone());
-            }
-            if meta.bit().contains(flags) {
+            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetadataKey::Complete) {
                 return Ok(meta.clone());
             }
         }
@@ -1327,10 +1324,7 @@ impl Object {
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
-            if meta.is_complete() {
-                return Ok(meta.clone());
-            }
-            if meta.bit().contains(flags) {
+            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetadataKey::Complete) {
                 return Ok(meta.clone());
             }
         }

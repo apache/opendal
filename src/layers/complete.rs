@@ -292,16 +292,21 @@ impl<A: Accessor> LayeredAccessor for CompleteReaderAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner
-            .stat(path, args)
-            .await
-            .map(|v| v.map_metadata(|m| m.with_complete()))
+        self.inner.stat(path, args).await.map(|v| {
+            v.map_metadata(|m| {
+                let bit = m.bit();
+                m.with_bit(bit | ObjectMetadataKey::Complete)
+            })
+        })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner
-            .blocking_stat(path, args)
-            .map(|v| v.map_metadata(|m| m.with_complete()))
+        self.inner.blocking_stat(path, args).map(|v| {
+            v.map_metadata(|m| {
+                let bit = m.bit();
+                m.with_bit(bit | ObjectMetadataKey::Complete)
+            })
+        })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {

@@ -298,7 +298,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetadataKey::Mode).await?.mode(),
+                entry.metadata(ObjectMetakey::Mode).await?.mode(),
             );
         }
 
@@ -336,7 +336,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetadataKey::Mode).await?.mode(),
+                entry.metadata(ObjectMetakey::Mode).await?.mode(),
             );
         }
 
@@ -380,7 +380,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetadataKey::Mode).await?.mode(),
+                entry.metadata(ObjectMetakey::Mode).await?.mode(),
             );
         }
 
@@ -399,7 +399,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetadataKey::Mode).await?.mode(),
+                entry.metadata(ObjectMetakey::Mode).await?.mode(),
             );
         }
 
@@ -450,7 +450,7 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetadataKey::Mode).await?.mode(),
+                entry.metadata(ObjectMetakey::Mode).await?.mode(),
             );
         }
 

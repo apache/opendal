@@ -927,7 +927,7 @@ impl Object {
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = de
     ///         .metadata({
-    ///             use opendal::ObjectMetadataKey::*;
+    ///             use opendal::ObjectMetakey::*;
     ///             Mode
     ///         })
     ///         .await?;
@@ -978,7 +978,7 @@ impl Object {
     /// let mut ds = o.blocking_list()?;
     /// while let Some(mut de) = ds.next() {
     ///     let meta = de?.blocking_metadata({
-    ///         use opendal::ObjectMetadataKey::*;
+    ///         use opendal::ObjectMetakey::*;
     ///         Mode
     ///     })?;
     ///     match meta.mode() {
@@ -1031,7 +1031,7 @@ impl Object {
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = de
     ///         .metadata({
-    ///             use opendal::ObjectMetadataKey::*;
+    ///             use opendal::ObjectMetakey::*;
     ///             Mode
     ///         })
     ///         .await?;
@@ -1082,7 +1082,7 @@ impl Object {
     /// let mut ds = o.blocking_list()?;
     /// while let Some(mut de) = ds.next() {
     ///     let meta = de?.blocking_metadata({
-    ///         use opendal::ObjectMetadataKey::*;
+    ///         use opendal::ObjectMetakey::*;
     ///         Mode
     ///     })?;
     ///     match meta.mode() {
@@ -1241,14 +1241,14 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetadataKey;
+    /// use opendal::ObjectMetakey;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
     ///     .metadata({
-    ///         use ObjectMetadataKey::*;
+    ///         use ObjectMetakey::*;
     ///         ContentLength | ContentType
     ///     })
     ///     .await?;
@@ -1267,13 +1267,13 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetadataKey;
+    /// use opendal::ObjectMetakey;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
-    ///     .metadata({ ObjectMetadataKey::Complete })
+    ///     .metadata({ ObjectMetakey::Complete })
     ///     .await?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
@@ -1284,10 +1284,10 @@ impl Object {
     /// ```
     pub async fn metadata(
         &self,
-        flags: impl Into<FlagSet<ObjectMetadataKey>>,
+        flags: impl Into<FlagSet<ObjectMetakey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
-            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetadataKey::Complete) {
+            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetakey::Complete) {
                 return Ok(meta.clone());
             }
         }
@@ -1344,11 +1344,11 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetadataKey;
+    /// use opendal::ObjectMetakey;
     ///
     /// # fn test(op: Operator) -> Result<()> {
     /// let meta = op.object("test").blocking_metadata({
-    ///     use ObjectMetadataKey::*;
+    ///     use ObjectMetakey::*;
     ///     ContentLength | ContentType
     /// })?;
     /// // content length MUST be correct.
@@ -1366,12 +1366,12 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetadataKey;
+    /// use opendal::ObjectMetakey;
     ///
     /// # fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
-    ///     .blocking_metadata({ ObjectMetadataKey::Complete })?;
+    ///     .blocking_metadata({ ObjectMetakey::Complete })?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.
@@ -1381,10 +1381,10 @@ impl Object {
     /// ```
     pub fn blocking_metadata(
         &self,
-        flags: impl Into<FlagSet<ObjectMetadataKey>>,
+        flags: impl Into<FlagSet<ObjectMetakey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
-            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetadataKey::Complete) {
+            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetakey::Complete) {
                 return Ok(meta.clone());
             }
         }

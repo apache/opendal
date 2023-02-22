@@ -753,7 +753,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - refactor: Remove list support from http service (#639)
 - refactor: Replace isahc with reqwest and ureq (#642)
 
-## Deps
+### Deps
 
 - deps: Bump reqsign to v0.4 (#643)
 - deps: Remove not used features (#658)
@@ -766,7 +766,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - docs: Fix typo (#650)
 - docs: Add docs for ftp services (#655)
 
-## RFCs
+### RFCs
 
 - RFC-0623: Redis Service (#623)
 
@@ -1246,7 +1246,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - test: Add behavior test for not exist object (#166)
 - feat: Allow user input region (#168)
 
-## Changed
+### Changed
 
 - feat: Improve error handle for s3 service (#169)
 - feat: Read error response for better debugging (#170)

@@ -103,7 +103,7 @@ impl Service {
     }
 
     async fn put(&self, req: HttpRequest, mut body: web::Payload) -> Result<HttpResponse> {
-        let mut o = self
+        let o = self
             .op
             .object(&percent_decode(req.path().as_bytes()).decode_utf8_lossy());
 

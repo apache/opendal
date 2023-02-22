@@ -56,7 +56,7 @@ impl std::fmt::Display for OpendalStore {
 #[async_trait]
 impl ObjectStore for OpendalStore {
     async fn put(&self, location: &Path, bytes: Bytes) -> Result<()> {
-        let mut o = self.inner.object(location.as_ref());
+        let o = self.inner.object(location.as_ref());
         Ok(o.write(bytes)
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?)
@@ -127,7 +127,7 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn delete(&self, location: &Path) -> Result<()> {
-        let mut o = self.inner.object(location.as_ref());
+        let o = self.inner.object(location.as_ref());
         o.delete()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;

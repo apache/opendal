@@ -31,7 +31,7 @@ pub async fn main(args: Option<ArgMatches>) -> Result<()> {
         .get_one::<String>("destination")
         .ok_or_else(|| anyhow!("missing target"))?;
     let (dst_op, dst_path) = parse_location(dst)?;
-    let mut dst_o = dst_op.object(dst_path);
+    let dst_o = dst_op.object(dst_path);
 
     let size = src_o.stat().await?.content_length();
     let reader = src_o.reader().await?;

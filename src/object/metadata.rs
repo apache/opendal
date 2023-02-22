@@ -28,8 +28,6 @@ use crate::*;
 /// a.k.a., `Entry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ObjectMetadata {
-    /// Mark if this metadata is complete or not.
-    complete: bool,
     /// bit stores current key store.
     bit: FlagSet<ObjectMetadataKey>,
 
@@ -55,11 +53,15 @@ pub struct ObjectMetadata {
 impl ObjectMetadata {
     /// Create a new object metadata
     pub fn new(mode: ObjectMode) -> Self {
-        Self {
-            // If mode is dir, we will set complete to true.
-            complete: mode == ObjectMode::DIR,
-            bit: ObjectMetadataKey::Mode.into(),
+        // Mode is required to be set for object metadata.
+        let mut bit = ObjectMetadataKey::Mode.into();
+        // If object mode is dir, we should always mark it as complete.
+        if mode == ObjectMode::DIR {
+            bit |= ObjectMetadataKey::Complete
+        }
 
+        Self {
+            bit,
             mode,
 
             content_length: None,
@@ -72,20 +74,15 @@ impl ObjectMetadata {
         }
     }
 
-    /// If this object metadata if complete
-    pub(crate) fn is_complete(&self) -> bool {
-        self.complete
-    }
-
-    /// Make this object metadata if complete.
-    pub(crate) fn with_complete(mut self) -> Self {
-        self.complete = true;
-        self
-    }
-
     /// Get the bit from object metadata.
     pub(crate) fn bit(&self) -> FlagSet<ObjectMetadataKey> {
         self.bit
+    }
+
+    /// Set bit with given.
+    pub(crate) fn with_bit(mut self, bit: impl Into<FlagSet<ObjectMetadataKey>>) -> Self {
+        self.bit = bit.into();
+        self
     }
 
     /// Object mode represent this object's mode.
@@ -358,6 +355,10 @@ flags! {
     /// the meta has been stored, we will return directly. If no, we will
     /// call `stat` internally to fecth the metadata.
     pub enum ObjectMetadataKey: u64 {
+        /// The special object metadata key that used to mark this object
+        /// already contains all metadata.
+        Complete,
+
         /// Key for mode.
         Mode,
         /// Key for content disposition.

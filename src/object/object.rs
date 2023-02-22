@@ -1237,20 +1237,63 @@ impl Object {
     ///
     /// # Examples
     ///
+    /// ## Query already cached metadata
+    ///
+    /// By query metadata with `None`, we can only query in-memory metadata
+    /// cache. In this way, we can make sure that no API call will send.
+    ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures::io;
     /// # use opendal::Operator;
     /// use opendal::ErrorKind;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let meta = op.object("test").metadata(None).await?;
+    /// let _ = meta.content_length();
+    /// let _ = meta.content_type();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Query content length and content type
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::Operator;
+    /// use opendal::ErrorKind;
+    /// use opendal::ObjectMetadataKey;
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
     ///     .metadata({
-    ///         use opendal::ObjectMetadataKey::*;
+    ///         use ObjectMetadataKey::*;
     ///         ContentLength | ContentType
     ///     })
+    ///     .await?;
+    /// let _ = meta.content_length();
+    /// let _ = meta.content_type();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Query all metadata
+    ///
+    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this object.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::Operator;
+    /// use opendal::ErrorKind;
+    /// use opendal::ObjectMetadataKey;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let meta = op
+    ///     .object("test")
+    ///     .metadata({ ObjectMetadataKey::Complete })
     ///     .await?;
     /// let _ = meta.content_length();
     /// let _ = meta.content_type();
@@ -1262,10 +1305,7 @@ impl Object {
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
-            if meta.is_complete() {
-                return Ok(meta.clone());
-            }
-            if meta.bit().contains(flags) {
+            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetadataKey::Complete) {
                 return Ok(meta.clone());
             }
         }
@@ -1302,21 +1342,57 @@ impl Object {
     ///
     /// # Examples
     ///
+    /// ## Query already cached metadata
+    ///
+    /// By query metadata with `None`, we can only query in-memory metadata
+    /// cache. In this way, we can make sure that no API call will send.
+    ///
     /// ```
     /// # use anyhow::Result;
-    /// # use futures::io;
     /// # use opendal::Operator;
     /// use opendal::ErrorKind;
     /// #
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let meta = op.object("test").blocking_metadata(None)?;
+    /// let _ = meta.content_length();
+    /// let _ = meta.content_type();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Query content length and content type
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::Operator;
+    /// use opendal::ErrorKind;
+    /// use opendal::ObjectMetadataKey;
+    /// #
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let meta = op.object("test").blocking_metadata({
+    ///     use ObjectMetadataKey::*;
+    ///     ContentLength | ContentType
+    /// })?;
+    /// let _ = meta.content_length();
+    /// let _ = meta.content_type();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## Query all metadata
+    ///
+    /// By query metadata with `Complete`, we can make sure that we have fetched all metadata of this object.
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal::Operator;
+    /// use opendal::ErrorKind;
+    /// use opendal::ObjectMetadataKey;
+    /// #
+    /// # fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
-    ///     .metadata({
-    ///         use opendal::ObjectMetadataKey::*;
-    ///         ContentLength | ContentType
-    ///     })
-    ///     .await?;
+    ///     .blocking_metadata({ ObjectMetadataKey::Complete })?;
     /// let _ = meta.content_length();
     /// let _ = meta.content_type();
     /// # Ok(())
@@ -1327,10 +1403,7 @@ impl Object {
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
-            if meta.is_complete() {
-                return Ok(meta.clone());
-            }
-            if meta.bit().contains(flags) {
+            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetadataKey::Complete) {
                 return Ok(meta.clone());
             }
         }

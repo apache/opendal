@@ -87,6 +87,12 @@ impl ObjectMetadata {
 
     /// Object mode represent this object's mode.
     pub fn mode(&self) -> ObjectMode {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::Mode)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: mode, maybe a bug"
+        );
+
         self.mode
     }
 
@@ -109,6 +115,12 @@ impl ObjectMetadata {
     /// `Content-Length` is defined by [RFC 7230](https://httpwg.org/specs/rfc7230.html#header.content-length)
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
     pub fn content_length(&self) -> u64 {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::ContentLength)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: content_length, maybe a bug"
+        );
+
         self.content_length.unwrap_or_default()
     }
 
@@ -138,6 +150,12 @@ impl ObjectMetadata {
     ///
     /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
     pub fn content_md5(&self) -> Option<&str> {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::ContentMd5)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: content_md5, maybe a bug"
+        );
+
         self.content_md5.as_deref()
     }
 
@@ -165,6 +183,12 @@ impl ObjectMetadata {
     ///
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn content_type(&self) -> Option<&str> {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::ContentType)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: content_type, maybe a bug"
+        );
+
         self.content_type.as_deref()
     }
 
@@ -190,6 +214,12 @@ impl ObjectMetadata {
     ///
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn content_range(&self) -> Option<BytesContentRange> {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::ContentRange)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: content_range, maybe a bug"
+        );
+
         self.content_range
     }
 
@@ -218,6 +248,12 @@ impl ObjectMetadata {
     ///
     /// OpenDAL parse the raw value into [`OffsetDateTime`] for convenient.
     pub fn last_modified(&self) -> Option<OffsetDateTime> {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::LastModified)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: last_modified, maybe a bug"
+        );
+
         self.last_modified
     }
 
@@ -253,6 +289,12 @@ impl ObjectMetadata {
     ///
     /// `"` is part of etag.
     pub fn etag(&self) -> Option<&str> {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::Etag)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: etag, maybe a bug"
+        );
+
         self.etag.as_deref()
     }
 
@@ -302,6 +344,12 @@ impl ObjectMetadata {
     /// - "attachment"
     /// - "attachment; filename=\"filename.jpg\""
     pub fn content_disposition(&self) -> Option<&str> {
+        debug_assert!(
+            self.bit.contains(ObjectMetadataKey::ContentDisposition)
+                || self.bit.contains(ObjectMetadataKey::Complete),
+            "visiting not set metadata: content_disposition, maybe a bug"
+        );
+
         self.content_disposition.as_deref()
     }
 

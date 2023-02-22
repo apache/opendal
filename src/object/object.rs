@@ -1231,9 +1231,8 @@ impl Object {
     ///
     /// # Behavior
     ///
-    /// `metadata` only make sure that the quired metadata is fetched. Not
-    /// fetched metadata key could be `None`, it doesn't means it's really
-    /// empty. Please make sure input metadata key is correct.
+    /// Visiting not fetched metadata will lead to panic in debug build.
+    /// It must a be bug, please fix it instead.
     ///
     /// # Examples
     ///
@@ -1338,9 +1337,8 @@ impl Object {
     ///
     /// # Behavior
     ///
-    /// `metadata` only make sure that the quired metadata is fetched. Not
-    /// fetched metadata key could be `None`, it doesn't means it's really
-    /// empty. Please make sure input metadata key is correct.
+    /// Visiting not fetched metadata will lead to panic in debug build.
+    /// It must a be bug, please fix it instead.
     ///
     /// # Examples
     ///

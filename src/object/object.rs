@@ -186,7 +186,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn create(&mut self) -> Result<()> {
+    pub async fn create(&self) -> Result<()> {
         let _ = if self.path.ends_with('/') {
             self.acc
                 .create(self.path(), OpCreate::new(ObjectMode::DIR))
@@ -237,7 +237,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_create(&mut self) -> Result<()> {
+    pub fn blocking_create(&self) -> Result<()> {
         if self.path.ends_with('/') {
             self.acc
                 .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
@@ -662,7 +662,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write(&mut self, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
         let bs: Vec<u8> = bs.into();
         let op = OpWrite::new(bs.len() as u64);
         self.write_with(op, bs).await
@@ -691,7 +691,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_with(&mut self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -703,14 +703,7 @@ impl Object {
 
         let bs = bs.into();
         let r = Cursor::new(bs);
-        let rp = self.acc.write(self.path(), args, Box::new(r)).await?;
-
-        // Always write latest metadata into cache.
-        if self.meta.is_some() {
-            self.meta = Some(Arc::new(
-                ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()),
-            ));
-        }
+        let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
 
         Ok(())
     }
@@ -736,7 +729,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write(&mut self, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
         let bs: Vec<u8> = bs.into();
         let op = OpWrite::new(bs.len() as u64);
         self.blocking_write_with(op, bs)
@@ -764,7 +757,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write_with(&mut self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -776,14 +769,8 @@ impl Object {
 
         let bs = bs.into();
         let r = std::io::Cursor::new(bs);
-        let rp = self.acc.blocking_write(self.path(), args, Box::new(r))?;
+        let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
 
-        // Always write latest metadata into cache.
-        if self.meta.is_some() {
-            self.meta = Some(Arc::new(
-                ObjectMetadata::new(ObjectMode::FILE).with_content_length(rp.written()),
-            ));
-        }
         Ok(())
     }
 
@@ -811,7 +798,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_from(&mut self, size: u64, br: impl input::Read + 'static) -> Result<()> {
+    pub async fn write_from(&self, size: u64, br: impl input::Read + 'static) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -853,7 +840,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_write_from(
-        &mut self,
+        &self,
         size: u64,
         br: impl input::BlockingRead + 'static,
     ) -> Result<()> {
@@ -890,11 +877,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn delete(&mut self) -> Result<()> {
+    pub async fn delete(&self) -> Result<()> {
         let _ = self.acc.delete(self.path(), OpDelete::new()).await?;
-
-        // Always write latest metadata into cache.
-        self.meta = None;
 
         Ok(())
     }
@@ -916,11 +900,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_delete(&mut self) -> Result<()> {
+    pub fn blocking_delete(&self) -> Result<()> {
         let _ = self.acc.blocking_delete(self.path(), OpDelete::new())?;
-
-        // Always write latest metadata into cache.
-        self.meta = None;
 
         Ok(())
     }
@@ -1432,7 +1413,7 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn is_exist(&mut self) -> Result<bool> {
+    pub async fn is_exist(&self) -> Result<bool> {
         let r = self.stat().await;
         match r {
             Ok(_) => Ok(true),
@@ -1456,7 +1437,7 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    pub fn blocking_is_exist(&mut self) -> Result<bool> {
+    pub fn blocking_is_exist(&self) -> Result<bool> {
         let r = self.blocking_stat();
         match r {
             Ok(_) => Ok(true),

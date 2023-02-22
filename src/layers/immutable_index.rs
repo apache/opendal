@@ -289,7 +289,7 @@ mod tests {
         let mut map = HashMap::new();
         let mut set = HashSet::new();
         let mut ds = op.object("").list().await?;
-        while let Some(mut entry) = ds.try_next().await? {
+        while let Some(entry) = ds.try_next().await? {
             debug!("got entry: {}", entry.path());
             assert!(
                 set.insert(entry.path().to_string()),

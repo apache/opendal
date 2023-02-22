@@ -1283,7 +1283,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn metadata(
-        &mut self,
+        &self,
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
@@ -1293,8 +1293,6 @@ impl Object {
         }
 
         let meta = Arc::new(self.stat().await?);
-        self.meta = Some(meta.clone());
-
         Ok(meta)
     }
 
@@ -1382,7 +1380,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_metadata(
-        &mut self,
+        &self,
         flags: impl Into<FlagSet<ObjectMetadataKey>>,
     ) -> Result<Arc<ObjectMetadata>> {
         if let Some(meta) = &self.meta {
@@ -1392,8 +1390,6 @@ impl Object {
         }
 
         let meta = Arc::new(self.blocking_stat()?);
-        self.meta = Some(meta.clone());
-
         Ok(meta)
     }
 

@@ -390,7 +390,7 @@ impl ObjectMetadata {
 
 flags! {
     /// ObjectMetadataKey describes the metadata keys that can be stored
-    /// or quried.
+    /// or queried.
     ///
     /// ## For store
     ///

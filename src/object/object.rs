@@ -1232,7 +1232,7 @@ impl Object {
     /// # Behavior
     ///
     /// Visiting not fetched metadata will lead to panic in debug build.
-    /// It must a be bug, please fix it instead.
+    /// It must be a bug, please fix it instead.
     ///
     /// # Examples
     ///
@@ -1338,7 +1338,7 @@ impl Object {
     /// # Behavior
     ///
     /// Visiting not fetched metadata will lead to panic in debug build.
-    /// It must a be bug, please fix it instead.
+    /// It must be a bug, please fix it instead.
     ///
     /// # Examples
     ///

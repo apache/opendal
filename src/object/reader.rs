@@ -240,7 +240,7 @@ mod tests {
         let op = Operator::create(services::Memory::default())
             .unwrap()
             .finish();
-        let mut obj = op.object("test_file");
+        let obj = op.object("test_file");
 
         let content = gen_random_bytes();
         obj.write(&*content)
@@ -262,7 +262,7 @@ mod tests {
         let op = Operator::create(services::Memory::default())
             .unwrap()
             .finish();
-        let mut obj = op.object("test_file");
+        let obj = op.object("test_file");
 
         let content = gen_random_bytes();
         obj.write(&*content)

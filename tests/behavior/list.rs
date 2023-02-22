@@ -134,7 +134,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     expected
         .iter()
         .map(|v| async {
-            let mut o = op.object(v);
+            let o = op.object(v);
             o.create().await.expect("create must succeed");
         })
         // Collect into a FuturesUnordered.

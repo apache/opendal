@@ -79,7 +79,7 @@ mod object;
 pub use object::Object;
 pub use object::ObjectLister;
 pub use object::ObjectMetadata;
-pub use object::ObjectMetadataKey;
+pub use object::ObjectMetakey;
 pub use object::ObjectMode;
 pub use object::ObjectMultipart;
 pub use object::ObjectPart;

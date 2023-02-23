@@ -29,7 +29,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
-        run: cargo test dashmap --features compress,services-dashmap -- --show-output
+        run: cargo test dashmap --features services-dashmap -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

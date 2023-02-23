@@ -49,7 +49,7 @@ jobs:
 #      - uses: actions/checkout@v3
 #      - name: Test
 #        shell: bash
-#        run: cargo test ipfs --features compress,services-ipfs -- --show-output
+#        run: cargo test ipfs --features services-ipfs -- --show-output
 #        env:
 #          RUST_BACKTRACE: full
 #          RUST_LOG: debug

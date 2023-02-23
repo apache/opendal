@@ -28,8 +28,6 @@ default = ["rustls"]
 # And doesn't have any other effects.
 docs = []
 
-# Enable compress support so that users can decompress while reading.
-compress = ["async-compression"]
 # Enable trust-dns for pure rust dns cache.
 trust-dns = ["reqwest/trust-dns", "dep:trust-dns-resolver"]
 
@@ -83,11 +81,6 @@ required-features = ["layers-all"]
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"
-# Temp workaround, should come back to tagged version after https://github.com/Nemo157/async-compression/issues/150 resolved.
-async-compression = { package = "async-compression-issue-150-workaround", version = "0.3.15-issue-150", features = [
-  "futures-io",
-  "all-algorithms",
-], optional = true }
 async-tls = { version = "0.11", optional = true }
 async-trait = "0.1.50"
 backon = "0.4.0"

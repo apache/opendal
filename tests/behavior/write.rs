@@ -91,10 +91,6 @@ macro_rules! behavior_write_tests {
                 test_fuzz_offset_reader,
                 test_fuzz_part_reader,
                 test_read_with_dir_path,
-                #[cfg(feature = "compress")]
-                test_read_decompress_gzip,
-                #[cfg(feature = "compress")]
-                test_read_decompress_zstd,
                 test_read_with_special_chars,
                 test_delete,
                 test_delete_empty_dir,
@@ -695,78 +691,6 @@ pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let result = op.object(&path).read().await;
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
-
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
-    Ok(())
-}
-
-// Read a compressed gzip file.
-#[cfg(feature = "compress")]
-pub async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
-    use async_compression::futures::write::GzipEncoder;
-    use futures::AsyncWriteExt;
-
-    let path = format!("{}.gz", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
-
-    let mut encoder = GzipEncoder::new(vec![]);
-    encoder.write_all(&content).await?;
-    encoder.close().await?;
-    let compressed_content = encoder.into_inner();
-
-    op.object(&path).write(compressed_content).await?;
-
-    let bs = op
-        .object(&path)
-        .decompress_read()
-        .await?
-        .expect("decompress read must succeed");
-    assert_eq!(bs.len(), size, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
-
-    op.object(&path)
-        .delete()
-        .await
-        .expect("delete must succeed");
-    Ok(())
-}
-
-// Read a compressed zstd file.
-#[cfg(feature = "compress")]
-pub async fn test_read_decompress_zstd(op: Operator) -> Result<()> {
-    use async_compression::futures::write::ZstdEncoder;
-    use futures::AsyncWriteExt;
-
-    let path = format!("{}.zst", uuid::Uuid::new_v4());
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes();
-
-    let mut encoder = ZstdEncoder::new(vec![]);
-    encoder.write_all(&content).await?;
-    encoder.close().await?;
-    let compressed_content = encoder.into_inner();
-
-    op.object(&path).write(compressed_content).await?;
-
-    let bs = op
-        .object(&path)
-        .decompress_read()
-        .await?
-        .expect("decompress read must succeed");
-    assert_eq!(bs.len(), size, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
 
     op.object(&path)
         .delete()

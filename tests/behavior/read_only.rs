@@ -73,12 +73,6 @@ macro_rules! behavior_read_tests {
                 test_reader_tail,
                 test_read_not_exist,
                 test_read_with_dir_path,
-                #[cfg(feature = "compress")]
-                test_read_decompress_gzip,
-                #[cfg(feature = "compress")]
-                test_read_decompress_zstd,
-                #[cfg(feature = "compress")]
-                test_read_decompress_bz2,
             );
         )*
     };
@@ -247,66 +241,6 @@ pub async fn test_read_with_dir_path(op: Operator) -> Result<()> {
     let result = op.object(&path).read().await;
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::ObjectIsADirectory);
-
-    Ok(())
-}
-
-// Read a compressed gzip file.
-#[cfg(feature = "compress")]
-pub async fn test_read_decompress_gzip(op: Operator) -> Result<()> {
-    let bs = op
-        .object("ontime.csv.gz")
-        .decompress_read()
-        .await?
-        .expect("decompress read must succeed");
-    assert_eq!(bs.len(), 91007, "read size");
-
-    let raw_bs = op.object("ontime.csv").read().await?;
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(raw_bs)),
-        "read content"
-    );
-
-    Ok(())
-}
-
-// Read a compressed gzip file.
-#[cfg(feature = "compress")]
-pub async fn test_read_decompress_zstd(op: Operator) -> Result<()> {
-    let bs = op
-        .object("ontime.csv.zst")
-        .decompress_read()
-        .await?
-        .expect("decompress read must succeed");
-    assert_eq!(bs.len(), 91007, "read size");
-
-    let raw_bs = op.object("ontime.csv").read().await?;
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(raw_bs)),
-        "read content"
-    );
-
-    Ok(())
-}
-
-// Read a compressed gzip file.
-#[cfg(feature = "compress")]
-pub async fn test_read_decompress_bz2(op: Operator) -> Result<()> {
-    let bs = op
-        .object("ontime.csv.bz2")
-        .decompress_read()
-        .await?
-        .expect("decompress read must succeed");
-    assert_eq!(bs.len(), 91007, "read size");
-
-    let raw_bs = op.object("ontime.csv").read().await?;
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(raw_bs)),
-        "read content"
-    );
 
     Ok(())
 }

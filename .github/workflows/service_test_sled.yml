@@ -25,7 +25,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
-        run: cargo test sled --features compress,services-sled -- --show-output --test-threads=1
+        run: cargo test sled --features services-sled -- --show-output --test-threads=1
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

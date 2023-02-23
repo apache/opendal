@@ -136,7 +136,7 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
       - name: Test
-        run: cargo nextest run --no-fail-fast --features compress,layers-all && cargo test --doc
+        run: cargo nextest run --no-fail-fast --features layers-all && cargo test --doc
         env:
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full

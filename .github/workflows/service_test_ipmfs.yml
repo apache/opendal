@@ -30,7 +30,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test
         shell: bash
-        run: cargo test ipmfs --show-output
+        run: cargo test ipmfs -- --show-output
         env:
           RUST_BACKTRACE: full
           RUST_LOG: debug

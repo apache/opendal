@@ -50,50 +50,6 @@ use crate::*;
 ///
 /// Besides, `Stream` **COULD** reduce an extra copy if underlying reader is
 /// stream based (like services s3, azure which based on HTTP).
-///
-/// # Notes
-///
-/// All implementations of ObjectReader should be `zero cost`. In our cases,
-/// which means others must pay the same cost for the same feature provide
-/// by us.
-///
-/// For examples, call `read` without `seek` should always act the same as
-/// calling `read` on plain reader.
-///
-/// ## Read is Seekable
-///
-/// We use internal `AccessorHint::ReadSeekable` to decide the most
-/// suitable implementations.
-///
-/// If there is a hint that `ReadSeekable`, we will open it with given args
-/// directly. Otherwise, we will pick a seekable reader implementation based
-/// on input range for it.
-///
-/// - `Some(offset), Some(size)` => `RangeReader`
-/// - `Some(offset), None` and `None, None` => `OffsetReader`
-/// - `None, Some(size)` => get the total size first to convert as `RangeReader`
-///
-/// No matter which reader we use, we will make sure the `read` operation
-/// is zero cost.
-///
-/// ## Read is Streamable
-///
-/// We use internal `AccessorHint::ReadStreamable` to decide the most
-/// suitable implementations.
-///
-/// If there is a hint that `ReadStreamable`, we will use existing reader
-/// directly. Otherwise, we will use transform this reader as a stream.
-///
-/// ## Consume instead of Drop
-///
-/// Normally, if reader is seekable, we need to drop current reader and start
-/// a new read call.
-///
-/// We can consume the data if the seek position is close enough. For
-/// example, users try to seek to `Current(1)`, we can just read the data
-/// can consume it.
-///
-/// In this way, we can reduce the extra cost of dropping reader.
 pub struct ObjectReader {
     inner: output::Reader,
     seek_state: SeekState,
@@ -216,6 +172,8 @@ impl Stream for ObjectReader {
 }
 
 /// BlockingObjectReader is the public API for users.
+///
+/// It works nearly the same with [`ObjectReader`] but in blocking way.
 pub struct BlockingObjectReader {
     pub(crate) inner: output::BlockingReader,
 }

@@ -35,17 +35,17 @@ use crate::*;
 /// Complete underlying services features so that users can use them in
 /// the same way.
 ///
-/// ## Notes
+/// # Notes
 ///
 /// CompleteLayer is not a public accessible layer that can be used by
 /// external users. OpenDAL will make sure every accessor will apply this
 /// layer once and only once.
 ///
-/// ## Details
+/// # Internal
 ///
 /// So far CompleteLayer will do two completion:
 ///
-/// ### Read
+/// ## Read
 ///
 /// OpenDAL requires all reader implements [`output::Read`] and
 /// [`output::BlockingRead`]. However, not all services have the
@@ -60,7 +60,49 @@ use crate::*;
 /// - If not `seekable`, with [`output::into_reader::by_range`]
 /// - If neither not supported, wrap both by_range and into_streamable.
 ///
-/// ### List
+/// All implementations of ObjectReader should be `zero cost`. In our cases,
+/// which means others must pay the same cost for the same feature provide
+/// by us.
+///
+/// For examples, call `read` without `seek` should always act the same as
+/// calling `read` on plain reader.
+///
+/// ### Read is Seekable
+///
+/// We use internal `AccessorHint::ReadSeekable` to decide the most
+/// suitable implementations.
+///
+/// If there is a hint that `ReadSeekable`, we will open it with given args
+/// directly. Otherwise, we will pick a seekable reader implementation based
+/// on input range for it.
+///
+/// - `Some(offset), Some(size)` => `RangeReader`
+/// - `Some(offset), None` and `None, None` => `OffsetReader`
+/// - `None, Some(size)` => get the total size first to convert as `RangeReader`
+///
+/// No matter which reader we use, we will make sure the `read` operation
+/// is zero cost.
+///
+/// ### Read is Streamable
+///
+/// We use internal `AccessorHint::ReadStreamable` to decide the most
+/// suitable implementations.
+///
+/// If there is a hint that `ReadStreamable`, we will use existing reader
+/// directly. Otherwise, we will use transform this reader as a stream.
+///
+/// ### Consume instead of Drop
+///
+/// Normally, if reader is seekable, we need to drop current reader and start
+/// a new read call.
+///
+/// We can consume the data if the seek position is close enough. For
+/// example, users try to seek to `Current(1)`, we can just read the data
+/// can consume it.
+///
+/// In this way, we can reduce the extra cost of dropping reader.
+///
+/// ## List
 ///
 /// There are two styles of list, but not all services support both of
 /// them. CompleteLayer will add those capabilities in a zero cost way.

@@ -123,7 +123,7 @@ opendal supports:
 | obs     | Y               | N                                       |
 | s3      | Y               | Y                                       |
 
-opendal has an idea called [`AccessorCapability`](crate::raw::AccessorCapability), so it's services may have different capability sets. For example, opendal's `http` and `ipfs` are read only.
+opendal has an idea called [`AccessorCapability`][crate::raw::AccessorCapability], so it's services may have different capability sets. For example, opendal's `http` and `ipfs` are read only.
 
 ### Features
 
@@ -156,12 +156,12 @@ The most straightforward complete demo how to read a file from s3:
 `opendal`
 
 ```Rust
-let mut builder = s3::Builder::default();
+let mut builder = S3::default();
 builder.bucket("example");
 builder.access_key_id("access_key_id");
 builder.secret_access_key("secret_access_key");
 
-let store = Operator::new(builder.build()?);
+let store = Operator::create(builder)?.finish();
 let r = store.object("data.parquet").reader().await?;
 ```
 

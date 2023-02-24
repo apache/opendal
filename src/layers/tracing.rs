@@ -87,7 +87,7 @@ use crate::*;
 ///             .write("0".repeat(16 * 1024 * 1024).into_bytes())
 ///             .await
 ///             .expect("must succeed");
-///         op.object("test").metadata().await.expect("must succeed");
+///         op.object("test").stat().await.expect("must succeed");
 ///         op.object("test").read().await.expect("must succeed");
 ///     });
 ///

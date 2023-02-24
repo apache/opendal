@@ -14,7 +14,7 @@
 
 //! This module holds documentation for OpenDAL.
 //!
-//! It's highly recommend to start with reading [`concepts`] first.
+//! It's highly recommended that you start by reading [`concepts'] first.
 
 pub mod comparisons;
 
@@ -27,6 +27,8 @@ pub mod internals;
 pub mod changelog {}
 
 /// All features that provided by OpenDAL.
+///
+/// default feature: `rustls`, which enable rustls support.
 #[doc = include_str!("features.md")]
 pub mod features {}
 

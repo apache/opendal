@@ -22,16 +22,16 @@
 //! [`Accessor`] can be split in the following parts:
 //!
 //! ```ignore
-//! //! Attributes
+//! // Attributes
 //! #[async_trait]
-//! //!                  <----------Trait Bound-------------->
+//! //                  <----------Trait Bound-------------->
 //! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
-//!     type Reader: output::Read;                 //! --+
-//!     type BlockingReader: output::BlockingRead; //!   +--> Associated Type
-//!     type Pager: output::Page;                  //!   +
-//!     type BlockingPager: output::BlockingPage;  //! --+
+//!     type Reader: output::Read;                 // --+
+//!     type BlockingReader: output::BlockingRead; //   +--> Associated Type
+//!     type Pager: output::Page;                  //   +
+//!     type BlockingPager: output::BlockingPage;  // --+
 //!
-//!     //! APIs
+//!     // APIs
 //!     async fn hello(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
 //!     async fn world(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
 //! }

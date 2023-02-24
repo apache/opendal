@@ -14,7 +14,7 @@
 
 //! The internal implement details of [`Layer`].
 //!
-//! [`Layer`] itsef is quiet simple:
+//! [`Layer`] itself is quiet simple:
 //!
 //! ```ignore
 //! pub trait Layer<A: Accessor> {
@@ -31,7 +31,7 @@
 //!
 //! Most layer only implements part of [`Accessor`], so we provide
 //! [`LayeredAccessor`] which will forward all not implemented methods to
-//! `inner`. It's highly recommand to implement [`LayeredAccessor`] trait
+//! `inner`. It's highly recommend to implement [`LayeredAccessor`] trait
 //! instead.
 //!
 //! [`Layer`]: crate::raw::Layer

@@ -28,10 +28,8 @@ mod object;
 pub use object::Object;
 
 mod reader;
+pub use reader::BlockingObjectReader;
 pub use reader::ObjectReader;
-
-mod blocking_reader;
-pub use blocking_reader::BlockingObjectReader;
 
 mod list;
 pub use list::BlockingObjectLister;

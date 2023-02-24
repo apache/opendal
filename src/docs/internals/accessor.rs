@@ -17,19 +17,21 @@
 //! [`Accessor`] is the core trait of OpenDAL's raw API. We operate
 //! underlying storage services via APIs provided by [`Accessor`].
 //!
+//! # Introduction
+//!
 //! [`Accessor`] can be split in the following parts:
 //!
 //! ```ignore
-//! // Attributes
+//! //! Attributes
 //! #[async_trait]
-//! //                  <----------Trait Bound-------------->
+//! //!                  <----------Trait Bound-------------->
 //! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
-//!     type Reader: output::Read;                 // --+
-//!     type BlockingReader: output::BlockingRead; //   +--> Associated Type
-//!     type Pager: output::Page;                  //   +
-//!     type BlockingPager: output::BlockingPage;  // --+
+//!     type Reader: output::Read;                 //! --+
+//!     type BlockingReader: output::BlockingRead; //!   +--> Associated Type
+//!     type Pager: output::Page;                  //!   +
+//!     type BlockingPager: output::BlockingPage;  //! --+
 //!
-//!     // APIs
+//!     //! APIs
 //!     async fn hello(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
 //!     async fn world(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
 //! }
@@ -129,9 +131,193 @@
 //! }
 //! ```
 //!
-//! Now, you have master [`Accessor`], let's go to implement ourselves backend!
+//! Now that you have mastered [`Accessor`], let's go and implement our own backend!
+//!
+//! # Tutorial
+//!
+//! This tutorial implements a `duck` storage service that sends API
+//! requests to a super-powered duck. Gagaga!
+//!
+//! ## Scheme
+//!
+//! First of all, let's pick a good [`Scheme`] for our duck service. The
+//! scheme should be unique and easy to understand. Normally we should
+//! use it's formal name.
+//!
+//! For example, we will use `s3` for AWS S3 Compatible Storage Service
+//! instead of `aws` or `awss3`. This is because there are many storage
+//! vendors that provide s3-like RESTful APIs, and our s3 service is
+//! implemented to support all of them, not just AWS S3.
+//!
+//! Obviously, we can use `duck` as scheme, let's add a new variant in [`Scheme`], and implement all reqired functions like `Scheme::from_str` and `Scheme::into_static`:
+//!
+//! ```ignore
+//! pub enum Scheme {
+//!     Duck,
+//! }
+//! ```
+//!
+//! ## Builder
+//!
+//! Then we can implement a builder for the duck service. The [`Builder`]
+//! will provide APIs for users to configure, and they will create an
+//! instance of a particular service.
+//!
+//! Let's create a `backend` mod under `services/duck` directory, and adding the following code.
+//!
+//! ```ignore
+//! use crate::raw::*;
+//! use crate::*;
+//!
+//! /// Duck Storage Service support. Gagaga!
+//! ///
+//! /// # Capabilities
+//! ///
+//! /// This service can be used to:
+//! ///
+//! /// - [x] read
+//! /// - [ ] write
+//! /// - [ ] list
+//! /// - [ ] scan
+//! /// - [ ] presign
+//! /// - [ ] multipart
+//! /// - [ ] blocking
+//! ///
+//! /// # Configuration
+//! ///
+//! /// - `root`: Set the work dir for backend.
+//! ///
+//! /// ## Via Builder
+//! ///
+//! /// ```no_run
+//! /// use std::sync::Arc;
+//! ///
+//! /// use anyhow::Result;
+//! /// use opendal::services::Duck;
+//! /// use opendal::Object;
+//! /// use opendal::Operator;
+//! ///
+//! /// #[tokio::main]
+//! /// async fn main() -> Result<()> {
+//! ///     // Create Duck backend builder.
+//! ///     let mut builder = Duck::default();
+//! ///     // Set the root for duck, all operations wilxl happen under this root.
+//! ///     //
+//! ///     // NOTE: the root must be absolute path.
+//! ///     builder.root("/path/to/dir");
+//! ///
+//! ///     let op: Operator = Operator::create(builder)?.finish();
+//! ///
+//! ///     // Create an object handle to start operation on object.
+//! ///     let _: Object = op.object("test_file");
+//! ///
+//! ///     Ok(())
+//! /// }
+//! /// ```
+//! #[derive(Default, Clone)]
+//! pub struct DuckBuilder {
+//!     root: Option<String>,
+//! }
+//! ```
+//!
+//! Note that `DuckBuilder` is part of our public API, so it needs to be
+//! documented. And any changes you make will directly affect users, so
+//! please take it seriously. Otherwise you will be hunted down by many
+//! angry ducks.
+//!
+//! Then, we can implement required APIs for `DuckBuilder`:
+//!
+//! ```ignore
+//! impl DuckBuilder {
+//!     /// Set root of this backend.
+//!     ///
+//!     /// All operations will happen under this root.
+//!     pub fn root(&mut self, root: &str) -> &mut Self {
+//!         self.root = if root.is_empty() {
+//!             None
+//!         } else {
+//!             Some(root.to_string())
+//!         };
+//!
+//!         self
+//!     }
+//! }
+//!
+//! impl Builder for DuckBuilder {
+//!     const SCHEME: Scheme = Scheme::Duck;
+//!     type Accessor = DuckBackend;
+//!
+//!     fn from_map(map: HashMap<String, String>) -> Self {
+//!         let mut builder = DuckBuilder::default();
+//!
+//!         map.get("root").map(|v| builder.root(v));
+//!
+//!         builder
+//!     }
+//!
+//!     fn build(&mut self) -> Result<Self::Accessor> {
+//!         debug!("backend build started: {:?}", &self);
+//!
+//!         let root = normalize_root(&self.root.clone().unwrap_or_default());
+//!         debug!("backend use root {}", &root);
+//!
+//!         Ok(DuckBackend { root })
+//!     }
+//! }
+//! ```
+//!
+//! `DuckBuilder` is ready now, let's try to play with real ducks!
+//!
+//! ## Backend
+//!
+//! I'm sure you can see it already: `DuckBuilder` will build a
+//! `DuckBackend` that implements [`Accessor`]. The backend is what we used
+//! to communicate with the super-powered ducks!
+//!
+//! Let's keep adding more code under `backend.rs`:
+//!
+//! ```ignore
+//! /// Duck storage service backend
+//! #[derive(Clone, Debug)]
+//! pub struct DuckBackend {
+//!     root: String,
+//! }
+//!
+//! #[async_trait]
+//! impl Accessor for DuckBackend {
+//!     type Reader = DuckReader;
+//!     type BlockingReader = ();
+//!     type Pager = ();
+//!     type BlockingPager = ();
+//!
+//!     fn metadata(&self) -> AccessorMetadata {
+//!         use AccessorCapability::*;
+//!         use AccessorHint::*;
+//!
+//!         let mut am = AccessorMetadata::default();
+//!         am.set_scheme(Scheme::Duck)
+//!             .set_root(&self.root)
+//!             .set_capabilities(Read);
+//!
+//!         am
+//!     }
+//!
+//!     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+//!         gagaga()
+//!     }
+//! }
+//! ```
+//!
+//! Congratulations, we have implemented an [`Accessor`] that can talk to
+//! Super Power Ducks!
+//!
+//! What!? There are no Super Power Ducks? So sad, but never mind, we have
+//! really powerful storage services [here](https://github.com/datafuselabs/opendal/issues/5). Welcome to pick one to implement. I promise you won't
+//! have to `gagaga!()` this time.
 //!
 //! [`Accessor`]: crate::raw::Accessor
 //! [`Operation`]: crate::raw::Operation
 //! [`AccessorCapability`]: crate::raw::AccessorCapability
 //! [`AccessorMetadata`]: crate::raw::AccessorMetadata
+//! [`Scheme`]: crate::Scheme
+//! [`Builder`]: crate::Builder

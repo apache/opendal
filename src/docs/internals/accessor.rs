@@ -15,8 +15,29 @@
 //! The internal implement details of [`Accessor`].
 //!
 //! [`Accessor`] is the core trait of OpenDAL's raw API. We operate
-//! underlying storage services via APIs provided by [`Accessor`]. Let's go
-//! deep into [`Accessor`] line by line.
+//! underlying storage services via APIs provided by [`Accessor`].
+//!
+//! [`Accessor`] can be split in the following parts:
+//!
+//! ```ignore
+//! // Attributes
+//! #[async_trait]
+//! //                  <----------Trait Bound-------------->
+//! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
+//!     type Reader: output::Read;                 // --+
+//!     type BlockingReader: output::BlockingRead; //   +--> Associated Type
+//!     type Pager: output::Page;                  //   +
+//!     type BlockingPager: output::BlockingPage;  // --+
+//!
+//!     // APIs
+//!     async fn hello(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
+//!     async fn world(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
+//! }
+//! ```
+//!
+//! Let's go deep into [`Accessor`] line by line.
+//!
+//!
 //!
 //! ## Async Trait
 //!

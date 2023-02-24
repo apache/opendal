@@ -37,8 +37,6 @@
 //!
 //! Let's go deep into [`Accessor`] line by line.
 //!
-//!
-//!
 //! ## Async Trait
 //!
 //! At the first line of [`Accessor`], we will read:

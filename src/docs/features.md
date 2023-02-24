@@ -1,5 +1,3 @@
-default feature is `rustls` which enable rustls support.
-
 ## Layer Features
 
 - `layers-all`: Enable all layers support.

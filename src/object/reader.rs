@@ -23,9 +23,9 @@ use futures::AsyncRead;
 use futures::AsyncSeek;
 use futures::Stream;
 
-use crate::error::Result;
 use crate::ops::OpRead;
 use crate::raw::*;
+use crate::*;
 
 /// ObjectReader is the public API for users.
 ///
@@ -50,50 +50,6 @@ use crate::raw::*;
 ///
 /// Besides, `Stream` **COULD** reduce an extra copy if underlying reader is
 /// stream based (like services s3, azure which based on HTTP).
-///
-/// # Notes
-///
-/// All implementations of ObjectReader should be `zero cost`. In our cases,
-/// which means others must pay the same cost for the same feature provide
-/// by us.
-///
-/// For examples, call `read` without `seek` should always act the same as
-/// calling `read` on plain reader.
-///
-/// ## Read is Seekable
-///
-/// We use internal `AccessorHint::ReadSeekable` to decide the most
-/// suitable implementations.
-///
-/// If there is a hint that `ReadSeekable`, we will open it with given args
-/// directly. Otherwise, we will pick a seekable reader implementation based
-/// on input range for it.
-///
-/// - `Some(offset), Some(size)` => `RangeReader`
-/// - `Some(offset), None` and `None, None` => `OffsetReader`
-/// - `None, Some(size)` => get the total size first to convert as `RangeReader`
-///
-/// No matter which reader we use, we will make sure the `read` operation
-/// is zero cost.
-///
-/// ## Read is Streamable
-///
-/// We use internal `AccessorHint::ReadStreamable` to decide the most
-/// suitable implementations.
-///
-/// If there is a hint that `ReadStreamable`, we will use existing reader
-/// directly. Otherwise, we will use transform this reader as a stream.
-///
-/// ## Consume instead of Drop
-///
-/// Normally, if reader is seekable, we need to drop current reader and start
-/// a new read call.
-///
-/// We can consume the data if the seek position is close enough. For
-/// example, users try to seek to `Current(1)`, we can just read the data
-/// can consume it.
-///
-/// In this way, we can reduce the extra cost of dropping reader.
 pub struct ObjectReader {
     inner: output::Reader,
     seek_state: SeekState,
@@ -212,6 +168,85 @@ impl Stream for ObjectReader {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.inner).poll_next(cx)
+    }
+}
+
+/// BlockingObjectReader is the public API for users.
+///
+/// It works nearly the same with [`ObjectReader`] but in blocking way.
+pub struct BlockingObjectReader {
+    pub(crate) inner: output::BlockingReader,
+}
+
+impl BlockingObjectReader {
+    /// Create a new blocking object reader.
+    ///
+    /// Create will use internal information to decide the most suitable
+    /// implementation for users.
+    ///
+    /// We don't want to expose those details to users so keep this function
+    /// in crate only.
+    pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
+        let acc_meta = acc.metadata();
+
+        let r = if acc_meta.hints().contains(AccessorHint::ReadSeekable) {
+            let (_, r) = acc.blocking_read(path, op)?;
+            r
+        } else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "non seekable blocking reader is not supported",
+            ));
+        };
+
+        let r = if acc_meta.hints().contains(AccessorHint::ReadStreamable) {
+            r
+        } else {
+            // Make this capacity configurable.
+            Box::new(output::into_streamable_reader(r, 256 * 1024))
+        };
+
+        Ok(BlockingObjectReader { inner: r })
+    }
+}
+
+impl output::BlockingRead for BlockingObjectReader {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
+
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
+    }
+
+    #[inline]
+    fn next(&mut self) -> Option<io::Result<Bytes>> {
+        output::BlockingRead::next(&mut self.inner)
+    }
+}
+
+impl io::Read for BlockingObjectReader {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl io::Seek for BlockingObjectReader {
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
+impl Iterator for BlockingObjectReader {
+    type Item = io::Result<Bytes>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
     }
 }
 

@@ -27,8 +27,7 @@ use crate::*;
 ///
 /// # Note
 ///
-/// Only service implementor should care about this trait, users need to
-/// use [`Operator`][crate::Operator] instead.
+/// Visit [`internals`][crate::docs::internals] for more tutorials.
 ///
 /// # Operations
 ///
@@ -43,7 +42,7 @@ use crate::*;
 ///   - Use `unimplemented!()` if not implemented or can't implement.
 /// - Operations with capability requirement like `presign` are optional operations.
 ///   - Services can implement them based on services capabilities.
-///   - The default implementation should return [`std::io::ErrorKind::Unsupported`].
+///   - The default implementation should return [`ErrorKind::Unsupported`].
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Reader is the associated reader the could return in `read` operation.
@@ -51,10 +50,10 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: output::BlockingRead;
-    /// Pager is the associated page that return in `list` operation.
+    /// Pager is the associated page that return in `list` or `scan` operation.
     type Pager: output::Page;
     /// BlockingPager is the associated pager that could return in
-    /// `blocking_list` operation.
+    /// `blocking_list` or `scan` operation.
     type BlockingPager: output::BlockingPage;
 
     /// Invoke the `metadata` operation to get metadata of accessor.

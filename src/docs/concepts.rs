@@ -22,6 +22,8 @@
 //! - [`Operator`]: A bridge between underlying implementation detail and  unified abstraction.
 //! - [`Object`]: The smallest unit representing a file/dir/... with path in specified services.
 //!
+//! If you are interested in internal implementation details, please have a look at [`internals`][super::internals].
+//!
 //! # Builder
 //!
 //! Let's start with [`Builder`].

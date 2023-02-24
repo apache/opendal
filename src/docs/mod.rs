@@ -20,6 +20,8 @@ pub mod comparisons;
 
 pub mod concepts;
 
+pub mod internals;
+
 /// Changes log for all OpenDAL released versions.
 #[doc = include_str!("../../CHANGELOG.md")]
 pub mod changelog {}

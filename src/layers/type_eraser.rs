@@ -22,6 +22,11 @@ use crate::raw::*;
 use crate::*;
 
 /// TypeEraseLayer will erase the types on internal accesoor.
+///
+/// # Notes
+///
+/// TypeEraseLayer is not a public accessible layer that can be used by
+/// external users. We use this layer to erase any generice types.
 pub struct TypeEraseLayer;
 
 impl<A: Accessor> Layer<A> for TypeEraseLayer {

@@ -23,6 +23,14 @@ use crate::raw::*;
 use crate::*;
 
 /// ErrorContextLayer will add error context into all layers.
+///
+/// # Notes
+///
+/// This layer will adding the following error context into all errors:
+///
+/// - `service`: The [`Scheme`] of underlying service.
+/// - `operation`: The [`Operation`] of this operation
+/// - `path`: The path of this operation
 pub struct ErrorContextLayer;
 
 impl<A: Accessor> Layer<A> for ErrorContextLayer {

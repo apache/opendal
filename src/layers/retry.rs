@@ -37,6 +37,14 @@ use crate::*;
 
 /// Add retry for temporary failed operations.
 ///
+/// # Notes
+///
+/// This layer will retry failed operations when [`Error::is_temporary`]
+/// returns true. If operation still failed, this layer will set error to
+/// `Persistent` which means error has been retried.
+///
+/// `write` and `blocking_write` don't support retry so far, visit [this issue](https://github.com/datafuselabs/opendal/issues/1223) for more details.
+///
 /// # Examples
 ///
 /// ```

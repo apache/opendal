@@ -35,9 +35,17 @@ use crate::*;
 /// Complete underlying services features so that users can use them in
 /// the same way.
 ///
+/// ## Notes
+///
+/// CompleteLayer is not a public accessible layer that can be used by
+/// external users. OpenDAL will make sure every accessor will apply this
+/// layer once and only once.
+///
+/// ## Details
+///
 /// So far CompleteLayer will do two completion:
 ///
-/// ## Read
+/// ### Read
 ///
 /// OpenDAL requires all reader implements [`output::Read`] and
 /// [`output::BlockingRead`]. However, not all services have the
@@ -52,7 +60,7 @@ use crate::*;
 /// - If not `seekable`, with [`output::into_reader::by_range`]
 /// - If neither not supported, wrap both by_range and into_streamable.
 ///
-/// ## List
+/// ### List
 ///
 /// There are two styles of list, but not all services support both of
 /// them. CompleteLayer will add those capabilities in a zero cost way.

@@ -29,6 +29,11 @@ use crate::*;
 
 /// Add concurrent request limit.
 ///
+/// # Notes
+///
+/// Users can control how many concurrent connections could be established
+/// betweet OpenDAL and underlying storage services.
+///
 /// # Examples
 ///
 /// ```

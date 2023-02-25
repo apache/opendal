@@ -1,3 +1,17 @@
+# Copyright 2022 Datafuse Labs
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 name: CI
 
 on:
@@ -25,11 +39,13 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: "3.8"
+
       - name: Checkout java env
         uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: "11"
+
       - name: Setup-hdfs env
         uses: beyondstorage/setup-hdfs@master
         with:
@@ -37,9 +53,17 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: ./.github/actions/check
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check license headers
+        uses: korandoru/hawkeye@v1
+      - name: Cargo format
+        run: cargo fmt --all -- --check
+      - name: Cargo doc
+        run: cargo doc --no-deps --all-features
+      - name: Cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Cargo clippy oli
+        working-directory: ./binaries/oli
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   msrv_check:
     runs-on: ubuntu-latest

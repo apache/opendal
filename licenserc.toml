@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[build-system]
-build-backend = "maturin"
-requires = ["maturin>=0.14,<0.15"]
+headerPath = "Apache-2.0.txt"
 
-[project]
-classifiers = [
-  "Programming Language :: Rust",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+excludes = [
+    "**/*.toml",
+    "!**/Cargo.toml",
+    "!**/licenserc.toml",
+    "!**/pyproject.toml",
+
+    "**/Cargo.lock",
+    "**/fixtures/**",
+    "tests/data/**",
+    "bindings/nodejs/.npmignore",
+    ".env.example",
 ]
-name = "opendal"
-requires-python = ">=3.7"
+
+[properties]
+inceptionYear = 2022
+copyrightOwner = "Datafuse Labs"

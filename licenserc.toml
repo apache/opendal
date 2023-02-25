@@ -1,0 +1,18 @@
+headerPath = "Apache-2.0.txt"
+
+excludes = [
+    "**/*.toml",
+    "!**/Cargo.toml",
+    "!**/licenserc.toml",
+    "!**/pyproject.toml",
+
+    "**/Cargo.lock",
+    "**/fixtures/**",
+    "tests/data/**",
+    "bindings/nodejs/.npmignore",
+    ".env.example",
+]
+
+[properties]
+inceptionYear = 2022
+copyrightOwner = "Datafuse Labs"

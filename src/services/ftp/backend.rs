@@ -24,14 +24,13 @@ use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
 use futures::io::copy;
-use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
 use suppaftp::list::File;
 use suppaftp::types::FileType;
 use suppaftp::types::Response;
+use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
-use suppaftp::FtpStream;
 use suppaftp::Status;
 use time::OffsetDateTime;
 use tokio::sync::OnceCell;
@@ -244,11 +243,11 @@ pub struct Manager {
 
 #[async_trait]
 impl bb8::ManageConnection for Manager {
-    type Connection = FtpStream;
+    type Connection = AsyncRustlsFtpStream;
     type Error = FtpError;
 
     async fn connect(&self) -> std::result::Result<Self::Connection, Self::Error> {
-        let stream = FtpStream::connect(&self.endpoint).await?;
+        let stream = AsyncRustlsFtpStream::connect(&self.endpoint).await?;
 
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
@@ -364,27 +363,27 @@ impl Accessor for FtpBackend {
         let meta = self.ftp_stat(path).await?;
 
         let br = args.range();
-        let (r, size): (input::Reader, _) = match (br.offset(), br.size()) {
+        let (r, size) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?.take(size);
-                (Box::new(ds), min(size, meta.size() as u64 - offset))
+                (ds, min(size, meta.size() as u64 - offset))
             }
             (Some(offset), None) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64 - offset)
+                (ds, meta.size() as u64 - offset)
             }
             (None, Some(size)) => {
                 ftp_stream
                     .resume_transfer((meta.size() as u64 - size) as usize)
                     .await?;
                 let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), size)
+                (ds, size)
             }
             (None, None) => {
                 let ds = ftp_stream.retr_as_stream(path).await?;
-                (Box::new(ds), meta.size() as u64)
+                (ds, meta.size() as u64)
             }
         };
 

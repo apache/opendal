@@ -22,6 +22,7 @@ use futures::future::BoxFuture;
 use futures::ready;
 use futures::AsyncRead;
 use futures::FutureExt;
+use suppaftp::FtpStream;
 use suppaftp::Status;
 
 use super::backend::Manager;
@@ -30,7 +31,7 @@ use crate::Result;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {
-    reader: input::Reader,
+    reader: DataStream,
     state: State,
 }
 

@@ -1,15 +1,12 @@
 {
-  "name": "opendal-darwin-x64",
+  "name": "opendal-darwin-universal",
   "version": "0.0.0",
   "os": [
     "darwin"
   ],
-  "cpu": [
-    "x64"
-  ],
-  "main": "opendal.darwin-x64.node",
+  "main": "opendal.darwin-universal.node",
   "files": [
-    "opendal.darwin-x64.node"
+    "opendal.darwin-universal.node"
   ],
   "license": "MIT",
   "engines": {

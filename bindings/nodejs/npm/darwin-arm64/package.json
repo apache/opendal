@@ -1,15 +1,15 @@
 {
-  "name": "opendal-darwin-x64",
+  "name": "opendal-darwin-arm64",
   "version": "0.0.0",
   "os": [
     "darwin"
   ],
   "cpu": [
-    "x64"
+    "arm64"
   ],
-  "main": "opendal.darwin-x64.node",
+  "main": "opendal.darwin-arm64.node",
   "files": [
-    "opendal.darwin-x64.node"
+    "opendal.darwin-arm64.node"
   ],
   "license": "MIT",
   "engines": {

@@ -1,5 +1,5 @@
 {
-  "name": "opendal-linux-x64-gnu",
+  "name": "opendal-linux-x64-musl",
   "version": "0.0.0",
   "os": [
     "linux"
@@ -7,15 +7,15 @@
   "cpu": [
     "x64"
   ],
-  "main": "opendal.linux-x64-gnu.node",
+  "main": "opendal.linux-x64-musl.node",
   "files": [
-    "opendal.linux-x64-gnu.node"
+    "opendal.linux-x64-musl.node"
   ],
   "license": "MIT",
   "engines": {
     "node": ">= 10"
   },
   "libc": [
-    "glibc"
+    "musl"
   ]
 }

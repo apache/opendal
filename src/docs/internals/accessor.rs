@@ -86,8 +86,8 @@
 //!
 //! Implementer of `Accessor` should take care the following things:
 //!
-//! - Implement `Debug` for backend, but don't leak creadentails.
-//! - Make sure the backend is `Send` and `Sync`, wrap the internal strcut with `Arc<Mutex<T>>` if necessary.
+//! - Implement `Debug` for backend, but don't leak credentials.
+//! - Make sure the backend is `Send` and `Sync`, wrap the internal struct with `Arc<Mutex<T>>` if necessary.
 //!
 //! ## Associated Type
 //!

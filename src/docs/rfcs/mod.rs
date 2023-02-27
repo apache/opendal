@@ -122,5 +122,5 @@ pub mod rfc_1391_object_metadataer {}
 #[doc = include_str!("1398_query_based_metadata.md")]
 pub mod rfc_1398_query_based_metadata {}
 
-#[doc = include_str!("0000_object_writer.md")]
-pub mod rfc_0000_object_writer {}
+#[doc = include_str!("1420_object_writer.md")]
+pub mod rfc_1420_object_writer {}

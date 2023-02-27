@@ -92,6 +92,9 @@ harness = false
 name = "io"
 required-features = ["layers-all"]
 
+[[examples]]
+name = "object"
+
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"

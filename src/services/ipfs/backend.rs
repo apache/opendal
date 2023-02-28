@@ -210,6 +210,8 @@ impl Debug for IpfsBackend {
 impl Accessor for IpfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = ();
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 

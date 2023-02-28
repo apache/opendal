@@ -35,7 +35,8 @@ pub async fn main(args: Option<ArgMatches>) -> Result<()> {
 
     let size = src_o.stat().await?.content_length();
     let reader = src_o.reader().await?;
-    dst_o.write_from(size, reader).await?;
+    // dst_o.write_from(size, reader).await?;
+    todo!();
     Ok(())
 }
 

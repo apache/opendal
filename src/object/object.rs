@@ -17,7 +17,6 @@ use std::io::Read;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
-use bytes::Bytes;
 use flagset::FlagSet;
 use futures::AsyncReadExt;
 use time::Duration;

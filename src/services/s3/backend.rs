@@ -1565,29 +1565,6 @@ impl S3Backend {
         self.client.send_async(req).await
     }
 
-    async fn s3_abort_multipart_upload(
-        &self,
-        path: &str,
-        upload_id: &str,
-    ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}?uploadId={}",
-            self.endpoint,
-            percent_encode_path(&p),
-            upload_id,
-        );
-
-        let mut req = Request::delete(&url)
-            .body(AsyncBody::Empty)
-            .map_err(new_request_build_error)?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        self.client.send_async(req).await
-    }
-
     async fn s3_delete_objects(&self, paths: Vec<String>) -> Result<Response<IncomingAsyncBody>> {
         let url = format!("{}/?delete", self.endpoint);
 

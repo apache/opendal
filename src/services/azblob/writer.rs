@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::AzblobBackend;
@@ -36,7 +37,7 @@ impl AzblobWriter {
 
 #[async_trait]
 impl output::Write for AzblobWriter {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.azblob_put_blob_request(
             &self.path,
             Some(self.op.size()),
@@ -62,7 +63,7 @@ impl output::Write for AzblobWriter {
         }
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(

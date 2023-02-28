@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::AsyncWriteExt;
 
 use super::backend::FtpBackend;
@@ -37,7 +38,7 @@ impl FtpWriter {
 
 #[async_trait]
 impl output::Write for FtpWriter {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
         let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;
         data_stream.write_all(&bs).await.map_err(|err| {
@@ -49,7 +50,7 @@ impl output::Write for FtpWriter {
         Ok(())
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(

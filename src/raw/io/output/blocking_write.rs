@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bytes::Bytes;
+
 use crate::*;
 
 /// BlockingWriter is a type erased [`BlockingWrite`]
@@ -24,14 +26,14 @@ pub trait BlockingWrite: Send + Sync + 'static {
     /// We consume the writer here to indicate that users should
     /// write all content. To append multiple bytes together, use
     /// `append` instead.
-    fn write(&mut self, bs: Vec<u8>) -> Result<()>;
+    fn write(&mut self, bs: Bytes) -> Result<()>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
-    fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for output::BlockingWrite")
@@ -48,7 +50,7 @@ impl BlockingWrite for () {
 /// `Box<dyn BlockingWrite>` won't implement `BlockingWrite` automanticly.
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
-    fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
         (**self).write(bs)
     }
 

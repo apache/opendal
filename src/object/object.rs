@@ -17,6 +17,7 @@ use std::io::Read;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use flagset::FlagSet;
 use futures::AsyncReadExt;
 use time::Duration;
@@ -555,7 +556,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -621,7 +622,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")

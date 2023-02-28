@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::WebhdfsBackend;
@@ -36,7 +37,7 @@ impl WebhdfsWriter {
 
 #[async_trait]
 impl output::Write for WebhdfsWriter {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let req = self
             .backend
             .webhdfs_create_object_req(
@@ -59,7 +60,7 @@ impl output::Write for WebhdfsWriter {
         }
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(

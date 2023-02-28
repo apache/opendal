@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::{CompleteMultipartUploadRequestPart, S3Backend};
@@ -45,7 +46,7 @@ impl S3Writer {
 
 #[async_trait]
 impl output::Write for S3Writer {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         debug_assert!(
             self.upload_id.is_none(),
             "Writer initiated with upload id, but users trying to call write, must be buggy"
@@ -77,7 +78,7 @@ impl output::Write for S3Writer {
         }
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let upload_id = self.upload_id.as_ref().expect(
             "Writer doesn't have upload id, but users trying to call append, must be buggy",
         );

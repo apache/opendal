@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 
 use super::backend::GhacBackend;
 use super::error::parse_error;
@@ -43,7 +44,7 @@ impl GhacWriter {
 
 #[async_trait]
 impl output::Write for GhacWriter {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let size = bs.len() as u64;
         let req = self
             .backend
@@ -63,7 +64,7 @@ impl output::Write for GhacWriter {
         }
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(

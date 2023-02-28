@@ -15,6 +15,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 
 use super::Adapter;
 use crate::ops::*;
@@ -290,13 +291,13 @@ impl<S> KvWriter<S> {
 
 #[async_trait]
 impl<S: Adapter> output::Write for KvWriter<S> {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.kv.set(&self.path, &bs).await?;
 
         Ok(())
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.buf.extend(bs);
 
         Ok(())
@@ -310,7 +311,7 @@ impl<S: Adapter> output::Write for KvWriter<S> {
 }
 
 impl<S: Adapter> output::BlockingWrite for KvWriter<S> {
-    fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
         self.kv.blocking_set(&self.path, &bs)?;
 
         Ok(())

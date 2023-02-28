@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::IpmfsBackend;
@@ -36,7 +37,7 @@ impl IpmfsWriter {
 
 #[async_trait]
 impl output::Write for IpmfsWriter {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend
             .ipmfs_write(
@@ -56,7 +57,7 @@ impl output::Write for IpmfsWriter {
         }
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(

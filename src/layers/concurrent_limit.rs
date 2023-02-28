@@ -365,11 +365,11 @@ impl<R: output::BlockingRead> output::BlockingRead for ConcurrentLimitWrapper<R>
 
 #[async_trait]
 impl<R: output::Write> output::Write for ConcurrentLimitWrapper<R> {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs).await
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.inner.append(bs).await
     }
 
@@ -379,7 +379,7 @@ impl<R: output::Write> output::Write for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: output::BlockingWrite> output::BlockingWrite for ConcurrentLimitWrapper<R> {
-    fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs)
     }
 

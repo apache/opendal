@@ -15,6 +15,7 @@
 use crate::*;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 
 /// Writer is a type erased [`Write`]
 pub type Writer = Box<dyn Write>;
@@ -25,14 +26,14 @@ pub trait Write: Unpin + Send + Sync {
     /// Write whole content at once.
     ///
     /// To append multiple bytes together, use `append` instead.
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()>;
+    async fn write(&mut self, bs: Bytes) -> Result<()>;
 
     /// Append bytes to the writer.
     ///
     /// It is highly recommended to align the length of the input bytes
     /// into blocks of 4MiB (except the last block) for better performance
     /// and compatibility.
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()>;
+    async fn append(&mut self, bs: Bytes) -> Result<()>;
 
     /// Close the writer and make sure all data has been flushed.
     async fn close(&mut self) -> Result<()>;
@@ -40,13 +41,13 @@ pub trait Write: Unpin + Send + Sync {
 
 #[async_trait]
 impl Write for () {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for output::Write")
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(
@@ -67,11 +68,11 @@ impl Write for () {
 /// work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         (**self).write(bs).await
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         (**self).append(bs).await
     }
 

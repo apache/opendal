@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::AzdfsBackend;
@@ -36,7 +37,7 @@ impl AzdfsWriter {
 
 #[async_trait]
 impl output::Write for AzdfsWriter {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.azdfs_create_request(
             &self.path,
             "file",
@@ -89,7 +90,7 @@ impl output::Write for AzdfsWriter {
         }
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(

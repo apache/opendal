@@ -18,6 +18,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use tokio::io::AsyncSeekExt;
 use tokio::io::AsyncWriteExt;
 
@@ -50,7 +51,7 @@ impl output::Write for FsWriter<tokio::fs::File> {
     ///
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.f
             .seek(SeekFrom::Start(0))
             .await
@@ -64,7 +65,7 @@ impl output::Write for FsWriter<tokio::fs::File> {
     ///
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         self.f
             .seek(SeekFrom::Start(self.pos))
             .await
@@ -87,7 +88,7 @@ impl output::BlockingWrite for FsWriter<std::fs::File> {
     ///
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
-    fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
         self.f.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
         self.f.write_all(&bs).map_err(parse_io_error)?;
 

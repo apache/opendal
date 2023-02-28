@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::StatusCode;
 
 use super::backend::WebdavBackend;
@@ -36,7 +37,7 @@ impl WebdavWriter {
 
 #[async_trait]
 impl output::Write for WebdavWriter {
-    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut resp = self
             .backend
             .webdav_put(
@@ -59,7 +60,7 @@ impl output::Write for WebdavWriter {
         }
     }
 
-    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(

@@ -46,6 +46,7 @@ use serde::Serialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::writer::S3Writer;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -1029,8 +1030,8 @@ impl Builder for S3Builder {
 pub struct S3Backend {
     bucket: String,
     endpoint: String,
-    signer: Arc<AwsV4Signer>,
-    client: HttpClient,
+    pub signer: Arc<AwsV4Signer>,
+    pub client: HttpClient,
     // root will be "/" or "/abc/"
     root: String,
 
@@ -1108,6 +1109,8 @@ impl S3Backend {
 impl Accessor for S3Backend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = S3Writer;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -1119,7 +1122,7 @@ impl Accessor for S3Backend {
         am.set_scheme(Scheme::S3)
             .set_root(&self.root)
             .set_name(&self.bucket)
-            .set_capabilities(Read | Write | List | Scan | Presign | Multipart | Batch)
+            .set_capabilities(Read | Write | List | Scan | Presign | Batch)
             .set_hints(ReadStreamable);
 
         am
@@ -1157,28 +1160,32 @@ impl Accessor for S3Backend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req = self.s3_put_object_request(
-            path,
-            Some(args.size()),
-            args.content_type(),
-            args.content_disposition(),
-            AsyncBody::Reader(r),
-        )?;
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let upload_id = if args.append() {
+            let resp = self.s3_initiate_multipart_upload(path).await?;
 
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
+            let status = resp.status();
 
-        let resp = self.client.send_async(req).await?;
+            match status {
+                StatusCode::OK => {
+                    let bs = resp.into_body().bytes().await?;
 
-        let status = resp.status();
+                    let result: InitiateMultipartUploadResult =
+                        quick_xml::de::from_reader(bs.reader())
+                            .map_err(new_xml_deserialize_error)?;
 
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
+                    Some(result.upload_id)
+                }
+                _ => return Err(parse_error(resp).await?),
             }
-            _ => Err(parse_error(resp).await?),
-        }
+        } else {
+            None
+        };
+
+        Ok((
+            RpWrite::default(),
+            S3Writer::new(self.clone(), args, path.to_string(), upload_id),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -1303,109 +1310,6 @@ impl Accessor for S3Backend {
             }
         }
     }
-
-    async fn create_multipart(
-        &self,
-        path: &str,
-        _: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        let resp = self.s3_initiate_multipart_upload(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let bs = resp.into_body().bytes().await?;
-
-                let result: InitiateMultipartUploadResult =
-                    quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
-
-                Ok(RpCreateMultipart::new(&result.upload_id))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        let mut req = self.s3_upload_part_request(
-            path,
-            args.upload_id(),
-            args.part_number(),
-            Some(args.size()),
-            AsyncBody::Reader(r),
-        )?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let etag = parse_etag(resp.headers())?
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "ETag not present in returning response",
-                        )
-                    })?
-                    .to_string();
-
-                resp.into_body().consume().await?;
-
-                Ok(RpWriteMultipart::new(args.part_number(), &etag))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        let resp = self
-            .s3_complete_multipart_upload(path, args.upload_id(), args.parts())
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                resp.into_body().consume().await?;
-
-                Ok(RpCompleteMultipart::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        let resp = self
-            .s3_abort_multipart_upload(path, args.upload_id())
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT => {
-                resp.into_body().consume().await?;
-
-                Ok(RpAbortMultipart::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
-    }
 }
 
 impl S3Backend {
@@ -1459,7 +1363,7 @@ impl S3Backend {
         self.client.send_async(req).await
     }
 
-    fn s3_put_object_request(
+    pub fn s3_put_object_request(
         &self,
         path: &str,
         size: Option<u64>,
@@ -1590,7 +1494,7 @@ impl S3Backend {
         self.client.send_async(req).await
     }
 
-    fn s3_upload_part_request(
+    pub fn s3_upload_part_request(
         &self,
         path: &str,
         upload_id: &str,
@@ -1623,11 +1527,11 @@ impl S3Backend {
         Ok(req)
     }
 
-    async fn s3_complete_multipart_upload(
+    pub async fn s3_complete_multipart_upload(
         &self,
         path: &str,
         upload_id: &str,
-        parts: &[ObjectPart],
+        parts: &[CompleteMultipartUploadRequestPart],
     ) -> Result<Response<IncomingAsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
@@ -1644,13 +1548,7 @@ impl S3Backend {
         let req = self.insert_sse_headers(req, true);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
-            part: parts
-                .iter()
-                .map(|v| CompleteMultipartUploadRequestPart {
-                    part_number: v.part_number(),
-                    etag: v.etag().to_string(),
-                })
-                .collect(),
+            part: parts.to_vec(),
         })
         .map_err(new_xml_deserialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
@@ -1736,9 +1634,9 @@ struct CompleteMultipartUploadRequest {
     part: Vec<CompleteMultipartUploadRequestPart>,
 }
 
-#[derive(Default, Debug, Serialize)]
+#[derive(Clone, Default, Debug, Serialize)]
 #[serde(default, rename_all = "PascalCase")]
-struct CompleteMultipartUploadRequestPart {
+pub struct CompleteMultipartUploadRequestPart {
     #[serde(rename = "PartNumber")]
     part_number: usize,
     /// # TODO

@@ -360,6 +360,8 @@ impl OpStat {
 /// Args for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
+    append: bool,
+
     size: u64,
     content_type: Option<String>,
     content_disposition: Option<String>,
@@ -371,27 +373,11 @@ impl OpWrite {
     /// If input path is not a file path, an error will be returned.
     pub fn new(size: u64) -> Self {
         Self {
+            append: false,
+
             size,
             content_type: None,
             content_disposition: None,
-        }
-    }
-
-    /// Set the content type of option
-    pub fn with_content_type(self, content_type: &str) -> Self {
-        Self {
-            size: self.size(),
-            content_type: Some(content_type.to_string()),
-            content_disposition: self.content_disposition,
-        }
-    }
-
-    /// Set the content disposition of option
-    pub fn with_content_disposition(self, content_disposition: &str) -> Self {
-        Self {
-            size: self.size(),
-            content_type: self.content_type,
-            content_disposition: Some(content_disposition.to_string()),
         }
     }
 
@@ -399,13 +385,35 @@ impl OpWrite {
     pub fn size(&self) -> u64 {
         self.size
     }
+
+    pub(crate) fn with_append(mut self) -> Self {
+        self.append = true;
+        self
+    }
+
+    pub(crate) fn append(&self) -> bool {
+        self.append
+    }
+
     /// Get the content type from option
     pub fn content_type(&self) -> Option<&str> {
         self.content_type.as_deref()
     }
 
+    /// Set the content type of option
+    pub fn with_content_type(mut self, content_type: &str) -> Self {
+        self.content_type = Some(content_type.to_string());
+        self
+    }
+
     /// Get the content disposition from option
     pub fn content_disposition(&self) -> Option<&str> {
         self.content_disposition.as_deref()
+    }
+
+    /// Set the content disposition of option
+    pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
+        self.content_disposition = Some(content_disposition.to_string());
+        self
     }
 }

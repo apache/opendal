@@ -27,21 +27,21 @@ pub use read::Read;
 pub use read::ReadExt;
 pub use read::Reader;
 
-mod write;
-pub use write::Write;
-pub use write::Writer;
-
 pub mod into_reader;
 
 mod blocking_read;
 pub use blocking_read::BlockingRead;
 pub use blocking_read::BlockingReader;
 
+pub mod into_blocking_reader;
+
+mod write;
+pub use write::Write;
+pub use write::Writer;
+
 mod blocking_write;
 pub use blocking_write::BlockingWrite;
 pub use blocking_write::BlockingWriter;
-
-pub mod into_blocking_reader;
 
 mod cursor;
 pub use cursor::Cursor;

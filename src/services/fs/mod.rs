@@ -17,3 +17,4 @@ pub use backend::FsBuilder as Fs;
 
 mod dir_stream;
 mod error;
+mod writer;

@@ -256,7 +256,19 @@ impl OssBuilder {
                         .with_context("endpoint", &ep)
                 })?;
                 let full_host = format!("{bucket}.{host}");
-                let endpoint = format!("https://{full_host}");
+                let endpoint = match uri.scheme_str() {
+                    Some(scheme_str) => match scheme_str {
+                        "http" | "https" => format!("{scheme_str}://{full_host}"),
+                        _ => {
+                            return Err(Error::new(
+                                ErrorKind::BackendConfigInvalid,
+                                "endpoint protocol is invalid",
+                            )
+                            .with_context("service", Scheme::Oss));
+                        }
+                    },
+                    None => format!("https://{full_host}"),
+                };
                 (endpoint, full_host)
             }
             None => {

@@ -33,6 +33,7 @@ use super::message::BooleanResp;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
+use super::writer::WebhdfsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -250,14 +251,14 @@ impl Builder for WebhdfsBuilder {
 pub struct WebhdfsBackend {
     root: String,
     endpoint: String,
-    client: HttpClient,
+    pub client: HttpClient,
     auth: Option<String>,
     root_checker: OnceCell<()>,
 }
 
 impl WebhdfsBackend {
     // create object or make a directory
-    async fn webhdfs_create_object_req(
+    pub async fn webhdfs_create_object_req(
         &self,
         path: &str,
         size: Option<u64>,
@@ -536,6 +537,8 @@ impl WebhdfsBackend {
 impl Accessor for WebhdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = WebhdfsWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -604,25 +607,11 @@ impl Accessor for WebhdfsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let req = self
-            .webhdfs_create_object_req(
-                path,
-                Some(args.size()),
-                args.content_type(),
-                AsyncBody::Reader(r),
-            )
-            .await?;
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::CREATED => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::default())
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            WebhdfsWriter::new(self.clone(), args, path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

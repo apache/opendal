@@ -13,7 +13,9 @@
 // limitations under the License.
 
 mod backend;
-mod message;
 pub use backend::WebhdfsBuilder as Webhdfs;
+
 mod dir_stream;
 mod error;
+mod message;
+mod writer;

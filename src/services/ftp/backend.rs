@@ -39,6 +39,7 @@ use tokio::sync::OnceCell;
 use super::dir_stream::DirStream;
 use super::dir_stream::ReadDir;
 use super::util::FtpReader;
+use super::writer::FtpWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -313,6 +314,8 @@ impl Debug for FtpBackend {
 impl Accessor for FtpBackend {
     type Reader = FtpReader;
     type BlockingReader = ();
+    type Writer = FtpWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -391,18 +394,11 @@ impl Accessor for FtpBackend {
         Ok((RpRead::new(size), FtpReader::new(r, ftp_stream)))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut ftp_stream = self.ftp_connect(Operation::Write).await?;
-
-        let mut data_stream = ftp_stream.append_with_stream(path).await?;
-
-        let bytes = copy(r, &mut data_stream).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-        })?;
-
-        ftp_stream.finalize_put_stream(data_stream).await?;
-
-        Ok(RpWrite::new(bytes))
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::new(0),
+            FtpWriter::new(self.clone(), path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -466,7 +462,7 @@ impl Accessor for FtpBackend {
 }
 
 impl FtpBackend {
-    async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
+    pub async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
         let pool = self
             .pool
             .get_or_try_init(|| async {

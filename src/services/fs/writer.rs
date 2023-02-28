@@ -60,6 +60,10 @@ impl output::Write for FsWriter<tokio::fs::File> {
         Ok(())
     }
 
+    /// # Notes
+    ///
+    /// File could be partial written, so we will seek to start to make sure
+    /// we write the same content.
     async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
         self.f
             .seek(SeekFrom::Start(self.pos))

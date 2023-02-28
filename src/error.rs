@@ -38,10 +38,10 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
 
-/// Result that is a wrapper of `Reustl<T, opendal::Error>`
+/// Result that is a wrapper of `Result<T, opendal::Error>`
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// ErrorKind is all kinds of opendal's Error.
+/// ErrorKind is all kinds of Error of opendal.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ErrorKind {

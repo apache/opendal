@@ -31,6 +31,7 @@ use reqsign::AzureStorageSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::writer::AzdfsWriter;
 use crate::object::ObjectMetadata;
 use crate::ops::*;
 use crate::raw::*;
@@ -291,10 +292,11 @@ impl Builder for AzdfsBuilder {
 #[derive(Debug, Clone)]
 pub struct AzdfsBackend {
     filesystem: String,
-    client: HttpClient,
+    // TODO: remove pub after https://github.com/datafuselabs/opendal/issues/1427
+    pub client: HttpClient,
     root: String, // root will be "/" or /abc/
     endpoint: String,
-    signer: Arc<AzureStorageSigner>,
+    pub signer: Arc<AzureStorageSigner>,
     _account_name: String,
 }
 
@@ -302,6 +304,8 @@ pub struct AzdfsBackend {
 impl Accessor for AzdfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = AzdfsWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -356,47 +360,11 @@ impl Accessor for AzdfsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req = self.azdfs_create_request(
-            path,
-            "file",
-            args.content_type(),
-            args.content_disposition(),
-            AsyncBody::Empty,
-        )?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-            }
-            _ => {
-                return Err(parse_error(resp)
-                    .await?
-                    .with_operation("Backend::azdfs_create_request"));
-            }
-        }
-
-        let mut req = self.azdfs_update_request(path, Some(args.size()), AsyncBody::Reader(r))?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::ACCEPTED => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            }
-            _ => Err(parse_error(resp)
-                .await?
-                .with_operation("Backend::azdfs_update_request")),
-        }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            AzdfsWriter::new(self.clone(), args, path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -484,7 +452,7 @@ impl AzdfsBackend {
     /// resource should be one of `file` or `directory`
     ///
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/create
-    fn azdfs_create_request(
+    pub fn azdfs_create_request(
         &self,
         path: &str,
         resource: &str,
@@ -523,7 +491,7 @@ impl AzdfsBackend {
     }
 
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
-    fn azdfs_update_request(
+    pub fn azdfs_update_request(
         &self,
         path: &str,
         size: Option<u64>,

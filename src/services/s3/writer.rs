@@ -78,7 +78,7 @@ impl output::Write for S3Writer {
     }
 
     async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
-        let upload_id = &self.upload_id.expect(
+        let upload_id = self.upload_id.as_ref().expect(
             "Writer doesn't have upload id, but users trying to call append, must be buggy",
         );
         let part_number = self.parts.len();

@@ -1638,7 +1638,7 @@ struct CompleteMultipartUploadRequest {
 #[serde(default, rename_all = "PascalCase")]
 pub struct CompleteMultipartUploadRequestPart {
     #[serde(rename = "PartNumber")]
-    part_number: usize,
+    pub part_number: usize,
     /// # TODO
     ///
     /// quick-xml will do escape on `"` which leads to our serialized output is
@@ -1668,7 +1668,7 @@ pub struct CompleteMultipartUploadRequestPart {
     ///
     /// ref: <https://github.com/tafia/quick-xml/issues/362>
     #[serde(rename = "ETag")]
-    etag: String,
+    pub etag: String,
 }
 
 /// Request of DeleteObjects.

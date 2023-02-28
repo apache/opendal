@@ -26,12 +26,6 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Maintain dependencies for oay
-  - package-ecosystem: "cargo"
-    directory: "/oay"
-    schedule:
-      interval: "monthly"
-
   # Maintain dependencies for oli
   - package-ecosystem: "cargo"
     directory: "/oli"

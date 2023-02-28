@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: TyposCheck
+name: Typos Check
 
 on: [push, pull_request]
 
@@ -35,7 +35,9 @@ jobs:
         with:
           clean: "true"
 
-      - run: cargo install typos-cli --locked
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: typos-cli
 
       - name: do typos check with typos-cli
         run: typos

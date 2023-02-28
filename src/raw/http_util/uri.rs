@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::{Error, ErrorKind, Scheme};
 use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;
+
+/// Result that is a wrapper of `Result<T, opendal::Error>`
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// PATH_ENCODE_SET is the encode set for http url path.
 ///
@@ -42,6 +46,21 @@ static PATH_ENCODE_SET: AsciiSet = NON_ALPHANUMERIC
 /// required by storage services like s3.
 pub fn percent_encode_path(path: &str) -> String {
     utf8_percent_encode(path, &PATH_ENCODE_SET).to_string()
+}
+
+/// check endpoint of service.
+///
+/// If endpoint is empty, return error.
+pub fn check_endpoint(endpoint: &String, schema: Scheme) -> Result<String> {
+    if endpoint.is_empty() {
+        Err(
+            Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
+                .with_operation("Builder::build")
+                .with_context("service", schema),
+        )
+    } else {
+        Ok(endpoint.clone())
+    }
 }
 
 #[cfg(test)]

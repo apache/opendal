@@ -42,6 +42,7 @@ pub use header::parse_last_modified;
 pub use header::parse_location;
 
 mod uri;
+pub use uri::check_endpoint;
 pub use uri::percent_encode_path;
 
 mod error;

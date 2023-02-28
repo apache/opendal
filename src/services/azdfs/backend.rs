@@ -114,7 +114,7 @@ use crate::*;
 pub struct AzdfsBuilder {
     root: Option<String>,
     filesystem: String,
-    endpoint: Option<String>,
+    endpoint: String,
     account_name: Option<String>,
     account_key: Option<String>,
     http_client: Option<HttpClient>,
@@ -165,10 +165,8 @@ impl AzdfsBuilder {
     /// - Azblob: `https://accountname.blob.core.windows.net`
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        if !endpoint.is_empty() {
-            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
-        }
+        // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
+        self.endpoint = endpoint.trim_end_matches('/').to_string();
 
         self
     }
@@ -230,14 +228,7 @@ impl Builder for AzdfsBuilder {
         }?;
         debug!("backend use filesystem {}", &filesystem);
 
-        let endpoint = match &self.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azdfs),
-            ),
-        }?;
+        let endpoint = check_endpoint(&self.endpoint, Scheme::Azdfs)?;
         debug!("backend use endpoint {}", &filesystem);
 
         let client = if let Some(client) = self.http_client.take() {

@@ -90,7 +90,7 @@ use crate::*;
 /// ```
 #[derive(Default)]
 pub struct FtpBuilder {
-    endpoint: Option<String>,
+    endpoint: String,
     root: Option<String>,
     user: Option<String>,
     password: Option<String>,
@@ -108,11 +108,7 @@ impl Debug for FtpBuilder {
 impl FtpBuilder {
     /// set endpoint for ftp backend.
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        self.endpoint = if endpoint.is_empty() {
-            None
-        } else {
-            Some(endpoint.to_string())
-        };
+        self.endpoint = endpoint.to_string();
 
         self
     }
@@ -157,15 +153,7 @@ impl Builder for FtpBuilder {
 
     fn build(&mut self) -> Result<Self::Accessor> {
         debug!("ftp backend build started: {:?}", &self);
-        let endpoint = match &self.endpoint {
-            None => {
-                return Err(Error::new(
-                    ErrorKind::BackendConfigInvalid,
-                    "endpoint is empty",
-                ))
-            }
-            Some(v) => v,
-        };
+        let endpoint = check_endpoint(&self.endpoint, Scheme::Ftp)?;
 
         let endpoint_uri = match endpoint.parse::<Uri>() {
             Err(e) => {

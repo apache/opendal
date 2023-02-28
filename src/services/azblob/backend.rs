@@ -122,7 +122,7 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 pub struct AzblobBuilder {
     root: Option<String>,
     container: String,
-    endpoint: Option<String>,
+    endpoint: String,
     account_name: Option<String>,
     account_key: Option<String>,
     sas_token: Option<String>,
@@ -177,10 +177,8 @@ impl AzblobBuilder {
     /// - Azblob: `https://accountname.blob.core.windows.net`
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
     pub fn endpoint(&mut self, endpoint: &str) -> &mut Self {
-        if !endpoint.is_empty() {
-            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.endpoint = Some(endpoint.trim_end_matches('/').to_string());
-        }
+        // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
+        self.endpoint = endpoint.trim_end_matches('/').to_string();
 
         self
     }
@@ -354,14 +352,7 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use container {}", &container);
 
-        let endpoint = match &self.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(
-                Error::new(ErrorKind::BackendConfigInvalid, "endpoint is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azblob),
-            ),
-        }?;
+        let endpoint = check_endpoint(&self.endpoint, Scheme::Azblob)?;
         debug!("backend use endpoint {}", &container);
 
         let client = if let Some(client) = self.http_client.take() {
@@ -714,10 +705,7 @@ TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
         )
         .expect("from connection string must succeed");
 
-        assert_eq!(
-            builder.endpoint.unwrap(),
-            "http://127.0.0.1:10000/devstoreaccount1"
-        );
+        assert_eq!(builder.endpoint, "http://127.0.0.1:10000/devstoreaccount1");
         assert_eq!(builder.account_name.unwrap(), "devstoreaccount1");
         assert_eq!(builder.account_key.unwrap(), "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==");
 
@@ -732,7 +720,7 @@ EndpointSuffix=core.chinacloudapi.cn;
         .expect("from connection string must succeed");
 
         assert_eq!(
-            builder.endpoint.unwrap(),
+            builder.endpoint,
             "https://storagesample.blob.core.chinacloudapi.cn"
         );
         assert_eq!(builder.account_name.unwrap(), "storagesample");
@@ -752,10 +740,7 @@ SharedAccessSignature=sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:0
         )
         .expect("from connection string must succeed");
 
-        assert_eq!(
-            builder.endpoint.unwrap(),
-            "http://127.0.0.1:10000/devstoreaccount1"
-        );
+        assert_eq!(builder.endpoint, "http://127.0.0.1:10000/devstoreaccount1");
         assert_eq!(builder.sas_token.unwrap(), "sv=2021-01-01&ss=b&srt=c&sp=rwdlaciytfx&se=2022-01-01T11:00:14Z&st=2022-01-02T03:00:14Z&spr=https&sig=KEllk4N8f7rJfLjQCmikL2fRVt%2B%2Bl73UBkbgH%2FK3VGE%3D");
         assert_eq!(builder.account_name, None);
         assert_eq!(builder.account_key, None);

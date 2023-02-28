@@ -35,9 +35,11 @@ jobs:
         with:
           clean: "true"
 
-      - uses: taiki-e/install-action@v2
+      - uses: baptiste0928/cargo-install@v1
         with:
-          tool: typos-cli
+          crate: typos-cli
+          args: --locked
+          cache-key: typos-check
 
       - name: do typos check with typos-cli
         run: typos

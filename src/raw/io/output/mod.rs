@@ -27,6 +27,10 @@ pub use read::Read;
 pub use read::ReadExt;
 pub use read::Reader;
 
+mod write;
+pub use write::Write;
+pub use write::Writer;
+
 pub mod into_reader;
 
 mod blocking_read;

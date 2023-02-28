@@ -31,6 +31,7 @@ use reqsign::AzureStorageSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::writer::AzblobWriter;
 use crate::object::ObjectMetadata;
 use crate::ops::*;
 use crate::raw::*;
@@ -405,10 +406,11 @@ impl Builder for AzblobBuilder {
 #[derive(Debug, Clone)]
 pub struct AzblobBackend {
     container: String,
-    client: HttpClient,
+    // TODO: remove pub after https://github.com/datafuselabs/opendal/issues/1427
+    pub client: HttpClient,
     root: String, // root will be "/" or /abc/
     endpoint: String,
-    signer: Arc<AzureStorageSigner>,
+    pub signer: Arc<AzureStorageSigner>,
     _account_name: String,
 }
 
@@ -416,6 +418,8 @@ pub struct AzblobBackend {
 impl Accessor for AzblobBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = AzblobWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -466,27 +470,11 @@ impl Accessor for AzblobBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req = self.azblob_put_blob_request(
-            path,
-            Some(args.size()),
-            args.content_type(),
-            AsyncBody::Reader(r),
-        )?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            AzblobWriter::new(self.clone(), args, path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -584,7 +572,7 @@ impl AzblobBackend {
         self.client.send_async(req).await
     }
 
-    fn azblob_put_blob_request(
+    pub fn azblob_put_blob_request(
         &self,
         path: &str,
         size: Option<u64>,

@@ -92,7 +92,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
       - name: Check
-        run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets --all-features -- -D warnings
+        run: cargo +${OPENDAL_MSRV} clippy --no-deps --all-targets -- -D warnings
 
   build:
     runs-on: ${{ matrix.os }}

@@ -36,10 +36,6 @@ impl AzblobWriter {
 
 #[async_trait]
 impl output::Write for AzblobWriter {
-    fn can_append(&self) -> bool {
-        false
-    }
-
     async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         let mut req = self.backend.azblob_put_blob_request(
             &self.path,
@@ -66,13 +62,6 @@ impl output::Write for AzblobWriter {
         }
     }
 
-    async fn initiate(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support initiate",
-        ))
-    }
-
     async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
         let _ = bs;
 
@@ -82,10 +71,7 @@ impl output::Write for AzblobWriter {
         ))
     }
 
-    async fn complete(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support complete",
-        ))
+    async fn close(&mut self) -> Result<()> {
+        Ok(())
     }
 }

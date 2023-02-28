@@ -290,18 +290,8 @@ impl<S> KvWriter<S> {
 
 #[async_trait]
 impl<S: Adapter> output::Write for KvWriter<S> {
-    fn can_append(&self) -> bool {
-        false
-    }
-
     async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         self.kv.set(&self.path, &bs).await?;
-
-        Ok(())
-    }
-
-    async fn initiate(&mut self) -> Result<()> {
-        self.buf.clear();
 
         Ok(())
     }
@@ -312,7 +302,7 @@ impl<S: Adapter> output::Write for KvWriter<S> {
         Ok(())
     }
 
-    async fn complete(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<()> {
         self.kv.set(&self.path, &self.buf).await?;
 
         Ok(())
@@ -323,6 +313,10 @@ impl<S: Adapter> output::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         self.kv.blocking_set(&self.path, &bs)?;
 
+        Ok(())
+    }
+
+    fn close(&mut self) -> Result<()> {
         Ok(())
     }
 }

@@ -21,7 +21,6 @@ use async_trait::async_trait;
 use tokio::io::AsyncSeekExt;
 use tokio::io::AsyncWriteExt;
 
-use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
@@ -47,10 +46,6 @@ impl<F> FsWriter<F> {
 
 #[async_trait]
 impl output::Write for FsWriter<tokio::fs::File> {
-    async fn initiate(&mut self) -> Result<()> {
-        todo!()
-    }
-
     /// # Notes
     ///
     /// File could be partial written, so we will seek to start to make sure
@@ -65,10 +60,6 @@ impl output::Write for FsWriter<tokio::fs::File> {
         Ok(())
     }
 
-    fn can_append(&self) -> bool {
-        false
-    }
-
     async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
         self.f
             .seek(SeekFrom::Start(self.pos))
@@ -80,7 +71,7 @@ impl output::Write for FsWriter<tokio::fs::File> {
         Ok(())
     }
 
-    async fn complete(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<()> {
         self.f.sync_all().await.map_err(parse_io_error)?;
 
         Ok(())
@@ -99,9 +90,9 @@ impl output::BlockingWrite for FsWriter<std::fs::File> {
         Ok(())
     }
 
-    // async fn complete(&mut self) -> Result<()> {
-    //     self.f.sync_all().await.map_err(parse_io_error)?;
+    fn close(&mut self) -> Result<()> {
+        self.f.sync_all().map_err(parse_io_error)?;
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 }

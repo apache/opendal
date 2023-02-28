@@ -25,6 +25,9 @@ pub trait BlockingWrite: Send + Sync + 'static {
     /// write all content. To append multiple bytes together, use
     /// `append` instead.
     fn write(&mut self, bs: Vec<u8>) -> Result<()>;
+
+    /// Close the writer and make sure all data has been flushed.
+    fn close(&mut self) -> Result<()>;
 }
 
 impl BlockingWrite for () {
@@ -33,6 +36,13 @@ impl BlockingWrite for () {
 
         unimplemented!("write is required to be implemented for output::BlockingWrite")
     }
+
+    fn close(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support close",
+        ))
+    }
 }
 
 /// `Box<dyn BlockingWrite>` won't implement `BlockingWrite` automanticly.
@@ -40,5 +50,9 @@ impl BlockingWrite for () {
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
     fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         (**self).write(bs)
+    }
+
+    fn close(&mut self) -> Result<()> {
+        (**self).close()
     }
 }

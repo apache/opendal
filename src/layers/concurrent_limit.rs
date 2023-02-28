@@ -369,26 +369,22 @@ impl<R: output::Write> output::Write for ConcurrentLimitWrapper<R> {
         self.inner.write(bs).await
     }
 
-    fn can_append(&self) -> bool {
-        self.inner.can_append()
-    }
-
-    async fn initiate(&mut self) -> Result<()> {
-        self.inner.initiate().await
-    }
-
     async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
         self.inner.append(bs).await
     }
 
-    async fn complete(&mut self) -> Result<()> {
-        self.inner.complete().await
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 }
 
 impl<R: output::BlockingWrite> output::BlockingWrite for ConcurrentLimitWrapper<R> {
     fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         self.inner.write(bs)
+    }
+
+    fn close(&mut self) -> Result<()> {
+        self.inner.close()
     }
 }
 

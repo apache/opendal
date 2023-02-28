@@ -22,18 +22,10 @@ pub type Writer = Box<dyn Write>;
 /// Write is the trait that OpenDAL returns to callers.
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
-    /// If this writer can be used as appendable writer.
-    fn can_append(&self) -> bool;
-
     /// Write whole content at once.
     ///
     /// To append multiple bytes together, use `append` instead.
     async fn write(&mut self, bs: Vec<u8>) -> Result<()>;
-
-    /// Initiate a process of append write.
-    ///
-    /// After initiate, users can append multiple bytes into this write.
-    async fn initiate(&mut self) -> Result<()>;
 
     /// Append bytes to the writer.
     ///
@@ -42,27 +34,16 @@ pub trait Write: Unpin + Send + Sync {
     /// and compatibility.
     async fn append(&mut self, bs: Vec<u8>) -> Result<()>;
 
-    /// Complete the append process
-    async fn complete(&mut self) -> Result<()>;
+    /// Close the writer and make sure all data has been flushed.
+    async fn close(&mut self) -> Result<()>;
 }
 
 #[async_trait]
 impl Write for () {
-    fn can_append(&self) -> bool {
-        false
-    }
-
     async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for output::Write")
-    }
-
-    async fn initiate(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "output writer doesn't support initiate",
-        ))
     }
 
     async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
@@ -74,10 +55,10 @@ impl Write for () {
         ))
     }
 
-    async fn complete(&mut self) -> Result<()> {
+    async fn close(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
-            "output writer doesn't support complete",
+            "output writer doesn't support close",
         ))
     }
 }
@@ -86,23 +67,15 @@ impl Write for () {
 /// work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
-    fn can_append(&self) -> bool {
-        (**self).can_append()
-    }
-
     async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         (**self).write(bs).await
-    }
-
-    async fn initiate(&mut self) -> Result<()> {
-        (**self).initiate().await
     }
 
     async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
         (**self).append(bs).await
     }
 
-    async fn complete(&mut self) -> Result<()> {
-        (**self).complete().await
+    async fn close(&mut self) -> Result<()> {
+        (**self).close().await
     }
 }

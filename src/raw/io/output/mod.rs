@@ -37,6 +37,10 @@ mod blocking_read;
 pub use blocking_read::BlockingRead;
 pub use blocking_read::BlockingReader;
 
+mod blocking_write;
+pub use blocking_write::BlockingWrite;
+pub use blocking_write::BlockingWriter;
+
 pub mod into_blocking_reader;
 
 mod cursor;

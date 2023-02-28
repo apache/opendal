@@ -50,6 +50,11 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
     type BlockingReader: output::BlockingRead;
+    /// Reader is the associated writer the could return in `write` operation.
+    type Writer: output::Write;
+    /// BlockingWriter is the associated writer the could return in
+    /// `blocking_write` operation.
+    type BlockingWriter: output::BlockingWrite;
     /// Pager is the associated page that return in `list` or `scan` operation.
     type Pager: output::Page;
     /// BlockingPager is the associated pager that could return in
@@ -114,8 +119,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let (_, _, _) = (path, args, r);
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let (_, _) = (path, args);
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -315,13 +320,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// This operation is the blocking version of [`Accessor::write`]
     ///
     /// Require [`AccessorCapability::Write`] and [`AccessorCapability::Blocking`]
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        let (_, _, _) = (path, args, r);
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let (_, _) = (path, args);
 
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -394,6 +394,8 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
 impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     type Reader = T::Reader;
     type BlockingReader = T::BlockingReader;
+    type Writer = T::Writer;
+    type BlockingWriter = T::BlockingWriter;
     type Pager = T::Pager;
     type BlockingPager = T::BlockingPager;
 
@@ -408,8 +410,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.as_ref().read(path, args).await
     }
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.as_ref().write(path, args, r).await
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.as_ref().write(path, args).await
     }
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().stat(path, args).await
@@ -468,13 +470,8 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.as_ref().blocking_read(path, args)
     }
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.as_ref().blocking_write(path, args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.as_ref().blocking_write(path, args)
     }
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.as_ref().blocking_stat(path, args)
@@ -496,6 +493,8 @@ pub type FusedAccessor = Arc<
     dyn Accessor<
         Reader = output::Reader,
         BlockingReader = output::BlockingReader,
+        Writer = output::Writer,
+        BlockingWriter = output::BlockingWriter,
         Pager = output::Pager,
         BlockingPager = output::BlockingPager,
     >,

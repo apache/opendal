@@ -123,6 +123,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
     type Reader: output::Read;
     type BlockingReader: output::BlockingRead;
+    type Writer: output::Write;
+    type BlockingWriter: output::BlockingWrite;
     type Pager: output::Page;
     type BlockingPager: output::BlockingPage;
 
@@ -138,9 +140,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)>;
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.inner().write(path, args, r).await
-    }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)>;
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().stat(path, args).await
@@ -201,14 +201,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)>;
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.inner().blocking_write(path, args, r)
-    }
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)>;
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().blocking_stat(path, args)
@@ -227,6 +220,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 impl<L: LayeredAccessor> Accessor for L {
     type Reader = L::Reader;
     type BlockingReader = L::BlockingReader;
+    type Writer = L::Writer;
+    type BlockingWriter = L::BlockingWriter;
     type Pager = L::Pager;
     type BlockingPager = L::BlockingPager;
 
@@ -242,8 +237,8 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).read(path, args).await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        (self as &L).write(path, args, r).await
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        (self as &L).write(path, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -311,13 +306,8 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).blocking_read(path, args)
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        (self as &L).blocking_write(path, args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        (self as &L).blocking_write(path, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -368,6 +358,8 @@ mod tests {
     impl<A: Accessor> Accessor for Test<A> {
         type Reader = ();
         type BlockingReader = ();
+        type Writer = ();
+        type BlockingWriter = ();
         type Pager = ();
         type BlockingPager = ();
 

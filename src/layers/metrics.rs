@@ -501,6 +501,9 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type Inner = A;
     type Reader = MetricReader<A::Reader>;
     type BlockingReader = MetricReader<A::BlockingReader>;
+    // TODO: add metrics for writer
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -571,22 +574,13 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.handle.requests_total_write.increment(1);
-
-        let r = Box::new(MetricReader::new(
-            r,
-            Operation::Write,
-            self.handle.clone(),
-            self.handle.bytes_total_write.clone(),
-            self.handle.requests_duration_seconds_write.clone(),
-            None,
-        ));
 
         let start = Instant::now();
 
         self.inner
-            .write(path, args, r)
+            .write(path, args)
             .inspect_ok(|_| {
                 let dur = start.elapsed().as_secs_f64();
 
@@ -862,25 +856,11 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.handle.requests_total_blocking_write.increment(1);
 
-        let r = Box::new(MetricReader::new(
-            r,
-            Operation::BlockingWrite,
-            self.handle.clone(),
-            self.handle.bytes_total_blocking_write.clone(),
-            self.handle.requests_duration_seconds_blocking_write.clone(),
-            None,
-        ));
-
         let start = Instant::now();
-        let result = self.inner.blocking_write(path, args, r);
+        let result = self.inner.blocking_write(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         self.handle

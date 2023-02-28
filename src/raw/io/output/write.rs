@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
+use crate::*;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 
 /// Writer is a type erased [`Write`]
 pub type Writer = Box<dyn Write>;
@@ -26,14 +23,12 @@ pub type Writer = Box<dyn Write>;
 #[async_trait]
 pub trait Write: Unpin + Send + Sync {
     /// If this writer can be used as appendable writer.
-    const APPENDABLE: bool;
+    fn can_append(&self) -> bool;
 
     /// Write whole content at once.
     ///
-    /// We consume the writer here to indicate that users should
-    /// write all content. To append multiple bytes together, use
-    /// `append` instead.
-    async fn write(self, bs: Bytes) -> Result<()>;
+    /// To append multiple bytes together, use `append` instead.
+    async fn write(&mut self, bs: Vec<u8>) -> Result<()>;
 
     /// Initiate a process of append write.
     ///
@@ -45,17 +40,19 @@ pub trait Write: Unpin + Send + Sync {
     /// It is highly recommended to align the length of the input bytes
     /// into blocks of 4MiB (except the last block) for better performance
     /// and compatibility.
-    async fn append(&mut self, bs: Bytes) -> Result<()>;
+    async fn append(&mut self, bs: Vec<u8>) -> Result<()>;
 
     /// Complete the append process
-    async fn complete(self) -> Result<()>;
+    async fn complete(&mut self) -> Result<()>;
 }
 
 #[async_trait]
 impl Write for () {
-    const APPENDABLE: bool = false;
+    fn can_append(&self) -> bool {
+        false
+    }
 
-    async fn write(self, bs: Bytes) -> Result<()> {
+    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for output::Write")
@@ -68,7 +65,7 @@ impl Write for () {
         ))
     }
 
-    async fn append(&mut self, bs: Bytes) -> Result<()> {
+    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
         let _ = bs;
 
         Err(Error::new(
@@ -77,10 +74,35 @@ impl Write for () {
         ))
     }
 
-    async fn complete(self) -> Result<()> {
+    async fn complete(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output writer doesn't support complete",
         ))
+    }
+}
+
+/// `Box<dyn Write>` won't implement `Write` automanticly. To make Writer
+/// work as expected, we must add this impl.
+#[async_trait]
+impl<T: Write + ?Sized> Write for Box<T> {
+    fn can_append(&self) -> bool {
+        (**self).can_append()
+    }
+
+    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+        (**self).write(bs).await
+    }
+
+    async fn initiate(&mut self) -> Result<()> {
+        (**self).initiate().await
+    }
+
+    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+        (**self).append(bs).await
+    }
+
+    async fn complete(&mut self) -> Result<()> {
+        (**self).complete().await
     }
 }

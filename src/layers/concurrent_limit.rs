@@ -81,6 +81,8 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
     type Inner = A;
     type Reader = ConcurrentLimitWrapper<A::Reader>;
     type BlockingReader = ConcurrentLimitWrapper<A::BlockingReader>;
+    type Writer = ConcurrentLimitWrapper<A::Writer>;
+    type BlockingWriter = ConcurrentLimitWrapper<A::BlockingWriter>;
     type Pager = ConcurrentLimitWrapper<A::Pager>;
     type BlockingPager = ConcurrentLimitWrapper<A::BlockingPager>;
 
@@ -112,14 +114,18 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
             .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let _permit = self
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let permit = self
             .semaphore
-            .acquire()
+            .clone()
+            .acquire_owned()
             .await
             .expect("semaphore must be valid");
 
-        self.inner.write(path, args, r).await
+        self.inner
+            .write(path, args)
+            .await
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -258,18 +264,16 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
             .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        let _permit = self
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let permit = self
             .semaphore
-            .try_acquire()
+            .clone()
+            .try_acquire_owned()
             .expect("semaphore must be valid");
 
-        self.inner.blocking_write(path, args, r)
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -356,6 +360,35 @@ impl<R: output::BlockingRead> output::BlockingRead for ConcurrentLimitWrapper<R>
 
     fn next(&mut self) -> Option<std::io::Result<Bytes>> {
         self.inner.next()
+    }
+}
+
+#[async_trait]
+impl<R: output::Write> output::Write for ConcurrentLimitWrapper<R> {
+    async fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+        self.inner.write(bs).await
+    }
+
+    fn can_append(&self) -> bool {
+        self.inner.can_append()
+    }
+
+    async fn initiate(&mut self) -> Result<()> {
+        self.inner.initiate().await
+    }
+
+    async fn append(&mut self, bs: Vec<u8>) -> Result<()> {
+        self.inner.append(bs).await
+    }
+
+    async fn complete(&mut self) -> Result<()> {
+        self.inner.complete().await
+    }
+}
+
+impl<R: output::BlockingWrite> output::BlockingWrite for ConcurrentLimitWrapper<R> {
+    fn write(&mut self, bs: Vec<u8>) -> Result<()> {
+        self.inner.write(bs)
     }
 }
 

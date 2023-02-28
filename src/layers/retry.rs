@@ -153,6 +153,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type Inner = A;
     type Reader = RetryReader<A::Reader>;
     type BlockingReader = RetryReader<A::BlockingReader>;
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = RetryPager<A::Pager>;
     type BlockingPager = RetryPager<A::BlockingPager>;
 
@@ -194,8 +196,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     /// Return `Interrupted` Error even after retry.
     ///
     /// Allowing users to retry the write request from upper logic.
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.inner.write(path, args, r).await
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(path, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -373,13 +375,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.inner.blocking_write(path, args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner.blocking_write(path, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -836,6 +833,8 @@ mod tests {
     impl Accessor for MockService {
         type Reader = MockReader;
         type BlockingReader = ();
+            type Writer = ();
+    type BlockingWriter = ();
         type Pager = MockPager;
         type BlockingPager = ();
 

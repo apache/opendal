@@ -136,6 +136,9 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     type Inner = A;
     type Reader = TracingWrapper<A::Reader>;
     type BlockingReader = TracingWrapper<A::BlockingReader>;
+    // TODO: add tracing for me.
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = TracingWrapper<A::Pager>;
     type BlockingPager = TracingWrapper<A::BlockingPager>;
 
@@ -161,10 +164,9 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
             .await
     }
 
-    #[tracing::instrument(level = "debug", skip(self, r))]
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let r = Box::new(TracingWrapper::new(Span::current(), r));
-        self.inner.write(path, args, r).await
+    #[tracing::instrument(level = "debug", skip(self))]
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(path, args).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
@@ -253,14 +255,9 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
             .map(|(rp, r)| (rp, TracingWrapper::new(Span::current(), r)))
     }
 
-    #[tracing::instrument(level = "debug", skip(self, r))]
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.inner.blocking_write(path, args, r)
+    #[tracing::instrument(level = "debug", skip(self))]
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner.blocking_write(path, args)
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

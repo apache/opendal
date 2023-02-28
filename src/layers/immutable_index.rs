@@ -135,6 +135,8 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = ImmutableDir;
     type BlockingPager = ImmutableDir;
 
@@ -183,6 +185,14 @@ impl<A: Accessor> LayeredAccessor for ImmutableIndexAccessor<A> {
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner.blocking_read(path, args)
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(path, args).await
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner.blocking_write(path, args)
     }
 
     fn blocking_list(&self, path: &str, _: OpList) -> Result<(RpList, Self::BlockingPager)> {

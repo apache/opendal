@@ -168,6 +168,9 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;
+    // TODO: we shoud add logging for writer.
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = LoggingPager<A::Pager>;
     type BlockingPager = LoggingPager<A::BlockingPager>;
 
@@ -285,7 +288,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} size={:?} -> started",
@@ -297,18 +300,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
 
         let size = args.size();
 
-        let reader = LoggingReader::new(
-            self.scheme,
-            Operation::Write,
-            path,
-            Some(args.size()),
-            r,
-            self.failure_level,
-        );
-        let r = Box::new(reader) as input::Reader;
-
         self.inner
-            .write(path, args, r)
+            .write(path, args)
             .await
             .map(|v| {
                 debug!(
@@ -857,12 +850,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         debug!(
             target: LOGGING_TARGET,
             "service={} operation={} path={} size={:?} -> started",
@@ -872,17 +860,8 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             args.size()
         );
 
-        let reader = LoggingReader::new(
-            self.scheme,
-            Operation::BlockingWrite,
-            path,
-            Some(args.size()),
-            r,
-            self.failure_level,
-        );
-
         self.inner
-            .blocking_write(path, args.clone(), Box::new(reader))
+            .blocking_write(path, args.clone())
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,

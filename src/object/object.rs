@@ -17,8 +17,8 @@ use std::io::Read;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use flagset::FlagSet;
-use futures::io::Cursor;
 use futures::AsyncReadExt;
 use time::Duration;
 use tokio::io::ReadBuf;
@@ -567,8 +567,8 @@ impl Object {
         }
 
         let bs = bs.into();
-        let r = Cursor::new(bs);
-        let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
+        let (_, mut w) = self.acc.write(self.path(), args).await?;
+        w.write(bs).await?;
 
         Ok(())
     }
@@ -633,94 +633,9 @@ impl Object {
         }
 
         let bs = bs.into();
-        let r = std::io::Cursor::new(bs);
-        let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
+        let (_, mut w) = self.acc.blocking_write(self.path(), args)?;
+        w.write(bs)?;
 
-        Ok(())
-    }
-
-    /// Write data into object from a [`input::Read`].
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// use bytes::Bytes;
-    /// use futures::io::Cursor;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let r = Cursor::new(vec![0; 4096]);
-    /// let _ = o.write_from(4096, r).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn write_from(&self, size: u64, br: impl input::Read + 'static) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_operation("Object::write_from")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let _ = self
-            .acc
-            .write(self.path(), OpWrite::new(size), Box::new(br))
-            .await?;
-        Ok(())
-    }
-
-    /// Write data into object from a [`input::BlockingRead`].
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// use std::io::Cursor;
-    ///
-    /// use bytes::Bytes;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let r = Cursor::new(vec![0; 4096]);
-    /// let _ = o.blocking_write_from(4096, r)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_write_from(
-        &self,
-        size: u64,
-        br: impl input::BlockingRead + 'static,
-    ) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_operation("Object::blocking_write_from")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let _ = self
-            .acc
-            .blocking_write(self.path(), OpWrite::new(size), Box::new(br))?;
         Ok(())
     }
 

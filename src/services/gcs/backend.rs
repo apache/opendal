@@ -34,6 +34,7 @@ use time::OffsetDateTime;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::uri::percent_encode_path;
+use super::writer::GcsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -326,8 +327,8 @@ pub struct GcsBackend {
     // root should end with "/"
     root: String,
 
-    client: HttpClient,
-    signer: Arc<GoogleSigner>,
+    pub client: HttpClient,
+    pub signer: Arc<GoogleSigner>,
 }
 
 impl Debug for GcsBackend {
@@ -346,6 +347,8 @@ impl Debug for GcsBackend {
 impl Accessor for GcsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = GcsWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -388,24 +391,11 @@ impl Accessor for GcsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req = self.gcs_insert_object_request(
-            path,
-            Some(args.size()),
-            args.content_type(),
-            AsyncBody::Reader(r),
-        )?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        if (200..300).contains(&resp.status().as_u16()) {
-            resp.into_body().consume().await?;
-            Ok(RpWrite::new(args.size()))
-        } else {
-            Err(parse_error(resp).await?)
-        }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            GcsWriter::new(self.clone(), args, path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -516,7 +506,7 @@ impl GcsBackend {
         self.client.send_async(req).await
     }
 
-    fn gcs_insert_object_request(
+    pub fn gcs_insert_object_request(
         &self,
         path: &str,
         size: Option<u64>,

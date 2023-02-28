@@ -28,6 +28,7 @@ use reqsign::HuaweicloudObsSigner;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::writer::ObsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -293,10 +294,10 @@ impl Builder for ObsBuilder {
 /// Backend for Huaweicloud OBS services.
 #[derive(Debug, Clone)]
 pub struct ObsBackend {
-    client: HttpClient,
+    pub client: HttpClient,
     root: String,
     endpoint: String,
-    signer: Arc<HuaweicloudObsSigner>,
+    pub signer: Arc<HuaweicloudObsSigner>,
     bucket: String,
 }
 
@@ -304,6 +305,8 @@ pub struct ObsBackend {
 impl Accessor for ObsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = ObsWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -353,27 +356,11 @@ impl Accessor for ObsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let mut req = self.obs_put_object_request(
-            path,
-            Some(args.size()),
-            args.content_type(),
-            AsyncBody::Reader(r),
-        )?;
-
-        self.signer.sign(&mut req).map_err(new_request_sign_error)?;
-
-        let resp = self.client.send_async(req).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            ObsWriter::new(self.clone(), args, path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -449,7 +436,7 @@ impl ObsBackend {
         self.client.send_async(req).await
     }
 
-    fn obs_put_object_request(
+    pub fn obs_put_object_request(
         &self,
         path: &str,
         size: Option<u64>,

@@ -17,3 +17,4 @@ pub use backend::ObsBuilder as Obs;
 
 mod dir_stream;
 mod error;
+mod writer;

@@ -18,3 +18,4 @@ pub use builder::IpmfsBuilder as Ipmfs;
 
 mod dir_stream;
 mod error;
+mod writer;

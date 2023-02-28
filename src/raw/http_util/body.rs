@@ -91,7 +91,7 @@ pub enum AsyncBody {
     ///
     /// If input with this field, we will goto the internal multipart
     /// handle logic.
-    Multipart(String, input::Reader),
+    Multipart(String, Bytes),
 }
 
 impl Default for AsyncBody {

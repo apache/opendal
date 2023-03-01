@@ -206,44 +206,6 @@ impl<A: Accessor> LayeredAccessor for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.inner.create_multipart(path, args).await
-    }
-
-    #[tracing::instrument(level = "debug", skip(self, r))]
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        let r = Box::new(TracingWrapper::new(Span::current(), r));
-        self.inner.write_multipart(path, args, r).await
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.inner.complete_multipart(path, args).await
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.inner.abort_multipart(path, args).await
-    }
-
-    #[tracing::instrument(level = "debug", skip(self))]
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.blocking_create(path, args)
     }

@@ -162,39 +162,6 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().presign(path, args)
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.inner().create_multipart(path, args).await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        self.inner().write_multipart(path, args, r).await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.inner().complete_multipart(path, args).await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.inner().abort_multipart(path, args).await
-    }
-
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner().blocking_create(path, args)
     }
@@ -263,39 +230,6 @@ impl<L: LayeredAccessor> Accessor for L {
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         (self as &L).presign(path, args)
-    }
-
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        (self as &L).create_multipart(path, args).await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        (self as &L).write_multipart(path, args, r).await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        (self as &L).complete_multipart(path, args).await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        (self as &L).abort_multipart(path, args).await
     }
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {

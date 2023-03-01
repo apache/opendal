@@ -1410,18 +1410,4 @@ impl Object {
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())
     }
-
-    /// Construct a multipart with existing upload id.
-    pub fn to_multipart(&self, upload_id: &str) -> ObjectMultipart {
-        ObjectMultipart::new(self.operator(), &self.path, upload_id)
-    }
-
-    /// Create a new multipart for current path.
-    pub async fn create_multipart(&self) -> Result<ObjectMultipart> {
-        let rp = self
-            .acc
-            .create_multipart(self.path(), OpCreateMultipart::new())
-            .await?;
-        Ok(self.to_multipart(rp.upload_id()))
-    }
 }

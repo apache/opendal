@@ -25,10 +25,6 @@ mod list;
 #[macro_use]
 mod list_only;
 #[macro_use]
-mod multipart;
-#[macro_use]
-mod multipart_presign;
-#[macro_use]
 mod presign;
 #[macro_use]
 mod read_only;
@@ -57,10 +53,6 @@ macro_rules! behavior_tests {
             behavior_presign_tests!($service);
             // can_read && can_write && can_blocking && can_list
             behavior_blocking_list_tests!($service);
-            // can_read && can_write && can_multipart
-            behavior_multipart_tests!($service);
-            // can_read && can_write && can_multipart && can_presign
-            behavior_multipart_presign_tests!($service);
             // can_list && !can_write
             behavior_list_only_tests!($service);
         )*

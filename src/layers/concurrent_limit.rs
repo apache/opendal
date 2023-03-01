@@ -176,63 +176,6 @@ impl<A: Accessor> LayeredAccessor for ConcurrentLimitAccessor<A> {
             .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
-
-        self.inner.create_multipart(path, args).await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
-
-        self.inner.write_multipart(path, args, r).await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
-
-        self.inner.complete_multipart(path, args).await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
-
-        self.inner.abort_multipart(path, args).await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         let _permit = self
             .semaphore

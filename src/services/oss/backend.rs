@@ -522,12 +522,6 @@ impl Accessor for OssBackend {
                 AsyncBody::Empty,
                 true,
             )?,
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "oss doesn't support multipart now",
-                ))
-            }
         };
 
         self.signer

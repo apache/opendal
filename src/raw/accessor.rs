@@ -218,75 +218,6 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
         ))
     }
 
-    /// Invoke the `create_multipart` operation on the specified path.
-    ///
-    /// Require [`AccessorCapability::Multipart`]
-    ///
-    /// # Behavior
-    ///
-    /// - This op returns a `upload_id` which is required to for following APIs.
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `write_multipart` operation on the specified path.
-    ///
-    /// Require [`AccessorCapability::Multipart`]
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        let (_, _, _) = (path, args, r);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `complete_multipart` operation on the specified path.
-    ///
-    /// Require [`AccessorCapability::Multipart`]
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
-    /// Invoke the `abort_multipart` operation on the specified path.
-    ///
-    /// Require [`AccessorCapability::Multipart`]
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        let (_, _) = (path, args);
-
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
-    }
-
     /// Invoke the `blocking_create` operation on the specified path.
     ///
     /// This operation is the blocking version of [`Accessor::create`]
@@ -434,36 +365,6 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
         self.as_ref().presign(path, args)
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.as_ref().create_multipart(path, args).await
-    }
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        self.as_ref().write_multipart(path, args, r).await
-    }
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.as_ref().complete_multipart(path, args).await
-    }
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.as_ref().abort_multipart(path, args).await
-    }
-
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.as_ref().blocking_create(path, args)
     }
@@ -590,8 +491,6 @@ flags! {
         Scan,
         /// Add this capability if service supports `presign`
         Presign,
-        /// Add this capability if service supports `multipart`
-        Multipart,
         /// Add this capability if service supports `blocking`
         Blocking,
         /// Add this capability if service supports `batch`

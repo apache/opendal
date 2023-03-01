@@ -1240,13 +1240,6 @@ impl Accessor for S3Backend {
             PresignOperation::Write(_) => {
                 self.s3_put_object_request(path, None, None, None, AsyncBody::Empty)?
             }
-            PresignOperation::WriteMultipart(v) => self.s3_upload_part_request(
-                path,
-                v.upload_id(),
-                v.part_number(),
-                None,
-                AsyncBody::Empty,
-            )?,
         };
 
         self.signer

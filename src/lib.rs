@@ -83,8 +83,6 @@ pub use object::ObjectLister;
 pub use object::ObjectMetadata;
 pub use object::ObjectMetakey;
 pub use object::ObjectMode;
-pub use object::ObjectMultipart;
-pub use object::ObjectPart;
 pub use object::ObjectReader;
 pub use object::ObjectWriter;
 
@@ -123,8 +121,6 @@ mod tests {
         assert_eq!(32, size_of::<Object>());
         assert_eq!(192, size_of::<ObjectMetadata>());
         assert_eq!(1, size_of::<ObjectMode>());
-        assert_eq!(64, size_of::<ObjectMultipart>());
-        assert_eq!(32, size_of::<ObjectPart>());
         assert_eq!(24, size_of::<Scheme>());
     }
 }

@@ -15,6 +15,6 @@
 mod backend;
 pub use backend::AzdfsBuilder as Azdfs;
 
-mod pager;
 mod error;
+mod pager;
 mod writer;

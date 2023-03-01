@@ -16,7 +16,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use http::StatusCode;
 
-use super::backend::{CompleteMultipartUploadRequestPart, S3Backend};
+use super::backend::CompleteMultipartUploadRequestPart;
+use super::backend::S3Backend;
 use super::error::parse_error;
 use crate::ops::OpWrite;
 use crate::raw::*;

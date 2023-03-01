@@ -22,10 +22,9 @@ use bytes::Bytes;
 use tokio::io::AsyncSeekExt;
 use tokio::io::AsyncWriteExt;
 
+use super::error::parse_io_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_io_error;
 
 pub struct FsWriter<F> {
     target_path: PathBuf,

@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.29.0] - 2023-03-01
+
+### Added
+
+- RFC-1420: Object Writer (#1420)
+- feat: oss backend support http protocol (#1432)
+- feat: Implement ObjectWriter Support (#1431)
+- feat/layers/retry: Add Write Retry support (#1447)
+- feat: Add Write append tests (#1448)
+
+### Changed
+
+- refactor: Decouple decompress read feature from opendal (#1406)
+- refactor: Cleanup pager related implementation (#1439)
+- refactor: Polish the implement details for Writer (#1445)
+- refactor: Remove `io::input` and Rename `io::output` to `oio` (#1446)
+
+### Fixed
+
+- fix(services/s3): Fix part number for AWS S3 (#1450)
+
+### CI
+
+- ci: Consistently apply license header (#1411)
+- ci: add typos check (#1425)
+
+### Docs
+
+- docs: Add services-dashmap feature (#1404)
+- docs: Fix incorrect indent for title (#1405)
+- docs: Add internal sections of Accessor and Layer (#1408)
+- docs: Add more guide for Accessor (#1409)
+- docs: Add tutorial of building a duck storage service (#1410)
+- docs: Add a basic object example (#1422)
+
+### Chore
+
+- chore: typo fix (#1418)
+- chore: Make license check happy (#1423)
+- chore: typo-fix (#1434)
+
 ## [v0.28.0] - 2023-02-22
 
 ### Added
@@ -1414,6 +1455,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.29.0]: https://github.com/datafuselabs/opendal/compare/v0.28.0...v0.29.0
 [v0.28.0]: https://github.com/datafuselabs/opendal/compare/v0.27.2...v0.28.0
 [v0.27.2]: https://github.com/datafuselabs/opendal/compare/v0.27.1...v0.27.2
 [v0.27.1]: https://github.com/datafuselabs/opendal/compare/v0.27.0...v0.27.1

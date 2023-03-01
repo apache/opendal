@@ -39,14 +39,6 @@ pub enum Operation {
     Batch,
     /// Operation for [`crate::raw::Accessor::presign`]
     Presign,
-    /// Operation for [`crate::raw::Accessor::create_multipart`]
-    CreateMultipart,
-    /// Operation for [`crate::raw::Accessor::write_multipart`]
-    WriteMultipart,
-    /// Operation for [`crate::raw::Accessor::complete_multipart`]
-    CompleteMultipart,
-    /// Operation for [`crate::raw::Accessor::abort_multipart`]
-    AbortMultipart,
     /// Operation for [`crate::raw::Accessor::blocking_create`]
     BlockingCreate,
     /// Operation for [`crate::raw::Accessor::blocking_read`]
@@ -95,10 +87,6 @@ impl From<Operation> for &'static str {
             Operation::Scan => "scan",
             Operation::Presign => "presign",
             Operation::Batch => "batch",
-            Operation::CreateMultipart => "create_multipart",
-            Operation::WriteMultipart => "write_multipart",
-            Operation::CompleteMultipart => "complete_multipart",
-            Operation::AbortMultipart => "abort_multipart",
             Operation::BlockingCreate => "blocking_create",
             Operation::BlockingRead => "blocking_read",
             Operation::BlockingWrite => "blocking_write",

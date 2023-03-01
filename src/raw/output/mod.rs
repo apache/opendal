@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! `output` provides traits and types that opendal returns as output.
-//!
-//! Unlike traits provided by `input`, we could add more features. For
-//! example, we only requires `Send` for `input::Reader` but we provide
-//! `Send + Sync` for `output::Reader` which makes it easier for user to use.
+//! `oio` provides traits and types that opendal returns as output.
 //!
 //! Those types should only be used internally and we don't want users to
 //! depend on them. So we should also implement trait like `AsyncRead` for

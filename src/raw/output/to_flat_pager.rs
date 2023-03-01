@@ -212,8 +212,8 @@ mod tests {
     use std::collections::HashMap;
     use std::vec;
 
-    use io::output::BlockingPage;
     use log::debug;
+    use output::BlockingPage;
 
     use super::*;
 

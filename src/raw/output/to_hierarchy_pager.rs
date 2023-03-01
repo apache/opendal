@@ -151,8 +151,8 @@ mod tests {
 
     use std::collections::HashSet;
 
-    use io::output::BlockingPage;
     use log::debug;
+    use output::BlockingPage;
 
     use super::*;
 

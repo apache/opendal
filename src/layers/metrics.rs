@@ -15,8 +15,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::io;
-use std::io::Read;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
@@ -24,7 +22,6 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::AsyncRead;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use metrics::increment_counter;
@@ -808,7 +805,7 @@ impl<R> MetricReader<R> {
 }
 
 impl<R: output::Read> output::Read for MetricReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
                 self.bytes += bytes as u64;
@@ -822,11 +819,11 @@ impl<R: output::Read> output::Read for MetricReader<R> {
         })
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         self.inner.poll_seek(cx, pos)
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         self.inner.poll_next(cx).map(|res| match res {
             Some(Ok(bytes)) => {
                 self.bytes += bytes.len() as u64;
@@ -842,30 +839,8 @@ impl<R: output::Read> output::Read for MetricReader<R> {
     }
 }
 
-impl<R: AsyncRead + Unpin> AsyncRead for MetricReader<R> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.inner)
-            .poll_read(cx, buf)
-            .map(|res| match res {
-                Ok(bytes) => {
-                    self.bytes += bytes as u64;
-                    Ok(bytes)
-                }
-                Err(e) => {
-                    self.handle
-                        .increment_errors_total(self.op, ErrorKind::Unexpected);
-                    Err(e)
-                }
-            })
-    }
-}
-
 impl<R: output::BlockingRead> output::BlockingRead for MetricReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner
             .read(buf)
             .map(|n| {
@@ -880,11 +855,11 @@ impl<R: output::BlockingRead> output::BlockingRead for MetricReader<R> {
     }
 
     #[inline]
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
 
-    fn next(&mut self) -> Option<io::Result<Bytes>> {
+    fn next(&mut self) -> Option<Result<Bytes>> {
         self.inner.next().map(|res| match res {
             Ok(bytes) => {
                 self.bytes += bytes.len() as u64;
@@ -896,22 +871,6 @@ impl<R: output::BlockingRead> output::BlockingRead for MetricReader<R> {
                 Err(e)
             }
         })
-    }
-}
-
-impl<R: input::BlockingRead> Read for MetricReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner
-            .read(buf)
-            .map(|n| {
-                self.bytes += n as u64;
-                n
-            })
-            .map_err(|e| {
-                self.handle
-                    .increment_errors_total(self.op, ErrorKind::Unexpected);
-                e
-            })
     }
 }
 

@@ -415,7 +415,7 @@ impl Accessor for FsBackend {
         let mut r = output::into_reader::from_fd(f, start, end);
 
         // Rewind to make sure we are on the correct offset.
-        r.seek(SeekFrom::Start(0)).await.map_err(parse_io_error)?;
+        r.seek(SeekFrom::Start(0)).await?;
 
         Ok((RpRead::new(end - start), r))
     }
@@ -602,7 +602,7 @@ impl Accessor for FsBackend {
         let mut r = output::into_blocking_reader::from_fd(f, start, end);
 
         // Rewind to make sure we are on the correct offset.
-        r.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
+        r.seek(SeekFrom::Start(0))?;
 
         Ok((RpRead::new(end - start), r))
     }

@@ -26,6 +26,7 @@ use bytes::Bytes;
 use futures::ready;
 use futures::StreamExt;
 
+use crate::raw::output::ReadOperation;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
@@ -164,21 +165,15 @@ impl IncomingAsyncBody {
     pub async fn bytes(mut self) -> Result<Bytes> {
         use output::ReadExt;
 
-        let poll_next_error = |err: io::Error| {
-            Error::new(ErrorKind::Unexpected, "fetch bytes from stream")
-                .with_operation("http_util::IncomingAsyncBody::bytes")
-                .set_source(err)
-        };
-
         // If there's only 1 chunk, we can just return Buf::to_bytes()
         let mut first = if let Some(buf) = self.next().await {
-            buf.map_err(poll_next_error)?
+            buf?
         } else {
             return Ok(Bytes::new());
         };
 
         let second = if let Some(buf) = self.next().await {
-            buf.map_err(poll_next_error)?
+            buf?
         } else {
             return Ok(first.copy_to_bytes(first.remaining()));
         };
@@ -190,30 +185,30 @@ impl IncomingAsyncBody {
         vec.put(second);
 
         while let Some(buf) = self.next().await {
-            vec.put(buf.map_err(poll_next_error)?);
+            vec.put(buf?);
         }
 
         Ok(vec.into())
     }
 
     #[inline]
-    fn check(expect: u64, actual: u64) -> io::Result<()> {
+    fn check(expect: u64, actual: u64) -> Result<()> {
         match actual.cmp(&expect) {
             Ordering::Equal => Ok(()),
-            Ordering::Less => Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                format!("reader got too less data, expect: {expect}, actual: {actual}"),
+            Ordering::Less => Err(Error::new(
+                ErrorKind::Unexpected,
+                &format!("reader got too less data, expect: {expect}, actual: {actual}"),
             )),
-            Ordering::Greater => Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("reader got too much data, expect: {expect}, actual: {actual}"),
+            Ordering::Greater => Err(Error::new(
+                ErrorKind::Unexpected,
+                &format!("reader got too much data, expect: {expect}, actual: {actual}"),
             )),
         }
     }
 }
 
 impl output::Read for IncomingAsyncBody {
-    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
@@ -238,16 +233,16 @@ impl output::Read for IncomingAsyncBody {
         Poll::Ready(Ok(amt))
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         let (_, _) = (cx, pos);
 
-        Poll::Ready(Err(io::Error::new(
-            io::ErrorKind::Unsupported,
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
             "output reader doesn't support seeking",
         )))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(bs) = self.chunk.take() {
             return Poll::Ready(Some(Ok(bs)));
         }
@@ -257,7 +252,13 @@ impl output::Read for IncomingAsyncBody {
                 self.consumed += bs.len() as u64;
                 Some(Ok(bs))
             }
-            Some(Err(err)) => Some(Err(err)),
+            Some(Err(err)) => Some(Err(Error::new(
+                ErrorKind::Unexpected,
+                "read data from http body",
+            )
+            .with_operation(ReadOperation::Next)
+            .with_context("source", "IncomingAsyncBody")
+            .set_source(err))),
             None => {
                 if let Some(size) = self.size {
                     Self::check(size, self.consumed)?;

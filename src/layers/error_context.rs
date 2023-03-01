@@ -14,7 +14,6 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io;
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
@@ -301,15 +300,15 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: output::Read> output::Read for ErrorContextWrapper<T> {
-    fn poll_read(&mut self, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<Result<usize>> {
         todo!()
     }
 
-    fn poll_seek(&mut self, _cx: &mut Context<'_>, _pos: SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, _cx: &mut Context<'_>, _pos: SeekFrom) -> Poll<Result<u64>> {
         todo!()
     }
 
-    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         todo!()
     }
 }

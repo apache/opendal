@@ -399,26 +399,10 @@ impl<R> RetryReader<R> {
             sleep: None,
         }
     }
-
-    fn is_retryable_error(err: &io::Error) -> bool {
-        matches!(
-            err.kind(),
-            io::ErrorKind::ConnectionRefused
-                | io::ErrorKind::ConnectionReset
-                | io::ErrorKind::ConnectionAborted
-                | io::ErrorKind::NotConnected
-                | io::ErrorKind::BrokenPipe
-                | io::ErrorKind::WouldBlock
-                | io::ErrorKind::TimedOut
-                | io::ErrorKind::Interrupted
-                | io::ErrorKind::UnexpectedEof
-                | io::ErrorKind::Other
-        )
-    }
 }
 
 impl<R: output::Read> output::Read for RetryReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
             self.sleep = None;
@@ -429,7 +413,7 @@ impl<R: output::Read> output::Read for RetryReader<R> {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
             }
-            Err(err) if !Self::is_retryable_error(&err) => {
+            Err(err) if !err.is_temporary() => {
                 self.current_backoff = None;
                 Poll::Ready(Err(err))
             }
@@ -460,7 +444,7 @@ impl<R: output::Read> output::Read for RetryReader<R> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
             self.sleep = None;
@@ -471,7 +455,7 @@ impl<R: output::Read> output::Read for RetryReader<R> {
                 self.current_backoff = None;
                 Poll::Ready(Ok(v))
             }
-            Err(err) if !Self::is_retryable_error(&err) => {
+            Err(err) if !err.is_temporary() => {
                 self.current_backoff = None;
                 Poll::Ready(Err(err))
             }
@@ -502,7 +486,7 @@ impl<R: output::Read> output::Read for RetryReader<R> {
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
             self.sleep = None;
@@ -517,7 +501,7 @@ impl<R: output::Read> output::Read for RetryReader<R> {
                 self.current_backoff = None;
                 Poll::Ready(Some(Ok(v)))
             }
-            Some(Err(err)) if !Self::is_retryable_error(&err) => {
+            Some(Err(err)) if !err.is_temporary() => {
                 self.current_backoff = None;
                 Poll::Ready(Some(Err(err)))
             }
@@ -550,7 +534,7 @@ impl<R: output::Read> output::Read for RetryReader<R> {
 }
 
 impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let retry = self.builder.build();
 
         let mut e = None;
@@ -560,7 +544,7 @@ impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let retryable = Self::is_retryable_error(&err);
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {
@@ -580,7 +564,7 @@ impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
         Err(e.unwrap())
     }
 
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         let retry = self.builder.build();
 
         let mut e = None;
@@ -591,7 +575,7 @@ impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
             match res {
                 Ok(v) => return Ok(v),
                 Err(err) => {
-                    let retryable = Self::is_retryable_error(&err);
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {
@@ -611,7 +595,7 @@ impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
         Err(e.unwrap())
     }
 
-    fn next(&mut self) -> Option<io::Result<bytes::Bytes>> {
+    fn next(&mut self) -> Option<Result<bytes::Bytes>> {
         let retry = self.builder.build();
 
         let mut e = None;
@@ -623,7 +607,7 @@ impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
                 None => return None,
                 Some(Ok(v)) => return Some(Ok(v)),
                 Some(Err(err)) => {
-                    let retryable = Self::is_retryable_error(&err);
+                    let retryable = err.is_temporary();
                     e = Some(err);
 
                     if retryable {
@@ -752,7 +736,6 @@ mod tests {
     use std::task::Context;
     use std::task::Poll;
 
-    use anyhow::anyhow;
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::AsyncReadExt;
@@ -805,24 +788,24 @@ mod tests {
     }
 
     impl output::Read for MockReader {
-        fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
             Poll::Ready(match *attempt {
-                1 => Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error from reader"),
-                )),
+                1 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
                 2 => {
                     buf[..7].copy_from_slice("Hello, ".as_bytes());
                     self.pos += 7;
                     Ok(7)
                 }
-                3 => Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    anyhow!("retryable_error from reader"),
-                )),
+                3 => Err(
+                    Error::new(ErrorKind::Unexpected, "retryable_error from reader")
+                        .set_temporary(),
+                ),
                 4 => {
                     buf[..6].copy_from_slice("World!".as_bytes());
                     self.pos += 6;
@@ -833,7 +816,7 @@ mod tests {
             })
         }
 
-        fn poll_seek(&mut self, _: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+        fn poll_seek(&mut self, _: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
             self.pos = match pos {
                 io::SeekFrom::Current(n) => (self.pos as i64 + n) as u64,
                 io::SeekFrom::Start(n) => n,
@@ -843,7 +826,7 @@ mod tests {
             Poll::Ready(Ok(self.pos))
         }
 
-        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
             let mut bs = vec![0; 1];
             match ready!(self.poll_read(cx, &mut bs)) {
                 Ok(v) if v == 0 => Poll::Ready(None),

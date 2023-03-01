@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Read;
-use std::io::Result;
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
@@ -23,6 +20,7 @@ use std::task::Poll;
 use bytes::Bytes;
 
 use crate::raw::*;
+use crate::*;
 
 /// Cursor is the cursor for [`Bytes`] that implements [`output::Read`]
 pub struct Cursor {
@@ -54,7 +52,11 @@ impl From<Vec<u8>> for Cursor {
 
 impl output::Read for Cursor {
     fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
-        let n = Read::read(&mut self.remaining_slice(), buf)?;
+        let n = Read::read(&mut self.remaining_slice(), buf).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "read data from Cursor")
+                .with_context("source", "Cursor")
+                .set_source(err)
+        })?;
         self.pos += n as u64;
         Poll::Ready(Ok(n))
     }
@@ -70,7 +72,7 @@ impl output::Read for Cursor {
             Some(n) if n >= 0 => n as u64,
             _ => {
                 return Poll::Ready(Err(Error::new(
-                    ErrorKind::InvalidInput,
+                    ErrorKind::Unexpected,
                     "invalid seek to a negative or overflowing position",
                 )))
             }
@@ -93,7 +95,11 @@ impl output::Read for Cursor {
 
 impl output::BlockingRead for Cursor {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let n = Read::read(&mut self.remaining_slice(), buf)?;
+        let n = Read::read(&mut self.remaining_slice(), buf).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "read data from Cursor")
+                .with_context("source", "Cursor")
+                .set_source(err)
+        })?;
         self.pos += n as u64;
         Ok(n)
     }
@@ -109,7 +115,7 @@ impl output::BlockingRead for Cursor {
             Some(n) if n >= 0 => n as u64,
             _ => {
                 return Err(Error::new(
-                    ErrorKind::InvalidInput,
+                    ErrorKind::Unexpected,
                     "invalid seek to a negative or overflowing position",
                 ))
             }

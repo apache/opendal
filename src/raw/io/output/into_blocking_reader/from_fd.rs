@@ -13,16 +13,15 @@
 // limitations under the License.
 
 use std::cmp;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Read;
-use std::io::Result;
 use std::io::Seek;
 use std::io::SeekFrom;
 
 use bytes::Bytes;
+use io::output::ReadOperation;
 
 use crate::raw::*;
+use crate::*;
 
 /// Convert given fd into [`output::BlockingRead`].
 pub fn from_fd<R>(fd: R, start: u64, end: u64) -> FdReader<R>
@@ -68,7 +67,12 @@ where
 
         let max = cmp::min(buf.len() as u64, self.current_size() as u64) as usize;
         // TODO: we can use pread instead.
-        let n = self.inner.read(&mut buf[..max])?;
+        let n = self.inner.read(&mut buf[..max]).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "read data from FdReader")
+                .with_operation(ReadOperation::BlockingRead)
+                .with_context("source", "FdReader")
+                .set_source(err)
+        })?;
         self.offset += n as u64;
         Ok(n)
     }
@@ -85,17 +89,21 @@ where
 
         match base.checked_add(offset) {
             Some(n) if n < 0 => Err(Error::new(
-                ErrorKind::InvalidInput,
+                ErrorKind::Unexpected,
                 "invalid seek to a negative or overflowing position",
             )),
             Some(n) => {
-                let cur = self.inner.seek(SeekFrom::Start(n as u64))?;
+                let cur = self.inner.seek(SeekFrom::Start(n as u64)).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "seek data from FdReader")
+                        .with_context("source", "FdReader")
+                        .set_source(err)
+                })?;
 
                 self.offset = cur;
                 Ok(self.offset - self.start)
             }
             None => Err(Error::new(
-                ErrorKind::InvalidInput,
+                ErrorKind::Unexpected,
                 "invalid seek to a negative or overflowing position",
             )),
         }

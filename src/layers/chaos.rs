@@ -173,18 +173,15 @@ impl<R> ChaosReader<R> {
         point >= (self.error_ratio * 100.0) as i32
     }
 
-    fn unexpected_eof() -> io::Error {
-        io::Error::new(
-            io::ErrorKind::UnexpectedEof,
-            Error::new(ErrorKind::Unexpected, "I am your chaos!")
-                .with_operation("chaos")
-                .set_temporary(),
-        )
+    fn unexpected_eof() -> Error {
+        Error::new(ErrorKind::Unexpected, "I am your chaos!")
+            .with_operation("chaos")
+            .set_temporary()
     }
 }
 
 impl<R: output::Read> output::Read for ChaosReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         if self.i_feel_lucky() {
             self.inner.poll_read(cx, buf)
         } else {
@@ -192,7 +189,7 @@ impl<R: output::Read> output::Read for ChaosReader<R> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         if self.i_feel_lucky() {
             self.inner.poll_seek(cx, pos)
         } else {
@@ -200,7 +197,7 @@ impl<R: output::Read> output::Read for ChaosReader<R> {
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if self.i_feel_lucky() {
             self.inner.poll_next(cx)
         } else {
@@ -210,7 +207,7 @@ impl<R: output::Read> output::Read for ChaosReader<R> {
 }
 
 impl<R: output::BlockingRead> output::BlockingRead for ChaosReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         if self.i_feel_lucky() {
             self.inner.read(buf)
         } else {
@@ -218,7 +215,7 @@ impl<R: output::BlockingRead> output::BlockingRead for ChaosReader<R> {
         }
     }
 
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         if self.i_feel_lucky() {
             self.inner.seek(pos)
         } else {
@@ -226,7 +223,7 @@ impl<R: output::BlockingRead> output::BlockingRead for ChaosReader<R> {
         }
     }
 
-    fn next(&mut self) -> Option<io::Result<Bytes>> {
+    fn next(&mut self) -> Option<Result<Bytes>> {
         if self.i_feel_lucky() {
             self.inner.next()
         } else {

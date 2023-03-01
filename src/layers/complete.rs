@@ -398,7 +398,7 @@ where
     A: Accessor<Reader = R>,
     R: output::Read,
 {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         use CompleteReader::*;
 
         match self {
@@ -409,7 +409,7 @@ where
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         use CompleteReader::*;
 
         match self {
@@ -420,7 +420,7 @@ where
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
         use CompleteReader::*;
 
         match self {
@@ -437,7 +437,7 @@ where
     A: Accessor<BlockingReader = R>,
     R: output::BlockingRead,
 {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         use CompleteReader::*;
 
         match self {
@@ -447,7 +447,7 @@ where
         }
     }
 
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         use CompleteReader::*;
 
         match self {
@@ -457,7 +457,7 @@ where
         }
     }
 
-    fn next(&mut self) -> Option<io::Result<bytes::Bytes>> {
+    fn next(&mut self) -> Option<Result<bytes::Bytes>> {
         use CompleteReader::*;
 
         match self {

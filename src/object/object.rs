@@ -340,6 +340,7 @@ impl Object {
         let mut buf = ReadBuf::uninit(dst);
         unsafe { buf.assume_init(length) };
 
+        // TODO: use native read api
         s.read_exact(buf.initialized_mut()).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read from storage")
                 .with_operation("Object:range_read")

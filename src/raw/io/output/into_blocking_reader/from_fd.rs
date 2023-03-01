@@ -18,7 +18,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 
 use bytes::Bytes;
-use io::output::ReadOperation;
 
 use crate::raw::*;
 use crate::*;
@@ -69,7 +68,6 @@ where
         // TODO: we can use pread instead.
         let n = self.inner.read(&mut buf[..max]).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read data from FdReader")
-                .with_operation(ReadOperation::BlockingRead)
                 .with_context("source", "FdReader")
                 .set_source(err)
         })?;

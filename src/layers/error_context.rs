@@ -24,6 +24,8 @@ use futures::TryFutureExt;
 
 use crate::ops::*;
 use crate::raw::output::PageOperation;
+use crate::raw::output::ReadOperation;
+use crate::raw::output::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -62,10 +64,10 @@ impl<A: Accessor> Debug for ErrorContextAccessor<A> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     type Inner = A;
-    type Reader = A::Reader;
-    type BlockingReader = A::BlockingReader;
-    type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
+    type Reader = ErrorContextWrapper<A::Reader>;
+    type BlockingReader = ErrorContextWrapper<A::BlockingReader>;
+    type Writer = ErrorContextWrapper<A::Writer>;
+    type BlockingWriter = ErrorContextWrapper<A::BlockingWriter>;
     type Pager = ErrorContextWrapper<A::Pager>;
     type BlockingPager = ErrorContextWrapper<A::BlockingPager>;
 
@@ -93,6 +95,16 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
         self.inner
             .read(path, args)
+            .map_ok(|(rp, os)| {
+                (
+                    rp,
+                    ErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        inner: os,
+                    },
+                )
+            })
             .map_err(|err| {
                 err.with_operation(Operation::Read)
                     .with_context("service", self.meta.scheme())
@@ -105,6 +117,16 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
+            .map_ok(|(rp, os)| {
+                (
+                    rp,
+                    ErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        inner: os,
+                    },
+                )
+            })
             .map_err(|err| {
                 err.with_operation(Operation::Write)
                     .with_context("service", self.meta.scheme())
@@ -221,19 +243,43 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        self.inner.blocking_read(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingRead)
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+        self.inner
+            .blocking_read(path, args)
+            .map(|(rp, os)| {
+                (
+                    rp,
+                    ErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        inner: os,
+                    },
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::BlockingRead)
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingWrite)
-                .with_context("service", self.meta.scheme())
-                .with_context("path", path)
-        })
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, os)| {
+                (
+                    rp,
+                    ErrorContextWrapper {
+                        scheme: self.meta.scheme(),
+                        path: path.to_string(),
+                        inner: os,
+                    },
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::BlockingWrite)
+                    .with_context("service", self.meta.scheme())
+                    .with_context("path", path)
+            })
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -300,16 +346,109 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T: output::Read> output::Read for ErrorContextWrapper<T> {
-    fn poll_read(&mut self, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<Result<usize>> {
-        todo!()
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
+        self.inner.poll_read(cx, buf).map_err(|err| {
+            err.with_operation(ReadOperation::Read)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
     }
 
-    fn poll_seek(&mut self, _cx: &mut Context<'_>, _pos: SeekFrom) -> Poll<Result<u64>> {
-        todo!()
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+        self.inner.poll_seek(cx, pos).map_err(|err| {
+            err.with_operation(ReadOperation::Seek)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
     }
 
-    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
-        todo!()
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
+        self.inner.poll_next(cx).map_err(|err| {
+            err.with_operation(ReadOperation::Next)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+}
+
+impl<T: output::BlockingRead> output::BlockingRead for ErrorContextWrapper<T> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.inner.read(buf).map_err(|err| {
+            err.with_operation(ReadOperation::BlockingRead)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+        self.inner.seek(pos).map_err(|err| {
+            err.with_operation(ReadOperation::BlockingSeek)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        self.inner.next().map(|v| {
+            v.map_err(|err| {
+                err.with_operation(ReadOperation::BlockingNext)
+                    .with_context("service", self.scheme)
+                    .with_context("path", &self.path)
+            })
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl<T: output::Write> output::Write for ErrorContextWrapper<T> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        self.inner.write(bs).await.map_err(|err| {
+            err.with_operation(WriteOperation::Write)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.inner.append(bs).await.map_err(|err| {
+            err.with_operation(WriteOperation::Append)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await.map_err(|err| {
+            err.with_operation(WriteOperation::Close)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+}
+
+impl<T: output::BlockingWrite> output::BlockingWrite for ErrorContextWrapper<T> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        self.inner.write(bs).map_err(|err| {
+            err.with_operation(WriteOperation::BlockingWrite)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.inner.append(bs).map_err(|err| {
+            err.with_operation(WriteOperation::BlockingAppend)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
+    }
+
+    fn close(&mut self) -> Result<()> {
+        self.inner.close().map_err(|err| {
+            err.with_operation(WriteOperation::BlockingClose)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+        })
     }
 }
 

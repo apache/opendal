@@ -26,7 +26,6 @@ use bytes::Bytes;
 use futures::ready;
 use futures::StreamExt;
 
-use crate::raw::output::ReadOperation;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
@@ -256,7 +255,6 @@ impl output::Read for IncomingAsyncBody {
                 ErrorKind::Unexpected,
                 "read data from http body",
             )
-            .with_operation(ReadOperation::Next)
             .with_context("source", "IncomingAsyncBody")
             .set_source(err))),
             None => {

@@ -21,7 +21,6 @@ use std::task::Poll;
 use futures::ready;
 use futures::AsyncRead;
 use futures::AsyncSeek;
-use io::output::ReadOperation;
 
 use crate::raw::*;
 use crate::*;
@@ -72,7 +71,6 @@ where
         let n =
             ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf[..max])).map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "read data from FdReader")
-                    .with_operation(ReadOperation::Read)
                     .with_context("source", "FdReader")
                     .set_source(err)
             })?;
@@ -100,7 +98,6 @@ where
                     ready!(Pin::new(&mut self.inner).poll_seek(cx, SeekFrom::Start(n as u64)))
                         .map_err(|err| {
                             Error::new(ErrorKind::Unexpected, "seek data from FdReader")
-                                .with_operation(ReadOperation::Seek)
                                 .with_context("source", "FdReader")
                                 .set_source(err)
                         })?;

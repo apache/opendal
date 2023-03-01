@@ -19,5 +19,4 @@
 //! This mod is not a part of OpenDAL's public API. We expose them out to make
 //! it easier to develop services and layers outside opendal.
 
-pub mod input;
 pub mod output;

@@ -23,6 +23,7 @@ use async_tls::TlsConnector;
 use async_trait::async_trait;
 use bb8::PooledConnection;
 use bb8::RunError;
+use futures::AsyncRead;
 use futures::AsyncReadExt;
 use http::Uri;
 use log::debug;
@@ -365,7 +366,7 @@ impl Accessor for FtpBackend {
         let meta = self.ftp_stat(path).await?;
 
         let br = args.range();
-        let (r, size): (input::Reader, _) = match (br.offset(), br.size()) {
+        let (r, size): (Box<dyn AsyncRead + Send + Unpin>, _) = match (br.offset(), br.size()) {
             (Some(offset), Some(size)) => {
                 ftp_stream.resume_transfer(offset as usize).await?;
                 let ds = ftp_stream.retr_as_stream(path).await?.take(size);

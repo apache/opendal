@@ -80,7 +80,6 @@ mod tests {
     use serde_json::from_reader;
 
     use super::*;
-    use crate::raw::input::Stream;
 
     /// Error response example from https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Error%20Responses
     #[tokio::test]
@@ -97,10 +96,7 @@ mod tests {
 }
     "#,
         );
-        let body = IncomingAsyncBody::new(
-            Box::new(stream::iter(vec![Ok(ill_args.clone())])) as Box<dyn Stream>,
-            None,
-        );
+        let body = IncomingAsyncBody::new(Box::new(stream::iter(vec![Ok(ill_args.clone())])), None);
         let resp = Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body(body)

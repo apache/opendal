@@ -15,7 +15,6 @@
 use std::env;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -261,16 +260,11 @@ impl HttpClient {
         }
 
         let stream = resp.bytes_stream().map_err(|err| {
-            io::Error::new(
-                // If stream returns a body related error, we can convert
-                // it to interrupt so we can retry it.
-                if err.is_body() {
-                    io::ErrorKind::Interrupted
-                } else {
-                    io::ErrorKind::Other
-                },
-                err,
-            )
+            // If stream returns a body related error, we can convert
+            // it to interrupt so we can retry it.
+            Error::new(ErrorKind::Unexpected, "read data from http stream")
+                .map(|v| if err.is_body() { v.set_temporary() } else { v })
+                .set_source(err)
         });
 
         let body = IncomingAsyncBody::new(Box::new(stream), content_length);

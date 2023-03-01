@@ -455,6 +455,13 @@ impl Accessor for OssBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.append() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "append write is not supported",
+            ));
+        }
+
         Ok((
             RpWrite::default(),
             OssWriter::new(self.clone(), args, path.to_string()),

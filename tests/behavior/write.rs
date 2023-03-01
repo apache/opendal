@@ -97,6 +97,7 @@ macro_rules! behavior_write_tests {
                 test_delete_with_special_chars,
                 test_delete_not_existing,
                 test_delete_stream,
+                test_append,
             );
         )*
     };
@@ -811,5 +812,47 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
         )
     }
 
+    Ok(())
+}
+
+// Append write
+pub async fn test_append(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let size = 5 * 1024 * 1024; // write file with 5 MiB
+    let content_a = gen_fixed_bytes(size);
+    let content_b = gen_fixed_bytes(size);
+
+    let mut w = match op.object(&path).writer().await {
+        Ok(w) => w,
+        Err(err) if err.kind() == ErrorKind::Unsupported => {
+            warn!("service doesn't support write with append");
+            return Ok(());
+        }
+        Err(err) => return Err(err.into()),
+    };
+    w.append(content_a.clone()).await?;
+    w.append(content_b.clone()).await?;
+    w.close().await?;
+
+    let meta = op.object(&path).stat().await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), (size * 2) as u64);
+
+    let bs = op.object(&path).read().await?;
+    assert_eq!(bs.len(), size * 2, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", Sha256::digest(content_a)),
+        "read content a"
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[size..])),
+        format!("{:x}", Sha256::digest(content_b)),
+        "read content b"
+    );
+
+    op.object(&path)
+        .delete()
+        .await
+        .expect("delete must succeed");
     Ok(())
 }

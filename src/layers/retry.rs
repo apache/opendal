@@ -18,7 +18,6 @@ use std::io;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
-use std::thread::sleep;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -27,11 +26,15 @@ use backon::BlockingRetryable;
 use backon::ExponentialBackoff;
 use backon::ExponentialBuilder;
 use backon::Retryable;
+use bytes::Bytes;
 use futures::ready;
 use futures::FutureExt;
 use log::warn;
 
 use crate::ops::*;
+use crate::raw::oio::PageOperation;
+use crate::raw::oio::ReadOperation;
+use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -151,12 +154,12 @@ impl<A: Accessor> Debug for RetryAccessor<A> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type Inner = A;
-    type Reader = RetryReader<A::Reader>;
-    type BlockingReader = RetryReader<A::BlockingReader>;
-    type Writer = A::Writer;
-    type BlockingWriter = A::BlockingWriter;
-    type Pager = RetryPager<A::Pager>;
-    type BlockingPager = RetryPager<A::BlockingPager>;
+    type Reader = RetryWrapper<A::Reader>;
+    type BlockingReader = RetryWrapper<A::BlockingReader>;
+    type Writer = RetryWrapper<A::Writer>;
+    type BlockingWriter = RetryWrapper<A::BlockingWriter>;
+    type Pager = RetryWrapper<A::Pager>;
+    type BlockingPager = RetryWrapper<A::BlockingPager>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -187,7 +190,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     Operation::Read, dur.as_secs_f64(), err)
             })
             .map(|v| {
-                v.map(|(rp, r)| (rp, RetryReader::new(r, path, self.builder.clone())))
+                v.map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
                     .map_err(|e| e.set_persistent())
             })
             .await
@@ -197,7 +200,20 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     ///
     /// Allowing users to retry the write request from upper logic.
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.inner.write(path, args).await
+        { || self.inner.write(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::Write, dur.as_secs_f64(), err)
+            })
+            .map(|v| {
+                v.map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
+                    .map_err(|e| e.set_persistent())
+            })
+            .await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -240,7 +256,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             })
             .map(|v| {
                 v.map(|(l, p)| {
-                    let pager = RetryPager::new(p, path, self.builder.clone());
+                    let pager = RetryWrapper::new(p, path, self.builder.clone());
                     (l, pager)
                 })
                 .map_err(|e| e.set_persistent())
@@ -260,7 +276,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             })
             .map(|v| {
                 v.map(|(l, p)| {
-                    let pager = RetryPager::new(p, path, self.builder.clone());
+                    let pager = RetryWrapper::new(p, path, self.builder.clone());
                     (l, pager)
                 })
                 .map_err(|e| e.set_persistent())
@@ -307,12 +323,23 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
                     Operation::BlockingRead, dur.as_secs_f64(), err)
             })
             .call()
-            .map(|(rp, r)| (rp, RetryReader::new(r, path, self.builder.clone())))
+            .map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
             .map_err(|e| e.set_persistent())
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
-        self.inner.blocking_write(path, args)
+        { || self.inner.blocking_write(path, args.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| {
+                warn!(
+                    target: "opendal::service",
+                    "operation={} -> retry after {}s: error={:?}",
+                    Operation::BlockingWrite, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map(|(rp, r)| (rp, RetryWrapper::new(r, path, self.builder.clone())))
+            .map_err(|e| e.set_persistent())
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -355,7 +382,7 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             })
             .call()
             .map(|(rp, p)| {
-                let p = RetryPager::new(p, path, self.builder.clone());
+                let p = RetryWrapper::new(p, path, self.builder.clone());
                 (rp, p)
             })
             .map_err(|e| e.set_persistent())
@@ -373,15 +400,14 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             })
             .call()
             .map(|(rp, p)| {
-                let p = RetryPager::new(p, path, self.builder.clone());
+                let p = RetryWrapper::new(p, path, self.builder.clone());
                 (rp, p)
             })
             .map_err(|e| e.set_persistent())
     }
 }
 
-/// TODO: Refactor me to replace duplicated code.
-pub struct RetryReader<R> {
+pub struct RetryWrapper<R> {
     inner: R,
     path: String,
     builder: ExponentialBuilder,
@@ -389,7 +415,7 @@ pub struct RetryReader<R> {
     sleep: Option<Pin<Box<tokio::time::Sleep>>>,
 }
 
-impl<R> RetryReader<R> {
+impl<R> RetryWrapper<R> {
     fn new(inner: R, path: &str, backoff: ExponentialBuilder) -> Self {
         Self {
             inner,
@@ -401,7 +427,7 @@ impl<R> RetryReader<R> {
     }
 }
 
-impl<R: oio::Read> oio::Read for RetryReader<R> {
+impl<R: oio::Read> oio::Read for RetryWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
@@ -435,7 +461,7 @@ impl<R: oio::Read> oio::Read for RetryReader<R> {
                         warn!(
                             target: "opendal::service",
                             "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::Read, self.path, dur.as_secs_f64(), err);
+                            ReadOperation::Read, self.path, dur.as_secs_f64(), err);
                         self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
                         self.poll_read(cx, buf)
                     }
@@ -477,7 +503,7 @@ impl<R: oio::Read> oio::Read for RetryReader<R> {
                         warn!(
                             target: "opendal::service",
                             "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::Read, self.path, dur.as_secs_f64(), err);
+                             ReadOperation::Seek, self.path, dur.as_secs_f64(), err);
                         self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
                         self.poll_seek(cx, pos)
                     }
@@ -486,7 +512,7 @@ impl<R: oio::Read> oio::Read for RetryReader<R> {
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
             self.sleep = None;
@@ -523,7 +549,7 @@ impl<R: oio::Read> oio::Read for RetryReader<R> {
                         warn!(
                             target: "opendal::service",
                             "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::Read, self.path, dur.as_secs_f64(), err);
+                            ReadOperation::Next, self.path, dur.as_secs_f64(), err);
                         self.sleep = Some(Box::pin(tokio::time::sleep(dur)));
                         self.poll_next(cx)
                     }
@@ -533,195 +559,195 @@ impl<R: oio::Read> oio::Read for RetryReader<R> {
     }
 }
 
-impl<R: oio::BlockingRead> oio::BlockingRead for RetryReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for RetryWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let retry = self.builder.build();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.read(buf);
-            match res {
-                Ok(v) => return Ok(v),
-                Err(err) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingRead, self.path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Err(e.unwrap());
-                    }
-                }
-            }
-        }
-
-        Err(e.unwrap())
-    }
-
-    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
-        let retry = self.builder.build();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.seek(pos);
-
-            match res {
-                Ok(v) => return Ok(v),
-                Err(err) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingRead, self.path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Err(e.unwrap());
-                    }
-                }
-            }
-        }
-
-        Err(e.unwrap())
-    }
-
-    fn next(&mut self) -> Option<Result<bytes::Bytes>> {
-        let retry = self.builder.build();
-
-        let mut e = None;
-
-        for dur in retry {
-            let res = self.inner.next();
-
-            match res {
-                None => return None,
-                Some(Ok(v)) => return Some(Ok(v)),
-                Some(Err(err)) => {
-                    let retryable = err.is_temporary();
-                    e = Some(err);
-
-                    if retryable {
-                        sleep(dur);
-                        warn!(
-                            target: "opendal::service",
-                            "operation={} path={} -> retry after {}s: error={:?}",
-                            Operation::BlockingRead, self.path, dur.as_secs_f64(), e);
-                        continue;
-                    } else {
-                        return Some(Err(e.unwrap()));
-                    };
-                }
-            }
-        }
-
-        Some(Err(e.unwrap()))
-    }
-}
-
-/// the retriable pager implementation
-#[derive(Debug)]
-pub struct RetryPager<P> {
-    // object pager
-    inner: P,
-    // used for logging
-    path: String,
-    // backoff policy of the pager
-    policy: ExponentialBuilder,
-    // the current backoff chain
-    // Note:
-    // each polling of pages has its own backoff chain
-    // once the poll is success, the backoff chain will be reset.
-    current_backoff: Option<ExponentialBackoff>,
-    // backoff time to sleep
-    sleep: Option<Duration>,
-}
-
-impl<P> RetryPager<P> {
-    fn new(inner: P, path: &str, policy: ExponentialBuilder) -> Self {
-        Self {
-            inner,
-            path: path.to_string(),
-            policy,
-            current_backoff: None,
-            sleep: None,
-        }
-    }
-
-    fn reset_backoff(&mut self) {
-        self.current_backoff = None;
-        self.sleep = None;
-    }
-}
-
-#[async_trait]
-impl<P: oio::Page> oio::Page for RetryPager<P> {
-    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        if let Some(sleep) = self.sleep.take() {
-            tokio::time::sleep(sleep).await;
-        }
-        match self.inner.next().await {
-            Ok(v) => {
-                // request successful, reset backoff
-                self.reset_backoff();
-                Ok(v)
-            }
-            Err(e) if !e.is_temporary() => {
-                // is not retryable, reset backoff
-                self.reset_backoff();
-                // return error
-                Err(e)
-            }
-            Err(e) => {
-                // get the mutable reference to current backoff
-                let backoff = match self.current_backoff.as_mut() {
-                    Some(b) => b,
-                    None => {
-                        self.current_backoff = Some(self.policy.build());
-                        self.current_backoff.as_mut().unwrap()
-                    }
-                };
-                // tick current backoff
-                match backoff.next() {
-                    None => {
-                        // backoff exhausted, reset backoff
-                        self.reset_backoff();
-                        // return error
-                        let e = e.set_persistent();
-                        Err(e)
-                    }
-                    Some(dur) => {
-                        warn!(target: "opendal::service",
-                              "operation={} path={} -> pager retry after {}s: error={:?}",
-                              Operation::List, self.path, dur.as_secs_f64(), e);
-                        self.sleep = Some(dur);
-                        self.next().await
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl<P: oio::BlockingPage> oio::BlockingPage for RetryPager<P> {
-    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
-        { || self.inner.next() }
-            .retry(&self.policy)
+        { || self.inner.read(buf) }
+            .retry(&self.builder)
             .when(|e| e.is_temporary())
             .notify(move |err, dur| {
                 warn!(
                 target: "opendal::service",
                 "operation={} -> pager retry after {}s: error={:?}",
-                Operation::List, dur.as_secs_f64(), err)
+                ReadOperation::BlockingRead, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        { || self.inner.seek(pos) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+                ReadOperation::BlockingSeek, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        { || self.inner.next().transpose() }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+                ReadOperation::BlockingNext, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+            .transpose()
+    }
+}
+
+#[async_trait]
+impl<R: oio::Write> oio::Write for RetryWrapper<R> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.write(bs.clone()).await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              WriteOperation::Write, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.append(bs.clone()).await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              WriteOperation::Append, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.close().await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              WriteOperation::Close, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+}
+
+impl<R: oio::BlockingWrite> oio::BlockingWrite for RetryWrapper<R> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        { || self.inner.write(bs.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+                WriteOperation::BlockingWrite, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        { || self.inner.append(bs.clone()) }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+                WriteOperation::BlockingAppend, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+
+    fn close(&mut self) -> Result<()> {
+        { || self.inner.close() }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+               WriteOperation::BlockingClose, dur.as_secs_f64(), err)
+            })
+            .call()
+            .map_err(|e| e.set_persistent())
+    }
+}
+
+#[async_trait]
+impl<P: oio::Page> oio::Page for RetryWrapper<P> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        let mut backoff = self.builder.build();
+
+        loop {
+            match self.inner.next().await {
+                Ok(v) => return Ok(v),
+                Err(e) if !e.is_temporary() => return Err(e),
+                Err(e) => match backoff.next() {
+                    None => return Err(e),
+                    Some(dur) => {
+                        warn!(target: "opendal::service",
+                              "operation={} path={} -> pager retry after {}s: error={:?}",
+                              PageOperation::Next, self.path, dur.as_secs_f64(), e);
+                        tokio::time::sleep(dur).await;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+}
+
+impl<P: oio::BlockingPage> oio::BlockingPage for RetryWrapper<P> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        { || self.inner.next() }
+            .retry(&self.builder)
+            .when(|e| e.is_temporary())
+            .notify(move |err, dur| {
+                warn!(
+                target: "opendal::service",
+                "operation={} -> pager retry after {}s: error={:?}",
+                PageOperation::BlockingNext, dur.as_secs_f64(), err)
             })
             .call()
             .map_err(|e| e.set_persistent())

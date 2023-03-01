@@ -20,10 +20,11 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use crate::*;
 use bytes::Bytes;
 use futures::Future;
 use pin_project::pin_project;
+
+use crate::*;
 
 /// PageOperation is the name for APIs of pager.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]

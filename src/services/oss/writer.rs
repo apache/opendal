@@ -36,7 +36,7 @@ impl OssWriter {
 }
 
 #[async_trait]
-impl output::Write for OssWriter {
+impl oio::Write for OssWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.oss_put_object_request(
             &self.path,

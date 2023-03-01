@@ -46,7 +46,7 @@ impl S3Writer {
 }
 
 #[async_trait]
-impl output::Write for S3Writer {
+impl oio::Write for S3Writer {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         debug_assert!(
             self.upload_id.is_none(),

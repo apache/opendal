@@ -22,7 +22,7 @@ use bytes::Bytes;
 use crate::raw::*;
 use crate::*;
 
-/// Cursor is the cursor for [`Bytes`] that implements [`output::Read`]
+/// Cursor is the cursor for [`Bytes`] that implements [`oio::Read`]
 pub struct Cursor {
     inner: Bytes,
     pos: u64,
@@ -50,7 +50,7 @@ impl From<Vec<u8>> for Cursor {
     }
 }
 
-impl output::Read for Cursor {
+impl oio::Read for Cursor {
     fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let n = Read::read(&mut self.remaining_slice(), buf).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read data from Cursor")
@@ -93,7 +93,7 @@ impl output::Read for Cursor {
     }
 }
 
-impl output::BlockingRead for Cursor {
+impl oio::BlockingRead for Cursor {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let n = Read::read(&mut self.remaining_slice(), buf).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "read data from Cursor")

@@ -22,7 +22,7 @@ use bytes::Bytes;
 use crate::raw::*;
 use crate::*;
 
-/// Convert given fd into [`output::BlockingRead`].
+/// Convert given fd into [`oio::BlockingRead`].
 pub fn from_fd<R>(fd: R, start: u64, end: u64) -> FdReader<R>
 where
     R: Read + Seek + Send + Sync,
@@ -35,7 +35,7 @@ where
     }
 }
 
-/// FdReader is a wrapper of input fd to implement [`output::Read`].
+/// FdReader is a wrapper of input fd to implement [`oio::Read`].
 pub struct FdReader<R: Read + Seek + Send + Sync> {
     inner: R,
 
@@ -55,7 +55,7 @@ where
     }
 }
 
-impl<R> output::BlockingRead for FdReader<R>
+impl<R> oio::BlockingRead for FdReader<R>
 where
     R: Read + Seek + Send + Sync + 'static,
 {

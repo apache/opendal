@@ -36,7 +36,7 @@ impl GcsWriter {
 }
 
 #[async_trait]
-impl output::Write for GcsWriter {
+impl oio::Write for GcsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.gcs_insert_object_request(
             &self.path,

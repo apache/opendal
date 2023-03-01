@@ -92,7 +92,7 @@ impl Write for () {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
-        unimplemented!("write is required to be implemented for output::Write")
+        unimplemented!("write is required to be implemented for oio::Write")
     }
 
     async fn append(&mut self, bs: Bytes) -> Result<()> {
@@ -148,7 +148,7 @@ impl BlockingWrite for () {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         let _ = bs;
 
-        unimplemented!("write is required to be implemented for output::BlockingWrite")
+        unimplemented!("write is required to be implemented for oio::BlockingWrite")
     }
 
     fn append(&mut self, bs: Bytes) -> Result<()> {

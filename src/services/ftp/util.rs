@@ -30,7 +30,7 @@ use crate::*;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {
-    reader: input::Reader,
+    reader: Box<dyn AsyncRead + Send + Unpin>,
     state: State,
 }
 
@@ -43,7 +43,10 @@ pub enum State {
 
 impl FtpReader {
     /// Create an instance of FtpReader.
-    pub fn new(r: input::Reader, c: PooledConnection<'static, Manager>) -> Self {
+    pub fn new(
+        r: Box<dyn AsyncRead + Send + Unpin>,
+        c: PooledConnection<'static, Manager>,
+    ) -> Self {
         Self {
             reader: r,
             state: State::Reading(Some(c)),
@@ -51,7 +54,7 @@ impl FtpReader {
     }
 }
 
-impl output::Read for FtpReader {
+impl oio::Read for FtpReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let data = Pin::new(&mut self.reader).poll_read(cx, buf);
 

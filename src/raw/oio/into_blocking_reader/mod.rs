@@ -12,15 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
+//! into_blocking_reader will provide different implementations to convert
+//! into [`oio::BlockingRead`][crate::raw::oio::BlockingRead]
 
-use bytes::Bytes;
-
-/// Stream represents a stream of bytes.
-///
-/// This trait is used as alias to `futures::Stream<Item = Result<Bytes>> + Unpin + Send`.
-pub trait Stream: futures::Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
-impl<T> Stream for T where T: futures::Stream<Item = Result<Bytes>> + Unpin + Send + Sync {}
-
-/// Streamer is a boxed dyn [`Stream`].
-pub type Streamer = Box<dyn Stream>;
+mod from_fd;
+pub use from_fd::from_fd;
+pub use from_fd::FdReader;

@@ -24,6 +24,7 @@ use bytes::Buf;
 use bytes::BufMut;
 use bytes::Bytes;
 use futures::ready;
+use futures::Stream;
 use futures::StreamExt;
 
 use crate::raw::*;
@@ -38,7 +39,7 @@ pub enum Body {
     /// Body with bytes.
     Bytes(Bytes),
     /// Body with a Reader.
-    Reader(input::BlockingReader),
+    Reader(Box<dyn Read + Send>),
 }
 
 impl Default for Body {
@@ -85,8 +86,6 @@ pub enum AsyncBody {
     Empty,
     /// Body with bytes.
     Bytes(Bytes),
-    /// Body with a Reader.
-    Reader(input::Reader),
     /// Body with a multipart field.
     ///
     /// If input with this field, we will goto the internal multipart
@@ -105,13 +104,14 @@ impl From<AsyncBody> for reqwest::Body {
         match v {
             AsyncBody::Empty => reqwest::Body::from(""),
             AsyncBody::Bytes(bs) => reqwest::Body::from(bs),
-            AsyncBody::Reader(r) => reqwest::Body::wrap_stream(input::into_stream(r, 256 * 1024)),
             AsyncBody::Multipart(_, _) => {
                 unreachable!("reqwest multipart should not be constructed by body")
             }
         }
     }
 }
+
+type BytesStream = Box<dyn Stream<Item = Result<Bytes>> + Send + Sync + Unpin>;
 
 /// IncomingAsyncBody carries the content returned by remote servers.
 ///
@@ -126,7 +126,7 @@ pub struct IncomingAsyncBody {
     ///
     /// After [TAIT](https://rust-lang.github.io/rfcs/2515-type_alias_impl_trait.html)
     /// has been stable, we can change `IncomingAsyncBody` into `IncomingAsyncBody<S>`.
-    inner: input::Streamer,
+    inner: BytesStream,
     size: Option<u64>,
     consumed: u64,
     chunk: Option<Bytes>,
@@ -134,7 +134,7 @@ pub struct IncomingAsyncBody {
 
 impl IncomingAsyncBody {
     /// Construct a new incoming async body
-    pub fn new(s: input::Streamer, size: Option<u64>) -> Self {
+    pub fn new(s: BytesStream, size: Option<u64>) -> Self {
         Self {
             inner: s,
             size,
@@ -145,7 +145,7 @@ impl IncomingAsyncBody {
 
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
-        use output::ReadExt;
+        use oio::ReadExt;
 
         while let Some(bs) = self.next().await {
             bs.map_err(|err| {
@@ -162,7 +162,7 @@ impl IncomingAsyncBody {
     ///
     /// Borrowed from hyper's [`to_bytes`](https://docs.rs/hyper/latest/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
-        use output::ReadExt;
+        use oio::ReadExt;
 
         // If there's only 1 chunk, we can just return Buf::to_bytes()
         let mut first = if let Some(buf) = self.next().await {
@@ -206,7 +206,7 @@ impl IncomingAsyncBody {
     }
 }
 
-impl output::Read for IncomingAsyncBody {
+impl oio::Read for IncomingAsyncBody {
     fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
@@ -251,12 +251,7 @@ impl output::Read for IncomingAsyncBody {
                 self.consumed += bs.len() as u64;
                 Some(Ok(bs))
             }
-            Some(Err(err)) => Some(Err(Error::new(
-                ErrorKind::Unexpected,
-                "read data from http body",
-            )
-            .with_context("source", "IncomingAsyncBody")
-            .set_source(err))),
+            Some(Err(err)) => Some(Err(err)),
             None => {
                 if let Some(size) = self.size {
                     Self::check(size, self.consumed)?;

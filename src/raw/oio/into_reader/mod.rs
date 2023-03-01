@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //! into_reader will provide different implementations to convert into
-//! [`output::Read`][crate::raw::output::Read]
+//! [`oio::Read`][crate::raw::oio::Read]
 //!
 //! - (Some(offset), Some(size)) => by_range
 //! - (Some(offset), None) => by_offset

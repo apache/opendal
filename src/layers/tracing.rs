@@ -255,7 +255,7 @@ impl<R> TracingWrapper<R> {
     }
 }
 
-impl<R: output::Read> output::Read for TracingWrapper<R> {
+impl<R: oio::Read> oio::Read for TracingWrapper<R> {
     #[tracing::instrument(
         parent = &self.span,
         level = "trace",
@@ -281,7 +281,7 @@ impl<R: output::Read> output::Read for TracingWrapper<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for TracingWrapper<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for TracingWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf)
     }
@@ -296,16 +296,16 @@ impl<R: output::BlockingRead> output::BlockingRead for TracingWrapper<R> {
 }
 
 #[async_trait]
-impl<R: output::Page> output::Page for TracingWrapper<R> {
+impl<R: oio::Page> oio::Page for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await
     }
 }
 
-impl<R: output::BlockingPage> output::BlockingPage for TracingWrapper<R> {
+impl<R: oio::BlockingPage> oio::BlockingPage for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next()
     }
 }

@@ -65,8 +65,8 @@ impl OssPager {
 }
 
 #[async_trait]
-impl output::Page for OssPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for OssPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -96,7 +96,7 @@ impl output::Page for OssPager {
         let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
 
         for prefix in output.common_prefixes {
-            let de = output::Entry::new(
+            let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
                 ObjectMetadata::new(ObjectMode::DIR),
             );
@@ -125,7 +125,7 @@ impl output::Page for OssPager {
             let rel = build_rel_path(&self.root, &object.key);
             let path = unescape(&rel)
                 .map_err(|e| Error::new(ErrorKind::Unexpected, "excapse xml").set_source(e))?;
-            let de = output::Entry::new(&path, meta);
+            let de = oio::Entry::new(&path, meta);
             entries.push(de);
         }
 

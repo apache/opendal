@@ -72,9 +72,9 @@ impl FtpPager {
 }
 
 #[async_trait]
-impl output::Page for FtpPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
+impl oio::Page for FtpPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -85,16 +85,16 @@ impl output::Page for FtpPager {
             let path = self.path.to_string() + de.name();
 
             let d = if de.is_file() {
-                output::Entry::new(
+                oio::Entry::new(
                     &path,
                     ObjectMetadata::new(ObjectMode::FILE)
                         .with_content_length(de.size() as u64)
                         .with_last_modified(OffsetDateTime::from(de.modified())),
                 )
             } else if de.is_directory() {
-                output::Entry::new(&format!("{}/", &path), ObjectMetadata::new(ObjectMode::DIR))
+                oio::Entry::new(&format!("{}/", &path), ObjectMetadata::new(ObjectMode::DIR))
             } else {
-                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

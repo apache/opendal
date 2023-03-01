@@ -51,12 +51,12 @@ impl<A: Accessor> Debug for TypeEraseAccessor<A> {
 #[async_trait]
 impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
     type Inner = A;
-    type Reader = output::Reader;
-    type BlockingReader = output::BlockingReader;
-    type Writer = output::Writer;
-    type BlockingWriter = output::BlockingWriter;
-    type Pager = output::Pager;
-    type BlockingPager = output::BlockingPager;
+    type Reader = oio::Reader;
+    type BlockingReader = oio::BlockingReader;
+    type Writer = oio::Writer;
+    type BlockingWriter = oio::BlockingWriter;
+    type Pager = oio::Pager;
+    type BlockingPager = oio::BlockingPager;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -66,51 +66,51 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
         self.inner
             .read(path, args)
             .await
-            .map(|(rp, r)| (rp, Box::new(r) as output::Reader))
+            .map(|(rp, r)| (rp, Box::new(r) as oio::Reader))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner
             .blocking_read(path, args)
-            .map(|(rp, r)| (rp, Box::new(r) as output::BlockingReader))
+            .map(|(rp, r)| (rp, Box::new(r) as oio::BlockingReader))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
             .write(path, args)
             .await
-            .map(|(rp, w)| (rp, Box::new(w) as output::Writer))
+            .map(|(rp, w)| (rp, Box::new(w) as oio::Writer))
     }
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.inner
             .blocking_write(path, args)
-            .map(|(rp, w)| (rp, Box::new(w) as output::BlockingWriter))
+            .map(|(rp, w)| (rp, Box::new(w) as oio::BlockingWriter))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         self.inner
             .list(path, args)
             .await
-            .map(|(rp, p)| (rp, Box::new(p) as output::Pager))
+            .map(|(rp, p)| (rp, Box::new(p) as oio::Pager))
     }
 
     fn blocking_list(&self, path: &str, args: OpList) -> Result<(RpList, Self::BlockingPager)> {
         self.inner
             .blocking_list(path, args)
-            .map(|(rp, p)| (rp, Box::new(p) as output::BlockingPager))
+            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         self.inner
             .scan(path, args)
             .await
-            .map(|(rp, p)| (rp, Box::new(p) as output::Pager))
+            .map(|(rp, p)| (rp, Box::new(p) as oio::Pager))
     }
 
     fn blocking_scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::BlockingPager)> {
         self.inner
             .blocking_scan(path, args)
-            .map(|(rp, p)| (rp, Box::new(p) as output::BlockingPager))
+            .map(|(rp, p)| (rp, Box::new(p) as oio::BlockingPager))
     }
 }

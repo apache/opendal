@@ -61,8 +61,8 @@ impl ObsPager {
 }
 
 #[async_trait]
-impl output::Page for ObsPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for ObsPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -94,7 +94,7 @@ impl output::Page for ObsPager {
         let mut entries = Vec::with_capacity(common_prefixes.len() + output.contents.len());
 
         for prefix in common_prefixes {
-            let de = output::Entry::new(
+            let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
                 ObjectMetadata::new(ObjectMode::DIR),
             );
@@ -109,7 +109,7 @@ impl output::Page for ObsPager {
 
             let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
 
-            let de = output::Entry::new(&build_rel_path(&self.root, &object.key), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.root, &object.key), meta);
 
             entries.push(de);
         }

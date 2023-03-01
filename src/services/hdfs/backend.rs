@@ -221,8 +221,8 @@ unsafe impl Sync for HdfsBackend {}
 
 #[async_trait]
 impl Accessor for HdfsBackend {
-    type Reader = output::into_reader::FdReader<hdrs::AsyncFile>;
-    type BlockingReader = output::into_blocking_reader::FdReader<hdrs::File>;
+    type Reader = oio::into_reader::FdReader<hdrs::AsyncFile>;
+    type BlockingReader = oio::into_blocking_reader::FdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
     type Pager = Option<HdfsPager>;
@@ -283,7 +283,7 @@ impl Accessor for HdfsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        use output::ReadExt;
+        use oio::ReadExt;
 
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -310,7 +310,7 @@ impl Accessor for HdfsBackend {
             (None, None) => (0, meta.len()),
         };
 
-        let mut r = output::into_reader::from_fd(f, start, end);
+        let mut r = oio::into_reader::from_fd(f, start, end);
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).await?;
 
@@ -452,7 +452,7 @@ impl Accessor for HdfsBackend {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        use output::BlockingRead;
+        use oio::BlockingRead;
 
         let p = build_rooted_abs_path(&self.root, path);
 
@@ -478,7 +478,7 @@ impl Accessor for HdfsBackend {
             (None, None) => (0, meta.len()),
         };
 
-        let mut r = output::into_blocking_reader::from_fd(f, start, end);
+        let mut r = oio::into_blocking_reader::from_fd(f, start, end);
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0))?;
 

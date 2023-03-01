@@ -63,8 +63,8 @@ impl S3Pager {
 }
 
 #[async_trait]
-impl output::Page for S3Pager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for S3Pager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -99,7 +99,7 @@ impl output::Page for S3Pager {
         let mut entries = Vec::with_capacity(output.common_prefixes.len() + output.contents.len());
 
         for prefix in output.common_prefixes {
-            let de = output::Entry::new(
+            let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
                 ObjectMetadata::new(ObjectMode::DIR),
             );
@@ -137,7 +137,7 @@ impl output::Page for S3Pager {
                 })?;
             meta.set_last_modified(dt);
 
-            let de = output::Entry::new(&build_rel_path(&self.root, &object.key), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.root, &object.key), meta);
 
             entries.push(de);
         }

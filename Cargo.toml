@@ -87,11 +87,6 @@ bench = false
 harness = false
 name = "ops"
 
-[[bench]]
-harness = false
-name = "io"
-required-features = ["layers-all"]
-
 [dependencies]
 anyhow = { version = "1.0.30", features = ["std"] }
 async-compat = "0.2"

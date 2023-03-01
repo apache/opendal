@@ -41,9 +41,9 @@ impl<P> FsPager<P> {
 }
 
 #[async_trait]
-impl output::Page for FsPager<tokio::fs::ReadDir> {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
+impl oio::Page for FsPager<tokio::fs::ReadDir> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next_entry().await.map_err(parse_io_error)? {
@@ -67,15 +67,15 @@ impl output::Page for FsPager<tokio::fs::ReadDir> {
             let file_type = de.file_type().await.map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                output::Entry::new(
+                oio::Entry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR),
                 )
             } else {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -85,9 +85,9 @@ impl output::Page for FsPager<tokio::fs::ReadDir> {
     }
 }
 
-impl output::BlockingPage for FsPager<std::fs::ReadDir> {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
+impl oio::BlockingPage for FsPager<std::fs::ReadDir> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -111,15 +111,15 @@ impl output::BlockingPage for FsPager<std::fs::ReadDir> {
             let file_type = de.file_type().map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                output::Entry::new(
+                oio::Entry::new(
                     &format!("{rel_path}/"),
                     ObjectMetadata::new(ObjectMode::DIR),
                 )
             } else {
-                output::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

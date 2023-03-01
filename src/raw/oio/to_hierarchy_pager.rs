@@ -52,7 +52,7 @@ pub struct ToHierarchyPager<P> {
 
 impl<P> ToHierarchyPager<P> {
     /// TODO: use retain_mut instead after we bump MSRV to 1.61.
-    fn filter_entries(&mut self, entries: Vec<output::Entry>) -> Vec<output::Entry> {
+    fn filter_entries(&mut self, entries: Vec<oio::Entry>) -> Vec<oio::Entry> {
         entries
             .into_iter()
             .filter_map(|mut e| {
@@ -114,8 +114,8 @@ impl<P> ToHierarchyPager<P> {
 }
 
 #[async_trait]
-impl<P: output::Page> output::Page for ToHierarchyPager<P> {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<P: oio::Page> oio::Page for ToHierarchyPager<P> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let page = self.pager.next().await?;
 
         let entries = if let Some(entries) = page {
@@ -130,8 +130,8 @@ impl<P: output::Page> output::Page for ToHierarchyPager<P> {
     }
 }
 
-impl<P: output::BlockingPage> output::BlockingPage for ToHierarchyPager<P> {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<P: oio::BlockingPage> oio::BlockingPage for ToHierarchyPager<P> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let page = self.pager.next()?;
 
         let entries = if let Some(entries) = page {
@@ -151,8 +151,8 @@ mod tests {
 
     use std::collections::HashSet;
 
-    use io::output::BlockingPage;
     use log::debug;
+    use oio::BlockingPage;
 
     use super::*;
 
@@ -171,7 +171,7 @@ mod tests {
     }
 
     impl BlockingPage for MockPager {
-        fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             if self.done {
                 return Ok(None);
             }
@@ -182,9 +182,9 @@ mod tests {
                 .iter()
                 .map(|path| {
                     if path.ends_with('/') {
-                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))
+                        oio::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))
                     } else {
-                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::FILE))
+                        oio::Entry::new(path, ObjectMetadata::new(ObjectMode::FILE))
                     }
                 })
                 .collect();
@@ -217,19 +217,19 @@ mod tests {
 
         assert_eq!(
             entries[0],
-            output::Entry::new("x/", ObjectMetadata::new(ObjectMode::DIR))
+            oio::Entry::new("x/", ObjectMetadata::new(ObjectMode::DIR))
         );
         assert_eq!(
             entries[1],
-            output::Entry::new("y/", ObjectMetadata::new(ObjectMode::DIR))
+            oio::Entry::new("y/", ObjectMetadata::new(ObjectMode::DIR))
         );
         assert_eq!(
             entries[2],
-            output::Entry::new("xy/", ObjectMetadata::new(ObjectMode::DIR))
+            oio::Entry::new("xy/", ObjectMetadata::new(ObjectMode::DIR))
         );
         assert_eq!(
             entries[3],
-            output::Entry::new("z", ObjectMetadata::new(ObjectMode::FILE))
+            oio::Entry::new("z", ObjectMetadata::new(ObjectMode::FILE))
         );
 
         Ok(())

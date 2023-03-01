@@ -36,7 +36,7 @@ impl ObsWriter {
 }
 
 #[async_trait]
-impl output::Write for ObsWriter {
+impl oio::Write for ObsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.obs_put_object_request(
             &self.path,

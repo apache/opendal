@@ -59,8 +59,8 @@ impl AzblobPager {
 }
 
 #[async_trait]
-impl output::Page for AzblobPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for AzblobPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -92,7 +92,7 @@ impl output::Page for AzblobPager {
         let mut entries = Vec::with_capacity(prefixes.len() + output.blobs.blob.len());
 
         for prefix in prefixes {
-            let de = output::Entry::new(
+            let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.name),
                 ObjectMetadata::new(ObjectMode::DIR),
             );
@@ -125,7 +125,7 @@ impl output::Page for AzblobPager {
                         })?,
                 );
 
-            let de = output::Entry::new(&build_rel_path(&self.root, &object.name), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.root, &object.name), meta);
 
             entries.push(de);
         }

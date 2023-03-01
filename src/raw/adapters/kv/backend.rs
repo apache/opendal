@@ -50,8 +50,8 @@ where
 
 #[async_trait]
 impl<S: Adapter> Accessor for Backend<S> {
-    type Reader = output::Cursor;
-    type BlockingReader = output::Cursor;
+    type Reader = oio::Cursor;
+    type BlockingReader = oio::Cursor;
     type Writer = KvWriter<S>;
     type BlockingWriter = KvWriter<S>;
     type Pager = KvPager;
@@ -94,7 +94,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         let bs = self.apply_range(bs, args.range());
 
         let length = bs.len();
-        Ok((RpRead::new(length as u64), output::Cursor::from(bs)))
+        Ok((RpRead::new(length as u64), oio::Cursor::from(bs)))
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
@@ -111,7 +111,7 @@ impl<S: Adapter> Accessor for Backend<S> {
         };
 
         let bs = self.apply_range(bs, args.range());
-        Ok((RpRead::new(bs.len() as u64), output::Cursor::from(bs)))
+        Ok((RpRead::new(bs.len() as u64), oio::Cursor::from(bs)))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -234,7 +234,7 @@ impl KvPager {
         }
     }
 
-    fn inner_next_page(&mut self) -> Option<Vec<output::Entry>> {
+    fn inner_next_page(&mut self) -> Option<Vec<oio::Entry>> {
         let res = self
             .inner
             .take()?
@@ -246,7 +246,7 @@ impl KvPager {
                     ObjectMode::FILE
                 };
 
-                output::Entry::new(
+                oio::Entry::new(
                     v.strip_prefix(&self.root)
                         .expect("key must start with root"),
                     ObjectMetadata::new(mode),
@@ -259,14 +259,14 @@ impl KvPager {
 }
 
 #[async_trait]
-impl output::Page for KvPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for KvPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
 
-impl output::BlockingPage for KvPager {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::BlockingPage for KvPager {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
@@ -290,7 +290,7 @@ impl<S> KvWriter<S> {
 }
 
 #[async_trait]
-impl<S: Adapter> output::Write for KvWriter<S> {
+impl<S: Adapter> oio::Write for KvWriter<S> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.buf = bs.into();
 
@@ -310,7 +310,7 @@ impl<S: Adapter> output::Write for KvWriter<S> {
     }
 }
 
-impl<S: Adapter> output::BlockingWrite for KvWriter<S> {
+impl<S: Adapter> oio::BlockingWrite for KvWriter<S> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.buf = bs.into();
 

@@ -278,7 +278,7 @@ impl<R> ConcurrentLimitWrapper<R> {
     }
 }
 
-impl<R: output::Read> output::Read for ConcurrentLimitWrapper<R> {
+impl<R: oio::Read> oio::Read for ConcurrentLimitWrapper<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf)
     }
@@ -292,7 +292,7 @@ impl<R: output::Read> output::Read for ConcurrentLimitWrapper<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for ConcurrentLimitWrapper<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for ConcurrentLimitWrapper<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf)
     }
@@ -307,7 +307,7 @@ impl<R: output::BlockingRead> output::BlockingRead for ConcurrentLimitWrapper<R>
 }
 
 #[async_trait]
-impl<R: output::Write> output::Write for ConcurrentLimitWrapper<R> {
+impl<R: oio::Write> oio::Write for ConcurrentLimitWrapper<R> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs).await
     }
@@ -321,7 +321,7 @@ impl<R: output::Write> output::Write for ConcurrentLimitWrapper<R> {
     }
 }
 
-impl<R: output::BlockingWrite> output::BlockingWrite for ConcurrentLimitWrapper<R> {
+impl<R: oio::BlockingWrite> oio::BlockingWrite for ConcurrentLimitWrapper<R> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs)
     }
@@ -336,14 +336,14 @@ impl<R: output::BlockingWrite> output::BlockingWrite for ConcurrentLimitWrapper<
 }
 
 #[async_trait]
-impl<R: output::Page> output::Page for ConcurrentLimitWrapper<R> {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<R: oio::Page> oio::Page for ConcurrentLimitWrapper<R> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await
     }
 }
 
-impl<R: output::BlockingPage> output::BlockingPage for ConcurrentLimitWrapper<R> {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<R: oio::BlockingPage> oio::BlockingPage for ConcurrentLimitWrapper<R> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next()
     }
 }

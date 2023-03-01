@@ -34,8 +34,7 @@ mod layer;
 pub use layer::Layer;
 pub use layer::LayeredAccessor;
 
-mod io;
-pub use io::*;
+pub mod oio;
 
 mod path;
 pub use path::build_abs_path;

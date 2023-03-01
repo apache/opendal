@@ -36,7 +36,7 @@ impl WebdavWriter {
 }
 
 #[async_trait]
-impl output::Write for WebdavWriter {
+impl oio::Write for WebdavWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend

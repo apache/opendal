@@ -61,8 +61,8 @@ impl GcsPager {
 }
 
 #[async_trait]
-impl output::Page for GcsPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for GcsPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -89,7 +89,7 @@ impl output::Page for GcsPager {
         let mut entries = Vec::with_capacity(output.prefixes.len() + output.items.len());
 
         for prefix in output.prefixes {
-            let de = output::Entry::new(
+            let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix),
                 ObjectMetadata::new(ObjectMode::DIR),
             );
@@ -121,7 +121,7 @@ impl output::Page for GcsPager {
             })?;
             meta.set_last_modified(dt);
 
-            let de = output::Entry::new(&build_rel_path(&self.root, &object.name), meta);
+            let de = oio::Entry::new(&build_rel_path(&self.root, &object.name), meta);
 
             entries.push(de);
         }

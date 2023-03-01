@@ -909,7 +909,7 @@ impl<R> Drop for LoggingReader<R> {
     }
 }
 
-impl<R: output::Read> output::Read for LoggingReader<R> {
+impl<R: oio::Read> oio::Read for LoggingReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match self.inner.poll_read(cx, buf) {
             Poll::Ready(res) => match res {
@@ -1008,7 +1008,7 @@ impl<R: output::Read> output::Read for LoggingReader<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for LoggingReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for LoggingReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.inner.read(buf) {
             Ok(n) => {
@@ -1153,8 +1153,8 @@ impl<P> LoggingPager<P> {
 }
 
 #[async_trait]
-impl<P: output::Page> output::Page for LoggingPager<P> {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<P: oio::Page> oio::Page for LoggingPager<P> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let res = self.inner.next().await;
 
         match &res {
@@ -1197,8 +1197,8 @@ impl<P: output::Page> output::Page for LoggingPager<P> {
     }
 }
 
-impl<P: output::BlockingPage> output::BlockingPage for LoggingPager<P> {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<P: oio::BlockingPage> oio::BlockingPage for LoggingPager<P> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         let res = self.inner.next();
 
         match &res {

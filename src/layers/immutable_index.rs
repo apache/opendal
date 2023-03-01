@@ -229,7 +229,7 @@ impl ImmutableDir {
         Self { idx }
     }
 
-    fn inner_next_page(&mut self) -> Option<Vec<output::Entry>> {
+    fn inner_next_page(&mut self) -> Option<Vec<oio::Entry>> {
         if self.idx.is_empty() {
             return None;
         }
@@ -245,7 +245,7 @@ impl ImmutableDir {
                         ObjectMode::FILE
                     };
                     let meta = ObjectMetadata::new(mode);
-                    output::Entry::with(v, meta)
+                    oio::Entry::with(v, meta)
                 })
                 .collect(),
         )
@@ -253,14 +253,14 @@ impl ImmutableDir {
 }
 
 #[async_trait]
-impl output::Page for ImmutableDir {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for ImmutableDir {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
 
-impl output::BlockingPage for ImmutableDir {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::BlockingPage for ImmutableDir {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         Ok(self.inner_next_page())
     }
 }

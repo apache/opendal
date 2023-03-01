@@ -529,9 +529,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn write(&self, bs: impl Into<Bytes>) -> Result<()> {
-        let bs = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
-        self.write_with(op, bs).await
+        self.write_with(OpWrite::new(), bs).await
     }
 
     /// Write multiple bytes into object.
@@ -633,10 +631,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
-        let bs: Vec<u8> = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
-        self.blocking_write_with(op, bs)
+    pub fn blocking_write(&self, bs: impl Into<Bytes>) -> Result<()> {
+        self.blocking_write_with(OpWrite::new(), bs)
     }
 
     /// Write multiple bytes into object.
@@ -1380,7 +1376,7 @@ impl Object {
     /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        self.presign_write_with(OpWrite::new(0), expire)
+        self.presign_write_with(OpWrite::new(), expire)
     }
 
     /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)

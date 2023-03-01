@@ -411,7 +411,7 @@ impl WebdavBackend {
     pub async fn webdav_put(
         &self,
         abs_path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,

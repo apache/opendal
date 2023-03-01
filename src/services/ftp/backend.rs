@@ -395,7 +395,7 @@ impl Accessor for FtpBackend {
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
-            RpWrite::new(0),
+            RpWrite::new(),
             FtpWriter::new(self.clone(), path.to_string()),
         ))
     }

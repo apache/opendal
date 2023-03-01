@@ -114,16 +114,16 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok((RpRead::new(bs.len() as u64), output::Cursor::from(bs)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
 
-        Ok((RpWrite::new(args.size()), KvWriter::new(self.kv.clone(), p)))
+        Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
     }
 
-    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let p = build_abs_path(&self.root, path);
 
-        Ok((RpWrite::new(args.size()), KvWriter::new(self.kv.clone(), p)))
+        Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

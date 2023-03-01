@@ -575,7 +575,7 @@ impl AzblobBackend {
     pub fn azblob_put_blob_request(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {

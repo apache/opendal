@@ -362,7 +362,6 @@ impl OpStat {
 pub struct OpWrite {
     append: bool,
 
-    size: u64,
     content_type: Option<String>,
     content_disposition: Option<String>,
 }
@@ -371,19 +370,13 @@ impl OpWrite {
     /// Create a new `OpWrite`.
     ///
     /// If input path is not a file path, an error will be returned.
-    pub fn new(size: u64) -> Self {
+    pub fn new() -> Self {
         Self {
             append: false,
 
-            size,
             content_type: None,
             content_disposition: None,
         }
-    }
-
-    /// Get size from option.
-    pub fn size(&self) -> u64 {
-        self.size
     }
 
     pub(crate) fn with_append(mut self) -> Self {

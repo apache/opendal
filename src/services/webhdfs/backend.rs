@@ -261,7 +261,7 @@ impl WebhdfsBackend {
     pub async fn webhdfs_create_object_req(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {

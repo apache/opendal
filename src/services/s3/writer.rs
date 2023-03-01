@@ -54,7 +54,7 @@ impl output::Write for S3Writer {
 
         let mut req = self.backend.s3_put_object_request(
             &self.path,
-            Some(self.op.size()),
+            Some(bs.len()),
             self.op.content_type(),
             self.op.content_disposition(),
             AsyncBody::Bytes(bs),

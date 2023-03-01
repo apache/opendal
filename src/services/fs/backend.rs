@@ -442,7 +442,7 @@ impl Accessor for FsBackend {
             .await
             .map_err(parse_io_error)?;
 
-        Ok((RpWrite::new(0), FsWriter::new(target_path, tmp_path, f)))
+        Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -628,7 +628,7 @@ impl Accessor for FsBackend {
             .open(path)
             .map_err(parse_io_error)?;
 
-        Ok((RpWrite::new(0), FsWriter::new(target_path, tmp_path, f)))
+        Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

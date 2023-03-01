@@ -1366,7 +1366,7 @@ impl S3Backend {
     pub fn s3_put_object_request(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,

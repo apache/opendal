@@ -345,7 +345,7 @@ impl Accessor for HdfsBackend {
             .await
             .map_err(parse_io_error)?;
 
-        Ok((RpWrite::new(0), HdfsWriter::new(f)))
+        Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -512,7 +512,7 @@ impl Accessor for HdfsBackend {
             .open(&p)
             .map_err(parse_io_error)?;
 
-        Ok((RpWrite::new(0), HdfsWriter::new(f)))
+        Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

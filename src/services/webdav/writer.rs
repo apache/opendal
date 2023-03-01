@@ -42,7 +42,7 @@ impl output::Write for WebdavWriter {
             .backend
             .webdav_put(
                 &self.path,
-                Some(self.op.size()),
+                Some(bs.len()),
                 self.op.content_type(),
                 self.op.content_disposition(),
                 AsyncBody::Bytes(bs),

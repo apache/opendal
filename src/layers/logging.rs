@@ -291,14 +291,11 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} size={:?} -> started",
+            "service={} operation={} path={} -> started",
             self.scheme,
             Operation::Write,
-            path,
-            args.size()
+            path
         );
-
-        let size = args.size();
 
         self.inner
             .write(path, args)
@@ -306,11 +303,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} size={:?} -> written",
+                    "service={} operation={} path={} -> start writing",
                     self.scheme,
                     Operation::Write,
                     path,
-                    size
                 );
                 v
             })
@@ -319,11 +315,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} size={:?} -> {}: {err:?}",
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::Write,
                         path,
-                        size,
                         self.err_status(&err)
                     )
                 };
@@ -853,23 +848,21 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} size={:?} -> started",
+            "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingWrite,
             path,
-            args.size()
         );
 
         self.inner
-            .blocking_write(path, args.clone())
+            .blocking_write(path, args)
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} size={:?} -> written",
+                    "service={} operation={} path={} -> written",
                     self.scheme,
                     Operation::BlockingWrite,
                     path,
-                    args.size()
                 );
                 v
             })
@@ -878,11 +871,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} size={:?} -> {}: {err:?}",
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingWrite,
                         path,
-                        args.size(),
                         self.err_status(&err)
                     );
                 }

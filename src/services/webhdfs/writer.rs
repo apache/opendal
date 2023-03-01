@@ -42,7 +42,7 @@ impl output::Write for WebhdfsWriter {
             .backend
             .webhdfs_create_object_req(
                 &self.path,
-                Some(self.op.size()),
+                Some(bs.len()),
                 self.op.content_type(),
                 AsyncBody::Bytes(bs),
             )

@@ -509,7 +509,7 @@ impl GcsBackend {
     pub fn gcs_insert_object_request(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         body: AsyncBody,
     ) -> Result<Request<AsyncBody>> {

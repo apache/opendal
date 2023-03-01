@@ -40,7 +40,7 @@ impl output::Write for OssWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.oss_put_object_request(
             &self.path,
-            Some(self.op.size()),
+            Some(bs.len()),
             self.op.content_type(),
             self.op.content_disposition(),
             AsyncBody::Bytes(bs),

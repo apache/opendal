@@ -609,7 +609,7 @@ impl OssBackend {
     pub fn oss_put_object_request(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,
@@ -735,7 +735,7 @@ impl OssBackend {
     async fn oss_put_object(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,

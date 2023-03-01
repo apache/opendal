@@ -275,19 +275,12 @@ impl RpStat {
 
 /// Reply for `write` operation.
 #[derive(Debug, Clone, Default)]
-pub struct RpWrite {
-    written: u64,
-}
+pub struct RpWrite {}
 
 impl RpWrite {
     /// Create a new reply for write.
-    pub fn new(written: u64) -> Self {
-        Self { written }
-    }
-
-    /// Get the written size (in bytes) of write operation.
-    pub fn written(&self) -> u64 {
-        self.written
+    pub fn new() -> Self {
+        Self {}
     }
 }
 

@@ -12,10 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::{Display, Formatter};
+
 use async_trait::async_trait;
 
 use super::Entry;
 use crate::*;
+
+/// PageOperation is the name for APIs of pager.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum PageOperation {
+    /// Operation for [`Page::next`]
+    Next,
+    /// Operation for [`BlockingPage::next`]
+    BlockingNext,
+}
+
+impl PageOperation {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+}
+
+impl Display for PageOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.into_static())
+    }
+}
+
+impl From<PageOperation> for &'static str {
+    fn from(v: PageOperation) -> &'static str {
+        use PageOperation::*;
+
+        match v {
+            Next => "page::next",
+            BlockingNext => "page::blocking_next",
+        }
+    }
+}
 
 /// Page trait is used by [`crate::raw::Accessor`] to implement `list`
 /// or `scan` operation.

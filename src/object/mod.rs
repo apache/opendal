@@ -31,6 +31,10 @@ mod reader;
 pub use reader::BlockingObjectReader;
 pub use reader::ObjectReader;
 
+mod writer;
+pub use writer::BlockingObjectWriter;
+pub use writer::ObjectWriter;
+
 mod list;
 pub use list::BlockingObjectLister;
 pub use list::ObjectLister;

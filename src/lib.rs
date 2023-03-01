@@ -76,6 +76,8 @@ pub use operator::OperatorBuilder;
 pub use operator::OperatorMetadata;
 
 mod object;
+pub use object::BlockingObjectReader;
+pub use object::BlockingObjectWriter;
 pub use object::Object;
 pub use object::ObjectLister;
 pub use object::ObjectMetadata;
@@ -84,6 +86,7 @@ pub use object::ObjectMode;
 pub use object::ObjectMultipart;
 pub use object::ObjectPart;
 pub use object::ObjectReader;
+pub use object::ObjectWriter;
 
 mod scheme;
 pub use scheme::Scheme;

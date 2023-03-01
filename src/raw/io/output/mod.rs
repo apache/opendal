@@ -34,12 +34,10 @@ pub mod into_reader;
 pub mod into_blocking_reader;
 
 mod write;
+pub use write::BlockingWrite;
+pub use write::BlockingWriter;
 pub use write::Write;
 pub use write::Writer;
-
-mod blocking_write;
-pub use blocking_write::BlockingWrite;
-pub use blocking_write::BlockingWriter;
 
 mod cursor;
 pub use cursor::Cursor;

@@ -80,3 +80,58 @@ impl<T: Write + ?Sized> Write for Box<T> {
         (**self).close().await
     }
 }
+
+/// BlockingWriter is a type erased [`BlockingWrite`]
+pub type BlockingWriter = Box<dyn BlockingWrite>;
+
+/// BlockingWrite is the trait that OpenDAL returns to callers.
+pub trait BlockingWrite: Send + Sync + 'static {
+    /// Write whole content at once.
+    fn write(&mut self, bs: Bytes) -> Result<()>;
+
+    /// Append content at tailing.
+    fn append(&mut self, bs: Bytes) -> Result<()>;
+
+    /// Close the writer and make sure all data has been flushed.
+    fn close(&mut self) -> Result<()>;
+}
+
+impl BlockingWrite for () {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        let _ = bs;
+
+        unimplemented!("write is required to be implemented for output::BlockingWrite")
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        let _ = bs;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support append",
+        ))
+    }
+
+    fn close(&mut self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support close",
+        ))
+    }
+}
+
+/// `Box<dyn BlockingWrite>` won't implement `BlockingWrite` automanticly.
+/// To make BlockingWriter work as expected, we must add this impl.
+impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        (**self).write(bs)
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        (**self).append(bs)
+    }
+
+    fn close(&mut self) -> Result<()> {
+        (**self).close()
+    }
+}

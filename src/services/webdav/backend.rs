@@ -306,10 +306,9 @@ impl Accessor for WebdavBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        Ok((
-            RpWrite::default(),
-            WebdavWriter::new(self.clone(), args, path.to_string()),
-        ))
+        let p = build_abs_path(&self.root, path);
+
+        Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -410,15 +409,13 @@ impl WebdavBackend {
 
     pub async fn webdav_put(
         &self,
-        path: &str,
+        abs_path: &str,
         size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,
     ) -> Result<Response<IncomingAsyncBody>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
+        let url = format!("{}/{}", self.endpoint, percent_encode_path(abs_path));
 
         let mut req = Request::put(&url);
 

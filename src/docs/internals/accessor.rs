@@ -124,7 +124,7 @@
 //!        use AccessorCapability::*;
 //!
 //!        let mut am = AccessorMetadata::default();
-//!        am.set_capabilities(Read | Write | List | Scan | Presign | Multipart | Batch);
+//!        am.set_capabilities(Read | Write | List | Scan | Presign | Batch);
 //!
 //!         am
 //!     }

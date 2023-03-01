@@ -43,7 +43,6 @@ use crate::*;
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [ ] blocking
 ///
 /// # Notes

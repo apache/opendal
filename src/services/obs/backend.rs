@@ -44,7 +44,6 @@ use crate::*;
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign
-/// - [ ] multipart
 /// - [ ] blocking
 ///
 /// # Configuration

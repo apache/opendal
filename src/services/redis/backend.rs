@@ -47,7 +47,6 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 /// - [ ] ~~list~~
 /// - [ ] scan
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [ ] blocking
 ///
 /// # Configuration

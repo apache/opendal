@@ -44,7 +44,6 @@ use crate::*;
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [x] blocking
 ///
 /// # Differences with webhdfs

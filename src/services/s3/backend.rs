@@ -86,7 +86,6 @@ mod constants {
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
-/// - [x] multipart
 /// - [ ] blocking
 ///
 /// # Configuration

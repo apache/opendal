@@ -33,7 +33,6 @@ use crate::*;
 /// - [ ] ~~list~~
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [x] blocking
 #[derive(Default)]
 pub struct DashmapBuilder {}

@@ -56,7 +56,6 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [ ] blocking
 ///
 /// # Differences with hdfs

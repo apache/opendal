@@ -11,7 +11,7 @@ w.write(bs2).await?;
 w.close()
 ```
 
-Along with this change, we cleaned up a lot of internal structs and traits. Users who used to depend on `opendal::raw::io::{input,ouput}` should use `opendal::raw::oio` instead.
+Along with this change, we cleaned up a lot of internal structs and traits. Users who used to depend on `opendal::raw::io::{input,output}` should use `opendal::raw::oio` instead.
 
 Also, decompress related feature also removed. Users can use `async-compression` with `ObjectReader` directly.
 

@@ -168,7 +168,7 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;
-    // TODO: we shoud add logging for writer.
+    // TODO: we should add logging for writer.
     type Writer = A::Writer;
     type BlockingWriter = A::BlockingWriter;
     type Pager = LoggingPager<A::Pager>;

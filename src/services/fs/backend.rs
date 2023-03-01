@@ -26,9 +26,8 @@ use time::OffsetDateTime;
 use tokio::fs;
 use uuid::Uuid;
 
-use super::dir_stream::BlockingDirPager;
-use super::dir_stream::DirPager;
 use super::error::parse_io_error;
+use super::pager::FsPager;
 use super::writer::FsWriter;
 use crate::object::*;
 use crate::ops::*;
@@ -46,7 +45,6 @@ use crate::*;
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [x] blocking
 ///
 /// # Configuration
@@ -295,8 +293,8 @@ impl Accessor for FsBackend {
     type BlockingReader = output::into_blocking_reader::FdReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
-    type Pager = Option<DirPager>;
-    type BlockingPager = Option<BlockingDirPager>;
+    type Pager = Option<FsPager<tokio::fs::ReadDir>>;
+    type BlockingPager = Option<FsPager<std::fs::ReadDir>>;
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -509,7 +507,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = DirPager::new(&self.root, f, args.limit());
+        let rd = FsPager::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -695,7 +693,7 @@ impl Accessor for FsBackend {
             }
         };
 
-        let rd = BlockingDirPager::new(&self.root, f, args.limit());
+        let rd = FsPager::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }

@@ -24,8 +24,8 @@ use async_trait::async_trait;
 use log::debug;
 use time::OffsetDateTime;
 
-use super::dir_stream::DirStream;
 use super::error::parse_io_error;
+use super::pager::HdfsPager;
 use super::writer::HdfsWriter;
 use crate::ops::*;
 use crate::raw::*;
@@ -44,7 +44,6 @@ use crate::*;
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [x] blocking
 ///
 /// # Differences with webhdfs
@@ -226,8 +225,8 @@ impl Accessor for HdfsBackend {
     type BlockingReader = output::into_blocking_reader::FdReader<hdrs::File>;
     type Writer = HdfsWriter<hdrs::AsyncFile>;
     type BlockingWriter = HdfsWriter<hdrs::File>;
-    type Pager = Option<DirStream>;
-    type BlockingPager = Option<DirStream>;
+    type Pager = Option<HdfsPager>;
+    type BlockingPager = Option<HdfsPager>;
 
     fn metadata(&self) -> AccessorMetadata {
         let mut am = AccessorMetadata::default();
@@ -408,7 +407,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = DirStream::new(&self.root, f, args.limit());
+        let rd = HdfsPager::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }
@@ -575,7 +574,7 @@ impl Accessor for HdfsBackend {
             }
         };
 
-        let rd = DirStream::new(&self.root, f, args.limit());
+        let rd = HdfsPager::new(&self.root, f, args.limit());
 
         Ok((RpList::default(), Some(rd)))
     }

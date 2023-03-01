@@ -80,7 +80,7 @@ pub enum FileStatusType {
 mod test {
     use super::*;
     use crate::raw::output::Page;
-    use crate::services::webhdfs::dir_stream::DirStream;
+    use crate::services::webhdfs::pager::WebhdfsPager;
     use crate::ObjectMode;
 
     #[test]
@@ -165,9 +165,9 @@ mod test {
             .file_statuses
             .file_status;
 
-        let mut pager = DirStream::new("listing/directory", file_statuses);
+        let mut pager = WebhdfsPager::new("listing/directory", file_statuses);
         let mut entries = vec![];
-        while let Some(oes) = pager.next_page().await.expect("must success") {
+        while let Some(oes) = pager.next().await.expect("must success") {
             entries.extend(oes);
         }
 

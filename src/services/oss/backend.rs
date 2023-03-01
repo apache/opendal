@@ -35,8 +35,8 @@ use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::pager::OssPager;
 use super::writer::OssWriter;
 use crate::ops::*;
 use crate::raw::*;
@@ -53,7 +53,6 @@ use crate::*;
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign
-/// - [ ] multipart
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -409,7 +408,7 @@ impl Accessor for OssBackend {
     type BlockingReader = ();
     type Writer = OssWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = OssPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -498,14 +497,14 @@ impl Accessor for OssBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            OssPager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            OssPager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 

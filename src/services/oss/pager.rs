@@ -31,7 +31,7 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirStream {
+pub struct OssPager {
     backend: Arc<OssBackend>,
     root: String,
     path: String,
@@ -42,7 +42,7 @@ pub struct DirStream {
     done: bool,
 }
 
-impl DirStream {
+impl OssPager {
     pub fn new(
         backend: Arc<OssBackend>,
         root: &str,
@@ -65,8 +65,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl output::Page for OssPager {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }

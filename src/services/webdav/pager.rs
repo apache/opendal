@@ -23,13 +23,13 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirStream {
+pub struct WebdavPager {
     root: String,
     path: String,
     multistates: Multistatus,
 }
 
-impl DirStream {
+impl WebdavPager {
     pub fn new(root: &str, path: &str, multistates: Multistatus) -> Self {
         Self {
             root: root.into(),
@@ -40,8 +40,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl output::Page for WebdavPager {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.multistates.response.is_empty() {
             return Ok(None);
         };

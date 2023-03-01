@@ -16,6 +16,6 @@ mod backend;
 mod builder;
 pub use builder::IpmfsBuilder as Ipmfs;
 
-mod dir_stream;
 mod error;
+mod pager;
 mod writer;

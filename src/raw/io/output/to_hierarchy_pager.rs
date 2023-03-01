@@ -115,8 +115,8 @@ impl<P> ToHierarchyPager<P> {
 
 #[async_trait]
 impl<P: output::Page> output::Page for ToHierarchyPager<P> {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let page = self.pager.next_page().await?;
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let page = self.pager.next().await?;
 
         let entries = if let Some(entries) = page {
             entries
@@ -131,8 +131,8 @@ impl<P: output::Page> output::Page for ToHierarchyPager<P> {
 }
 
 impl<P: output::BlockingPage> output::BlockingPage for ToHierarchyPager<P> {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let page = self.pager.next_page()?;
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let page = self.pager.next()?;
 
         let entries = if let Some(entries) = page {
             entries
@@ -171,7 +171,7 @@ mod tests {
     }
 
     impl BlockingPage for MockPager {
-        fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
             if self.done {
                 return Ok(None);
             }
@@ -203,7 +203,7 @@ mod tests {
         let mut entries = Vec::default();
 
         let mut set = HashSet::new();
-        while let Some(e) = pager.next_page()? {
+        while let Some(e) = pager.next()? {
             for i in &e {
                 debug!("got path {}", i.path());
                 assert!(

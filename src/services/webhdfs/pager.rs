@@ -18,12 +18,12 @@ use super::message::FileStatus;
 use crate::raw::*;
 use crate::*;
 
-pub struct DirStream {
+pub struct WebhdfsPager {
     path: String,
     statuses: Vec<FileStatus>,
 }
 
-impl DirStream {
+impl WebhdfsPager {
     pub fn new(path: &str, statuses: Vec<FileStatus>) -> Self {
         Self {
             path: path.to_string(),
@@ -33,8 +33,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl output::Page for WebhdfsPager {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.statuses.is_empty() {
             return Ok(None);
         }

@@ -15,6 +15,6 @@
 mod backend;
 pub use backend::OssBuilder as Oss;
 
-mod dir_stream;
 mod error;
+mod pager;
 mod writer;

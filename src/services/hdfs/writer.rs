@@ -21,10 +21,9 @@ use bytes::Bytes;
 use futures::AsyncSeekExt;
 use futures::AsyncWriteExt;
 
+use super::error::parse_io_error;
 use crate::raw::*;
 use crate::*;
-
-use super::error::parse_io_error;
 
 pub struct HdfsWriter<F> {
     f: F,

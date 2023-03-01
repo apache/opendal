@@ -36,7 +36,6 @@ use crate::*;
 /// - [ ] ~~list~~
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [x] blocking
 #[derive(Default, Debug)]
 pub struct MokaBuilder {

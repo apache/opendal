@@ -22,6 +22,9 @@ use time::OffsetDateTime;
 use crate::raw::*;
 use crate::*;
 
+/// TODO: refactor me, we don't need an extra ReadDir here.
+///
+/// ref: <https://github.com/datafuselabs/opendal/issues/1438>
 pub struct ReadDir {
     files: Vec<String>,
     index: usize,
@@ -52,13 +55,13 @@ impl ReadDir {
     }
 }
 
-pub struct DirStream {
+pub struct FtpPager {
     path: String,
     size: usize,
     rd: ReadDir,
 }
 
-impl DirStream {
+impl FtpPager {
     pub fn new(path: &str, rd: ReadDir, limit: Option<usize>) -> Self {
         Self {
             path: path.to_string(),
@@ -69,8 +72,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl output::Page for FtpPager {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {

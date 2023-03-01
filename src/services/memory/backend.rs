@@ -34,7 +34,6 @@ use crate::*;
 /// - [ ] ~~list~~
 /// - [x] scan
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [x] blocking
 #[derive(Default)]
 pub struct MemoryBuilder {}

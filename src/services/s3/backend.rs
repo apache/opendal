@@ -44,8 +44,8 @@ use reqsign::AwsV4Signer;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::pager::S3Pager;
 use super::writer::S3Writer;
 use crate::ops::*;
 use crate::raw::*;
@@ -86,7 +86,6 @@ mod constants {
 /// - [x] list
 /// - [x] scan
 /// - [x] presign
-/// - [x] multipart
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -1111,7 +1110,7 @@ impl Accessor for S3Backend {
     type BlockingReader = ();
     type Writer = S3Writer;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = S3Pager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -1221,14 +1220,14 @@ impl Accessor for S3Backend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            S3Pager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            S3Pager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 

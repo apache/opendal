@@ -29,8 +29,8 @@ use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageSigner;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
 use crate::object::ObjectMetadata;
 use crate::ops::*;
@@ -50,7 +50,6 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 /// - [x] list
 /// - [x] scan
 /// - [ ] presign
-/// - [ ] multipart
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -420,7 +419,7 @@ impl Accessor for AzblobBackend {
     type BlockingReader = ();
     type Writer = AzblobWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = AzblobPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -508,7 +507,7 @@ impl Accessor for AzblobBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = DirStream::new(
+        let op = AzblobPager::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),
@@ -520,7 +519,7 @@ impl Accessor for AzblobBackend {
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
-        let op = DirStream::new(
+        let op = AzblobPager::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),

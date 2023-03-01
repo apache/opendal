@@ -69,7 +69,6 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 /// - [ ] list
 /// - [ ] ~~scan~~
 /// - [ ] ~~presign~~
-/// - [ ] ~~multipart~~
 /// - [ ] blocking
 ///
 /// # Notes

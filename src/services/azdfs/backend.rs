@@ -29,8 +29,8 @@ use http::StatusCode;
 use log::debug;
 use reqsign::AzureStorageSigner;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::pager::AzdfsPager;
 use super::writer::AzdfsWriter;
 use crate::object::ObjectMetadata;
 use crate::ops::*;
@@ -52,7 +52,6 @@ use crate::*;
 /// - [x] list
 /// - [ ] ~~scan~~
 /// - [ ] presign
-/// - [ ] multipart
 /// - [ ] blocking
 ///
 /// # Configuration
@@ -306,7 +305,7 @@ impl Accessor for AzdfsBackend {
     type BlockingReader = ();
     type Writer = AzdfsWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = AzdfsPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -398,7 +397,7 @@ impl Accessor for AzdfsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
-        let op = DirStream::new(
+        let op = AzdfsPager::new(
             Arc::new(self.clone()),
             self.root.clone(),
             path.to_string(),

@@ -260,13 +260,13 @@ impl KvPager {
 
 #[async_trait]
 impl output::Page for KvPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
 
 impl output::BlockingPage for KvPager {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         Ok(self.inner_next_page())
     }
 }

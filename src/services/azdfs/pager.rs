@@ -25,7 +25,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub struct DirStream {
+pub struct AzdfsPager {
     backend: Arc<AzdfsBackend>,
     root: String,
     path: String,
@@ -35,7 +35,7 @@ pub struct DirStream {
     done: bool,
 }
 
-impl DirStream {
+impl AzdfsPager {
     pub fn new(
         backend: Arc<AzdfsBackend>,
         root: String,
@@ -55,8 +55,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl output::Page for AzdfsPager {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);
         }

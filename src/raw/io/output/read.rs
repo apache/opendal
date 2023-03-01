@@ -12,18 +12,64 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
-use std::io::SeekFrom;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::io;
 use std::marker::PhantomPinned;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
+use crate::*;
 use bytes::Bytes;
 use futures::Future;
 use pin_project::pin_project;
+
+/// PageOperation is the name for APIs of pager.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ReadOperation {
+    /// Operation for [`Read::poll_read`]
+    Read,
+    /// Operation for [`Read::poll_seek`]
+    Seek,
+    /// Operation for [`Read::poll_next`]
+    Next,
+    /// Operation for [`BlockingRead::read`]
+    BlockingRead,
+    /// Operation for [`BlockingRead::seek`]
+    BlockingSeek,
+    /// Operation for [`BlockingRead::next`]
+    BlockingNext,
+}
+
+impl ReadOperation {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+}
+
+impl Display for ReadOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.into_static())
+    }
+}
+
+impl From<ReadOperation> for &'static str {
+    fn from(v: ReadOperation) -> &'static str {
+        use ReadOperation::*;
+
+        match v {
+            Read => "Reader::read",
+            Seek => "Reader::seek",
+            Next => "Reader::next",
+            BlockingRead => "BlockingReader::read",
+            BlockingSeek => "BlockingReader::seek",
+            BlockingNext => "BlockingReader::next",
+        }
+    }
+}
 
 /// Reader is a type erased [`Read`].
 pub type Reader = Box<dyn Read>;
@@ -45,7 +91,7 @@ pub trait Read: Unpin + Send + Sync {
     /// Seek asynchronously.
     ///
     /// Returns `Unsupported` error if underlying reader doesn't support seek.
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>>;
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>>;
 
     /// Stream [`Bytes`] from underlying reader.
     ///
@@ -64,7 +110,7 @@ impl Read for () {
         unimplemented!("poll_read is required to be implemented for output::Read")
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         let (_, _) = (cx, pos);
 
         Poll::Ready(Err(Error::new(
@@ -90,7 +136,7 @@ impl<T: Read + ?Sized> Read for Box<T> {
         (**self).poll_read(cx, buf)
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         (**self).poll_seek(cx, pos)
     }
 
@@ -104,9 +150,10 @@ impl futures::AsyncRead for dyn Read {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut [u8],
-    ) -> Poll<Result<usize>> {
+    ) -> Poll<io::Result<usize>> {
         let this: &mut dyn Read = &mut *self;
         this.poll_read(cx, buf)
+            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
     }
 }
 
@@ -114,10 +161,11 @@ impl futures::AsyncSeek for dyn Read {
     fn poll_seek(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        pos: SeekFrom,
-    ) -> Poll<Result<u64>> {
+        pos: io::SeekFrom,
+    ) -> Poll<io::Result<u64>> {
         let this: &mut dyn Read = &mut *self;
         this.poll_seek(cx, pos)
+            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
     }
 }
 
@@ -145,7 +193,7 @@ pub trait ReadExt: Read {
     }
 
     /// Build a future for `poll_seek`.
-    fn seek(&mut self, pos: SeekFrom) -> SeekFuture<'_, Self> {
+    fn seek(&mut self, pos: io::SeekFrom) -> SeekFuture<'_, Self> {
         SeekFuture {
             reader: self,
             pos,
@@ -188,7 +236,7 @@ where
 #[pin_project]
 pub struct SeekFuture<'a, R: Read + Unpin + ?Sized> {
     reader: &'a mut R,
-    pos: SeekFrom,
+    pos: io::SeekFrom,
     /// Make this future `!Unpin` for compatibility with async trait methods.
     ///
     /// Borrowed from tokio.
@@ -227,5 +275,97 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         let this = self.project();
         Pin::new(this.reader).poll_next(cx)
+    }
+}
+
+/// BlockingReader is a boxed dyn `BlockingRead`.
+pub type BlockingReader = Box<dyn BlockingRead>;
+
+/// Read is the trait that OpenDAL returns to callers.
+///
+/// Read is compose of the following trait
+///
+/// - `Read`
+/// - `Seek`
+/// - `Iterator<Item = Result<Bytes>>`
+///
+/// `Read` is required to be implemented, `Seek` and `Iterator`
+/// is optional. We use `Read` to make users life easier.
+pub trait BlockingRead: Send + Sync + 'static {
+    /// Read synchronously.
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
+
+    /// Seek synchronously.
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64>;
+
+    /// Iterating [`Bytes`] from underlying reader.
+    fn next(&mut self) -> Option<Result<Bytes>>;
+}
+
+impl BlockingRead for () {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let _ = buf;
+
+        unimplemented!("read is required to be implemented for output::BlockingRead")
+    }
+
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        let _ = pos;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output blocking reader doesn't support seeking",
+        ))
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        Some(Err(Error::new(
+            ErrorKind::Unsupported,
+            "output reader doesn't support iterating",
+        )))
+    }
+}
+
+/// `Box<dyn BlockingRead>` won't implement `BlockingRead` automanticly.
+/// To make BlockingReader work as expected, we must add this impl.
+impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        (**self).read(buf)
+    }
+
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
+        (**self).seek(pos)
+    }
+
+    fn next(&mut self) -> Option<Result<Bytes>> {
+        (**self).next()
+    }
+}
+
+impl std::io::Read for dyn BlockingRead {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let this: &mut dyn BlockingRead = &mut *self;
+        this.read(buf)
+            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
+    }
+}
+
+impl std::io::Seek for dyn BlockingRead {
+    #[inline]
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        let this: &mut dyn BlockingRead = &mut *self;
+        this.seek(pos)
+            .map_err(|err| io::Error::new(io::ErrorKind::Interrupted, err))
+    }
+}
+
+impl Iterator for dyn BlockingRead {
+    type Item = Result<Bytes>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let this: &mut dyn BlockingRead = &mut *self;
+        this.next()
     }
 }

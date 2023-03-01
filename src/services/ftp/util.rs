@@ -26,7 +26,7 @@ use suppaftp::Status;
 
 use super::backend::Manager;
 use crate::raw::*;
-use crate::Result;
+use crate::*;
 
 /// Wrapper for ftp data stream and command stream.
 pub struct FtpReader {
@@ -52,7 +52,7 @@ impl FtpReader {
 }
 
 impl output::Read for FtpReader {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let data = Pin::new(&mut self.reader).poll_read(cx, buf);
 
         match &mut self.state {
@@ -76,7 +76,10 @@ impl output::Read for FtpReader {
                             self.state = State::Finalize(Box::pin(fut));
                         } else {
                             // Otherwise, exit and return data.
-                            return data;
+                            return data.map_err(|err| {
+                                Error::new(ErrorKind::Unexpected, "read data from ftp data stream")
+                                    .set_source(err)
+                            });
                         }
 
                         self.poll_read(cx, buf)
@@ -89,25 +92,25 @@ impl output::Read for FtpReader {
             // Finalize state, wait for finalization of stream.
             State::Finalize(fut) => match ready!(Pin::new(fut).poll_unpin(cx)) {
                 Ok(_) => Poll::Ready(Ok(0)),
-                Err(e) => Poll::Ready(Err(e.into())),
+                Err(e) => Poll::Ready(Err(e)),
             },
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         let (_, _) = (cx, pos);
 
-        Poll::Ready(Err(io::Error::new(
-            io::ErrorKind::Unsupported,
+        Poll::Ready(Err(Error::new(
+            ErrorKind::Unsupported,
             "output reader doesn't support seeking",
         )))
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
         let _ = cx;
 
-        Poll::Ready(Some(Err(io::Error::new(
-            io::ErrorKind::Unsupported,
+        Poll::Ready(Some(Err(Error::new(
+            ErrorKind::Unsupported,
             "output reader doesn't support seeking",
         ))))
     }

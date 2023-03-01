@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Result;
 use std::io::SeekFrom;
 use std::task::Context;
 use std::task::Poll;
@@ -22,6 +21,7 @@ use futures::ready;
 use tokio::io::ReadBuf;
 
 use crate::raw::*;
+use crate::*;
 
 /// as_streamable is used to make [`output::Read`] or [`output::BlockingRead`] streamable.
 pub fn into_streamable_reader<R>(r: R, capacity: usize) -> IntoStreamableReader<R> {

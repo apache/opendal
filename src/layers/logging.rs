@@ -14,14 +14,11 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::io::Read;
-use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::AsyncRead;
 use futures::FutureExt;
 use futures::TryFutureExt;
 use log::debug;
@@ -913,7 +910,7 @@ impl<R> Drop for LoggingReader<R> {
 }
 
 impl<R: output::Read> output::Read for LoggingReader<R> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match self.inner.poll_read(cx, buf) {
             Poll::Ready(res) => match res {
                 Ok(n) => {
@@ -959,11 +956,11 @@ impl<R: output::Read> output::Read for LoggingReader<R> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         self.inner.poll_seek(cx, pos)
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         match self.inner.poll_next(cx) {
             Poll::Ready(res) => match res {
                 Some(Ok(bs)) => {
@@ -1011,60 +1008,8 @@ impl<R: output::Read> output::Read for LoggingReader<R> {
     }
 }
 
-impl<R: input::Read> AsyncRead for LoggingReader<R> {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        match Pin::new(&mut self.inner).poll_read(cx, buf) {
-            Poll::Ready(res) => match res {
-                Ok(n) => {
-                    self.has_read += n as u64;
-                    trace!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} has_read={} -> {}: {}B",
-                        self.scheme,
-                        self.op,
-                        self.path,
-                        self.has_read,
-                        self.op,
-                        n
-                    );
-                    Poll::Ready(Ok(n))
-                }
-                Err(err) => {
-                    if let Some(lvl) = self.failure_level {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} has_read={} -> failed: {err:?}",
-                            self.scheme,
-                            self.op,
-                            self.path,
-                            self.has_read,
-                        )
-                    }
-                    Poll::Ready(Err(err))
-                }
-            },
-            Poll::Pending => {
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> pending",
-                    self.scheme,
-                    self.op,
-                    self.path,
-                    self.has_read
-                );
-                Poll::Pending
-            }
-        }
-    }
-}
-
 impl<R: output::BlockingRead> output::BlockingRead for LoggingReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.inner.read(buf) {
             Ok(n) => {
                 self.has_read += n as u64;
@@ -1098,11 +1043,11 @@ impl<R: output::BlockingRead> output::BlockingRead for LoggingReader<R> {
     }
 
     #[inline]
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
 
-    fn next(&mut self) -> Option<io::Result<Bytes>> {
+    fn next(&mut self) -> Option<Result<Bytes>> {
         match self.inner.next() {
             Some(Ok(bs)) => {
                 self.has_read += bs.len() as u64;
@@ -1133,41 +1078,6 @@ impl<R: output::BlockingRead> output::BlockingRead for LoggingReader<R> {
                 Some(Err(err))
             }
             None => None,
-        }
-    }
-}
-
-impl<R: input::BlockingRead> Read for LoggingReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match self.inner.read(buf) {
-            Ok(n) => {
-                self.has_read += n as u64;
-                trace!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} has_read={} -> {}: {}B",
-                    self.scheme,
-                    self.op,
-                    self.path,
-                    self.has_read,
-                    self.op,
-                    n
-                );
-                Ok(n)
-            }
-            Err(err) => {
-                if let Some(lvl) = self.failure_level {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} has_read={} -> failed: {err:?}",
-                        self.scheme,
-                        self.op,
-                        self.path,
-                        self.has_read,
-                    );
-                }
-                Err(err)
-            }
         }
     }
 }

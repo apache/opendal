@@ -232,12 +232,12 @@ impl Error {
     ///
     /// If the error already carries an operation, we will push a new context
     /// `(called, operation)`.
-    pub fn with_operation(mut self, operation: &'static str) -> Self {
+    pub fn with_operation(mut self, operation: impl Into<&'static str>) -> Self {
         if !self.operation.is_empty() {
             self.context.push(("called", self.operation.to_string()));
         }
 
-        self.operation = operation;
+        self.operation = operation.into();
         self
     }
 

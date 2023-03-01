@@ -14,14 +14,11 @@
 
 use std::fmt::Debug;
 use std::io;
-use std::io::Read;
-use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::AsyncRead;
 use futures::FutureExt;
 use tracing::Span;
 
@@ -263,7 +260,7 @@ impl<R: output::Read> output::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf)
     }
 
@@ -271,7 +268,7 @@ impl<R: output::Read> output::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
         self.inner.poll_seek(cx, pos)
     }
 
@@ -279,43 +276,22 @@ impl<R: output::Read> output::Read for TracingWrapper<R> {
         parent = &self.span,
         level = "trace",
         skip_all)]
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
         self.inner.poll_next(cx)
     }
 }
 
-impl<R: input::Read> AsyncRead for TracingWrapper<R> {
-    #[tracing::instrument(
-        parent = &self.span,
-        level = "trace",
-        fields(size = buf.len())
-        skip_all)]
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.inner).poll_read(cx, buf)
-    }
-}
-
 impl<R: output::BlockingRead> output::BlockingRead for TracingWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf)
     }
 
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+    fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {
         self.inner.seek(pos)
     }
 
-    fn next(&mut self) -> Option<io::Result<Bytes>> {
+    fn next(&mut self) -> Option<Result<Bytes>> {
         self.inner.next()
-    }
-}
-
-impl<R: input::BlockingRead> Read for TracingWrapper<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.read(buf)
     }
 }
 

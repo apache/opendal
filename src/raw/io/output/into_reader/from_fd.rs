@@ -13,9 +13,6 @@
 // limitations under the License.
 
 use std::cmp;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::task::Context;
@@ -26,6 +23,7 @@ use futures::AsyncRead;
 use futures::AsyncSeek;
 
 use crate::raw::*;
+use crate::*;
 
 /// Convert given fd into [`output::Reader`].
 pub fn from_fd<R>(fd: R, start: u64, end: u64) -> FdReader<R>
@@ -70,7 +68,12 @@ where
 
         let max = cmp::min(buf.len() as u64, self.current_size() as u64) as usize;
         // TODO: we can use pread instead.
-        let n = ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf[..max]))?;
+        let n =
+            ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf[..max])).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "read data from FdReader")
+                    .with_context("source", "FdReader")
+                    .set_source(err)
+            })?;
         self.offset += n as u64;
         Poll::Ready(Ok(n))
     }
@@ -87,18 +90,23 @@ where
 
         match base.checked_add(offset) {
             Some(n) if n < 0 => Poll::Ready(Err(Error::new(
-                ErrorKind::InvalidInput,
+                ErrorKind::Unexpected,
                 "invalid seek to a negative or overflowing position",
             ))),
             Some(n) => {
                 let cur =
-                    ready!(Pin::new(&mut self.inner).poll_seek(cx, SeekFrom::Start(n as u64)))?;
+                    ready!(Pin::new(&mut self.inner).poll_seek(cx, SeekFrom::Start(n as u64)))
+                        .map_err(|err| {
+                            Error::new(ErrorKind::Unexpected, "seek data from FdReader")
+                                .with_context("source", "FdReader")
+                                .set_source(err)
+                        })?;
 
                 self.offset = cur;
                 Poll::Ready(Ok(self.offset - self.start))
             }
             None => Poll::Ready(Err(Error::new(
-                ErrorKind::InvalidInput,
+                ErrorKind::Unexpected,
                 "invalid seek to a negative or overflowing position",
             ))),
         }

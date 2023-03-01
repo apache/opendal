@@ -14,9 +14,6 @@
 
 use std::cmp;
 use std::future::Future;
-use std::io;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::io::SeekFrom;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -100,7 +97,7 @@ impl<A: Accessor> RangeReader<A> {
     /// calculate the seek position.
     ///
     /// This operation will not update the `self.cur`.
-    fn seek_pos(&self, pos: SeekFrom) -> io::Result<u64> {
+    fn seek_pos(&self, pos: SeekFrom) -> Result<u64> {
         if let Some(last_pos) = self.last_seek_pos {
             return Ok(last_pos);
         }
@@ -115,7 +112,7 @@ impl<A: Accessor> RangeReader<A> {
             Some(n) if n >= 0 => n as u64,
             _ => {
                 return Err(Error::new(
-                    ErrorKind::InvalidInput,
+                    ErrorKind::Unexpected,
                     "invalid seek to a negative or overflowing position",
                 ))
             }
@@ -125,7 +122,7 @@ impl<A: Accessor> RangeReader<A> {
 }
 
 impl<A: Accessor> output::Read for RangeReader<A> {
-    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         match &mut self.state {
             State::Idle => {
                 if self.cur >= self.size {
@@ -167,7 +164,7 @@ impl<A: Accessor> output::Read for RangeReader<A> {
         }
     }
 
-    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<io::Result<u64>> {
+    fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
         let seek_pos = self.seek_pos(pos)?;
         self.last_seek_pos = Some(seek_pos);
 
@@ -233,7 +230,7 @@ impl<A: Accessor> output::Read for RangeReader<A> {
         }
     }
 
-    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<bytes::Bytes>>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<bytes::Bytes>>> {
         match &mut self.state {
             State::Idle => {
                 if self.cur >= self.size {
@@ -289,7 +286,6 @@ mod tests {
     use sha2::Sha256;
 
     use super::*;
-    use crate::Result;
 
     // Generate bytes between [4MiB, 16MiB)
     fn gen_bytes() -> (Bytes, usize) {
@@ -347,22 +343,28 @@ mod tests {
     }
 
     impl output::Read for MockReader {
-        fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-            Pin::new(&mut self.inner).poll_read(cx, buf)
+        fn poll_read(&mut self, cx: &mut Context, buf: &mut [u8]) -> Poll<Result<usize>> {
+            Pin::new(&mut self.inner).poll_read(cx, buf).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
+            })
         }
 
-        fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<io::Result<u64>> {
+        fn poll_seek(&mut self, cx: &mut Context<'_>, pos: SeekFrom) -> Poll<Result<u64>> {
             let (_, _) = (cx, pos);
 
-            Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Unsupported,
+            Poll::Ready(Err(Error::new(
+                ErrorKind::Unsupported,
                 "output reader doesn't support seeking",
             )))
         }
 
-        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<Bytes>>> {
             let mut bs = vec![0; 4 * 1024];
-            let n = ready!(Pin::new(&mut self.inner).poll_read(cx, &mut bs)?);
+            let n = ready!(Pin::new(&mut self.inner)
+                .poll_read(cx, &mut bs)
+                .map_err(
+                    |err| Error::new(ErrorKind::Unexpected, "read data from mock").set_source(err)
+                )?);
             if n == 0 {
                 Poll::Ready(None)
             } else {

@@ -58,6 +58,8 @@ use crate::*;
 ///     type Inner = A;
 ///     type Reader = A::Reader;
 ///     type BlockingReader = A::BlockingReader;
+///     type Writer = A::Writer;
+///     type BlockingWriter = A::BlockingWriter;
 ///     type Pager = A::Pager;
 ///     type BlockingPager = A::BlockingPager;
 ///
@@ -75,6 +77,18 @@ use crate::*;
 ///         args: OpRead,
 ///     ) -> Result<(RpRead, Self::BlockingReader)> {
 ///         self.inner.blocking_read(path, args)
+///     }
+///
+///     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+///         self.inner.write(path, args).await
+///     }
+///
+///     fn blocking_write(
+///         &self,
+///         path: &str,
+///         args: OpWrite,
+///     ) -> Result<(RpWrite, Self::BlockingWriter)> {
+///         self.inner.blocking_write(path, args)
 ///     }
 ///
 ///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {

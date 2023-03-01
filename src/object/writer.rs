@@ -58,9 +58,9 @@ impl ObjectWriter {
     /// It is highly recommended to align the length of the input bytes
     /// into blocks of 4MiB (except the last block) for better performance
     /// and compatibility.
-    pub async fn append(&mut self, bs: Bytes) -> Result<()> {
+    pub async fn append(&mut self, bs: impl Into<Bytes>) -> Result<()> {
         if let State::Idle(Some(w)) = &mut self.state {
-            w.append(bs).await
+            w.append(bs.into()).await
         } else {
             unreachable!(
                 "writer state invalid while append, expect Idle, actual {}",
@@ -191,8 +191,8 @@ impl BlockingObjectWriter {
     /// It is highly recommended to align the length of the input bytes
     /// into blocks of 4MiB (except the last block) for better performance
     /// and compatibility.
-    pub fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.append(bs)
+    pub fn append(&mut self, bs: impl Into<Bytes>) -> Result<()> {
+        self.inner.append(bs.into())
     }
 
     /// Close the writer and make sure all data have been stored.

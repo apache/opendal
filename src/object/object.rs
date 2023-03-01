@@ -588,7 +588,7 @@ impl Object {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut o = op.object("path/to/file");
     /// let bs = b"hello, world!".to_vec();
-    /// let args = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
+    /// let args = OpWrite::new().with_content_type("text/plain");
     /// let _ = o.write_with(args, bs).await?;
     /// # Ok(())
     /// # }
@@ -689,7 +689,7 @@ impl Object {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut o = op.object("hello.txt");
     /// let bs = b"hello, world!".to_vec();
-    /// let ow = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
+    /// let ow = OpWrite::new().with_content_type("text/plain");
     /// let _ = o.blocking_write_with(ow, bs)?;
     /// # Ok(())
     /// # }
@@ -1394,7 +1394,7 @@ impl Object {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let args = OpWrite::new(0).with_content_type("text/csv");
+    ///     let args = OpWrite::new().with_content_type("text/csv");
     ///     let signed_req = op.object("test").presign_write_with(args, Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())

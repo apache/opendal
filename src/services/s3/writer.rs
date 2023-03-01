@@ -57,7 +57,7 @@ impl output::Write for S3Writer {
             Some(self.op.size()),
             self.op.content_type(),
             self.op.content_disposition(),
-            AsyncBody::Bytes(bs.into()),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.backend
@@ -89,7 +89,7 @@ impl output::Write for S3Writer {
             upload_id,
             part_number,
             Some(bs.len() as u64),
-            AsyncBody::Bytes(bs.into()),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.backend

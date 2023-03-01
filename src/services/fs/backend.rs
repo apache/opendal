@@ -625,7 +625,7 @@ impl Accessor for FsBackend {
             .create(true)
             .truncate(true)
             .write(true)
-            .open(&path)
+            .open(path)
             .map_err(parse_io_error)?;
 
         Ok((RpWrite::new(0), FsWriter::new(target_path, tmp_path, f)))

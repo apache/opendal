@@ -52,10 +52,7 @@ impl output::Write for FsWriter<tokio::fs::File> {
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
     async fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f
-            .seek(SeekFrom::Start(0))
-            .await
-            .map_err(parse_io_error)?;
+        self.f.rewind().await.map_err(parse_io_error)?;
         self.f.write_all(&bs).await.map_err(parse_io_error)?;
 
         Ok(())
@@ -95,7 +92,7 @@ impl output::BlockingWrite for FsWriter<std::fs::File> {
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
+        self.f.rewind().map_err(parse_io_error)?;
         self.f.write_all(&bs).map_err(parse_io_error)?;
 
         Ok(())

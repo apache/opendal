@@ -68,7 +68,7 @@ impl output::Write for AzdfsWriter {
         let mut req = self.backend.azdfs_update_request(
             &self.path,
             Some(self.op.size()),
-            AsyncBody::Bytes(bs.into()),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.backend

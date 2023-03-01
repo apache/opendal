@@ -81,7 +81,7 @@ impl output::BlockingWrite for HdfsWriter<hdrs::File> {
     /// File could be partial written, so we will seek to start to make sure
     /// we write the same content.
     fn write(&mut self, bs: Bytes) -> Result<()> {
-        self.f.seek(SeekFrom::Start(0)).map_err(parse_io_error)?;
+        self.f.rewind().map_err(parse_io_error)?;
         self.f.write_all(&bs).map_err(parse_io_error)?;
 
         Ok(())

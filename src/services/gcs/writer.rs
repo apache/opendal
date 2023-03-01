@@ -42,7 +42,7 @@ impl output::Write for GcsWriter {
             &self.path,
             Some(self.op.size()),
             self.op.content_type(),
-            AsyncBody::Bytes(bs.into()),
+            AsyncBody::Bytes(bs),
         )?;
 
         self.backend

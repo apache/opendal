@@ -38,10 +38,7 @@ impl output::Write for IpmfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend
-            .ipmfs_write(
-                &self.path,
-                AsyncBody::Multipart("data".to_string(), bs.into()),
-            )
+            .ipmfs_write(&self.path, AsyncBody::Multipart("data".to_string(), bs))
             .await?;
 
         let status = resp.status();

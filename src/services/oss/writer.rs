@@ -43,7 +43,7 @@ impl output::Write for OssWriter {
             Some(self.op.size()),
             self.op.content_type(),
             self.op.content_disposition(),
-            AsyncBody::Bytes(bs.into()),
+            AsyncBody::Bytes(bs),
             false,
         )?;
 

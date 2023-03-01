@@ -43,7 +43,7 @@ impl output::Write for GhacWriter {
         let size = bs.len() as u64;
         let req = self
             .backend
-            .ghac_upload(self.cache_id, size, AsyncBody::Bytes(bs.into()))
+            .ghac_upload(self.cache_id, size, AsyncBody::Bytes(bs))
             .await?;
 
         let resp = self.backend.client.send_async(req).await?;

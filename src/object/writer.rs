@@ -113,7 +113,7 @@ impl AsyncWrite for ObjectWriter {
                     let bs = Bytes::from(buf.to_vec());
                     let size = bs.len();
                     let fut = async move {
-                        let _ = w.append(bs).await?;
+                        w.append(bs).await?;
                         Ok((size, w))
                     };
                     self.state = State::Write(Box::pin(fut));
@@ -145,7 +145,7 @@ impl AsyncWrite for ObjectWriter {
                         .take()
                         .expect("invalid state of writer: Idle state with empty write");
                     let fut = async move {
-                        let _ = w.close().await?;
+                        w.close().await?;
                         Ok(w)
                     };
                     self.state = State::Close(Box::pin(fut));

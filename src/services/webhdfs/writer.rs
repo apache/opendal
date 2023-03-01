@@ -44,7 +44,7 @@ impl output::Write for WebhdfsWriter {
                 &self.path,
                 Some(self.op.size()),
                 self.op.content_type(),
-                AsyncBody::Bytes(bs.into()),
+                AsyncBody::Bytes(bs),
             )
             .await?;
 

@@ -77,7 +77,7 @@ impl ObjectLister {
                 .pager
                 .as_mut()
                 .expect("pager must be valid")
-                .next_page()
+                .next()
                 .await?
             {
                 // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
@@ -124,7 +124,7 @@ impl Stream for ObjectLister {
 
         let mut pager = self.pager.take().expect("pager must be valid");
         let fut = async move {
-            let res = pager.next_page().await;
+            let res = pager.next().await;
 
             (pager, res)
         };
@@ -159,7 +159,7 @@ impl BlockingObjectLister {
         let entries = if !self.buf.is_empty() {
             mem::take(&mut self.buf)
         } else {
-            match self.pager.next_page()? {
+            match self.pager.next()? {
                 // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
                 //
                 // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)
@@ -186,7 +186,7 @@ impl Iterator for BlockingObjectLister {
             return Some(Ok(oe.into_object(self.operator())));
         }
 
-        self.buf = match self.pager.next_page() {
+        self.buf = match self.pager.next() {
             // Ideally, the convert from `Vec` to `VecDeque` will not do reallocation.
             //
             // However, this could be changed as described in [impl<T, A> From<Vec<T, A>> for VecDeque<T, A>](https://doc.rust-lang.org/std/collections/struct.VecDeque.html#impl-From%3CVec%3CT%2C%20A%3E%3E-for-VecDeque%3CT%2C%20A%3E)

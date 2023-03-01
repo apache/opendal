@@ -167,7 +167,7 @@ mod test {
 
         let mut pager = DirStream::new("listing/directory", file_statuses);
         let mut entries = vec![];
-        while let Some(oes) = pager.next_page().await.expect("must success") {
+        while let Some(oes) = pager.next().await.expect("must success") {
             entries.extend(oes);
         }
 

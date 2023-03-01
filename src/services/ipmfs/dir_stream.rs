@@ -45,7 +45,7 @@ impl DirStream {
 
 #[async_trait]
 impl output::Page for DirStream {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.consumed {
             return Ok(None);
         }

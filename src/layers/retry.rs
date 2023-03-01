@@ -681,11 +681,11 @@ impl<P> RetryPager<P> {
 
 #[async_trait]
 impl<P: output::Page> output::Page for RetryPager<P> {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if let Some(sleep) = self.sleep.take() {
             tokio::time::sleep(sleep).await;
         }
-        match self.inner.next_page().await {
+        match self.inner.next().await {
             Ok(v) => {
                 // request successful, reset backoff
                 self.reset_backoff();
@@ -720,7 +720,7 @@ impl<P: output::Page> output::Page for RetryPager<P> {
                               "operation={} path={} -> pager retry after {}s: error={:?}",
                               Operation::List, self.path, dur.as_secs_f64(), e);
                         self.sleep = Some(dur);
-                        self.next_page().await
+                        self.next().await
                     }
                 }
             }
@@ -729,8 +729,8 @@ impl<P: output::Page> output::Page for RetryPager<P> {
 }
 
 impl<P: output::BlockingPage> output::BlockingPage for RetryPager<P> {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        { || self.inner.next_page() }
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        { || self.inner.next() }
             .retry(&self.policy)
             .when(|e| e.is_temporary())
             .notify(move |err, dur| {
@@ -859,7 +859,7 @@ mod tests {
     }
     #[async_trait]
     impl output::Page for MockPager {
-        async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
             self.attempt += 1;
             match self.attempt {
                 1 => Err(Error::new(

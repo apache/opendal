@@ -42,7 +42,7 @@ impl DirPager {
 
 #[async_trait]
 impl output::Page for DirPager {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
@@ -103,7 +103,7 @@ impl BlockingDirPager {
 }
 
 impl output::BlockingPage for BlockingDirPager {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {

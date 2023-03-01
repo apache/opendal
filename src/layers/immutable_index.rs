@@ -254,13 +254,13 @@ impl ImmutableDir {
 
 #[async_trait]
 impl output::Page for ImmutableDir {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         Ok(self.inner_next_page())
     }
 }
 
 impl output::BlockingPage for ImmutableDir {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         Ok(self.inner_next_page())
     }
 }

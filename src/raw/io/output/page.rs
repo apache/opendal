@@ -24,8 +24,8 @@ pub trait Page: Send + Sync + 'static {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all object pages have been returned. Any following call
-    /// to `next_page` will always get the same result.
-    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>>;
+    /// to `next` will always get the same result.
+    async fn next(&mut self) -> Result<Option<Vec<Entry>>>;
 }
 
 /// The boxed version of [`Page`]
@@ -33,23 +33,23 @@ pub type Pager = Box<dyn Page>;
 
 #[async_trait]
 impl Page for Pager {
-    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
-        self.as_mut().next_page().await
+    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+        self.as_mut().next().await
     }
 }
 
 #[async_trait]
 impl Page for () {
-    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         Ok(None)
     }
 }
 
 #[async_trait]
 impl<P: Page> Page for Option<P> {
-    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         match self {
-            Some(p) => p.next_page().await,
+            Some(p) => p.next().await,
             None => Ok(None),
         }
     }
@@ -60,30 +60,30 @@ pub trait BlockingPage: 'static {
     /// Fetch a new page of [`Entry`]
     ///
     /// `Ok(None)` means all object pages have been returned. Any following call
-    /// to `next_page` will always get the same result.
-    fn next_page(&mut self) -> Result<Option<Vec<Entry>>>;
+    /// to `next` will always get the same result.
+    fn next(&mut self) -> Result<Option<Vec<Entry>>>;
 }
 
 /// BlockingPager is a boxed [`BlockingPage`]
 pub type BlockingPager = Box<dyn BlockingPage>;
 
 impl BlockingPage for BlockingPager {
-    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
-        self.as_mut().next_page()
+    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
+        self.as_mut().next()
     }
 }
 
 impl BlockingPage for () {
-    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         Ok(None)
     }
 }
 
 #[async_trait]
 impl<P: BlockingPage> BlockingPage for Option<P> {
-    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         match self {
-            Some(p) => p.next_page(),
+            Some(p) => p.next(),
             None => Ok(None),
         }
     }

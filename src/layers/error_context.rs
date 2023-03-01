@@ -296,8 +296,8 @@ pub struct ErrorContextWrapper<T> {
 
 #[async_trait::async_trait]
 impl<T: output::Page> output::Page for ErrorContextWrapper<T> {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        self.inner.next_page().await.map_err(|err| {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        self.inner.next().await.map_err(|err| {
             err.with_operation("Page::next_page")
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
@@ -306,8 +306,8 @@ impl<T: output::Page> output::Page for ErrorContextWrapper<T> {
 }
 
 impl<T: output::BlockingPage> output::BlockingPage for ErrorContextWrapper<T> {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        self.inner.next_page().map_err(|err| {
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        self.inner.next().map_err(|err| {
             err.with_operation("Page::next_page")
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)

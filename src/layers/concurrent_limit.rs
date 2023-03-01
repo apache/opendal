@@ -337,13 +337,13 @@ impl<R: output::BlockingWrite> output::BlockingWrite for ConcurrentLimitWrapper<
 
 #[async_trait]
 impl<R: output::Page> output::Page for ConcurrentLimitWrapper<R> {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        self.inner.next_page().await
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        self.inner.next().await
     }
 }
 
 impl<R: output::BlockingPage> output::BlockingPage for ConcurrentLimitWrapper<R> {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        self.inner.next_page()
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        self.inner.next()
     }
 }

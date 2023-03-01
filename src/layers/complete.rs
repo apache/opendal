@@ -480,13 +480,13 @@ where
     A: Accessor<Pager = P>,
     P: output::Page,
 {
-    async fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         use CompletePager::*;
 
         match self {
-            AlreadyComplete(p) => p.next_page().await,
-            NeedFlat(p) => p.next_page().await,
-            NeedHierarchy(p) => p.next_page().await,
+            AlreadyComplete(p) => p.next().await,
+            NeedFlat(p) => p.next().await,
+            NeedHierarchy(p) => p.next().await,
         }
     }
 }
@@ -496,13 +496,13 @@ where
     A: Accessor<BlockingPager = P>,
     P: output::BlockingPage,
 {
-    fn next_page(&mut self) -> Result<Option<Vec<Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         use CompletePager::*;
 
         match self {
-            AlreadyComplete(p) => p.next_page(),
-            NeedFlat(p) => p.next_page(),
-            NeedHierarchy(p) => p.next_page(),
+            AlreadyComplete(p) => p.next(),
+            NeedFlat(p) => p.next(),
+            NeedHierarchy(p) => p.next(),
         }
     }
 }

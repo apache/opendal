@@ -1244,8 +1244,8 @@ impl<P> LoggingPager<P> {
 
 #[async_trait]
 impl<P: output::Page> output::Page for LoggingPager<P> {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let res = self.inner.next_page().await;
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let res = self.inner.next().await;
 
         match &res {
             Ok(Some(des)) => {
@@ -1288,8 +1288,8 @@ impl<P: output::Page> output::Page for LoggingPager<P> {
 }
 
 impl<P: output::BlockingPage> output::BlockingPage for LoggingPager<P> {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let res = self.inner.next_page();
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        let res = self.inner.next();
 
         match &res {
             Ok(Some(des)) => {

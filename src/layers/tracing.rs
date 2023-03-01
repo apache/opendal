@@ -322,14 +322,14 @@ impl<R: input::BlockingRead> Read for TracingWrapper<R> {
 #[async_trait]
 impl<R: output::Page> output::Page for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        self.inner.next_page().await
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        self.inner.next().await
     }
 }
 
 impl<R: output::BlockingPage> output::BlockingPage for TracingWrapper<R> {
     #[tracing::instrument(parent = &self.span, level = "debug", skip_all)]
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        self.inner.next_page()
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        self.inner.next()
     }
 }

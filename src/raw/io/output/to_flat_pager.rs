@@ -98,7 +98,7 @@ where
     A: Accessor<Pager = P>,
     P: output::Page,
 {
-    async fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.list(de.path(), OpList::new()).await?;
@@ -116,7 +116,7 @@ where
             };
 
             if buf.is_empty() {
-                match pager.next_page().await? {
+                match pager.next().await? {
                     Some(v) => {
                         buf = v;
                     }
@@ -155,7 +155,7 @@ where
     A: Accessor<BlockingPager = P>,
     P: output::BlockingPage,
 {
-    fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.blocking_list(de.path(), OpList::new())?;
@@ -173,7 +173,7 @@ where
             };
 
             if buf.is_empty() {
-                match pager.next_page()? {
+                match pager.next()? {
                     Some(v) => {
                         buf = v;
                     }
@@ -267,7 +267,7 @@ mod tests {
     }
 
     impl BlockingPage for MockPager {
-        fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
             if self.done {
                 return Ok(None);
             }
@@ -298,7 +298,7 @@ mod tests {
 
         let mut entries = Vec::default();
 
-        while let Some(e) = pager.next_page()? {
+        while let Some(e) = pager.next()? {
             entries.extend_from_slice(&e)
         }
 

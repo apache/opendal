@@ -22,5 +22,5 @@ crate-type = ["cdylib"]
 name = "opendal"
 
 [dependencies]
-opendal = { version = "0.28", path = "../../" }
+opendal = { version = "0.29", path = "../../" }
 pyo3 = { version = "0.18", features = ["extension-module"] }

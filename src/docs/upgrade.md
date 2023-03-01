@@ -1,3 +1,20 @@
+# Upgrade to v0.29
+
+In v0.29, we introduced [Object Writer][crate::docs::rfcs::rfc_1420_object_writer] to replace existing Multipart related APIs.
+
+Users can now append multiparts bytes into object via:
+
+```rust
+let mut w = o.writer().await?;
+w.write(bs1).await?;
+w.write(bs2).await?;
+w.close()
+```
+
+Along with this change, we cleaned up a lot of internal structs and traits. Users who used to depend on `opendal::raw::io::{input,ouput}` should use `opendal::raw::oio` instead.
+
+Also, decompress related feature also removed. Users can use `async-compression` with `ObjectReader` directly.
+
 # Upgrade to v0.28
 
 In v0.28, we introduced [Query Based Metadata][crate::docs::rfcs::rfc_1398_query_based_metadata]. Users can query cached metadata with [`ObjectMetakey`][crate::ObjectMetakey] to make sure that OpenDAL always makes the best decision.

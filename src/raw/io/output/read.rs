@@ -25,7 +25,7 @@ use bytes::Bytes;
 use futures::Future;
 use pin_project::pin_project;
 
-/// Reader is a boxed dyn [`Read`].
+/// Reader is a type erased [`Read`].
 pub type Reader = Box<dyn Read>;
 
 /// Read is the trait that OpenDAL returns to callers.

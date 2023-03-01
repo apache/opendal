@@ -59,6 +59,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type BlockingReader = A::BlockingReader;
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = ErrorContextWrapper<A::Pager>;
     type BlockingPager = ErrorContextWrapper<A::BlockingPager>;
 
@@ -95,9 +97,9 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
             .await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner
-            .write(path, args, r)
+            .write(path, args)
             .map_err(|err| {
                 err.with_operation(Operation::Write.into_static())
                     .with_context("service", self.meta.scheme())
@@ -178,67 +180,6 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         })
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.inner
-            .create_multipart(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::CreateMultipart.into_static())
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        self.inner
-            .write_multipart(path, args, r)
-            .map_err(|err| {
-                err.with_operation(Operation::WriteMultipart.into_static())
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.inner
-            .complete_multipart(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::CompleteMultipart.into_static())
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.inner
-            .abort_multipart(path, args)
-            .map_err(|err| {
-                err.with_operation(Operation::AbortMultipart.into_static())
-                    .with_context("service", self.meta.scheme())
-                    .with_context("path", path)
-            })
-            .await
-    }
-
     async fn batch(&self, args: OpBatch) -> Result<RpBatch> {
         self.inner
             .batch(args)
@@ -282,13 +223,8 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         })
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.inner.blocking_write(path, args, r).map_err(|err| {
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner.blocking_write(path, args).map_err(|err| {
             err.with_operation(Operation::BlockingWrite.into_static())
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)

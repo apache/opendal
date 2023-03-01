@@ -243,6 +243,8 @@ mod tests {
     impl Accessor for MockService {
         type Reader = ();
         type BlockingReader = ();
+        type Writer = ();
+        type BlockingWriter = ();
         type Pager = ();
         type BlockingPager = MockPager;
 

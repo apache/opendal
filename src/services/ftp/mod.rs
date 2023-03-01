@@ -18,3 +18,4 @@ pub use backend::FtpBuilder as Ftp;
 mod dir_stream;
 mod err;
 mod util;
+mod writer;

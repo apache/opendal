@@ -37,6 +37,7 @@ use serde::Serialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::writer::OssWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -378,7 +379,7 @@ impl Builder for OssBuilder {
 #[derive(Clone)]
 /// Aliyun Object Storage Service backend
 pub struct OssBackend {
-    client: HttpClient,
+    pub client: HttpClient,
 
     root: String,
     bucket: String,
@@ -388,7 +389,7 @@ pub struct OssBackend {
     host: String,
     endpoint: String,
     presign_endpoint: String,
-    signer: Arc<AliyunOssSigner>,
+    pub signer: Arc<AliyunOssSigner>,
 }
 
 impl Debug for OssBackend {
@@ -406,6 +407,8 @@ impl Debug for OssBackend {
 impl Accessor for OssBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = OssWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -452,25 +455,11 @@ impl Accessor for OssBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let resp = self
-            .oss_put_object(
-                path,
-                Some(args.size()),
-                args.content_type(),
-                args.content_disposition(),
-                AsyncBody::Reader(r),
-            )
-            .await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            OssWriter::new(self.clone(), args, path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -533,12 +522,6 @@ impl Accessor for OssBackend {
                 AsyncBody::Empty,
                 true,
             )?,
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "oss doesn't support multipart now",
-                ))
-            }
         };
 
         self.signer
@@ -617,10 +600,10 @@ impl Accessor for OssBackend {
 }
 
 impl OssBackend {
-    fn oss_put_object_request(
+    pub fn oss_put_object_request(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,
@@ -746,7 +729,7 @@ impl OssBackend {
     async fn oss_put_object(
         &self,
         path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,

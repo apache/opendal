@@ -17,3 +17,4 @@ pub use backend::AzblobBuilder as Azblob;
 
 mod dir_stream;
 mod error;
+mod writer;

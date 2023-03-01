@@ -17,3 +17,4 @@ pub use backend::OssBuilder as Oss;
 
 mod dir_stream;
 mod error;
+mod writer;

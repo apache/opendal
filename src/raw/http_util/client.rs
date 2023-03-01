@@ -213,7 +213,7 @@ impl HttpClient {
 
         req_builder = if let AsyncBody::Multipart(field, r) = body {
             let mut form = reqwest::multipart::Form::new();
-            let part = reqwest::multipart::Part::stream(AsyncBody::Reader(r));
+            let part = reqwest::multipart::Part::stream(AsyncBody::Bytes(r));
             form = form.part(field, part);
 
             req_builder.multipart(form)

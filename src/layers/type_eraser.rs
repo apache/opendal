@@ -53,6 +53,8 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
     type Inner = A;
     type Reader = output::Reader;
     type BlockingReader = output::BlockingReader;
+    type Writer = output::Writer;
+    type BlockingWriter = output::BlockingWriter;
     type Pager = output::Pager;
     type BlockingPager = output::BlockingPager;
 
@@ -71,6 +73,19 @@ impl<A: Accessor> LayeredAccessor for TypeEraseAccessor<A> {
         self.inner
             .blocking_read(path, args)
             .map(|(rp, r)| (rp, Box::new(r) as output::BlockingReader))
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner
+            .write(path, args)
+            .await
+            .map(|(rp, w)| (rp, Box::new(w) as output::Writer))
+    }
+
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner
+            .blocking_write(path, args)
+            .map(|(rp, w)| (rp, Box::new(w) as output::BlockingWriter))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {

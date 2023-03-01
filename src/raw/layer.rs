@@ -58,6 +58,8 @@ use crate::*;
 ///     type Inner = A;
 ///     type Reader = A::Reader;
 ///     type BlockingReader = A::BlockingReader;
+///     type Writer = A::Writer;
+///     type BlockingWriter = A::BlockingWriter;
 ///     type Pager = A::Pager;
 ///     type BlockingPager = A::BlockingPager;
 ///
@@ -75,6 +77,18 @@ use crate::*;
 ///         args: OpRead,
 ///     ) -> Result<(RpRead, Self::BlockingReader)> {
 ///         self.inner.blocking_read(path, args)
+///     }
+///
+///     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+///         self.inner.write(path, args).await
+///     }
+///
+///     fn blocking_write(
+///         &self,
+///         path: &str,
+///         args: OpWrite,
+///     ) -> Result<(RpWrite, Self::BlockingWriter)> {
+///         self.inner.blocking_write(path, args)
 ///     }
 ///
 ///     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
@@ -123,6 +137,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
     type Reader: output::Read;
     type BlockingReader: output::BlockingRead;
+    type Writer: output::Write;
+    type BlockingWriter: output::BlockingWrite;
     type Pager: output::Page;
     type BlockingPager: output::BlockingPage;
 
@@ -138,9 +154,7 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)>;
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.inner().write(path, args, r).await
-    }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)>;
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().stat(path, args).await
@@ -162,53 +176,13 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
         self.inner().presign(path, args)
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.inner().create_multipart(path, args).await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        self.inner().write_multipart(path, args, r).await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.inner().complete_multipart(path, args).await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.inner().abort_multipart(path, args).await
-    }
-
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner().blocking_create(path, args)
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)>;
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.inner().blocking_write(path, args, r)
-    }
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)>;
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner().blocking_stat(path, args)
@@ -227,6 +201,8 @@ pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
 impl<L: LayeredAccessor> Accessor for L {
     type Reader = L::Reader;
     type BlockingReader = L::BlockingReader;
+    type Writer = L::Writer;
+    type BlockingWriter = L::BlockingWriter;
     type Pager = L::Pager;
     type BlockingPager = L::BlockingPager;
 
@@ -242,8 +218,8 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).read(path, args).await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        (self as &L).write(path, args, r).await
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        (self as &L).write(path, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -270,39 +246,6 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).presign(path, args)
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        (self as &L).create_multipart(path, args).await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        (self as &L).write_multipart(path, args, r).await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        (self as &L).complete_multipart(path, args).await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        (self as &L).abort_multipart(path, args).await
-    }
-
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         (self as &L).blocking_create(path, args)
     }
@@ -311,13 +254,8 @@ impl<L: LayeredAccessor> Accessor for L {
         (self as &L).blocking_read(path, args)
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        (self as &L).blocking_write(path, args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        (self as &L).blocking_write(path, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -368,6 +306,8 @@ mod tests {
     impl<A: Accessor> Accessor for Test<A> {
         type Reader = ();
         type BlockingReader = ();
+        type Writer = ();
+        type BlockingWriter = ();
         type Pager = ();
         type BlockingPager = ();
 

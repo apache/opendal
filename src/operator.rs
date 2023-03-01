@@ -599,13 +599,6 @@ impl OperatorMetadata {
             .contains(AccessorCapability::Presign)
     }
 
-    /// Check if current backend supports multipart operations or not.
-    pub fn can_multipart(&self) -> bool {
-        self.acc
-            .capabilities()
-            .contains(AccessorCapability::Multipart)
-    }
-
     /// Check if current backend supports batch operations or not.
     pub fn can_batch(&self) -> bool {
         self.acc.capabilities().contains(AccessorCapability::Batch)

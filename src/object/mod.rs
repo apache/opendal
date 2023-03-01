@@ -19,10 +19,6 @@ mod metadata;
 pub use metadata::ObjectMetadata;
 pub use metadata::ObjectMetakey;
 
-mod multipart;
-pub use multipart::ObjectMultipart;
-pub use multipart::ObjectPart;
-
 #[allow(clippy::module_inception)]
 mod object;
 pub use object::Object;
@@ -30,6 +26,10 @@ pub use object::Object;
 mod reader;
 pub use reader::BlockingObjectReader;
 pub use reader::ObjectReader;
+
+mod writer;
+pub use writer::BlockingObjectWriter;
+pub use writer::ObjectWriter;
 
 mod list;
 pub use list::BlockingObjectLister;

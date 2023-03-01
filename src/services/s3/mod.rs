@@ -17,3 +17,4 @@ pub use backend::S3Builder as S3;
 
 mod dir_stream;
 mod error;
+mod writer;

@@ -25,6 +25,7 @@ use serde::Deserialize;
 
 use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::writer::IpmfsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -60,6 +61,8 @@ impl IpmfsBackend {
 impl Accessor for IpmfsBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = IpmfsWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -107,20 +110,11 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let resp = self
-            .ipmfs_write(path, AsyncBody::Multipart("data".to_string(), r))
-            .await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::default(),
+            IpmfsWriter::new(self.clone(), path.to_string()),
+        ))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -275,7 +269,7 @@ impl IpmfsBackend {
     }
 
     /// Support write from reader.
-    async fn ipmfs_write(
+    pub async fn ipmfs_write(
         &self,
         path: &str,
         body: AsyncBody,

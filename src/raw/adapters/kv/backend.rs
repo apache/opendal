@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
-use futures::AsyncReadExt;
+use bytes::Bytes;
 
 use super::Adapter;
 use crate::ops::*;
@@ -23,7 +25,7 @@ use crate::*;
 /// Backend of kv service.
 #[derive(Debug, Clone)]
 pub struct Backend<S: Adapter> {
-    kv: S,
+    kv: Arc<S>,
     root: String,
 }
 
@@ -34,7 +36,7 @@ where
     /// Create a new kv backend.
     pub fn new(kv: S) -> Self {
         Self {
-            kv,
+            kv: Arc::new(kv),
             root: "/".to_string(),
         }
     }
@@ -50,6 +52,8 @@ where
 impl<S: Adapter> Accessor for Backend<S> {
     type Reader = output::Cursor;
     type BlockingReader = output::Cursor;
+    type Writer = KvWriter<S>;
+    type BlockingWriter = KvWriter<S>;
     type Pager = KvPager;
     type BlockingPager = KvPager;
 
@@ -110,34 +114,16 @@ impl<S: Adapter> Accessor for Backend<S> {
         Ok((RpRead::new(bs.len() as u64), output::Cursor::from(bs)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite, mut r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
 
-        let mut bs = Vec::with_capacity(args.size() as usize);
-        r.read_to_end(&mut bs)
-            .await
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
-
-        self.kv.set(&p, &bs).await?;
-
-        Ok(RpWrite::new(args.size()))
+        Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        mut r: input::BlockingReader,
-    ) -> Result<RpWrite> {
+    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let p = build_abs_path(&self.root, path);
 
-        let mut bs = Vec::with_capacity(args.size() as usize);
-        r.read_to_end(&mut bs)
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "read from source").set_source(err))?;
-
-        self.kv.blocking_set(&p, &bs)?;
-
-        Ok(RpWrite::new(args.size()))
+        Ok((RpWrite::new(), KvWriter::new(self.kv.clone(), p)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -282,5 +268,64 @@ impl output::Page for KvPager {
 impl output::BlockingPage for KvPager {
     fn next_page(&mut self) -> Result<Option<Vec<output::Entry>>> {
         Ok(self.inner_next_page())
+    }
+}
+
+pub struct KvWriter<S> {
+    kv: Arc<S>,
+    path: String,
+
+    /// TODO: if kv supports append, we can use them directly.
+    buf: Vec<u8>,
+}
+
+impl<S> KvWriter<S> {
+    fn new(kv: Arc<S>, path: String) -> Self {
+        KvWriter {
+            kv,
+            path,
+            buf: Vec::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl<S: Adapter> output::Write for KvWriter<S> {
+    async fn write(&mut self, bs: Bytes) -> Result<()> {
+        self.buf = bs.into();
+
+        Ok(())
+    }
+
+    async fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.buf.extend(bs);
+
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.kv.set(&self.path, &self.buf).await?;
+
+        Ok(())
+    }
+}
+
+impl<S: Adapter> output::BlockingWrite for KvWriter<S> {
+    fn write(&mut self, bs: Bytes) -> Result<()> {
+        self.buf = bs.into();
+
+        Ok(())
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.buf.extend(bs);
+
+        Ok(())
+    }
+
+    fn close(&mut self) -> Result<()> {
+        self.kv.blocking_set(&self.path, &self.buf)?;
+
+        Ok(())
     }
 }

@@ -26,6 +26,7 @@ use time::OffsetDateTime;
 
 use super::dir_stream::DirStream;
 use super::error::parse_io_error;
+use super::writer::HdfsWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -223,6 +224,8 @@ unsafe impl Sync for HdfsBackend {}
 impl Accessor for HdfsBackend {
     type Reader = output::into_reader::FdReader<hdrs::AsyncFile>;
     type BlockingReader = output::into_blocking_reader::FdReader<hdrs::File>;
+    type Writer = HdfsWriter<hdrs::AsyncFile>;
+    type BlockingWriter = HdfsWriter<hdrs::File>;
     type Pager = Option<DirStream>;
     type BlockingPager = Option<DirStream>;
 
@@ -315,7 +318,7 @@ impl Accessor for HdfsBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let parent = PathBuf::from(&p)
@@ -333,7 +336,7 @@ impl Accessor for HdfsBackend {
             .create_dir(&parent.to_string_lossy())
             .map_err(parse_io_error)?;
 
-        let mut f = self
+        let f = self
             .client
             .open_file()
             .create(true)
@@ -342,9 +345,7 @@ impl Accessor for HdfsBackend {
             .await
             .map_err(parse_io_error)?;
 
-        let n = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
-
-        Ok(RpWrite::new(n))
+        Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -485,12 +486,7 @@ impl Accessor for HdfsBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        _: OpWrite,
-        mut r: input::BlockingReader,
-    ) -> Result<RpWrite> {
+    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         let p = build_rooted_abs_path(&self.root, path);
 
         let parent = PathBuf::from(&p)
@@ -508,7 +504,7 @@ impl Accessor for HdfsBackend {
             .create_dir(&parent.to_string_lossy())
             .map_err(parse_io_error)?;
 
-        let mut f = self
+        let f = self
             .client
             .open_file()
             .create(true)
@@ -516,9 +512,7 @@ impl Accessor for HdfsBackend {
             .open(&p)
             .map_err(parse_io_error)?;
 
-        let n = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
-
-        Ok(RpWrite::new(n))
+        Ok((RpWrite::new(), HdfsWriter::new(f)))
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

@@ -27,6 +27,7 @@ use log::debug;
 use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::list_response::Multistatus;
+use super::writer::WebdavWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -254,6 +255,8 @@ impl Debug for WebdavBackend {
 impl Accessor for WebdavBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = WebdavWriter;
+    type BlockingWriter = ();
     type Pager = DirStream;
     type BlockingPager = ();
 
@@ -302,27 +305,10 @@ impl Accessor for WebdavBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let abs_path = &build_abs_path(&self.root, path);
-        let resp = self
-            .webdav_put(
-                abs_path,
-                Some(args.size()),
-                args.content_type(),
-                args.content_disposition(),
-                AsyncBody::Reader(r),
-            )
-            .await?;
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                resp.into_body().consume().await?;
-                Ok(RpWrite::new(args.size()))
-            }
-            _ => Err(parse_error(resp).await?),
-        }
+        Ok((RpWrite::default(), WebdavWriter::new(self.clone(), args, p)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -421,10 +407,10 @@ impl WebdavBackend {
         self.client.send_async(req).await
     }
 
-    async fn webdav_put(
+    pub async fn webdav_put(
         &self,
         abs_path: &str,
-        size: Option<u64>,
+        size: Option<usize>,
         content_type: Option<&str>,
         content_disposition: Option<&str>,
         body: AsyncBody,

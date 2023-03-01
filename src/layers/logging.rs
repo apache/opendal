@@ -168,6 +168,9 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
     type Inner = A;
     type Reader = LoggingReader<A::Reader>;
     type BlockingReader = LoggingReader<A::BlockingReader>;
+    // TODO: we should add logging for writer.
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = LoggingPager<A::Pager>;
     type BlockingPager = LoggingPager<A::BlockingPager>;
 
@@ -285,39 +288,25 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} size={:?} -> started",
+            "service={} operation={} path={} -> started",
             self.scheme,
             Operation::Write,
-            path,
-            args.size()
+            path
         );
-
-        let size = args.size();
-
-        let reader = LoggingReader::new(
-            self.scheme,
-            Operation::Write,
-            path,
-            Some(args.size()),
-            r,
-            self.failure_level,
-        );
-        let r = Box::new(reader) as input::Reader;
 
         self.inner
-            .write(path, args, r)
+            .write(path, args)
             .await
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} size={:?} -> written",
+                    "service={} operation={} path={} -> start writing",
                     self.scheme,
                     Operation::Write,
                     path,
-                    size
                 );
                 v
             })
@@ -326,11 +315,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} size={:?} -> {}: {err:?}",
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::Write,
                         path,
-                        size,
                         self.err_status(&err)
                     )
                 };
@@ -585,193 +573,6 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             .await
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} -> started",
-            self.scheme,
-            Operation::CreateMultipart,
-            path
-        );
-
-        self.inner
-            .create_multipart(path, args.clone())
-            .inspect(|v| match v {
-                Ok(_) => {
-                    debug!(
-                        target: LOGGING_TARGET,
-                        "service={} operation={} path={} -> finished",
-                        self.scheme,
-                        Operation::CreateMultipart,
-                        path
-                    );
-                }
-                Err(err) => {
-                    if let Some(lvl) = self.err_level(err) {
-                        log!(
-                            target: LOGGING_TARGET,
-                            lvl,
-                            "service={} operation={} path={} -> {}: {err:?}",
-                            self.scheme,
-                            Operation::CreateMultipart,
-                            path,
-                            self.err_status(err)
-                        );
-                    }
-                }
-            })
-            .await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> started",
-            self.scheme,
-            Operation::WriteMultipart,
-            path,
-            args.upload_id(),
-            args.part_number(),
-            args.size()
-        );
-
-        let r = LoggingReader::new(
-            self.scheme,
-            Operation::Write,
-            path,
-            Some(args.size()),
-            r,
-            self.failure_level,
-        );
-        let r = Box::new(r);
-
-        self.inner
-            .write_multipart(path, args.clone(), r)
-            .inspect_ok(|_| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> written",
-                    self.scheme,
-                    Operation::WriteMultipart,
-                    path,
-                    args.upload_id(),
-                    args.part_number(),
-                    args.size()
-                );
-            })
-            .inspect_err(|err| {
-                if let Some(lvl) = self.err_level(err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                       "service={} operation={} path={} upload_id={} part_number={:?} size={:?} -> {}: {err:?}",
-                        self.scheme,
-                        Operation::WriteMultipart,
-                        path,
-                        args.upload_id(),
-                        args.part_number(),
-                        args.size(),
-                        self.err_status(err)
-                    );
-                }
-            }).await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} upload_id={} -> started",
-            self.scheme,
-            Operation::CompleteMultipart,
-            path,
-            args.upload_id(),
-        );
-
-        self.inner
-            .complete_multipart(path, args.clone())
-            .inspect_ok(|_| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} upload_id={} -> finished",
-                    self.scheme,
-                    Operation::CompleteMultipart,
-                    path,
-                    args.upload_id()
-                );
-            })
-            .inspect_err(|err| {
-                if let Some(lvl) = self.err_level(err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} upload_id={} -> {}: {err:?}",
-                        self.scheme,
-                        Operation::CompleteMultipart,
-                        path,
-                        args.upload_id(),
-                        self.err_status(err)
-                    );
-                }
-            })
-            .await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        debug!(
-            target: LOGGING_TARGET,
-            "service={} operation={} path={} upload_id={} -> started",
-            self.scheme,
-            Operation::AbortMultipart,
-            path,
-            args.upload_id()
-        );
-
-        self.inner
-            .abort_multipart(path, args.clone())
-            .inspect_ok(|_| {
-                debug!(
-                    target: LOGGING_TARGET,
-                    "service={} operation={} path={} upload_id={} -> finished",
-                    self.scheme,
-                    Operation::AbortMultipart,
-                    path,
-                    args.upload_id()
-                );
-            })
-            .inspect_err(|err| {
-                if let Some(lvl) = self.err_level(err) {
-                    log!(
-                        target: LOGGING_TARGET,
-                        lvl,
-                        "service={} operation={} path={} upload_id={} -> {}: {err:?}",
-                        self.scheme,
-                        Operation::AbortMultipart,
-                        path,
-                        args.upload_id(),
-                        self.err_status(err)
-                    );
-                }
-            })
-            .await
-    }
-
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         debug!(
             target: LOGGING_TARGET,
@@ -857,40 +658,24 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
             })
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         debug!(
             target: LOGGING_TARGET,
-            "service={} operation={} path={} size={:?} -> started",
+            "service={} operation={} path={} -> started",
             self.scheme,
             Operation::BlockingWrite,
             path,
-            args.size()
-        );
-
-        let reader = LoggingReader::new(
-            self.scheme,
-            Operation::BlockingWrite,
-            path,
-            Some(args.size()),
-            r,
-            self.failure_level,
         );
 
         self.inner
-            .blocking_write(path, args.clone(), Box::new(reader))
+            .blocking_write(path, args)
             .map(|v| {
                 debug!(
                     target: LOGGING_TARGET,
-                    "service={} operation={} path={} size={:?} -> written",
+                    "service={} operation={} path={} -> written",
                     self.scheme,
                     Operation::BlockingWrite,
                     path,
-                    args.size()
                 );
                 v
             })
@@ -899,11 +684,10 @@ impl<A: Accessor> LayeredAccessor for LoggingAccessor<A> {
                     log!(
                         target: LOGGING_TARGET,
                         lvl,
-                        "service={} operation={} path={} size={:?} -> {}: {err:?}",
+                        "service={} operation={} path={} -> {}: {err:?}",
                         self.scheme,
                         Operation::BlockingWrite,
                         path,
-                        args.size(),
                         self.err_status(&err)
                     );
                 }

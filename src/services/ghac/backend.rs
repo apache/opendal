@@ -31,6 +31,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::error::parse_error;
+use super::writer::GhacWriter;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -270,7 +271,7 @@ impl Builder for GhacBuilder {
 }
 
 /// Backend for github action cache services.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GhacBackend {
     // root should end with "/"
     root: String,
@@ -284,13 +285,15 @@ pub struct GhacBackend {
     api_token: String,
     repo: String,
 
-    client: HttpClient,
+    pub client: HttpClient,
 }
 
 #[async_trait]
 impl Accessor for GhacBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = GhacWriter;
+    type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
 
@@ -316,7 +319,7 @@ impl Accessor for GhacBackend {
             ));
         }
 
-        let req = self.ghac_reserve(path, 1).await?;
+        let req = self.ghac_reserve(path).await?;
 
         let resp = self.client.send_async(req).await?;
 
@@ -389,8 +392,8 @@ impl Accessor for GhacBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        let req = self.ghac_reserve(path, args.size()).await?;
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let req = self.ghac_reserve(path).await?;
 
         let resp = self.client.send_async(req).await?;
 
@@ -405,31 +408,7 @@ impl Accessor for GhacBackend {
                 .map(|err| err.with_operation("Backend::ghac_reserve"))?);
         };
 
-        let req = self
-            .ghac_upload(cache_id, args.size(), AsyncBody::Reader(r))
-            .await?;
-
-        let resp = self.client.send_async(req).await?;
-
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-        } else {
-            return Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_upload"))?);
-        }
-
-        let req = self.ghac_commit(cache_id, args.size()).await?;
-        let resp = self.client.send_async(req).await?;
-
-        if resp.status().is_success() {
-            resp.into_body().consume().await?;
-            Ok(RpWrite::new(args.size()))
-        } else {
-            Err(parse_error(resp)
-                .await
-                .map(|err| err.with_operation("Backend::ghac_commit"))?)
-        }
+        Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -544,7 +523,7 @@ impl GhacBackend {
             .map_err(new_request_build_error)
     }
 
-    async fn ghac_reserve(&self, path: &str, size: u64) -> Result<Request<AsyncBody>> {
+    async fn ghac_reserve(&self, path: &str) -> Result<Request<AsyncBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}{CACHE_URL_BASE}/caches", self.cache_url);
@@ -552,7 +531,6 @@ impl GhacBackend {
         let bs = serde_json::to_vec(&GhacReserveRequest {
             key: p,
             version: self.version.to_string(),
-            cache_size: size,
         })
         .map_err(new_json_serialize_error)?;
 
@@ -569,7 +547,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_upload(
+    pub async fn ghac_upload(
         &self,
         cache_id: i64,
         size: u64,
@@ -594,7 +572,7 @@ impl GhacBackend {
         Ok(req)
     }
 
-    async fn ghac_commit(&self, cache_id: i64, size: u64) -> Result<Request<AsyncBody>> {
+    pub async fn ghac_commit(&self, cache_id: i64, size: u64) -> Result<Request<AsyncBody>> {
         let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);
 
         let bs =
@@ -649,7 +627,6 @@ struct GhacQueryResponse {
 struct GhacReserveRequest {
     key: String,
     version: String,
-    cache_size: u64,
 }
 
 #[derive(Deserialize)]

@@ -17,8 +17,8 @@ use std::io::Read;
 use std::ops::RangeBounds;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use flagset::FlagSet;
-use futures::io::Cursor;
 use futures::AsyncReadExt;
 use time::Duration;
 use tokio::io::ReadBuf;
@@ -505,6 +505,7 @@ impl Object {
 
         BlockingObjectReader::create(self.accessor(), self.path(), op)
     }
+
     /// Write bytes into object.
     ///
     /// # Notes
@@ -527,10 +528,46 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
-        let bs: Vec<u8> = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
-        self.write_with(op, bs).await
+    pub async fn write(&self, bs: impl Into<Bytes>) -> Result<()> {
+        self.write_with(OpWrite::new(), bs).await
+    }
+
+    /// Write multiple bytes into object.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.object("path/to/file").writer().await?;
+    /// w.append(vec![0; 4096]).await?;
+    /// w.append(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn writer(&self) -> Result<ObjectWriter> {
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::write_with")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
+        }
+
+        let op = OpWrite::default().with_append();
+        ObjectWriter::create(self.accessor(), self.path(), op).await
     }
 
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -551,12 +588,12 @@ impl Object {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut o = op.object("path/to/file");
     /// let bs = b"hello, world!".to_vec();
-    /// let args = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
+    /// let args = OpWrite::new().with_content_type("text/plain");
     /// let _ = o.write_with(args, bs).await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub async fn write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -566,9 +603,9 @@ impl Object {
             );
         }
 
-        let bs = bs.into();
-        let r = Cursor::new(bs);
-        let _ = self.acc.write(self.path(), args, Box::new(r)).await?;
+        let (_, mut w) = self.acc.write(self.path(), args).await?;
+        w.write(bs.into()).await?;
+        w.close().await?;
 
         Ok(())
     }
@@ -594,10 +631,45 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write(&self, bs: impl Into<Vec<u8>>) -> Result<()> {
-        let bs: Vec<u8> = bs.into();
-        let op = OpWrite::new(bs.len() as u64);
-        self.blocking_write_with(op, bs)
+    pub fn blocking_write(&self, bs: impl Into<Bytes>) -> Result<()> {
+        self.blocking_write_with(OpWrite::new(), bs)
+    }
+
+    /// Write multiple bytes into object.
+    ///
+    /// # Notes
+    ///
+    /// - Write will make sure all bytes has been written, or an error will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::StreamExt;
+    /// # use futures::SinkExt;
+    /// use bytes::Bytes;
+    ///
+    /// # fn test(op: Operator) -> Result<()> {
+    /// let mut w = op.object("path/to/file").blocking_writer()?;
+    /// w.append(vec![0; 4096])?;
+    /// w.append(vec![1; 4096])?;
+    /// w.close()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn blocking_writer(&self) -> Result<BlockingObjectWriter> {
+        if !validate_path(self.path(), ObjectMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
+                    .with_operation("Object::write_with")
+                    .with_context("service", self.accessor().metadata().scheme().into_static())
+                    .with_context("path", self.path()),
+            );
+        }
+
+        let op = OpWrite::default().with_append();
+        BlockingObjectWriter::create(self.accessor(), self.path(), op)
     }
 
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -617,12 +689,12 @@ impl Object {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut o = op.object("hello.txt");
     /// let bs = b"hello, world!".to_vec();
-    /// let ow = OpWrite::new(bs.len() as u64).with_content_type("text/plain");
+    /// let ow = OpWrite::new().with_content_type("text/plain");
     /// let _ = o.blocking_write_with(ow, bs)?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Vec<u8>>) -> Result<()> {
+    pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -632,95 +704,10 @@ impl Object {
             );
         }
 
-        let bs = bs.into();
-        let r = std::io::Cursor::new(bs);
-        let _ = self.acc.blocking_write(self.path(), args, Box::new(r))?;
+        let (_, mut w) = self.acc.blocking_write(self.path(), args)?;
+        w.write(bs.into())?;
+        w.close()?;
 
-        Ok(())
-    }
-
-    /// Write data into object from a [`input::Read`].
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// use bytes::Bytes;
-    /// use futures::io::Cursor;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let r = Cursor::new(vec![0; 4096]);
-    /// let _ = o.write_from(4096, r).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn write_from(&self, size: u64, br: impl input::Read + 'static) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_operation("Object::write_from")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let _ = self
-            .acc
-            .write(self.path(), OpWrite::new(size), Box::new(br))
-            .await?;
-        Ok(())
-    }
-
-    /// Write data into object from a [`input::BlockingRead`].
-    ///
-    /// # Notes
-    ///
-    /// - Write will make sure all bytes has been written, or an error will be returned.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::io::Result;
-    /// # use opendal::Operator;
-    /// # use futures::StreamExt;
-    /// # use futures::SinkExt;
-    /// use std::io::Cursor;
-    ///
-    /// use bytes::Bytes;
-    ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let r = Cursor::new(vec![0; 4096]);
-    /// let _ = o.blocking_write_from(4096, r)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn blocking_write_from(
-        &self,
-        size: u64,
-        br: impl input::BlockingRead + 'static,
-    ) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
-                    .with_operation("Object::blocking_write_from")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let _ = self
-            .acc
-            .blocking_write(self.path(), OpWrite::new(size), Box::new(br))?;
         Ok(())
     }
 
@@ -1389,7 +1376,7 @@ impl Object {
     /// curl -X PUT "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -d "Hello, World!"
     /// ```
     pub fn presign_write(&self, expire: Duration) -> Result<PresignedRequest> {
-        self.presign_write_with(OpWrite::new(0), expire)
+        self.presign_write_with(OpWrite::new(), expire)
     }
 
     /// Presign an operation for write with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -1407,7 +1394,7 @@ impl Object {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let args = OpWrite::new(0).with_content_type("text/csv");
+    ///     let args = OpWrite::new().with_content_type("text/csv");
     ///     let signed_req = op.object("test").presign_write_with(args, Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
@@ -1422,19 +1409,5 @@ impl Object {
 
         let rp = self.acc.presign(self.path(), op)?;
         Ok(rp.into_presigned_request())
-    }
-
-    /// Construct a multipart with existing upload id.
-    pub fn to_multipart(&self, upload_id: &str) -> ObjectMultipart {
-        ObjectMultipart::new(self.operator(), &self.path, upload_id)
-    }
-
-    /// Create a new multipart for current path.
-    pub async fn create_multipart(&self) -> Result<ObjectMultipart> {
-        let rp = self
-            .acc
-            .create_multipart(self.path(), OpCreateMultipart::new())
-            .await?;
-        Ok(self.to_multipart(rp.upload_id()))
     }
 }

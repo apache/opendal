@@ -106,97 +106,6 @@ impl OpScan {
     }
 }
 
-/// Args for `create_multipart` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpCreateMultipart {}
-
-impl OpCreateMultipart {
-    /// Create a new `OpCreateMultipart`.
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-/// Args for `write_multipart` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpWriteMultipart {
-    upload_id: String,
-    part_number: usize,
-    size: u64,
-}
-
-impl OpWriteMultipart {
-    /// Create a new `OpWriteMultipart`.
-    pub fn new(upload_id: String, part_number: usize, size: u64) -> Self {
-        Self {
-            upload_id,
-            part_number,
-            size,
-        }
-    }
-
-    /// Get upload_id from option.
-    pub fn upload_id(&self) -> &str {
-        &self.upload_id
-    }
-
-    /// Get part_number from option.
-    pub fn part_number(&self) -> usize {
-        self.part_number
-    }
-
-    /// Get size from option.
-    pub fn size(&self) -> u64 {
-        self.size
-    }
-}
-
-/// Args for `complete_multipart` operation.
-#[derive(Debug, Clone, Default)]
-pub struct OpCompleteMultipart {
-    upload_id: String,
-    parts: Vec<ObjectPart>,
-}
-
-impl OpCompleteMultipart {
-    /// Create a new `OpCompleteMultipart`.
-    pub fn new(upload_id: String, parts: Vec<ObjectPart>) -> Self {
-        Self { upload_id, parts }
-    }
-
-    /// Get upload_id from option.
-    pub fn upload_id(&self) -> &str {
-        &self.upload_id
-    }
-
-    /// Get parts from option.
-    pub fn parts(&self) -> &[ObjectPart] {
-        &self.parts
-    }
-}
-
-/// Args for `abort_multipart` operation.
-///
-/// The path must be normalized.
-#[derive(Debug, Clone, Default)]
-pub struct OpAbortMultipart {
-    upload_id: String,
-}
-
-impl OpAbortMultipart {
-    /// Create a new `OpAbortMultipart`.
-    ///
-    /// If input path is not a file path, an error will be returned.
-    pub fn new(upload_id: String) -> Self {
-        Self { upload_id }
-    }
-
-    /// Get upload_id from option.
-    pub fn upload_id(&self) -> &str {
-        &self.upload_id
-    }
-}
-
 /// Args for `presign` operation.
 ///
 /// The path must be normalized.
@@ -237,8 +146,6 @@ pub enum PresignOperation {
     Read(OpRead),
     /// Presign a write operation.
     Write(OpWrite),
-    /// Presign a write multipart operation.
-    WriteMultipart(OpWriteMultipart),
 }
 
 impl From<OpStat> for PresignOperation {
@@ -256,12 +163,6 @@ impl From<OpRead> for PresignOperation {
 impl From<OpWrite> for PresignOperation {
     fn from(v: OpWrite) -> Self {
         Self::Write(v)
-    }
-}
-
-impl From<OpWriteMultipart> for PresignOperation {
-    fn from(v: OpWriteMultipart) -> Self {
-        Self::WriteMultipart(v)
     }
 }
 
@@ -360,7 +261,8 @@ impl OpStat {
 /// Args for `write` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpWrite {
-    size: u64,
+    append: bool,
+
     content_type: Option<String>,
     content_disposition: Option<String>,
 }
@@ -369,43 +271,43 @@ impl OpWrite {
     /// Create a new `OpWrite`.
     ///
     /// If input path is not a file path, an error will be returned.
-    pub fn new(size: u64) -> Self {
+    pub fn new() -> Self {
         Self {
-            size,
+            append: false,
+
             content_type: None,
             content_disposition: None,
         }
     }
 
-    /// Set the content type of option
-    pub fn with_content_type(self, content_type: &str) -> Self {
-        Self {
-            size: self.size(),
-            content_type: Some(content_type.to_string()),
-            content_disposition: self.content_disposition,
-        }
+    pub(crate) fn with_append(mut self) -> Self {
+        self.append = true;
+        self
     }
 
-    /// Set the content disposition of option
-    pub fn with_content_disposition(self, content_disposition: &str) -> Self {
-        Self {
-            size: self.size(),
-            content_type: self.content_type,
-            content_disposition: Some(content_disposition.to_string()),
-        }
+    pub(crate) fn append(&self) -> bool {
+        self.append
     }
 
-    /// Get size from option.
-    pub fn size(&self) -> u64 {
-        self.size
-    }
     /// Get the content type from option
     pub fn content_type(&self) -> Option<&str> {
         self.content_type.as_deref()
     }
 
+    /// Set the content type of option
+    pub fn with_content_type(mut self, content_type: &str) -> Self {
+        self.content_type = Some(content_type.to_string());
+        self
+    }
+
     /// Get the content disposition from option
     pub fn content_disposition(&self) -> Option<&str> {
         self.content_disposition.as_deref()
+    }
+
+    /// Set the content disposition of option
+    pub fn with_content_disposition(mut self, content_disposition: &str) -> Self {
+        self.content_disposition = Some(content_disposition.to_string());
+        self
     }
 }

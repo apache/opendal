@@ -249,6 +249,8 @@ impl Debug for HttpBackend {
 impl Accessor for HttpBackend {
     type Reader = IncomingAsyncBody;
     type BlockingReader = ();
+    type Writer = ();
+    type BlockingWriter = ();
     type Pager = ();
     type BlockingPager = ();
 

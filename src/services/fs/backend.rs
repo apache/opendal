@@ -29,6 +29,7 @@ use uuid::Uuid;
 use super::dir_stream::BlockingDirPager;
 use super::dir_stream::DirPager;
 use super::error::parse_io_error;
+use super::writer::FsWriter;
 use crate::object::*;
 use crate::ops::*;
 use crate::raw::*;
@@ -292,6 +293,8 @@ impl FsBackend {
 impl Accessor for FsBackend {
     type Reader = output::into_reader::FdReader<Compat<tokio::fs::File>>;
     type BlockingReader = output::into_blocking_reader::FdReader<std::fs::File>;
+    type Writer = FsWriter<tokio::fs::File>;
+    type BlockingWriter = FsWriter<std::fs::File>;
     type Pager = Option<DirPager>;
     type BlockingPager = Option<BlockingDirPager>;
 
@@ -419,46 +422,27 @@ impl Accessor for FsBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    async fn write(&self, path: &str, _: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let temp_path =
-                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let target_path = Self::ensure_write_abs_path(&self.root, path).await?;
-            let f = fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(&temp_path)
-                .await
-                .map_err(parse_io_error)?;
-
-            let size = {
-                // Implicitly flush and close temp file
-                let mut f = Compat::new(f);
-                futures::io::copy(r, &mut f).await.map_err(parse_io_error)?
-            };
-            fs::rename(&temp_path, &target_path)
-                .await
-                .map_err(parse_io_error)?;
-
-            Ok(RpWrite::new(size))
+            let tmp_path =
+                Self::ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path)).await?;
+            (target_path, Some(tmp_path))
         } else {
             let p = Self::ensure_write_abs_path(&self.root, path).await?;
 
-            let f = fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(&p)
-                .await
-                .map_err(parse_io_error)?;
+            (p, None)
+        };
 
-            let mut f = Compat::new(f);
+        let f = tokio::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(tmp_path.as_ref().unwrap_or(&target_path))
+            .await
+            .map_err(parse_io_error)?;
 
-            let size = futures::io::copy(r, &mut f).await.map_err(parse_io_error)?;
-
-            Ok(RpWrite::new(size))
-        }
+        Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
@@ -625,44 +609,26 @@ impl Accessor for FsBackend {
         Ok((RpRead::new(end - start), r))
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        _: OpWrite,
-        mut r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let temp_path =
+    fn blocking_write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
+            let target_path = Self::blocking_ensure_write_abs_path(&self.root, path)?;
+            let tmp_path =
                 Self::blocking_ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))?;
-            let target_path =
-                Self::blocking_ensure_write_abs_path(&self.root, path.trim_end_matches('/'))?;
-
-            let size = {
-                // Implicitly flush and close temp file
-                let mut f = std::fs::OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .open(&temp_path)
-                    .map_err(parse_io_error)?;
-
-                std::io::copy(&mut r, &mut f).map_err(parse_io_error)?
-            };
-            std::fs::rename(&temp_path, target_path).map_err(parse_io_error)?;
-
-            Ok(RpWrite::new(size))
+            (target_path, Some(tmp_path))
         } else {
-            let p = Self::blocking_ensure_write_abs_path(&self.root, path.trim_end_matches('/'))?;
+            let p = Self::blocking_ensure_write_abs_path(&self.root, path)?;
 
-            let mut f = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(p)
-                .map_err(parse_io_error)?;
+            (p, None)
+        };
 
-            let size = std::io::copy(&mut r, &mut f).map_err(parse_io_error)?;
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(tmp_path.as_ref().unwrap_or(&target_path))
+            .map_err(parse_io_error)?;
 
-            Ok(RpWrite::new(size))
-        }
+        Ok((RpWrite::new(), FsWriter::new(target_path, tmp_path, f)))
     }
 
     fn blocking_stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

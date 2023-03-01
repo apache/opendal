@@ -153,6 +153,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     type Inner = A;
     type Reader = RetryReader<A::Reader>;
     type BlockingReader = RetryReader<A::BlockingReader>;
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = RetryPager<A::Pager>;
     type BlockingPager = RetryPager<A::BlockingPager>;
 
@@ -194,8 +196,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
     /// Return `Interrupted` Error even after retry.
     ///
     /// Allowing users to retry the write request from upper logic.
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
-        self.inner.write(path, args, r).await
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        self.inner.write(path, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -280,70 +282,6 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .await
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        { || self.inner.create_multipart(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::CreateMultipart, dur.as_secs_f64(), err)
-            })
-            .map(|v| v.map_err(|e| e.set_persistent()))
-            .await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        // Write can't retry, until can reset this reader.
-        self.inner.write_multipart(path, args.clone(), r).await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        { || self.inner.complete_multipart(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::CompleteMultipart, dur.as_secs_f64(), err)
-            })
-            .map(|v| v.map_err(|e| e.set_persistent()))
-            .await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        { || self.inner.abort_multipart(path, args.clone()) }
-            .retry(&self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                warn!(
-                    target: "opendal::service",
-                    "operation={} -> retry after {}s: error={:?}",
-                    Operation::AbortMultipart, dur.as_secs_f64(), err)
-            })
-            .map(|v| v.map_err(|e| e.set_persistent()))
-            .await
-    }
-
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         { || self.inner.blocking_create(path, args.clone()) }
             .retry(&self.builder)
@@ -373,13 +311,8 @@ impl<A: Accessor> LayeredAccessor for RetryAccessor<A> {
             .map_err(|e| e.set_persistent())
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
-        self.inner.blocking_write(path, args, r)
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
+        self.inner.blocking_write(path, args)
     }
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -836,6 +769,8 @@ mod tests {
     impl Accessor for MockService {
         type Reader = MockReader;
         type BlockingReader = ();
+        type Writer = ();
+        type BlockingWriter = ();
         type Pager = MockPager;
         type BlockingPager = ();
 

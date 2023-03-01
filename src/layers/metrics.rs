@@ -149,6 +149,7 @@ struct MetricsHandler {
 
     requests_total_write: Counter,
     requests_duration_seconds_write: Histogram,
+    #[allow(dead_code)]
     bytes_total_write: Counter,
 
     requests_total_stat: Counter,
@@ -169,19 +170,6 @@ struct MetricsHandler {
     requests_total_batch: Counter,
     requests_duration_seconds_batch: Histogram,
 
-    requests_total_create_multipart: Counter,
-    requests_duration_seconds_create_multipart: Histogram,
-
-    requests_total_write_multipart: Counter,
-    requests_duration_seconds_write_multipart: Histogram,
-    bytes_total_write_multipart: Counter,
-
-    requests_total_complete_multipartt: Counter,
-    requests_duration_seconds_complete_multipart: Histogram,
-
-    requests_total_abort_multipart: Counter,
-    requests_duration_seconds_abort_multipart: Histogram,
-
     requests_total_blocking_create: Counter,
     requests_duration_seconds_blocking_create: Histogram,
 
@@ -191,6 +179,7 @@ struct MetricsHandler {
 
     requests_total_blocking_write: Counter,
     requests_duration_seconds_blocking_write: Histogram,
+    #[allow(dead_code)]
     bytes_total_blocking_write: Counter,
 
     requests_total_blocking_stat: Counter,
@@ -331,56 +320,6 @@ impl MetricsHandler {
                 LABEL_OPERATION => Operation::Batch.into_static(),
             ),
 
-            requests_total_create_multipart: register_counter!(
-                METRIC_REQUESTS_TOTAL,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::CreateMultipart.into_static(),
-            ),
-            requests_duration_seconds_create_multipart: register_histogram!(
-                METRIC_REQUESTS_DURATION_SECONDS,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::CreateMultipart.into_static(),
-            ),
-
-            requests_total_write_multipart: register_counter!(
-                METRIC_REQUESTS_TOTAL,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
-            ),
-            requests_duration_seconds_write_multipart: register_histogram!(
-                METRIC_REQUESTS_DURATION_SECONDS,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
-            ),
-
-            bytes_total_write_multipart: register_counter!(
-                METRIC_BYTES_TOTAL,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::WriteMultipart.into_static(),
-            ),
-
-            requests_total_complete_multipartt: register_counter!(
-                METRIC_REQUESTS_TOTAL,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
-            ),
-            requests_duration_seconds_complete_multipart: register_histogram!(
-                METRIC_REQUESTS_DURATION_SECONDS,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::CompleteMultipart.into_static(),
-            ),
-
-            requests_total_abort_multipart: register_counter!(
-                METRIC_REQUESTS_TOTAL,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::AbortMultipart.into_static(),
-            ),
-            requests_duration_seconds_abort_multipart: register_histogram!(
-                METRIC_REQUESTS_DURATION_SECONDS,
-                LABEL_SERVICE => service,
-                LABEL_OPERATION => Operation::AbortMultipart.into_static(),
-            ),
-
             requests_total_blocking_create: register_counter!(
                 METRIC_REQUESTS_TOTAL,
                 LABEL_SERVICE => service,
@@ -501,6 +440,9 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
     type Inner = A;
     type Reader = MetricReader<A::Reader>;
     type BlockingReader = MetricReader<A::BlockingReader>;
+    // TODO: add metrics for writer
+    type Writer = A::Writer;
+    type BlockingWriter = A::BlockingWriter;
     type Pager = A::Pager;
     type BlockingPager = A::BlockingPager;
 
@@ -571,22 +513,13 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
             .await
     }
 
-    async fn write(&self, path: &str, args: OpWrite, r: input::Reader) -> Result<RpWrite> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.handle.requests_total_write.increment(1);
-
-        let r = Box::new(MetricReader::new(
-            r,
-            Operation::Write,
-            self.handle.clone(),
-            self.handle.bytes_total_write.clone(),
-            self.handle.requests_duration_seconds_write.clone(),
-            None,
-        ));
 
         let start = Instant::now();
 
         self.inner
-            .write(path, args, r)
+            .write(path, args)
             .inspect_ok(|_| {
                 let dur = start.elapsed().as_secs_f64();
 
@@ -707,118 +640,6 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    async fn create_multipart(
-        &self,
-        path: &str,
-        args: OpCreateMultipart,
-    ) -> Result<RpCreateMultipart> {
-        self.handle.requests_total_create_multipart.increment(1);
-
-        let start = Instant::now();
-
-        self.inner
-            .create_multipart(path, args)
-            .inspect_ok(|_| {
-                let dur = start.elapsed().as_secs_f64();
-
-                self.handle
-                    .requests_duration_seconds_create_multipart
-                    .record(dur);
-            })
-            .inspect_err(|err| {
-                self.handle
-                    .increment_errors_total(Operation::CreateMultipart, err.kind());
-            })
-            .await
-    }
-
-    async fn write_multipart(
-        &self,
-        path: &str,
-        args: OpWriteMultipart,
-        r: input::Reader,
-    ) -> Result<RpWriteMultipart> {
-        self.handle.requests_total_write_multipart.increment(1);
-
-        let r = Box::new(MetricReader::new(
-            r,
-            Operation::WriteMultipart,
-            self.handle.clone(),
-            self.handle.bytes_total_write_multipart.clone(),
-            self.handle
-                .requests_duration_seconds_write_multipart
-                .clone(),
-            None,
-        ));
-
-        let start = Instant::now();
-
-        self.inner
-            .write_multipart(path, args, r)
-            .inspect_ok(|_| {
-                let dur = start.elapsed().as_secs_f64();
-
-                self.handle
-                    .requests_duration_seconds_write_multipart
-                    .record(dur);
-            })
-            .inspect_err(|err| {
-                self.handle
-                    .increment_errors_total(Operation::WriteMultipart, err.kind());
-            })
-            .await
-    }
-
-    async fn complete_multipart(
-        &self,
-        path: &str,
-        args: OpCompleteMultipart,
-    ) -> Result<RpCompleteMultipart> {
-        self.handle.requests_total_complete_multipartt.increment(1);
-
-        let start = Instant::now();
-
-        self.inner
-            .complete_multipart(path, args)
-            .inspect_ok(|_| {
-                let dur = start.elapsed().as_secs_f64();
-
-                self.handle
-                    .requests_duration_seconds_complete_multipart
-                    .record(dur);
-            })
-            .inspect_err(|err| {
-                self.handle
-                    .increment_errors_total(Operation::CompleteMultipart, err.kind());
-            })
-            .await
-    }
-
-    async fn abort_multipart(
-        &self,
-        path: &str,
-        args: OpAbortMultipart,
-    ) -> Result<RpAbortMultipart> {
-        self.handle.requests_total_abort_multipart.increment(1);
-
-        let start = Instant::now();
-
-        self.inner
-            .abort_multipart(path, args)
-            .inspect_ok(|_| {
-                let dur = start.elapsed().as_secs_f64();
-
-                self.handle
-                    .requests_duration_seconds_abort_multipart
-                    .record(dur);
-            })
-            .inspect_err(|err| {
-                self.handle
-                    .increment_errors_total(Operation::AbortMultipart, err.kind());
-            })
-            .await
-    }
-
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.handle.requests_total_blocking_create.increment(1);
 
@@ -862,25 +683,11 @@ impl<A: Accessor> LayeredAccessor for MetricsAccessor<A> {
         })
     }
 
-    fn blocking_write(
-        &self,
-        path: &str,
-        args: OpWrite,
-        r: input::BlockingReader,
-    ) -> Result<RpWrite> {
+    fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.handle.requests_total_blocking_write.increment(1);
 
-        let r = Box::new(MetricReader::new(
-            r,
-            Operation::BlockingWrite,
-            self.handle.clone(),
-            self.handle.bytes_total_blocking_write.clone(),
-            self.handle.requests_duration_seconds_blocking_write.clone(),
-            None,
-        ));
-
         let start = Instant::now();
-        let result = self.inner.blocking_write(path, args, r);
+        let result = self.inner.blocking_write(path, args);
         let dur = start.elapsed().as_secs_f64();
 
         self.handle

@@ -17,3 +17,4 @@ pub use backend::AzdfsBuilder as Azdfs;
 
 mod dir_stream;
 mod error;
+mod writer;

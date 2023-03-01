@@ -180,7 +180,6 @@
 //! /// - [ ] list
 //! /// - [ ] scan
 //! /// - [ ] presign
-//! /// - [ ] multipart
 //! /// - [ ] blocking
 //! ///
 //! /// # Configuration
@@ -287,6 +286,8 @@
 //! impl Accessor for DuckBackend {
 //!     type Reader = DuckReader;
 //!     type BlockingReader = ();
+//!     type Writer = ();
+//!     type BlockingWriter = ();
 //!     type Pager = ();
 //!     type BlockingPager = ();
 //!
@@ -303,7 +304,7 @@
 //!     }
 //!
 //!     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-//!         gagaga()
+//!         gagaga!()
 //!     }
 //! }
 //! ```

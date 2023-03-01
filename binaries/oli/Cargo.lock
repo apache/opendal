@@ -866,6 +866,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "env_logger",
+ "futures",
  "log",
  "opendal",
  "predicates",

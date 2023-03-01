@@ -14,11 +14,17 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::io;
+use std::io::SeekFrom;
+use std::task::Context;
+use std::task::Poll;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::TryFutureExt;
 
 use crate::ops::*;
+use crate::raw::output::PageOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -76,7 +82,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.inner
             .create(path, args)
             .map_err(|err| {
-                err.with_operation(Operation::Create.into_static())
+                err.with_operation(Operation::Create)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -89,7 +95,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.inner
             .read(path, args)
             .map_err(|err| {
-                err.with_operation(Operation::Read.into_static())
+                err.with_operation(Operation::Read)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
                     .with_context("range", br.to_string())
@@ -101,7 +107,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.inner
             .write(path, args)
             .map_err(|err| {
-                err.with_operation(Operation::Write.into_static())
+                err.with_operation(Operation::Write)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -112,7 +118,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.inner
             .stat(path, args)
             .map_err(|err| {
-                err.with_operation(Operation::Stat.into_static())
+                err.with_operation(Operation::Stat)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -123,7 +129,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
         self.inner
             .delete(path, args)
             .map_err(|err| {
-                err.with_operation(Operation::Delete.into_static())
+                err.with_operation(Operation::Delete)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -144,7 +150,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::List.into_static())
+                err.with_operation(Operation::List)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -165,7 +171,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::Scan.into_static())
+                err.with_operation(Operation::Scan)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -174,7 +180,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
     fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).map_err(|err| {
-            err.with_operation(Operation::Presign.into_static())
+            err.with_operation(Operation::Presign)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })
@@ -190,7 +196,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                     .into_iter()
                     .map(|(path, res)| {
                         let res = res.map_err(|err| {
-                            err.with_operation(Operation::Delete.into_static())
+                            err.with_operation(Operation::Delete)
                                 .with_context("service", self.meta.scheme())
                                 .with_context("path", &path)
                         });
@@ -201,7 +207,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 RpBatch::new(BatchedResults::Delete(res))
             })
             .map_err(|err| {
-                err.with_operation(Operation::Batch.into_static())
+                err.with_operation(Operation::Batch)
                     .with_context("service", self.meta.scheme())
             })
             .await
@@ -209,7 +215,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         self.inner.blocking_create(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingCreate.into_static())
+            err.with_operation(Operation::BlockingCreate)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })
@@ -217,7 +223,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
         self.inner.blocking_read(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingRead.into_static())
+            err.with_operation(Operation::BlockingRead)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })
@@ -225,7 +231,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
     fn blocking_write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::BlockingWriter)> {
         self.inner.blocking_write(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingWrite.into_static())
+            err.with_operation(Operation::BlockingWrite)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })
@@ -233,7 +239,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
     fn blocking_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         self.inner.blocking_stat(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingStat.into_static())
+            err.with_operation(Operation::BlockingStat)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })
@@ -241,7 +247,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
 
     fn blocking_delete(&self, path: &str, args: OpDelete) -> Result<RpDelete> {
         self.inner.blocking_delete(path, args).map_err(|err| {
-            err.with_operation(Operation::BlockingDelete.into_static())
+            err.with_operation(Operation::BlockingDelete)
                 .with_context("service", self.meta.scheme())
                 .with_context("path", path)
         })
@@ -261,7 +267,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingList.into_static())
+                err.with_operation(Operation::BlockingList)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -281,7 +287,7 @@ impl<A: Accessor> LayeredAccessor for ErrorContextAccessor<A> {
                 )
             })
             .map_err(|err| {
-                err.with_operation(Operation::BlockingScan.into_static())
+                err.with_operation(Operation::BlockingScan)
                     .with_context("service", self.meta.scheme())
                     .with_context("path", path)
             })
@@ -294,11 +300,25 @@ pub struct ErrorContextWrapper<T> {
     inner: T,
 }
 
+impl<T: output::Read> output::Read for ErrorContextWrapper<T> {
+    fn poll_read(&mut self, _cx: &mut Context<'_>, _buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        todo!()
+    }
+
+    fn poll_seek(&mut self, _cx: &mut Context<'_>, _pos: SeekFrom) -> Poll<io::Result<u64>> {
+        todo!()
+    }
+
+    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Option<io::Result<Bytes>>> {
+        todo!()
+    }
+}
+
 #[async_trait::async_trait]
 impl<T: output::Page> output::Page for ErrorContextWrapper<T> {
     async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next().await.map_err(|err| {
-            err.with_operation("Page::next_page")
+            err.with_operation(PageOperation::Next)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })
@@ -308,7 +328,7 @@ impl<T: output::Page> output::Page for ErrorContextWrapper<T> {
 impl<T: output::BlockingPage> output::BlockingPage for ErrorContextWrapper<T> {
     fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         self.inner.next().map_err(|err| {
-            err.with_operation("Page::next_page")
+            err.with_operation(PageOperation::BlockingNext)
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
         })

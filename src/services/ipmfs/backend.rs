@@ -110,10 +110,10 @@ impl Accessor for IpmfsBackend {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::default(),
-            IpmfsWriter::new(self.clone(), args, path.to_string()),
+            IpmfsWriter::new(self.clone(), path.to_string()),
         ))
     }
 

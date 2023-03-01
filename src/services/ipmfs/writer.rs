@@ -18,20 +18,18 @@ use http::StatusCode;
 
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct IpmfsWriter {
     backend: IpmfsBackend,
 
-    op: OpWrite,
     path: String,
 }
 
 impl IpmfsWriter {
-    pub fn new(backend: IpmfsBackend, op: OpWrite, path: String) -> Self {
-        IpmfsWriter { backend, op, path }
+    pub fn new(backend: IpmfsBackend, path: String) -> Self {
+        IpmfsWriter { backend, path }
     }
 }
 

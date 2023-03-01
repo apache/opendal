@@ -408,10 +408,7 @@ impl Accessor for GhacBackend {
                 .map(|err| err.with_operation("Backend::ghac_reserve"))?);
         };
 
-        Ok((
-            RpWrite::default(),
-            GhacWriter::new(self.clone(), args, path.to_string(), cache_id),
-        ))
+        Ok((RpWrite::default(), GhacWriter::new(self.clone(), cache_id)))
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

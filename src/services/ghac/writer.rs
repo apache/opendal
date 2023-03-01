@@ -17,25 +17,20 @@ use bytes::Bytes;
 
 use super::backend::GhacBackend;
 use super::error::parse_error;
-use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
 pub struct GhacWriter {
     backend: GhacBackend,
 
-    op: OpWrite,
-    path: String,
     cache_id: i64,
     size: u64,
 }
 
 impl GhacWriter {
-    pub fn new(backend: GhacBackend, op: OpWrite, path: String, cache_id: i64) -> Self {
+    pub fn new(backend: GhacBackend, cache_id: i64) -> Self {
         GhacWriter {
             backend,
-            op,
-            path,
             cache_id,
             size: 0,
         }

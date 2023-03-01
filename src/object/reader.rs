@@ -278,7 +278,7 @@ mod tests {
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
-        obj.write(&*content)
+        obj.write(content.clone())
             .await
             .expect("writ to object must succeed");
 
@@ -300,7 +300,7 @@ mod tests {
         let obj = op.object("test_file");
 
         let content = gen_random_bytes();
-        obj.write(&*content)
+        obj.write(content.clone())
             .await
             .expect("writ to object must succeed");
 

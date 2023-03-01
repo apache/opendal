@@ -79,6 +79,12 @@ impl output::Write for FsWriter<tokio::fs::File> {
     async fn close(&mut self) -> Result<()> {
         self.f.sync_all().await.map_err(parse_io_error)?;
 
+        if let Some(tmp_path) = &self.tmp_path {
+            tokio::fs::rename(tmp_path, &self.target_path)
+                .await
+                .map_err(parse_io_error)?;
+        }
+
         Ok(())
     }
 }
@@ -97,6 +103,10 @@ impl output::BlockingWrite for FsWriter<std::fs::File> {
 
     fn close(&mut self) -> Result<()> {
         self.f.sync_all().map_err(parse_io_error)?;
+
+        if let Some(tmp_path) = &self.tmp_path {
+            std::fs::rename(tmp_path, &self.target_path).map_err(parse_io_error)?;
+        }
 
         Ok(())
     }

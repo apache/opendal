@@ -662,7 +662,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_writer(&self, bs: impl Into<Vec<u8>>) -> Result<BlockingObjectWriter> {
+    pub fn blocking_writer(&self) -> Result<BlockingObjectWriter> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")

@@ -504,7 +504,7 @@ impl Accessor for HdfsBackend {
             .create_dir(&parent.to_string_lossy())
             .map_err(parse_io_error)?;
 
-        let mut f = self
+        let f = self
             .client
             .open_file()
             .create(true)

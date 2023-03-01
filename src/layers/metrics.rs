@@ -149,6 +149,7 @@ struct MetricsHandler {
 
     requests_total_write: Counter,
     requests_duration_seconds_write: Histogram,
+    #[allow(dead_code)]
     bytes_total_write: Counter,
 
     requests_total_stat: Counter,
@@ -178,6 +179,7 @@ struct MetricsHandler {
 
     requests_total_blocking_write: Counter,
     requests_duration_seconds_blocking_write: Histogram,
+    #[allow(dead_code)]
     bytes_total_blocking_write: Counter,
 
     requests_total_blocking_stat: Counter,

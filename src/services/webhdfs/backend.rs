@@ -27,12 +27,12 @@ use log::debug;
 use log::error;
 use tokio::sync::OnceCell;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::message::BooleanResp;
 use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::message::FileStatusesWrapper;
+use super::pager::WebhdfsPager;
 use super::writer::WebhdfsWriter;
 use crate::ops::*;
 use crate::raw::*;
@@ -538,7 +538,7 @@ impl Accessor for WebhdfsBackend {
     type BlockingReader = ();
     type Writer = WebhdfsWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = WebhdfsPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -677,11 +677,11 @@ impl Accessor for WebhdfsBackend {
                         .file_statuses
                         .file_status;
 
-                let objects = DirStream::new(path, file_statuses);
+                let objects = WebhdfsPager::new(path, file_statuses);
                 Ok((RpList::default(), objects))
             }
             StatusCode::NOT_FOUND => {
-                let objects = DirStream::new(path, vec![]);
+                let objects = WebhdfsPager::new(path, vec![]);
                 Ok((RpList::default(), objects))
             }
             _ => Err(parse_error(resp).await?),

@@ -24,9 +24,9 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
 use super::list_response::Multistatus;
+use super::pager::WebdavPager;
 use super::writer::WebdavWriter;
 use crate::ops::*;
 use crate::raw::*;
@@ -256,7 +256,7 @@ impl Accessor for WebdavBackend {
     type BlockingReader = ();
     type Writer = WebdavWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = WebdavPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -362,11 +362,14 @@ impl Accessor for WebdavBackend {
                 let result: Multistatus =
                     quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-                Ok((RpList::default(), DirStream::new(&self.root, path, result)))
+                Ok((
+                    RpList::default(),
+                    WebdavPager::new(&self.root, path, result),
+                ))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => Ok((
                 RpList::default(),
-                DirStream::new(
+                WebdavPager::new(
                     &self.root,
                     path,
                     Multistatus {

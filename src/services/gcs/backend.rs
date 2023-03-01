@@ -31,8 +31,8 @@ use serde_json;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::pager::GcsPager;
 use super::uri::percent_encode_path;
 use super::writer::GcsWriter;
 use crate::ops::*;
@@ -348,7 +348,7 @@ impl Accessor for GcsBackend {
     type BlockingReader = ();
     type Writer = GcsWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = GcsPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -457,14 +457,14 @@ impl Accessor for GcsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            GcsPager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            GcsPager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 }

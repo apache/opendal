@@ -35,8 +35,8 @@ use suppaftp::Status;
 use time::OffsetDateTime;
 use tokio::sync::OnceCell;
 
-use super::dir_stream::DirStream;
-use super::dir_stream::ReadDir;
+use super::pager::FtpPager;
+use super::pager::ReadDir;
 use super::util::FtpReader;
 use super::writer::FtpWriter;
 use crate::ops::*;
@@ -314,7 +314,7 @@ impl Accessor for FtpBackend {
     type BlockingReader = ();
     type Writer = FtpWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = FtpPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -454,7 +454,7 @@ impl Accessor for FtpBackend {
 
         Ok((
             RpList::default(),
-            DirStream::new(if path == "/" { "" } else { path }, rd, args.limit()),
+            FtpPager::new(if path == "/" { "" } else { path }, rd, args.limit()),
         ))
     }
 }

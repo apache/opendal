@@ -15,6 +15,6 @@
 mod backend;
 pub use backend::FsBuilder as Fs;
 
-mod dir_stream;
 mod error;
+mod pager;
 mod writer;

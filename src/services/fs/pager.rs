@@ -23,15 +23,15 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirPager {
+pub struct FsPager<P> {
     root: PathBuf,
 
     size: usize,
-    rd: tokio::fs::ReadDir,
+    rd: P,
 }
 
-impl DirPager {
-    pub fn new(root: &Path, rd: tokio::fs::ReadDir, limit: Option<usize>) -> Self {
+impl<P> FsPager<P> {
+    pub fn new(root: &Path, rd: P, limit: Option<usize>) -> Self {
         Self {
             root: root.to_owned(),
             size: limit.unwrap_or(1000),
@@ -41,7 +41,7 @@ impl DirPager {
 }
 
 #[async_trait]
-impl output::Page for DirPager {
+impl output::Page for FsPager<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
@@ -85,24 +85,7 @@ impl output::Page for DirPager {
     }
 }
 
-pub struct BlockingDirPager {
-    root: PathBuf,
-
-    size: usize,
-    rd: std::fs::ReadDir,
-}
-
-impl BlockingDirPager {
-    pub fn new(root: &Path, rd: std::fs::ReadDir, limit: Option<usize>) -> Self {
-        Self {
-            root: root.to_owned(),
-            size: limit.unwrap_or(1000),
-            rd,
-        }
-    }
-}
-
-impl output::BlockingPage for BlockingDirPager {
+impl output::BlockingPage for FsPager<std::fs::ReadDir> {
     fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 

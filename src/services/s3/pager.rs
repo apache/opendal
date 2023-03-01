@@ -30,7 +30,7 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirStream {
+pub struct S3Pager {
     backend: Arc<S3Backend>,
     root: String,
     path: String,
@@ -41,7 +41,7 @@ pub struct DirStream {
     done: bool,
 }
 
-impl DirStream {
+impl S3Pager {
     pub fn new(
         backend: Arc<S3Backend>,
         root: &str,
@@ -63,7 +63,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
+impl output::Page for S3Pager {
     async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);

@@ -26,8 +26,8 @@ use http::Uri;
 use log::debug;
 use reqsign::HuaweicloudObsSigner;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::pager::ObsPager;
 use super::writer::ObsWriter;
 use crate::ops::*;
 use crate::raw::*;
@@ -306,7 +306,7 @@ impl Accessor for ObsBackend {
     type BlockingReader = ();
     type Writer = ObsWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = ObsPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -398,14 +398,14 @@ impl Accessor for ObsBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
+            ObsPager::new(Arc::new(self.clone()), &self.root, path, "/", args.limit()),
         ))
     }
 
     async fn scan(&self, path: &str, args: OpScan) -> Result<(RpScan, Self::Pager)> {
         Ok((
             RpScan::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
+            ObsPager::new(Arc::new(self.clone()), &self.root, path, "", args.limit()),
         ))
     }
 }

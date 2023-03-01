@@ -28,7 +28,7 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirStream {
+pub struct ObsPager {
     backend: Arc<ObsBackend>,
     root: String,
     path: String,
@@ -39,7 +39,7 @@ pub struct DirStream {
     done: bool,
 }
 
-impl DirStream {
+impl ObsPager {
     pub fn new(
         backend: Arc<ObsBackend>,
         root: &str,
@@ -61,7 +61,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
+impl output::Page for ObsPager {
     async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);

@@ -25,9 +25,9 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-/// DirStream takes over task of listing objects and
+/// GcsPager takes over task of listing objects and
 /// helps walking directory
-pub struct DirStream {
+pub struct GcsPager {
     backend: Arc<GcsBackend>,
     root: String,
     path: String,
@@ -38,7 +38,7 @@ pub struct DirStream {
     done: bool,
 }
 
-impl DirStream {
+impl GcsPager {
     /// Generate a new directory walker
     pub fn new(
         backend: Arc<GcsBackend>,
@@ -61,7 +61,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
+impl output::Page for GcsPager {
     async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.done {
             return Ok(None);

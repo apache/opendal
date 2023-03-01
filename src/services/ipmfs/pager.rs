@@ -25,14 +25,14 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirStream {
+pub struct IpmfsPager {
     backend: Arc<IpmfsBackend>,
     root: String,
     path: String,
     consumed: bool,
 }
 
-impl DirStream {
+impl IpmfsPager {
     pub fn new(backend: Arc<IpmfsBackend>, root: &str, path: &str) -> Self {
         Self {
             backend,
@@ -44,7 +44,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
+impl output::Page for IpmfsPager {
     async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         if self.consumed {
             return Ok(None);

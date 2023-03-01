@@ -23,8 +23,8 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
-use super::dir_stream::DirStream;
 use super::error::parse_error;
+use super::pager::IpmfsPager;
 use super::writer::IpmfsWriter;
 use crate::ops::*;
 use crate::raw::*;
@@ -63,7 +63,7 @@ impl Accessor for IpmfsBackend {
     type BlockingReader = ();
     type Writer = IpmfsWriter;
     type BlockingWriter = ();
-    type Pager = DirStream;
+    type Pager = IpmfsPager;
     type BlockingPager = ();
 
     fn metadata(&self) -> AccessorMetadata {
@@ -166,7 +166,7 @@ impl Accessor for IpmfsBackend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Pager)> {
         Ok((
             RpList::default(),
-            DirStream::new(Arc::new(self.clone()), &self.root, path),
+            IpmfsPager::new(Arc::new(self.clone()), &self.root, path),
         ))
     }
 }

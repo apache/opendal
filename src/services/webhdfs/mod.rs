@@ -15,7 +15,7 @@
 mod backend;
 pub use backend::WebhdfsBuilder as Webhdfs;
 
-mod dir_stream;
+mod pager;
 mod error;
 mod message;
 mod writer;

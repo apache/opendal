@@ -19,14 +19,14 @@ use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
 
-pub struct DirStream {
+pub struct HdfsPager {
     root: String,
 
     size: usize,
     rd: hdrs::Readdir,
 }
 
-impl DirStream {
+impl HdfsPager {
     pub fn new(root: &str, rd: hdrs::Readdir, limit: Option<usize>) -> Self {
         Self {
             root: root.to_string(),
@@ -38,7 +38,7 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
+impl output::Page for HdfsPager {
     async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 
@@ -69,7 +69,7 @@ impl output::Page for DirStream {
     }
 }
 
-impl output::BlockingPage for DirStream {
+impl output::BlockingPage for HdfsPager {
     fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
         let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
 

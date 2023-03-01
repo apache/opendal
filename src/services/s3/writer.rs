@@ -83,7 +83,8 @@ impl oio::Write for S3Writer {
         let upload_id = self.upload_id.as_ref().expect(
             "Writer doesn't have upload id, but users trying to call append, must be buggy",
         );
-        let part_number = self.parts.len();
+        // AWS S3 requires part numbder must between [1..=10000]
+        let part_number = self.parts.len() + 1;
 
         let mut req = self.backend.s3_upload_part_request(
             &self.path,

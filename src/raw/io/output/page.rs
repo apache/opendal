@@ -47,8 +47,8 @@ impl From<PageOperation> for &'static str {
         use PageOperation::*;
 
         match v {
-            Next => "page::next",
-            BlockingNext => "page::blocking_next",
+            Next => "Pager::next",
+            BlockingNext => "BlockingPager::next",
         }
     }
 }

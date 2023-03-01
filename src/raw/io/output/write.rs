@@ -12,10 +12,58 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::{Display, Formatter};
+
 use async_trait::async_trait;
 use bytes::Bytes;
 
 use crate::*;
+
+/// WriteOperation is the name for APIs of Writer.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum WriteOperation {
+    /// Operation for [`Write::write`]
+    Write,
+    /// Operation for [`Write::append`]
+    Append,
+    /// Operation for [`Write::close`]
+    Close,
+    /// Operation for [`BlockingWrite::write`]
+    BlockingWrite,
+    /// Operation for [`BlockingWrite::append`]
+    BlockingAppend,
+    /// Operation for [`BlockingWrite::close`]
+    BlockingClose,
+}
+
+impl WriteOperation {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+}
+
+impl Display for WriteOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.into_static())
+    }
+}
+
+impl From<WriteOperation> for &'static str {
+    fn from(v: WriteOperation) -> &'static str {
+        use WriteOperation::*;
+
+        match v {
+            Write => "Writer::write",
+            Append => "Writer::append",
+            Close => "Writer::close",
+            BlockingWrite => "BlockingWriter::write",
+            BlockingAppend => "BlockingWriter::append",
+            BlockingClose => "BlockingWriter::close",
+        }
+    }
+}
 
 /// Writer is a type erased [`Write`]
 pub type Writer = Box<dyn Write>;

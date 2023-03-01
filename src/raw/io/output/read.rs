@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -24,6 +26,52 @@ use std::task::Poll;
 use bytes::Bytes;
 use futures::Future;
 use pin_project::pin_project;
+
+/// PageOperation is the name for APIs of pager.
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum ReadOperation {
+    /// Operation for [`Read::poll_read`]
+    Read,
+    /// Operation for [`Read::poll_seek`]
+    Seek,
+    /// Operation for [`Read::poll_next`]
+    Next,
+    /// Operation for [`BlockingRead::read`]
+    BlockingRead,
+    /// Operation for [`BlockingRead::seek`]
+    BlockingSeek,
+    /// Operation for [`BlockingRead::next`]
+    BlockingNext,
+}
+
+impl ReadOperation {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+}
+
+impl Display for ReadOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.into_static())
+    }
+}
+
+impl From<ReadOperation> for &'static str {
+    fn from(v: ReadOperation) -> &'static str {
+        use ReadOperation::*;
+
+        match v {
+            Read => "Reader::read",
+            Seek => "Reader::seek",
+            Next => "Reader::next",
+            BlockingRead => "BlockingReader::read",
+            BlockingSeek => "BlockingReader::seek",
+            BlockingNext => "BlockingReader::next",
+        }
+    }
+}
 
 /// Reader is a type erased [`Read`].
 pub type Reader = Box<dyn Read>;

@@ -27,6 +27,7 @@ pub use read::BlockingRead;
 pub use read::BlockingReader;
 pub use read::Read;
 pub use read::ReadExt;
+pub use read::ReadOperation;
 pub use read::Reader;
 
 pub mod into_reader;
@@ -37,6 +38,7 @@ mod write;
 pub use write::BlockingWrite;
 pub use write::BlockingWriter;
 pub use write::Write;
+pub use write::WriteOperation;
 pub use write::Writer;
 
 mod cursor;
@@ -53,6 +55,7 @@ mod page;
 pub use page::BlockingPage;
 pub use page::BlockingPager;
 pub use page::Page;
+pub use page::PageOperation;
 pub use page::Pager;
 
 mod to_flat_pager;

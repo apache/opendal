@@ -391,7 +391,14 @@ impl Accessor for GhacBackend {
         }
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.append() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "append write is not supported",
+            ));
+        }
+
         let req = self.ghac_reserve(path).await?;
 
         let resp = self.client.send_async(req).await?;

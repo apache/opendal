@@ -470,6 +470,13 @@ impl Accessor for AzblobBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.append() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "append write is not supported",
+            ));
+        }
+
         Ok((
             RpWrite::default(),
             AzblobWriter::new(self.clone(), args, path.to_string()),

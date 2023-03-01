@@ -22,11 +22,10 @@ pub type BlockingWriter = Box<dyn BlockingWrite>;
 /// BlockingWrite is the trait that OpenDAL returns to callers.
 pub trait BlockingWrite: Send + Sync + 'static {
     /// Write whole content at once.
-    ///
-    /// We consume the writer here to indicate that users should
-    /// write all content. To append multiple bytes together, use
-    /// `append` instead.
     fn write(&mut self, bs: Bytes) -> Result<()>;
+
+    /// Append content at tailing.
+    fn append(&mut self, bs: Bytes) -> Result<()>;
 
     /// Close the writer and make sure all data has been flushed.
     fn close(&mut self) -> Result<()>;
@@ -37,6 +36,15 @@ impl BlockingWrite for () {
         let _ = bs;
 
         unimplemented!("write is required to be implemented for output::BlockingWrite")
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        let _ = bs;
+
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support append",
+        ))
     }
 
     fn close(&mut self) -> Result<()> {
@@ -52,6 +60,10 @@ impl BlockingWrite for () {
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         (**self).write(bs)
+    }
+
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        (**self).append(bs)
     }
 
     fn close(&mut self) -> Result<()> {

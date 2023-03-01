@@ -98,6 +98,20 @@ impl output::BlockingWrite for FsWriter<std::fs::File> {
         Ok(())
     }
 
+    /// # Notes
+    ///
+    /// File could be partial written, so we will seek to start to make sure
+    /// we write the same content.
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.f
+            .seek(SeekFrom::Start(self.pos))
+            .map_err(parse_io_error)?;
+        self.f.write_all(&bs).map_err(parse_io_error)?;
+        self.pos += bs.len() as u64;
+
+        Ok(())
+    }
+
     fn close(&mut self) -> Result<()> {
         self.f.sync_all().map_err(parse_io_error)?;
 

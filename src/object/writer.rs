@@ -192,7 +192,7 @@ impl BlockingObjectWriter {
     /// into blocks of 4MiB (except the last block) for better performance
     /// and compatibility.
     pub fn append(&mut self, bs: Bytes) -> Result<()> {
-        self.inner.write(bs)
+        self.inner.append(bs)
     }
 
     /// Close the writer and make sure all data have been stored.

@@ -326,6 +326,10 @@ impl<R: output::BlockingWrite> output::BlockingWrite for ConcurrentLimitWrapper<
         self.inner.write(bs)
     }
 
+    fn append(&mut self, bs: Bytes) -> Result<()> {
+        self.inner.append(bs)
+    }
+
     fn close(&mut self) -> Result<()> {
         self.inner.close()
     }

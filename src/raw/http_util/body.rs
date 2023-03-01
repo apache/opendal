@@ -145,7 +145,7 @@ impl IncomingAsyncBody {
 
     /// Consume the entire body.
     pub async fn consume(mut self) -> Result<()> {
-        use output::ReadExt;
+        use oio::ReadExt;
 
         while let Some(bs) = self.next().await {
             bs.map_err(|err| {
@@ -162,7 +162,7 @@ impl IncomingAsyncBody {
     ///
     /// Borrowed from hyper's [`to_bytes`](https://docs.rs/hyper/latest/hyper/body/fn.to_bytes.html).
     pub async fn bytes(mut self) -> Result<Bytes> {
-        use output::ReadExt;
+        use oio::ReadExt;
 
         // If there's only 1 chunk, we can just return Buf::to_bytes()
         let mut first = if let Some(buf) = self.next().await {
@@ -206,7 +206,7 @@ impl IncomingAsyncBody {
     }
 }
 
-impl output::Read for IncomingAsyncBody {
+impl oio::Read for IncomingAsyncBody {
     fn poll_read(&mut self, cx: &mut Context<'_>, mut buf: &mut [u8]) -> Poll<Result<usize>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));

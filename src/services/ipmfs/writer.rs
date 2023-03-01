@@ -34,7 +34,7 @@ impl IpmfsWriter {
 }
 
 #[async_trait]
-impl output::Write for IpmfsWriter {
+impl oio::Write for IpmfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let resp = self
             .backend

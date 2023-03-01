@@ -23,9 +23,9 @@ use bytes::Bytes;
 use futures::TryFutureExt;
 
 use crate::ops::*;
-use crate::raw::output::PageOperation;
-use crate::raw::output::ReadOperation;
-use crate::raw::output::WriteOperation;
+use crate::raw::oio::PageOperation;
+use crate::raw::oio::ReadOperation;
+use crate::raw::oio::WriteOperation;
 use crate::raw::*;
 use crate::*;
 
@@ -345,7 +345,7 @@ pub struct ErrorContextWrapper<T> {
     inner: T,
 }
 
-impl<T: output::Read> output::Read for ErrorContextWrapper<T> {
+impl<T: oio::Read> oio::Read for ErrorContextWrapper<T> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map_err(|err| {
             err.with_operation(ReadOperation::Read)
@@ -371,7 +371,7 @@ impl<T: output::Read> output::Read for ErrorContextWrapper<T> {
     }
 }
 
-impl<T: output::BlockingRead> output::BlockingRead for ErrorContextWrapper<T> {
+impl<T: oio::BlockingRead> oio::BlockingRead for ErrorContextWrapper<T> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf).map_err(|err| {
             err.with_operation(ReadOperation::BlockingRead)
@@ -400,7 +400,7 @@ impl<T: output::BlockingRead> output::BlockingRead for ErrorContextWrapper<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: output::Write> output::Write for ErrorContextWrapper<T> {
+impl<T: oio::Write> oio::Write for ErrorContextWrapper<T> {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs).await.map_err(|err| {
             err.with_operation(WriteOperation::Write)
@@ -426,7 +426,7 @@ impl<T: output::Write> output::Write for ErrorContextWrapper<T> {
     }
 }
 
-impl<T: output::BlockingWrite> output::BlockingWrite for ErrorContextWrapper<T> {
+impl<T: oio::BlockingWrite> oio::BlockingWrite for ErrorContextWrapper<T> {
     fn write(&mut self, bs: Bytes) -> Result<()> {
         self.inner.write(bs).map_err(|err| {
             err.with_operation(WriteOperation::BlockingWrite)
@@ -453,8 +453,8 @@ impl<T: output::BlockingWrite> output::BlockingWrite for ErrorContextWrapper<T> 
 }
 
 #[async_trait::async_trait]
-impl<T: output::Page> output::Page for ErrorContextWrapper<T> {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<T: oio::Page> oio::Page for ErrorContextWrapper<T> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().await.map_err(|err| {
             err.with_operation(PageOperation::Next)
                 .with_context("service", self.scheme)
@@ -463,8 +463,8 @@ impl<T: output::Page> output::Page for ErrorContextWrapper<T> {
     }
 }
 
-impl<T: output::BlockingPage> output::BlockingPage for ErrorContextWrapper<T> {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<T: oio::BlockingPage> oio::BlockingPage for ErrorContextWrapper<T> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         self.inner.next().map_err(|err| {
             err.with_operation(PageOperation::BlockingNext)
                 .with_context("service", self.scheme)

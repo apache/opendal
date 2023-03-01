@@ -468,8 +468,8 @@ impl DirStream {
 }
 
 #[async_trait]
-impl output::Page for DirStream {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for DirStream {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.consumed {
             return Ok(None);
         }
@@ -504,7 +504,7 @@ impl output::Page for DirStream {
                 name += "/";
             }
 
-            oes.push(output::Entry::new(&name, meta))
+            oes.push(oio::Entry::new(&name, meta))
         }
 
         self.consumed = true;

@@ -36,7 +36,7 @@ impl WebhdfsWriter {
 }
 
 #[async_trait]
-impl output::Write for WebhdfsWriter {
+impl oio::Write for WebhdfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let req = self
             .backend

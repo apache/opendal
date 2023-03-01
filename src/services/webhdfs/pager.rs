@@ -33,8 +33,8 @@ impl WebhdfsPager {
 }
 
 #[async_trait]
-impl output::Page for WebhdfsPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for WebhdfsPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.statuses.is_empty() {
             return Ok(None);
         }
@@ -48,7 +48,7 @@ impl output::Page for WebhdfsPager {
             if meta.mode().is_dir() {
                 path += "/"
             }
-            let entry = output::Entry::new(&path, meta);
+            let entry = oio::Entry::new(&path, meta);
             entries.push(entry);
         }
 

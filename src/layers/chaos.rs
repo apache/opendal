@@ -180,7 +180,7 @@ impl<R> ChaosReader<R> {
     }
 }
 
-impl<R: output::Read> output::Read for ChaosReader<R> {
+impl<R: oio::Read> oio::Read for ChaosReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         if self.i_feel_lucky() {
             self.inner.poll_read(cx, buf)
@@ -206,7 +206,7 @@ impl<R: output::Read> output::Read for ChaosReader<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for ChaosReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for ChaosReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         if self.i_feel_lucky() {
             self.inner.read(buf)

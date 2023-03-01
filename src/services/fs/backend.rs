@@ -289,8 +289,8 @@ impl FsBackend {
 
 #[async_trait]
 impl Accessor for FsBackend {
-    type Reader = output::into_reader::FdReader<Compat<tokio::fs::File>>;
-    type BlockingReader = output::into_blocking_reader::FdReader<std::fs::File>;
+    type Reader = oio::into_reader::FdReader<Compat<tokio::fs::File>>;
+    type BlockingReader = oio::into_blocking_reader::FdReader<std::fs::File>;
     type Writer = FsWriter<tokio::fs::File>;
     type BlockingWriter = FsWriter<std::fs::File>;
     type Pager = Option<FsPager<tokio::fs::ReadDir>>;
@@ -358,7 +358,7 @@ impl Accessor for FsBackend {
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        use output::ReadExt;
+        use oio::ReadExt;
 
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -412,7 +412,7 @@ impl Accessor for FsBackend {
             (None, None) => (0, total_length),
         };
 
-        let mut r = output::into_reader::from_fd(f, start, end);
+        let mut r = oio::into_reader::from_fd(f, start, end);
 
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0)).await?;
@@ -548,7 +548,7 @@ impl Accessor for FsBackend {
     }
 
     fn blocking_read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::BlockingReader)> {
-        use output::BlockingRead;
+        use oio::BlockingRead;
 
         let p = self.root.join(path.trim_end_matches('/'));
 
@@ -599,7 +599,7 @@ impl Accessor for FsBackend {
             (None, None) => (0, total_length),
         };
 
-        let mut r = output::into_blocking_reader::from_fd(f, start, end);
+        let mut r = oio::into_blocking_reader::from_fd(f, start, end);
 
         // Rewind to make sure we are on the correct offset.
         r.seek(SeekFrom::Start(0))?;

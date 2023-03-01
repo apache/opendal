@@ -804,7 +804,7 @@ impl<R> MetricReader<R> {
     }
 }
 
-impl<R: output::Read> output::Read for MetricReader<R> {
+impl<R: oio::Read> oio::Read for MetricReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf).map(|res| match res {
             Ok(bytes) => {
@@ -839,7 +839,7 @@ impl<R: output::Read> output::Read for MetricReader<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for MetricReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for MetricReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner
             .read(buf)

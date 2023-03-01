@@ -22,13 +22,13 @@ use std::task::Poll;
 use async_trait::async_trait;
 
 use crate::ops::*;
-use crate::raw::output::into_reader::RangeReader;
-use crate::raw::output::to_flat_pager;
-use crate::raw::output::to_hierarchy_pager;
-use crate::raw::output::Entry;
-use crate::raw::output::IntoStreamableReader;
-use crate::raw::output::ToFlatPager;
-use crate::raw::output::ToHierarchyPager;
+use crate::raw::oio::into_reader::RangeReader;
+use crate::raw::oio::to_flat_pager;
+use crate::raw::oio::to_hierarchy_pager;
+use crate::raw::oio::Entry;
+use crate::raw::oio::IntoStreamableReader;
+use crate::raw::oio::ToFlatPager;
+use crate::raw::oio::ToHierarchyPager;
 use crate::raw::*;
 use crate::*;
 
@@ -47,8 +47,8 @@ use crate::*;
 ///
 /// ## Read
 ///
-/// OpenDAL requires all reader implements [`output::Read`] and
-/// [`output::BlockingRead`]. However, not all services have the
+/// OpenDAL requires all reader implements [`oio::Read`] and
+/// [`oio::BlockingRead`]. However, not all services have the
 /// capabilities. CompleteLayer will add those capabilities in
 /// a zero cost way.
 ///
@@ -56,8 +56,8 @@ use crate::*;
 /// features that returning readers support.
 ///
 /// - If both `seekable` and `streamable`, return directly.
-/// - If not `streamable`, with [`output::into_streamable_reader`].
-/// - If not `seekable`, with [`output::into_reader::by_range`]
+/// - If not `streamable`, with [`oio::into_streamable_reader`].
+/// - If not `seekable`, with [`oio::into_reader::by_range`]
 /// - If neither not supported, wrap both by_range and into_streamable.
 ///
 /// All implementations of ObjectReader should be `zero cost`. In our cases,
@@ -111,8 +111,8 @@ use crate::*;
 /// features that returning pagers support.
 ///
 /// - If both `flat` and `hierarchy`, return directly.
-/// - If only `flat`, with [`output::to_flat_pager`].
-/// - if only `hierarchy`, with [`output::to_hierarchy_pager`].
+/// - If only `flat`, with [`oio::to_flat_pager`].
+/// - if only `hierarchy`, with [`oio::to_hierarchy_pager`].
 /// - If neither not supported, something must be wrong.
 ///
 /// [`AccessorHint`]: crate::raw::AccessorHint
@@ -160,7 +160,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         match (seekable, streamable) {
             (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
             (true, false) => {
-                let r = output::into_streamable_reader(r, 256 * 1024);
+                let r = oio::into_streamable_reader(r, 256 * 1024);
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             _ => {
@@ -181,12 +181,12 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
                         (offset, size)
                     }
                 };
-                let r = output::into_reader::by_range(self.inner.clone(), path, r, offset, size);
+                let r = oio::into_reader::by_range(self.inner.clone(), path, r, offset, size);
 
                 if streamable {
                     Ok((rp, CompleteReader::NeedSeekable(r)))
                 } else {
-                    let r = output::into_streamable_reader(r, 256 * 1024);
+                    let r = oio::into_streamable_reader(r, 256 * 1024);
                     Ok((rp, CompleteReader::NeedBoth(r)))
                 }
             }
@@ -208,7 +208,7 @@ impl<A: Accessor> CompleteReaderAccessor<A> {
         match (seekable, streamable) {
             (true, true) => Ok((rp, CompleteReader::AlreadyComplete(r))),
             (true, false) => {
-                let r = output::into_streamable_reader(r, 256 * 1024);
+                let r = oio::into_streamable_reader(r, 256 * 1024);
                 Ok((rp, CompleteReader::NeedStreamable(r)))
             }
             (false, _) => Err(Error::new(
@@ -393,10 +393,10 @@ pub enum CompleteReader<A: Accessor, R> {
     NeedBoth(IntoStreamableReader<RangeReader<A>>),
 }
 
-impl<A, R> output::Read for CompleteReader<A, R>
+impl<A, R> oio::Read for CompleteReader<A, R>
 where
     A: Accessor<Reader = R>,
-    R: output::Read,
+    R: oio::Read,
 {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         use CompleteReader::*;
@@ -432,10 +432,10 @@ where
     }
 }
 
-impl<A, R> output::BlockingRead for CompleteReader<A, R>
+impl<A, R> oio::BlockingRead for CompleteReader<A, R>
 where
     A: Accessor<BlockingReader = R>,
-    R: output::BlockingRead,
+    R: oio::BlockingRead,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         use CompleteReader::*;
@@ -475,10 +475,10 @@ pub enum CompletePager<A: Accessor, P> {
 }
 
 #[async_trait]
-impl<A, P> output::Page for CompletePager<A, P>
+impl<A, P> oio::Page for CompletePager<A, P>
 where
     A: Accessor<Pager = P>,
-    P: output::Page,
+    P: oio::Page,
 {
     async fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         use CompletePager::*;
@@ -491,10 +491,10 @@ where
     }
 }
 
-impl<A, P> output::BlockingPage for CompletePager<A, P>
+impl<A, P> oio::BlockingPage for CompletePager<A, P>
 where
     A: Accessor<BlockingPager = P>,
-    P: output::BlockingPage,
+    P: oio::BlockingPage,
 {
     fn next(&mut self) -> Result<Option<Vec<Entry>>> {
         use CompletePager::*;

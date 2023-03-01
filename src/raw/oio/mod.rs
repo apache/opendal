@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! `oio` provides traits and types that opendal returns as output.
+//! `oio` provides OpenDAL's raw traits and types that opendal returns as
+//! output.
 //!
 //! Those types should only be used internally and we don't want users to
 //! depend on them. So we should also implement trait like `AsyncRead` for

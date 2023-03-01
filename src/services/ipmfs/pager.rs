@@ -44,8 +44,8 @@ impl IpmfsPager {
 }
 
 #[async_trait]
-impl output::Page for IpmfsPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for IpmfsPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.consumed {
             return Ok(None);
         }
@@ -81,7 +81,7 @@ impl output::Page for IpmfsPager {
 
                     let path = build_rel_path(&self.root, &path);
 
-                    output::Entry::new(
+                    oio::Entry::new(
                         &path,
                         ObjectMetadata::new(object.mode()).with_content_length(object.size),
                     )

@@ -36,7 +36,7 @@ impl AzdfsWriter {
 }
 
 #[async_trait]
-impl output::Write for AzdfsWriter {
+impl oio::Write for AzdfsWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.azdfs_create_request(
             &self.path,

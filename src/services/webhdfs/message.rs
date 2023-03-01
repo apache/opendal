@@ -79,7 +79,7 @@ pub enum FileStatusType {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::raw::output::Page;
+    use crate::raw::oio::Page;
     use crate::services::webhdfs::pager::WebhdfsPager;
     use crate::ObjectMode;
 

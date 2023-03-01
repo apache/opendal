@@ -85,9 +85,9 @@ impl ObjectWriter {
 }
 
 enum State {
-    Idle(Option<output::Writer>),
-    Write(BoxFuture<'static, Result<(usize, output::Writer)>>),
-    Close(BoxFuture<'static, Result<output::Writer>>),
+    Idle(Option<oio::Writer>),
+    Write(BoxFuture<'static, Result<(usize, oio::Writer)>>),
+    Close(BoxFuture<'static, Result<oio::Writer>>),
 }
 
 impl Display for State {
@@ -171,7 +171,7 @@ impl AsyncWrite for ObjectWriter {
 ///
 /// It works nearly the same with [`ObjectWriter`] but in blocking way.
 pub struct BlockingObjectWriter {
-    pub(crate) inner: output::BlockingWriter,
+    pub(crate) inner: oio::BlockingWriter,
 }
 
 impl BlockingObjectWriter {

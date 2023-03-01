@@ -55,8 +55,8 @@ impl AzdfsPager {
 }
 
 #[async_trait]
-impl output::Page for AzdfsPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for AzdfsPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.done {
             return Ok(None);
         }
@@ -125,7 +125,7 @@ impl output::Page for AzdfsPager {
                 path += "/"
             };
 
-            let de = output::Entry::new(&path, meta);
+            let de = oio::Entry::new(&path, meta);
 
             entries.push(de);
         }

@@ -18,7 +18,7 @@ use async_trait::async_trait;
 
 use super::list_response::Multistatus;
 use crate::raw::build_rel_path;
-use crate::raw::output;
+use crate::raw::oio;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
 use crate::Result;
@@ -40,8 +40,8 @@ impl WebdavPager {
 }
 
 #[async_trait]
-impl output::Page for WebdavPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl oio::Page for WebdavPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if self.multistates.response.is_empty() {
             return Ok(None);
         };
@@ -65,9 +65,9 @@ impl output::Page for WebdavPager {
                 let entry = if de.propstat.prop.resourcetype.value
                     == Some(super::list_response::ResourceType::Collection)
                 {
-                    output::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::DIR))
+                    oio::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::DIR))
                 } else {
-                    output::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::FILE))
+                    oio::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::FILE))
                 };
 
                 Some(entry)

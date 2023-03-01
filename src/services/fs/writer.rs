@@ -45,7 +45,7 @@ impl<F> FsWriter<F> {
 }
 
 #[async_trait]
-impl output::Write for FsWriter<tokio::fs::File> {
+impl oio::Write for FsWriter<tokio::fs::File> {
     /// # Notes
     ///
     /// File could be partial written, so we will seek to start to make sure
@@ -85,7 +85,7 @@ impl output::Write for FsWriter<tokio::fs::File> {
     }
 }
 
-impl output::BlockingWrite for FsWriter<std::fs::File> {
+impl oio::BlockingWrite for FsWriter<std::fs::File> {
     /// # Notes
     ///
     /// File could be partial written, so we will seek to start to make sure

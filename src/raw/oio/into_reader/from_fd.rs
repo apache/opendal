@@ -25,7 +25,7 @@ use futures::AsyncSeek;
 use crate::raw::*;
 use crate::*;
 
-/// Convert given fd into [`output::Reader`].
+/// Convert given fd into [`oio::Reader`].
 pub fn from_fd<R>(fd: R, start: u64, end: u64) -> FdReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
@@ -38,7 +38,7 @@ where
     }
 }
 
-/// FdReader is a wrapper of input fd to implement [`output::Read`].
+/// FdReader is a wrapper of input fd to implement [`oio::Read`].
 pub struct FdReader<R: AsyncRead + AsyncSeek + Unpin + Send + Sync> {
     inner: R,
 
@@ -57,7 +57,7 @@ where
     }
 }
 
-impl<R> output::Read for FdReader<R>
+impl<R> oio::Read for FdReader<R>
 where
     R: AsyncRead + AsyncSeek + Unpin + Send + Sync,
 {

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //! into_blocking_reader will provide different implementations to convert
-//! into [`output::BlockingRead`][crate::raw::output::BlockingRead]
+//! into [`oio::BlockingRead`][crate::raw::oio::BlockingRead]
 
 mod from_fd;
 pub use from_fd::from_fd;

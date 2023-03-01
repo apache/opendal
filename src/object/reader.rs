@@ -51,7 +51,7 @@ use crate::*;
 /// Besides, `Stream` **COULD** reduce an extra copy if underlying reader is
 /// stream based (like services s3, azure which based on HTTP).
 pub struct ObjectReader {
-    inner: output::Reader,
+    inner: oio::Reader,
     seek_state: SeekState,
 }
 
@@ -73,7 +73,7 @@ impl ObjectReader {
     }
 }
 
-impl output::Read for ObjectReader {
+impl oio::Read for ObjectReader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf)
     }
@@ -177,7 +177,7 @@ impl Stream for ObjectReader {
 ///
 /// It works nearly the same with [`ObjectReader`] but in blocking way.
 pub struct BlockingObjectReader {
-    pub(crate) inner: output::BlockingReader,
+    pub(crate) inner: oio::BlockingReader,
 }
 
 impl BlockingObjectReader {
@@ -205,14 +205,14 @@ impl BlockingObjectReader {
             r
         } else {
             // Make this capacity configurable.
-            Box::new(output::into_streamable_reader(r, 256 * 1024))
+            Box::new(oio::into_streamable_reader(r, 256 * 1024))
         };
 
         Ok(BlockingObjectReader { inner: r })
     }
 }
 
-impl output::BlockingRead for BlockingObjectReader {
+impl oio::BlockingRead for BlockingObjectReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf)
@@ -225,7 +225,7 @@ impl output::BlockingRead for BlockingObjectReader {
 
     #[inline]
     fn next(&mut self) -> Option<Result<Bytes>> {
-        output::BlockingRead::next(&mut self.inner)
+        oio::BlockingRead::next(&mut self.inner)
     }
 }
 

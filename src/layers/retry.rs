@@ -401,7 +401,7 @@ impl<R> RetryReader<R> {
     }
 }
 
-impl<R: output::Read> output::Read for RetryReader<R> {
+impl<R: oio::Read> oio::Read for RetryReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         if let Some(sleep) = self.sleep.as_mut() {
             ready!(sleep.poll_unpin(cx));
@@ -533,7 +533,7 @@ impl<R: output::Read> output::Read for RetryReader<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for RetryReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for RetryReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let retry = self.builder.build();
 
@@ -664,8 +664,8 @@ impl<P> RetryPager<P> {
 }
 
 #[async_trait]
-impl<P: output::Page> output::Page for RetryPager<P> {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<P: oio::Page> oio::Page for RetryPager<P> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         if let Some(sleep) = self.sleep.take() {
             tokio::time::sleep(sleep).await;
         }
@@ -712,8 +712,8 @@ impl<P: output::Page> output::Page for RetryPager<P> {
     }
 }
 
-impl<P: output::BlockingPage> output::BlockingPage for RetryPager<P> {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+impl<P: oio::BlockingPage> oio::BlockingPage for RetryPager<P> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         { || self.inner.next() }
             .retry(&self.policy)
             .when(|e| e.is_temporary())
@@ -787,7 +787,7 @@ mod tests {
         pos: u64,
     }
 
-    impl output::Read for MockReader {
+    impl oio::Read for MockReader {
         fn poll_read(&mut self, _: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
@@ -841,8 +841,8 @@ mod tests {
         attempt: usize,
     }
     #[async_trait]
-    impl output::Page for MockPager {
-        async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    impl oio::Page for MockPager {
+        async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             self.attempt += 1;
             match self.attempt {
                 1 => Err(Error::new(
@@ -852,8 +852,8 @@ mod tests {
                 .set_temporary()),
                 2 => {
                     let entries = vec![
-                        output::Entry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
-                        output::Entry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
+                        oio::Entry::new("hello", ObjectMetadata::new(ObjectMode::FILE)),
+                        oio::Entry::new("world", ObjectMetadata::new(ObjectMode::FILE)),
                     ];
                     Ok(Some(entries))
                 }
@@ -863,8 +863,8 @@ mod tests {
                 ),
                 4 => {
                     let entries = vec![
-                        output::Entry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
-                        output::Entry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
+                        oio::Entry::new("2023/", ObjectMetadata::new(ObjectMode::DIR)),
+                        oio::Entry::new("0208/", ObjectMetadata::new(ObjectMode::DIR)),
                     ];
                     Ok(Some(entries))
                 }

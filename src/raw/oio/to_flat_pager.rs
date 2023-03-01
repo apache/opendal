@@ -39,10 +39,7 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
     ToFlatPager {
         acc,
         size,
-        dirs: VecDeque::from([output::Entry::new(
-            path,
-            ObjectMetadata::new(ObjectMode::DIR),
-        )]),
+        dirs: VecDeque::from([oio::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),
         pagers: vec![],
         res: Vec::with_capacity(size),
     }
@@ -87,18 +84,18 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
 pub struct ToFlatPager<A: Accessor, P> {
     acc: A,
     size: usize,
-    dirs: VecDeque<output::Entry>,
-    pagers: Vec<(P, output::Entry, Vec<output::Entry>)>,
-    res: Vec<output::Entry>,
+    dirs: VecDeque<oio::Entry>,
+    pagers: Vec<(P, oio::Entry, Vec<oio::Entry>)>,
+    res: Vec<oio::Entry>,
 }
 
 #[async_trait]
-impl<A, P> output::Page for ToFlatPager<A, P>
+impl<A, P> oio::Page for ToFlatPager<A, P>
 where
     A: Accessor<Pager = P>,
-    P: output::Page,
+    P: oio::Page,
 {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.list(de.path(), OpList::new()).await?;
@@ -150,12 +147,12 @@ where
     }
 }
 
-impl<A, P> output::BlockingPage for ToFlatPager<A, P>
+impl<A, P> oio::BlockingPage for ToFlatPager<A, P>
 where
     A: Accessor<BlockingPager = P>,
-    P: output::BlockingPage,
+    P: oio::BlockingPage,
 {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
         loop {
             if let Some(de) = self.dirs.pop_back() {
                 let (_, op) = self.acc.blocking_list(de.path(), OpList::new())?;
@@ -213,7 +210,7 @@ mod tests {
     use std::vec;
 
     use log::debug;
-    use output::BlockingPage;
+    use oio::BlockingPage;
 
     use super::*;
 
@@ -267,7 +264,7 @@ mod tests {
     }
 
     impl BlockingPage for MockPager {
-        fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
+        fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
             if self.done {
                 return Ok(None);
             }
@@ -278,9 +275,9 @@ mod tests {
                 .iter()
                 .map(|path| {
                     if path.ends_with('/') {
-                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))
+                        oio::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))
                     } else {
-                        output::Entry::new(path, ObjectMetadata::new(ObjectMode::FILE))
+                        oio::Entry::new(path, ObjectMetadata::new(ObjectMode::FILE))
                     }
                 })
                 .collect();
@@ -304,7 +301,7 @@ mod tests {
 
         assert_eq!(
             entries[0],
-            output::Entry::new("x/x/x/x", ObjectMetadata::new(ObjectMode::FILE))
+            oio::Entry::new("x/x/x/x", ObjectMetadata::new(ObjectMode::FILE))
         );
 
         Ok(())

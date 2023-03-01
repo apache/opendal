@@ -23,7 +23,7 @@ use tokio::io::ReadBuf;
 use crate::raw::*;
 use crate::*;
 
-/// as_streamable is used to make [`output::Read`] or [`output::BlockingRead`] streamable.
+/// as_streamable is used to make [`oio::Read`] or [`oio::BlockingRead`] streamable.
 pub fn into_streamable_reader<R>(r: R, capacity: usize) -> IntoStreamableReader<R> {
     IntoStreamableReader {
         r,
@@ -39,7 +39,7 @@ pub struct IntoStreamableReader<R> {
     buf: Vec<u8>,
 }
 
-impl<R: output::Read> output::Read for IntoStreamableReader<R> {
+impl<R: oio::Read> oio::Read for IntoStreamableReader<R> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.r.poll_read(cx, buf)
     }
@@ -64,7 +64,7 @@ impl<R: output::Read> output::Read for IntoStreamableReader<R> {
     }
 }
 
-impl<R: output::BlockingRead> output::BlockingRead for IntoStreamableReader<R> {
+impl<R: oio::BlockingRead> oio::BlockingRead for IntoStreamableReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.r.read(buf)
     }
@@ -99,7 +99,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_into_stream() {
-        use output::ReadExt;
+        use oio::ReadExt;
 
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
@@ -109,8 +109,8 @@ mod tests {
         // Generate cap between 1B..1MB;
         let cap = rng.gen_range(1..1024 * 1024);
 
-        let r = output::Cursor::from(content.clone());
-        let mut s = into_streamable_reader(Box::new(r) as output::Reader, cap);
+        let r = oio::Cursor::from(content.clone());
+        let mut s = into_streamable_reader(Box::new(r) as oio::Reader, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next().await {
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_into_stream_blocing() {
-        use output::BlockingRead;
+        use oio::BlockingRead;
 
         let mut rng = ThreadRng::default();
         // Generate size between 1B..16MB.
@@ -132,8 +132,8 @@ mod tests {
         // Generate cap between 1B..1MB;
         let cap = rng.gen_range(1..1024 * 1024);
 
-        let r = output::Cursor::from(content.clone());
-        let mut s = into_streamable_reader(Box::new(r) as output::BlockingReader, cap);
+        let r = oio::Cursor::from(content.clone());
+        let mut s = into_streamable_reader(Box::new(r) as oio::BlockingReader, cap);
 
         let mut bs = BytesMut::new();
         while let Some(b) = s.next() {

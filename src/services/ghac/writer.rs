@@ -38,7 +38,7 @@ impl GhacWriter {
 }
 
 #[async_trait]
-impl output::Write for GhacWriter {
+impl oio::Write for GhacWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let size = bs.len() as u64;
         let req = self

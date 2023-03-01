@@ -26,10 +26,10 @@
 //! #[async_trait]
 //! //                  <----------Trait Bound-------------->
 //! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
-//!     type Reader: output::Read;                 // --+
-//!     type BlockingReader: output::BlockingRead; //   +--> Associated Type
-//!     type Pager: output::Page;                  //   +
-//!     type BlockingPager: output::BlockingPage;  // --+
+//!     type Reader: oio::Read;                 // --+
+//!     type BlockingReader: oio::BlockingRead; //   +--> Associated Type
+//!     type Pager: oio::Page;                  //   +
+//!     type BlockingPager: oio::BlockingPage;  // --+
 //!
 //!     // APIs
 //!     async fn hello(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
@@ -104,7 +104,7 @@
 //!
 //! Implementer of `Accessor` should take care the following things:
 //!
-//! - OpenDAL will erase those type at the final stage of Operator building. Please don't return dynamic trait object like `output::Reader`.
+//! - OpenDAL will erase those type at the final stage of Operator building. Please don't return dynamic trait object like `oio::Reader`.
 //! - Use `()` as type if the operation is not supported.
 //!
 //! ## API Style

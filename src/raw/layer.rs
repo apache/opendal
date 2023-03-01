@@ -135,12 +135,12 @@ pub trait Layer<A: Accessor> {
 #[async_trait]
 pub trait LayeredAccessor: Send + Sync + Debug + Unpin + 'static {
     type Inner: Accessor;
-    type Reader: output::Read;
-    type BlockingReader: output::BlockingRead;
-    type Writer: output::Write;
-    type BlockingWriter: output::BlockingWrite;
-    type Pager: output::Page;
-    type BlockingPager: output::BlockingPage;
+    type Reader: oio::Read;
+    type BlockingReader: oio::BlockingRead;
+    type Writer: oio::Write;
+    type BlockingWriter: oio::BlockingWrite;
+    type Pager: oio::Page;
+    type BlockingPager: oio::BlockingPage;
 
     fn inner(&self) -> &Self::Inner;
 

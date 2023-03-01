@@ -37,7 +37,7 @@ impl<F> HdfsWriter<F> {
 }
 
 #[async_trait]
-impl output::Write for HdfsWriter<hdrs::AsyncFile> {
+impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
     /// # Notes
     ///
     /// File could be partial written, so we will seek to start to make sure
@@ -74,7 +74,7 @@ impl output::Write for HdfsWriter<hdrs::AsyncFile> {
     }
 }
 
-impl output::BlockingWrite for HdfsWriter<hdrs::File> {
+impl oio::BlockingWrite for HdfsWriter<hdrs::File> {
     /// # Notes
     ///
     /// File could be partial written, so we will seek to start to make sure

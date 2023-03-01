@@ -37,7 +37,7 @@ impl FtpWriter {
 }
 
 #[async_trait]
-impl output::Write for FtpWriter {
+impl oio::Write for FtpWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut ftp_stream = self.backend.ftp_connect(Operation::Write).await?;
         let mut data_stream = ftp_stream.append_with_stream(&self.path).await?;

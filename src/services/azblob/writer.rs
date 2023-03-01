@@ -36,7 +36,7 @@ impl AzblobWriter {
 }
 
 #[async_trait]
-impl output::Write for AzblobWriter {
+impl oio::Write for AzblobWriter {
     async fn write(&mut self, bs: Bytes) -> Result<()> {
         let mut req = self.backend.azblob_put_blob_request(
             &self.path,

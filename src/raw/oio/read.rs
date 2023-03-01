@@ -107,7 +107,7 @@ impl Read for () {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         let (_, _) = (cx, buf);
 
-        unimplemented!("poll_read is required to be implemented for output::Read")
+        unimplemented!("poll_read is required to be implemented for oio::Read")
     }
 
     fn poll_seek(&mut self, cx: &mut Context<'_>, pos: io::SeekFrom) -> Poll<Result<u64>> {
@@ -306,7 +306,7 @@ impl BlockingRead for () {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let _ = buf;
 
-        unimplemented!("read is required to be implemented for output::BlockingRead")
+        unimplemented!("read is required to be implemented for oio::BlockingRead")
     }
 
     fn seek(&mut self, pos: io::SeekFrom) -> Result<u64> {

@@ -46,20 +46,20 @@ use crate::*;
 #[async_trait]
 pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// Reader is the associated reader the could return in `read` operation.
-    type Reader: output::Read;
+    type Reader: oio::Read;
     /// BlockingReader is the associated reader that could return in
     /// `blocking_read` operation.
-    type BlockingReader: output::BlockingRead;
+    type BlockingReader: oio::BlockingRead;
     /// Reader is the associated writer the could return in `write` operation.
-    type Writer: output::Write;
+    type Writer: oio::Write;
     /// BlockingWriter is the associated writer the could return in
     /// `blocking_write` operation.
-    type BlockingWriter: output::BlockingWrite;
+    type BlockingWriter: oio::BlockingWrite;
     /// Pager is the associated page that return in `list` or `scan` operation.
-    type Pager: output::Page;
+    type Pager: oio::Page;
     /// BlockingPager is the associated pager that could return in
     /// `blocking_list` or `scan` operation.
-    type BlockingPager: output::BlockingPage;
+    type BlockingPager: oio::BlockingPage;
 
     /// Invoke the `metadata` operation to get metadata of accessor.
     ///
@@ -392,12 +392,12 @@ impl<T: Accessor + ?Sized> Accessor for Arc<T> {
 /// FusedAccessor is the type erased accessor with `Box<dyn Reader>`.
 pub type FusedAccessor = Arc<
     dyn Accessor<
-        Reader = output::Reader,
-        BlockingReader = output::BlockingReader,
-        Writer = output::Writer,
-        BlockingWriter = output::BlockingWriter,
-        Pager = output::Pager,
-        BlockingPager = output::BlockingPager,
+        Reader = oio::Reader,
+        BlockingReader = oio::BlockingReader,
+        Writer = oio::Writer,
+        BlockingWriter = oio::BlockingWriter,
+        Pager = oio::Pager,
+        BlockingPager = oio::BlockingPager,
     >,
 >;
 

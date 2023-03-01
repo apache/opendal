@@ -38,9 +38,9 @@ impl HdfsPager {
 }
 
 #[async_trait]
-impl output::Page for HdfsPager {
-    async fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
+impl oio::Page for HdfsPager {
+    async fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -54,12 +54,12 @@ impl output::Page for HdfsPager {
                 let meta = ObjectMetadata::new(ObjectMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
-                output::Entry::new(&path, meta)
+                oio::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                output::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
+                oio::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
             } else {
-                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)
@@ -69,9 +69,9 @@ impl output::Page for HdfsPager {
     }
 }
 
-impl output::BlockingPage for HdfsPager {
-    fn next(&mut self) -> Result<Option<Vec<output::Entry>>> {
-        let mut oes: Vec<output::Entry> = Vec::with_capacity(self.size);
+impl oio::BlockingPage for HdfsPager {
+    fn next(&mut self) -> Result<Option<Vec<oio::Entry>>> {
+        let mut oes: Vec<oio::Entry> = Vec::with_capacity(self.size);
 
         for _ in 0..self.size {
             let de = match self.rd.next() {
@@ -85,12 +85,12 @@ impl output::BlockingPage for HdfsPager {
                 let meta = ObjectMetadata::new(ObjectMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
-                output::Entry::new(&path, meta)
+                oio::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                output::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
+                oio::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
             } else {
-                output::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

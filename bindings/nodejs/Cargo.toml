@@ -23,15 +23,15 @@ crate-type = ["cdylib"]
 
 [dependencies]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
-napi = { version = "2.11.1", default-features = false, features = ["napi4", "async"] }
-napi-derive = "2.11.1"
-opendal = { version = "0.28", path = "../../"}
+napi = { version = "2", default-features = false, features = ["napi4", "async"] }
+napi-derive = "2"
+opendal = { version = "0.29", path = "../../"}
 bytes = "1.4.0"
 chrono = "0.4.23"
 futures = "0.3.26"
 
 [build-dependencies]
-napi-build = "2.0.1"
+napi-build = "2"
 
 [profile.release]
 lto = true

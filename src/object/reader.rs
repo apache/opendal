@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(buf, content);
 
         let n = reader.seek(tokio::io::SeekFrom::Start(0)).await.unwrap();
-        assert_eq!(n, 0, "seekp osition must be 0");
+        assert_eq!(n, 0, "seek position must be 0");
 
         let mut buf = Vec::new();
         reader

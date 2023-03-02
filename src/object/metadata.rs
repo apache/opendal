@@ -19,7 +19,7 @@ use time::OffsetDateTime;
 use crate::raw::*;
 use crate::*;
 
-/// Metadata carries all object metadata.
+/// ObjectMetadata carries all metadata associated with an object.
 ///
 /// # Notes
 ///

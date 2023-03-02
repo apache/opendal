@@ -27,7 +27,7 @@ use crate::ops::OpRead;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectReader is the public API for users.
+/// ObjectReader is designed to read data from objects in an asynchronous manner.
 ///
 /// # Usage
 ///
@@ -173,9 +173,7 @@ impl Stream for ObjectReader {
     }
 }
 
-/// BlockingObjectReader is the public API for users.
-///
-/// It works nearly the same with [`ObjectReader`] but in blocking way.
+/// BlockingObjectReader is designed to read data from objects in an blocking manner.
 pub struct BlockingObjectReader {
     pub(crate) inner: oio::BlockingReader,
 }

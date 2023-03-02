@@ -25,9 +25,35 @@ use crate::ops::*;
 use crate::raw::*;
 use crate::*;
 
-/// Operator is the user-facing APIs for object and object streams.
+/// Operator is the entry for all public APIs.
 ///
-/// Operator needs to be built with [`Builder`].
+/// Read [`concepts`][docs::concepts] for know more about [`Operator`].
+///
+/// # Examples
+/// Read more backend init examples in [`services`]
+///
+/// ```
+/// # use anyhow::Result;
+/// use opendal::services::Fs;
+/// use opendal::Operator;
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Create fs backend builder.
+///     let mut builder = Fs::default();
+///     // Set the root for fs, all operations will happen under this root.
+///     //
+///     // NOTE: the root must be absolute path.
+///     builder.root("/tmp");
+///
+///     // Build an `Operator` to start operating the storage.
+///     let op: Operator = Operator::create(builder)?.finish();
+///
+///     // Create an object handle to start operation on object.
+///     let _ = op.object("test_file");
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub struct Operator {
     accessor: FusedAccessor,
@@ -373,12 +399,24 @@ impl<A: Accessor> OperatorBuilder<A> {
     }
 }
 
-/// BatchOperator is used to take batch operations like walk_dir and remove_all, should
-/// be constructed by [`Operator::batch()`].
+/// BatchOperator is used to take batch operations like `remove_all`.
 ///
-/// # TODO
+/// # Examples
 ///
-/// We will support batch operators between two different operators like copy and move.
+/// ```
+/// # use anyhow::Result;
+/// # use futures::io;
+/// # use opendal::Operator;
+/// #
+/// # #[tokio::main]
+/// # async fn test(op: Operator) -> Result<()> {
+/// op.batch()
+///     .with_limit(1000)
+///     .remove_all("dir/to/delete")
+///     .await?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Debug)]
 pub struct BatchOperator {
     src: Operator,

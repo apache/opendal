@@ -28,7 +28,7 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectWriter is the public API for users to write data.
+/// ObjectWriter is designed to write data into objects in an asynchronous manner.
 ///
 /// # Notes
 ///
@@ -167,9 +167,7 @@ impl AsyncWrite for ObjectWriter {
     }
 }
 
-/// BlockingObjectWriter is the public API for users.
-///
-/// It works nearly the same with [`ObjectWriter`] but in blocking way.
+/// BlockingObjectWriter is designed to write data into objects in an blocking manner.
 pub struct BlockingObjectWriter {
     pub(crate) inner: oio::BlockingWriter,
 }

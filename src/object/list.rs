@@ -26,7 +26,9 @@ use futures::Stream;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectLister is returned by `Object::list` to list objects.
+/// ObjectLister is designed to list entries inside object in an asynchronous manner.
+///
+/// Users can construct ObjectLister by `list` or `scan`.
 ///
 /// User can use object lister as `Stream<Item = Result<Object>>` or
 /// call `next_page` directly.
@@ -133,6 +135,9 @@ impl Stream for ObjectLister {
     }
 }
 
+/// BlockingObjectLister is designed to list entries inside object in a blocking manner.
+///
+/// Users can construct ObjectLister by `blocking_list` or `blocking_scan`.
 pub struct BlockingObjectLister {
     acc: FusedAccessor,
     pager: oio::BlockingPager,

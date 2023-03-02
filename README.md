@@ -11,6 +11,8 @@
 - Documentation: [stable](https://docs.rs/opendal/) | [main](https://opendal.databend.rs/opendal/)
 - [Release notes](https://docs.rs/opendal/latest/opendal/docs/changelog/index.html)
 
+![](https://user-images.githubusercontent.com/5351546/222356748-14276998-501b-4d2a-9b09-b8cff3018204.png)
+
 ## Services
 
 - [azblob](https://docs.rs/opendal/latest/opendal/services/struct.Azblob.html): [Azure Storage Blob](https://azure.microsoft.com/en-us/services/storage/blobs/) services.

@@ -246,6 +246,9 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { debug } = nativeBinding
+const { debug, OperatorFactory, ObjectMeta, OpendalStore } = nativeBinding
 
 module.exports.debug = debug
+module.exports.OperatorFactory = OperatorFactory
+module.exports.ObjectMeta = ObjectMeta
+module.exports.OpendalStore = OpendalStore

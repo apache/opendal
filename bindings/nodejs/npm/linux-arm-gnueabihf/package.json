@@ -1,6 +1,6 @@
 {
   "name": "opendal-linux-arm-gnueabihf",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "os": [
     "linux"
   ],
@@ -11,7 +11,7 @@
   "files": [
     "opendal.linux-arm-gnueabihf.node"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "engines": {
     "node": ">= 10"
   }

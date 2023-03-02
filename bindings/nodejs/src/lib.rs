@@ -83,7 +83,7 @@ impl OpendalStore {
         let meta = o
             .stat()
             .await
-            .map_err(|err| Error::new(Status::Unknown, format!("stats get failure: {}", err.to_string())))
+            .map_err(|err| Error::new(Status::Unknown, format!("stats get failure: {}", err)))
             .unwrap();
 
         let (secs, nsecs) = meta
@@ -107,7 +107,7 @@ impl OpendalStore {
         self.inner.object(&path)
             .write(Bytes::from(content))
             .map_err(|err|
-                Error::new(Status::Unknown, format!("write failure: {}", err.to_string()))
+                Error::new(Status::Unknown, format!("write failure: {}", err))
             )
             .await
     }
@@ -118,7 +118,7 @@ impl OpendalStore {
             .read()
             .await
             .map_err(|err|
-                Error::new(Status::Unknown, format!("read failure: {}", err.to_string())))
+                Error::new(Status::Unknown, format!("read failure: {}", err)))
             .unwrap();
         Ok(str::from_utf8(&res)
             .unwrap()
@@ -130,6 +130,6 @@ impl OpendalStore {
         let o = self.inner.object(&path);
         o.delete()
             .await
-            .map_err(|err| Error::new(Status::Unknown, format!("delete failure: {}", err.to_string())))
+            .map_err(|err| Error::new(Status::Unknown, format!("delete failure: {}", err)))
     }
 }

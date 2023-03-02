@@ -32,7 +32,7 @@ use crate::*;
 /// # Notes
 ///
 /// Users can control how many concurrent connections could be established
-/// betweet OpenDAL and underlying storage services.
+/// between OpenDAL and underlying storage services.
 ///
 /// # Examples
 ///

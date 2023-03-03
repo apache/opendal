@@ -75,32 +75,7 @@ jobs:
             .cargo-cache
             target/
           key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
-      - uses: goto-bus-stop/setup-zig@v2
-        if: ${{ matrix.settings.target == 'armv7-unknown-linux-gnueabihf' }}
-        with:
-          working-directory: bindings/nodejs
-          version: 0.10.1
-      - name: Setup toolchain
-        run: ${{ matrix.settings.setup }}
-        if: ${{ matrix.settings.setup }}
-        shell: bash
-        with:
-          working-directory: bindings/nodejs
-      - name: Setup node x86
-        if: matrix.settings.target == 'i686-pc-windows-msvc'
-        run: yarn config set supportedArchitectures.cpu "ia32"
-        shell: bash
-      - name: Install dependencies
-        run: yarn install
-      - name: Setup node x86
-        uses: actions/setup-node@v3
-        if: matrix.settings.target == 'i686-pc-windows-msvc'
-        with:
-          working-directory: bindings/nodejs
-          node-version: 18
-          check-latest: true
-          cache: yarn
-          architecture: x86
+
       - name: Build in docker
         uses: addnab/docker-run-action@v3
         if: ${{ matrix.settings.docker }}

@@ -117,7 +117,7 @@ impl FsBuilder {
     /// behavior is consistent. By enable path check, we can make sure
     /// fs will behave the same as other services.
     ///
-    /// Enabling this feature will lead to etra metadata call in all
+    /// Enabling this feature will lead to extra metadata call in all
     /// operations.
     pub fn enable_path_check(&mut self) -> &mut Self {
         self.enable_path_check = true;

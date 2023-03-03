@@ -218,7 +218,7 @@ impl DnsCache {
         // entire cache to make more space.
         //
         // As described in DnsCache's doc, this limit should never be reached.
-        // We expect there only few entries holded in cache.
+        // We expect there only few entries held in cache.
         if guard.len() >= self.limits {
             guard.clear()
         }

@@ -121,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn test_into_stream_blocing() {
+    fn test_into_stream_blocking() {
         use oio::BlockingRead;
 
         let mut rng = ThreadRng::default();

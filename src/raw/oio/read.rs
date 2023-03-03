@@ -130,7 +130,7 @@ impl Read for () {
     }
 }
 
-/// `Box<dyn Read>` won't implement `Read` automanticly. To make Reader
+/// `Box<dyn Read>` won't implement `Read` automatically. To make Reader
 /// work as expected, we must add this impl.
 impl<T: Read + ?Sized> Read for Box<T> {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
@@ -327,7 +327,7 @@ impl BlockingRead for () {
     }
 }
 
-/// `Box<dyn BlockingRead>` won't implement `BlockingRead` automanticly.
+/// `Box<dyn BlockingRead>` won't implement `BlockingRead` automatically.
 /// To make BlockingReader work as expected, we must add this impl.
 impl<T: BlockingRead + ?Sized> BlockingRead for Box<T> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {

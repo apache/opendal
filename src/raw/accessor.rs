@@ -101,7 +101,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - Input path MUST be file path, DON'T NEED to check object mode.
-    /// - The returning contnet length may be smaller than the range specified.
+    /// - The returning content length may be smaller than the range specified.
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let (_, _) = (path, args);
 

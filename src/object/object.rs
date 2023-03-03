@@ -301,7 +301,7 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// - The returning contnet's length may be smaller than the range specified.
+    /// - The returning content's length may be smaller than the range specified.
     ///
     /// # Examples
     ///
@@ -445,7 +445,7 @@ impl Object {
     ///
     /// # Notes
     ///
-    /// - The returning contnet's length may be smaller than the range specified.
+    /// - The returning content's length may be smaller than the range specified.
     ///
     /// # Examples
     ///

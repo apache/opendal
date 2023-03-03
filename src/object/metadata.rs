@@ -399,7 +399,7 @@ flags! {
     ///
     /// At user side, we will allow user to query the object metadata. If
     /// the meta has been stored, we will return directly. If no, we will
-    /// call `stat` internally to fecth the metadata.
+    /// call `stat` internally to fetch the metadata.
     pub enum ObjectMetakey: u64 {
         /// The special object metadata key that used to mark this object
         /// already contains all metadata.

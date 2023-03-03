@@ -149,7 +149,7 @@ impl RpBatch {
     }
 }
 
-/// Batch results of `bacth` operations.
+/// Batch results of `batch` operations.
 pub enum BatchedResults {
     /// results of delete batch operation
     Delete(Vec<(String, Result<RpDelete>)>),

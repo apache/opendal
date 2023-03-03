@@ -113,7 +113,7 @@ impl Write for () {
     }
 }
 
-/// `Box<dyn Write>` won't implement `Write` automanticly. To make Writer
+/// `Box<dyn Write>` won't implement `Write` automatically. To make Writer
 /// work as expected, we must add this impl.
 #[async_trait]
 impl<T: Write + ?Sized> Write for Box<T> {
@@ -169,7 +169,7 @@ impl BlockingWrite for () {
     }
 }
 
-/// `Box<dyn BlockingWrite>` won't implement `BlockingWrite` automanticly.
+/// `Box<dyn BlockingWrite>` won't implement `BlockingWrite` automatically.
 /// To make BlockingWriter work as expected, we must add this impl.
 impl<T: BlockingWrite + ?Sized> BlockingWrite for Box<T> {
     fn write(&mut self, bs: Bytes) -> Result<()> {

@@ -152,7 +152,7 @@ impl GcsBuilder {
     /// Set the GCS service account.
     ///
     /// service account will be used for fetch token from vm metadata.
-    /// If not set, we will try to fecth with `default` service account.
+    /// If not set, we will try to fetch with `default` service account.
     pub fn service_account(&mut self, service_account: &str) -> &mut Self {
         if !service_account.is_empty() {
             self.service_account = Some(service_account.to_string())
@@ -195,7 +195,7 @@ impl GcsBuilder {
         self
     }
 
-    /// Specify the signer directly instead of builling by OpenDAL.
+    /// Specify the signer directly instead of building by OpenDAL.
     ///
     /// If signer is specified, the following settings will not be used
     /// any more:
@@ -648,7 +648,7 @@ struct GetObjectJsonResponse {
     md5_hash: String,
     /// Content type of this object.
     ///
-    /// For examlpe: `"contentType": "image/png",`
+    /// For example: `"contentType": "image/png",`
     content_type: String,
 }
 

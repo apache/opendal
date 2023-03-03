@@ -39,7 +39,7 @@ pub fn to_hierarchy_pager<P>(pager: P, path: &str) -> ToHierarchyPager<P> {
 ///
 /// # Notes
 ///
-/// ToHierarchyPager filter entries after fecth entries. So it's possible
+/// ToHierarchyPager filter entries after fetch entries. So it's possible
 /// to return an empty vec. It doesn't mean the all pages have been
 /// returned.
 ///
@@ -58,7 +58,7 @@ impl<P> ToHierarchyPager<P> {
             .filter_map(|mut e| {
                 // If path is not started with prefix, drop it.
                 //
-                // Idealy, it should never happen. But we just tolerate
+                // Ideally, it should never happen. But we just tolerate
                 // this state.
                 if !e.path().starts_with(&self.path) {
                     return None;

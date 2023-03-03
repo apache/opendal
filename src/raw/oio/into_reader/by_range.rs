@@ -192,7 +192,7 @@ impl<A: Accessor> oio::Read for RangeReader<A> {
                 // TODO: make this value configurable
                 if seek_pos > self.cur && seek_pos - self.cur < 1024 * 1024 {
                     // 212992 is the default read mem buffer of archlinux.
-                    // Ideally we should make this congiurable.
+                    // Ideally we should make this configurable.
                     //
                     // TODO: make this value configurable
                     let consume = cmp::min((seek_pos - self.cur) as usize, 212992);

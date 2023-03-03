@@ -152,7 +152,7 @@ impl Builder for MokaBuilder {
         let mut builder: CacheBuilder<String, Vec<u8>, _> =
             SegmentedCache::builder(self.num_segments.unwrap_or(1))
                 .thread_pool_enabled(self.thread_pool_enabled.unwrap_or(false));
-        // Use entries's bytes as capacity weigher.
+        // Use entries' bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.len()) as u32);
         if let Some(v) = &self.name {
             builder = builder.name(v);

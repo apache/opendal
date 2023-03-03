@@ -153,7 +153,7 @@ impl AsyncWrite for ObjectWriter {
                     self.state = State::Close(Box::pin(fut));
                 }
                 State::Write(_) => {
-                    unreachable!("invlia state of writer: poll_close with State::Write")
+                    unreachable!("invalid state of writer: poll_close with State::Write")
                 }
                 State::Close(fut) => match ready!(fut.poll_unpin(cx)) {
                     Ok(w) => {

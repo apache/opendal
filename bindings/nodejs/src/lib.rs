@@ -24,18 +24,8 @@ use chrono::DateTime;
 use chrono::NaiveDateTime;
 use chrono::Utc;
 use opendal::services;
-use opendal::Operator;
-use bytes::Bytes;
 use futures::prelude::*;
 use napi::bindgen_prelude::*;
-
-#[napi]
-pub fn debug() -> String {
-    let op = Operator::create(services::Memory::default())
-        .unwrap()
-        .finish();
-    format!("{:?}", op.metadata())
-}
 
 
 #[napi]
@@ -44,12 +34,12 @@ pub struct OperatorFactory {}
 #[napi]
 impl OperatorFactory {
     #[napi]
-    pub fn memory() -> napi::Result<OpendalStore> {
-        let op = Operator::create(services::Memory::default())
+    pub fn memory() -> Result<Operator> {
+        let op = opendal::Operator::create(services::Memory::default())
             .unwrap()
             .finish();
 
-        Ok(OpendalStore::new(op))
+        Ok(Operator::new(op))
     }
 }
 
@@ -62,28 +52,23 @@ pub struct ObjectMeta {
 }
 
 #[napi]
-pub struct OpendalStore {
-    inner: Operator
+pub struct Operator {
+    inner: opendal::Operator
 }
 
 #[napi]
-impl OpendalStore {
-    pub fn new(op: Operator) -> Self {
+impl Operator {
+    pub fn new(op: opendal::Operator) -> Self {
         Self { inner: op }
     }
 
     #[napi]
-    pub fn meta(&self) -> Result<String> {
-        Ok(format!("{:?}", self.inner.metadata()))
-    }
-
-    #[napi]
-    pub async fn head(&self, path: String) -> Result<ObjectMeta> {
+    pub async fn meta(&self, path: String) -> Result<ObjectMeta> {
         let o = self.inner.object(&path);
         let meta = o
             .stat()
             .await
-            .map_err(|err| Error::new(Status::Unknown, format!("stats get failure: {}", err)))
+            .map_err(format_napi_error)
             .unwrap();
 
         let (secs, nsecs) = meta
@@ -103,26 +88,21 @@ impl OpendalStore {
     }
 
     #[napi]
-    pub async fn put(&self,  path: String, content: String) -> Result<()> {
+    pub async fn write(&self,  path: String, content: Vec<u8>) -> Result<()> {
         self.inner.object(&path)
-            .write(Bytes::from(content))
-            .map_err(|err|
-                Error::new(Status::Unknown, format!("write failure: {}", err))
-            )
+            .write(content)
+            .map_err(format_napi_error)
             .await
     }
 
     #[napi]
-    pub async fn get(&self,  path: String) -> Result<String> {
+    pub async fn read(&self,  path: String) -> Result<Vec<u8>> {
         let res = self.inner.object(&path)
             .read()
             .await
-            .map_err(|err|
-                Error::new(Status::Unknown, format!("read failure: {}", err)))
+            .map_err(format_napi_error)
             .unwrap();
-        Ok(str::from_utf8(&res)
-            .unwrap()
-            .to_string())
+        Ok(res)
     }
 
     #[napi]
@@ -130,6 +110,10 @@ impl OpendalStore {
         let o = self.inner.object(&path);
         o.delete()
             .await
-            .map_err(|err| Error::new(Status::Unknown, format!("delete failure: {}", err)))
+            .map_err(format_napi_error)
     }
+}
+
+fn format_napi_error(err: opendal::Error) -> Error {
+    Error::from_reason(format!("{}", err))
 }

@@ -19,16 +19,16 @@ import { OperatorFactory } from '../index.js'
 
 test('test memory write & read', async (t) => {
   let op = OperatorFactory.memory()
-  let content = "hello wowld"
-  let path = 'test.txt'
+  let content = "hello world"
+  let path = 'test'
 
-  await op.put(path, content)
+  await op.write(path, Array.from(new TextEncoder().encode(content)))
 
-  let meta = await op.head(path)
+  let meta = await op.meta(path)
   t.is(meta.size, content.length)
 
-  let res = await op.get('test.txt')
-  t.is(content, res)
+  let res = await op.read(path)
+  t.is(content, new TextDecoder().decode(Buffer.from(res)))
 
   await op.delete(path)
 })

@@ -30,7 +30,10 @@ env:
       - '**/*.gitignore'
       - .editorconfig
       - docs/**
-  pull_request: null
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 jobs:
   build:
     defaults:
@@ -541,6 +544,7 @@ jobs:
       run:
         working-directory: ${env.WORKING_DIRECTORY}
     name: Publish
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     needs:
       - build-freebsd

@@ -3,5 +3,5 @@
 ## Build
 
 ```shell
-pnpm run build:debug
+yarn run build:debug
 ```

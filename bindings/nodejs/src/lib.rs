@@ -12,14 +12,106 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use napi_derive::napi;
+#![deny(clippy::all)]
+
+#[macro_use]
+extern crate napi_derive;
+
+use std::str;
+
+use chrono::DateTime;
+use chrono::NaiveDateTime;
+use chrono::Utc;
 use opendal::services;
-use opendal::Operator;
+use futures::prelude::*;
+use napi::bindgen_prelude::*;
 
 #[napi]
-pub fn debug() -> String {
-    let op = Operator::create(services::Memory::default())
-        .unwrap()
-        .finish();
-    format!("{:?}", op.metadata())
+pub struct OperatorFactory {}
+
+#[napi]
+impl OperatorFactory {
+    #[napi]
+    pub fn memory() -> Result<Operator> {
+        let op = opendal::Operator::create(services::Memory::default())
+            .unwrap()
+            .finish();
+
+        Ok(Operator::new(op))
+    }
+}
+
+#[allow(dead_code)]
+#[napi]
+pub struct ObjectMeta {
+    pub location: String,
+    pub last_modified: i64,
+    pub size: u32
+}
+
+#[napi]
+pub struct Operator {
+    inner: opendal::Operator
+}
+
+#[napi]
+impl Operator {
+    pub fn new(op: opendal::Operator) -> Self {
+        Self { inner: op }
+    }
+
+    #[napi]
+    pub async fn meta(&self, path: String) -> Result<ObjectMeta> {
+        let o = self.inner.object(&path);
+        let meta = o
+            .stat()
+            .await
+            .map_err(format_napi_error)
+            .unwrap();
+
+        let (secs, nsecs) = meta
+            .last_modified()
+            .map(|v| (v.unix_timestamp(), v.nanosecond()))
+            .unwrap_or((0, 0));
+
+        Ok(ObjectMeta {
+            location: path,
+            last_modified: DateTime::<Utc>::from_utc(
+                NaiveDateTime::from_timestamp_opt(secs, nsecs)
+                    .expect("returning timestamp must be valid"),
+                Utc,
+            ).timestamp(),
+            size: meta.content_length() as u32
+        })
+    }
+
+    #[napi]
+    pub async fn write(&self,  path: String, content: Vec<u8>) -> Result<()> {
+        self.inner.object(&path)
+            .write(content)
+            .map_err(format_napi_error)
+            .await
+    }
+
+    #[napi]
+    pub async fn read(&self,  path: String) -> Result<Vec<u8>> {
+        let res = self.inner.object(&path)
+            .read()
+            .await
+            .map_err(format_napi_error)
+            .unwrap();
+        Ok(res)
+    }
+
+    #[napi]
+    pub async fn delete(&self, path: String) -> Result<()> {
+        let o = self.inner.object(&path);
+        o.delete()
+            .await
+            .map_err(format_napi_error)
+    }
+}
+
+fn format_napi_error(err: opendal::Error) -> Error {
+    Error::from_reason(format!("{}", err))
 }

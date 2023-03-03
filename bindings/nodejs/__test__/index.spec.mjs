@@ -12,8 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate napi_build;
 
-fn main() {
-  napi_build::setup();
-}
+import test from 'ava'
+
+import { OperatorFactory } from '../index.js'
+
+test('test memory write & read', async (t) => {
+  let op = OperatorFactory.memory()
+  let content = "hello world"
+  let path = 'test'
+
+  await op.write(path, Array.from(new TextEncoder().encode(content)))
+
+  let meta = await op.meta(path)
+  t.is(meta.size, content.length)
+
+  let res = await op.read(path)
+  t.is(content, new TextDecoder().decode(Buffer.from(res)))
+
+  await op.delete(path)
+})

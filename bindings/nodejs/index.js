@@ -246,8 +246,9 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { OperatorFactory, ObjectMeta, Operator } = nativeBinding
+const { OperatorFactory, Operator, ObjectMetadata, Object } = nativeBinding
 
 module.exports.OperatorFactory = OperatorFactory
-module.exports.ObjectMeta = ObjectMeta
 module.exports.Operator = Operator
+module.exports.ObjectMetadata = ObjectMetadata
+module.exports.Object = Object

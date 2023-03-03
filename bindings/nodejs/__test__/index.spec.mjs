@@ -22,13 +22,15 @@ test('test memory write & read', async (t) => {
   let content = "hello world"
   let path = 'test'
 
-  await op.write(path, Array.from(new TextEncoder().encode(content)))
+  let o = op.object(path)
 
-  let meta = await op.meta(path)
+  await o.write(new TextEncoder().encode(content))
+
+  let meta = await o.meta()
   t.is(meta.size, content.length)
 
-  let res = await op.read(path)
-  t.is(content, new TextDecoder().decode(Buffer.from(res)))
+  let res = await o.read()
+  t.is(content, new TextDecoder().decode(res))
 
-  await op.delete(path)
+  await o.delete()
 })

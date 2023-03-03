@@ -75,6 +75,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/node@npm:^18.14.5":
+  version: 18.14.5
+  resolution: "@types/node@npm:18.14.5"
+  checksum: 415fb0edc132baa9580f1b7a381a3f10b662f5d7a7d11641917fa0961788ccede3272badc414aadc47306e9fc35c5f6c59159ac470b46d3f3a15fb0446224c8c
+  languageName: node
+  linkType: hard
+
 "abbrev@npm:^1.0.0":
   version: 1.1.1
   resolution: "abbrev@npm:1.1.1"
@@ -1449,6 +1456,7 @@ __metadata:
   resolution: "opendal@workspace:."
   dependencies:
     "@napi-rs/cli": ^2.14.8
+    "@types/node": ^18.14.5
     ava: ^5.1.1
   languageName: unknown
   linkType: soft

@@ -6,14 +6,17 @@
 export class OperatorFactory {
   static memory(): Operator
 }
-export class ObjectMeta {
+export class Operator {
+  object(path: string): object
+}
+export class ObjectMetadata {
   location: string
   lastModified: number
   size: number
 }
-export class Operator {
-  meta(path: string): Promise<ObjectMeta>
-  write(path: string, content: Array<number>): Promise<void>
-  read(path: string): Promise<Array<number>>
-  delete(path: string): Promise<void>
+export class Object {
+  meta(): Promise<ObjectMetadata>
+  write(content: Buffer): Promise<void>
+  read(): Promise<Buffer>
+  delete(): Promise<void>
 }

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #![deny(clippy::all)]
 
 #[macro_use]
@@ -26,7 +25,6 @@ use chrono::Utc;
 use opendal::services;
 use futures::prelude::*;
 use napi::bindgen_prelude::*;
-
 
 #[napi]
 pub struct OperatorFactory {}

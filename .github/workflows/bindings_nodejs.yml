@@ -1,8 +1,23 @@
-name: CI
+# Copyright 2022 Datafuse Labs
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Binding NodeJS CI
 env:
   DEBUG: napi:*
   APP_NAME: opendal
   MACOSX_DEPLOYMENT_TARGET: '10.13'
+  WORKING_DIRECTORY: "bindings/nodejs"
 'on':
   push:
     branches:
@@ -18,6 +33,9 @@ env:
   pull_request: null
 jobs:
   build:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     strategy:
       fail-fast: false
       matrix:
@@ -91,10 +109,13 @@ jobs:
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Setup node
         uses: actions/setup-node@v3
         if: ${{ !matrix.settings.docker }}
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           node-version: 18
           check-latest: true
           cache: yarn
@@ -102,11 +123,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         if: ${{ !matrix.settings.docker }}
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           toolchain: stable
           targets: ${{ matrix.settings.target }}
       - name: Cache cargo
         uses: actions/cache@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
@@ -117,11 +140,14 @@ jobs:
       - uses: goto-bus-stop/setup-zig@v2
         if: ${{ matrix.settings.target == 'armv7-unknown-linux-gnueabihf' }}
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           version: 0.10.1
       - name: Setup toolchain
         run: ${{ matrix.settings.setup }}
         if: ${{ matrix.settings.setup }}
         shell: bash
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Setup node x86
         if: matrix.settings.target == 'i686-pc-windows-msvc'
         run: yarn config set supportedArchitectures.cpu "ia32"
@@ -132,6 +158,7 @@ jobs:
         uses: actions/setup-node@v3
         if: matrix.settings.target == 'i686-pc-windows-msvc'
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           node-version: 18
           check-latest: true
           cache: yarn
@@ -140,6 +167,7 @@ jobs:
         uses: addnab/docker-run-action@v3
         if: ${{ matrix.settings.docker }}
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           image: ${{ matrix.settings.docker }}
           options: '--user 0:0 -v ${{ github.workspace }}/.cargo-cache/git/db:/usr/local/cargo/git/db -v ${{ github.workspace }}/.cargo/registry/cache:/usr/local/cargo/registry/cache -v ${{ github.workspace }}/.cargo/registry/index:/usr/local/cargo/registry/index -v ${{ github.workspace }}:/build -w /build'
           run: ${{ matrix.settings.build }}
@@ -150,6 +178,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-${{ matrix.settings.target }}
           path: ${{ env.APP_NAME }}.*.node
           if-no-files-found: error
@@ -158,6 +187,8 @@ jobs:
     name: Build FreeBSD
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Build
         id: build
         uses: vmactions/freebsd-vm@v0
@@ -167,6 +198,7 @@ jobs:
           CARGO_HOME: /usr/local/cargo
           RUSTUP_IO_THREADS: 1
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           envs: DEBUG RUSTUP_HOME CARGO_HOME RUSTUP_IO_THREADS
           usesh: true
           mem: 3000
@@ -200,10 +232,14 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-freebsd
           path: ${{ env.APP_NAME }}.*.node
           if-no-files-found: error
   test-macOS-windows-binding:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Test bindings on ${{ matrix.settings.target }} - node@${{ matrix.node }}
     needs:
       - build
@@ -220,9 +256,12 @@ jobs:
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Setup node
         uses: actions/setup-node@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           node-version: ${{ matrix.node }}
           check-latest: true
           cache: yarn
@@ -231,6 +270,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-${{ matrix.settings.target }}
           path: .
       - name: List packages
@@ -239,6 +279,9 @@ jobs:
       - name: Test bindings
         run: yarn test
   test-linux-x64-gnu-binding:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Test bindings on Linux-x64-gnu - node@${{ matrix.node }}
     needs:
       - build
@@ -255,6 +298,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           node-version: ${{ matrix.node }}
           check-latest: true
           cache: yarn
@@ -263,6 +307,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-x86_64-unknown-linux-gnu
           path: .
       - name: List packages
@@ -271,6 +316,9 @@ jobs:
       - name: Test bindings
         run: docker run --rm -v $(pwd):/build -w /build node:${{ matrix.node }}-slim yarn test
   test-linux-x64-musl-binding:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Test bindings on x86_64-unknown-linux-musl - node@${{ matrix.node }}
     needs:
       - build
@@ -284,9 +332,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Setup node
         uses: actions/setup-node@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           node-version: ${{ matrix.node }}
           check-latest: true
           cache: yarn
@@ -297,6 +348,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-x86_64-unknown-linux-musl
           path: .
       - name: List packages
@@ -305,6 +357,9 @@ jobs:
       - name: Test bindings
         run: docker run --rm -v $(pwd):/build -w /build node:${{ matrix.node }}-alpine yarn test
   test-linux-aarch64-gnu-binding:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Test bindings on aarch64-unknown-linux-gnu - node@${{ matrix.node }}
     needs:
       - build
@@ -318,9 +373,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-aarch64-unknown-linux-gnu
           path: .
       - name: List packages
@@ -334,11 +392,13 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           platforms: arm64
       - run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Setup and run tests
         uses: addnab/docker-run-action@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           image: node:${{ matrix.node }}-slim
           options: '--platform linux/arm64 -v ${{ github.workspace }}:/build -w /build'
           run: |
@@ -346,15 +406,21 @@ jobs:
             yarn test
             ls -la
   test-linux-aarch64-musl-binding:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Test bindings on aarch64-unknown-linux-musl - node@${{ matrix.node }}
     needs:
       - build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-aarch64-unknown-linux-musl
           path: .
       - name: List packages
@@ -368,17 +434,22 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           platforms: arm64
       - run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Setup and run tests
         uses: addnab/docker-run-action@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           image: node:lts-alpine
           options: '--platform linux/arm64 -v ${{ github.workspace }}:/build -w /build'
           run: |
             set -e
             yarn test
   test-linux-arm-gnueabihf-binding:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Test bindings on armv7-unknown-linux-gnueabihf - node@${{ matrix.node }}
     needs:
       - build
@@ -392,9 +463,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-armv7-unknown-linux-gnueabihf
           path: .
       - name: List packages
@@ -407,11 +481,13 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           platforms: arm
       - run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
       - name: Setup and run tests
         uses: addnab/docker-run-action@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           image: node:${{ matrix.node }}-bullseye-slim
           options: '--platform linux/arm/v7 -v ${{ github.workspace }}:/build -w /build'
           run: |
@@ -419,15 +495,21 @@ jobs:
             yarn test
             ls -la
   universal-macOS:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Build universal macOS binary
     needs:
       - build
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Setup node
         uses: actions/setup-node@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           node-version: 18
           check-latest: true
           cache: yarn
@@ -436,11 +518,13 @@ jobs:
       - name: Download macOS x64 artifact
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-x86_64-apple-darwin
           path: artifacts
       - name: Download macOS arm64 artifact
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-aarch64-apple-darwin
           path: artifacts
       - name: Combine binaries
@@ -448,10 +532,14 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           name: bindings-universal-apple-darwin
           path: ${{ env.APP_NAME }}.*.node
           if-no-files-found: error
   publish:
+    defaults:
+      run:
+        working-directory: ${env.WORKING_DIRECTORY}
     name: Publish
     runs-on: ubuntu-latest
     needs:
@@ -465,9 +553,12 @@ jobs:
       - universal-macOS
     steps:
       - uses: actions/checkout@v3
+        with:
+          working-directory: ${env.WORKING_DIRECTORY}
       - name: Setup node
         uses: actions/setup-node@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           node-version: 18
           check-latest: true
           cache: yarn
@@ -476,6 +567,7 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v3
         with:
+          working-directory: ${env.WORKING_DIRECTORY}
           path: artifacts
       - name: Move artifacts
         run: yarn artifacts

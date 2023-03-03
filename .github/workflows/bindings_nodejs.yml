@@ -47,10 +47,9 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          working-directory: "bindings/nodejs"
           node-version: ${{ matrix.node }}
-          check-latest: true
           cache: yarn
+          cache-dependency-path: "bindings/nodejs/yarn.lock"
       - name: Install dependencies
         run: yarn install
       - name: Build

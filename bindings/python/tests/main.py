@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[package]
-edition = "2021"
-name = "opendal-python"
-version = "0.0.1"
+import asyncio;
+import opendal;
 
-[lib]
-crate-type = ["cdylib"]
-name = "opendal"
+async def main():
+    op = opendal.Operator();
+    o = op.object("path/to/file");
+    o.blocking_write(b"Hello, World!");
+    x = await o.read();
+    print(bytes(x).decode('utf-8'));
 
-[dependencies]
-opendal = { version = "0.29", path = "../../" }
-pyo3 = { version = "0.18", features = ["extension-module"] }
-pyo3-asyncio = { version = "0.18", features = ["tokio-runtime"] }
-tokio = "1"
+asyncio.run(main())

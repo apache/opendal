@@ -36,6 +36,12 @@ jobs:
         node:
           - '18'
     runs-on: ubuntu-latest
+
+    # Notes: this defaults only apply on run tasks.
+    defaults:
+      run:
+        working-directory: "bindings/nodejs"
+
     steps:
       - uses: actions/checkout@v3
       - name: Setup node
@@ -47,10 +53,7 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install
-        working-directory: "bindings/nodejs"
       - name: Build
         run: yarn build
-        working-directory: "bindings/nodejs"
       - name: Test bindings
         run: yarn test
-        working-directory: "bindings/nodejs"

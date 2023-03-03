@@ -1,15 +1,15 @@
 {
-  "name": "opendal-darwin-x64",
+  "name": "opendal-freebsd-x64",
   "version": "0.0.0",
   "os": [
-    "darwin"
+    "freebsd"
   ],
   "cpu": [
     "x64"
   ],
-  "main": "opendal.darwin-x64.node",
+  "main": "opendal.freebsd-x64.node",
   "files": [
-    "opendal.darwin-x64.node"
+    "opendal.freebsd-x64.node"
   ],
   "license": "MIT",
   "engines": {

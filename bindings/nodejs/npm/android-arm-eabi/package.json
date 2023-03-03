@@ -1,15 +1,15 @@
 {
-  "name": "opendal-linux-arm-gnueabihf",
+  "name": "opendal-android-arm-eabi",
   "version": "0.0.0",
   "os": [
-    "linux"
+    "android"
   ],
   "cpu": [
     "arm"
   ],
-  "main": "opendal.linux-arm-gnueabihf.node",
+  "main": "opendal.android-arm-eabi.node",
   "files": [
-    "opendal.linux-arm-gnueabihf.node"
+    "opendal.android-arm-eabi.node"
   ],
   "license": "MIT",
   "engines": {

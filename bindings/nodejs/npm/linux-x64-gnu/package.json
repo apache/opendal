@@ -1,6 +1,6 @@
 {
   "name": "opendal-linux-x64-gnu",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "os": [
     "linux"
   ],
@@ -11,7 +11,7 @@
   "files": [
     "opendal.linux-x64-gnu.node"
   ],
-  "license": "Apache-2.0",
+  "license": "MIT",
   "engines": {
     "node": ">= 10"
   },

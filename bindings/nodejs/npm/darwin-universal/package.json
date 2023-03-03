@@ -1,6 +1,6 @@
 {
   "name": "opendal-darwin-universal",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "os": [
     "darwin"
   ],
@@ -8,7 +8,7 @@
   "files": [
     "opendal.darwin-universal.node"
   ],
-  "license": "Apache-2.0",
+  "license": "MIT",
   "engines": {
     "node": ">= 10"
   }

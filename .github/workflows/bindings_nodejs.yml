@@ -47,13 +47,10 @@ jobs:
           cache: yarn
       - name: Install dependencies
         run: yarn install
-        with:
-          working-directory: "bindings/nodejs"
+        working-directory: "bindings/nodejs"
       - name: Build
         run: yarn build
-        with:
-          working-directory: "bindings/nodejs"
+        working-directory: "bindings/nodejs"
       - name: Test bindings
         run: yarn test
-        with:
-          working-directory: "bindings/nodejs"
+        working-directory: "bindings/nodejs"

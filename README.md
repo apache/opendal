@@ -1,10 +1,12 @@
-# OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io]
+# OpenDAL &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
 
 [build status]: https://img.shields.io/github/actions/workflow/status/datafuselabs/opendal/ci.yml?branch=main
 [actions]: https://github.com/datafuselabs/opendal/actions?query=branch%3Amain
 [latest version]: https://img.shields.io/crates/v/opendal.svg
 [crates.io]: https://crates.io/crates/opendal
 [crate downloads]: https://img.shields.io/crates/d/opendal.svg
+[chat]: https://img.shields.io/discord/1081052318650339399
+[discord]: https://discord.gg/XQy8yGR2dg
 
 **Open** **D**ata **A**ccess **L**ayer: Access data freely, painlessly, and efficiently
 

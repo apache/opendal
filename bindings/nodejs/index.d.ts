@@ -16,7 +16,7 @@ export class Memory {
   build(): Operator
 }
 export class Operator {
-  object(path: string): object
+  object(path: string): DataObject
 }
 export class ObjectMeta {
   location: string
@@ -42,9 +42,9 @@ export class ObjectMetadata {
   lastModified: number
 }
 export class ObjectLister {
-  nextPage(): Promise<Array<object>>
+  nextPage(): Promise<Array<DataObject>>
 }
-export class Object {
+export class DataObject {
   stat(): Promise<ObjectMetadata>
   statSync(): ObjectMetadata
   write(content: Buffer): Promise<void>

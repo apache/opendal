@@ -64,8 +64,8 @@ impl Operator {
     }
 
     #[napi]
-    pub fn object(&self, path: String) -> Object {
-        Object::new(self.inner.object(&path))
+    pub fn object(&self, path: String) -> DataObject {
+        DataObject::new(self.inner.object(&path))
     }
 }
 
@@ -121,26 +121,24 @@ impl ObjectLister {
     }
 
     #[napi]
-    pub async unsafe fn next_page(&mut self) -> Result<Vec<Object>> {
-        let lister = self.inner
+    pub async unsafe fn next_page(&mut self) -> Result<Vec<DataObject>> {
+        Ok(self.inner
             .next_page()
             .await
-            .map_err(format_napi_error)?.unwrap_or_default();
-        let mut v: Vec<Object> = vec![];
-        for i in lister.iter() {
-            v.push(Object { inner: i.to_owned() })
-        }
-        Ok(v)
+            .map_err(format_napi_error)?.unwrap_or_default()
+            .iter()
+            .map(|obj| DataObject { inner: obj.to_owned()})
+            .collect())
     }
 }
 
 #[napi]
-pub struct Object {
+pub struct DataObject {
     inner: opendal::Object
 }
 
 #[napi]
-impl Object {
+impl DataObject {
     pub fn new(op: opendal::Object) -> Self {
         Self { inner: op }
     }

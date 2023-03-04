@@ -41,6 +41,9 @@ export class ObjectMetadata {
   /** Last Modified of this object. */
   lastModified: number
 }
+export class ObjectLister {
+  nextPage(): Promise<Array<object>>
+}
 export class Object {
   stat(): Promise<ObjectMetadata>
   statSync(): ObjectMetadata
@@ -48,6 +51,7 @@ export class Object {
   writeSync(content: Buffer): void
   read(): Promise<Buffer>
   readSync(): Buffer
+  scan(): Promise<ObjectLister>
   delete(): Promise<void>
   deleteSync(): void
 }

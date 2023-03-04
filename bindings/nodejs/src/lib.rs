@@ -110,6 +110,31 @@ pub struct ObjectMetadata {
 }
 
 #[napi]
+pub struct ObjectLister {
+    inner: opendal::ObjectLister
+}
+
+#[napi]
+impl ObjectLister {
+    pub fn new(op: opendal::ObjectLister) -> Self {
+        Self { inner: op }
+    }
+
+    #[napi]
+    pub async unsafe fn next_page(&mut self) -> Result<Vec<Object>> {
+        let lister = self.inner
+            .next_page()
+            .await
+            .map_err(format_napi_error)?.unwrap_or_default();
+        let mut v: Vec<Object> = vec![];
+        for i in lister.iter() {
+            v.push(Object { inner: i.to_owned() })
+        }
+        Ok(v)
+    }
+}
+
+#[napi]
 pub struct Object {
     inner: opendal::Object
 }
@@ -174,6 +199,17 @@ impl Object {
             .map_err(format_napi_error)
             .unwrap();
         Ok(res.into())
+    }
+
+    #[napi]
+    pub async fn scan(&self) -> Result<ObjectLister> {
+        Ok(ObjectLister {
+            inner: self.inner
+                .scan()
+                .await
+                .map_err(format_napi_error)
+                .unwrap()
+        })
     }
 
     #[napi]

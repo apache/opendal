@@ -57,3 +57,25 @@ test('test memory write & read synchronously', (t) => {
 
   o.deleteSync()
 })
+
+test('scan', async (t) => {
+  let builder = new Memory()
+  let op = builder.build()
+  let content = "hello world"
+  let path = 'test'
+
+  let o = op.object(path)
+  let o2 = op.object(path + '1')
+  o.write(new TextEncoder().encode(content))
+  o2.write(new TextEncoder().encode(content))
+
+  let dir = op.object("")
+  let objList = await dir.scan()
+  let currentPage = await objList.nextPage()
+  for (let page of currentPage) {
+    t.is(new TextDecoder().decode(await page.read()), content)
+  }
+
+  await o.delete()
+  await o2.delete()
+})

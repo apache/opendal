@@ -15,10 +15,11 @@
 
 import test from 'ava'
 
-import { OperatorFactory } from '../index.js'
+import { Memory } from '../index.js'
 
 test('test memory write & read', async (t) => {
-  let op = OperatorFactory.memory()
+  let builder = new Memory()
+  let op = builder.build()
   let content = "hello world"
   let path = 'test'
 

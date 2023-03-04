@@ -6,6 +6,10 @@
 export class OperatorFactory {
   static memory(): Operator
 }
+export class Memory {
+  constructor()
+  build(): Operator
+}
 export class Operator {
   object(path: string): object
 }

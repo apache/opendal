@@ -23,7 +23,6 @@ use chrono::DateTime;
 use chrono::NaiveDateTime;
 use chrono::Utc;
 use napi::bindgen_prelude::*;
-use opendal::Builder;
 
 #[napi]
 pub struct OperatorFactory {}
@@ -40,22 +39,33 @@ impl OperatorFactory {
     }
 }
 
-pub struct BaseBuilder<B: opendal::Builder> {
-    inner: B
+#[napi]
+pub struct Memory {}
+
+#[napi]
+impl Memory {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    #[napi]
+    pub fn build(&self) -> Operator {
+        self.make_operator()
+    }
 }
-//
-// #[napi]
-// pub struct MemoryBuilder = BaseBuilder<opendal::services::Memory>
-//
-// #[napi]
-// impl MemoryBuilder {
-//     #[napi(constructor)]
-//     pub fn new() -> Self {
-//         MemoryBuilder{
-//             inner: opendal::services::Memory::default()
-//         }
-//     }
-// }
+
+trait OperatorBuilder {
+    fn make_operator(&self) -> Operator;
+}
+
+impl OperatorBuilder for Memory {
+    fn make_operator(&self) -> Operator {
+        Operator {
+            inner: opendal::Operator::create(opendal::services::Memory::default()).unwrap().finish()
+        }
+    }
+}
 
 #[napi]
 pub struct Operator {
@@ -67,15 +77,6 @@ impl Operator {
     pub fn new(op: opendal::Operator) -> Self {
         Self { inner: op }
     }
-    // pub fn new<T>(op: opendal::OperatorBuilder<T>) -> Self {
-    //     Self { inner: op }
-    // }
-
-    // #[napi]
-    // pub fn create -> Self {
-    //     Buffer
-    // }
-
 
     #[napi]
     pub fn object(&self, path: String) -> Object {

@@ -11,9 +11,6 @@ export const enum ObjectMode {
   /** Unknown means we don't know what we can do on this object. */
   Unknown = 2
 }
-export class OperatorFactory {
-  static memory(): Operator
-}
 export class Memory {
   constructor()
   build(): Operator

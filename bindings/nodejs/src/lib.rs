@@ -25,21 +25,6 @@ use chrono::Utc;
 use napi::bindgen_prelude::*;
 
 #[napi]
-pub struct OperatorFactory {}
-
-#[napi]
-impl OperatorFactory {
-    #[napi]
-    pub fn memory() -> Result<Operator> {
-        let op = opendal::Operator::create(opendal::services::Memory::default())
-            .unwrap()
-            .finish();
-
-        Ok(Operator::new(op))
-    }
-}
-
-#[napi]
 pub struct Memory {}
 
 #[napi]
@@ -84,7 +69,6 @@ impl Operator {
     }
 }
 
-
 #[allow(dead_code)]
 #[napi]
 pub struct ObjectMeta {
@@ -128,43 +112,6 @@ pub struct ObjectMetadata {
 #[napi]
 pub struct Object {
     inner: opendal::Object
-}
-
-fn exact_meta(meta: opendal::ObjectMetadata) -> Result<ObjectMetadata> {
-    let content_range = meta
-        .content_range()
-        .unwrap_or_default();
-    let range = content_range.range().unwrap_or_default();
-    let range_out: Vec<u32> = vec![
-        u32::try_from(range.start).ok().unwrap_or_default(),
-        u32::try_from(range.end).ok().unwrap_or_default(),
-        u32::try_from(content_range.size().unwrap_or_default()).ok().unwrap_or_default()
-    ];
-
-    let (secs, nsecs) = meta
-        .last_modified()
-        .map(|v| (v.unix_timestamp(), v.nanosecond()))
-        .unwrap_or((0, 0));
-
-
-    Ok(ObjectMetadata {
-        mode: match meta.mode() {
-            opendal::ObjectMode::DIR => ObjectMode::DIR,
-            opendal::ObjectMode::FILE => ObjectMode::FILE,
-            opendal::ObjectMode::Unknown => ObjectMode::Unknown,
-        },
-        content_disposition: meta.content_disposition().map(|s| s.to_string()),
-        content_length: u32::try_from(meta.content_length()).ok(),
-        content_md5: meta.content_md5().map(|s| s.to_string()),
-        content_range: Some(range_out),
-        content_type: meta.content_type().map(|s| s.to_string()),
-        etag: meta.etag().map(|s| s.to_string()),
-        last_modified: DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(secs, nsecs)
-                .expect("returning timestamp must be valid"),
-            Utc,
-        ).timestamp(),
-    })
 }
 
 #[napi]
@@ -243,6 +190,43 @@ impl Object {
             .blocking_delete()
             .map_err(format_napi_error)
     }
+}
+
+fn exact_meta(meta: opendal::ObjectMetadata) -> Result<ObjectMetadata> {
+    let content_range = meta
+        .content_range()
+        .unwrap_or_default();
+    let range = content_range.range().unwrap_or_default();
+    let range_out: Vec<u32> = vec![
+        u32::try_from(range.start).ok().unwrap_or_default(),
+        u32::try_from(range.end).ok().unwrap_or_default(),
+        u32::try_from(content_range.size().unwrap_or_default()).ok().unwrap_or_default()
+    ];
+
+    let (secs, nsecs) = meta
+        .last_modified()
+        .map(|v| (v.unix_timestamp(), v.nanosecond()))
+        .unwrap_or((0, 0));
+
+
+    Ok(ObjectMetadata {
+        mode: match meta.mode() {
+            opendal::ObjectMode::DIR => ObjectMode::DIR,
+            opendal::ObjectMode::FILE => ObjectMode::FILE,
+            opendal::ObjectMode::Unknown => ObjectMode::Unknown,
+        },
+        content_disposition: meta.content_disposition().map(|s| s.to_string()),
+        content_length: u32::try_from(meta.content_length()).ok(),
+        content_md5: meta.content_md5().map(|s| s.to_string()),
+        content_range: Some(range_out),
+        content_type: meta.content_type().map(|s| s.to_string()),
+        etag: meta.etag().map(|s| s.to_string()),
+        last_modified: DateTime::<Utc>::from_utc(
+            NaiveDateTime::from_timestamp_opt(secs, nsecs)
+                .expect("returning timestamp must be valid"),
+            Utc,
+        ).timestamp(),
+    })
 }
 
 fn format_napi_error(err: opendal::Error) -> Error {

@@ -147,19 +147,13 @@ impl ObjectMetadata {
 }
 
 #[napi]
-pub struct ObjectLister {
-    inner: opendal::ObjectLister
-}
+pub struct ObjectLister(opendal::ObjectLister);
 
 #[napi]
 impl ObjectLister {
-    pub fn new(op: opendal::ObjectLister) -> Self {
-        Self { inner: op }
-    }
-
     #[napi]
     pub async unsafe fn next_page(&mut self) -> Result<Vec<DataObject>> {
-        Ok(self.inner
+        Ok(self.0
             .next_page()
             .await
             .map_err(format_napi_error)?.unwrap_or_default()
@@ -230,13 +224,12 @@ impl DataObject {
 
     #[napi]
     pub async fn scan(&self) -> Result<ObjectLister> {
-        Ok(ObjectLister {
-            inner: self.0
+        Ok(ObjectLister(self.0
                 .scan()
                 .await
                 .map_err(format_napi_error)
                 .unwrap()
-        })
+        ))
     }
 
     #[napi]

@@ -18,28 +18,23 @@ export class Memory {
 export class Operator {
   object(path: string): DataObject
 }
-export class ObjectMeta {
-  location: string
-  lastModified: number
-  size: number
-}
 export class ObjectMetadata {
   /** Mode of this object. */
-  mode: ObjectMode
+  mode(): ObjectMode
   /** Content-Disposition of this object */
-  contentDisposition?: string
+  contentDisposition(): string | null
   /** Content Length of this object */
-  contentLength?: number
+  contentLength(): number | null
   /** Content MD5 of this object. */
-  contentMd5?: string
+  contentMd5(): string | null
   /** Content Range of this object. */
-  contentRange?: Array<number>
+  contentRange(): Array<number> | null
   /** Content Type of this object. */
-  contentType?: string
+  contentType(): string | null
   /** ETag of this object. */
-  etag?: string
+  etag(): string | null
   /** Last Modified of this object. */
-  lastModified: number
+  lastModified(): number | null
 }
 export class ObjectLister {
   nextPage(): Promise<Array<DataObject>>

@@ -46,35 +46,19 @@ trait OperatorBuilder {
 
 impl OperatorBuilder for Memory {
     fn make_operator(&self) -> Operator {
-        Operator {
-            inner: opendal::Operator::create(opendal::services::Memory::default()).unwrap().finish()
-        }
+        Operator(opendal::Operator::create(opendal::services::Memory::default()).unwrap().finish())
     }
 }
 
 #[napi]
-pub struct Operator {
-    inner: opendal::Operator
-}
+pub struct Operator(opendal::Operator);
 
 #[napi]
 impl Operator {
-    pub fn new(op: opendal::Operator) -> Self {
-        Self { inner: op }
-    }
-
     #[napi]
     pub fn object(&self, path: String) -> DataObject {
-        DataObject::new(self.inner.object(&path))
+        DataObject(self.0.object(&path))
     }
-}
-
-#[allow(dead_code)]
-#[napi]
-pub struct ObjectMeta {
-    pub location: String,
-    pub last_modified: i64,
-    pub size: u32
 }
 
 #[napi]
@@ -89,24 +73,77 @@ pub enum ObjectMode {
 
 #[allow(dead_code)]
 #[napi]
-pub struct ObjectMetadata {
+pub struct ObjectMetadata(opendal::ObjectMetadata);
+
+#[napi]
+impl ObjectMetadata {
     /// Mode of this object.
-    pub mode: ObjectMode,
+    #[napi]
+    pub fn mode(&self) -> ObjectMode {
+        match self.0.mode() {
+            opendal::ObjectMode::DIR => ObjectMode::DIR,
+            opendal::ObjectMode::FILE => ObjectMode::FILE,
+            opendal::ObjectMode::Unknown => ObjectMode::Unknown,
+        }
+    }
 
     /// Content-Disposition of this object
-    pub content_disposition: Option<String>,
+    #[napi]
+    pub fn content_disposition(&self) -> Option<String> {
+        self.0.content_disposition().map(|s| s.to_string())
+    }
+
     /// Content Length of this object
-    pub content_length: Option<u32>,
+    #[napi]
+    pub fn content_length(&self) -> Option<u32> {
+        u32::try_from(self.0.content_length()).ok()
+    }
+
     /// Content MD5 of this object.
-    pub content_md5: Option<String>,
+    #[napi]
+    pub fn content_md5(&self) -> Option<String> {
+        self.0.content_md5().map(|s| s.to_string())
+    }
+
     /// Content Range of this object.
-    pub content_range: Option<Vec<u32>>,
+    #[napi]
+    pub fn content_range(&self) -> Option<Vec<u32>> {
+        let content_range = self.0
+            .content_range()
+            .unwrap_or_default();
+        let range = content_range.range().unwrap_or_default();
+        Some(vec![
+            u32::try_from(range.start).ok().unwrap_or_default(),
+            u32::try_from(range.end).ok().unwrap_or_default(),
+            u32::try_from(content_range.size().unwrap_or_default()).ok().unwrap_or_default()
+        ])
+    }
+
     /// Content Type of this object.
-    pub content_type: Option<String>,
+    #[napi]
+    pub fn content_type(&self) -> Option<String> {
+        self.0.content_type().map(|s| s.to_string())
+    }
+
     /// ETag of this object.
-    pub etag: Option<String>,
+    #[napi]
+    pub fn etag(&self) -> Option<String> {
+        self.0.etag().map(|s| s.to_string())
+    }
+
     /// Last Modified of this object.
-    pub last_modified: i64,
+    #[napi]
+    pub fn last_modified(&self) -> Option<i64> {
+        let (secs, nsecs) = self.0
+            .last_modified()
+            .map(|v| (v.unix_timestamp(), v.nanosecond()))
+            .unwrap_or((0, 0));
+        Some(DateTime::<Utc>::from_utc(
+            NaiveDateTime::from_timestamp_opt(secs, nsecs)
+                .expect("returning timestamp must be valid"),
+            Utc,
+        ).timestamp())
+    }
 }
 
 #[napi]
@@ -127,47 +164,41 @@ impl ObjectLister {
             .await
             .map_err(format_napi_error)?.unwrap_or_default()
             .iter()
-            .map(|obj| DataObject { inner: obj.to_owned()})
+            .map(|obj| DataObject(obj.to_owned()))
             .collect())
     }
 }
 
 #[napi]
-pub struct DataObject {
-    inner: opendal::Object
-}
+pub struct DataObject(opendal::Object);
 
 #[napi]
 impl DataObject {
-    pub fn new(op: opendal::Object) -> Self {
-        Self { inner: op }
-    }
-
     #[napi]
     pub async fn stat(&self) -> Result<ObjectMetadata> {
-        let meta = self.inner
+        let meta = self.0
             .stat()
             .await
             .map_err(format_napi_error)
             .unwrap();
 
-        exact_meta(meta)
+        Ok(ObjectMetadata(meta))
     }
 
     #[napi(js_name="statSync")]
     pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
-        let meta = self.inner
+        let meta = self.0
             .blocking_stat()
             .map_err(format_napi_error)
             .unwrap();
 
-        exact_meta(meta)
+        Ok(ObjectMetadata(meta))
     }
 
     #[napi]
     pub async fn write(&self, content: Buffer) -> Result<()> {
         let c = content.as_ref().to_owned();
-        self.inner
+        self.0
             .write(c)
             .await
             .map_err(format_napi_error)
@@ -176,33 +207,31 @@ impl DataObject {
     #[napi(js_name="writeSync")]
     pub fn blocking_write(&self, content: Buffer) -> Result<()> {
         let c = content.as_ref().to_owned();
-        self.inner.blocking_write(c).map_err(format_napi_error)
+        self.0.blocking_write(c).map_err(format_napi_error)
     }
 
     #[napi]
     pub async fn read(&self) -> Result<Buffer> {
-        let res = self.inner
+        let res = self.0
             .read()
             .await
-            .map_err(format_napi_error)
-            .unwrap();
+            .map_err(format_napi_error)?;
         Ok(res.into())
     }
 
     #[napi(js_name="readSync")]
     #[napi]
     pub fn blocking_read(&self) -> Result<Buffer> {
-        let res = self.inner
+        let res = self.0
             .blocking_read()
-            .map_err(format_napi_error)
-            .unwrap();
+            .map_err(format_napi_error)?;
         Ok(res.into())
     }
 
     #[napi]
     pub async fn scan(&self) -> Result<ObjectLister> {
         Ok(ObjectLister {
-            inner: self.inner
+            inner: self.0
                 .scan()
                 .await
                 .map_err(format_napi_error)
@@ -212,7 +241,7 @@ impl DataObject {
 
     #[napi]
     pub async fn delete(&self) -> Result<()> {
-        self.inner
+        self.0
             .delete()
             .await
             .map_err(format_napi_error)
@@ -220,47 +249,10 @@ impl DataObject {
 
     #[napi(js_name="deleteSync")]
     pub fn blocking_delete(&self) -> Result<()> {
-        self.inner
+        self.0
             .blocking_delete()
             .map_err(format_napi_error)
     }
-}
-
-fn exact_meta(meta: opendal::ObjectMetadata) -> Result<ObjectMetadata> {
-    let content_range = meta
-        .content_range()
-        .unwrap_or_default();
-    let range = content_range.range().unwrap_or_default();
-    let range_out: Vec<u32> = vec![
-        u32::try_from(range.start).ok().unwrap_or_default(),
-        u32::try_from(range.end).ok().unwrap_or_default(),
-        u32::try_from(content_range.size().unwrap_or_default()).ok().unwrap_or_default()
-    ];
-
-    let (secs, nsecs) = meta
-        .last_modified()
-        .map(|v| (v.unix_timestamp(), v.nanosecond()))
-        .unwrap_or((0, 0));
-
-
-    Ok(ObjectMetadata {
-        mode: match meta.mode() {
-            opendal::ObjectMode::DIR => ObjectMode::DIR,
-            opendal::ObjectMode::FILE => ObjectMode::FILE,
-            opendal::ObjectMode::Unknown => ObjectMode::Unknown,
-        },
-        content_disposition: meta.content_disposition().map(|s| s.to_string()),
-        content_length: u32::try_from(meta.content_length()).ok(),
-        content_md5: meta.content_md5().map(|s| s.to_string()),
-        content_range: Some(range_out),
-        content_type: meta.content_type().map(|s| s.to_string()),
-        etag: meta.etag().map(|s| s.to_string()),
-        last_modified: DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(secs, nsecs)
-                .expect("returning timestamp must be valid"),
-            Utc,
-        ).timestamp(),
-    })
 }
 
 fn format_napi_error(err: opendal::Error) -> Error {

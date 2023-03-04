@@ -35,3 +35,23 @@ test('test memory write & read', async (t) => {
 
   await o.delete()
 })
+
+
+test('test memory write & read synchronously', (t) => {
+  let builder = new Memory()
+  let op = builder.build()
+  let content = "hello world"
+  let path = 'test'
+
+  let o = op.object(path)
+
+  o.writeSync(new TextEncoder().encode(content))
+
+  let meta = o.metaSync()
+  t.is(meta.size, content.length)
+
+  let res = o.readSync()
+  t.is(content, new TextDecoder().decode(res))
+
+  o.deleteSync()
+})

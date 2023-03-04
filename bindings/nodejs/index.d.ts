@@ -20,7 +20,11 @@ export class ObjectMetadata {
 }
 export class Object {
   meta(): Promise<ObjectMetadata>
+  metaSync(): ObjectMetadata
   write(content: Buffer): Promise<void>
+  writeSync(content: Buffer): void
   read(): Promise<Buffer>
+  readSync(): Buffer
   delete(): Promise<void>
+  deleteSync(): void
 }

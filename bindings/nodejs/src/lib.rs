@@ -128,6 +128,29 @@ impl Object {
         })
     }
 
+    #[napi(js_name="metaSync")]
+    pub fn blocking_meta(&self) -> Result<ObjectMetadata> {
+        let meta = self.inner
+            .blocking_stat()
+            .map_err(format_napi_error)
+            .unwrap();
+
+        let (secs, nsecs) = meta
+            .last_modified()
+            .map(|v| (v.unix_timestamp(), v.nanosecond()))
+            .unwrap_or((0, 0));
+
+        Ok(ObjectMetadata {
+            location: self.inner.path().to_string(),
+            last_modified: DateTime::<Utc>::from_utc(
+                NaiveDateTime::from_timestamp_opt(secs, nsecs)
+                    .expect("returning timestamp must be valid"),
+                Utc,
+            ).timestamp(),
+            size: meta.content_length() as u32
+        })
+    }
+
     #[napi]
     pub async fn write(&self, content: Buffer) -> Result<()> {
         let c = content.as_ref().to_owned();
@@ -135,6 +158,12 @@ impl Object {
             .write(c)
             .await
             .map_err(format_napi_error)
+    }
+
+    #[napi(js_name="writeSync")]
+    pub fn blocking_write(&self, content: Buffer) -> Result<()> {
+        let c = content.as_ref().to_owned();
+        self.inner.blocking_write(c).map_err(format_napi_error)
     }
 
     #[napi]
@@ -147,11 +176,28 @@ impl Object {
         Ok(res.into())
     }
 
+    #[napi(js_name="readSync")]
+    #[napi]
+    pub fn blocking_read(&self) -> Result<Buffer> {
+        let res = self.inner
+            .blocking_read()
+            .map_err(format_napi_error)
+            .unwrap();
+        Ok(res.into())
+    }
+
     #[napi]
     pub async fn delete(&self) -> Result<()> {
         self.inner
             .delete()
             .await
+            .map_err(format_napi_error)
+    }
+
+    #[napi(js_name="deleteSync")]
+    pub fn blocking_delete(&self) -> Result<()> {
+        self.inner
+            .blocking_delete()
             .map_err(format_napi_error)
     }
 }

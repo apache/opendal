@@ -17,11 +17,12 @@ use futures::StreamExt;
 use crate::raw::*;
 use crate::*;
 
-/// Operator is the entry for all public APIs.
+/// Operator is the entry for all public async APIs.
 ///
 /// Read [`concepts`][docs::concepts] for know more about [`Operator`].
 ///
 /// # Examples
+///
 /// Read more backend init examples in [`services`]
 ///
 /// ```

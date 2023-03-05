@@ -21,7 +21,7 @@ OpenDAL introduces [Object Native API][crate::docs::rfcs::rfc_0041_object_native
 
 However, times are changing. After the list operation has been moved to the `Object` level, `Object` is now more like a wrapper for `Operator`. The only meaningful API of `Operator` now is `Operator::object`.
 
-Keeps writing `op.object(&path)` is boring. Let's take real example from databend as an example:
+Writing `op.object(&path)` repeatedly is boring. Let's take real example from databend as an example:
 
 ```rust
 if let Some(dir) = dir_path {
@@ -39,7 +39,7 @@ if let Some(dir) = dir_path {
 }
 ```
 
-We designed `Object` to make users can reuse the same `Object`. However, nearly no users use our API this way. Most users just build a new `Object` every time. There two problems:
+We designed `Object` to make users can reuse the same `Object`. However, nearly no users use our API this way. Most users just build a new `Object` every time. There are two problems:
 
 ## Extra cost
 
@@ -59,7 +59,7 @@ The `Object` must contain an `Operator` and an `Arc` of strings. With the introd
 
 ## Complex concepts
 
-The term `Object` is applied in various fields making it difficult to provide a concise definition of `opendal::Object`. Moreover, this could potentially confuse our users who may assume that `opendal::Object` is primarily intended for object storage services.
+The term `Object` is applied in various fields, making it difficult to provide a concise definition of `opendal::Object`. Moreover, this could potentially confuse our users who may assume that `opendal::Object` is primarily intended for object storage services.
 
 I propose eliminating the intermediate API layer of `Object` and enabling users to directly utilize `Operator`.
 
@@ -120,7 +120,7 @@ We will remove `Object` entirely and move all `Object` APIs to `Operator` instea
 + op.read("path").await
 ```
 
-Along with this change, we should also rename the `ObjectXxx` structs like `ObjectReader` to `Reader`.
+Along with this change, we should also rename the `ObjectXxx` structs, such as `ObjectReader` to `Reader`.
 
 # Drawbacks
 

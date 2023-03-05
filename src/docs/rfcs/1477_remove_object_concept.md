@@ -111,6 +111,20 @@ bop.read("file")?;
 bop.write("file", bs)?;
 ```
 
+The scan/list result will be an `Entry` or `BlockingEntry` that contains the same fields as Object, but is only used for scan/list entries.
+
+The public API should look like:
+
+```rust
+impl Entry {
+    pub fn mode(&self) -> EntryType;
+    pub fn path(&self) -> &str;
+    pub async fn stat(&self) -> Result<Metadata>;
+    pub async fn metadata(&self, key: impl Into<MetaKey>) -> Result<Metadata>;
+    ...
+}
+```
+
 # Reference-level explanation
 
 We will remove `Object` entirely and move all `Object` APIs to `Operator` instead:

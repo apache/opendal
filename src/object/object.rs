@@ -50,21 +50,16 @@ impl Object {
     /// - All path will be converted into relative path (without any leading `/`)
     /// - Path endswith `/` means it's a dir path.
     /// - Otherwise, it's a file path.
-    pub fn new(op: Operator, path: &str) -> Self {
-        Self::with(op, path, None)
+    pub(crate) fn new(acc: FusedAccessor, path: &str) -> Self {
+        Self::with(acc, path, None)
     }
 
-    pub(crate) fn with(op: Operator, path: &str, meta: Option<ObjectMetadata>) -> Self {
+    pub(crate) fn with(acc: FusedAccessor, path: &str, meta: Option<ObjectMetadata>) -> Self {
         Self {
-            acc: op.inner(),
+            acc,
             path: Arc::new(normalize_path(path)),
             meta: meta.map(Arc::new),
         }
-    }
-
-    /// Fetch the operator that used by this object.
-    pub fn operator(&self) -> Operator {
-        self.acc.clone().into()
     }
 
     pub(crate) fn accessor(&self) -> FusedAccessor {

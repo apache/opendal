@@ -12,15 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use futures::stream;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
-use crate::layers::*;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -59,182 +55,13 @@ pub struct Operator {
     accessor: FusedAccessor,
 }
 
-impl From<FusedAccessor> for Operator {
-    fn from(accessor: FusedAccessor) -> Self {
+impl Operator {
+    pub(super) fn from_inner(accessor: FusedAccessor) -> Self {
         Self { accessor }
     }
-}
 
-impl Operator {
-    /// Create a new operator.
-    ///
-    /// # Examples
-    ///
-    /// Read more backend init examples in [examples](https://github.com/datafuselabs/opendal/tree/main/examples).
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// use opendal::services::Fs;
-    /// use opendal::Builder;
-    /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     // Create fs backend builder.
-    ///     let mut builder = Fs::default();
-    ///     // Set the root for fs, all operations will happen under this root.
-    ///     //
-    ///     // NOTE: the root must be absolute path.
-    ///     builder.root("/tmp");
-    ///
-    ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::new(builder.build()?).finish();
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new<A: Accessor>(acc: A) -> OperatorBuilder<impl Accessor> {
-        OperatorBuilder::new(acc)
-    }
-
-    /// Create a new operator with input builder.
-    ///
-    /// OpenDAL will call `builder.build()` internally, so we don't need
-    /// to import `opendal::Builder` trait.
-    ///
-    /// # Examples
-    ///
-    /// Read more backend init examples in [examples](https://github.com/datafuselabs/opendal/tree/main/examples).
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// use opendal::services::Fs;
-    /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     // Create fs backend builder.
-    ///     let mut builder = Fs::default();
-    ///     // Set the root for fs, all operations will happen under this root.
-    ///     //
-    ///     // NOTE: the root must be absolute path.
-    ///     builder.root("/tmp");
-    ///
-    ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::create(builder)?.finish();
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn create<B: Builder>(mut ab: B) -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = ab.build()?;
-        Ok(OperatorBuilder::new(acc))
-    }
-
-    /// Create a new operator from given map.
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// use std::collections::HashMap;
-    ///
-    /// use opendal::services::Fs;
-    /// use opendal::Operator;
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let map = HashMap::from([
-    ///         // Set the root for fs, all operations will happen under this root.
-    ///         //
-    ///         // NOTE: the root must be absolute path.
-    ///         ("root".to_string(), "/tmp".to_string()),
-    ///     ]);
-    ///
-    ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::from_map::<Fs>(map)?.finish();
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn from_map<B: Builder>(
-        map: HashMap<String, String>,
-    ) -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_map(map).build()?;
-        Ok(OperatorBuilder::new(acc))
-    }
-
-    /// Create a new operator from iter.
-    ///
-    /// # WARNING
-    ///
-    /// It's better to use `from_map`. We may remove this API in the
-    /// future.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_iter<B: Builder>(
-        iter: impl Iterator<Item = (String, String)>,
-    ) -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_iter(iter).build()?;
-        Ok(OperatorBuilder::new(acc))
-    }
-
-    /// Create a new operator from env.
-    ///
-    /// # WARNING
-    ///
-    /// It's better to use `from_map`. We may remove this API in the
-    /// future.
-    pub fn from_env<B: Builder>() -> Result<OperatorBuilder<impl Accessor>> {
-        let acc = B::from_env().build()?;
-        Ok(OperatorBuilder::new(acc))
-    }
-
-    /// Get inner accessor.
-    ///
-    /// This function should only be used by developers to implement layers.
-    pub fn inner(&self) -> FusedAccessor {
-        self.accessor.clone()
-    }
-
-    /// Create a new layer with dynamic dispatch.
-    ///
-    /// # Notes
-    ///
-    /// `OperatorBuilder::layer()` is using static dispatch which is zero
-    /// cost. `Operator::layer()` is using dynamic dispatch which has a
-    /// bit runtime overhead with an extra vtable lookup and unable to
-    /// inline.
-    ///
-    /// It's always recommended to use `OperatorBuilder::layer()` instead.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Fs;
-    /// use opendal::Operator;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::create(Fs::default())?.finish();
-    /// let op = op.layer(LoggingLayer::default());
-    /// // All operations will go through the new_layer
-    /// let _ = op.object("test_file").read().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[must_use]
-    pub fn layer<L: Layer<FusedAccessor>>(self, layer: L) -> Self {
-        Self {
-            accessor: Arc::new(TypeEraseLayer.layer(layer.layer(self.accessor))),
-        }
+    pub(super) fn into_innter(self) -> FusedAccessor {
+        self.accessor
     }
 
     /// Get metadata of underlying accessor.
@@ -264,7 +91,7 @@ impl Operator {
 
     /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
-        Object::new(self.clone(), path)
+        Object::new(self.accessor.clone(), path)
     }
 
     /// Check if this operator can work correctly.

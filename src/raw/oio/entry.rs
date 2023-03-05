@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::raw::FusedAccessor;
 use crate::Object;
 use crate::ObjectMetadata;
 use crate::ObjectMode;
-use crate::Operator;
 
 /// Entry is returned by `Page` or `BlockingPage`
 /// during list operations.
@@ -70,7 +70,7 @@ impl Entry {
     }
 
     /// Consume to convert into an object.
-    pub fn into_object(self, op: Operator) -> Object {
-        Object::with(op, &self.path, Some(self.meta))
+    pub(crate) fn into_object(self, acc: FusedAccessor) -> Object {
+        Object::with(acc, &self.path, Some(self.meta))
     }
 }

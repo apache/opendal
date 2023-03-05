@@ -19,9 +19,7 @@ extern crate napi_derive;
 
 use std::str;
 
-use chrono::DateTime;
-use chrono::NaiveDateTime;
-use chrono::Utc;
+use time::format_description::well_known::Rfc3339;
 use futures::{TryStreamExt};
 use napi::bindgen_prelude::*;
 
@@ -96,8 +94,8 @@ impl ObjectMetadata {
 
     /// Content Length of this object
     #[napi(getter)]
-    pub fn content_length(&self) -> Option<u32> {
-        u32::try_from(self.0.content_length()).ok()
+    pub fn content_length(&self) -> Option<u64> {
+        self.0.content_length().into()
     }
 
     /// Content MD5 of this object.
@@ -107,18 +105,11 @@ impl ObjectMetadata {
     }
 
     /// Content Range of this object.
-    #[napi(getter)]
-    pub fn content_range(&self) -> Option<Vec<u32>> {
-        let content_range = self.0
-            .content_range()
-            .unwrap_or_default();
-        let range = content_range.range().unwrap_or_default();
-        Some(vec![
-            u32::try_from(range.start).ok().unwrap_or_default(),
-            u32::try_from(range.end).ok().unwrap_or_default(),
-            u32::try_from(content_range.size().unwrap_or_default()).ok().unwrap_or_default()
-        ])
-    }
+    /// API undecided.
+    // #[napi(getter)]
+    // pub fn content_range(&self) -> Option<Vec<u32>> {
+    //     todo!()
+    // }
 
     /// Content Type of this object.
     #[napi(getter)]
@@ -135,15 +126,10 @@ impl ObjectMetadata {
     /// Last Modified of this object.(UTC)
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
-        let (secs, nsecs) = self.0
-            .last_modified()
-            .map(|v| (v.unix_timestamp(), v.nanosecond()))
-            .unwrap_or((0121, 0121));
-        Some(DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp_opt(secs, nsecs)
-                .expect("returning timestamp must be valid"),
-            Utc,
-        ).to_rfc3339())
+        self.0.last_modified()
+            .map(|ta| {
+                ta.format(&Rfc3339).unwrap()
+            })
     }
 }
 

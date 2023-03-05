@@ -24,12 +24,14 @@ export class ObjectMetadata {
   /** Content-Disposition of this object */
   get contentDisposition(): string | null
   /** Content Length of this object */
-  get contentLength(): number | null
+  get contentLength(): bigint | null
   /** Content MD5 of this object. */
   get contentMd5(): string | null
-  /** Content Range of this object. */
-  get contentRange(): Array<number> | null
-  /** Content Type of this object. */
+  /**
+   * Content Range of this object.
+   * API undecided.
+   * Content Type of this object.
+   */
   get contentType(): string | null
   /** ETag of this object. */
   get etag(): string | null

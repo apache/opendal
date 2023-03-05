@@ -29,7 +29,7 @@ test('test memory write & read', async (t) => {
 
   let meta = await o.stat()
   t.is(meta.mode, 0)
-  t.is(meta.contentLength, content.length)
+  t.is(meta.contentLength, BigInt(content.length))
 
   let res = await o.read()
   t.is(content, new TextDecoder().decode(res))
@@ -50,7 +50,7 @@ test('test memory write & read synchronously', (t) => {
 
   let meta = o.statSync()
   t.is(meta.mode, 0)
-  t.is(meta.contentLength, content.length)
+  t.is(meta.contentLength, BigInt(content.length))
 
   let res = o.readSync()
   t.is(content, new TextDecoder().decode(res))

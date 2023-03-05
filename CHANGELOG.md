@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.29.1] - 2023-03-05
+
+### Added
+
+- feat(bindings/python): Add basic IO support (#1464)
+- feat(binding/node.js): basic IO (#1416)
+- feat(bindings/nodejs): Align to OpenDAL exports (#1466)
+- chore(bindings/nodejs): remove duplicate attribute & unused comment (#1478)
+
+### Changed
+
+- refactor: Promote operator as a mod for futher refactor (#1479)
+
+### Docs
+
+- docs: Add convert from m*n to m+n (#1454)
+- docs: Polish comments for public types (#1455)
+- docs: Add discord chat link (#1474)
+
+### Chore
+
+- chore: fix typo (#1456)
+- chore: fix typo (#1459)
+- benches: Generate into Bytes instead (#1463)
+- chore(bindings/nodjes): Don't check-in binaries (#1469)
+- chore(binding/nodejs): specific package manager version with hash (#1470)
+
 ## [v0.29.0] - 2023-03-01
 
 ### Added
@@ -1455,6 +1482,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 Hello, OpenDAL!
 
+[v0.29.1]: https://github.com/datafuselabs/opendal/compare/v0.29.0...v0.29.1
 [v0.29.0]: https://github.com/datafuselabs/opendal/compare/v0.28.0...v0.29.0
 [v0.28.0]: https://github.com/datafuselabs/opendal/compare/v0.27.2...v0.28.0
 [v0.27.2]: https://github.com/datafuselabs/opendal/compare/v0.27.1...v0.27.2

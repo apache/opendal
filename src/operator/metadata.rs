@@ -17,23 +17,21 @@ use crate::*;
 
 /// Metadata for operator, users can use this metadata to get information of operator.
 #[derive(Clone, Debug, Default)]
-pub struct OperatorMetadata {
-    acc: AccessorMetadata,
-}
+pub struct OperatorMetadata(AccessorMetadata);
 
 impl OperatorMetadata {
     pub(super) fn new(acc: AccessorMetadata) -> Self {
-        OperatorMetadata { acc }
+        OperatorMetadata(acc)
     }
 
     /// [`Scheme`] of operator.
     pub fn scheme(&self) -> Scheme {
-        self.acc.scheme()
+        self.0.scheme()
     }
 
     /// Root of operator, will be in format like `/path/to/dir/`
     pub fn root(&self) -> &str {
-        self.acc.root()
+        self.0.root()
     }
 
     /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
@@ -43,45 +41,41 @@ impl OperatorMetadata {
     /// - name for `s3` => bucket name
     /// - name for `azblob` => container name
     pub fn name(&self) -> &str {
-        self.acc.name()
+        self.0.name()
     }
 
     /// Check if current backend supports [`Accessor::read`] or not.
     pub fn can_read(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Read)
+        self.0.capabilities().contains(AccessorCapability::Read)
     }
 
     /// Check if current backend supports [`Accessor::write`] or not.
     pub fn can_write(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Write)
+        self.0.capabilities().contains(AccessorCapability::Write)
     }
 
     /// Check if current backend supports [`Accessor::list`] or not.
     pub fn can_list(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::List)
+        self.0.capabilities().contains(AccessorCapability::List)
     }
 
     /// Check if current backend supports [`Accessor::scan`] or not.
     pub fn can_scan(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Scan)
+        self.0.capabilities().contains(AccessorCapability::Scan)
     }
 
     /// Check if current backend supports [`Accessor::presign`] or not.
     pub fn can_presign(&self) -> bool {
-        self.acc
-            .capabilities()
-            .contains(AccessorCapability::Presign)
+        self.0.capabilities().contains(AccessorCapability::Presign)
     }
 
     /// Check if current backend supports batch operations or not.
     pub fn can_batch(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Batch)
+        self.0.capabilities().contains(AccessorCapability::Batch)
     }
 
     /// Check if current backend supports blocking operations or not.
     pub fn can_blocking(&self) -> bool {
-        self.acc
-            .capabilities()
-            .contains(AccessorCapability::Blocking)
+        self.0.capabilities().contains(AccessorCapability::Blocking)
     }
 }

@@ -20,24 +20,24 @@ export class Operator {
 }
 export class ObjectMetadata {
   /** Mode of this object. */
-  mode(): ObjectMode
+  get mode(): ObjectMode
   /** Content-Disposition of this object */
-  contentDisposition(): string | null
+  get contentDisposition(): string | null
   /** Content Length of this object */
-  contentLength(): number | null
+  get contentLength(): number | null
   /** Content MD5 of this object. */
-  contentMd5(): string | null
+  get contentMd5(): string | null
   /** Content Range of this object. */
-  contentRange(): Array<number> | null
+  get contentRange(): Array<number> | null
   /** Content Type of this object. */
-  contentType(): string | null
+  get contentType(): string | null
   /** ETag of this object. */
-  etag(): string | null
-  /** Last Modified of this object. */
-  lastModified(): number | null
+  get etag(): string | null
+  /** Last Modified of this object.(UTC) */
+  get lastModified(): string | null
 }
 export class ObjectLister {
-  nextPage(): Promise<Array<DataObject>>
+  next(): Promise<DataObject | null>
 }
 export class DataObject {
   stat(): Promise<ObjectMetadata>

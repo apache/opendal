@@ -22,6 +22,7 @@ use std::str;
 use chrono::DateTime;
 use chrono::NaiveDateTime;
 use chrono::Utc;
+use futures::{TryStreamExt};
 use napi::bindgen_prelude::*;
 
 #[napi]
@@ -78,7 +79,7 @@ pub struct ObjectMetadata(opendal::ObjectMetadata);
 #[napi]
 impl ObjectMetadata {
     /// Mode of this object.
-    #[napi]
+    #[napi(getter)]
     pub fn mode(&self) -> ObjectMode {
         match self.0.mode() {
             opendal::ObjectMode::DIR => ObjectMode::DIR,
@@ -88,25 +89,25 @@ impl ObjectMetadata {
     }
 
     /// Content-Disposition of this object
-    #[napi]
+    #[napi(getter)]
     pub fn content_disposition(&self) -> Option<String> {
         self.0.content_disposition().map(|s| s.to_string())
     }
 
     /// Content Length of this object
-    #[napi]
+    #[napi(getter)]
     pub fn content_length(&self) -> Option<u32> {
         u32::try_from(self.0.content_length()).ok()
     }
 
     /// Content MD5 of this object.
-    #[napi]
+    #[napi(getter)]
     pub fn content_md5(&self) -> Option<String> {
         self.0.content_md5().map(|s| s.to_string())
     }
 
     /// Content Range of this object.
-    #[napi]
+    #[napi(getter)]
     pub fn content_range(&self) -> Option<Vec<u32>> {
         let content_range = self.0
             .content_range()
@@ -120,29 +121,29 @@ impl ObjectMetadata {
     }
 
     /// Content Type of this object.
-    #[napi]
+    #[napi(getter)]
     pub fn content_type(&self) -> Option<String> {
         self.0.content_type().map(|s| s.to_string())
     }
 
     /// ETag of this object.
-    #[napi]
+    #[napi(getter)]
     pub fn etag(&self) -> Option<String> {
         self.0.etag().map(|s| s.to_string())
     }
 
-    /// Last Modified of this object.
-    #[napi]
-    pub fn last_modified(&self) -> Option<i64> {
+    /// Last Modified of this object.(UTC)
+    #[napi(getter)]
+    pub fn last_modified(&self) -> Option<String> {
         let (secs, nsecs) = self.0
             .last_modified()
             .map(|v| (v.unix_timestamp(), v.nanosecond()))
-            .unwrap_or((0, 0));
+            .unwrap_or((0121, 0121));
         Some(DateTime::<Utc>::from_utc(
             NaiveDateTime::from_timestamp_opt(secs, nsecs)
                 .expect("returning timestamp must be valid"),
             Utc,
-        ).timestamp())
+        ).to_rfc3339())
     }
 }
 
@@ -152,14 +153,13 @@ pub struct ObjectLister(opendal::ObjectLister);
 #[napi]
 impl ObjectLister {
     #[napi]
-    pub async unsafe fn next_page(&mut self) -> Result<Vec<DataObject>> {
+    pub async unsafe fn next(&mut self) -> Result<Option<DataObject>> {
         Ok(self.0
-            .next_page()
+            .try_next()
             .await
-            .map_err(format_napi_error)?.unwrap_or_default()
-            .iter()
-            .map(|obj| DataObject(obj.to_owned()))
-            .collect())
+            .map_err(format_napi_error)
+            .unwrap()
+            .map(|o| DataObject(o)))
     }
 }
 

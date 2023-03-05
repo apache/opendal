@@ -28,8 +28,8 @@ test('test memory write & read', async (t) => {
   await o.write(new TextEncoder().encode(content))
 
   let meta = await o.stat()
-  t.is(meta.mode(), 0)
-  t.is(meta.contentLength(), content.length)
+  t.is(meta.mode, 0)
+  t.is(meta.contentLength, content.length)
 
   let res = await o.read()
   t.is(content, new TextDecoder().decode(res))
@@ -49,8 +49,8 @@ test('test memory write & read synchronously', (t) => {
   o.writeSync(new TextEncoder().encode(content))
 
   let meta = o.statSync()
-  t.is(meta.mode(), 0)
-  t.is(meta.contentLength(), content.length)
+  t.is(meta.mode, 0)
+  t.is(meta.contentLength, content.length)
 
   let res = o.readSync()
   t.is(content, new TextDecoder().decode(res))
@@ -75,10 +75,15 @@ test('test scan', async (t) => {
 
   let dir = op.object("")
   let objList = await dir.scan()
-  let currentPage = await objList.nextPage()
-  for (let page of currentPage) {
-    t.is(new TextDecoder().decode(await page.read()), content)
+  let objectCount = 0
+  while (true) {
+    let o = await objList.next()
+    if (o === null) break
+    objectCount++
+    t.is(new TextDecoder().decode(await o.read()), content)
   }
+
+  t.is(objectCount, paths.length)
 
   objects.forEach(async (o) => {
     await o.delete()

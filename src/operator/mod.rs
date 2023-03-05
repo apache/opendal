@@ -14,7 +14,6 @@
 
 #[allow(clippy::module_inception)]
 mod operator;
-pub use operator::BatchOperator;
 pub use operator::Operator;
 
 mod builder;
@@ -22,3 +21,6 @@ pub use builder::OperatorBuilder;
 
 mod metadata;
 pub use metadata::OperatorMetadata;
+
+mod batch;
+pub use batch::BatchOperator;

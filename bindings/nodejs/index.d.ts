@@ -13,14 +13,14 @@ export const enum ObjectMode {
 }
 export class Memory {
   constructor()
-  build(): Operator
+  object(path: string): DataObject
 }
 export class Fs {
-  constructor()
-  set root(root: string)
-  build(): Operator
+  constructor(options: Record<string, string>)
+  object(path: string): DataObject
 }
 export class Operator {
+  constructor(serviceType: string, options?: Record<string, string> | undefined | null)
   object(path: string): DataObject
 }
 export class ObjectMetadata {

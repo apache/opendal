@@ -14,11 +14,13 @@
 
 
 import test from 'ava'
-import { Fs } from '../index.js'
+import { Operator, Fs } from '../index.js'
 import fs from "node:fs"
 
 const testFolderPath = "./testData"
 const fileContent = "hello world"
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
 test.before((t) => {
   fs.mkdir(testFolderPath, () => {})
 })
@@ -27,15 +29,28 @@ test.after((t) => {
   fs.rmdir(testFolderPath, () => {})
 })
 
-test.only("test fs read & write", async (t) => {
-  let builder = new Fs()
-  builder.root = testFolderPath
-  let op = builder.build()
+test("test fs read & write", async (t) => {
+  let op = new Operator("fs", {
+    root: testFolderPath
+  })
 
   let o = op.object(t.title)
-  await o.write(new TextEncoder().encode(fileContent))
+  await o.write(textEncoder.encode(fileContent))
 
-  t.is(new TextDecoder().decode(await o.read()), fileContent)
+  t.is(textDecoder.decode(await o.read()), fileContent)
+
+  await o.delete()
+})
+
+test("test fs read & write 2", async (t) => {
+  let op = new Fs({
+    root: testFolderPath
+  })
+
+  let o = op.object(t.title)
+  await o.write(textEncoder.encode(fileContent))
+
+  t.is(textDecoder.decode(await o.read()), fileContent)
 
   await o.delete()
 })

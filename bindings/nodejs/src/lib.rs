@@ -17,79 +17,38 @@
 #[macro_use]
 extern crate napi_derive;
 
+use std::collections::HashMap;
 use std::str;
 
 use time::format_description::well_known::Rfc3339;
 use futures::{TryStreamExt};
 use napi::bindgen_prelude::*;
+pub use services::{Fs, Memory};
+use opendal::Builder;
 
-#[napi]
-pub struct Memory {}
-
-#[napi]
-impl Memory {
-    #[napi(constructor)]
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    #[napi]
-    pub fn build(&self) -> Operator {
-        self.make_operator().unwrap()
-    }
-}
-
-#[napi]
-pub struct Fs {
-    _root: String,
-}
-
-#[napi]
-impl Fs {
-    #[napi(constructor)]
-    pub fn new() -> Self {
-        Self { _root: String::from("") }
-    }
-
-    #[napi(setter)]
-    pub fn root(&mut self, root: String) {
-        self._root = root
-    }
-
-    #[napi]
-    pub fn build(&self) -> Operator {
-        self.make_operator().unwrap()
-    }
-}
-
-trait OperatorBuilder {
-    fn make_operator(&self) -> std::result::Result<Operator, Error>;
-}
-
-impl OperatorBuilder for Memory {
-    fn make_operator(&self) -> Result<Operator> {
-        Ok(Operator(opendal::Operator::create(opendal::services::Memory::default()).unwrap().finish()))
-    }
-}
-
-impl OperatorBuilder for Fs {
-    fn make_operator(&self) -> Result<Operator> {
-        if self._root == "".to_string() {
-            return Err(Error::from_reason("should give a root to fs operator"))
-        }
-        Ok(Operator(opendal::Operator::create({
-            let mut op = opendal::services::Fs::default();
-            op.root(&self._root);
-            op
-        }).unwrap().finish()))
-    }
-}
+mod services;
 
 #[napi]
 pub struct Operator(opendal::Operator);
 
 #[napi]
 impl Operator {
+    #[napi(constructor)]
+    pub fn new(service_type: String, options: Option<HashMap<String, String>>) -> Result<Self> {
+        let ops = options.unwrap_or_default();
+        match service_type.as_str() {
+            "fs" => Ok(Self(opendal::Operator::create(opendal::services::Fs::from_map(ops))
+                .unwrap()
+                .finish()
+            )),
+            "memory" => Ok(Self(opendal::Operator::create(opendal::services::Memory::default())
+                       .unwrap()
+                       .finish()
+            )),
+            _ => Err(Error::from_reason("wrong operator type"))
+        }
+    }
+
     #[napi]
     pub fn object(&self, path: String) -> DataObject {
         DataObject(self.0.object(&path))

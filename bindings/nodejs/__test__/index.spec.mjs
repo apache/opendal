@@ -15,11 +15,11 @@
 
 import test from 'ava'
 
-import { Memory } from '../index.js'
+import { Operator } from '../index.js'
 
 test('test memory write & read', async (t) => {
-  let builder = new Memory()
-  let op = builder.build()
+  let op = new Operator("memory")
+
   let content = "hello world"
   let path = 'test'
 
@@ -39,8 +39,8 @@ test('test memory write & read', async (t) => {
 
 
 test('test memory write & read synchronously', (t) => {
-  let builder = new Memory()
-  let op = builder.build()
+  let op = new Operator("memory")
+
   let content = "hello world"
   let path = 'test'
 
@@ -59,8 +59,7 @@ test('test memory write & read synchronously', (t) => {
 })
 
 test('test scan', async (t) => {
-  let builder = new Memory()
-  let op = builder.build()
+  let op = new Operator("memory")
   let content = "hello world"
   let pathPrefix = 'test'
   let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)

@@ -29,16 +29,65 @@ use opendal::Builder;
 pub struct Operator(opendal::Operator);
 
 #[napi]
+#[derive(Debug, Eq, PartialEq)]
+pub enum Scheme {
+    /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
+    Azblob,
+    /// [azdfs][crate::services::Azdfs]: Azure Data Lake Storage Gen2.
+    Azdfs,
+    /// [dashmap][crate::services::Dashmap]: dashmap backend support.
+    Dashmap,
+    /// [fs][crate::services::Fs]: POSIX alike file system.
+    Fs,
+    /// [gcs][crate::services::Gcs]: Google Cloud Storage backend.
+    Gcs,
+    /// [ghac][crate::services::Ghac]: Github Action Cache services.
+    Ghac,
+    /// [hdfs][crate::services::Hdfs]: Hadoop Distributed File System.
+    Hdfs,
+    /// [http][crate::services::Http]: HTTP backend.
+    Http,
+    /// [ftp][crate::services::Ftp]: FTP backend.
+    Ftp,
+    /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
+    Ipfs,
+    /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
+    Ipmfs,
+    /// [memcached][crate::services::Memcached]: Memcached service support.
+    Memcached,
+    /// [memory][crate::services::Memory]: In memory backend support.
+    Memory,
+    /// [moka][crate::services::Moka]: moka backend support.
+    Moka,
+    /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
+    Obs,
+    /// [oss][crate::services::Oss]: Aliyun Object Storage Services
+    Oss,
+    /// [redis][crate::services::Redis]: Redis services
+    Redis,
+    /// [rocksdb][crate::services::Rocksdb]: RocksDB services
+    Rocksdb,
+    /// [s3][crate::services::S3]: AWS S3 alike services.
+    S3,
+    /// [sled][crate::services::Sled]: Sled services
+    Sled,
+    /// [webdav][crate::services::Webdav]: WebDAV support.
+    Webdav,
+    /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
+    Webhdfs,
+}
+
+#[napi]
 impl Operator {
     #[napi(constructor)]
-    pub fn new(service_type: String, options: Option<HashMap<String, String>>) -> Result<Self> {
+    pub fn new(service_type: Scheme, options: Option<HashMap<String, String>>) -> Result<Self> {
         let ops = options.unwrap_or_default();
-        match service_type.as_str() {
-            "fs" => Ok(Self(opendal::Operator::create(opendal::services::Fs::from_map(ops))
+        match service_type {
+            Scheme::Fs => Ok(Self(opendal::Operator::create(opendal::services::Fs::from_map(ops))
                 .unwrap()
                 .finish()
             )),
-            "memory" => Ok(Self(opendal::Operator::create(opendal::services::Memory::default())
+            Scheme::Memory => Ok(Self(opendal::Operator::create(opendal::services::Memory::default())
                        .unwrap()
                        .finish()
             )),

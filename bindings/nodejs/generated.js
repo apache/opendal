@@ -246,9 +246,10 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { Operator, ObjectMode, ObjectMetadata, ObjectLister, DataObject } = nativeBinding
+const { Operator, Scheme, ObjectMode, ObjectMetadata, ObjectLister, DataObject } = nativeBinding
 
 module.exports.Operator = Operator
+module.exports.Scheme = Scheme
 module.exports.ObjectMode = ObjectMode
 module.exports.ObjectMetadata = ObjectMetadata
 module.exports.ObjectLister = ObjectLister

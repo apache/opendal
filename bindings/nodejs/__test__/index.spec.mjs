@@ -15,10 +15,10 @@
 
 import test from 'ava'
 
-import { Operator, ServiceType } from '../index.js'
+import { Operator, Scheme } from '../index.js'
 
 test('test memory write & read', async (t) => {
-  let op = new Operator(ServiceType.memory)
+  let op = new Operator(Scheme.Memory)
 
   let content = "hello world"
   let path = 'test'
@@ -39,7 +39,7 @@ test('test memory write & read', async (t) => {
 
 
 test('test memory write & read synchronously', (t) => {
-  let op = new Operator(ServiceType.memory)
+  let op = new Operator(Scheme.Memory)
 
   let content = "hello world"
   let path = 'test'
@@ -59,7 +59,7 @@ test('test memory write & read synchronously', (t) => {
 })
 
 test('test scan', async (t) => {
-  let op = new Operator(ServiceType.memory)
+  let op = new Operator(Scheme.Memory)
   let content = "hello world"
   let pathPrefix = 'test'
   let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)

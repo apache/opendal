@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- refactor: Promote operator as a mod for futher refactor (#1479)
+- refactor: Promote operator as a mod for further refactor (#1479)
 
 ### Docs
 

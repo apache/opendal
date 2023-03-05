@@ -14,7 +14,7 @@
 
 
 import test from 'ava'
-import { Operator, Fs } from '../index.js'
+import { Operator, ServiceType } from '../index.js'
 import fs from "node:fs"
 
 const testFolderPath = "./testData"
@@ -30,20 +30,7 @@ test.after((t) => {
 })
 
 test("test fs read & write", async (t) => {
-  let op = new Operator("fs", {
-    root: testFolderPath
-  })
-
-  let o = op.object(t.title)
-  await o.write(textEncoder.encode(fileContent))
-
-  t.is(textDecoder.decode(await o.read()), fileContent)
-
-  await o.delete()
-})
-
-test("test fs read & write 2", async (t) => {
-  let op = new Fs({
+  let op = new Operator(ServiceType.fs, {
     root: testFolderPath
   })
 

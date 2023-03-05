@@ -23,10 +23,7 @@ use std::str;
 use time::format_description::well_known::Rfc3339;
 use futures::{TryStreamExt};
 use napi::bindgen_prelude::*;
-pub use services::{Fs, Memory};
 use opendal::Builder;
-
-mod services;
 
 #[napi]
 pub struct Operator(opendal::Operator);

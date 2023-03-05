@@ -24,8 +24,8 @@ excludes = [
     "**/fixtures/**",
     "tests/data/**",
     "bindings/nodejs/.npmignore",
-    "bindings/nodejs/index.js",
-    "bindings/nodejs/index.d.ts",
+    "bindings/nodejs/js-binding.js",
+    "bindings/nodejs/js-binding.d.ts",
     ".env.example",
 ]
 

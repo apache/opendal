@@ -104,8 +104,8 @@ impl ObjectMetadata {
         self.0.content_md5().map(|s| s.to_string())
     }
 
-    /// Content Range of this object.
-    /// API undecided.
+    // /// Content Range of this object.
+    // /// API undecided.
     // #[napi(getter)]
     // pub fn content_range(&self) -> Option<Vec<u32>> {
     //     todo!()
@@ -200,7 +200,6 @@ impl DataObject {
     }
 
     #[napi(js_name="readSync")]
-    #[napi]
     pub fn blocking_read(&self) -> Result<Buffer> {
         let res = self.0
             .blocking_read()

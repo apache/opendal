@@ -21,7 +21,7 @@ OpenDAL introduces [Object Native API][crate::docs::rfcs::rfc_0041_object_native
 
 However, times are changing. After the list operation has been moved to the `Object` level, `Object` is now more like a wrapper for `Operator`. The only meaningful API of `Operator` now is `Operator::object`.
 
-Thare two problems:
+There two problems:
 
 ## Extra cost
 
@@ -60,7 +60,7 @@ op.reader("file").await?;
 # write all content into file
 op.write("file", bs).await?;
 # create a writer
-op.wirter("file").await?;
+op.writer("file").await?;
 
 # get metadata of a path
 op.stat("path").await?;

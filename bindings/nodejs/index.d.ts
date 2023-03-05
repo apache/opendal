@@ -27,11 +27,7 @@ export class ObjectMetadata {
   get contentLength(): bigint | null
   /** Content MD5 of this object. */
   get contentMd5(): string | null
-  /**
-   * Content Range of this object.
-   * API undecided.
-   * Content Type of this object.
-   */
+  /** Content Type of this object. */
   get contentType(): string | null
   /** ETag of this object. */
   get etag(): string | null

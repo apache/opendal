@@ -21,7 +21,25 @@ OpenDAL introduces [Object Native API][crate::docs::rfcs::rfc_0041_object_native
 
 However, times are changing. After the list operation has been moved to the `Object` level, `Object` is now more like a wrapper for `Operator`. The only meaningful API of `Operator` now is `Operator::object`.
 
-There two problems:
+Keeps writing `op.object(&path)` is boring. Let's take real example from databend as an example:
+
+```rust
+if let Some(dir) = dir_path {
+    match op.object(&dir).stat().await {
+        Ok(_) => {
+            let mut ds = op.object(&dir).scan().await?;
+            while let Some(de) = ds.try_next().await? {
+                if let Some(fi) = stat_file(de).await? {
+                    files.push(fi)
+                }
+            }
+        }
+        Err(e) => warn!("ignore listing {path}/, because: {:?}", e),
+    };
+}
+```
+
+We designed `Object` to make users can reuse the same `Object`. However, nearly no users use our API this way. Most users just build a new `Object` every time. There two problems:
 
 ## Extra cost
 

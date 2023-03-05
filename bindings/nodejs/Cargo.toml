@@ -25,7 +25,7 @@ crate-type = ["cdylib"]
 # Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 napi = { version = "2.11.2", default-features = false, features = ["napi6", "async"] }
 napi-derive = "2.11.1"
-opendal = { version = "0.29", path = "../../"}
+opendal = { version = "0.29.1", path = "../../"}
 chrono = "0.4.23"
 futures = "0.3.26"
 time = { version = "0.3.17", features = ["formatting"] }

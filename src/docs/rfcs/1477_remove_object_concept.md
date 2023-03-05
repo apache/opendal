@@ -9,7 +9,7 @@ Eliminating the Object concept to enhance the readability of OpenDAL.
 
 # Motivation
 
-OpenDAL introduces [Object Native API][crate::docs::rfcs::rfc_0041_object_native_api] to resolve the problem of not easy to use:
+OpenDAL introduces [Object Native API][crate::docs::rfcs::rfc_0041_object_native_api] to resolve the problem of not being easy to use:
 
 ```diff
 - let reader = SeekableReader::new(op, path, stream_len);
@@ -37,7 +37,7 @@ pub(crate) fn with(op: Operator, path: &str, meta: Option<ObjectMetadata>) -> Se
 }
 ```
 
-The `Object` must contain an `Operator` and an `Arc` of strings.With the  introduction of [Query Based Metadata][crate::docs::rfcs::rfc_1398_query_based_metadata], there is no longer a need to perform operations on the object.
+The `Object` must contain an `Operator` and an `Arc` of strings. With the introduction of [Query Based Metadata][crate::docs::rfcs::rfc_1398_query_based_metadata], there is no longer a need to perform operations on the object.
 
 ## Complex concepts
 
@@ -47,12 +47,12 @@ I propose eliminating the intermediate API layer of `Object` and enabling users 
 
 # Guide-level explanation
 
-After this RFC implemented, our users can:
+After this RFC is implemented, our users can:
 
 ```rust
-# read all content of file
+# read all content of the file
 op.read("file").await?;
-# read part content of file
+# read part content of the file
 op.range_read("file", 0..1024).await?;
 # create a reader
 op.reader("file").await?;
@@ -81,7 +81,7 @@ op.list("dir/").await?;
 op.scan("dir/").await?;
 ```
 
-We will include the `BlockingOperator` for enhanced ease-of-use while performing blocking operations.
+We will include the `BlockingOperator` for enhanced ease of use while performing blocking operations.
 
 ```rust
 # this is a cheap call without allocation
@@ -102,7 +102,7 @@ We will remove `Object` entirely and move all `Object` APIs to `Operator` instea
 + op.read("path").await
 ```
 
-Along with this change, we should also rename `ObjectXxx` structs like `ObjectReader` to `Reader`.
+Along with this change, we should also rename the `ObjectXxx` structs like `ObjectReader` to `Reader`.
 
 # Drawbacks
 

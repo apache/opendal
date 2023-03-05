@@ -253,9 +253,7 @@ impl Operator {
     /// # }
     /// ```
     pub fn metadata(&self) -> OperatorMetadata {
-        OperatorMetadata {
-            acc: self.accessor.metadata(),
-        }
+        OperatorMetadata::new(self.accessor.metadata())
     }
 
     /// Create a new batch operator handle to take batch operations
@@ -290,111 +288,6 @@ impl Operator {
         match ds.next().await {
             Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
             _ => Ok(()),
-        }
-    }
-}
-
-/// OperatorBuilder is a typed builder to builder an Operator.
-///
-/// # Notes
-///
-/// OpenDAL uses static dispatch internally and only perform dynamic
-/// dispatch at the outmost type erase layer. OperatorBuilder is the only
-/// public API provided by OpenDAL come with generic parameters.
-///
-/// It's required to call `finish` after the operator built.
-///
-/// # Examples
-///
-/// For users who want to support many services, we can build a helper function like the following:
-///
-/// ```
-/// use std::collections::HashMap;
-///
-/// use opendal::layers::LoggingLayer;
-/// use opendal::layers::RetryLayer;
-/// use opendal::services;
-/// use opendal::Builder;
-/// use opendal::Operator;
-/// use opendal::Result;
-/// use opendal::Scheme;
-///
-/// fn init_service<B: Builder>(cfg: HashMap<String, String>) -> Result<Operator> {
-///     let op = Operator::from_map::<B>(cfg)?
-///         .layer(LoggingLayer::default())
-///         .layer(RetryLayer::new())
-///         .finish();
-///
-///     Ok(op)
-/// }
-///
-/// async fn init(scheme: Scheme, cfg: HashMap<String, String>) -> Result<()> {
-///     let _ = match scheme {
-///         Scheme::S3 => init_service::<services::S3>(cfg)?,
-///         Scheme::Fs => init_service::<services::Fs>(cfg)?,
-///         _ => todo!(),
-///     };
-///
-///     Ok(())
-/// }
-/// ```
-pub struct OperatorBuilder<A: Accessor> {
-    accessor: A,
-}
-
-impl<A: Accessor> OperatorBuilder<A> {
-    /// Create a new operator builder.
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new(accessor: A) -> OperatorBuilder<impl Accessor> {
-        // Make sure error context layer has been attached.
-        OperatorBuilder { accessor }
-            .layer(ErrorContextLayer)
-            .layer(CompleteLayer)
-    }
-
-    /// Create a new layer with static dispatch.
-    ///
-    /// # Notes
-    ///
-    /// `OperatorBuilder::layer()` is using static dispatch which is zero
-    /// cost. `Operator::layer()` is using dynamic dispatch which has a
-    /// bit runtime overhead with an extra vtable lookup and unable to
-    /// inline.
-    ///
-    /// It's always recommended to use `OperatorBuilder::layer()` instead.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Fs;
-    /// use opendal::Operator;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// let op = Operator::create(Fs::default())?
-    ///     .layer(LoggingLayer::default())
-    ///     .finish();
-    /// // All operations will go through the new_layer
-    /// let _ = op.object("test_file").read().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[must_use]
-    pub fn layer<L: Layer<A>>(self, layer: L) -> OperatorBuilder<L::LayeredAccessor> {
-        OperatorBuilder {
-            accessor: layer.layer(self.accessor),
-        }
-    }
-
-    /// Finish the building to construct an Operator.
-    pub fn finish(self) -> Operator {
-        let ob = self.layer(TypeEraseLayer);
-
-        Operator {
-            accessor: Arc::new(ob.accessor),
         }
     }
 }
@@ -580,72 +473,5 @@ impl BatchOperator {
         }
 
         Ok(())
-    }
-}
-
-/// Metadata for operator, users can use this metadata to get information of operator.
-#[derive(Clone, Debug, Default)]
-pub struct OperatorMetadata {
-    acc: AccessorMetadata,
-}
-
-impl OperatorMetadata {
-    /// [`Scheme`] of operator.
-    pub fn scheme(&self) -> Scheme {
-        self.acc.scheme()
-    }
-
-    /// Root of operator, will be in format like `/path/to/dir/`
-    pub fn root(&self) -> &str {
-        self.acc.root()
-    }
-
-    /// Name of backend, could be empty if underlying backend doesn't have namespace concept.
-    ///
-    /// For example:
-    ///
-    /// - name for `s3` => bucket name
-    /// - name for `azblob` => container name
-    pub fn name(&self) -> &str {
-        self.acc.name()
-    }
-
-    /// Check if current backend supports [`Accessor::read`] or not.
-    pub fn can_read(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Read)
-    }
-
-    /// Check if current backend supports [`Accessor::write`] or not.
-    pub fn can_write(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Write)
-    }
-
-    /// Check if current backend supports [`Accessor::list`] or not.
-    pub fn can_list(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::List)
-    }
-
-    /// Check if current backend supports [`Accessor::scan`] or not.
-    pub fn can_scan(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Scan)
-    }
-
-    /// Check if current backend supports [`Accessor::presign`] or not.
-    pub fn can_presign(&self) -> bool {
-        self.acc
-            .capabilities()
-            .contains(AccessorCapability::Presign)
-    }
-
-    /// Check if current backend supports batch operations or not.
-    pub fn can_batch(&self) -> bool {
-        self.acc.capabilities().contains(AccessorCapability::Batch)
-    }
-
-    /// Check if current backend supports blocking operations or not.
-    pub fn can_blocking(&self) -> bool {
-        self.acc
-            .capabilities()
-            .contains(AccessorCapability::Blocking)
     }
 }

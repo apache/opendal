@@ -55,11 +55,6 @@ impl ObjectLister {
         }
     }
 
-    /// Fetch the operator that used by this object.
-    pub(crate) fn operator(&self) -> Operator {
-        self.acc.clone().into()
-    }
-
     /// next_page can be used to fetch a new object page.
     ///
     /// # Notes
@@ -93,7 +88,7 @@ impl ObjectLister {
         Ok(Some(
             entries
                 .into_iter()
-                .map(|v| v.into_object(self.operator()))
+                .map(|v| v.into_object(self.acc.clone()))
                 .collect(),
         ))
     }
@@ -104,7 +99,7 @@ impl Stream for ObjectLister {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(oe) = self.buf.pop_front() {
-            return Poll::Ready(Some(Ok(oe.into_object(self.operator()))));
+            return Poll::Ready(Some(Ok(oe.into_object(self.acc.clone()))));
         }
 
         if let Some(fut) = self.fut.as_mut() {
@@ -154,11 +149,6 @@ impl BlockingObjectLister {
         }
     }
 
-    /// Fetch the operator that used by this object.
-    pub(crate) fn operator(&self) -> Operator {
-        self.acc.clone().into()
-    }
-
     /// next_page can be used to fetch a new object page.
     pub fn next_page(&mut self) -> Result<Option<Vec<Object>>> {
         let entries = if !self.buf.is_empty() {
@@ -176,7 +166,7 @@ impl BlockingObjectLister {
         Ok(Some(
             entries
                 .into_iter()
-                .map(|v| v.into_object(self.operator()))
+                .map(|v| v.into_object(self.acc.clone()))
                 .collect(),
         ))
     }
@@ -188,7 +178,7 @@ impl Iterator for BlockingObjectLister {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(oe) = self.buf.pop_front() {
-            return Some(Ok(oe.into_object(self.operator())));
+            return Some(Ok(oe.into_object(self.acc.clone())));
         }
 
         self.buf = match self.pager.next() {

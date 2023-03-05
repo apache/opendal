@@ -1,15 +1,15 @@
 - Proposal Name: `remove_object_concept`
 - Start Date: `2023-03-05`
-- RFC PR: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/pull/0000)
+- RFC PR: [datafuselabs/opendal#1477](https://github.com/datafuselabs/opendal/pull/1477)
 - Tracking Issue: [datafuselabs/opendal#0000](https://github.com/datafuselabs/opendal/issues/0000)
 
 # Summary
 
-Remove the Object concept to make OpenDAL easier to understand.
+Eliminating the Object concept to enhance the readability of OpenDAL.
 
 # Motivation
 
-OpenDAL introduces [Object Native API][super::super::0041_object_native_api] to resolve the problem of not easy to use:
+OpenDAL introduces [Object Native API][crate::docs::rfcs::rfc_0041_object_native_api] to resolve the problem of not easy to use:
 
 ```diff
 - let reader = SeekableReader::new(op, path, stream_len);
@@ -19,7 +19,7 @@ OpenDAL introduces [Object Native API][super::super::0041_object_native_api] to 
 + op.object(&path).stat().await
 ```
 
-However, times changing. Aftre `list` operation has also been moved to `Object` level, `Object` is more like a wrapper of `Opeator`. And the only meaning API of `Opeator` is `Opeator::object`.
+However, times are changing. After the list operation has been moved to the `Object` level, `Object` is now more like a wrapper for `Operator`. The only meaningful API of `Operator` now is `Operator::object`.
 
 Thare two problems:
 
@@ -37,13 +37,13 @@ pub(crate) fn with(op: Operator, path: &str, meta: Option<ObjectMetadata>) -> Se
 }
 ```
 
-`Object` needs to hold an `Operator` and an `Arc<String>`. After we introduced [Query Based Metadata][super::super::1398_query_based_metadata], we don't need to do operations over object any more.
+The `Object` must contain an `Operator` and an `Arc` of strings.With the  introduction of [Query Based Metadata][crate::docs::rfcs::rfc_1398_query_based_metadata], there is no longer a need to perform operations on the object.
 
 ## Complex concepts
 
-`Object` is used so widely in different areas, as we can't explain what `opendal::Object` is in a short sentences. Even worse, `Object` could confuse our users to think `opendal::Object` is designed for object storage services.
+The term `Object` is applied in various fields making it difficult to provide a concise definition of `opendal::Object`. Moreover, this could potentially confuse our users who may assume that `opendal::Object` is primarily intended for object storage services.
 
-So I propose to remove the intermidia API layer of `Object` and allowing users to use `Operator` directly.
+I propose eliminating the intermediate API layer of `Object` and enabling users to directly utilize `Operator`.
 
 # Guide-level explanation
 
@@ -81,7 +81,7 @@ op.list("dir/").await?;
 op.scan("dir/").await?;
 ```
 
-And we will add `BlockingOperator` to make blocking operations easier to use:
+We will include the `BlockingOperator` for enhanced ease-of-use while performing blocking operations.
 
 ```rust
 # this is a cheap call without allocation
@@ -95,24 +95,33 @@ bop.write("file", bs)?;
 
 # Reference-level explanation
 
-TODO
+We will remove `Object` entirely and move all `Object` APIs to `Operator` instead:
+
+```rust
+- op.object("path").read().await
++ op.read("path").await
+```
+
+Along with this change, we should also rename `ObjectXxx` structs like `ObjectReader` to `Reader`.
 
 # Drawbacks
 
-TODO
+## Breaking Changes
+
+This RFC proposes a major breaking change that will require almost all current usage to be rewritten.
 
 # Rationale and alternatives
 
-TODO
+None
 
 # Prior art
 
-TODO
+None
 
 # Unresolved questions
 
-TODO
+None
 
 # Future possibilities
 
-TODO
+None

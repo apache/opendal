@@ -35,17 +35,53 @@ impl Memory {
 
     #[napi]
     pub fn build(&self) -> Operator {
-        self.make_operator()
+        self.make_operator().unwrap()
+    }
+}
+
+#[napi]
+pub struct Fs {
+    _root: String,
+}
+
+#[napi]
+impl Fs {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self { _root: String::from("") }
+    }
+
+    #[napi(setter)]
+    pub fn root(&mut self, root: String) {
+        self._root = root
+    }
+
+    #[napi]
+    pub fn build(&self) -> Operator {
+        self.make_operator().unwrap()
     }
 }
 
 trait OperatorBuilder {
-    fn make_operator(&self) -> Operator;
+    fn make_operator(&self) -> std::result::Result<Operator, Error>;
 }
 
 impl OperatorBuilder for Memory {
-    fn make_operator(&self) -> Operator {
-        Operator(opendal::Operator::create(opendal::services::Memory::default()).unwrap().finish())
+    fn make_operator(&self) -> Result<Operator> {
+        Ok(Operator(opendal::Operator::create(opendal::services::Memory::default()).unwrap().finish()))
+    }
+}
+
+impl OperatorBuilder for Fs {
+    fn make_operator(&self) -> Result<Operator> {
+        if self._root == "".to_string() {
+            return Err(Error::from_reason("should give a root to fs operator"))
+        }
+        Ok(Operator(opendal::Operator::create({
+            let mut op = opendal::services::Fs::default();
+            op.root(&self._root);
+            op
+        }).unwrap().finish()))
     }
 }
 

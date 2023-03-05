@@ -15,6 +15,11 @@ export class Memory {
   constructor()
   build(): Operator
 }
+export class Fs {
+  constructor()
+  set root(root: string)
+  build(): Operator
+}
 export class Operator {
   object(path: string): DataObject
 }

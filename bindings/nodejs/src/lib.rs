@@ -19,95 +19,216 @@ extern crate napi_derive;
 
 use std::str;
 
-use chrono::DateTime;
-use chrono::NaiveDateTime;
-use chrono::Utc;
-use opendal::services;
-use futures::prelude::*;
+use time::format_description::well_known::Rfc3339;
+use futures::{TryStreamExt};
 use napi::bindgen_prelude::*;
 
 #[napi]
-pub struct OperatorFactory {}
+pub struct Memory {}
 
 #[napi]
-impl OperatorFactory {
-    #[napi]
-    pub fn memory() -> Result<Operator> {
-        let op = opendal::Operator::create(services::Memory::default())
-            .unwrap()
-            .finish();
-
-        Ok(Operator::new(op))
+impl Memory {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self {}
     }
+
+    #[napi]
+    pub fn build(&self) -> Operator {
+        self.make_operator()
+    }
+}
+
+trait OperatorBuilder {
+    fn make_operator(&self) -> Operator;
+}
+
+impl OperatorBuilder for Memory {
+    fn make_operator(&self) -> Operator {
+        Operator(opendal::Operator::create(opendal::services::Memory::default()).unwrap().finish())
+    }
+}
+
+#[napi]
+pub struct Operator(opendal::Operator);
+
+#[napi]
+impl Operator {
+    #[napi]
+    pub fn object(&self, path: String) -> DataObject {
+        DataObject(self.0.object(&path))
+    }
+}
+
+#[napi]
+pub enum ObjectMode {
+    /// FILE means the object has data to read.
+    FILE,
+    /// DIR means the object can be listed.
+    DIR,
+    /// Unknown means we don't know what we can do on this object.
+    Unknown,
 }
 
 #[allow(dead_code)]
 #[napi]
-pub struct ObjectMeta {
-    pub location: String,
-    pub last_modified: i64,
-    pub size: u32
-}
+pub struct ObjectMetadata(opendal::ObjectMetadata);
 
 #[napi]
-pub struct Operator {
-    inner: opendal::Operator
-}
-
-#[napi]
-impl Operator {
-    pub fn new(op: opendal::Operator) -> Self {
-        Self { inner: op }
+impl ObjectMetadata {
+    /// Mode of this object.
+    #[napi(getter)]
+    pub fn mode(&self) -> ObjectMode {
+        match self.0.mode() {
+            opendal::ObjectMode::DIR => ObjectMode::DIR,
+            opendal::ObjectMode::FILE => ObjectMode::FILE,
+            opendal::ObjectMode::Unknown => ObjectMode::Unknown,
+        }
     }
 
+    /// Content-Disposition of this object
+    #[napi(getter)]
+    pub fn content_disposition(&self) -> Option<String> {
+        self.0.content_disposition().map(|s| s.to_string())
+    }
+
+    /// Content Length of this object
+    #[napi(getter)]
+    pub fn content_length(&self) -> Option<u64> {
+        self.0.content_length().into()
+    }
+
+    /// Content MD5 of this object.
+    #[napi(getter)]
+    pub fn content_md5(&self) -> Option<String> {
+        self.0.content_md5().map(|s| s.to_string())
+    }
+
+    // /// Content Range of this object.
+    // /// API undecided.
+    // #[napi(getter)]
+    // pub fn content_range(&self) -> Option<Vec<u32>> {
+    //     todo!()
+    // }
+
+    /// Content Type of this object.
+    #[napi(getter)]
+    pub fn content_type(&self) -> Option<String> {
+        self.0.content_type().map(|s| s.to_string())
+    }
+
+    /// ETag of this object.
+    #[napi(getter)]
+    pub fn etag(&self) -> Option<String> {
+        self.0.etag().map(|s| s.to_string())
+    }
+
+    /// Last Modified of this object.(UTC)
+    #[napi(getter)]
+    pub fn last_modified(&self) -> Option<String> {
+        self.0.last_modified()
+            .map(|ta| {
+                ta.format(&Rfc3339).unwrap()
+            })
+    }
+}
+
+#[napi]
+pub struct ObjectLister(opendal::ObjectLister);
+
+#[napi]
+impl ObjectLister {
     #[napi]
-    pub async fn meta(&self, path: String) -> Result<ObjectMeta> {
-        let o = self.inner.object(&path);
-        let meta = o
+    pub async unsafe fn next(&mut self) -> Result<Option<DataObject>> {
+        Ok(self.0
+            .try_next()
+            .await
+            .map_err(format_napi_error)
+            .unwrap()
+            .map(|o| DataObject(o)))
+    }
+}
+
+#[napi]
+pub struct DataObject(opendal::Object);
+
+#[napi]
+impl DataObject {
+    #[napi]
+    pub async fn stat(&self) -> Result<ObjectMetadata> {
+        let meta = self.0
             .stat()
             .await
             .map_err(format_napi_error)
             .unwrap();
 
-        let (secs, nsecs) = meta
-            .last_modified()
-            .map(|v| (v.unix_timestamp(), v.nanosecond()))
-            .unwrap_or((0, 0));
-
-        Ok(ObjectMeta {
-            location: path,
-            last_modified: DateTime::<Utc>::from_utc(
-                NaiveDateTime::from_timestamp_opt(secs, nsecs)
-                    .expect("returning timestamp must be valid"),
-                Utc,
-            ).timestamp(),
-            size: meta.content_length() as u32
-        })
+        Ok(ObjectMetadata(meta))
     }
 
-    #[napi]
-    pub async fn write(&self,  path: String, content: Vec<u8>) -> Result<()> {
-        self.inner.object(&path)
-            .write(content)
-            .map_err(format_napi_error)
-            .await
-    }
-
-    #[napi]
-    pub async fn read(&self,  path: String) -> Result<Vec<u8>> {
-        let res = self.inner.object(&path)
-            .read()
-            .await
+    #[napi(js_name="statSync")]
+    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
+        let meta = self.0
+            .blocking_stat()
             .map_err(format_napi_error)
             .unwrap();
-        Ok(res)
+
+        Ok(ObjectMetadata(meta))
     }
 
     #[napi]
-    pub async fn delete(&self, path: String) -> Result<()> {
-        let o = self.inner.object(&path);
-        o.delete()
+    pub async fn write(&self, content: Buffer) -> Result<()> {
+        let c = content.as_ref().to_owned();
+        self.0
+            .write(c)
             .await
+            .map_err(format_napi_error)
+    }
+
+    #[napi(js_name="writeSync")]
+    pub fn blocking_write(&self, content: Buffer) -> Result<()> {
+        let c = content.as_ref().to_owned();
+        self.0.blocking_write(c).map_err(format_napi_error)
+    }
+
+    #[napi]
+    pub async fn read(&self) -> Result<Buffer> {
+        let res = self.0
+            .read()
+            .await
+            .map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
+    #[napi(js_name="readSync")]
+    pub fn blocking_read(&self) -> Result<Buffer> {
+        let res = self.0
+            .blocking_read()
+            .map_err(format_napi_error)?;
+        Ok(res.into())
+    }
+
+    #[napi]
+    pub async fn scan(&self) -> Result<ObjectLister> {
+        Ok(ObjectLister(self.0
+                .scan()
+                .await
+                .map_err(format_napi_error)
+                .unwrap()
+        ))
+    }
+
+    #[napi]
+    pub async fn delete(&self) -> Result<()> {
+        self.0
+            .delete()
+            .await
+            .map_err(format_napi_error)
+    }
+
+    #[napi(js_name="deleteSync")]
+    pub fn blocking_delete(&self) -> Result<()> {
+        self.0
+            .blocking_delete()
             .map_err(format_napi_error)
     }
 }

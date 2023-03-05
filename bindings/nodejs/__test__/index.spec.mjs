@@ -15,20 +15,77 @@
 
 import test from 'ava'
 
-import { OperatorFactory } from '../index.js'
+import { Memory } from '../index.js'
 
 test('test memory write & read', async (t) => {
-  let op = OperatorFactory.memory()
+  let builder = new Memory()
+  let op = builder.build()
   let content = "hello world"
   let path = 'test'
 
-  await op.write(path, Array.from(new TextEncoder().encode(content)))
+  let o = op.object(path)
 
-  let meta = await op.meta(path)
-  t.is(meta.size, content.length)
+  await o.write(new TextEncoder().encode(content))
 
-  let res = await op.read(path)
-  t.is(content, new TextDecoder().decode(Buffer.from(res)))
+  let meta = await o.stat()
+  t.is(meta.mode, 0)
+  t.is(meta.contentLength, BigInt(content.length))
 
-  await op.delete(path)
+  let res = await o.read()
+  t.is(content, new TextDecoder().decode(res))
+
+  await o.delete()
+})
+
+
+test('test memory write & read synchronously', (t) => {
+  let builder = new Memory()
+  let op = builder.build()
+  let content = "hello world"
+  let path = 'test'
+
+  let o = op.object(path)
+
+  o.writeSync(new TextEncoder().encode(content))
+
+  let meta = o.statSync()
+  t.is(meta.mode, 0)
+  t.is(meta.contentLength, BigInt(content.length))
+
+  let res = o.readSync()
+  t.is(content, new TextDecoder().decode(res))
+
+  o.deleteSync()
+})
+
+test('test scan', async (t) => {
+  let builder = new Memory()
+  let op = builder.build()
+  let content = "hello world"
+  let pathPrefix = 'test'
+  let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)
+  let objects = paths.map(p => op.object(p))
+
+  let writeTasks = objects.map((o) => new Promise(async (resolve, reject) => {
+    await o.write(new TextEncoder().encode(content))
+    resolve()
+  }))
+
+  await Promise.all(writeTasks)
+
+  let dir = op.object("")
+  let objList = await dir.scan()
+  let objectCount = 0
+  while (true) {
+    let o = await objList.next()
+    if (o === null) break
+    objectCount++
+    t.is(new TextDecoder().decode(await o.read()), content)
+  }
+
+  t.is(objectCount, paths.length)
+
+  objects.forEach(async (o) => {
+    await o.delete()
+  })
 })

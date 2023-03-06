@@ -32,7 +32,6 @@ use reqsign::AzureStorageSigner;
 use super::error::parse_error;
 use super::pager::AzdfsPager;
 use super::writer::AzdfsWriter;
-use crate::object::Metadata;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;

@@ -29,7 +29,6 @@ use uuid::Uuid;
 use super::error::parse_io_error;
 use super::pager::FsPager;
 use super::writer::FsWriter;
-use crate::object::*;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;

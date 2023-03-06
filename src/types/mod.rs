@@ -43,3 +43,8 @@ pub use operator::OperatorMetadata;
 
 mod builder;
 pub use builder::Builder;
+
+mod error;
+pub use error::Error;
+pub use error::ErrorKind;
+pub use error::Result;

@@ -72,11 +72,6 @@ pub use types::*;
 mod scheme;
 pub use scheme::Scheme;
 
-mod error;
-pub use error::Error;
-pub use error::ErrorKind;
-pub use error::Result;
-
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
 #[cfg(feature = "docs")]
 pub mod docs;

@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use futures::TryStreamExt;
-use opendal::ObjectMode;
+use opendal::EntryMode;
 use opendal::Operator;
 
 /// Test services that meet the following capability:
@@ -74,11 +74,11 @@ pub async fn test_list(op: Operator) -> Result<()> {
         entries.insert(de.path().to_string(), de.stat().await?.mode());
     }
 
-    assert_eq!(entries["normal_file"], ObjectMode::FILE);
-    assert_eq!(entries["special_file  !@#$%^&()_+-=;',"], ObjectMode::FILE);
+    assert_eq!(entries["normal_file"], EntryMode::FILE);
+    assert_eq!(entries["special_file  !@#$%^&()_+-=;',"], EntryMode::FILE);
 
-    assert_eq!(entries["normal_dir/"], ObjectMode::DIR);
-    assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], ObjectMode::DIR);
+    assert_eq!(entries["normal_dir/"], EntryMode::DIR);
+    assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], EntryMode::DIR);
 
     Ok(())
 }

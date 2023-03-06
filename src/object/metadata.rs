@@ -32,7 +32,7 @@ pub struct Metadata {
     bit: FlagSet<Metakey>,
 
     /// Mode of this object.
-    mode: ObjectMode,
+    mode: EntryMode,
 
     /// Content-Disposition of this object
     content_disposition: Option<String>,
@@ -52,11 +52,11 @@ pub struct Metadata {
 
 impl Metadata {
     /// Create a new object metadata
-    pub fn new(mode: ObjectMode) -> Self {
+    pub fn new(mode: EntryMode) -> Self {
         // Mode is required to be set for object metadata.
         let mut bit = Metakey::Mode.into();
         // If object mode is dir, we should always mark it as complete.
-        if mode == ObjectMode::DIR {
+        if mode.is_dir() {
             bit |= Metakey::Complete
         }
 
@@ -86,7 +86,7 @@ impl Metadata {
     }
 
     /// Object mode represent this object's mode.
-    pub fn mode(&self) -> ObjectMode {
+    pub fn mode(&self) -> EntryMode {
         debug_assert!(
             self.bit.contains(Metakey::Mode) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: mode, maybe a bug"
@@ -95,25 +95,25 @@ impl Metadata {
         self.mode
     }
 
-    /// Tests whether this metadata represents a file.
+    /// Returns `true` if this metadata is for a file.
     pub fn is_file(&self) -> bool {
-        matches!(self.mode, ObjectMode::FILE)
+        matches!(self.mode, EntryMode::FILE)
     }
 
-    /// Tests whether this metadata represents a directory.
+    /// Returns `true` if this metadata is for a directory.
     pub fn is_dir(&self) -> bool {
-        matches!(self.mode, ObjectMode::DIR)
+        matches!(self.mode, EntryMode::DIR)
     }
 
     /// Set mode for object.
-    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+    pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
         self.mode = mode;
         self.bit |= Metakey::Mode;
         self
     }
 
     /// Set mode for object.
-    pub fn with_mode(mut self, mode: ObjectMode) -> Self {
+    pub fn with_mode(mut self, mode: EntryMode) -> Self {
         self.mode = mode;
         self.bit |= Metakey::Mode;
         self

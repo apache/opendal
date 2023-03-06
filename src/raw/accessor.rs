@@ -81,7 +81,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// # Behavior
     ///
-    /// - Input path MUST match with ObjectMode, DON'T NEED to check object mode.
+    /// - Input path MUST match with EntryMode, DON'T NEED to check object mode.
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use anyhow::Result;
+use opendal::EntryMode;
 use opendal::ErrorKind;
-use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
@@ -76,11 +76,11 @@ macro_rules! behavior_blocking_read_tests {
 /// Stat normal file and dir should return metadata
 pub fn test_stat(op: Operator) -> Result<()> {
     let meta = op.object("normal_file").blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     let meta = op.object("normal_dir/").blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
 }
@@ -90,13 +90,13 @@ pub fn test_stat_special_chars(op: Operator) -> Result<()> {
     let meta = op
         .object("special_file  !@#$%^&()_+-=;',")
         .blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     let meta = op
         .object("special_dir  !@#$%^&()_+-=;',/")
         .blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
 }

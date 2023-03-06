@@ -522,7 +522,7 @@ impl WebhdfsBackend {
 
             StatusCode::NOT_FOUND => {
                 debug!("working directory does not exists, creating...");
-                self.create("/", OpCreate::new(ObjectMode::DIR)).await?;
+                self.create("/", OpCreate::new(EntryMode::DIR)).await?;
             }
 
             _ => return Err(parse_error(resp).await?),

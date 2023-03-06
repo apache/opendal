@@ -182,11 +182,11 @@ impl Object {
     pub async fn create(&self) -> Result<()> {
         let _ = if self.path.ends_with('/') {
             self.acc
-                .create(self.path(), OpCreate::new(ObjectMode::DIR))
+                .create(self.path(), OpCreate::new(EntryMode::DIR))
                 .await?
         } else {
             self.acc
-                .create(self.path(), OpCreate::new(ObjectMode::FILE))
+                .create(self.path(), OpCreate::new(EntryMode::FILE))
                 .await?
         };
 
@@ -233,10 +233,10 @@ impl Object {
     pub fn blocking_create(&self) -> Result<()> {
         if self.path.ends_with('/') {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
+                .blocking_create(self.path(), OpCreate::new(EntryMode::DIR))?;
         } else {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))?;
+                .blocking_create(self.path(), OpCreate::new(EntryMode::FILE))?;
         };
 
         Ok(())
@@ -338,7 +338,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
                     .with_operation("Object::blocking_range_read")
@@ -423,7 +423,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<Reader> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
                     .with_operation("Object::range_reader")
@@ -452,7 +452,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_range_reader(&self, range: impl RangeBounds<u64>) -> Result<BlockingReader> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
                     .with_operation("Object::blocking_range_reader")
@@ -517,7 +517,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn writer(&self) -> Result<Writer> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
@@ -554,7 +554,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
@@ -619,7 +619,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_writer(&self) -> Result<BlockingWriter> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
@@ -655,7 +655,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::blocking_write_with")
@@ -730,7 +730,7 @@ impl Object {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -744,20 +744,20 @@ impl Object {
     ///         })
     ///         .await?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
     pub async fn list(&self) -> Result<Lister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
@@ -784,7 +784,7 @@ impl Object {
     /// # use opendal::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.blocking_list()?;
@@ -794,20 +794,20 @@ impl Object {
     ///         Mode
     ///     })?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
     pub fn blocking_list(&self) -> Result<BlockingLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
@@ -833,7 +833,7 @@ impl Object {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # use futures::TryStreamExt;
     /// #
     /// # #[tokio::main]
@@ -848,20 +848,20 @@ impl Object {
     ///         })
     ///         .await?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
     pub async fn scan(&self) -> Result<Lister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
@@ -888,7 +888,7 @@ impl Object {
     /// # use opendal::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.blocking_list()?;
@@ -898,20 +898,20 @@ impl Object {
     ///         Mode
     ///     })?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
     pub fn blocking_scan(&self) -> Result<BlockingLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",

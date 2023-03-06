@@ -343,7 +343,7 @@ impl Accessor for IpfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         let resp = self.ipfs_head(path).await?;
@@ -352,7 +352,7 @@ impl Accessor for IpfsBackend {
 
         match status {
             StatusCode::OK => {
-                let mut m = Metadata::new(ObjectMode::Unknown);
+                let mut m = Metadata::new(EntryMode::Unknown);
 
                 if let Some(v) = parse_content_length(resp.headers())? {
                     m.set_content_length(v);
@@ -366,14 +366,14 @@ impl Accessor for IpfsBackend {
                     m.set_etag(v);
 
                     if v.starts_with("\"DirIndex") {
-                        m.set_mode(ObjectMode::DIR);
+                        m.set_mode(EntryMode::DIR);
                     } else {
-                        m.set_mode(ObjectMode::FILE);
+                        m.set_mode(EntryMode::FILE);
                     }
                 } else {
                     // Some service will stream the output of DirIndex.
                     // If we don't have an etag, it's highly to be a dir.
-                    m.set_mode(ObjectMode::DIR);
+                    m.set_mode(EntryMode::DIR);
                 }
 
                 if let Some(v) = parse_content_disposition(resp.headers())? {
@@ -383,7 +383,7 @@ impl Accessor for IpfsBackend {
                 Ok(RpStat::new(m))
             }
             StatusCode::FOUND | StatusCode::MOVED_PERMANENTLY => {
-                Ok(RpStat::new(Metadata::new(ObjectMode::DIR)))
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

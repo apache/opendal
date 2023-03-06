@@ -470,7 +470,7 @@ impl Accessor for OssBackend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         if path == "/" {
-            let m = Metadata::new(ObjectMode::DIR);
+            let m = Metadata::new(EntryMode::DIR);
             return Ok(RpStat::new(m));
         }
 
@@ -481,7 +481,7 @@ impl Accessor for OssBackend {
         match status {
             StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                let m = Metadata::new(ObjectMode::DIR);
+                let m = Metadata::new(EntryMode::DIR);
                 Ok(RpStat::new(m))
             }
 

@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use crate::raw::FusedAccessor;
+use crate::EntryMode;
 use crate::Metadata;
 use crate::Object;
-use crate::ObjectMode;
 
 /// Entry is returned by `Page` or `BlockingPage`
 /// during list operations.
@@ -59,13 +59,13 @@ impl Entry {
     /// # Note
     ///
     /// Please use this function carefully.
-    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+    pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
         self.meta.set_mode(mode);
         self
     }
 
     /// Get entry's object mode.
-    pub fn mode(&self) -> ObjectMode {
+    pub fn mode(&self) -> EntryMode {
         self.meta.mode()
     }
 

@@ -56,8 +56,8 @@ impl TryFrom<FileStatus> for Metadata {
     type Error = Error;
     fn try_from(value: FileStatus) -> Result<Self> {
         let mut meta = match value.ty {
-            FileStatusType::Directory => Metadata::new(ObjectMode::DIR),
-            FileStatusType::File => Metadata::new(ObjectMode::FILE),
+            FileStatusType::Directory => Metadata::new(EntryMode::DIR),
+            FileStatusType::File => Metadata::new(EntryMode::FILE),
         };
         let till_now = time::Duration::milliseconds(value.modification_time);
         let last_modified = time::OffsetDateTime::UNIX_EPOCH
@@ -81,7 +81,7 @@ mod test {
     use super::*;
     use crate::raw::oio::Page;
     use crate::services::webhdfs::pager::WebhdfsPager;
-    use crate::ObjectMode;
+    use crate::EntryMode;
 
     #[test]
     fn test_file_status() {
@@ -174,8 +174,8 @@ mod test {
         entries.sort_by(|a, b| a.path().cmp(b.path()));
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].path(), "listing/directory/a.patch");
-        assert_eq!(entries[0].mode(), ObjectMode::FILE);
+        assert_eq!(entries[0].mode(), EntryMode::FILE);
         assert_eq!(entries[1].path(), "listing/directory/bar/");
-        assert_eq!(entries[1].mode(), ObjectMode::DIR);
+        assert_eq!(entries[1].mode(), EntryMode::DIR);
     }
 }

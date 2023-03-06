@@ -18,7 +18,7 @@
 //!
 //! ```
 //! # use anyhow::Result;
-//! # use opendal::ObjectMode;
+//! # use opendal::EntryMode;
 //! # use opendal::Operator;
 //! use opendal::ErrorKind;
 //! # #[tokio::main]

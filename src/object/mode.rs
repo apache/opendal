@@ -15,9 +15,9 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-/// ObjectMode represents the object's mode.
+/// EntryMode represents the object's mode.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum ObjectMode {
+pub enum EntryMode {
     /// FILE means the object has data to read.
     FILE,
     /// DIR means the object can be listed.
@@ -26,29 +26,29 @@ pub enum ObjectMode {
     Unknown,
 }
 
-impl ObjectMode {
+impl EntryMode {
     /// Check if this object mode is FILE.
     pub fn is_file(self) -> bool {
-        self == ObjectMode::FILE
+        self == EntryMode::FILE
     }
     /// Check if this object mode is DIR.
     pub fn is_dir(self) -> bool {
-        self == ObjectMode::DIR
+        self == EntryMode::DIR
     }
 }
 
-impl Default for ObjectMode {
+impl Default for EntryMode {
     fn default() -> Self {
         Self::Unknown
     }
 }
 
-impl Display for ObjectMode {
+impl Display for EntryMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ObjectMode::FILE => write!(f, "file"),
-            ObjectMode::DIR => write!(f, "dir"),
-            ObjectMode::Unknown => write!(f, "unknown"),
+            EntryMode::FILE => write!(f, "file"),
+            EntryMode::DIR => write!(f, "dir"),
+            EntryMode::Unknown => write!(f, "unknown"),
         }
     }
 }

@@ -25,10 +25,10 @@ use time::OffsetDateTime;
 use super::backend::OssBackend;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
-use crate::ObjectMode;
 use crate::Result;
 
 pub struct OssPager {
@@ -98,7 +98,7 @@ impl oio::Page for OssPager {
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
-                Metadata::new(ObjectMode::DIR),
+                Metadata::new(EntryMode::DIR),
             );
             entries.push(de);
         }
@@ -107,7 +107,7 @@ impl oio::Page for OssPager {
             if object.key.ends_with('/') {
                 continue;
             }
-            let mut meta = Metadata::new(ObjectMode::FILE);
+            let mut meta = Metadata::new(EntryMode::FILE);
 
             meta.set_etag(&object.etag);
             meta.set_content_length(object.size);

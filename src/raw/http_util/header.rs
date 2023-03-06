@@ -28,10 +28,10 @@ use time::format_description::well_known::Rfc2822;
 use time::OffsetDateTime;
 
 use crate::raw::*;
+use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
-use crate::ObjectMode;
 use crate::Result;
 
 /// Parse redirect location from header map
@@ -191,9 +191,9 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 /// metadata on demand.
 pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> {
     let mode = if path.ends_with('/') {
-        ObjectMode::DIR
+        EntryMode::DIR
     } else {
-        ObjectMode::FILE
+        EntryMode::FILE
     };
     let mut m = Metadata::new(mode);
 

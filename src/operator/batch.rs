@@ -167,7 +167,7 @@ impl BatchOperator {
         let parent = self.src.object(path);
         let meta = parent.stat().await?;
 
-        if meta.mode() != ObjectMode::DIR {
+        if meta.mode() != EntryMode::DIR {
             return parent.delete().await;
         }
 

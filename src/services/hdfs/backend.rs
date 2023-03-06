@@ -247,7 +247,7 @@ impl Accessor for HdfsBackend {
         let p = build_rooted_abs_path(&self.root, path);
 
         match args.mode() {
-            ObjectMode::FILE => {
+            EntryMode::FILE => {
                 let parent = PathBuf::from(&p)
                     .parent()
                     .ok_or_else(|| {
@@ -273,12 +273,12 @@ impl Accessor for HdfsBackend {
 
                 Ok(RpCreate::default())
             }
-            ObjectMode::DIR => {
+            EntryMode::DIR => {
                 self.client.create_dir(&p).map_err(parse_io_error)?;
 
                 Ok(RpCreate::default())
             }
-            ObjectMode::Unknown => unreachable!(),
+            EntryMode::Unknown => unreachable!(),
         }
     }
 
@@ -353,11 +353,11 @@ impl Accessor for HdfsBackend {
         let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
         let mode = if meta.is_dir() {
-            ObjectMode::DIR
+            EntryMode::DIR
         } else if meta.is_file() {
-            ObjectMode::FILE
+            EntryMode::FILE
         } else {
-            ObjectMode::Unknown
+            EntryMode::Unknown
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());
@@ -416,7 +416,7 @@ impl Accessor for HdfsBackend {
         let p = build_rooted_abs_path(&self.root, path);
 
         match args.mode() {
-            ObjectMode::FILE => {
+            EntryMode::FILE => {
                 let parent = PathBuf::from(&p)
                     .parent()
                     .ok_or_else(|| {
@@ -442,12 +442,12 @@ impl Accessor for HdfsBackend {
 
                 Ok(RpCreate::default())
             }
-            ObjectMode::DIR => {
+            EntryMode::DIR => {
                 self.client.create_dir(&p).map_err(parse_io_error)?;
 
                 Ok(RpCreate::default())
             }
-            ObjectMode::Unknown => unreachable!(),
+            EntryMode::Unknown => unreachable!(),
         }
     }
 
@@ -520,11 +520,11 @@ impl Accessor for HdfsBackend {
         let meta = self.client.metadata(&p).map_err(parse_io_error)?;
 
         let mode = if meta.is_dir() {
-            ObjectMode::DIR
+            EntryMode::DIR
         } else if meta.is_file() {
-            ObjectMode::FILE
+            EntryMode::FILE
         } else {
-            ObjectMode::Unknown
+            EntryMode::Unknown
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());

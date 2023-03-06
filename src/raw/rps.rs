@@ -107,7 +107,7 @@ impl RpRead {
     /// Create a new reply.
     pub fn new(content_length: u64) -> Self {
         RpRead {
-            meta: Metadata::new(ObjectMode::FILE).with_content_length(content_length),
+            meta: Metadata::new(EntryMode::FILE).with_content_length(content_length),
         }
     }
 

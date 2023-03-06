@@ -97,7 +97,7 @@ impl Operator {
     pub async fn range_read(&self, path: &str, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         let path = normalize_path(path);
 
-        if !validate_path(&path, ObjectMode::FILE) {
+        if !validate_path(&path, EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
                     .with_operation("range_read")

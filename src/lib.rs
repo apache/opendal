@@ -78,11 +78,11 @@ pub use operator::OperatorMetadata;
 mod object;
 pub use object::BlockingReader;
 pub use object::BlockingWriter;
+pub use object::EntryMode;
 pub use object::Lister;
 pub use object::Metadata;
 pub use object::Metakey;
 pub use object::Object;
-pub use object::ObjectMode;
 pub use object::Reader;
 pub use object::Writer;
 
@@ -120,7 +120,7 @@ mod tests {
         assert_eq!(112, size_of::<BatchOperator>());
         assert_eq!(32, size_of::<Object>());
         assert_eq!(192, size_of::<Metadata>());
-        assert_eq!(1, size_of::<ObjectMode>());
+        assert_eq!(1, size_of::<EntryMode>());
         assert_eq!(24, size_of::<Scheme>());
     }
 }

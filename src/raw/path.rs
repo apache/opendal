@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::ObjectMode;
+use crate::EntryMode;
 
 /// build_abs_path will build an absolute path with root.
 ///
@@ -208,14 +208,14 @@ pub fn get_parent(path: &str) -> &str {
     }
 }
 
-/// Validate given path is match with given ObjectMode.
-pub fn validate_path(path: &str, mode: ObjectMode) -> bool {
+/// Validate given path is match with given EntryMode.
+pub fn validate_path(path: &str, mode: EntryMode) -> bool {
     debug_assert!(!path.is_empty(), "input path should not be empty");
 
     match mode {
-        ObjectMode::FILE => !path.ends_with('/'),
-        ObjectMode::DIR => path.ends_with('/'),
-        ObjectMode::Unknown => false,
+        EntryMode::FILE => !path.ends_with('/'),
+        EntryMode::DIR => path.ends_with('/'),
+        EntryMode::Unknown => false,
     }
 }
 
@@ -351,21 +351,21 @@ mod tests {
     #[test]
     fn test_validate_path() {
         let cases = vec![
-            ("input file with mode file", "abc", ObjectMode::FILE, true),
-            ("input file with mode dir", "abc", ObjectMode::DIR, false),
-            ("input dir with mode file", "abc/", ObjectMode::FILE, false),
-            ("input dir with mode dir", "abc/", ObjectMode::DIR, true),
-            ("root with mode dir", "/", ObjectMode::DIR, true),
+            ("input file with mode file", "abc", EntryMode::FILE, true),
+            ("input file with mode dir", "abc", EntryMode::DIR, false),
+            ("input dir with mode file", "abc/", EntryMode::FILE, false),
+            ("input dir with mode dir", "abc/", EntryMode::DIR, true),
+            ("root with mode dir", "/", EntryMode::DIR, true),
             (
                 "input file with mode unknown",
                 "abc",
-                ObjectMode::Unknown,
+                EntryMode::Unknown,
                 false,
             ),
             (
                 "input dir with mode unknown",
                 "abc/",
-                ObjectMode::Unknown,
+                EntryMode::Unknown,
                 false,
             ),
         ];

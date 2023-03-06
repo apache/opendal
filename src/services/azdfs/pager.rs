@@ -98,9 +98,9 @@ impl oio::Page for AzdfsPager {
         for object in output.paths {
             // Azdfs will return `"true"` and `"false"` for is_directory.
             let mode = if &object.is_directory == "true" {
-                ObjectMode::DIR
+                EntryMode::DIR
             } else {
-                ObjectMode::FILE
+                EntryMode::FILE
             };
 
             let meta = Metadata::new(mode)
@@ -121,7 +121,7 @@ impl oio::Page for AzdfsPager {
                 );
 
             let mut path = build_rel_path(&self.root, &object.name);
-            if mode == ObjectMode::DIR {
+            if mode == EntryMode::DIR {
                 path += "/"
             };
 

@@ -878,8 +878,8 @@ mod tests {
                 .set_temporary()),
                 2 => {
                     let entries = vec![
-                        oio::Entry::new("hello", Metadata::new(ObjectMode::FILE)),
-                        oio::Entry::new("world", Metadata::new(ObjectMode::FILE)),
+                        oio::Entry::new("hello", Metadata::new(EntryMode::FILE)),
+                        oio::Entry::new("world", Metadata::new(EntryMode::FILE)),
                     ];
                     Ok(Some(entries))
                 }
@@ -889,8 +889,8 @@ mod tests {
                 ),
                 4 => {
                     let entries = vec![
-                        oio::Entry::new("2023/", Metadata::new(ObjectMode::DIR)),
-                        oio::Entry::new("0208/", Metadata::new(ObjectMode::DIR)),
+                        oio::Entry::new("2023/", Metadata::new(EntryMode::DIR)),
+                        oio::Entry::new("0208/", Metadata::new(EntryMode::DIR)),
                     ];
                     Ok(Some(entries))
                 }

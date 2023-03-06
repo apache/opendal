@@ -21,8 +21,8 @@ use serde::Deserialize;
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::EntryMode;
 use crate::Metadata;
-use crate::ObjectMode;
 use crate::Result;
 
 pub struct IpmfsPager {
@@ -70,13 +70,13 @@ impl oio::Page for IpmfsPager {
                 .into_iter()
                 .map(|object| {
                     let path = match object.mode() {
-                        ObjectMode::FILE => {
+                        EntryMode::FILE => {
                             format!("{}{}", &self.path, object.name)
                         }
-                        ObjectMode::DIR => {
+                        EntryMode::DIR => {
                             format!("{}{}/", &self.path, object.name)
                         }
-                        ObjectMode::Unknown => unreachable!(),
+                        EntryMode::Unknown => unreachable!(),
                     };
 
                     let path = build_rel_path(&self.root, &path);
@@ -115,11 +115,11 @@ impl IpfsLsResponseEntry {
     ///     HAMTShard = 5;
     /// }
     /// ```
-    fn mode(&self) -> ObjectMode {
+    fn mode(&self) -> EntryMode {
         match &self.file_type {
-            1 => ObjectMode::DIR,
-            0 | 2 => ObjectMode::FILE,
-            _ => ObjectMode::Unknown,
+            1 => EntryMode::DIR,
+            0 | 2 => EntryMode::FILE,
+            _ => EntryMode::Unknown,
         }
     }
 }

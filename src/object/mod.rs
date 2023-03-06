@@ -13,7 +13,7 @@
 // limitations under the License.
 
 mod mode;
-pub use mode::ObjectMode;
+pub use mode::EntryMode;
 
 mod metadata;
 pub use metadata::Metadata;

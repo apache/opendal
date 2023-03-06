@@ -22,10 +22,10 @@ use serde::Deserialize;
 use super::backend::ObsBackend;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
-use crate::ObjectMode;
 use crate::Result;
 
 pub struct ObsPager {
@@ -96,7 +96,7 @@ impl oio::Page for ObsPager {
         for prefix in common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
-                Metadata::new(ObjectMode::DIR),
+                Metadata::new(EntryMode::DIR),
             );
 
             entries.push(de);
@@ -107,7 +107,7 @@ impl oio::Page for ObsPager {
                 continue;
             }
 
-            let meta = Metadata::new(ObjectMode::FILE).with_content_length(object.size);
+            let meta = Metadata::new(EntryMode::FILE).with_content_length(object.size);
 
             let de = oio::Entry::new(&build_rel_path(&self.root, &object.key), meta);
 

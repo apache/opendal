@@ -48,3 +48,8 @@ mod error;
 pub use error::Error;
 pub use error::ErrorKind;
 pub use error::Result;
+
+mod scheme;
+pub use scheme::Scheme;
+
+pub mod ops;

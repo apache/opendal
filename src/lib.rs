@@ -69,14 +69,10 @@
 mod types;
 pub use types::*;
 
-mod scheme;
-pub use scheme::Scheme;
-
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
 #[cfg(feature = "docs")]
 pub mod docs;
 pub mod layers;
-pub mod ops;
 pub mod raw;
 pub mod services;
 

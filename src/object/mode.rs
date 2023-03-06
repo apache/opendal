@@ -16,7 +16,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 /// ObjectMode represents the object's mode.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ObjectMode {
     /// FILE means the object has data to read.
     FILE,

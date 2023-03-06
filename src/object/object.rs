@@ -1077,10 +1077,7 @@ impl Object {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let meta = op
-    ///     .object("test")
-    ///     .metadata({ Metakey::Complete })
-    ///     .await?;
+    /// let meta = op.object("test").metadata({ Metakey::Complete }).await?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.
@@ -1170,9 +1167,7 @@ impl Object {
     /// use opendal::Metakey;
     ///
     /// # fn test(op: Operator) -> Result<()> {
-    /// let meta = op
-    ///     .object("test")
-    ///     .blocking_metadata({ Metakey::Complete })?;
+    /// let meta = op.object("test").blocking_metadata({ Metakey::Complete })?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.

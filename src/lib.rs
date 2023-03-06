@@ -66,9 +66,6 @@
 #![deny(unused_qualifications)]
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
-mod builder;
-pub use builder::Builder;
-
 mod types;
 pub use types::*;
 

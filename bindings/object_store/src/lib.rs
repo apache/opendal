@@ -31,8 +31,8 @@ use object_store::MultipartId;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::Result;
-use opendal::ObjectReader;
 use opendal::Operator;
+use opendal::Reader;
 use tokio::io::AsyncWrite;
 
 #[derive(Debug)]
@@ -193,7 +193,7 @@ fn format_object_store_error(err: opendal::Error, path: &str) -> object_store::E
 }
 
 struct OpendalReader {
-    inner: ObjectReader,
+    inner: Reader,
 }
 
 impl Stream for OpendalReader {

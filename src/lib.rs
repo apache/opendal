@@ -76,15 +76,15 @@ pub use operator::OperatorBuilder;
 pub use operator::OperatorMetadata;
 
 mod object;
-pub use object::BlockingObjectReader;
 pub use object::BlockingObjectWriter;
+pub use object::BlockingReader;
 pub use object::Metadata;
 pub use object::Metakey;
 pub use object::Object;
 pub use object::ObjectLister;
 pub use object::ObjectMode;
-pub use object::ObjectReader;
 pub use object::ObjectWriter;
+pub use object::Reader;
 
 mod scheme;
 pub use scheme::Scheme;

@@ -94,7 +94,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `read` operation on the specified path, returns a
-    /// [`ObjectReader`][crate::ObjectReader] if operate successful.
+    /// [`Reader`][crate::Reader] if operate successful.
     ///
     /// Require [`AccessorCapability::Read`]
     ///

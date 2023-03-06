@@ -24,8 +24,8 @@ mod object;
 pub use object::Object;
 
 mod reader;
-pub use reader::BlockingObjectReader;
-pub use reader::ObjectReader;
+pub use reader::BlockingReader;
+pub use reader::Reader;
 
 mod writer;
 pub use writer::BlockingObjectWriter;

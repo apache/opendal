@@ -60,7 +60,7 @@ use crate::*;
 /// - If not `seekable`, with [`oio::into_reader::by_range`]
 /// - If neither not supported, wrap both by_range and into_streamable.
 ///
-/// All implementations of ObjectReader should be `zero cost`. In our cases,
+/// All implementations of Reader should be `zero cost`. In our cases,
 /// which means others must pay the same cost for the same feature provide
 /// by us.
 ///

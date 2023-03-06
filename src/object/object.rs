@@ -22,7 +22,7 @@ use flagset::FlagSet;
 use time::Duration;
 
 use super::BlockingObjectLister;
-use super::BlockingObjectReader;
+use super::BlockingReader;
 use super::ObjectLister;
 use crate::ops::*;
 use crate::raw::*;
@@ -381,7 +381,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn reader(&self) -> Result<ObjectReader> {
+    pub async fn reader(&self) -> Result<Reader> {
         self.range_reader(..).await
     }
 
@@ -399,7 +399,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_reader(&self) -> Result<BlockingObjectReader> {
+    pub fn blocking_reader(&self) -> Result<BlockingReader> {
         self.blocking_range_reader(..)
     }
 
@@ -422,7 +422,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<ObjectReader> {
+    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<Reader> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
@@ -434,7 +434,7 @@ impl Object {
 
         let op = OpRead::new().with_range(range.into());
 
-        ObjectReader::create(self.accessor(), self.path(), op).await
+        Reader::create(self.accessor(), self.path(), op).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -451,10 +451,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_range_reader(
-        &self,
-        range: impl RangeBounds<u64>,
-    ) -> Result<BlockingObjectReader> {
+    pub fn blocking_range_reader(&self, range: impl RangeBounds<u64>) -> Result<BlockingReader> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
@@ -466,7 +463,7 @@ impl Object {
 
         let op = OpRead::new().with_range(range.into());
 
-        BlockingObjectReader::create(self.accessor(), self.path(), op)
+        BlockingReader::create(self.accessor(), self.path(), op)
     }
 
     /// Write bytes into object.

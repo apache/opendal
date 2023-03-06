@@ -20,10 +20,10 @@ extern crate napi_derive;
 use std::collections::HashMap;
 use std::str;
 
-use time::format_description::well_known::Rfc3339;
-use futures::{TryStreamExt};
+use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 use opendal::Builder;
+use time::format_description::well_known::Rfc3339;
 
 #[napi]
 pub struct Operator(opendal::Operator);
@@ -83,15 +83,17 @@ impl Operator {
     pub fn new(service_type: Scheme, options: Option<HashMap<String, String>>) -> Result<Self> {
         let ops = options.unwrap_or_default();
         match service_type {
-            Scheme::Fs => Ok(Self(opendal::Operator::create(opendal::services::Fs::from_map(ops))
-                .unwrap()
-                .finish()
+            Scheme::Fs => Ok(Self(
+                opendal::Operator::create(opendal::services::Fs::from_map(ops))
+                    .unwrap()
+                    .finish(),
             )),
-            Scheme::Memory => Ok(Self(opendal::Operator::create(opendal::services::Memory::default())
-                       .unwrap()
-                       .finish()
+            Scheme::Memory => Ok(Self(
+                opendal::Operator::create(opendal::services::Memory::default())
+                    .unwrap()
+                    .finish(),
             )),
-            _ => Err(Error::from_reason("wrong operator type"))
+            _ => Err(Error::from_reason("wrong operator type")),
         }
     }
 
@@ -113,7 +115,7 @@ pub enum ObjectMode {
 
 #[allow(dead_code)]
 #[napi]
-pub struct ObjectMetadata(opendal::ObjectMetadata);
+pub struct ObjectMetadata(opendal::Metadata);
 
 #[napi]
 impl ObjectMetadata {
@@ -167,10 +169,9 @@ impl ObjectMetadata {
     /// Last Modified of this object.(UTC)
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
-        self.0.last_modified()
-            .map(|ta| {
-                ta.format(&Rfc3339).unwrap()
-            })
+        self.0
+            .last_modified()
+            .map(|ta| ta.format(&Rfc3339).unwrap())
     }
 }
 
@@ -181,7 +182,8 @@ pub struct ObjectLister(opendal::ObjectLister);
 impl ObjectLister {
     #[napi]
     pub async unsafe fn next(&mut self) -> Result<Option<DataObject>> {
-        Ok(self.0
+        Ok(self
+            .0
             .try_next()
             .await
             .map_err(format_napi_error)
@@ -197,21 +199,14 @@ pub struct DataObject(opendal::Object);
 impl DataObject {
     #[napi]
     pub async fn stat(&self) -> Result<ObjectMetadata> {
-        let meta = self.0
-            .stat()
-            .await
-            .map_err(format_napi_error)
-            .unwrap();
+        let meta = self.0.stat().await.map_err(format_napi_error).unwrap();
 
         Ok(ObjectMetadata(meta))
     }
 
-    #[napi(js_name="statSync")]
+    #[napi(js_name = "statSync")]
     pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
-        let meta = self.0
-            .blocking_stat()
-            .map_err(format_napi_error)
-            .unwrap();
+        let meta = self.0.blocking_stat().map_err(format_napi_error).unwrap();
 
         Ok(ObjectMetadata(meta))
     }
@@ -219,13 +214,10 @@ impl DataObject {
     #[napi]
     pub async fn write(&self, content: Buffer) -> Result<()> {
         let c = content.as_ref().to_owned();
-        self.0
-            .write(c)
-            .await
-            .map_err(format_napi_error)
+        self.0.write(c).await.map_err(format_napi_error)
     }
 
-    #[napi(js_name="writeSync")]
+    #[napi(js_name = "writeSync")]
     pub fn blocking_write(&self, content: Buffer) -> Result<()> {
         let c = content.as_ref().to_owned();
         self.0.blocking_write(c).map_err(format_napi_error)
@@ -233,44 +225,31 @@ impl DataObject {
 
     #[napi]
     pub async fn read(&self) -> Result<Buffer> {
-        let res = self.0
-            .read()
-            .await
-            .map_err(format_napi_error)?;
+        let res = self.0.read().await.map_err(format_napi_error)?;
         Ok(res.into())
     }
 
-    #[napi(js_name="readSync")]
+    #[napi(js_name = "readSync")]
     pub fn blocking_read(&self) -> Result<Buffer> {
-        let res = self.0
-            .blocking_read()
-            .map_err(format_napi_error)?;
+        let res = self.0.blocking_read().map_err(format_napi_error)?;
         Ok(res.into())
     }
 
     #[napi]
     pub async fn scan(&self) -> Result<ObjectLister> {
-        Ok(ObjectLister(self.0
-                .scan()
-                .await
-                .map_err(format_napi_error)
-                .unwrap()
+        Ok(ObjectLister(
+            self.0.scan().await.map_err(format_napi_error).unwrap(),
         ))
     }
 
     #[napi]
     pub async fn delete(&self) -> Result<()> {
-        self.0
-            .delete()
-            .await
-            .map_err(format_napi_error)
+        self.0.delete().await.map_err(format_napi_error)
     }
 
-    #[napi(js_name="deleteSync")]
+    #[napi(js_name = "deleteSync")]
     pub fn blocking_delete(&self) -> Result<()> {
-        self.0
-            .blocking_delete()
-            .map_err(format_napi_error)
+        self.0.blocking_delete().map_err(format_napi_error)
     }
 }
 

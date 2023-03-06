@@ -262,6 +262,42 @@ impl Lister {
             .unwrap()
             .map(Entry))
     }
+
+    #[napi]
+    pub async fn writer(&self) -> Result<Writer> {
+        Ok(Writer(
+            self.0.writer().await.map_err(format_napi_error).unwrap(),
+        ))
+    }
+}
+
+#[napi]
+pub struct Writer(opendal::Writer);
+
+#[napi]
+impl Writer {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    #[napi]
+    pub async unsafe fn append(&mut self, content: Buffer) -> Result<()> {
+        let c = content.as_ref().to_owned();
+        self.0.append(c).await.map_err(format_napi_error)
+    }
+
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
+    #[napi]
+    pub async unsafe fn close(&mut self) -> Result<()> {
+        self.0.close().await.map_err(format_napi_error)
+    }
 }
 
 fn format_napi_error(err: opendal::Error) -> Error {

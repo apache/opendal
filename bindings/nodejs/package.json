@@ -52,6 +52,8 @@
     "artifacts": "napi artifacts",
     "build": "napi build --platform --release --js generated.js",
     "build:debug": "napi build --platform --js generated.js",
+    "clippy": "cargo clippy --fix --allow-dirty",
+    "format": "cargo fmt --all ",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
     "universal": "napi universal",

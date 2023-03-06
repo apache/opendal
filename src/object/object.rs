@@ -88,10 +88,6 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    #[deprecated(
-        since = "0.30.0",
-        note = "Object has been removed. If you are depending on this function, please raise an issue to let me know"
-    )]
     pub fn id(&self) -> String {
         format!("{}{}", self.acc.metadata().root(), self.path)
     }
@@ -115,10 +111,6 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
-    #[deprecated(
-        since = "0.30.0",
-        note = "Object has been removed. If you are depending on this function, please raise an issue to let me know"
-    )]
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -320,10 +312,6 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(
-        since = "0.30.0",
-        note = "Object has been removed. Use Operator::range_read instead"
-    )]
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
         Operator::from_inner(self.acc.clone())
             .range_read(self.path(), range)

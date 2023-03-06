@@ -516,7 +516,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn writer(&self) -> Result<ObjectWriter> {
+    pub async fn writer(&self) -> Result<Writer> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -527,7 +527,7 @@ impl Object {
         }
 
         let op = OpWrite::default().with_append();
-        ObjectWriter::create(self.accessor(), self.path(), op).await
+        Writer::create(self.accessor(), self.path(), op).await
     }
 
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -618,7 +618,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_writer(&self) -> Result<BlockingObjectWriter> {
+    pub fn blocking_writer(&self) -> Result<BlockingWriter> {
         if !validate_path(self.path(), ObjectMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
@@ -629,7 +629,7 @@ impl Object {
         }
 
         let op = OpWrite::default().with_append();
-        BlockingObjectWriter::create(self.accessor(), self.path(), op)
+        BlockingWriter::create(self.accessor(), self.path(), op)
     }
 
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)

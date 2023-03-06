@@ -28,8 +28,8 @@ pub use reader::BlockingReader;
 pub use reader::Reader;
 
 mod writer;
-pub use writer::BlockingObjectWriter;
-pub use writer::ObjectWriter;
+pub use writer::BlockingWriter;
+pub use writer::Writer;
 
 mod list;
 pub use list::BlockingObjectLister;

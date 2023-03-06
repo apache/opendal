@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use futures::StreamExt;
-
 use crate::raw::*;
 use crate::*;
 
@@ -52,6 +50,7 @@ pub struct Operator {
     accessor: FusedAccessor,
 }
 
+/// # Operator basic API.
 impl Operator {
     pub(super) fn inner(&self) -> &FusedAccessor {
         &self.accessor
@@ -93,29 +92,5 @@ impl Operator {
     /// Create a new [`Object`][crate::Object] handle to take operations.
     pub fn object(&self, path: &str) -> Object {
         Object::new(self.accessor.clone(), path)
-    }
-
-    /// Check if this operator can work correctly.
-    ///
-    /// We will send a `list` request to path and return any errors we met.
-    ///
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// op.check().await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn check(&self) -> Result<()> {
-        let mut ds = self.object("/").list().await?;
-
-        match ds.next().await {
-            Some(Err(e)) if e.kind() != ErrorKind::ObjectNotFound => Err(e),
-            _ => Ok(()),
-        }
     }
 }

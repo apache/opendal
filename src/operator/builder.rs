@@ -19,7 +19,7 @@ use crate::layers::*;
 use crate::raw::*;
 use crate::*;
 
-/// # APIs to build an Operator
+/// # Operator build API
 ///
 /// Operator should be built via [`OperatorBuilder`]. We recommend to use [`Operator::create`] to get started:
 ///

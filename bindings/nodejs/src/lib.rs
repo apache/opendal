@@ -123,9 +123,9 @@ impl ObjectMetadata {
     #[napi(getter)]
     pub fn mode(&self) -> ObjectMode {
         match self.0.mode() {
-            opendal::EntryType::DIR => ObjectMode::DIR,
-            opendal::EntryType::FILE => ObjectMode::FILE,
-            opendal::EntryType::Unknown => ObjectMode::Unknown,
+            opendal::EntryMode::DIR => ObjectMode::DIR,
+            opendal::EntryMode::FILE => ObjectMode::FILE,
+            opendal::EntryMode::Unknown => ObjectMode::Unknown,
         }
     }
 

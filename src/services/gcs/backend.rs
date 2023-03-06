@@ -407,7 +407,7 @@ impl Accessor for GcsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         let resp = self.gcs_get_object_metadata(path).await?;
@@ -419,11 +419,11 @@ impl Accessor for GcsBackend {
                 serde_json::from_slice(&slc).map_err(new_json_deserialize_error)?;
 
             let mode = if path.ends_with('/') {
-                ObjectMode::DIR
+                EntryMode::DIR
             } else {
-                ObjectMode::FILE
+                EntryMode::FILE
             };
-            let mut m = ObjectMetadata::new(mode);
+            let mut m = Metadata::new(mode);
 
             m.set_etag(&meta.etag);
             m.set_content_md5(&meta.md5_hash);
@@ -444,7 +444,7 @@ impl Accessor for GcsBackend {
 
             Ok(RpStat::new(m))
         } else if resp.status() == StatusCode::NOT_FOUND && path.ends_with('/') {
-            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             Err(parse_error(resp).await?)
         }

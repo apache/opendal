@@ -13,24 +13,24 @@
 // limitations under the License.
 
 mod mode;
-pub use mode::ObjectMode;
+pub use mode::EntryMode;
 
 mod metadata;
-pub use metadata::ObjectMetadata;
-pub use metadata::ObjectMetakey;
+pub use metadata::Metadata;
+pub use metadata::Metakey;
 
 #[allow(clippy::module_inception)]
 mod object;
 pub use object::Object;
 
 mod reader;
-pub use reader::BlockingObjectReader;
-pub use reader::ObjectReader;
+pub use reader::BlockingReader;
+pub use reader::Reader;
 
 mod writer;
-pub use writer::BlockingObjectWriter;
-pub use writer::ObjectWriter;
+pub use writer::BlockingWriter;
+pub use writer::Writer;
 
 mod list;
-pub use list::BlockingObjectLister;
-pub use list::ObjectLister;
+pub use list::BlockingLister;
+pub use list::Lister;

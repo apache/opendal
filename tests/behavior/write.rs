@@ -18,8 +18,8 @@ use futures::AsyncSeekExt;
 use futures::StreamExt;
 use log::debug;
 use log::warn;
+use opendal::EntryMode;
 use opendal::ErrorKind;
-use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
@@ -112,7 +112,7 @@ pub async fn test_create_file(op: Operator) -> Result<()> {
     o.create().await?;
 
     let meta = o.stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
@@ -133,7 +133,7 @@ pub async fn test_create_file_existing(op: Operator) -> Result<()> {
     o.create().await?;
 
     let meta = o.stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
@@ -152,7 +152,7 @@ pub async fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
     o.create().await?;
 
     let meta = o.stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
@@ -171,7 +171,7 @@ pub async fn test_create_dir(op: Operator) -> Result<()> {
     o.create().await?;
 
     let meta = o.stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.object(&path)
         .delete()
@@ -191,7 +191,7 @@ pub async fn test_create_dir_existing(op: Operator) -> Result<()> {
     o.create().await?;
 
     let meta = o.stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.object(&path)
         .delete()
@@ -257,7 +257,7 @@ pub async fn test_stat(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let meta = op.object(&path).stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -274,7 +274,7 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
     op.object(&path).create().await.expect("write must succeed");
 
     let meta = op.object(&path).stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.object(&path)
         .delete()
@@ -294,7 +294,7 @@ pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let meta = op.object(&path).stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -316,7 +316,7 @@ pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let meta = op.object(&format!("//{}", &path)).stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -340,10 +340,10 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 /// Root should be able to stat and returns DIR.
 pub async fn test_stat_root(op: Operator) -> Result<()> {
     let meta = op.object("").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     let meta = op.object("/").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
 }

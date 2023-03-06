@@ -130,12 +130,12 @@ impl<S: Adapter> Accessor for Backend<S> {
         let p = build_abs_path(&self.root, path);
 
         if p.is_empty() || p.ends_with('/') {
-            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             let bs = self.kv.get(&p).await?;
             match bs {
                 Some(bs) => Ok(RpStat::new(
-                    ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
                 )),
                 None => Err(Error::new(
                     ErrorKind::ObjectNotFound,
@@ -149,12 +149,12 @@ impl<S: Adapter> Accessor for Backend<S> {
         let p = build_abs_path(&self.root, path);
 
         if p.is_empty() || p.ends_with('/') {
-            Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
             let bs = self.kv.blocking_get(&p)?;
             match bs {
                 Some(bs) => Ok(RpStat::new(
-                    ObjectMetadata::new(ObjectMode::FILE).with_content_length(bs.len() as u64),
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
                 )),
                 None => Err(Error::new(
                     ErrorKind::ObjectNotFound,
@@ -241,15 +241,15 @@ impl KvPager {
             .into_iter()
             .map(|v| {
                 let mode = if v.ends_with('/') {
-                    ObjectMode::DIR
+                    EntryMode::DIR
                 } else {
-                    ObjectMode::FILE
+                    EntryMode::FILE
                 };
 
                 oio::Entry::new(
                     v.strip_prefix(&self.root)
                         .expect("key must start with root"),
-                    ObjectMetadata::new(mode),
+                    Metadata::new(mode),
                 )
             })
             .collect();

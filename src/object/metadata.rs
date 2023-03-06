@@ -19,7 +19,7 @@ use time::OffsetDateTime;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectMetadata carries all metadata associated with an object.
+/// Metadata carries all metadata associated with an path.
 ///
 /// # Notes
 ///
@@ -27,12 +27,12 @@ use crate::*;
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `Entry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ObjectMetadata {
+pub struct Metadata {
     /// bit stores current key store.
-    bit: FlagSet<ObjectMetakey>,
+    bit: FlagSet<Metakey>,
 
     /// Mode of this object.
-    mode: ObjectMode,
+    mode: EntryMode,
 
     /// Content-Disposition of this object
     content_disposition: Option<String>,
@@ -50,14 +50,14 @@ pub struct ObjectMetadata {
     last_modified: Option<OffsetDateTime>,
 }
 
-impl ObjectMetadata {
+impl Metadata {
     /// Create a new object metadata
-    pub fn new(mode: ObjectMode) -> Self {
+    pub fn new(mode: EntryMode) -> Self {
         // Mode is required to be set for object metadata.
-        let mut bit = ObjectMetakey::Mode.into();
+        let mut bit = Metakey::Mode.into();
         // If object mode is dir, we should always mark it as complete.
-        if mode == ObjectMode::DIR {
-            bit |= ObjectMetakey::Complete
+        if mode.is_dir() {
+            bit |= Metakey::Complete
         }
 
         Self {
@@ -75,37 +75,47 @@ impl ObjectMetadata {
     }
 
     /// Get the bit from object metadata.
-    pub(crate) fn bit(&self) -> FlagSet<ObjectMetakey> {
+    pub(crate) fn bit(&self) -> FlagSet<Metakey> {
         self.bit
     }
 
     /// Set bit with given.
-    pub(crate) fn with_bit(mut self, bit: impl Into<FlagSet<ObjectMetakey>>) -> Self {
+    pub(crate) fn with_bit(mut self, bit: impl Into<FlagSet<Metakey>>) -> Self {
         self.bit = bit.into();
         self
     }
 
     /// Object mode represent this object's mode.
-    pub fn mode(&self) -> ObjectMode {
+    pub fn mode(&self) -> EntryMode {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::Mode) || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::Mode) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: mode, maybe a bug"
         );
 
         self.mode
     }
 
+    /// Returns `true` if this metadata is for a file.
+    pub fn is_file(&self) -> bool {
+        matches!(self.mode, EntryMode::FILE)
+    }
+
+    /// Returns `true` if this metadata is for a directory.
+    pub fn is_dir(&self) -> bool {
+        matches!(self.mode, EntryMode::DIR)
+    }
+
     /// Set mode for object.
-    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+    pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
         self.mode = mode;
-        self.bit |= ObjectMetakey::Mode;
+        self.bit |= Metakey::Mode;
         self
     }
 
     /// Set mode for object.
-    pub fn with_mode(mut self, mode: ObjectMode) -> Self {
+    pub fn with_mode(mut self, mode: EntryMode) -> Self {
         self.mode = mode;
-        self.bit |= ObjectMetakey::Mode;
+        self.bit |= Metakey::Mode;
         self
     }
 
@@ -115,8 +125,7 @@ impl ObjectMetadata {
     /// Refer to [MDN Content-Length](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Length) for more information.
     pub fn content_length(&self) -> u64 {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::ContentLength)
-                || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::ContentLength) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: content_length, maybe a bug"
         );
 
@@ -131,14 +140,14 @@ impl ObjectMetadata {
     /// Set content length of this object.
     pub fn set_content_length(&mut self, content_length: u64) -> &mut Self {
         self.content_length = Some(content_length);
-        self.bit |= ObjectMetakey::ContentLength;
+        self.bit |= Metakey::ContentLength;
         self
     }
 
     /// Set content length of this object.
     pub fn with_content_length(mut self, content_length: u64) -> Self {
         self.content_length = Some(content_length);
-        self.bit |= ObjectMetakey::ContentLength;
+        self.bit |= Metakey::ContentLength;
         self
     }
 
@@ -150,8 +159,7 @@ impl ObjectMetadata {
     /// OpenDAL will try its best to set this value, but not guarantee this value is the md5 of content.
     pub fn content_md5(&self) -> Option<&str> {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::ContentMd5)
-                || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::ContentMd5) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: content_md5, maybe a bug"
         );
 
@@ -164,7 +172,7 @@ impl ObjectMetadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn set_content_md5(&mut self, content_md5: &str) -> &mut Self {
         self.content_md5 = Some(content_md5.to_string());
-        self.bit |= ObjectMetakey::ContentMd5;
+        self.bit |= Metakey::ContentMd5;
         self
     }
 
@@ -174,7 +182,7 @@ impl ObjectMetadata {
     /// And removed by [RFC 7231](https://www.rfc-editor.org/rfc/rfc7231).
     pub fn with_content_md5(mut self, content_md5: String) -> Self {
         self.content_md5 = Some(content_md5);
-        self.bit |= ObjectMetakey::ContentMd5;
+        self.bit |= Metakey::ContentMd5;
         self
     }
 
@@ -183,8 +191,7 @@ impl ObjectMetadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn content_type(&self) -> Option<&str> {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::ContentType)
-                || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::ContentType) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: content_type, maybe a bug"
         );
 
@@ -196,7 +203,7 @@ impl ObjectMetadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn set_content_type(&mut self, v: &str) -> &mut Self {
         self.content_type = Some(v.to_string());
-        self.bit |= ObjectMetakey::ContentType;
+        self.bit |= Metakey::ContentType;
         self
     }
 
@@ -205,7 +212,7 @@ impl ObjectMetadata {
     /// Content Type is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-type).
     pub fn with_content_type(mut self, v: String) -> Self {
         self.content_type = Some(v);
-        self.bit |= ObjectMetakey::ContentType;
+        self.bit |= Metakey::ContentType;
         self
     }
 
@@ -214,8 +221,7 @@ impl ObjectMetadata {
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn content_range(&self) -> Option<BytesContentRange> {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::ContentRange)
-                || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::ContentRange) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: content_range, maybe a bug"
         );
 
@@ -227,7 +233,7 @@ impl ObjectMetadata {
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn set_content_range(&mut self, v: BytesContentRange) -> &mut Self {
         self.content_range = Some(v);
-        self.bit |= ObjectMetakey::ContentRange;
+        self.bit |= Metakey::ContentRange;
         self
     }
 
@@ -236,7 +242,7 @@ impl ObjectMetadata {
     /// Content Range is defined by [RFC 9110](https://httpwg.org/specs/rfc9110.html#field.content-range).
     pub fn with_content_range(mut self, v: BytesContentRange) -> Self {
         self.content_range = Some(v);
-        self.bit |= ObjectMetakey::ContentRange;
+        self.bit |= Metakey::ContentRange;
         self
     }
 
@@ -248,8 +254,7 @@ impl ObjectMetadata {
     /// OpenDAL parse the raw value into [`OffsetDateTime`] for convenient.
     pub fn last_modified(&self) -> Option<OffsetDateTime> {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::LastModified)
-                || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::LastModified) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: last_modified, maybe a bug"
         );
 
@@ -262,7 +267,7 @@ impl ObjectMetadata {
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn set_last_modified(&mut self, last_modified: OffsetDateTime) -> &mut Self {
         self.last_modified = Some(last_modified);
-        self.bit |= ObjectMetakey::LastModified;
+        self.bit |= Metakey::LastModified;
         self
     }
 
@@ -272,7 +277,7 @@ impl ObjectMetadata {
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
     pub fn with_last_modified(mut self, last_modified: OffsetDateTime) -> Self {
         self.last_modified = Some(last_modified);
-        self.bit |= ObjectMetakey::LastModified;
+        self.bit |= Metakey::LastModified;
         self
     }
 
@@ -289,7 +294,7 @@ impl ObjectMetadata {
     /// `"` is part of etag.
     pub fn etag(&self) -> Option<&str> {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::Etag) || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::Etag) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: etag, maybe a bug"
         );
 
@@ -309,7 +314,7 @@ impl ObjectMetadata {
     /// `"` is part of etag, don't trim it before setting.
     pub fn set_etag(&mut self, etag: &str) -> &mut Self {
         self.etag = Some(etag.to_string());
-        self.bit |= ObjectMetakey::Etag;
+        self.bit |= Metakey::Etag;
         self
     }
 
@@ -326,7 +331,7 @@ impl ObjectMetadata {
     /// `"` is part of etag, don't trim it before setting.
     pub fn with_etag(mut self, etag: String) -> Self {
         self.etag = Some(etag);
-        self.bit |= ObjectMetakey::Etag;
+        self.bit |= Metakey::Etag;
         self
     }
 
@@ -343,8 +348,7 @@ impl ObjectMetadata {
     /// - "attachment; filename=\"filename.jpg\""
     pub fn content_disposition(&self) -> Option<&str> {
         debug_assert!(
-            self.bit.contains(ObjectMetakey::ContentDisposition)
-                || self.bit.contains(ObjectMetakey::Complete),
+            self.bit.contains(Metakey::ContentDisposition) || self.bit.contains(Metakey::Complete),
             "visiting not set metadata: content_disposition, maybe a bug"
         );
 
@@ -364,7 +368,7 @@ impl ObjectMetadata {
     /// - "attachment; filename=\"filename.jpg\""
     pub fn with_content_disposition(mut self, content_disposition: String) -> Self {
         self.content_disposition = Some(content_disposition);
-        self.bit |= ObjectMetakey::ContentDisposition;
+        self.bit |= Metakey::ContentDisposition;
         self
     }
 
@@ -381,18 +385,18 @@ impl ObjectMetadata {
     /// - "attachment; filename=\"filename.jpg\""
     pub fn set_content_disposition(&mut self, content_disposition: &str) -> &mut Self {
         self.content_disposition = Some(content_disposition.to_string());
-        self.bit |= ObjectMetakey::ContentDisposition;
+        self.bit |= Metakey::ContentDisposition;
         self
     }
 }
 
 flags! {
-    /// ObjectMetakey describes the metadata keys that can be stored
+    /// Metakey describes the metadata keys that can be stored
     /// or queried.
     ///
     /// ## For store
     ///
-    /// Internally, we will store a flag set of ObjectMetakey to check
+    /// Internally, we will store a flag set of Metakey to check
     /// whether we have set some key already.
     ///
     /// ## For query
@@ -400,7 +404,7 @@ flags! {
     /// At user side, we will allow user to query the object metadata. If
     /// the meta has been stored, we will return directly. If no, we will
     /// call `stat` internally to fetch the metadata.
-    pub enum ObjectMetakey: u64 {
+    pub enum Metakey: u64 {
         /// The special object metadata key that used to mark this object
         /// already contains all metadata.
         Complete,

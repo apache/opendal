@@ -19,13 +19,11 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use flagset::FlagSet;
-use futures::AsyncReadExt;
 use time::Duration;
-use tokio::io::ReadBuf;
 
-use super::BlockingObjectLister;
-use super::BlockingObjectReader;
-use super::ObjectLister;
+use super::BlockingLister;
+use super::BlockingReader;
+use super::Lister;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -41,7 +39,7 @@ pub struct Object {
     acc: FusedAccessor,
     path: Arc<String>,
 
-    meta: Option<Arc<ObjectMetadata>>,
+    meta: Option<Arc<Metadata>>,
 }
 
 impl Object {
@@ -54,7 +52,7 @@ impl Object {
         Self::with(acc, path, None)
     }
 
-    pub(crate) fn with(acc: FusedAccessor, path: &str, meta: Option<ObjectMetadata>) -> Self {
+    pub(crate) fn with(acc: FusedAccessor, path: &str, meta: Option<Metadata>) -> Self {
         Self {
             acc,
             path: Arc::new(normalize_path(path)),
@@ -184,11 +182,11 @@ impl Object {
     pub async fn create(&self) -> Result<()> {
         let _ = if self.path.ends_with('/') {
             self.acc
-                .create(self.path(), OpCreate::new(ObjectMode::DIR))
+                .create(self.path(), OpCreate::new(EntryMode::DIR))
                 .await?
         } else {
             self.acc
-                .create(self.path(), OpCreate::new(ObjectMode::FILE))
+                .create(self.path(), OpCreate::new(EntryMode::FILE))
                 .await?
         };
 
@@ -235,10 +233,10 @@ impl Object {
     pub fn blocking_create(&self) -> Result<()> {
         if self.path.ends_with('/') {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::DIR))?;
+                .blocking_create(self.path(), OpCreate::new(EntryMode::DIR))?;
         } else {
             self.acc
-                .blocking_create(self.path(), OpCreate::new(ObjectMode::FILE))?;
+                .blocking_create(self.path(), OpCreate::new(EntryMode::FILE))?;
         };
 
         Ok(())
@@ -264,7 +262,9 @@ impl Object {
     /// # }
     /// ```
     pub async fn read(&self) -> Result<Vec<u8>> {
-        self.range_read(..).await
+        Operator::from_inner(self.acc.clone())
+            .read(self.path())
+            .await
     }
 
     /// Read the whole object into a bytes.
@@ -313,42 +313,9 @@ impl Object {
     /// # }
     /// ```
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_operation("Object:range_read")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let br = BytesRange::from(range);
-
-        let op = OpRead::new().with_range(br);
-
-        let (rp, mut s) = self.acc.read(self.path(), op).await?;
-
-        let length = rp.into_metadata().content_length() as usize;
-        let mut buffer = Vec::with_capacity(length);
-
-        let dst = buffer.spare_capacity_mut();
-        let mut buf = ReadBuf::uninit(dst);
-        unsafe { buf.assume_init(length) };
-
-        // TODO: use native read api
-        s.read_exact(buf.initialized_mut()).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read from storage")
-                .with_operation("Object:range_read")
-                .with_context("service", self.accessor().metadata().scheme().into_static())
-                .with_context("path", self.path())
-                .with_context("range", br.to_string())
-                .set_source(err)
-        })?;
-
-        // Safety: this buffer has been filled.
-        unsafe { buffer.set_len(length) }
-
-        Ok(buffer)
+        Operator::from_inner(self.acc.clone())
+            .range_read(self.path(), range)
+            .await
     }
 
     /// Read the specified range of object into a bytes.
@@ -371,7 +338,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
                     .with_operation("Object::blocking_range_read")
@@ -414,7 +381,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn reader(&self) -> Result<ObjectReader> {
+    pub async fn reader(&self) -> Result<Reader> {
         self.range_reader(..).await
     }
 
@@ -432,7 +399,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_reader(&self) -> Result<BlockingObjectReader> {
+    pub fn blocking_reader(&self) -> Result<BlockingReader> {
         self.blocking_range_reader(..)
     }
 
@@ -455,8 +422,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<ObjectReader> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+    pub async fn range_reader(&self, range: impl RangeBounds<u64>) -> Result<Reader> {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
                     .with_operation("Object::range_reader")
@@ -467,7 +434,7 @@ impl Object {
 
         let op = OpRead::new().with_range(range.into());
 
-        ObjectReader::create(self.accessor(), self.path(), op).await
+        Reader::create(self.accessor(), self.path(), op).await
     }
 
     /// Create a new reader which can read the specified range.
@@ -484,11 +451,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_range_reader(
-        &self,
-        range: impl RangeBounds<u64>,
-    ) -> Result<BlockingObjectReader> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+    pub fn blocking_range_reader(&self, range: impl RangeBounds<u64>) -> Result<BlockingReader> {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
                     .with_operation("Object::blocking_range_reader")
@@ -499,7 +463,7 @@ impl Object {
 
         let op = OpRead::new().with_range(range.into());
 
-        BlockingObjectReader::create(self.accessor(), self.path(), op)
+        BlockingReader::create(self.accessor(), self.path(), op)
     }
 
     /// Write bytes into object.
@@ -552,8 +516,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn writer(&self) -> Result<ObjectWriter> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+    pub async fn writer(&self) -> Result<Writer> {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
@@ -563,7 +527,7 @@ impl Object {
         }
 
         let op = OpWrite::default().with_append();
-        ObjectWriter::create(self.accessor(), self.path(), op).await
+        Writer::create(self.accessor(), self.path(), op).await
     }
 
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -590,7 +554,7 @@ impl Object {
     /// # }
     /// ```
     pub async fn write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
@@ -654,8 +618,8 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_writer(&self) -> Result<BlockingObjectWriter> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+    pub fn blocking_writer(&self) -> Result<BlockingWriter> {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::write_with")
@@ -665,7 +629,7 @@ impl Object {
         }
 
         let op = OpWrite::default().with_append();
-        BlockingObjectWriter::create(self.accessor(), self.path(), op)
+        BlockingWriter::create(self.accessor(), self.path(), op)
     }
 
     /// Write data with option described in OpenDAL [rfc-0661](../../docs/rfcs/0661-path-in-accessor.md)
@@ -691,7 +655,7 @@ impl Object {
     /// # }
     /// ```
     pub fn blocking_write_with(&self, args: OpWrite, bs: impl Into<Bytes>) -> Result<()> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
+        if !validate_path(self.path(), EntryMode::FILE) {
             return Err(
                 Error::new(ErrorKind::ObjectIsADirectory, "write path is a directory")
                     .with_operation("Object::blocking_write_with")
@@ -766,7 +730,7 @@ impl Object {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
@@ -775,25 +739,25 @@ impl Object {
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = de
     ///         .metadata({
-    ///             use opendal::ObjectMetakey::*;
+    ///             use opendal::Metakey::*;
     ///             Mode
     ///         })
     ///         .await?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<ObjectLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+    pub async fn list(&self) -> Result<Lister> {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
@@ -805,7 +769,7 @@ impl Object {
 
         let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
 
-        Ok(ObjectLister::new(self.acc.clone(), pager))
+        Ok(Lister::new(self.acc.clone(), pager))
     }
 
     /// List current dir object.
@@ -820,30 +784,30 @@ impl Object {
     /// # use opendal::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.blocking_list()?;
     /// while let Some(mut de) = ds.next() {
     ///     let meta = de?.blocking_metadata({
-    ///         use opendal::ObjectMetakey::*;
+    ///         use opendal::Metakey::*;
     ///         Mode
     ///     })?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_list(&self) -> Result<BlockingObjectLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+    pub fn blocking_list(&self) -> Result<BlockingLister> {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
@@ -854,7 +818,7 @@ impl Object {
         }
 
         let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
-        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
+        Ok(BlockingLister::new(self.acc.clone(), pager))
     }
 
     /// List dir in flat way.
@@ -869,7 +833,7 @@ impl Object {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # use futures::TryStreamExt;
     /// #
     /// # #[tokio::main]
@@ -879,25 +843,25 @@ impl Object {
     /// while let Some(mut de) = ds.try_next().await? {
     ///     let meta = de
     ///         .metadata({
-    ///             use opendal::ObjectMetakey::*;
+    ///             use opendal::Metakey::*;
     ///             Mode
     ///         })
     ///         .await?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn scan(&self) -> Result<ObjectLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+    pub async fn scan(&self) -> Result<Lister> {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
@@ -909,7 +873,7 @@ impl Object {
 
         let (_, pager) = self.acc.scan(self.path(), OpScan::new()).await?;
 
-        Ok(ObjectLister::new(self.acc.clone(), pager))
+        Ok(Lister::new(self.acc.clone(), pager))
     }
 
     /// List dir in flat way.
@@ -924,30 +888,30 @@ impl Object {
     /// # use opendal::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// # use opendal::ObjectMode;
+    /// # use opendal::EntryMode;
     /// # fn test(op: Operator) -> Result<()> {
     /// let o = op.object("path/to/dir/");
     /// let mut ds = o.blocking_list()?;
     /// while let Some(mut de) = ds.next() {
     ///     let meta = de?.blocking_metadata({
-    ///         use opendal::ObjectMetakey::*;
+    ///         use opendal::Metakey::*;
     ///         Mode
     ///     })?;
     ///     match meta.mode() {
-    ///         ObjectMode::FILE => {
+    ///         EntryMode::FILE => {
     ///             println!("Handling file")
     ///         }
-    ///         ObjectMode::DIR => {
+    ///         EntryMode::DIR => {
     ///             println!("Handling dir like start a new list via meta.path()")
     ///         }
-    ///         ObjectMode::Unknown => continue,
+    ///         EntryMode::Unknown => continue,
     ///     }
     /// }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_scan(&self) -> Result<BlockingObjectLister> {
-        if !validate_path(self.path(), ObjectMode::DIR) {
+    pub fn blocking_scan(&self) -> Result<BlockingLister> {
+        if !validate_path(self.path(), EntryMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
                 "the path trying to list is not a directory",
@@ -958,7 +922,7 @@ impl Object {
         }
 
         let (_, pager) = self.acc.blocking_scan(self.path(), OpScan::new())?;
-        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
+        Ok(BlockingLister::new(self.acc.clone(), pager))
     }
 
     /// Get current object's metadata **without cache** directly.
@@ -971,7 +935,7 @@ impl Object {
     /// - Don't want to read from cached object metadata.
     ///
     /// You may want to use `metadata` if you are working with objects
-    /// returned by [`ObjectLister`]. It's highly possible that metadata
+    /// returned by [`Lister`]. It's highly possible that metadata
     /// you want has already been cached.
     ///
     /// # Examples
@@ -992,7 +956,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn stat(&self) -> Result<ObjectMetadata> {
+    pub async fn stat(&self) -> Result<Metadata> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
 
@@ -1009,7 +973,7 @@ impl Object {
     /// - Don't want to read from cached object metadata.
     ///
     /// You may want to use `metadata` if you are working with objects
-    /// returned by [`ObjectLister`]. It's highly possible that metadata
+    /// returned by [`Lister`]. It's highly possible that metadata
     /// you want has already been cached.
     ///
     /// # Examples
@@ -1029,7 +993,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
+    pub fn blocking_stat(&self) -> Result<Metadata> {
         let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
         let meta = rp.into_metadata();
 
@@ -1044,7 +1008,7 @@ impl Object {
     /// # Notes
     ///
     /// Use `metadata` if you are working with objects returned by
-    /// [`ObjectLister`]. It's highly possible that metadata you want
+    /// [`Lister`]. It's highly possible that metadata you want
     /// has already been cached.
     ///
     /// You may want to use `stat`, if you:
@@ -1083,14 +1047,14 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetakey;
+    /// use opendal::Metakey;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let meta = op
     ///     .object("test")
     ///     .metadata({
-    ///         use ObjectMetakey::*;
+    ///         use Metakey::*;
     ///         ContentLength | ContentType
     ///     })
     ///     .await?;
@@ -1109,14 +1073,11 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetakey;
+    /// use opendal::Metakey;
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let meta = op
-    ///     .object("test")
-    ///     .metadata({ ObjectMetakey::Complete })
-    ///     .await?;
+    /// let meta = op.object("test").metadata({ Metakey::Complete }).await?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.
@@ -1124,12 +1085,9 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn metadata(
-        &self,
-        flags: impl Into<FlagSet<ObjectMetakey>>,
-    ) -> Result<Arc<ObjectMetadata>> {
+    pub async fn metadata(&self, flags: impl Into<FlagSet<Metakey>>) -> Result<Arc<Metadata>> {
         if let Some(meta) = &self.meta {
-            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetakey::Complete) {
+            if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
                 return Ok(meta.clone());
             }
         }
@@ -1146,7 +1104,7 @@ impl Object {
     /// # Notes
     ///
     /// Use `metadata` if you are working with objects returned by
-    /// [`ObjectLister`]. It's highly possible that metadata you want
+    /// [`Lister`]. It's highly possible that metadata you want
     /// has already been cached.
     ///
     /// You may want to use `stat`, if you:
@@ -1184,11 +1142,11 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetakey;
+    /// use opendal::Metakey;
     ///
     /// # fn test(op: Operator) -> Result<()> {
     /// let meta = op.object("test").blocking_metadata({
-    ///     use ObjectMetakey::*;
+    ///     use Metakey::*;
     ///     ContentLength | ContentType
     /// })?;
     /// // content length MUST be correct.
@@ -1206,12 +1164,10 @@ impl Object {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
-    /// use opendal::ObjectMetakey;
+    /// use opendal::Metakey;
     ///
     /// # fn test(op: Operator) -> Result<()> {
-    /// let meta = op
-    ///     .object("test")
-    ///     .blocking_metadata({ ObjectMetakey::Complete })?;
+    /// let meta = op.object("test").blocking_metadata({ Metakey::Complete })?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.
@@ -1219,12 +1175,9 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_metadata(
-        &self,
-        flags: impl Into<FlagSet<ObjectMetakey>>,
-    ) -> Result<Arc<ObjectMetadata>> {
+    pub fn blocking_metadata(&self, flags: impl Into<FlagSet<Metakey>>) -> Result<Arc<Metadata>> {
         if let Some(meta) = &self.meta {
-            if meta.bit().contains(flags) || meta.bit().contains(ObjectMetakey::Complete) {
+            if meta.bit().contains(flags) || meta.bit().contains(Metakey::Complete) {
                 return Ok(meta.clone());
             }
         }

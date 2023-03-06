@@ -240,11 +240,11 @@ impl ImmutableDir {
             vs.into_iter()
                 .map(|v| {
                     let mode = if v.ends_with('/') {
-                        ObjectMode::DIR
+                        EntryMode::DIR
                     } else {
-                        ObjectMode::FILE
+                        EntryMode::FILE
                     };
-                    let meta = ObjectMetadata::new(mode);
+                    let meta = Metadata::new(mode);
                     oio::Entry::with(v, meta)
                 })
                 .collect(),
@@ -277,7 +277,7 @@ mod tests {
     use super::*;
     use crate::layers::LoggingLayer;
     use crate::services::Http;
-    use crate::ObjectMode;
+    use crate::EntryMode;
     use crate::Operator;
 
     #[tokio::test]
@@ -308,13 +308,13 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetakey::Mode).await?.mode(),
+                entry.metadata(Metakey::Mode).await?.mode(),
             );
         }
 
-        assert_eq!(map["file"], ObjectMode::FILE);
-        assert_eq!(map["dir/"], ObjectMode::DIR);
-        assert_eq!(map["dir_without_prefix/"], ObjectMode::DIR);
+        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["dir/"], EntryMode::DIR);
+        assert_eq!(map["dir_without_prefix/"], EntryMode::DIR);
         Ok(())
     }
 
@@ -346,15 +346,15 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetakey::Mode).await?.mode(),
+                entry.metadata(Metakey::Mode).await?.mode(),
             );
         }
 
         debug!("current files: {:?}", map);
 
-        assert_eq!(map["file"], ObjectMode::FILE);
-        assert_eq!(map["dir/"], ObjectMode::DIR);
-        assert_eq!(map["dir_without_prefix/file"], ObjectMode::FILE);
+        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["dir/"], EntryMode::DIR);
+        assert_eq!(map["dir_without_prefix/file"], EntryMode::FILE);
         Ok(())
     }
 
@@ -390,12 +390,12 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetakey::Mode).await?.mode(),
+                entry.metadata(Metakey::Mode).await?.mode(),
             );
         }
 
         assert_eq!(map.len(), 1);
-        assert_eq!(map["dataset/"], ObjectMode::DIR);
+        assert_eq!(map["dataset/"], EntryMode::DIR);
 
         //  List dataset/stateful/
         let mut map = HashMap::new();
@@ -409,22 +409,13 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetakey::Mode).await?.mode(),
+                entry.metadata(Metakey::Mode).await?.mode(),
             );
         }
 
-        assert_eq!(
-            map["dataset/stateful/ontime_2007_200.csv"],
-            ObjectMode::FILE
-        );
-        assert_eq!(
-            map["dataset/stateful/ontime_2008_200.csv"],
-            ObjectMode::FILE
-        );
-        assert_eq!(
-            map["dataset/stateful/ontime_2009_200.csv"],
-            ObjectMode::FILE
-        );
+        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
+        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
+        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
         Ok(())
     }
 
@@ -460,24 +451,15 @@ mod tests {
             );
             map.insert(
                 entry.path().to_string(),
-                entry.metadata(ObjectMetakey::Mode).await?.mode(),
+                entry.metadata(Metakey::Mode).await?.mode(),
             );
         }
 
         debug!("current files: {:?}", map);
 
-        assert_eq!(
-            map["dataset/stateful/ontime_2007_200.csv"],
-            ObjectMode::FILE
-        );
-        assert_eq!(
-            map["dataset/stateful/ontime_2008_200.csv"],
-            ObjectMode::FILE
-        );
-        assert_eq!(
-            map["dataset/stateful/ontime_2009_200.csv"],
-            ObjectMode::FILE
-        );
+        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
+        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
+        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
         Ok(())
     }
 }

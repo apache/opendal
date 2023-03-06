@@ -14,8 +14,8 @@
 
 use anyhow::Result;
 use futures::AsyncReadExt;
+use opendal::EntryMode;
 use opendal::ErrorKind;
-use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
@@ -81,11 +81,11 @@ macro_rules! behavior_read_tests {
 /// Stat normal file and dir should return metadata
 pub async fn test_stat(op: Operator) -> Result<()> {
     let meta = op.object("normal_file").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     let meta = op.object("normal_dir/").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
 }
@@ -93,11 +93,11 @@ pub async fn test_stat(op: Operator) -> Result<()> {
 /// Stat special file and dir should return metadata
 pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
     let meta = op.object("special_file  !@#$%^&()_+-=;',").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     let meta = op.object("special_dir  !@#$%^&()_+-=;',/").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
 }
@@ -105,7 +105,7 @@ pub async fn test_stat_special_chars(op: Operator) -> Result<()> {
 /// Stat not cleaned path should also succeed.
 pub async fn test_stat_not_cleaned_path(op: Operator) -> Result<()> {
     let meta = op.object("//normal_file").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 262144);
 
     Ok(())
@@ -125,10 +125,10 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 /// Root should be able to stat and returns DIR.
 pub async fn test_stat_root(op: Operator) -> Result<()> {
     let meta = op.object("").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     let meta = op.object("/").stat().await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     Ok(())
 }

@@ -1190,7 +1190,7 @@ impl Accessor for S3Backend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         let resp = self.s3_head_object(path).await?;
@@ -1200,7 +1200,7 @@ impl Accessor for S3Backend {
         match status {
             StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

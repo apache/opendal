@@ -100,29 +100,29 @@ impl<T: Default> From<PresignedRequest> for Request<T> {
 /// Reply for `read` operation.
 #[derive(Debug, Clone)]
 pub struct RpRead {
-    meta: ObjectMetadata,
+    meta: Metadata,
 }
 
 impl RpRead {
     /// Create a new reply.
     pub fn new(content_length: u64) -> Self {
         RpRead {
-            meta: ObjectMetadata::new(ObjectMode::FILE).with_content_length(content_length),
+            meta: Metadata::new(EntryMode::FILE).with_content_length(content_length),
         }
     }
 
     /// Create reply read with existing object metadata.
-    pub fn with_metadata(meta: ObjectMetadata) -> Self {
+    pub fn with_metadata(meta: Metadata) -> Self {
         RpRead { meta }
     }
 
     /// Get a ref of object metadata.
-    pub fn metadata(&self) -> &ObjectMetadata {
+    pub fn metadata(&self) -> &Metadata {
         &self.meta
     }
 
     /// Consume reply to get the object meta.
-    pub fn into_metadata(self) -> ObjectMetadata {
+    pub fn into_metadata(self) -> Metadata {
         self.meta
     }
 }
@@ -192,23 +192,23 @@ impl BatchedResults {
 /// Reply for `stat` operation.
 #[derive(Debug, Clone)]
 pub struct RpStat {
-    meta: ObjectMetadata,
+    meta: Metadata,
 }
 
 impl RpStat {
     /// Create a new reply for stat.
-    pub fn new(meta: ObjectMetadata) -> Self {
+    pub fn new(meta: Metadata) -> Self {
         RpStat { meta }
     }
 
     /// Operate on inner metadata.
-    pub fn map_metadata(mut self, f: impl FnOnce(ObjectMetadata) -> ObjectMetadata) -> Self {
+    pub fn map_metadata(mut self, f: impl FnOnce(Metadata) -> Metadata) -> Self {
         self.meta = f(self.meta);
         self
     }
 
     /// Consume RpStat to get the inner metadata.
-    pub fn into_metadata(self) -> ObjectMetadata {
+    pub fn into_metadata(self) -> Metadata {
         self.meta
     }
 }

@@ -28,18 +28,18 @@ use crate::ops::OpWrite;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectWriter is designed to write data into objects in an asynchronous manner.
+/// Writer is designed to write data into objects in an asynchronous manner.
 ///
 /// # Notes
 ///
-/// ObjectWriter is designed for appending multiple blocks which could
+/// Writer is designed for appending multiple blocks which could
 /// lead to much requests. If only want to send all data in single chunk,
 /// please use [`Object::write`] instead.
-pub struct ObjectWriter {
+pub struct Writer {
     state: State,
 }
 
-impl ObjectWriter {
+impl Writer {
     /// Create a new object writer.
     ///
     /// Create will use internal information to decide the most suitable
@@ -50,7 +50,7 @@ impl ObjectWriter {
     pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.write(path, op).await?;
 
-        Ok(ObjectWriter {
+        Ok(Writer {
             state: State::Idle(Some(w)),
         })
     }
@@ -100,7 +100,7 @@ impl Display for State {
     }
 }
 
-impl AsyncWrite for ObjectWriter {
+impl AsyncWrite for Writer {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -134,7 +134,7 @@ impl AsyncWrite for ObjectWriter {
         }
     }
 
-    /// ObjectWriter makes sure that every write is flushed.
+    /// Writer makes sure that every write is flushed.
     fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
@@ -167,12 +167,12 @@ impl AsyncWrite for ObjectWriter {
     }
 }
 
-/// BlockingObjectWriter is designed to write data into objects in an blocking manner.
-pub struct BlockingObjectWriter {
+/// BlockingWriter is designed to write data into objects in an blocking manner.
+pub struct BlockingWriter {
     pub(crate) inner: oio::BlockingWriter,
 }
 
-impl BlockingObjectWriter {
+impl BlockingWriter {
     /// Create a new object writer.
     ///
     /// Create will use internal information to decide the most suitable
@@ -183,7 +183,7 @@ impl BlockingObjectWriter {
     pub(crate) fn create(acc: FusedAccessor, path: &str, op: OpWrite) -> Result<Self> {
         let (_, w) = acc.blocking_write(path, op)?;
 
-        Ok(BlockingObjectWriter { inner: w })
+        Ok(BlockingWriter { inner: w })
     }
 
     /// Append data into writer.
@@ -201,7 +201,7 @@ impl BlockingObjectWriter {
     }
 }
 
-impl io::Write for BlockingObjectWriter {
+impl io::Write for BlockingWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let size = buf.len();
         self.append(Bytes::from(buf.to_vec()))

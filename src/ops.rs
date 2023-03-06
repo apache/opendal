@@ -26,17 +26,17 @@ use crate::*;
 /// The path must be normalized.
 #[derive(Debug, Clone, Default)]
 pub struct OpCreate {
-    mode: ObjectMode,
+    mode: EntryMode,
 }
 
 impl OpCreate {
     /// Create a new `OpCreate`.
-    pub fn new(mode: ObjectMode) -> Self {
+    pub fn new(mode: EntryMode) -> Self {
         Self { mode }
     }
 
     /// Get object mode from option.
-    pub fn mode(&self) -> ObjectMode {
+    pub fn mode(&self) -> EntryMode {
         self.mode
     }
 }

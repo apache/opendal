@@ -80,8 +80,8 @@ impl Accessor for IpmfsBackend {
 
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let resp = match args.mode() {
-            ObjectMode::DIR => self.ipmfs_mkdir(path).await?,
-            ObjectMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
+            EntryMode::DIR => self.ipmfs_mkdir(path).await?,
+            EntryMode::FILE => self.ipmfs_write(path, AsyncBody::Empty).await?,
             _ => unreachable!(),
         };
 
@@ -127,7 +127,7 @@ impl Accessor for IpmfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
         let resp = self.ipmfs_stat(path).await?;
@@ -142,12 +142,12 @@ impl Accessor for IpmfsBackend {
                     serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
                 let mode = match res.file_type.as_str() {
-                    "file" => ObjectMode::FILE,
-                    "directory" => ObjectMode::DIR,
-                    _ => ObjectMode::Unknown,
+                    "file" => EntryMode::FILE,
+                    "directory" => EntryMode::DIR,
+                    _ => EntryMode::Unknown,
                 };
 
-                let mut meta = ObjectMetadata::new(mode);
+                let mut meta = Metadata::new(mode);
                 meta.set_content_length(res.size);
 
                 Ok(RpStat::new(meta))

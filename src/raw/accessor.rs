@@ -81,7 +81,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     ///
     /// # Behavior
     ///
-    /// - Input path MUST match with ObjectMode, DON'T NEED to check object mode.
+    /// - Input path MUST match with EntryMode, DON'T NEED to check object mode.
     /// - Create on existing dir SHOULD succeed.
     /// - Create on existing file SHOULD overwrite and truncate.
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
@@ -94,7 +94,7 @@ pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
     }
 
     /// Invoke the `read` operation on the specified path, returns a
-    /// [`ObjectReader`][crate::ObjectReader] if operate successful.
+    /// [`Reader`][crate::Reader] if operate successful.
     ///
     /// Require [`AccessorCapability::Read`]
     ///

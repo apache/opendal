@@ -20,8 +20,8 @@ use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use log::debug;
+use opendal::EntryMode;
 use opendal::ErrorKind;
-use opendal::ObjectMode;
 use opendal::Operator;
 
 use super::utils::*;
@@ -108,7 +108,7 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         let meta = de.stat().await?;
         if de.path() == path {
-            assert_eq!(meta.mode(), ObjectMode::FILE);
+            assert_eq!(meta.mode(), EntryMode::FILE);
             assert_eq!(meta.content_length(), size as u64);
 
             found = true
@@ -202,7 +202,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
         if de.path() == path {
-            assert_eq!(de.stat().await?.mode(), ObjectMode::DIR);
+            assert_eq!(de.stat().await?.mode(), EntryMode::DIR);
             assert_eq!(de.name(), path);
 
             found = true
@@ -252,7 +252,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .expect("file should be found in list")
         .stat()
         .await?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
     // Check dir
@@ -261,7 +261,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .expect("file should be found in list")
         .stat()
         .await?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.object(&file_path)
         .delete()

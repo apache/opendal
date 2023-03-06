@@ -15,8 +15,8 @@
 use async_trait::async_trait;
 
 use crate::raw::*;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
+use crate::EntryMode;
+use crate::Metadata;
 use crate::Result;
 
 pub struct HdfsPager {
@@ -51,15 +51,15 @@ impl oio::Page for HdfsPager {
             let path = build_rel_path(&self.root, de.path());
 
             let d = if de.is_file() {
-                let meta = ObjectMetadata::new(ObjectMode::FILE)
+                let meta = Metadata::new(EntryMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
                 oio::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                oio::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
+                oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
             } else {
-                oio::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
             };
 
             oes.push(d)
@@ -82,15 +82,15 @@ impl oio::BlockingPage for HdfsPager {
             let path = build_rel_path(&self.root, de.path());
 
             let d = if de.is_file() {
-                let meta = ObjectMetadata::new(ObjectMode::FILE)
+                let meta = Metadata::new(EntryMode::FILE)
                     .with_content_length(de.len())
                     .with_last_modified(time::OffsetDateTime::from(de.modified()));
                 oio::Entry::new(&path, meta)
             } else if de.is_dir() {
                 // Make sure we are returning the correct path.
-                oio::Entry::new(&format!("{path}/"), ObjectMetadata::new(ObjectMode::DIR))
+                oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
             } else {
-                oio::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
             };
 
             oes.push(d)

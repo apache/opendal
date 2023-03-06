@@ -522,7 +522,7 @@ impl WebhdfsBackend {
 
             StatusCode::NOT_FOUND => {
                 debug!("working directory does not exists, creating...");
-                self.create("/", OpCreate::new(ObjectMode::DIR)).await?;
+                self.create("/", OpCreate::new(EntryMode::DIR)).await?;
             }
 
             _ => return Err(parse_error(resp).await?),
@@ -642,7 +642,7 @@ impl Accessor for WebhdfsBackend {
                     })?
                     .file_status;
                 debug!("file status: {:?}", file_status);
-                let status_meta: ObjectMetadata = file_status.try_into()?;
+                let status_meta: Metadata = file_status.try_into()?;
 
                 // is ok to unwrap here
                 // all metadata field of status meta is present and checked by `TryFrom`

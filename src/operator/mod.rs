@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Operator's API will be split into different mods.
+
 #[allow(clippy::module_inception)]
 mod operator;
-pub use operator::BatchOperator;
 pub use operator::Operator;
 
 mod builder;
@@ -22,3 +23,8 @@ pub use builder::OperatorBuilder;
 
 mod metadata;
 pub use metadata::OperatorMetadata;
+
+mod batch;
+pub use batch::BatchOperator;
+
+mod api_async;

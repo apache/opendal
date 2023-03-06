@@ -26,13 +26,13 @@ use futures::Stream;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectLister is designed to list entries inside object in an asynchronous manner.
+/// Lister is designed to list entries inside object in an asynchronous manner.
 ///
-/// Users can construct ObjectLister by `list` or `scan`.
+/// Users can construct Lister by `list` or `scan`.
 ///
 /// User can use object lister as `Stream<Item = Result<Object>>` or
 /// call `next_page` directly.
-pub struct ObjectLister {
+pub struct Lister {
     acc: FusedAccessor,
     pager: Option<oio::Pager>,
 
@@ -44,7 +44,7 @@ pub struct ObjectLister {
     fut: Option<BoxFuture<'static, (oio::Pager, Result<Option<Vec<oio::Entry>>>)>>,
 }
 
-impl ObjectLister {
+impl Lister {
     /// Create a new object lister.
     pub(crate) fn new(acc: FusedAccessor, pager: oio::Pager) -> Self {
         Self {
@@ -94,7 +94,7 @@ impl ObjectLister {
     }
 }
 
-impl Stream for ObjectLister {
+impl Stream for Lister {
     type Item = Result<Object>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -130,16 +130,16 @@ impl Stream for ObjectLister {
     }
 }
 
-/// BlockingObjectLister is designed to list entries inside object in a blocking manner.
+/// BlockingLister is designed to list entries inside object in a blocking manner.
 ///
-/// Users can construct ObjectLister by `blocking_list` or `blocking_scan`.
-pub struct BlockingObjectLister {
+/// Users can construct Lister by `blocking_list` or `blocking_scan`.
+pub struct BlockingLister {
     acc: FusedAccessor,
     pager: oio::BlockingPager,
     buf: VecDeque<oio::Entry>,
 }
 
-impl BlockingObjectLister {
+impl BlockingLister {
     /// Create a new object lister.
     pub(crate) fn new(acc: FusedAccessor, pager: oio::BlockingPager) -> Self {
         Self {
@@ -173,7 +173,7 @@ impl BlockingObjectLister {
 }
 
 /// TODO: we can implement next_chunk.
-impl Iterator for BlockingObjectLister {
+impl Iterator for BlockingLister {
     type Item = Result<Object>;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -13,26 +13,26 @@
 // limitations under the License.
 
 use crate::raw::FusedAccessor;
+use crate::EntryMode;
+use crate::Metadata;
 use crate::Object;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
 
 /// Entry is returned by `Page` or `BlockingPage`
 /// during list operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     path: String,
-    meta: ObjectMetadata,
+    meta: Metadata,
 }
 
 impl Entry {
     /// Create a new object entry by its corresponding underlying storage.
-    pub fn new(path: &str, meta: ObjectMetadata) -> Entry {
+    pub fn new(path: &str, meta: Metadata) -> Entry {
         Self::with(path.to_string(), meta)
     }
 
     /// Create a new object entry with given value.
-    pub fn with(path: String, meta: ObjectMetadata) -> Entry {
+    pub fn with(path: String, meta: Metadata) -> Entry {
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",
@@ -59,13 +59,13 @@ impl Entry {
     /// # Note
     ///
     /// Please use this function carefully.
-    pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
+    pub fn set_mode(&mut self, mode: EntryMode) -> &mut Self {
         self.meta.set_mode(mode);
         self
     }
 
     /// Get entry's object mode.
-    pub fn mode(&self) -> ObjectMode {
+    pub fn mode(&self) -> EntryMode {
         self.meta.mode()
     }
 

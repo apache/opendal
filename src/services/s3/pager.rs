@@ -24,10 +24,10 @@ use time::OffsetDateTime;
 use super::backend::S3Backend;
 use super::error::parse_error;
 use crate::raw::*;
+use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
+use crate::Metadata;
 use crate::Result;
 
 pub struct S3Pager {
@@ -101,7 +101,7 @@ impl oio::Page for S3Pager {
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
-                ObjectMetadata::new(ObjectMode::DIR),
+                Metadata::new(EntryMode::DIR),
             );
 
             entries.push(de);
@@ -115,7 +115,7 @@ impl oio::Page for S3Pager {
                 continue;
             }
 
-            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+            let mut meta = Metadata::new(EntryMode::FILE);
 
             meta.set_etag(&object.etag);
             meta.set_content_md5(object.etag.trim_matches('"'));

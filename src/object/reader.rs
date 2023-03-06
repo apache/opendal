@@ -27,11 +27,11 @@ use crate::ops::OpRead;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectReader is designed to read data from objects in an asynchronous manner.
+/// Reader is designed to read data from objects in an asynchronous manner.
 ///
 /// # Usage
 ///
-/// ObjectReader implements the following APIs:
+/// Reader implements the following APIs:
 ///
 /// - `AsyncRead`
 /// - `AsyncSeek`
@@ -40,7 +40,7 @@ use crate::*;
 /// For reading data, we can use `AsyncRead` and `Stream`. The mainly
 /// different is where the `copy` happens.
 ///
-/// `AsyncRead` requires user to prepare a buffer for `ObjectReader` to fill.
+/// `AsyncRead` requires user to prepare a buffer for `Reader` to fill.
 /// And `Stream` will stream out a `Bytes` for user to decide when to copy
 /// it's content.
 ///
@@ -50,12 +50,12 @@ use crate::*;
 ///
 /// Besides, `Stream` **COULD** reduce an extra copy if underlying reader is
 /// stream based (like services s3, azure which based on HTTP).
-pub struct ObjectReader {
+pub struct Reader {
     inner: oio::Reader,
     seek_state: SeekState,
 }
 
-impl ObjectReader {
+impl Reader {
     /// Create a new object reader.
     ///
     /// Create will use internal information to decide the most suitable
@@ -66,14 +66,14 @@ impl ObjectReader {
     pub(crate) async fn create(acc: FusedAccessor, path: &str, op: OpRead) -> Result<Self> {
         let (_, r) = acc.read(path, op).await?;
 
-        Ok(ObjectReader {
+        Ok(Reader {
             inner: r,
             seek_state: SeekState::Init,
         })
     }
 }
 
-impl oio::Read for ObjectReader {
+impl oio::Read for Reader {
     fn poll_read(&mut self, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize>> {
         self.inner.poll_read(cx, buf)
     }
@@ -87,7 +87,7 @@ impl oio::Read for ObjectReader {
     }
 }
 
-impl AsyncRead for ObjectReader {
+impl AsyncRead for Reader {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -97,7 +97,7 @@ impl AsyncRead for ObjectReader {
     }
 }
 
-impl AsyncSeek for ObjectReader {
+impl AsyncSeek for Reader {
     fn poll_seek(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -107,7 +107,7 @@ impl AsyncSeek for ObjectReader {
     }
 }
 
-impl tokio::io::AsyncRead for ObjectReader {
+impl tokio::io::AsyncRead for Reader {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -123,7 +123,7 @@ impl tokio::io::AsyncRead for ObjectReader {
     }
 }
 
-impl tokio::io::AsyncSeek for ObjectReader {
+impl tokio::io::AsyncSeek for Reader {
     fn start_seek(self: Pin<&mut Self>, pos: io::SeekFrom) -> io::Result<()> {
         let this = self.get_mut();
         if let SeekState::Start(_) = this.seek_state {
@@ -155,7 +155,7 @@ impl tokio::io::AsyncSeek for ObjectReader {
 }
 
 #[derive(Debug, Clone, Copy)]
-/// SeekState is used to track the tokio seek state of ObjectReader.
+/// SeekState is used to track the tokio seek state of Reader.
 enum SeekState {
     /// start_seek has not been called.
     Init,
@@ -163,7 +163,7 @@ enum SeekState {
     Start(io::SeekFrom),
 }
 
-impl Stream for ObjectReader {
+impl Stream for Reader {
     type Item = io::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -173,12 +173,12 @@ impl Stream for ObjectReader {
     }
 }
 
-/// BlockingObjectReader is designed to read data from objects in an blocking manner.
-pub struct BlockingObjectReader {
+/// BlockingReader is designed to read data from objects in an blocking manner.
+pub struct BlockingReader {
     pub(crate) inner: oio::BlockingReader,
 }
 
-impl BlockingObjectReader {
+impl BlockingReader {
     /// Create a new blocking object reader.
     ///
     /// Create will use internal information to decide the most suitable
@@ -206,11 +206,11 @@ impl BlockingObjectReader {
             Box::new(oio::into_streamable_reader(r, 256 * 1024))
         };
 
-        Ok(BlockingObjectReader { inner: r })
+        Ok(BlockingReader { inner: r })
     }
 }
 
-impl oio::BlockingRead for BlockingObjectReader {
+impl oio::BlockingRead for BlockingReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.inner.read(buf)
@@ -227,21 +227,21 @@ impl oio::BlockingRead for BlockingObjectReader {
     }
 }
 
-impl io::Read for BlockingObjectReader {
+impl io::Read for BlockingReader {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
     }
 }
 
-impl io::Seek for BlockingObjectReader {
+impl io::Seek for BlockingReader {
     #[inline]
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         self.inner.seek(pos)
     }
 }
 
-impl Iterator for BlockingObjectReader {
+impl Iterator for BlockingReader {
     type Item = io::Result<Bytes>;
 
     #[inline]

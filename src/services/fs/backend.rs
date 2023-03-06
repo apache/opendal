@@ -314,7 +314,7 @@ impl Accessor for FsBackend {
     async fn create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        if args.mode() == ObjectMode::FILE {
+        if args.mode() == EntryMode::FILE {
             let parent = p
                 .parent()
                 .ok_or_else(|| {
@@ -339,7 +339,7 @@ impl Accessor for FsBackend {
             return Ok(RpCreate::default());
         }
 
-        if args.mode() == ObjectMode::DIR {
+        if args.mode() == EntryMode::DIR {
             fs::create_dir_all(&p).await.map_err(parse_io_error)?;
 
             return Ok(RpCreate::default());
@@ -456,13 +456,13 @@ impl Accessor for FsBackend {
         }
 
         let mode = if meta.is_dir() {
-            ObjectMode::DIR
+            EntryMode::DIR
         } else if meta.is_file() {
-            ObjectMode::FILE
+            EntryMode::FILE
         } else {
-            ObjectMode::Unknown
+            EntryMode::Unknown
         };
-        let m = ObjectMetadata::new(mode)
+        let m = Metadata::new(mode)
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
@@ -515,7 +515,7 @@ impl Accessor for FsBackend {
     fn blocking_create(&self, path: &str, args: OpCreate) -> Result<RpCreate> {
         let p = self.root.join(path.trim_end_matches('/'));
 
-        if args.mode() == ObjectMode::FILE {
+        if args.mode() == EntryMode::FILE {
             let parent = p
                 .parent()
                 .ok_or_else(|| {
@@ -538,7 +538,7 @@ impl Accessor for FsBackend {
             return Ok(RpCreate::default());
         }
 
-        if args.mode() == ObjectMode::DIR {
+        if args.mode() == EntryMode::DIR {
             std::fs::create_dir_all(&p).map_err(parse_io_error)?;
 
             return Ok(RpCreate::default());
@@ -642,13 +642,13 @@ impl Accessor for FsBackend {
         }
 
         let mode = if meta.is_dir() {
-            ObjectMode::DIR
+            EntryMode::DIR
         } else if meta.is_file() {
-            ObjectMode::FILE
+            EntryMode::FILE
         } else {
-            ObjectMode::Unknown
+            EntryMode::Unknown
         };
-        let m = ObjectMetadata::new(mode)
+        let m = Metadata::new(mode)
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()

@@ -17,8 +17,8 @@ use std::io::Seek;
 
 use anyhow::Result;
 use log::debug;
+use opendal::EntryMode;
 use opendal::ErrorKind;
-use opendal::ObjectMode;
 use opendal::Operator;
 use sha2::Digest;
 use sha2::Sha256;
@@ -102,7 +102,7 @@ pub fn test_create_file(op: Operator) -> Result<()> {
     o.blocking_create()?;
 
     let meta = o.blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
@@ -122,7 +122,7 @@ pub fn test_create_file_existing(op: Operator) -> Result<()> {
     o.blocking_create()?;
 
     let meta = o.blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
@@ -141,7 +141,7 @@ pub fn test_create_file_with_special_chars(op: Operator) -> Result<()> {
     o.blocking_create()?;
 
     let meta = o.blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), 0);
 
     op.object(&path)
@@ -159,7 +159,7 @@ pub fn test_create_dir(op: Operator) -> Result<()> {
     o.blocking_create()?;
 
     let meta = o.blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.object(&path)
         .blocking_delete()
@@ -178,7 +178,7 @@ pub fn test_create_dir_existing(op: Operator) -> Result<()> {
     o.blocking_create()?;
 
     let meta = o.blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.object(&path)
         .blocking_delete()
@@ -243,7 +243,7 @@ pub fn test_stat(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let meta = op.object(&path).blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)
@@ -261,7 +261,7 @@ pub fn test_stat_dir(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let meta = op.object(&path).blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::DIR);
+    assert_eq!(meta.mode(), EntryMode::DIR);
 
     op.object(&path)
         .blocking_delete()
@@ -280,7 +280,7 @@ pub fn test_stat_with_special_chars(op: Operator) -> Result<()> {
         .expect("write must succeed");
 
     let meta = op.object(&path).blocking_stat()?;
-    assert_eq!(meta.mode(), ObjectMode::FILE);
+    assert_eq!(meta.mode(), EntryMode::FILE);
     assert_eq!(meta.content_length(), size as u64);
 
     op.object(&path)

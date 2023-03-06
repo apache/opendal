@@ -19,8 +19,8 @@ use async_trait::async_trait;
 
 use super::error::parse_io_error;
 use crate::raw::*;
-use crate::ObjectMetadata;
-use crate::ObjectMode;
+use crate::EntryMode;
+use crate::Metadata;
 use crate::Result;
 
 pub struct FsPager<P> {
@@ -67,15 +67,12 @@ impl oio::Page for FsPager<tokio::fs::ReadDir> {
             let file_type = de.file_type().await.map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                oio::Entry::new(
-                    &format!("{rel_path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR),
-                )
+                oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
             } else {
-                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
             };
 
             oes.push(d)
@@ -111,15 +108,12 @@ impl oio::BlockingPage for FsPager<std::fs::ReadDir> {
             let file_type = de.file_type().map_err(parse_io_error)?;
 
             let d = if file_type.is_file() {
-                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::FILE))
+                oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
             } else if file_type.is_dir() {
                 // Make sure we are returning the correct path.
-                oio::Entry::new(
-                    &format!("{rel_path}/"),
-                    ObjectMetadata::new(ObjectMode::DIR),
-                )
+                oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
             } else {
-                oio::Entry::new(&rel_path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
             };
 
             oes.push(d)

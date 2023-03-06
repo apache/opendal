@@ -17,7 +17,7 @@ use std::collections::HashSet;
 
 use anyhow::Result;
 use log::debug;
-use opendal::ObjectMode;
+use opendal::EntryMode;
 use opendal::Operator;
 
 use super::utils::*;
@@ -90,7 +90,7 @@ pub fn test_list_dir(op: Operator) -> Result<()> {
         let de = de?;
         let meta = de.blocking_stat()?;
         if de.path() == path {
-            assert_eq!(meta.mode(), ObjectMode::FILE);
+            assert_eq!(meta.mode(), EntryMode::FILE);
             assert_eq!(meta.content_length(), size as u64);
 
             found = true

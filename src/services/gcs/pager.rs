@@ -91,7 +91,7 @@ impl oio::Page for GcsPager {
         for prefix in output.prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix),
-                ObjectMetadata::new(ObjectMode::DIR),
+                Metadata::new(EntryMode::DIR),
             );
 
             entries.push(de);
@@ -102,7 +102,7 @@ impl oio::Page for GcsPager {
                 continue;
             }
 
-            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+            let mut meta = Metadata::new(EntryMode::FILE);
 
             // set metadata fields
             meta.set_content_md5(object.md5_hash.as_str());

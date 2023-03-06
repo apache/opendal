@@ -95,6 +95,16 @@ impl Metadata {
         self.mode
     }
 
+    /// Tests whether this metadata represents a file.
+    pub fn is_file(&self) -> bool {
+        matches!(self.mode, ObjectMode::FILE)
+    }
+
+    /// Tests whether this metadata represents a directory.
+    pub fn is_dir(&self) -> bool {
+        matches!(self.mode, ObjectMode::DIR)
+    }
+
     /// Set mode for object.
     pub fn set_mode(&mut self, mode: ObjectMode) -> &mut Self {
         self.mode = mode;

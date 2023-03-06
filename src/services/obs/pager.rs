@@ -24,7 +24,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
-use crate::ObjectMetadata;
+use crate::Metadata;
 use crate::ObjectMode;
 use crate::Result;
 
@@ -96,7 +96,7 @@ impl oio::Page for ObsPager {
         for prefix in common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
-                ObjectMetadata::new(ObjectMode::DIR),
+                Metadata::new(ObjectMode::DIR),
             );
 
             entries.push(de);
@@ -107,7 +107,7 @@ impl oio::Page for ObsPager {
                 continue;
             }
 
-            let meta = ObjectMetadata::new(ObjectMode::FILE).with_content_length(object.size);
+            let meta = Metadata::new(ObjectMode::FILE).with_content_length(object.size);
 
             let de = oio::Entry::new(&build_rel_path(&self.root, &object.key), meta);
 

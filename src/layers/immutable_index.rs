@@ -244,7 +244,7 @@ impl ImmutableDir {
                     } else {
                         ObjectMode::FILE
                     };
-                    let meta = ObjectMetadata::new(mode);
+                    let meta = Metadata::new(mode);
                     oio::Entry::with(v, meta)
                 })
                 .collect(),

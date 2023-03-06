@@ -39,7 +39,7 @@ pub struct Object {
     acc: FusedAccessor,
     path: Arc<String>,
 
-    meta: Option<Arc<ObjectMetadata>>,
+    meta: Option<Arc<Metadata>>,
 }
 
 impl Object {
@@ -52,7 +52,7 @@ impl Object {
         Self::with(acc, path, None)
     }
 
-    pub(crate) fn with(acc: FusedAccessor, path: &str, meta: Option<ObjectMetadata>) -> Self {
+    pub(crate) fn with(acc: FusedAccessor, path: &str, meta: Option<Metadata>) -> Self {
         Self {
             acc,
             path: Arc::new(normalize_path(path)),
@@ -959,7 +959,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn stat(&self) -> Result<ObjectMetadata> {
+    pub async fn stat(&self) -> Result<Metadata> {
         let rp = self.acc.stat(self.path(), OpStat::new()).await?;
         let meta = rp.into_metadata();
 
@@ -996,7 +996,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_stat(&self) -> Result<ObjectMetadata> {
+    pub fn blocking_stat(&self) -> Result<Metadata> {
         let rp = self.acc.blocking_stat(self.path(), OpStat::new())?;
         let meta = rp.into_metadata();
 
@@ -1094,7 +1094,7 @@ impl Object {
     pub async fn metadata(
         &self,
         flags: impl Into<FlagSet<ObjectMetakey>>,
-    ) -> Result<Arc<ObjectMetadata>> {
+    ) -> Result<Arc<Metadata>> {
         if let Some(meta) = &self.meta {
             if meta.bit().contains(flags) || meta.bit().contains(ObjectMetakey::Complete) {
                 return Ok(meta.clone());
@@ -1189,7 +1189,7 @@ impl Object {
     pub fn blocking_metadata(
         &self,
         flags: impl Into<FlagSet<ObjectMetakey>>,
-    ) -> Result<Arc<ObjectMetadata>> {
+    ) -> Result<Arc<Metadata>> {
         if let Some(meta) = &self.meta {
             if meta.bit().contains(flags) || meta.bit().contains(ObjectMetakey::Complete) {
                 return Ok(meta.clone());

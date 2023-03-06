@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use crate::raw::FusedAccessor;
+use crate::Metadata;
 use crate::Object;
-use crate::ObjectMetadata;
 use crate::ObjectMode;
 
 /// Entry is returned by `Page` or `BlockingPage`
@@ -22,17 +22,17 @@ use crate::ObjectMode;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     path: String,
-    meta: ObjectMetadata,
+    meta: Metadata,
 }
 
 impl Entry {
     /// Create a new object entry by its corresponding underlying storage.
-    pub fn new(path: &str, meta: ObjectMetadata) -> Entry {
+    pub fn new(path: &str, meta: Metadata) -> Entry {
         Self::with(path.to_string(), meta)
     }
 
     /// Create a new object entry with given value.
-    pub fn with(path: String, meta: ObjectMetadata) -> Entry {
+    pub fn with(path: String, meta: Metadata) -> Entry {
         debug_assert!(
             meta.mode().is_dir() == path.ends_with('/'),
             "mode {:?} not match with path {}",

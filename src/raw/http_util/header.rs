@@ -30,7 +30,7 @@ use time::OffsetDateTime;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
-use crate::ObjectMetadata;
+use crate::Metadata;
 use crate::ObjectMode;
 use crate::Result;
 
@@ -182,20 +182,20 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
     }
 }
 
-/// parse_into_object_metadata will parse standards http headers into ObjectMetadata.
+/// parse_into_object_metadata will parse standards http headers into Metadata.
 ///
 /// # Notes
 ///
 /// parse_into_object_metadata only handles the standard behavior of http
 /// headers. If services have their own logic, they should update the parsed
 /// metadata on demand.
-pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<ObjectMetadata> {
+pub fn parse_into_object_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> {
     let mode = if path.ends_with('/') {
         ObjectMode::DIR
     } else {
         ObjectMode::FILE
     };
-    let mut m = ObjectMetadata::new(mode);
+    let mut m = Metadata::new(mode);
 
     if let Some(v) = parse_content_length(headers)? {
         m.set_content_length(v);

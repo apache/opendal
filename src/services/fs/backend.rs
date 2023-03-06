@@ -462,7 +462,7 @@ impl Accessor for FsBackend {
         } else {
             ObjectMode::Unknown
         };
-        let m = ObjectMetadata::new(mode)
+        let m = Metadata::new(mode)
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()
@@ -648,7 +648,7 @@ impl Accessor for FsBackend {
         } else {
             ObjectMode::Unknown
         };
-        let m = ObjectMetadata::new(mode)
+        let m = Metadata::new(mode)
             .with_content_length(meta.len())
             .with_last_modified(
                 meta.modified()

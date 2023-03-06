@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use super::list_response::Multistatus;
 use crate::raw::build_rel_path;
 use crate::raw::oio;
-use crate::ObjectMetadata;
+use crate::Metadata;
 use crate::ObjectMode;
 use crate::Result;
 
@@ -65,9 +65,9 @@ impl oio::Page for WebdavPager {
                 let entry = if de.propstat.prop.resourcetype.value
                     == Some(super::list_response::ResourceType::Collection)
                 {
-                    oio::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::DIR))
+                    oio::Entry::new(&normalized_path, Metadata::new(ObjectMode::DIR))
                 } else {
-                    oio::Entry::new(&normalized_path, ObjectMetadata::new(ObjectMode::FILE))
+                    oio::Entry::new(&normalized_path, Metadata::new(ObjectMode::FILE))
                 };
 
                 Some(entry)

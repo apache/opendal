@@ -32,7 +32,7 @@ use reqsign::AzureStorageSigner;
 use super::error::parse_error;
 use super::pager::AzdfsPager;
 use super::writer::AzdfsWriter;
-use crate::object::ObjectMetadata;
+use crate::object::Metadata;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -376,7 +376,7 @@ impl Accessor for AzdfsBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(Metadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.azdfs_get_properties(path).await?;
@@ -386,7 +386,7 @@ impl Accessor for AzdfsBackend {
         match status {
             StatusCode::OK => parse_into_object_metadata(path, resp.headers()).map(RpStat::new),
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+                Ok(RpStat::new(Metadata::new(ObjectMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

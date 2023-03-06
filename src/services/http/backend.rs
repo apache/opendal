@@ -280,7 +280,7 @@ impl Accessor for HttpBackend {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         if path == "/" {
-            return Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)));
+            return Ok(RpStat::new(Metadata::new(ObjectMode::DIR)));
         }
 
         let resp = self.http_head(path).await?;
@@ -292,7 +292,7 @@ impl Accessor for HttpBackend {
             // HTTP Server like nginx could return FORBIDDEN if auto-index
             // is not enabled, we should ignore them.
             StatusCode::NOT_FOUND | StatusCode::FORBIDDEN if path.ends_with('/') => {
-                Ok(RpStat::new(ObjectMetadata::new(ObjectMode::DIR)))
+                Ok(RpStat::new(Metadata::new(ObjectMode::DIR)))
             }
             _ => Err(parse_error(resp).await?),
         }

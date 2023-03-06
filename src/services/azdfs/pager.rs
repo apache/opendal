@@ -103,7 +103,7 @@ impl oio::Page for AzdfsPager {
                 ObjectMode::FILE
             };
 
-            let meta = ObjectMetadata::new(mode)
+            let meta = Metadata::new(mode)
                 // Keep fit with ETag header.
                 .with_etag(format!("\"{}\"", &object.etag))
                 .with_content_length(object.content_length.parse().map_err(|err| {

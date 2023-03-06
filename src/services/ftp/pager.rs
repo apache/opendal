@@ -87,14 +87,14 @@ impl oio::Page for FtpPager {
             let d = if de.is_file() {
                 oio::Entry::new(
                     &path,
-                    ObjectMetadata::new(ObjectMode::FILE)
+                    Metadata::new(ObjectMode::FILE)
                         .with_content_length(de.size() as u64)
                         .with_last_modified(OffsetDateTime::from(de.modified())),
                 )
             } else if de.is_directory() {
-                oio::Entry::new(&format!("{}/", &path), ObjectMetadata::new(ObjectMode::DIR))
+                oio::Entry::new(&format!("{}/", &path), Metadata::new(ObjectMode::DIR))
             } else {
-                oio::Entry::new(&path, ObjectMetadata::new(ObjectMode::Unknown))
+                oio::Entry::new(&path, Metadata::new(ObjectMode::Unknown))
             };
 
             oes.push(d)

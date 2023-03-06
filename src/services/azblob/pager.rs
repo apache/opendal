@@ -94,7 +94,7 @@ impl oio::Page for AzblobPager {
         for prefix in prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.name),
-                ObjectMetadata::new(ObjectMode::DIR),
+                Metadata::new(ObjectMode::DIR),
             );
 
             entries.push(de)
@@ -108,7 +108,7 @@ impl oio::Page for AzblobPager {
                 continue;
             }
 
-            let meta = ObjectMetadata::new(ObjectMode::FILE)
+            let meta = Metadata::new(ObjectMode::FILE)
                 // Keep fit with ETag header.
                 .with_etag(format!("\"{}\"", object.properties.etag.as_str()))
                 .with_content_length(object.properties.content_length)

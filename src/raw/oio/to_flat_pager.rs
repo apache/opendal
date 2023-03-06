@@ -39,7 +39,7 @@ pub fn to_flat_pager<A: Accessor, P>(acc: A, path: &str, size: usize) -> ToFlatP
     ToFlatPager {
         acc,
         size,
-        dirs: VecDeque::from([oio::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))]),
+        dirs: VecDeque::from([oio::Entry::new(path, Metadata::new(ObjectMode::DIR))]),
         pagers: vec![],
         res: Vec::with_capacity(size),
     }
@@ -275,9 +275,9 @@ mod tests {
                 .iter()
                 .map(|path| {
                     if path.ends_with('/') {
-                        oio::Entry::new(path, ObjectMetadata::new(ObjectMode::DIR))
+                        oio::Entry::new(path, Metadata::new(ObjectMode::DIR))
                     } else {
-                        oio::Entry::new(path, ObjectMetadata::new(ObjectMode::FILE))
+                        oio::Entry::new(path, Metadata::new(ObjectMode::FILE))
                     }
                 })
                 .collect();
@@ -301,7 +301,7 @@ mod tests {
 
         assert_eq!(
             entries[0],
-            oio::Entry::new("x/x/x/x", ObjectMetadata::new(ObjectMode::FILE))
+            oio::Entry::new("x/x/x/x", Metadata::new(ObjectMode::FILE))
         );
 
         Ok(())

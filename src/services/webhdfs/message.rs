@@ -52,12 +52,12 @@ pub struct FileStatus {
     pub ty: FileStatusType,
 }
 
-impl TryFrom<FileStatus> for ObjectMetadata {
+impl TryFrom<FileStatus> for Metadata {
     type Error = Error;
     fn try_from(value: FileStatus) -> Result<Self> {
         let mut meta = match value.ty {
-            FileStatusType::Directory => ObjectMetadata::new(ObjectMode::DIR),
-            FileStatusType::File => ObjectMetadata::new(ObjectMode::FILE),
+            FileStatusType::Directory => Metadata::new(ObjectMode::DIR),
+            FileStatusType::File => Metadata::new(ObjectMode::FILE),
         };
         let till_now = time::Duration::milliseconds(value.modification_time);
         let last_modified = time::OffsetDateTime::UNIX_EPOCH

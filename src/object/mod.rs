@@ -16,7 +16,7 @@ mod mode;
 pub use mode::ObjectMode;
 
 mod metadata;
-pub use metadata::ObjectMetadata;
+pub use metadata::Metadata;
 pub use metadata::ObjectMetakey;
 
 #[allow(clippy::module_inception)]

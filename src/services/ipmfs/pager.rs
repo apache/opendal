@@ -21,7 +21,7 @@ use serde::Deserialize;
 use super::backend::IpmfsBackend;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::ObjectMetadata;
+use crate::Metadata;
 use crate::ObjectMode;
 use crate::Result;
 
@@ -83,7 +83,7 @@ impl oio::Page for IpmfsPager {
 
                     oio::Entry::new(
                         &path,
-                        ObjectMetadata::new(object.mode()).with_content_length(object.size),
+                        Metadata::new(object.mode()).with_content_length(object.size),
                     )
                 })
                 .collect(),

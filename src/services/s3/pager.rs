@@ -26,7 +26,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::Error;
 use crate::ErrorKind;
-use crate::ObjectMetadata;
+use crate::Metadata;
 use crate::ObjectMode;
 use crate::Result;
 
@@ -101,7 +101,7 @@ impl oio::Page for S3Pager {
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.root, &prefix.prefix),
-                ObjectMetadata::new(ObjectMode::DIR),
+                Metadata::new(ObjectMode::DIR),
             );
 
             entries.push(de);
@@ -115,7 +115,7 @@ impl oio::Page for S3Pager {
                 continue;
             }
 
-            let mut meta = ObjectMetadata::new(ObjectMode::FILE);
+            let mut meta = Metadata::new(ObjectMode::FILE);
 
             meta.set_etag(&object.etag);
             meta.set_content_md5(object.etag.trim_matches('"'));

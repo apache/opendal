@@ -19,7 +19,7 @@ use time::OffsetDateTime;
 use crate::raw::*;
 use crate::*;
 
-/// ObjectMetadata carries all metadata associated with an object.
+/// Metadata carries all metadata associated with an object.
 ///
 /// # Notes
 ///
@@ -27,7 +27,7 @@ use crate::*;
 /// should provide during `stat` operation. But in `list` operation,
 /// a.k.a., `Entry`'s content length could be `None`.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ObjectMetadata {
+pub struct Metadata {
     /// bit stores current key store.
     bit: FlagSet<ObjectMetakey>,
 
@@ -50,7 +50,7 @@ pub struct ObjectMetadata {
     last_modified: Option<OffsetDateTime>,
 }
 
-impl ObjectMetadata {
+impl Metadata {
     /// Create a new object metadata
     pub fn new(mode: ObjectMode) -> Self {
         // Mode is required to be set for object metadata.

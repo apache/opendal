@@ -26,9 +26,6 @@ use opendal::Builder;
 use time::format_description::well_known::Rfc3339;
 
 #[napi]
-pub struct Operator(opendal::Operator);
-
-#[napi]
 #[derive(Debug, Eq, PartialEq)]
 pub enum Scheme {
     /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
@@ -76,6 +73,9 @@ pub enum Scheme {
     /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
     Webhdfs,
 }
+
+#[napi]
+pub struct Operator(opendal::Operator);
 
 #[napi]
 impl Operator {

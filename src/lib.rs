@@ -69,22 +69,8 @@
 mod builder;
 pub use builder::Builder;
 
-mod operator;
-pub use operator::BatchOperator;
-pub use operator::Operator;
-pub use operator::OperatorBuilder;
-pub use operator::OperatorMetadata;
-
 mod types;
-pub use types::BlockingReader;
-pub use types::BlockingWriter;
-pub use types::EntryMode;
-pub use types::Lister;
-pub use types::Metadata;
-pub use types::Metakey;
-pub use types::Object;
-pub use types::Reader;
-pub use types::Writer;
+pub use types::*;
 
 mod scheme;
 pub use scheme::Scheme;

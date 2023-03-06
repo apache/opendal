@@ -180,6 +180,12 @@ pub struct ObjectLister(opendal::Lister);
 
 #[napi]
 impl ObjectLister {
+    /// # Safety
+    ///
+    /// > &mut self in async napi methods should be marked as unsafe
+    ///
+    /// napi will make sure the function is safe, and we didn't do unsafe
+    /// thing internally.
     #[napi]
     pub async unsafe fn next(&mut self) -> Result<Option<DataObject>> {
         Ok(self
@@ -188,7 +194,7 @@ impl ObjectLister {
             .await
             .map_err(format_napi_error)
             .unwrap()
-            .map(|o| DataObject(o)))
+            .map(DataObject))
     }
 }
 

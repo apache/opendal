@@ -15,20 +15,20 @@
 headerPath = "Apache-2.0.txt"
 
 excludes = [
-    "**/*.toml",
-    "!**/Cargo.toml",
-    "!**/licenserc.toml",
-    "!**/pyproject.toml",
+  "**/*.toml",
+  "!**/Cargo.toml",
+  "!**/licenserc.toml",
+  "!**/pyproject.toml",
 
-    "**/Cargo.lock",
-    "**/fixtures/**",
-    "tests/data/**",
-    "bindings/nodejs/.npmignore",
-    "bindings/nodejs/generated.js",
-    "bindings/nodejs/index.d.ts",
-    ".env.example",
+  "**/Cargo.lock",
+  "**/fixtures/**",
+  "tests/data/**",
+  "bindings/nodejs/.npmignore",
+  "bindings/nodejs/generated.js",
+  "bindings/nodejs/index.d.ts",
+  ".env.example",
 ]
 
 [properties]
-inceptionYear = 2022
 copyrightOwner = "Datafuse Labs"
+inceptionYear = 2022

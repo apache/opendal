@@ -32,9 +32,9 @@ use reqsign::AzureStorageSigner;
 use super::error::parse_error;
 use super::pager::AzblobPager;
 use super::writer::AzblobWriter;
-use crate::object::Metadata;
 use crate::ops::*;
 use crate::raw::*;
+use crate::types::Metadata;
 use crate::*;
 
 const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";

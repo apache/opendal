@@ -66,39 +66,13 @@
 #![deny(unused_qualifications)]
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
-mod builder;
-pub use builder::Builder;
-
-mod operator;
-pub use operator::BatchOperator;
-pub use operator::Operator;
-pub use operator::OperatorBuilder;
-pub use operator::OperatorMetadata;
-
-mod object;
-pub use object::BlockingReader;
-pub use object::BlockingWriter;
-pub use object::EntryMode;
-pub use object::Lister;
-pub use object::Metadata;
-pub use object::Metakey;
-pub use object::Object;
-pub use object::Reader;
-pub use object::Writer;
-
-mod scheme;
-pub use scheme::Scheme;
-
-mod error;
-pub use error::Error;
-pub use error::ErrorKind;
-pub use error::Result;
+mod types;
+pub use types::*;
 
 // Public modules, they will be accessed like `opendal::layers::Xxxx`
 #[cfg(feature = "docs")]
 pub mod docs;
 pub mod layers;
-pub mod ops;
 pub mod raw;
 pub mod services;
 

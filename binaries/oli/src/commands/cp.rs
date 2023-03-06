@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::utils::parse_location;
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
+use anyhow::Result;
 use clap::Arg;
 use clap::ArgMatches;
 use clap::Command;
+
+use crate::utils::parse_location;
 
 pub async fn main(args: Option<ArgMatches>) -> Result<()> {
     let args = args.unwrap_or_else(|| cli("ocp").get_matches());

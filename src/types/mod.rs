@@ -34,3 +34,22 @@ pub use writer::Writer;
 mod list;
 pub use list::BlockingLister;
 pub use list::Lister;
+
+mod operator;
+pub use operator::BatchOperator;
+pub use operator::Operator;
+pub use operator::OperatorBuilder;
+pub use operator::OperatorMetadata;
+
+mod builder;
+pub use builder::Builder;
+
+mod error;
+pub use error::Error;
+pub use error::ErrorKind;
+pub use error::Result;
+
+mod scheme;
+pub use scheme::Scheme;
+
+pub mod ops;

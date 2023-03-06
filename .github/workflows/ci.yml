@@ -60,10 +60,7 @@ jobs:
       - name: Cargo doc
         run: cargo doc --no-deps --all-features
       - name: Cargo clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: Cargo clippy oli
-        working-directory: ./binaries/oli
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features --workspace -- -D warnings
 
   msrv_check:
     runs-on: ubuntu-latest
@@ -106,7 +103,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo build
+        run: cargo build --workspace
 
   build_all_features:
     runs-on: ${{ matrix.os }}
@@ -132,7 +129,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
       - name: Build
-        run: cargo build --all-features --release
+        run: cargo build --all-features --workspace
 
   unit:
     runs-on: ${{ matrix.os }}
@@ -165,55 +162,3 @@ jobs:
           RUST_LOG: DEBUG
           RUST_BACKTRACE: full
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-
-  build_oli:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build
-        working-directory: ./binaries/oli
-        run: cargo build
-
-  unit_oli:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-      - name: Test
-        working-directory: ./binaries/oli
-        run: cargo nextest run && cargo test --doc
-
-  build_object_store:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build
-        working-directory: ./bindings/object_store
-        run: cargo build
-
-  unit_object_store:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-      - name: Test
-        working-directory: ./bindings/object_store
-        run: cargo nextest run && cargo test --doc

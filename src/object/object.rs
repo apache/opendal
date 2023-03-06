@@ -21,9 +21,9 @@ use bytes::Bytes;
 use flagset::FlagSet;
 use time::Duration;
 
-use super::BlockingObjectLister;
+use super::BlockingLister;
 use super::BlockingReader;
-use super::ObjectLister;
+use super::Lister;
 use crate::ops::*;
 use crate::raw::*;
 use crate::*;
@@ -756,7 +756,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn list(&self) -> Result<ObjectLister> {
+    pub async fn list(&self) -> Result<Lister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -769,7 +769,7 @@ impl Object {
 
         let (_, pager) = self.acc.list(self.path(), OpList::new()).await?;
 
-        Ok(ObjectLister::new(self.acc.clone(), pager))
+        Ok(Lister::new(self.acc.clone(), pager))
     }
 
     /// List current dir object.
@@ -806,7 +806,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_list(&self) -> Result<BlockingObjectLister> {
+    pub fn blocking_list(&self) -> Result<BlockingLister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -818,7 +818,7 @@ impl Object {
         }
 
         let (_, pager) = self.acc.blocking_list(self.path(), OpList::new())?;
-        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
+        Ok(BlockingLister::new(self.acc.clone(), pager))
     }
 
     /// List dir in flat way.
@@ -860,7 +860,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn scan(&self) -> Result<ObjectLister> {
+    pub async fn scan(&self) -> Result<Lister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -873,7 +873,7 @@ impl Object {
 
         let (_, pager) = self.acc.scan(self.path(), OpScan::new()).await?;
 
-        Ok(ObjectLister::new(self.acc.clone(), pager))
+        Ok(Lister::new(self.acc.clone(), pager))
     }
 
     /// List dir in flat way.
@@ -910,7 +910,7 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn blocking_scan(&self) -> Result<BlockingObjectLister> {
+    pub fn blocking_scan(&self) -> Result<BlockingLister> {
         if !validate_path(self.path(), ObjectMode::DIR) {
             return Err(Error::new(
                 ErrorKind::ObjectNotADirectory,
@@ -922,7 +922,7 @@ impl Object {
         }
 
         let (_, pager) = self.acc.blocking_scan(self.path(), OpScan::new())?;
-        Ok(BlockingObjectLister::new(self.acc.clone(), pager))
+        Ok(BlockingLister::new(self.acc.clone(), pager))
     }
 
     /// Get current object's metadata **without cache** directly.
@@ -935,7 +935,7 @@ impl Object {
     /// - Don't want to read from cached object metadata.
     ///
     /// You may want to use `metadata` if you are working with objects
-    /// returned by [`ObjectLister`]. It's highly possible that metadata
+    /// returned by [`Lister`]. It's highly possible that metadata
     /// you want has already been cached.
     ///
     /// # Examples
@@ -973,7 +973,7 @@ impl Object {
     /// - Don't want to read from cached object metadata.
     ///
     /// You may want to use `metadata` if you are working with objects
-    /// returned by [`ObjectLister`]. It's highly possible that metadata
+    /// returned by [`Lister`]. It's highly possible that metadata
     /// you want has already been cached.
     ///
     /// # Examples
@@ -1008,7 +1008,7 @@ impl Object {
     /// # Notes
     ///
     /// Use `metadata` if you are working with objects returned by
-    /// [`ObjectLister`]. It's highly possible that metadata you want
+    /// [`Lister`]. It's highly possible that metadata you want
     /// has already been cached.
     ///
     /// You may want to use `stat`, if you:
@@ -1107,7 +1107,7 @@ impl Object {
     /// # Notes
     ///
     /// Use `metadata` if you are working with objects returned by
-    /// [`ObjectLister`]. It's highly possible that metadata you want
+    /// [`Lister`]. It's highly possible that metadata you want
     /// has already been cached.
     ///
     /// You may want to use `stat`, if you:

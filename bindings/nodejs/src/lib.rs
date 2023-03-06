@@ -176,7 +176,7 @@ impl ObjectMetadata {
 }
 
 #[napi]
-pub struct ObjectLister(opendal::ObjectLister);
+pub struct ObjectLister(opendal::Lister);
 
 #[napi]
 impl ObjectLister {

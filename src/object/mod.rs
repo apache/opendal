@@ -32,5 +32,5 @@ pub use writer::BlockingWriter;
 pub use writer::Writer;
 
 mod list;
-pub use list::BlockingObjectLister;
-pub use list::ObjectLister;
+pub use list::BlockingLister;
+pub use list::Lister;

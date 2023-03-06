@@ -19,9 +19,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use flagset::FlagSet;
-use futures::AsyncReadExt;
 use time::Duration;
-use tokio::io::ReadBuf;
 
 use super::BlockingObjectLister;
 use super::BlockingObjectReader;
@@ -90,6 +88,10 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(
+        since = "0.30.0",
+        note = "Object has been removed. If you are depending on this function, please raise an issue to let me know"
+    )]
     pub fn id(&self) -> String {
         format!("{}{}", self.acc.metadata().root(), self.path)
     }
@@ -113,6 +115,10 @@ impl Object {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(
+        since = "0.30.0",
+        note = "Object has been removed. If you are depending on this function, please raise an issue to let me know"
+    )]
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -264,7 +270,9 @@ impl Object {
     /// # }
     /// ```
     pub async fn read(&self) -> Result<Vec<u8>> {
-        self.range_read(..).await
+        Operator::from_inner(self.acc.clone())
+            .read(self.path())
+            .await
     }
 
     /// Read the whole object into a bytes.
@@ -312,43 +320,14 @@ impl Object {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "0.30.0",
+        note = "Object has been removed. Use Operator::range_read instead"
+    )]
     pub async fn range_read(&self, range: impl RangeBounds<u64>) -> Result<Vec<u8>> {
-        if !validate_path(self.path(), ObjectMode::FILE) {
-            return Err(
-                Error::new(ErrorKind::ObjectIsADirectory, "read path is a directory")
-                    .with_operation("Object:range_read")
-                    .with_context("service", self.accessor().metadata().scheme().into_static())
-                    .with_context("path", self.path()),
-            );
-        }
-
-        let br = BytesRange::from(range);
-
-        let op = OpRead::new().with_range(br);
-
-        let (rp, mut s) = self.acc.read(self.path(), op).await?;
-
-        let length = rp.into_metadata().content_length() as usize;
-        let mut buffer = Vec::with_capacity(length);
-
-        let dst = buffer.spare_capacity_mut();
-        let mut buf = ReadBuf::uninit(dst);
-        unsafe { buf.assume_init(length) };
-
-        // TODO: use native read api
-        s.read_exact(buf.initialized_mut()).await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "read from storage")
-                .with_operation("Object:range_read")
-                .with_context("service", self.accessor().metadata().scheme().into_static())
-                .with_context("path", self.path())
-                .with_context("range", br.to_string())
-                .set_source(err)
-        })?;
-
-        // Safety: this buffer has been filled.
-        unsafe { buffer.set_len(length) }
-
-        Ok(buffer)
+        Operator::from_inner(self.acc.clone())
+            .range_read(self.path(), range)
+            .await
     }
 
     /// Read the specified range of object into a bytes.

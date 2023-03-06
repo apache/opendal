@@ -48,6 +48,29 @@ impl Operator {
         }
     }
 
+    /// Read the whole object into a bytes.
+    ///
+    /// This function will allocate a new bytes internally. For more precise memory control or
+    /// reading data lazily, please use [`Object::reader`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::io::Result;
+    /// # use opendal::Operator;
+    /// # use futures::TryStreamExt;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut o = op.object("path/to/file");
+    /// # o.write(vec![0; 4096]).await?;
+    /// let bs = o.read().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn read(&self, path: &str) -> Result<Vec<u8>> {
+        self.range_read(path, ..).await
+    }
+
     /// Read the specified range of object into a bytes.
     ///
     /// This function will allocate a new bytes internally. For more precise memory control or

@@ -37,10 +37,7 @@ use crate::*;
 ///     builder.root("/tmp");
 ///
 ///     // Build an `Operator` to start operating the storage.
-///     let op: Operator = Operator::create(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _ = op.object("test_file");
+///     let _: Operator = Operator::create(builder)?.finish();
 ///
 ///     Ok(())
 /// }
@@ -56,7 +53,7 @@ impl Operator {
         &self.accessor
     }
 
-    pub(super) fn from_inner(accessor: FusedAccessor) -> Self {
+    pub(crate) fn from_inner(accessor: FusedAccessor) -> Self {
         Self { accessor }
     }
 

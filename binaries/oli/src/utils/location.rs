@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use anyhow::{anyhow, Result};
-use opendal::services;
-use opendal::{Operator, Scheme};
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
+
+use anyhow::anyhow;
+use anyhow::Result;
+use opendal::services;
+use opendal::Operator;
+use opendal::Scheme;
 
 /// Parse `s3://abc/def` into `op` and `location`.
 pub fn parse_location(s: &str) -> Result<(Operator, &str)> {

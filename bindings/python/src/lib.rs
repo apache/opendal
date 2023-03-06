@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use ::opendal as od;
-use pyo3::exceptions::{PyBaseException, PyFileNotFoundError};
+use pyo3::exceptions::PyBaseException;
+use pyo3::exceptions::PyFileNotFoundError;
 use pyo3::prelude::*;
 use pyo3_asyncio::tokio::future_into_py;
 

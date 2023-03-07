@@ -711,18 +711,22 @@ impl S3Builder {
         })?;
 
         let res = client.send(req)?;
+        let (res, body) = res.into_parts();
+
+        // Make sure the body has been consumed so that we can reuse
+        // the connection later.
+        let _ = body.consume();
 
         debug!(
             "auto detect region got response: status {:?}, header: {:?}",
-            res.status(),
-            res.headers()
+            res.status, res.headers
         );
-        match res.status() {
+        match res.status {
             // The endpoint works, return with not changed endpoint and
             // default region.
             StatusCode::OK | StatusCode::FORBIDDEN => {
                 let region = res
-                    .headers()
+                    .headers
                     .get(constants::X_AMZ_BUCKET_REGION)
                     .unwrap_or(&HeaderValue::from_static("us-east-1"))
                     .to_str()
@@ -736,7 +740,7 @@ impl S3Builder {
             // The endpoint should move, return with constructed endpoint
             StatusCode::MOVED_PERMANENTLY => {
                 let region = res
-                    .headers()
+                    .headers
                     .get(constants::X_AMZ_BUCKET_REGION)
                     .ok_or_else(|| Error::new(ErrorKind::Unexpected, "region is empty"))?
                     .to_str()

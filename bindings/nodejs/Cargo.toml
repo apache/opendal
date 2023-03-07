@@ -22,7 +22,6 @@ version = "0.0.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-# Default enable napi4 feature, see https://nodejs.org/api/n-api.html#node-api-version-matrix
 futures = "0.3.26"
 napi = { version = "2.11.2", default-features = false, features = [
   "napi6",

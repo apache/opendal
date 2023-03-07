@@ -23,18 +23,16 @@ test('test memory write & read', async (t) => {
   let content = "hello world"
   let path = 'test'
 
-  let o = op.object(path)
+  await op.write(path, new TextEncoder().encode(content))
 
-  await o.write(new TextEncoder().encode(content))
-
-  let meta = await o.stat()
+  let meta = await op.stat(path)
   t.is(meta.mode, 0)
   t.is(meta.contentLength, BigInt(content.length))
 
-  let res = await o.read()
+  let res = await op.read(path)
   t.is(content, new TextDecoder().decode(res))
 
-  await o.delete()
+  await op.delete(path)
 })
 
 
@@ -44,18 +42,16 @@ test('test memory write & read synchronously', (t) => {
   let content = "hello world"
   let path = 'test'
 
-  let o = op.object(path)
+  op.writeSync(path, new TextEncoder().encode(content))
 
-  o.writeSync(new TextEncoder().encode(content))
-
-  let meta = o.statSync()
+  let meta = op.statSync(path)
   t.is(meta.mode, 0)
   t.is(meta.contentLength, BigInt(content.length))
 
-  let res = o.readSync()
+  let res = op.readSync(path)
   t.is(content, new TextDecoder().decode(res))
 
-  o.deleteSync()
+  op.deleteSync(path)
 })
 
 test('test scan', async (t) => {
@@ -63,28 +59,26 @@ test('test scan', async (t) => {
   let content = "hello world"
   let pathPrefix = 'test'
   let paths = new Array(10).fill(0).map((_, index) => pathPrefix + index)
-  let objects = paths.map(p => op.object(p))
 
-  let writeTasks = objects.map((o) => new Promise(async (resolve, reject) => {
-    await o.write(new TextEncoder().encode(content))
+  let writeTasks = paths.map((path) => new Promise(async (resolve, reject) => {
+    await op.write(path, new TextEncoder().encode(content))
     resolve()
   }))
 
   await Promise.all(writeTasks)
 
-  let dir = op.object("")
-  let objList = await dir.scan()
-  let objectCount = 0
+  let objList = await op.scan("")
+  let entryCount = 0
   while (true) {
-    let o = await objList.next()
-    if (o === null) break
-    objectCount++
-    t.is(new TextDecoder().decode(await o.read()), content)
+    let entry = await objList.next()
+    if (entry === null) break
+    entryCount++
+    t.is(new TextDecoder().decode(await op.read(entry.path())), content)
   }
 
-  t.is(objectCount, paths.length)
+  t.is(entryCount, paths.length)
 
-  objects.forEach(async (o) => {
-    await o.delete()
+  paths.forEach(async (path) => {
+    await op.delete(path)
   })
 })

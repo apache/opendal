@@ -162,6 +162,14 @@ impl Operator {
 pub struct Entry(opendal::Entry);
 
 #[napi]
+impl Entry {
+    #[napi]
+    pub fn path(&self) -> String {
+        self.0.path().to_string()
+    }
+}
+
+#[napi]
 pub enum EntryMode {
     /// FILE means the object has data to read.
     FILE,

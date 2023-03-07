@@ -74,7 +74,6 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use opendal::services::Azdfs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -102,9 +101,6 @@ use crate::*;
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
 ///
 ///     Ok(())
 /// }

@@ -47,7 +47,6 @@ use crate::*;
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Ipmfs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -59,9 +58,6 @@ use crate::*;
 ///     builder.endpoint("http://127.0.0.1:5001");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
 ///
 ///     Ok(())
 /// }

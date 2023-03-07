@@ -68,9 +68,6 @@ impl Operator {
     ///     // Build an `Operator` to start operating the storage.
     ///     let op: Operator = Operator::new(builder)?.finish();
     ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
-    ///
     ///     Ok(())
     /// }
     /// ```
@@ -99,9 +96,6 @@ impl Operator {
     ///
     ///     // Build an `Operator` to start operating the storage.
     ///     let op: Operator = Operator::from_map::<Fs>(map)?.finish();
-    ///
-    ///     // Create an object handle to start operation on object.
-    ///     let _ = op.object("test_file");
     ///
     ///     Ok(())
     /// }

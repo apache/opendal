@@ -78,7 +78,6 @@ use crate::*;
 ///
 /// use anyhow::Result;
 /// use opendal::services::Oss;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -106,9 +105,6 @@ use crate::*;
 ///     builder.access_key_secret("access_key_secret");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
 ///
 ///     Ok(())
 /// }

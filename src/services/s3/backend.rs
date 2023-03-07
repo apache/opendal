@@ -153,7 +153,6 @@ mod constants {
 ///
 /// use anyhow::Result;
 /// use opendal::services::S3;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -185,9 +184,6 @@ mod constants {
 ///     builder.secret_access_key("secret_access_key");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
 ///
 ///     Ok(())
 /// }

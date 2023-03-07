@@ -35,23 +35,6 @@ impl Entry {
 
     /// Path of entry. Path is relative to operator's root.
     /// Only valid in current operator.
-    ///
-    /// The value is the same with `Metadata::path()`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let path = op.path("test");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     pub fn path(&self) -> &str {
         &self.path
     }
@@ -60,23 +43,6 @@ impl Entry {
     ///
     /// If this object is a dir, `Name` MUST endswith `/`
     /// Otherwise, `Name` MUST NOT endswith `/`.
-    ///
-    /// The value is the same with `Metadata::name()`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use anyhow::Result;
-    /// use futures::io;
-    /// use opendal::Operator;
-    ///
-    /// #[tokio::main]
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let name = op.name("test");
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
     pub fn name(&self) -> &str {
         get_basename(&self.path)
     }

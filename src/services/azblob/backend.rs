@@ -82,7 +82,6 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 ///
 /// use anyhow::Result;
 /// use opendal::services::Azblob;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -111,9 +110,6 @@ const X_MS_BLOB_TYPE: &str = "x-ms-blob-type";
 ///
 ///     // `Accessor` provides the low level APIs, we will use `Operator` normally.
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
 ///
 ///     Ok(())
 /// }

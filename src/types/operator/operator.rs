@@ -174,7 +174,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.stat("test").await {
     ///     if e.kind() == ErrorKind::NotFound {
-    ///         println!("object not exist")
+    ///         println!("file not exist")
     ///     }
     /// }
     /// # Ok(())
@@ -220,9 +220,10 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use opendal::Operator;
+    /// use opendal::Entry;
     /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let meta = op.object("test").metadata(None).await?;
+    /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
+    /// let meta = op.metadata(&entry, None).await?;
     /// // content length COULD be correct.
     /// let _ = meta.content_length();
     /// // etag COULD be correct.
@@ -237,15 +238,12 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use opendal::Operator;
     /// use opendal::Metakey;
+    /// use opendal::Entry;
     ///
     /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
+    /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
     /// let meta = op
-    ///     .object("test")
-    ///     .metadata({
-    ///         use Metakey::*;
-    ///         ContentLength | ContentType
-    ///     })
+    ///     .metadata(&entry, Metakey::ContentLength | Metakey::ContentType)
     ///     .await?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
@@ -263,10 +261,11 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use opendal::Operator;
     /// use opendal::Metakey;
+    /// use opendal::Entry;
     ///
     /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let meta = op.object("test").metadata({ Metakey::Complete }).await?;
+    /// # async fn test(op: Operator, entry: Entry) -> Result<()> {
+    /// let meta = op.metadata(&entry,  Metakey::Complete ).await?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.
@@ -335,7 +334,7 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// o.create("path/to/file").await?;
+    /// op.create("path/to/file").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -348,7 +347,7 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    ///  o.create("path/to/dir/").await?;
+    /// op.create("path/to/dir/").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -464,8 +463,7 @@ impl Operator {
     /// # use opendal::Scheme;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let r = o.reader().await?;
+    /// let r = op.reader("path/to/file").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -487,8 +485,7 @@ impl Operator {
     /// # use futures::TryStreamExt;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let r = o.range_reader(1024..2048).await?;
+    /// let r = op.range_reader("path/to/file", 1024..2048).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -526,7 +523,7 @@ impl Operator {
     ///
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// o.write("path/to/file", vec![0; 4096]).await?;
+    /// op.write("path/to/file", vec![0; 4096]).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -656,7 +653,7 @@ impl Operator {
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.batch()
+    /// op
     ///     .remove(vec!["abc".to_string(), "def".to_string()])
     ///     .await?;
     /// # Ok(())
@@ -688,7 +685,7 @@ impl Operator {
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
     /// let stream = stream::iter(vec!["abc".to_string(), "def".to_string()]);
-    /// op.batch().remove_via(stream).await?;
+    /// op.remove_via(stream).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -734,7 +731,7 @@ impl Operator {
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.batch().remove_all("path/to/dir").await?;
+    /// op.remove_all("path/to/dir").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -791,16 +788,14 @@ impl Operator {
     /// # use opendal::Operator;
     /// # use opendal::EntryMode;
     /// # use futures::TryStreamExt;
+    /// use opendal::Metakey;
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
-    /// let mut ds = o.list().await?;
+    /// let mut ds = op.list("path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = de
-    ///         .metadata({
-    ///             use opendal::Metakey::*;
-    ///             Mode
-    ///         })
+    ///     let meta = op
+    ///         .metadata(&de, Metakey::Mode
+    ///         )
     ///         .await?;
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
@@ -847,17 +842,16 @@ impl Operator {
     /// # use opendal::Operator;
     /// # use opendal::EntryMode;
     /// # use futures::TryStreamExt;
+    /// use opendal::Metakey;
     /// #
     /// # #[tokio::main]
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
-    /// let mut ds = o.scan().await?;
+    /// let mut ds = op.scan("/path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
-    ///     let meta = de
-    ///         .metadata({
-    ///             use opendal::Metakey::*;
-    ///             Mode
-    ///         })
+    ///     let meta = op
+    ///         .metadata(&de,
+    ///             Metakey::Mode
+    ///         )
     ///         .await?;
     ///     match meta.mode() {
     ///         EntryMode::FILE => {
@@ -880,7 +874,7 @@ impl Operator {
                 ErrorKind::NotADirectory,
                 "the path trying to list is not a directory",
             )
-            .with_operation("Object::list")
+            .with_operation("scan")
             .with_context("service", self.info().scheme().into_static())
             .with_context("path", &path));
         }
@@ -905,7 +899,7 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.object("test").presign_stat(Duration::hours(1))?;
+    ///     let signed_req = op.presign_stat("test",Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())
@@ -935,7 +929,7 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.object("test.txt").presign_read(Duration::hours(1))?;
+    ///     let signed_req = op.presign_read("test.txt", Duration::hours(1))?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -970,7 +964,7 @@ impl Operator {
     ///
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op.object("test.txt").presign_write(Duration::hours(1))?;
+    ///     let signed_req = op.presign_write("test.txt", Duration::hours(1))?;
     /// #    Ok(())
     /// # }
     /// ```
@@ -1004,7 +998,7 @@ impl Operator {
     /// #[tokio::main]
     /// async fn test(op: Operator) -> Result<()> {
     ///     let args = OpWrite::new().with_content_type("text/csv");
-    ///     let signed_req = op.object("test").presign_write_with(args, Duration::hours(1))?;
+    ///     let signed_req = op.presign_write_with("test", args, Duration::hours(1))?;
     ///     let req = http::Request::builder()
     ///         .method(signed_req.method())
     ///         .uri(signed_req.uri())

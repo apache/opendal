@@ -60,7 +60,6 @@ use crate::*;
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Http;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -71,7 +70,6 @@ use crate::*;
 ///     builder.endpoint("127.0.0.1");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
 ///     Ok(())
 /// }
 /// ```

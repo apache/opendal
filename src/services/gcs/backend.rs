@@ -71,7 +71,6 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Gcs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -88,7 +87,6 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 ///     builder.credential("authentication token");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///     let _: Object = op.object("test_file");
 ///     Ok(())
 /// }
 /// ```

@@ -78,7 +78,6 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///
 /// use anyhow::Result;
 /// use opendal::services::Webhdfs;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -99,9 +98,6 @@ const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 ///     builder.delegation("delegation_token");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // create an object handler to start operation on object.
-///     let _: Object = op.object("test_file");
 ///
 ///     Ok(())
 /// }

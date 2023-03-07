@@ -33,6 +33,7 @@ use crate::*;
 /// ```
 /// # use anyhow::Result;
 /// use opendal::services::Fs;
+/// use opendal::Operator;
 /// use opendal::BlockingOperator;
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -89,10 +90,10 @@ impl BlockingOperator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal::BlockingOperator;
     ///
     /// # #[tokio::main]
-    /// # async fn test(op: Operator) -> Result<()> {
+    /// # async fn test(op: BlockingOperator) -> Result<()> {
     /// let info = op.info();
     /// # Ok(())
     /// # }
@@ -122,11 +123,11 @@ impl BlockingOperator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// use opendal::ErrorKind;
     /// #
-    /// # fn test(op: Operator) -> Result<()> {
-    /// if let Err(e) = op.blocking_stat("test") {
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// if let Err(e) = op.stat("test") {
     ///     if e.kind() == ErrorKind::NotFound {
     ///         println!("object not exist")
     ///     }
@@ -173,9 +174,11 @@ impl BlockingOperator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use opendal::Operator;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let meta = op.object("test").blocking_metadata(None)?;
+    /// # use opendal::BlockingOperator;
+    /// use opendal::Entry;
+    ///
+    /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
+    /// let meta = op.metadata(&entry, None)?;
     /// // content length COULD be correct.
     /// let _ = meta.content_length();
     /// // etag COULD be correct.
@@ -188,13 +191,13 @@ impl BlockingOperator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// use opendal::Metakey;
+    /// use opendal::Entry;
     ///
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let meta = op.object("test").blocking_metadata({
-    ///     use Metakey::*;
-    ///     ContentLength | ContentType
+    /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
+    /// let meta = op.metadata(&entry, {
+    ///     Metakey::ContentLength | Metakey::ContentType
     /// })?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
@@ -210,11 +213,12 @@ impl BlockingOperator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// use opendal::Metakey;
+    /// use opendal::Entry;
     ///
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let meta = op.object("test").blocking_metadata({ Metakey::Complete })?;
+    /// # fn test(op: BlockingOperator, entry: Entry) -> Result<()> {
+    /// let meta = op.metadata(&entry, { Metakey::Complete })?;
     /// // content length MUST be correct.
     /// let _ = meta.content_length();
     /// // etag MUST be correct.
@@ -238,9 +242,9 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use opendal::Operator;
-    /// fn test(op: Operator) -> Result<()> {
-    ///     let _ = op.blocking_is_exist("test")?;
+    /// use opendal::BlockingOperator;
+    /// fn test(op: BlockingOperator) -> Result<()> {
+    ///     let _ = op.is_exist("test")?;
     ///
     ///     Ok(())
     /// }
@@ -272,11 +276,10 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let _ = o.blocking_create()?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.create("path/to/file")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -285,11 +288,10 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/dir/");
-    /// let _ = o.blocking_create()?;
+    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// op.create("path/to/dir/")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -316,12 +318,10 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// #
-    /// # fn test(op: Operator) -> Result<()> {
-    /// # let mut o = op.object("path/to/file");
-    /// # o.blocking_write(vec![0; 4096])?;
-    /// let bs = o.blocking_read()?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let bs = op.read("path/to/file")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -338,13 +338,11 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
     /// # use opendal::Scheme;
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// # let mut o = op.object("path/to/file");
-    /// # o.blocking_write(vec![0; 4096])?;
-    /// let bs = o.blocking_range_read(1024..2048)?;
+    /// # async fn test(op: BlockingOperator) -> Result<()> {
+    /// let bs = op.range_read("path/to/file", 1024..2048)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -384,11 +382,10 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let r = o.blocking_reader()?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let r = op.reader("path/to/file")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -402,11 +399,10 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use futures::TryStreamExt;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/file");
-    /// let r = o.blocking_range_reader(1024..2048)?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let r = op.range_reader("path/to/file", 1024..2048)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -437,14 +433,13 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("path/to/file");
-    /// let _ = o.blocking_write(vec![0; 4096])?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.write("path/to/file",vec![0; 4096])?;
     /// # Ok(())
     /// # }
     /// ```
@@ -462,15 +457,14 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// use bytes::Bytes;
     /// use opendal::ops::OpWrite;
     ///
-    /// # async fn test(op: Operator) -> Result<()> {
-    /// let mut o = op.object("hello.txt");
+    /// # async fn test(op: BlockingOperator) -> Result<()> {
     /// let bs = b"hello, world!".to_vec();
     /// let ow = OpWrite::new().with_content_type("text/plain");
-    /// let _ = o.blocking_write_with(ow, bs)?;
+    /// let _ = op.write_with("hello.txt",ow, bs)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -503,13 +497,13 @@ impl BlockingOperator {
     ///
     /// ```no_run
     /// # use std::io::Result;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
     ///
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let mut w = op.blocking_writer("path/to/file")?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut w = op.writer("path/to/file")?;
     /// w.append(vec![0; 4096])?;
     /// w.append(vec![1; 4096])?;
     /// w.close()?;
@@ -543,9 +537,9 @@ impl BlockingOperator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// op.blocking_delete("test")?;
+    /// # use opendal::BlockingOperator;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// op.delete("path/to/file")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -568,13 +562,12 @@ impl BlockingOperator {
     /// ```no_run
     /// # use opendal::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use opendal::EntryMode;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
-    /// let mut ds = o.blocking_list()?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut ds = op.list("path/to/dir/")?;
     /// while let Some(mut de) = ds.next() {
-    ///     let meta = de?.blocking_metadata({
+    ///     let meta = op.metadata(&de?, {
     ///         use opendal::Metakey::*;
     ///         Mode
     ///     })?;
@@ -583,7 +576,7 @@ impl BlockingOperator {
     ///             println!("Handling file")
     ///         }
     ///         EntryMode::DIR => {
-    ///             println!("Handling dir like start a new list via meta.path()")
+    ///             println!("Handling dir like start a new list via de.path()")
     ///         }
     ///         EntryMode::Unknown => continue,
     ///     }
@@ -619,13 +612,12 @@ impl BlockingOperator {
     /// ```no_run
     /// # use opendal::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
+    /// # use opendal::BlockingOperator;
     /// # use opendal::EntryMode;
-    /// # fn test(op: Operator) -> Result<()> {
-    /// let o = op.object("path/to/dir/");
-    /// let mut ds = o.blocking_list()?;
+    /// # fn test(op: BlockingOperator) -> Result<()> {
+    /// let mut ds = op.list("path/to/dir/")?;
     /// while let Some(mut de) = ds.next() {
-    ///     let meta = de?.blocking_metadata({
+    ///     let meta = op.metadata(&de?, {
     ///         use opendal::Metakey::*;
     ///         Mode
     ///     })?;

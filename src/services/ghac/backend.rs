@@ -124,7 +124,6 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 ///
 /// use anyhow::Result;
 /// use opendal::services::Ghac;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -137,9 +136,6 @@ const GITHUB_API_VERSION: &str = "2022-11-28";
 ///     builder.root("/path/to/dir");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     // Create an object handle to start operation on object.
-///     let _: Object = op.object("test_file");
 ///
 ///     Ok(())
 /// }

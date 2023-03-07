@@ -64,7 +64,6 @@ use crate::*;
 /// ```no_run
 /// use anyhow::Result;
 /// use opendal::services::Webdav;
-/// use opendal::Object;
 /// use opendal::Operator;
 ///
 /// #[tokio::main]
@@ -78,7 +77,6 @@ use crate::*;
 ///         .password("xxx");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///     let _obj: Object = op.object("test_file");
 ///     Ok(())
 /// }
 /// ```

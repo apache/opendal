@@ -39,22 +39,19 @@
 //!         .layer(LoggingLayer::default())
 //!         .finish();
 //!
-//!     // Create object handler.
-//!     let mut o = op.object("test_file");
-//!
 //!     // Write data
-//!     o.write("Hello, World!").await?;
+//!     op.write("path/to/file","Hello, World!").await?;
 //!
 //!     // Read data
-//!     let bs = o.read().await?;
+//!     let bs = op.read("path/to/file").await?;
 //!
 //!     // Fetch metadata
-//!     let meta = o.stat().await?;
+//!     let meta = op.stat("path/to/file").await?;
 //!     let mode = meta.mode();
 //!     let length = meta.content_length();
 //!
 //!     // Delete
-//!     o.delete().await?;
+//!     op.delete("path/to/file").await?;
 //!
 //!     Ok(())
 //! }
